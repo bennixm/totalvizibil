@@ -1,9 +1,10 @@
 <template>
-  <section>
-    <h1>{{ t('home') }}</h1>
-    <p>Bine ai venit în aplicația mea Vue + TypeScript!</p>
-  </section>
+  <v-app-bar color="primary" dark>
+    <v-toolbar-title>{{ t('home') }}</v-toolbar-title>
+    <v-spacer></v-spacer>
+  </v-app-bar>
 </template>
+
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
