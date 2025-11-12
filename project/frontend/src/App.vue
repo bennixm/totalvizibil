@@ -4,7 +4,7 @@ import Footer from './components/Footer.vue'
 </script>
 
 <template>
-  <div id="app">
+  <div>
     <Navbar />
     <main>
       <router-view />
@@ -14,11 +14,4 @@ import Footer from './components/Footer.vue'
 </template>
 
 <style scoped>
-#app {
-  font-family: 'Inter', sans-serif;
-  color: #333;
-}
-main {
-  padding: 1rem;
-}
 </style>

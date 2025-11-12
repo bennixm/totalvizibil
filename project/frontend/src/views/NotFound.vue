@@ -6,5 +6,5 @@
 </template>
 
 <script setup lang="ts">
-// logică specifică paginii
+
 </script>

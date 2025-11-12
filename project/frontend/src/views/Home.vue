@@ -1,10 +1,12 @@
 <template>
   <section>
-    <h1>Acasă</h1>
+    <h1>{{ t('home') }}</h1>
     <p>Bine ai venit în aplicația mea Vue + TypeScript!</p>
   </section>
 </template>
 
 <script setup lang="ts">
-// logică specifică paginii
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 </script>
