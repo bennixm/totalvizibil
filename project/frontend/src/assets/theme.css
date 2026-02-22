@@ -1,0 +1,76 @@
+body {
+    background-color: var(--p-surface-0);
+    color: var(--p-text-color);
+    font-family: var(--p-font-family, Inter, system-ui, sans-serif);
+    margin: 0;
+    padding: 0;
+}
+
+a {
+    color: var(--p-primary-500);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+a:hover {
+    color: var(--p-primary-600);
+}
+
+button, .p-button {
+    background-color: var(--p-primary-500);
+    color: var(--p-surface-0);
+    border: 1px solid var(--p-primary-600);
+    border-radius: var(--p-border-radius, 8px);
+    padding: 0.5rem 1rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+button:hover, .p-button:hover {
+    background-color: var(--p-primary-600);
+    border-color: var(--p-primary-700);
+}
+
+
+input, textarea, select {
+    background-color: var(--p-surface-50);
+    color: var(--p-text-color);
+    border: 1px solid var(--p-border-color);
+    border-radius: var(--p-border-radius, 8px);
+    padding: 0.5rem;
+    font-family: inherit;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+input:focus, textarea:focus, select:focus {
+    border-color: var(--p-primary-500);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--p-primary-200);
+}
+
+
+.p-card, .p-panel {
+    background-color: var(--p-surface-0);
+    color: var(--p-text-color);
+    border: 1px solid var(--p-border-color);
+    border-radius: var(--p-border-radius, 8px);
+    padding: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+
+.p-message-success {
+    background-color: var(--p-success-50);
+    color: var(--p-success-500);
+}
+
+.p-message-warning {
+    background-color: var(--p-warning-50);
+    color: var(--p-warning-500);
+}
+
+.p-message-error {
+    background-color: var(--p-danger-50);
+    color: var(--p-danger-500);
+}
