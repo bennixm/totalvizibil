@@ -1,9 +1,11 @@
 <template>
   <section>
-    <h1>ABOUT</h1>
-    <p>Bine ai venit în aplicația mea Vue + TypeScript!</p>
+    <h1>{{ $t('about') }}</h1>
+    <p></p>
   </section>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 </script>

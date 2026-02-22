@@ -31,6 +31,7 @@ function changeLang(newLang: SupportedLang) {
   segments[1] = newLang
   router.push(segments.join('/'))
 }
+
 </script>
 
 <style scoped>
