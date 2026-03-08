@@ -1,13 +1,15 @@
 <template>
   <nav class="navbar">
-    <router-link :to="routeWithLang('/')">{{ t('home') }}</router-link>
-    <router-link :to="routeWithLang('/about')">{{ t('about') }}</router-link>
-    <router-link :to="routeWithLang('/contact')">{{ t('contact') }}</router-link>
+    <div class="container">
+     <router-link :to="routeWithLang('/')">{{ t('home') }}</router-link>
+      <router-link :to="routeWithLang('/about')">{{ t('about') }}</router-link>
+      <router-link :to="routeWithLang('/contact')">{{ t('contact') }}</router-link>
 
-    <div class="ml-auto space-x-2">
-      <button @click="changeLang('en')">EN</button>
-      <button @click="changeLang('de')">DE</button>
-      <button @click="changeLang('ro')">RO</button>
+      <div class="ml-auto space-x-2">
+       <button @click="changeLang('en')">EN</button>
+       <button @click="changeLang('de')">DE</button>
+        <button @click="changeLang('ro')">RO</button>
+      </div>
     </div>
   </nav>
 </template>
@@ -37,14 +39,5 @@ function changeLang(newLang: SupportedLang) {
 <style scoped>
 .navbar {
   display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  background: #eee;
-}
-.router-link-active {
-  font-weight: bold;
-}
-.ml-auto {
-  margin-left: auto;
 }
 </style>

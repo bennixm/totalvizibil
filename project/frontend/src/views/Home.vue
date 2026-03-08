@@ -1,15 +1,16 @@
 <template>
-  <v-app-bar color="primary" dark>
-    <v-toolbar-title>{{ t('home') }}</v-toolbar-title>
-    <v-spacer>{{ t('welcome') }}</v-spacer>
+  <div class="card flex justify-center">
     <AutoComplete v-model="value" :suggestions="items" @complete="search" />
-  </v-app-bar>
+  </div>
 </template>
 
+<script setup>
+import { ref } from "vue";
 
-<script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-const { t } = useI18n()
+const value = ref(null);
+const items = ref([]);
 
-import AutoComplete from 'primevue/autocomplete';
+const search = (event) => {
+  items.value = [...Array(10).keys()].map((item) => event.query + '-' + item);
+}
 </script>

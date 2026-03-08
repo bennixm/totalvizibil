@@ -1,12 +1,18 @@
 import { createApp } from 'vue'
-import PrimeVue from 'primevue/config'
-import TVZ from './themes/TVZ'
 import App from './App.vue'
 import router from './router'
 import { i18n } from './i18n'
 import { vuetify } from './plugins/vuetify'
+
+import PrimeVue from 'primevue/config'
+import TVZ from './themes/TVZ'
 import './assets/styles.css'
 import './assets/theme.css'
+import './assets/tailwind.css'
+
+import 'primeicons/primeicons.css'
+import 'primeflex/primeflex.css'
+
 
 const app = createApp(App)
 app.use(router)
