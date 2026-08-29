@@ -1,19 +1,35 @@
 {
   "compilerOptions": {
-    "target": "ES2016",
+    "target": "ESNext",
+    "useDefineForClassFields": true,
     "module": "ESNext",
-    "moduleResolution": "Node",
-    "lib": ["ES2016", "DOM"],
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "Bundler",
     "strict": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
-    }
+      "@/*": ["src/*"]
+    },
+    "types": ["vite/client", "vitest/globals", "node"]
   },
-  "include": ["src/**/*", "src/shims-vue.d.ts"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "src/**/*.vue",
+    "tests/**/*.ts",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "eslint.config.js"
+  ],
   "exclude": ["node_modules", "dist"]
 }

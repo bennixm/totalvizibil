@@ -1,6 +1,104 @@
 {
-  "home": "Home",
-  "about": "About",
-  "contact": "Contact",
-  "welcome": "Welcome to our website"
+  "app": {
+    "name": "Totalvizibil",
+    "tagline": "Online visibility for local businesses"
+  },
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "back": "Back",
+    "search": "Search",
+    "learnMore": "Learn more"
+  },
+  "nav": {
+    "home": "Home",
+    "search": "Find businesses",
+    "forBusiness": "For business",
+    "dashboard": "Dashboard",
+    "admin": "Admin",
+    "login": "Log in",
+    "register": "Sign up"
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "toggle": "Toggle theme"
+  },
+  "language": {
+    "label": "Language",
+    "ro": "Romanian",
+    "en": "English",
+    "de": "German"
+  },
+  "home": {
+    "eyebrow": "AI-assisted platform",
+    "heroTitle": "Your local business, fully visible online",
+    "heroSubtitle": "Website, promotion and customers — without having to learn technology. An AI assistant guides you from start to activation.",
+    "ctaBusiness": "Get started as a business",
+    "ctaCustomer": "Find a service",
+    "featuresTitle": "The tech does the work, you do your job",
+    "features": {
+      "onboardingTitle": "Conversational onboarding",
+      "onboardingText": "Talk naturally to an AI assistant that sets everything up for you.",
+      "websiteTitle": "Auto-generated website",
+      "websiteText": "Industry templates with AI-generated content and SEO.",
+      "trafficTitle": "Traffic and customers",
+      "trafficText": "Campaigns and promotion that bring real calls and leads."
+    }
+  },
+  "search": {
+    "title": "Find a local business",
+    "placeholder": "e.g. roof repair Cluj",
+    "aiHint": "Or describe the problem in your own words",
+    "noResults": "No results. Try different terms."
+  },
+  "onboarding": {
+    "title": "Let's set up your business",
+    "intro": "The AI assistant will ask you a few questions about your services and locations.",
+    "start": "Start the conversation"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "overview": "Overview",
+    "website": "Website",
+    "marketing": "Marketing",
+    "credit": "Credit",
+    "assistant": "AI assistant",
+    "cards": {
+      "credit": "Available credit",
+      "traffic": "Traffic",
+      "clicks": "Clicks",
+      "calls": "Calls",
+      "leads": "Leads"
+    }
+  },
+  "admin": {
+    "title": "Platform administration",
+    "financial": "Financial",
+    "traffic": "Traffic",
+    "businesses": "Businesses",
+    "ai": "AI costs"
+  },
+  "auth": {
+    "loginTitle": "Log in",
+    "registerTitle": "Create account",
+    "email": "Email",
+    "password": "Password",
+    "submitLogin": "Sign in",
+    "submitRegister": "Create account"
+  },
+  "errors": {
+    "notFoundTitle": "Page not found",
+    "notFoundText": "The address you requested doesn't exist or has moved.",
+    "goHome": "Go to the home page"
+  },
+  "footer": {
+    "rights": "All rights reserved.",
+    "docs": "Documentation",
+    "contact": "Contact"
+  }
 }

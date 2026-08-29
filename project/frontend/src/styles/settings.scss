@@ -1,0 +1,9 @@
+// Vuetify SASS variable overrides.
+// Loaded by vite-plugin-vuetify (see vite.config.ts) before Vuetify's own styles.
+// Only variables declared `!default` in `vuetify/settings` can be configured here;
+// everything else (heading font, weights, elevations) is handled in main.scss.
+
+@use 'vuetify/settings' with (
+  $body-font-family: ('Inter Variable', 'Inter', -apple-system, 'Segoe UI', roboto, sans-serif),
+  $border-radius-root: 10px
+);

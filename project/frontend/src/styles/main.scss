@@ -1,0 +1,163 @@
+// ============================================================================
+//  Global application styles.
+//  Vuetify base styles are injected separately by the plugin; this layer adds
+//  the Totalvizibil design system on top (see tokens.scss).
+// ============================================================================
+
+// Design tokens. Variable web fonts are imported from main.ts (self-hosted).
+@use './tokens';
+
+// --- Base -------------------------------------------------------------------
+:root {
+  color-scheme: light dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  font-synthesis: none;
+}
+
+// --- Ambient background ----------------------------------------------------
+// A fixed, non-interactive gradient field that sits behind the whole app.
+.v-application {
+  position: relative;
+  isolation: isolate;
+}
+
+.v-application::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--tvz-ambient), rgb(var(--v-theme-background));
+  background-attachment: fixed;
+}
+
+// Faint technical grid on top of the ambient wash.
+.v-application::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.7;
+  background-image:
+    linear-gradient(var(--tvz-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--tvz-grid-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(circle at 50% 0%, #000 0%, transparent 72%);
+  mask-image: radial-gradient(circle at 50% 0%, #000 0%, transparent 72%);
+}
+
+// --- Typography ----------------------------------------------------------
+.text-h1,
+.text-h2,
+.text-h3,
+.text-h4,
+.text-h5,
+h1,
+h2,
+h3 {
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', 'Inter Variable', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif !important;
+  letter-spacing: -0.02em;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+// Gradient / glow text ----------------------------------------------------
+.text-gradient {
+  background: var(--tvz-gradient-text);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.text-glow {
+  text-shadow: 0 0 24px rgba(var(--v-theme-primary), 0.45);
+}
+
+// --- Surfaces ----------------------------------------------------------
+.tvz-glass {
+  background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur)) saturate(1.4);
+  border: 1px solid var(--tvz-glass-border);
+}
+
+.tvz-glass--strong {
+  background: var(--tvz-glass-bg-strong);
+}
+
+// Elevated content card with a subtle top sheen + interactive glow.
+.tvz-card {
+  position: relative;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: var(--tvz-radius-lg);
+  background: rgb(var(--v-theme-surface));
+  box-shadow: var(--tvz-shadow-sm);
+  transition:
+    transform var(--tvz-dur-med) var(--tvz-ease-out),
+    box-shadow var(--tvz-dur-med) var(--tvz-ease-out),
+    border-color var(--tvz-dur-med) var(--tvz-ease-out);
+}
+
+.tvz-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--tvz-gradient-sheen);
+  opacity: 0.6;
+  pointer-events: none;
+  mask: linear-gradient(#000, transparent 45%);
+  -webkit-mask: linear-gradient(#000, transparent 45%);
+}
+
+.tvz-card--interactive:hover {
+  transform: translateY(-4px);
+  border-color: rgba(var(--v-theme-primary), 0.4);
+  box-shadow: var(--tvz-shadow-lg);
+}
+
+// --- Effects ---------------------------------------------------------
+.tvz-glow {
+  box-shadow: var(--tvz-glow-primary);
+}
+
+.tvz-hairline-b {
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+
+// --- Layout helpers ------------------------------------------------------
+.page-container {
+  width: 100%;
+  max-width: var(--tvz-content-width);
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4vw, 2rem);
+}
+
+.section {
+  padding-block: var(--tvz-gap-section);
+}
+
+// --- A11y --------------------------------------------------------------
+:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+  border-radius: 4px;
+}

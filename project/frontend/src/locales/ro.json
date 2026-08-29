@@ -1,6 +1,104 @@
 {
-  "home": "Acasă",
-  "about": "Despre noi",
-  "contact": "Contact",
-  "welcome": "Bine ai venit pe site-ul nostru"
+  "app": {
+    "name": "Totalvizibil",
+    "tagline": "Vizibilitate online pentru afaceri locale"
+  },
+  "common": {
+    "loading": "Se încarcă…",
+    "save": "Salvează",
+    "cancel": "Anulează",
+    "continue": "Continuă",
+    "back": "Înapoi",
+    "search": "Caută",
+    "learnMore": "Află mai multe"
+  },
+  "nav": {
+    "home": "Acasă",
+    "search": "Caută afaceri",
+    "forBusiness": "Pentru afaceri",
+    "dashboard": "Panou de control",
+    "admin": "Administrare",
+    "login": "Autentificare",
+    "register": "Creează cont"
+  },
+  "theme": {
+    "label": "Temă",
+    "light": "Luminos",
+    "dark": "Întunecat",
+    "system": "După sistem",
+    "toggle": "Comută tema"
+  },
+  "language": {
+    "label": "Limbă",
+    "ro": "Română",
+    "en": "Engleză",
+    "de": "Germană"
+  },
+  "home": {
+    "eyebrow": "Platformă cu asistent AI",
+    "heroTitle": "Afacerea ta locală, complet vizibilă online",
+    "heroSubtitle": "Site, promovare și clienți — fără să fii nevoit să înveți tehnologie. Un asistent AI te ghidează de la început până la activare.",
+    "ctaBusiness": "Începe ca afacere",
+    "ctaCustomer": "Caută un serviciu",
+    "featuresTitle": "Tehnologia lucrează, tu îți vezi de meserie",
+    "features": {
+      "onboardingTitle": "Onboarding conversațional",
+      "onboardingText": "Vorbești natural cu un asistent AI care configurează totul pentru tine.",
+      "websiteTitle": "Site generat automat",
+      "websiteText": "Șabloane pe domeniu de activitate, conținut și SEO generate de AI.",
+      "trafficTitle": "Trafic și clienți",
+      "trafficText": "Campanii și promovare care aduc apeluri și cereri reale."
+    }
+  },
+  "search": {
+    "title": "Caută o afacere locală",
+    "placeholder": "ex: reparații acoperiș Cluj",
+    "aiHint": "Sau descrie problema în cuvintele tale",
+    "noResults": "Niciun rezultat. Încearcă alți termeni."
+  },
+  "onboarding": {
+    "title": "Hai să îți configurăm afacerea",
+    "intro": "Asistentul AI îți va pune câteva întrebări despre serviciile și locațiile tale.",
+    "start": "Începe conversația"
+  },
+  "dashboard": {
+    "title": "Panou de control",
+    "overview": "Prezentare generală",
+    "website": "Site",
+    "marketing": "Marketing",
+    "credit": "Credit",
+    "assistant": "Asistent AI",
+    "cards": {
+      "credit": "Credit disponibil",
+      "traffic": "Trafic",
+      "clicks": "Click-uri",
+      "calls": "Apeluri",
+      "leads": "Cereri"
+    }
+  },
+  "admin": {
+    "title": "Administrare platformă",
+    "financial": "Financiar",
+    "traffic": "Trafic",
+    "businesses": "Afaceri",
+    "ai": "Costuri AI"
+  },
+  "auth": {
+    "loginTitle": "Autentificare",
+    "registerTitle": "Creează cont",
+    "email": "Email",
+    "password": "Parolă",
+    "submitLogin": "Intră în cont",
+    "submitRegister": "Creează cont"
+  },
+  "errors": {
+    "notFoundTitle": "Pagina nu a fost găsită",
+    "notFoundText": "Adresa accesată nu există sau a fost mutată.",
+    "goHome": "Mergi la pagina principală"
+  },
+  "footer": {
+    "rights": "Toate drepturile rezervate.",
+    "docs": "Documentație",
+    "contact": "Contact"
+  }
 }

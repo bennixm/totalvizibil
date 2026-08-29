@@ -1,6 +1,104 @@
 {
-  "home": "Startseite",
-  "about": "Über uns",
-  "contact": "Kontakt",
-  "welcome": "Willkommen auf unserer Website"
+  "app": {
+    "name": "Totalvizibil",
+    "tagline": "Online-Sichtbarkeit für lokale Unternehmen"
+  },
+  "common": {
+    "loading": "Wird geladen…",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "continue": "Weiter",
+    "back": "Zurück",
+    "search": "Suchen",
+    "learnMore": "Mehr erfahren"
+  },
+  "nav": {
+    "home": "Startseite",
+    "search": "Unternehmen finden",
+    "forBusiness": "Für Unternehmen",
+    "dashboard": "Dashboard",
+    "admin": "Verwaltung",
+    "login": "Anmelden",
+    "register": "Registrieren"
+  },
+  "theme": {
+    "label": "Design",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System",
+    "toggle": "Design umschalten"
+  },
+  "language": {
+    "label": "Sprache",
+    "ro": "Rumänisch",
+    "en": "Englisch",
+    "de": "Deutsch"
+  },
+  "home": {
+    "eyebrow": "KI-gestützte Plattform",
+    "heroTitle": "Ihr lokales Unternehmen, online voll sichtbar",
+    "heroSubtitle": "Website, Werbung und Kunden — ohne Technik lernen zu müssen. Ein KI-Assistent begleitet Sie vom Start bis zur Aktivierung.",
+    "ctaBusiness": "Als Unternehmen starten",
+    "ctaCustomer": "Dienstleistung finden",
+    "featuresTitle": "Die Technik arbeitet, Sie machen Ihren Job",
+    "features": {
+      "onboardingTitle": "Dialogbasiertes Onboarding",
+      "onboardingText": "Sprechen Sie natürlich mit einem KI-Assistenten, der alles für Sie einrichtet.",
+      "websiteTitle": "Automatisch erstellte Website",
+      "websiteText": "Branchenvorlagen mit KI-generierten Inhalten und SEO.",
+      "trafficTitle": "Besucher und Kunden",
+      "trafficText": "Kampagnen und Werbung, die echte Anrufe und Anfragen bringen."
+    }
+  },
+  "search": {
+    "title": "Lokales Unternehmen finden",
+    "placeholder": "z. B. Dachreparatur Cluj",
+    "aiHint": "Oder beschreiben Sie das Problem in eigenen Worten",
+    "noResults": "Keine Ergebnisse. Versuchen Sie andere Begriffe."
+  },
+  "onboarding": {
+    "title": "Richten wir Ihr Unternehmen ein",
+    "intro": "Der KI-Assistent stellt Ihnen einige Fragen zu Ihren Leistungen und Standorten.",
+    "start": "Gespräch beginnen"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "overview": "Übersicht",
+    "website": "Website",
+    "marketing": "Marketing",
+    "credit": "Guthaben",
+    "assistant": "KI-Assistent",
+    "cards": {
+      "credit": "Verfügbares Guthaben",
+      "traffic": "Besucher",
+      "clicks": "Klicks",
+      "calls": "Anrufe",
+      "leads": "Anfragen"
+    }
+  },
+  "admin": {
+    "title": "Plattformverwaltung",
+    "financial": "Finanzen",
+    "traffic": "Besucher",
+    "businesses": "Unternehmen",
+    "ai": "KI-Kosten"
+  },
+  "auth": {
+    "loginTitle": "Anmelden",
+    "registerTitle": "Konto erstellen",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "submitLogin": "Anmelden",
+    "submitRegister": "Konto erstellen"
+  },
+  "errors": {
+    "notFoundTitle": "Seite nicht gefunden",
+    "notFoundText": "Die angeforderte Adresse existiert nicht oder wurde verschoben.",
+    "goHome": "Zur Startseite"
+  },
+  "footer": {
+    "rights": "Alle Rechte vorbehalten.",
+    "docs": "Dokumentation",
+    "contact": "Kontakt"
+  }
 }

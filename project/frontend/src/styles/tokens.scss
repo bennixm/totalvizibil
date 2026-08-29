@@ -1,0 +1,118 @@
+// ============================================================================
+//  Totalvizibil — Design tokens
+//  Single source of truth for the "modern / futuristic" visual language.
+//  Colour values mirror the Vuetify themes in src/plugins/vuetify.ts.
+// ============================================================================
+
+:root {
+  // Radii ---------------------------------------------------------------------
+  --tvz-radius-xs: 6px;
+  --tvz-radius-sm: 10px;
+  --tvz-radius-md: 16px;
+  --tvz-radius-lg: 22px;
+  --tvz-radius-xl: 30px;
+  --tvz-radius-pill: 999px;
+
+  // Spacing rhythm (use alongside Vuetify's spacing utilities) ---------------
+  --tvz-gap-section: clamp(4rem, 9vw, 8rem);
+  --tvz-content-width: 1200px;
+  --tvz-content-width-wide: 1440px;
+
+  // Motion ------------------------------------------------------------------
+  --tvz-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --tvz-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --tvz-dur-fast: 140ms;
+  --tvz-dur-med: 260ms;
+  --tvz-dur-slow: 520ms;
+
+  // Brand hues (shared across themes; surfaces/shadows differ per theme) -----
+  --tvz-hue-primary: 224;
+  --tvz-hue-secondary: 268;
+  --tvz-hue-accent: 190;
+}
+
+// ---------------------------------------------------------------------------
+//  Light theme
+// ---------------------------------------------------------------------------
+.v-theme--light {
+  --tvz-brand-1: #3b6ef5;
+  --tvz-brand-2: #7c3aed;
+  --tvz-brand-3: #0891b2;
+
+  --tvz-gradient-brand: linear-gradient(120deg, #3b6ef5 0%, #7c3aed 60%, #0891b2 120%);
+  --tvz-gradient-text: linear-gradient(100deg, #1f4fd8 0%, #7c3aed 55%, #0e7490 110%);
+  --tvz-gradient-sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.4) 100%
+  );
+
+  // Frosted glass surface
+  --tvz-glass-bg: rgba(255, 255, 255, 0.72);
+  --tvz-glass-bg-strong: rgba(255, 255, 255, 0.86);
+  --tvz-glass-border: rgba(15, 23, 42, 0.08);
+  --tvz-glass-blur: 16px;
+
+  // Shadows / glow
+  --tvz-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.05);
+  --tvz-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.09), 0 2px 6px rgba(15, 23, 42, 0.06);
+  --tvz-shadow-lg: 0 24px 60px rgba(30, 41, 92, 0.16), 0 8px 20px rgba(15, 23, 42, 0.08);
+  --tvz-glow-primary: 0 0 0 1px rgba(59, 110, 245, 0.28), 0 12px 40px rgba(59, 110, 245, 0.28);
+  --tvz-glow-accent: 0 0 40px rgba(8, 145, 178, 0.28);
+
+  --tvz-hairline: rgba(15, 23, 42, 0.1);
+
+  // Ambient page background (behind everything)
+  --tvz-ambient:
+    radial-gradient(60rem 40rem at 12% -8%, rgba(59, 110, 245, 0.14), transparent 60%),
+    radial-gradient(48rem 40rem at 105% 8%, rgba(124, 58, 237, 0.12), transparent 55%),
+    radial-gradient(50rem 44rem at 50% 118%, rgba(8, 145, 178, 0.1), transparent 60%);
+  --tvz-grid-line: rgba(15, 23, 42, 0.045);
+}
+
+// ---------------------------------------------------------------------------
+//  Dark theme
+// ---------------------------------------------------------------------------
+.v-theme--dark {
+  --tvz-brand-1: #5b8dff;
+  --tvz-brand-2: #a78bfa;
+  --tvz-brand-3: #22d3ee;
+
+  --tvz-gradient-brand: linear-gradient(120deg, #5b8dff 0%, #a78bfa 55%, #22d3ee 120%);
+  --tvz-gradient-text: linear-gradient(100deg, #8fb4ff 0%, #c4b5fd 50%, #67e8f9 110%);
+  --tvz-gradient-sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+
+  --tvz-glass-bg: rgba(17, 22, 38, 0.6);
+  --tvz-glass-bg-strong: rgba(17, 22, 38, 0.82);
+  --tvz-glass-border: rgba(255, 255, 255, 0.09);
+  --tvz-glass-blur: 18px;
+
+  --tvz-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.35);
+  --tvz-shadow-md: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --tvz-shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.55), 0 10px 24px rgba(0, 0, 0, 0.45);
+  --tvz-glow-primary: 0 0 0 1px rgba(91, 141, 255, 0.35), 0 16px 50px rgba(91, 141, 255, 0.35);
+  --tvz-glow-accent: 0 0 46px rgba(34, 211, 238, 0.32);
+
+  --tvz-hairline: rgba(255, 255, 255, 0.1);
+
+  --tvz-ambient:
+    radial-gradient(64rem 46rem at 10% -10%, rgba(91, 141, 255, 0.22), transparent 60%),
+    radial-gradient(52rem 44rem at 108% 6%, rgba(167, 139, 250, 0.18), transparent 55%),
+    radial-gradient(56rem 48rem at 50% 120%, rgba(34, 211, 238, 0.14), transparent 60%);
+  --tvz-grid-line: rgba(255, 255, 255, 0.04);
+}
+
+// Respect reduced-motion for every decorative animation in the app.
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
