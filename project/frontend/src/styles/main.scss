@@ -13,19 +13,19 @@
 }
 
 html {
-  scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 body {
   min-height: 100vh;
   margin: 0;
   font-synthesis: none;
+  background: rgb(var(--v-theme-background));
 }
 
 // --- Ambient background ----------------------------------------------------
-// A fixed, non-interactive gradient field that sits behind the whole app.
+// One static, fixed gradient wash. Deliberately cheap: no mask, no repeating
+// grid, no backdrop-filter anywhere in the shell — those tank scroll/nav perf.
 .v-application {
   position: relative;
   isolation: isolate;
@@ -38,22 +38,6 @@ body {
   z-index: -1;
   pointer-events: none;
   background: var(--tvz-ambient), rgb(var(--v-theme-background));
-}
-
-// Faint technical grid on top of the ambient wash.
-.v-application::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.7;
-  background-image:
-    linear-gradient(var(--tvz-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--tvz-grid-line) 1px, transparent 1px);
-  background-size: 64px 64px;
-  -webkit-mask-image: radial-gradient(circle at 50% 0%, #000 0%, transparent 72%);
-  mask-image: radial-gradient(circle at 50% 0%, #000 0%, transparent 72%);
 }
 
 // --- Typography ----------------------------------------------------------
@@ -91,15 +75,15 @@ h3 {
 }
 
 // --- Surfaces ----------------------------------------------------------
+// "Glass" is now opacity-only (no backdrop-filter) so it's cheap to composite.
 .tvz-glass {
   background: var(--tvz-glass-bg);
-  backdrop-filter: blur(var(--tvz-glass-blur)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--tvz-glass-blur)) saturate(1.4);
   border: 1px solid var(--tvz-glass-border);
 }
 
 .tvz-glass--strong {
   background: var(--tvz-glass-bg-strong);
+  border: 1px solid var(--tvz-glass-border);
 }
 
 // Elevated content card with a subtle top sheen + interactive glow.

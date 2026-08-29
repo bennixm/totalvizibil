@@ -80,15 +80,16 @@ export const useAuthStore = defineStore('auth', {
       this.ready = true
     },
 
-    async logout(): Promise<void> {
-      try {
-        await apiFetch('/auth/logout', { method: 'POST' })
-      } catch (err) {
-        // Client-side logout must always succeed; the cookie will lapse anyway.
+    /**
+     * Optimistic: clears local auth state synchronously so the UI can redirect
+     * immediately, then revokes the server session in the background. The request
+     * still carries the cookie and completes even after navigation.
+     */
+    logout(): void {
+      this.user = null
+      apiFetch('/auth/logout', { method: 'POST' }).catch((err) => {
         console.warn('logout request failed', err)
-      } finally {
-        this.user = null
-      }
+      })
     },
   },
 })

@@ -92,8 +92,6 @@ function isActive(tab: Tab): boolean {
   height: calc(var(--tvz-tabbar-h) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--tvz-glass-bg-strong);
-  backdrop-filter: blur(18px) saturate(1.6);
-  -webkit-backdrop-filter: blur(18px) saturate(1.6);
   border-top: 1px solid var(--tvz-hairline);
 }
 

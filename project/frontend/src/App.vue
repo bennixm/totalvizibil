@@ -19,9 +19,7 @@ const { mdAndUp } = useDisplay()
     <AppBar />
 
     <v-main class="shell" :class="{ 'shell--mobile': !mdAndUp }">
-      <router-view v-slot="{ Component, route }">
-        <component :is="Component" :key="route.path" />
-      </router-view>
+      <router-view />
     </v-main>
 
     <AppFooter v-if="mdAndUp" />

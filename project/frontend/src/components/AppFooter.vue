@@ -61,8 +61,6 @@ const year = new Date().getFullYear()
 .tvz-footer {
   border-top: 1px solid var(--tvz-hairline);
   background: var(--tvz-glass-bg);
-  backdrop-filter: blur(var(--tvz-glass-blur));
-  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
 }
 
 .brand__mark {

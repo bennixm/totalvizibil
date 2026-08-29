@@ -91,8 +91,6 @@ onMounted(() => feed.loadFacets())
   margin-inline: -0.9rem;
   border-radius: var(--tvz-radius-lg);
   background: var(--tvz-glass-bg-strong);
-  backdrop-filter: blur(var(--tvz-glass-blur));
-  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   border: 1px solid var(--tvz-glass-border);
 }
 .feed__placeholder {

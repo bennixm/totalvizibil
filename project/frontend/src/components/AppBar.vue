@@ -34,8 +34,8 @@ const initials = computed(() =>
     .join(''),
 )
 
-async function signOut() {
-  await auth.logout()
+function signOut() {
+  auth.logout()
   companies.reset()
   router.push({ name: 'feed' })
 }
@@ -140,8 +140,6 @@ async function signOut() {
 <style scoped>
 .topbar {
   background: var(--tvz-glass-bg-strong) !important;
-  backdrop-filter: blur(var(--tvz-glass-blur)) saturate(1.5);
-  -webkit-backdrop-filter: blur(var(--tvz-glass-blur)) saturate(1.5);
   border-bottom: 1px solid var(--tvz-hairline);
 }
 .topbar :deep(.v-toolbar__content) {

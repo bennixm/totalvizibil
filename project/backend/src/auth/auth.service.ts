@@ -59,9 +59,15 @@ export class AuthService {
       }
     }
 
+    // Upgrade a legacy (heavier-parameter) hash while we hold the plaintext, so
+    // this user's next logins are fast.
+    const rehash = this.passwords.needsRehash(user.passwordHash)
+      ? await this.passwords.hash(dto.password)
+      : undefined;
+
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), ...(rehash ? { passwordHash: rehash } : {}) },
     });
 
     return this.toView(user);
