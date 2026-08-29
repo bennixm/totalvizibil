@@ -100,6 +100,12 @@ function signOut() {
               :title="t('nav.account')"
             />
             <v-list-item
+              v-if="auth.isPlatformStaff"
+              :to="{ name: 'admin-dashboard' }"
+              prepend-icon="mdi-shield-crown-outline"
+              :title="t('nav.admin')"
+            />
+            <v-list-item
               v-if="!mdAndUp"
               :to="createTarget"
               prepend-icon="mdi-sparkles"

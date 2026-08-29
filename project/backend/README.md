@@ -55,6 +55,12 @@ npm run start:dev               # http://localhost:3000/api/v1
 | GET | `/api/v1/feed` \| `/feed/facets` | — | Discovery (facets back the filter bar) |
 | GET | `/api/v1/public/companies/:slug` | — | Public company identity + website |
 | POST/GET/PATCH | `/api/v1/companies` … | cookie | Company CRUD + `/:id/dashboard`, `/:id/publish`, `/:id/unpublish` |
+| GET | `/api/v1/admin/stats` | cookie + `admin` | Platform dashboard stats |
+| GET | `/api/v1/admin/users` \| `/users/:id` | cookie + `admin` | User list / detail |
+| PATCH | `/api/v1/admin/users/:id` | cookie + `admin` | Edit user (name, email, status, roles, 2FA, sessions) |
+| POST | `/api/v1/admin/users/:id/password` | cookie + `admin` | Set a user's password |
+
+Seeded admin: `admin@totalvizibil.local` / `admin1234`.
 
 ## Scripts
 

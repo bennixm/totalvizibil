@@ -32,9 +32,26 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin',
-    name: 'admin',
-    component: () => import('@/views/AdminView.vue'),
+    component: () => import('@/views/admin/AdminLayout.vue'),
     meta: { requiresAuth: true, requiresPlatformStaff: true },
+    children: [
+      { path: '', redirect: { name: 'admin-dashboard' } },
+      {
+        path: 'dashboard',
+        name: 'admin-dashboard',
+        component: () => import('@/views/admin/AdminDashboardView.vue'),
+      },
+      {
+        path: 'users',
+        name: 'admin-users',
+        component: () => import('@/views/admin/AdminUsersView.vue'),
+      },
+      {
+        path: 'users/:id',
+        name: 'admin-user',
+        component: () => import('@/views/admin/AdminUserDetailView.vue'),
+      },
+    ],
   },
 
   // --- Redirects from the old IA ---

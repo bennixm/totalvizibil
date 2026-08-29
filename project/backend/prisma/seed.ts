@@ -111,6 +111,27 @@ async function demoOwner() {
   });
 }
 
+async function seedAdmin() {
+  const email = 'admin@totalvizibil.local';
+  const password = 'admin1234';
+  const user = await prisma.user.upsert({
+    where: { email },
+    update: {},
+    create: {
+      email,
+      name: 'Platform Admin',
+      passwordHash: await argon2.hash(password),
+      passwordChangedAt: new Date(),
+    },
+  });
+  await prisma.platformRoleAssignment.upsert({
+    where: { userId_role: { userId: user.id, role: 'admin' } },
+    update: {},
+    create: { userId: user.id, role: 'admin' },
+  });
+  console.log(`Seeded platform admin: ${email} / ${password}`);
+}
+
 async function seedCompanies() {
   const owner = await demoOwner();
   const categories = await prisma.category.findMany();
@@ -184,6 +205,7 @@ async function seedCompanies() {
 
 async function main() {
   await seedCategories();
+  await seedAdmin();
   await seedCompanies();
 }
 

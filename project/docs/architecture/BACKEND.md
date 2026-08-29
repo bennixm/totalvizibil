@@ -59,6 +59,21 @@ infrastructure. All are in the PRD §17 target design.
   - **Removed**: the whole `website-drafts` module + table + the register-at-the-end
     claim flow (product direction changed — the create flow stops at the
     Easy/Advanced choice for now).
+- **Milestone 4 (admin panel)** — `src/admin/`, guarded by `AuthGuard` +
+  `PlatformRolesGuard` with `@PlatformRoles('admin')`:
+  - `GET /admin/stats` — user / company / session counts, companies-by-country,
+    staff-by-role, a 14-day sign-up time series, and a `listings` block explicitly
+    marked `{ _status: 'not_defined' }` (the listing/ad model isn't decided yet).
+  - `GET /admin/users` (paginated, `search` / `status` / `role` / `staffOnly`
+    filters), `GET /admin/users/:id` (full detail incl. companies + sessions),
+    `PATCH /admin/users/:id` (name, email, status, platform roles reconciled to a
+    desired set, optional `disableTotp` / `revokeSessions`),
+    `POST /admin/users/:id/password` (admin-set password → all sessions revoked).
+  - Guardrails: an admin cannot suspend their own account or drop their own
+    `admin` role. Suspending a user revokes their sessions (and
+    `SessionService.resolve` already rejects non-active users).
+  - Admin bootstrap: `prisma/seed.ts` seeds `admin@totalvizibil.local` /
+    `admin1234` with the `admin` platform role.
 
 `GET /companies/:id/dashboard` still returns a real website block; advertising /
 analytics metrics stay explicit `null` with `_status: "not_implemented"` — never faked.

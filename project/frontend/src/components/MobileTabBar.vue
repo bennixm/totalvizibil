@@ -44,7 +44,7 @@ const tabs = computed<Tab[]>(() => {
         icon: 'mdi-account-cog-outline',
         activeIcon: 'mdi-account-cog',
         to: { name: 'account' },
-        match: ['account', 'admin'],
+        match: ['account', 'admin-dashboard', 'admin-users', 'admin-user'],
       }
     : {
         key: 'signin',
