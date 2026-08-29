@@ -248,7 +248,7 @@ async function continueToAccount() {
 }
 .pv__frame {
   position: sticky;
-  top: 88px;
+  top: calc(var(--tvz-topbar-h) + 16px);
 }
 @media (max-width: 960px) {
   .pv__frame {

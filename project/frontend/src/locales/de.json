@@ -17,6 +17,7 @@
     "dashboard": "Dashboard",
     "admin": "Verwaltung",
     "login": "Anmelden",
+    "create": "Erstellen",
     "createBusiness": "Unternehmen erstellen",
     "resumeDraft": "Entwurf fortsetzen"
   },

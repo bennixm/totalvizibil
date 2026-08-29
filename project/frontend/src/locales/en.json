@@ -17,6 +17,7 @@
     "dashboard": "Dashboard",
     "admin": "Admin",
     "login": "Log in",
+    "create": "Create",
     "createBusiness": "Create your business",
     "resumeDraft": "Resume your draft"
   },

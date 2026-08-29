@@ -107,7 +107,7 @@ onMounted(async () => {
 }
 .feed__controls {
   position: sticky;
-  top: 76px;
+  top: calc(var(--tvz-topbar-h) + 8px);
   z-index: 3;
   padding: 0.9rem;
   margin-inline: -0.9rem;
