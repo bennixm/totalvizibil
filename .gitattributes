@@ -1,0 +1,12 @@
+# Normalise line endings: store and check out LF everywhere, regardless of
+# core.autocrlf. Keeps Windows / OneDrive checkouts consistent with CI.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.woff binary
+*.woff2 binary

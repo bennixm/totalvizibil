@@ -8,10 +8,11 @@
     "node": ">=20.19.0"
   },
   "scripts": {
+    "ensure:env": "node scripts/ensure-env.js",
     "build": "nest build",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:prod": "node dist/main.js",
+    "start": "npm run ensure:env && nest start",
+    "start:dev": "npm run ensure:env && nest start --watch",
+    "start:prod": "npm run ensure:env && node dist/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "lint:check": "eslint \"{src,test}/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -19,11 +20,11 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "jest --config test/jest-e2e.json",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy",
-    "prisma:studio": "prisma studio",
-    "db:seed": "ts-node --transpile-only prisma/seed.ts"
+    "prisma:generate": "npm run ensure:env && prisma generate",
+    "prisma:migrate": "npm run ensure:env && prisma migrate dev",
+    "prisma:deploy": "npm run ensure:env && prisma migrate deploy",
+    "prisma:studio": "npm run ensure:env && prisma studio",
+    "db:seed": "npm run ensure:env && ts-node --transpile-only prisma/seed.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

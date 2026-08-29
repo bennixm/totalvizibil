@@ -19,5 +19,13 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
+    // Proxy the API in dev so the app works same-origin (cookies, no CORS) even
+    // when there's no .env — VITE_API_BASE_URL defaults to the relative "/api/v1".
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
   },
 })
