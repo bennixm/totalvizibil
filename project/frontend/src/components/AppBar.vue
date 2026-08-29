@@ -1,21 +1,45 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useCompaniesStore } from '@/stores/companies'
 
 const { t } = useI18n()
 const { mdAndUp } = useDisplay()
+const router = useRouter()
+const auth = useAuthStore()
+const companies = useCompaniesStore()
 
 const drawer = ref(false)
 
-const links = [
-  { to: { name: 'home' }, key: 'nav.home' },
-  { to: { name: 'search' }, key: 'nav.search' },
-  { to: { name: 'onboarding' }, key: 'nav.forBusiness' },
-  { to: { name: 'dashboard' }, key: 'nav.dashboard' },
-] as const
+const links = computed(() => {
+  const base = [
+    { to: { name: 'home' }, key: 'nav.home' },
+    { to: { name: 'search' }, key: 'nav.search' },
+    { to: { name: 'onboarding' }, key: 'nav.forBusiness' },
+  ]
+  if (auth.isAuthenticated) base.push({ to: { name: 'dashboard' }, key: 'nav.dashboard' })
+  return base
+})
+
+const initials = computed(() =>
+  (auth.user?.name ?? '?')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p.charAt(0).toUpperCase())
+    .join(''),
+)
+
+async function signOut() {
+  drawer.value = false
+  await auth.logout()
+  companies.reset()
+  router.push({ name: 'home' })
+}
 </script>
 
 <template>
@@ -50,23 +74,50 @@ const links = [
 
       <LocaleSwitcher />
 
-      <v-btn
-        :to="{ name: 'login' }"
-        variant="text"
-        rounded="pill"
-        class="text-none d-none d-sm-inline-flex"
-      >
-        {{ t('nav.login') }}
-      </v-btn>
-      <v-btn
-        :to="{ name: 'register' }"
-        color="primary"
-        variant="flat"
-        rounded="pill"
-        class="text-none tvz-glow"
-      >
-        {{ t('nav.register') }}
-      </v-btn>
+      <template v-if="auth.isAuthenticated">
+        <v-menu location="bottom end">
+          <template #activator="{ props }">
+            <v-btn v-bind="props" variant="text" rounded="pill" class="text-none">
+              <v-avatar color="primary" size="30" class="me-2">
+                <span class="text-caption font-weight-bold">{{ initials }}</span>
+              </v-avatar>
+              <span class="d-none d-sm-inline">{{ auth.user?.name }}</span>
+            </v-btn>
+          </template>
+          <v-list nav density="compact" min-width="200">
+            <v-list-item
+              :to="{ name: 'dashboard' }"
+              prepend-icon="mdi-view-dashboard-outline"
+              :title="t('account.dashboard')"
+            />
+            <v-divider class="my-1" />
+            <v-list-item
+              prepend-icon="mdi-logout"
+              :title="t('account.signOut')"
+              @click="signOut"
+            />
+          </v-list>
+        </v-menu>
+      </template>
+      <template v-else>
+        <v-btn
+          :to="{ name: 'login' }"
+          variant="text"
+          rounded="pill"
+          class="text-none d-none d-sm-inline-flex"
+        >
+          {{ t('nav.login') }}
+        </v-btn>
+        <v-btn
+          :to="{ name: 'register' }"
+          color="primary"
+          variant="flat"
+          rounded="pill"
+          class="text-none tvz-glow"
+        >
+          {{ t('nav.register') }}
+        </v-btn>
+      </template>
     </v-container>
   </v-app-bar>
 
@@ -81,18 +132,28 @@ const links = [
         @click="drawer = false"
       />
       <v-divider class="my-2" />
-      <v-list-item
-        :to="{ name: 'login' }"
-        :title="t('nav.login')"
-        rounded="lg"
-        @click="drawer = false"
-      />
-      <v-list-item
-        :to="{ name: 'admin' }"
-        :title="t('nav.admin')"
-        rounded="lg"
-        @click="drawer = false"
-      />
+      <template v-if="auth.isAuthenticated">
+        <v-list-item
+          prepend-icon="mdi-logout"
+          :title="t('account.signOut')"
+          rounded="lg"
+          @click="signOut"
+        />
+      </template>
+      <template v-else>
+        <v-list-item
+          :to="{ name: 'login' }"
+          :title="t('nav.login')"
+          rounded="lg"
+          @click="drawer = false"
+        />
+        <v-list-item
+          :to="{ name: 'register' }"
+          :title="t('nav.register')"
+          rounded="lg"
+          @click="drawer = false"
+        />
+      </template>
     </v-list>
   </v-navigation-drawer>
 </template>

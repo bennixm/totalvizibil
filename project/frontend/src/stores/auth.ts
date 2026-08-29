@@ -1,48 +1,79 @@
 import { defineStore } from 'pinia'
 
-/** Matches the "Main Users" split in docs/02-PRODUCT.md. */
-export type UserRole = 'customer' | 'business' | 'admin'
+import { apiFetch, ApiError } from '@/services/api'
+
+export type PlatformRole = 'admin' | 'support' | 'finance' | 'moderator'
 
 export interface AuthUser {
   id: string
   email: string
   name: string
-  role: UserRole
+  platformRoles: PlatformRole[]
 }
 
 interface AuthState {
   user: AuthUser | null
-  token: string | null
+  ready: boolean
 }
 
 /**
- * Skeleton auth store. Wiring to the backend API lives in Phase 1
- * (see docs/04-ROADMAP.md — Authentication).
+ * Session state. The source of truth is the backend httpOnly cookie; this store
+ * only mirrors the resolved user. `bootstrap()` runs once on app start.
  */
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: null,
-    token: null,
+    ready: false,
   }),
-
-  persist: {
-    key: 'tvz.auth',
-    pick: ['token'],
-  },
 
   getters: {
     isAuthenticated: (state): boolean => state.user !== null,
-    role: (state): UserRole | null => state.user?.role ?? null,
+    isPlatformStaff: (state): boolean => (state.user?.platformRoles.length ?? 0) > 0,
   },
 
   actions: {
-    setSession(user: AuthUser, token: string) {
-      this.user = user
-      this.token = token
+    async bootstrap(): Promise<void> {
+      if (this.ready) return
+      try {
+        const { user } = await apiFetch<{ user: AuthUser }>('/auth/me')
+        this.user = user
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 401)) {
+          console.error('auth bootstrap failed', err)
+        }
+        this.user = null
+      } finally {
+        this.ready = true
+      }
     },
-    clear() {
-      this.user = null
-      this.token = null
+
+    async register(input: { email: string; password: string; name: string }): Promise<void> {
+      const { user } = await apiFetch<{ user: AuthUser }>('/auth/register', {
+        method: 'POST',
+        body: input,
+      })
+      this.user = user
+      this.ready = true
+    },
+
+    async login(input: { email: string; password: string }): Promise<void> {
+      const { user } = await apiFetch<{ user: AuthUser }>('/auth/login', {
+        method: 'POST',
+        body: input,
+      })
+      this.user = user
+      this.ready = true
+    },
+
+    async logout(): Promise<void> {
+      try {
+        await apiFetch('/auth/logout', { method: 'POST' })
+      } catch (err) {
+        // Client-side logout must always succeed; the cookie will lapse anyway.
+        console.warn('logout request failed', err)
+      } finally {
+        this.user = null
+      }
     },
   },
 })

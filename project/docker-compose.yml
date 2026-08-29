@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tvz_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tvz
+      POSTGRES_PASSWORD: tvz
+      POSTGRES_DB: tvz
+    ports:
+      - '5432:5432'
+    volumes:
+      - tvz_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tvz -d tvz']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  tvz_pgdata:

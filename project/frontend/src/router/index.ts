@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
+import { useAuthStore } from '@/stores/auth'
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
@@ -17,26 +19,34 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/BusinessOnboardingView.vue'),
   },
   {
+    path: '/companies/new',
+    name: 'company-create',
+    component: () => import('@/views/CreateCompanyView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/dashboard',
     name: 'dashboard',
     component: () => import('@/views/DashboardView.vue'),
-    meta: { requiresAuth: true, roles: ['business'] },
+    meta: { requiresAuth: true },
   },
   {
     path: '/admin',
     name: 'admin',
     component: () => import('@/views/AdminView.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] },
+    meta: { requiresAuth: true, requiresPlatformStaff: true },
   },
   {
     path: '/login',
     name: 'login',
     component: () => import('@/views/LoginView.vue'),
+    meta: { guestOnly: true },
   },
   {
     path: '/register',
     name: 'register',
     component: () => import('@/views/RegisterView.vue'),
+    meta: { guestOnly: true },
   },
   {
     path: '/:pathMatch(.*)*',
@@ -53,10 +63,18 @@ export const router = createRouter({
   },
 })
 
-// Route guard scaffold — real auth wiring lands with Phase 1 (docs/04-ROADMAP.md).
-// router.beforeEach((to) => {
-//   const auth = useAuthStore()
-//   if (to.meta.requiresAuth && !auth.isAuthenticated) {
-//     return { name: 'login', query: { redirect: to.fullPath } }
-//   }
-// })
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+  if (!auth.ready) await auth.bootstrap()
+
+  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.requiresPlatformStaff && !auth.isPlatformStaff) {
+    return { name: 'dashboard' }
+  }
+  if (to.meta.guestOnly && auth.isAuthenticated) {
+    return { name: 'dashboard' }
+  }
+  return true
+})
