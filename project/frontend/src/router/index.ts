@@ -1,61 +1,33 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import { useDraftStore } from '@/stores/draft'
 
 const routes: RouteRecordRaw[] = [
-  // --- Discovery (public, the main experience) ---
-  {
-    path: '/',
-    name: 'feed',
-    component: () => import('@/views/FeedView.vue'),
-  },
-  {
-    path: '/c/:slug',
-    name: 'company',
-    component: () => import('@/views/CompanyPublicView.vue'),
-  },
+  // --- Discovery (public) ---
+  { path: '/', name: 'feed', component: () => import('@/views/FeedView.vue') },
+  { path: '/c/:slug', name: 'company', component: () => import('@/views/CompanyPublicView.vue') },
 
-  // --- Create your business (AI-first, register at the end) ---
-  {
-    path: '/create',
-    name: 'create',
-    component: () => import('@/views/CreateBusinessView.vue'),
-  },
-  {
-    path: '/create/easy',
-    name: 'create-easy',
-    component: () => import('@/views/CreateEasyView.vue'),
-  },
-  {
-    path: '/create/advanced',
-    name: 'create-advanced',
-    component: () => import('@/views/CreateAdvancedView.vue'),
-  },
-  {
-    path: '/create/preview',
-    name: 'create-preview',
-    component: () => import('@/views/WebsitePreviewView.vue'),
-    meta: { requiresDraft: true },
-  },
-  {
-    path: '/create/account',
-    name: 'create-account',
-    component: () => import('@/views/ClaimAccountView.vue'),
-    meta: { requiresDraft: true },
-  },
+  // --- Create your business (only the mode choice for now) ---
+  { path: '/create', name: 'create', component: () => import('@/views/CreateBusinessView.vue') },
 
-  // --- Owner area ---
+  // --- Account & auth ---
   {
-    path: '/dashboard',
-    name: 'dashboard',
-    component: () => import('@/views/DashboardView.vue'),
+    path: '/account',
+    name: 'account',
+    component: () => import('@/views/AccountView.vue'),
     meta: { requiresAuth: true },
   },
+  { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { guestOnly: true } },
   {
-    path: '/login',
-    name: 'login',
-    component: () => import('@/views/LoginView.vue'),
+    path: '/forgot-password',
+    name: 'forgot-password',
+    component: () => import('@/views/ForgotPasswordView.vue'),
+    meta: { guestOnly: true },
+  },
+  {
+    path: '/reset-password',
+    name: 'reset-password',
+    component: () => import('@/views/ResetPasswordView.vue'),
     meta: { guestOnly: true },
   },
   {
@@ -66,16 +38,14 @@ const routes: RouteRecordRaw[] = [
   },
 
   // --- Redirects from the old IA ---
+  { path: '/dashboard', redirect: { name: 'account' } },
   { path: '/register', redirect: { name: 'create' } },
   { path: '/for-business', redirect: { name: 'create' } },
   { path: '/search', redirect: { name: 'feed' } },
   { path: '/companies/new', redirect: { name: 'create' } },
+  { path: '/create/:rest(.*)', redirect: { name: 'create' } },
 
-  {
-    path: '/:pathMatch(.*)*',
-    name: 'not-found',
-    component: () => import('@/views/NotFoundView.vue'),
-  },
+  { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundView.vue') },
 ]
 
 export const router = createRouter({
@@ -94,13 +64,10 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.meta.requiresPlatformStaff && !auth.isPlatformStaff) {
-    return { name: 'dashboard' }
+    return { name: 'account' }
   }
   if (to.meta.guestOnly && auth.isAuthenticated) {
-    return { name: 'dashboard' }
-  }
-  if (to.meta.requiresDraft && !useDraftStore().hasDraft) {
-    return { name: 'create' }
+    return { name: 'account' }
   }
   return true
 })

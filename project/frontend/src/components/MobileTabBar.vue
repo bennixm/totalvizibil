@@ -4,12 +4,10 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import { useDraftStore } from '@/stores/draft'
 
 const { t } = useI18n()
 const route = useRoute()
 const auth = useAuthStore()
-const draft = useDraftStore()
 
 type Tab = {
   key: string
@@ -24,11 +22,11 @@ type Tab = {
 const tabs = computed<Tab[]>(() => {
   const create: Tab = {
     key: 'create',
-    label: draft.hasDraft ? t('nav.resumeDraft') : t('nav.create'),
+    label: t('nav.create'),
     icon: 'mdi-plus',
     activeIcon: 'mdi-plus',
-    to: draft.hasDraft ? { name: 'create-preview' } : { name: 'create' },
-    match: ['create', 'create-easy', 'create-advanced', 'create-preview', 'create-account'],
+    to: { name: 'create' },
+    match: ['create'],
     center: true,
   }
   const discover: Tab = {
@@ -41,12 +39,12 @@ const tabs = computed<Tab[]>(() => {
   }
   const last: Tab = auth.isAuthenticated
     ? {
-        key: 'dashboard',
-        label: t('nav.dashboard'),
-        icon: 'mdi-view-dashboard-outline',
-        activeIcon: 'mdi-view-dashboard',
-        to: { name: 'dashboard' },
-        match: ['dashboard', 'admin'],
+        key: 'account',
+        label: t('nav.account'),
+        icon: 'mdi-account-cog-outline',
+        activeIcon: 'mdi-account-cog',
+        to: { name: 'account' },
+        match: ['account', 'admin'],
       }
     : {
         key: 'signin',

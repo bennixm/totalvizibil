@@ -21,21 +21,43 @@ enum UserStatus {
 }
 
 model User {
-  id           String     @id @default(uuid()) @db.Uuid
-  email        String     @unique
-  passwordHash String     @map("password_hash")
-  name         String
-  status       UserStatus @default(active)
-  lastLoginAt  DateTime?  @map("last_login_at")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  id                String     @id @default(uuid()) @db.Uuid
+  email             String     @unique
+  passwordHash      String     @map("password_hash")
+  name              String
+  status            UserStatus @default(active)
+  lastLoginAt       DateTime?  @map("last_login_at")
+  passwordChangedAt DateTime?  @map("password_changed_at")
+
+  // TOTP (RFC 6238) two-factor. `totpSecret` is set at setup time but 2FA only
+  // enforces once `totpEnabledAt` is non-null (i.e. a code was verified).
+  totpSecret    String?   @map("totp_secret")
+  totpEnabledAt DateTime? @map("totp_enabled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   sessions       Session[]
   platformRoles  PlatformRoleAssignment[]
   companyMembers CompanyUser[]
-  ownedCompanies Company[]               @relation("CompanyOwner")
+  ownedCompanies Company[]                @relation("CompanyOwner")
+  passwordResets PasswordResetToken[]
 
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model Session {
@@ -175,35 +197,6 @@ model Website {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("websites")
-}
-
-// Anonymous, pre-account website draft. Created by the "Create your business"
-// flow before registration; claimed into a real Company + Website on sign-up.
-
-enum WebsiteDraftStatus {
-  generating
-  ready
-  claimed
-  abandoned
-}
-
-model WebsiteDraft {
-  id               String             @id @default(uuid()) @db.Uuid
-  token            String             @unique
-  mode             WebsiteMode        @default(easy)
-  status           WebsiteDraftStatus @default(ready)
-  // Raw user answers from the Easy/Advanced form.
-  input            Json
-  // Generated block tree (same shape as Website.content).
-  content          Json
-  theme            Json
-  generator        String             @default("rule-based-v1")
-  claimedCompanyId String?            @map("claimed_company_id") @db.Uuid
-  createdAt        DateTime           @default(now()) @map("created_at")
-  updatedAt        DateTime           @updatedAt @map("updated_at")
-
-  @@index([status])
-  @@map("website_drafts")
 }
 
 enum CompanyRole {

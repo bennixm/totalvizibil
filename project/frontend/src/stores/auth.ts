@@ -67,7 +67,11 @@ export const useAuthStore = defineStore('auth', {
       this.ready = true
     },
 
-    async login(input: { email: string; password: string }): Promise<void> {
+    async login(input: {
+      email: string
+      password: string
+      totpCode?: string
+    }): Promise<void> {
       const { user } = await apiFetch<{ user: AuthUser }>('/auth/login', {
         method: 'POST',
         body: input,

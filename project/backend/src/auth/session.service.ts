@@ -65,6 +65,35 @@ export class SessionService {
     });
   }
 
+  /** Active (not revoked, not expired) sessions for a user, newest first. */
+  listActiveForUser(userId: string) {
+    return this.prisma.session.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, userAgent: true, ip: true, createdAt: true },
+    });
+  }
+
+  /** Revoke every active session for a user, optionally keeping one by id. */
+  async revokeAllForUser(userId: string, exceptSessionId?: string): Promise<number> {
+    const res = await this.prisma.session.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
+      },
+      data: { revokedAt: new Date() },
+    });
+    return res.count;
+  }
+
+  async revokeById(userId: string, sessionId: string): Promise<void> {
+    await this.prisma.session.updateMany({
+      where: { id: sessionId, userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
   get maxAgeMs(): number {
     return this.ttlMs;
   }

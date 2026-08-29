@@ -1,6 +1,7 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
-import { AuthService } from './auth.service';
+import { AuthService, TOTP_INVALID, TOTP_REQUIRED } from './auth.service';
 import { PasswordService } from './password.service';
+import { TotpService } from './totp.service';
 
 type MockPrisma = {
   user: {
@@ -12,23 +13,21 @@ type MockPrisma = {
 
 function makePrisma(): MockPrisma {
   return {
-    user: {
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-    },
+    user: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
   };
 }
 
 describe('AuthService', () => {
   let prisma: MockPrisma;
   let passwords: PasswordService;
+  let totp: TotpService;
   let service: AuthService;
 
   beforeEach(() => {
     prisma = makePrisma();
     passwords = new PasswordService();
-    service = new AuthService(prisma as never, passwords);
+    totp = new TotpService();
+    service = new AuthService(prisma as never, passwords, totp);
   });
 
   describe('register', () => {
@@ -91,6 +90,8 @@ describe('AuthService', () => {
         name: 'X',
         status: 'active',
         passwordHash: hash,
+        totpEnabledAt: null,
+        totpSecret: null,
         platformRoles: [{ role: 'admin' }],
       });
       prisma.user.update.mockResolvedValue({});
@@ -105,6 +106,44 @@ describe('AuthService', () => {
         where: { id: 'u1' },
         data: { lastLoginAt: expect.any(Date) },
       });
+    });
+
+    it('demands a TOTP code when 2FA is enabled', async () => {
+      const hash = await passwords.hash('pw-123456');
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'x@y.com',
+        name: 'X',
+        status: 'active',
+        passwordHash: hash,
+        totpEnabledAt: new Date(),
+        totpSecret: totp.generateSecret(),
+        platformRoles: [],
+      });
+      await expect(
+        service.validateCredentials({ email: 'x@y.com', password: 'pw-123456' }),
+      ).rejects.toMatchObject({ message: TOTP_REQUIRED });
+    });
+
+    it('rejects a bad TOTP code', async () => {
+      const hash = await passwords.hash('pw-123456');
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'x@y.com',
+        name: 'X',
+        status: 'active',
+        passwordHash: hash,
+        totpEnabledAt: new Date(),
+        totpSecret: totp.generateSecret(),
+        platformRoles: [],
+      });
+      await expect(
+        service.validateCredentials({
+          email: 'x@y.com',
+          password: 'pw-123456',
+          totpCode: '000000',
+        }),
+      ).rejects.toMatchObject({ message: TOTP_INVALID });
     });
   });
 });

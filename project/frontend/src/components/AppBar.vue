@@ -8,25 +8,23 @@ import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import ThemeQuickToggle from '@/components/ThemeQuickToggle.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
-import { useDraftStore } from '@/stores/draft'
 
 const { t } = useI18n()
 const { mdAndUp } = useDisplay()
 const router = useRouter()
 const auth = useAuthStore()
 const companies = useCompaniesStore()
-const draft = useDraftStore()
 
 const links = computed(() => {
   const items = [{ to: { name: 'feed' }, key: 'nav.discover', icon: 'mdi-compass-outline' }]
   if (auth.isAuthenticated) {
-    items.push({ to: { name: 'dashboard' }, key: 'nav.dashboard', icon: 'mdi-view-dashboard-outline' })
+    items.push({ to: { name: 'account' }, key: 'nav.account', icon: 'mdi-account-cog-outline' })
   }
   return items
 })
 
-const createTarget = computed(() => (draft.hasDraft ? { name: 'create-preview' } : { name: 'create' }))
-const createLabel = computed(() => (draft.hasDraft ? t('nav.resumeDraft') : t('nav.createBusiness')))
+const createTarget = computed(() => ({ name: 'create' }))
+const createLabel = computed(() => t('nav.createBusiness'))
 
 const initials = computed(() =>
   (auth.user?.name ?? '?')
@@ -97,9 +95,9 @@ async function signOut() {
             <v-list-item class="acct-menu__head" :title="auth.user?.name" :subtitle="auth.user?.email" />
             <v-divider />
             <v-list-item
-              :to="{ name: 'dashboard' }"
-              prepend-icon="mdi-view-dashboard-outline"
-              :title="t('account.dashboard')"
+              :to="{ name: 'account' }"
+              prepend-icon="mdi-account-cog-outline"
+              :title="t('nav.account')"
             />
             <v-list-item
               v-if="!mdAndUp"

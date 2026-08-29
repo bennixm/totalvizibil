@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import type { Section, WebsiteContent, WebsiteTheme } from '@/stores/draft'
+import type { Section, WebsiteContent, WebsiteTheme } from '@/types/website'
 
 const props = defineProps<{
   content: WebsiteContent

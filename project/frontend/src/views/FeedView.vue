@@ -3,22 +3,18 @@ import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import FeedControls from '@/components/FeedControls.vue'
-import FeedCard from '@/components/FeedCard.vue'
 import { useFeedStore } from '@/stores/feed'
 
 const { t } = useI18n()
 const feed = useFeedStore()
 
-onMounted(async () => {
-  if (!feed.facets.categories.length) await feed.loadFacets()
-  if (!feed.loaded) await feed.load()
-})
+onMounted(() => feed.loadFacets())
 </script>
 
 <template>
   <div class="feed">
     <header class="feed__intro page-container">
-      <div class="feed__intro-text">
+      <div>
         <p class="feed__eyebrow">{{ t('feed.eyebrow') }}</p>
         <h1>{{ t('feed.title') }}</h1>
         <p class="feed__lead">{{ t('feed.lead') }}</p>
@@ -29,7 +25,7 @@ onMounted(async () => {
         size="large"
         rounded="pill"
         append-icon="mdi-sparkles"
-        class="feed__cta"
+        class="d-none d-md-inline-flex"
       >
         {{ t('nav.createBusiness') }}
       </v-btn>
@@ -38,25 +34,11 @@ onMounted(async () => {
     <div class="page-container feed__body">
       <FeedControls class="feed__controls" />
 
-      <div v-if="feed.loading && !feed.items.length" class="feed__grid">
-        <v-skeleton-loader v-for="i in 6" :key="i" type="card" class="feed__skeleton" />
+      <div class="feed__placeholder">
+        <v-icon icon="mdi-hammer-wrench" size="34" class="mb-3" />
+        <p class="text-body-1 mb-1">{{ t('feed.rebuildingTitle') }}</p>
+        <p class="text-body-2 text-medium-emphasis">{{ t('feed.rebuildingText') }}</p>
       </div>
-
-      <div v-else-if="feed.items.length" class="feed__grid">
-        <FeedCard v-for="item in feed.items" :key="item.id" :item="item" />
-      </div>
-
-      <div v-else class="feed__empty">
-        <v-icon icon="mdi-store-search-outline" size="40" class="mb-3" />
-        <p class="text-body-1 mb-1">{{ t('feed.emptyTitle') }}</p>
-        <p class="text-body-2 text-medium-emphasis mb-4">{{ t('feed.emptyText') }}</p>
-        <v-btn variant="tonal" rounded="pill" @click="feed.reset()">{{ t('feed.clearFilters') }}</v-btn>
-      </div>
-
-      <p v-if="feed.rankingNote" class="feed__ranking">
-        <v-icon icon="mdi-scale-balance" size="14" />
-        {{ feed.rankingNote }}
-      </p>
     </div>
   </div>
 </template>
@@ -95,10 +77,6 @@ onMounted(async () => {
   font-size: 1.02rem;
   max-width: 52ch;
 }
-.feed__cta {
-  margin-bottom: 0.3rem;
-}
-
 .feed__body {
   display: flex;
   flex-direction: column;
@@ -117,26 +95,11 @@ onMounted(async () => {
   -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   border: 1px solid var(--tvz-glass-border);
 }
-.feed__grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-}
-.feed__skeleton {
-  border-radius: var(--tvz-radius-lg);
-}
-.feed__empty {
+.feed__placeholder {
   text-align: center;
-  padding: 4rem 1rem;
+  padding: 4.5rem 1rem;
   color: rgb(var(--v-theme-on-surface) / 0.7);
-}
-.feed__ranking {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
-  max-width: 70ch;
-  margin: 0.5rem 0 0;
+  border: 1px dashed var(--tvz-glass-border);
+  border-radius: var(--tvz-radius-lg);
 }
 </style>

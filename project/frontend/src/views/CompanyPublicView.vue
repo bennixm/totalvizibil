@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router'
 
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
 import { apiFetch, ApiError } from '@/services/api'
-import type { WebsiteContent, WebsiteTheme } from '@/stores/draft'
+import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 import type { LocalizedName } from '@/stores/companies'
 
 interface PublicCompany {

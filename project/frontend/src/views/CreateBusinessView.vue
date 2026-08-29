@@ -1,78 +1,50 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-
-import { useDraftStore } from '@/stores/draft'
 
 const { t } = useI18n()
-const router = useRouter()
-const draft = useDraftStore()
 
 const modes = [
-  {
-    key: 'easy',
-    to: 'create-easy',
-    icon: 'mdi-flash-outline',
-    accent: 'primary',
-  },
-  {
-    key: 'advanced',
-    to: 'create-advanced',
-    icon: 'mdi-tune-vertical',
-    accent: 'secondary',
-  },
+  { key: 'easy', icon: 'mdi-flash-outline', accent: 'primary' },
+  { key: 'advanced', icon: 'mdi-tune-vertical', accent: 'secondary' },
 ] as const
+
+const picked = ref<'easy' | 'advanced' | null>(null)
 </script>
 
 <template>
   <v-container class="cb">
     <div class="cb__head">
-      <p class="cb__eyebrow">
-        <span class="cb__dot" /> {{ t('create.assistant') }}
-      </p>
+      <p class="cb__eyebrow"><span class="cb__dot" /> {{ t('create.assistant') }}</p>
       <h1>{{ t('create.headline') }}</h1>
       <p class="cb__lead">{{ t('create.lead') }}</p>
     </div>
-
-    <v-alert
-      v-if="draft.hasDraft"
-      variant="tonal"
-      color="primary"
-      class="cb__resume"
-      icon="mdi-history"
-    >
-      <div class="d-flex align-center justify-space-between flex-wrap ga-3">
-        <span>{{ t('create.resumeText') }}</span>
-        <div class="d-flex ga-2">
-          <v-btn size="small" variant="text" @click="draft.clear()">{{ t('create.startOver') }}</v-btn>
-          <v-btn
-            size="small"
-            color="primary"
-            variant="flat"
-            @click="router.push({ name: 'create-preview' })"
-          >
-            {{ t('create.resume') }}
-          </v-btn>
-        </div>
-      </div>
-    </v-alert>
 
     <div class="cb__modes">
       <button
         v-for="m in modes"
         :key="m.key"
         class="mode"
-        :class="`mode--${m.accent}`"
-        @click="router.push({ name: m.to })"
+        :class="[`mode--${m.accent}`, { 'mode--picked': picked === m.key }]"
+        :aria-pressed="picked === m.key"
+        @click="picked = m.key"
       >
         <v-icon :icon="m.icon" size="26" />
         <h2>{{ t(`create.${m.key}Title`) }}</h2>
         <p>{{ t(`create.${m.key}Text`) }}</p>
-        <span class="mode__go">
-          {{ t(`create.${m.key}Cta`) }} <v-icon icon="mdi-arrow-right" size="16" />
-        </span>
+        <span class="mode__tag">{{ t(`create.${m.key}Tag`) }}</span>
       </button>
     </div>
+
+    <v-expand-transition>
+      <div v-if="picked" class="cb__next">
+        <v-icon icon="mdi-progress-wrench" size="20" />
+        <div>
+          <strong>{{ t('create.nextTitle') }}</strong>
+          <span>{{ t('create.nextText') }}</span>
+        </div>
+      </div>
+    </v-expand-transition>
 
     <p class="cb__foot">{{ t('create.registerLaterNote') }}</p>
   </v-container>
@@ -120,9 +92,6 @@ const modes = [
   color: rgb(var(--v-theme-on-surface) / 0.66);
   font-size: 1.05rem;
 }
-.cb__resume {
-  margin-bottom: 1.5rem;
-}
 .cb__modes {
   display: grid;
   gap: 1.2rem;
@@ -148,11 +117,12 @@ const modes = [
   transform: translateY(-4px);
   box-shadow: var(--tvz-shadow-lg);
 }
-.mode--primary:hover {
-  border-color: rgba(var(--v-theme-primary), 0.5);
+.mode--primary.mode--picked {
+  border-color: rgb(var(--v-theme-primary));
+  box-shadow: var(--tvz-glow-primary);
 }
-.mode--secondary:hover {
-  border-color: rgba(var(--v-theme-secondary), 0.5);
+.mode--secondary.mode--picked {
+  border-color: rgb(var(--v-theme-secondary));
 }
 .mode .v-icon {
   color: rgb(var(--v-theme-primary));
@@ -172,17 +142,38 @@ const modes = [
   margin: 0;
   flex: 1;
 }
-.mode__go {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
+.mode__tag {
+  align-self: flex-start;
+  margin-top: 0.7rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  font-size: 0.88rem;
-  color: rgb(var(--v-theme-primary));
-  margin-top: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-on-surface) / 0.06);
+  color: rgb(var(--v-theme-on-surface) / 0.55);
 }
-.mode--secondary .mode__go {
-  color: rgb(var(--v-theme-secondary));
+.cb__next {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  margin-top: 1.5rem;
+  padding: 1rem 1.2rem;
+  border-radius: var(--tvz-radius-md);
+  background: var(--tvz-ai-soft);
+  border: 1px solid var(--tvz-glass-border);
+}
+.cb__next .v-icon {
+  color: var(--tvz-ai);
+}
+.cb__next strong {
+  display: block;
+  font-size: 0.92rem;
+}
+.cb__next span {
+  font-size: 0.83rem;
+  color: rgb(var(--v-theme-on-surface) / 0.6);
 }
 .cb__foot {
   text-align: center;

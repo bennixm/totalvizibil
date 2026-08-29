@@ -43,27 +43,40 @@ infrastructure. All are in the PRD §17 target design.
     note and a per-item `scoreBreakdown`.
   - `GET /public/companies/:slug` — the company's public identity + generated
     website content (active companies only).
-  - `POST /website-drafts` → `GET /:token` → `PATCH /:token` → `POST /:token/claim`
-    — the pre-account "Create your business" flow. `claim` = register-at-the-end:
-    creates the user + company + website from the draft and starts a session.
   - `POST /companies/:id/publish` · `/unpublish` — flips company + website to
     publicly visible in the feed.
+- **Milestone 3 (account & security; feed + create-flow trimmed)** —
+  - `POST /auth/password/forgot` — always 200 (no enumeration); in non-production
+    returns `devResetUrl` and logs it (no email provider wired yet — PRD §17).
+  - `POST /auth/password/reset` — single-use token, 1h TTL, invalidates **all**
+    sessions.
+  - `POST /auth/login` accepts an optional `totpCode`; when 2FA is on, login
+    fails with message `totp_required` / `totp_invalid` (frontend keys off these).
+  - `/account/*` (auth'd): `GET security`, `PATCH profile` (email change needs
+    the current password), `POST password` (keeps the current session, drops the
+    rest), `POST totp/{setup,enable,disable}` (RFC 6238 via `otplib`),
+    `GET sessions`, `DELETE sessions/others`.
+  - **Removed**: the whole `website-drafts` module + table + the register-at-the-end
+    claim flow (product direction changed — the create flow stops at the
+    Easy/Advanced choice for now).
 
-`GET /companies/:id/dashboard` returns a **real** website block; advertising /
+`GET /companies/:id/dashboard` still returns a real website block; advertising /
 analytics metrics stay explicit `null` with `_status: "not_implemented"` — never faked.
 
 ## Website generation
 
 `src/website/` holds the block-tree types (PRD §11.1) and a `WebsiteGenerator`
-interface. The current implementation is **rule-based** (`rule-based-v1`): it composes
-a real, previewable, editable site from the user's Easy/Advanced answers. It sits
-behind the interface so an LLM-backed generator can replace it without touching
-callers (PRD §10). No LLM is called yet.
+interface with a **rule-based** implementation (`rule-based-v1`). Still used by the
+seed to give demo companies a real, rendered website; the interactive generation
+UI is on hold pending a redesign. No LLM is called.
 
 ## Schema
 
-Added: `websites` (1:1 company; block tree as JSON), `website_drafts` (anonymous,
-token-keyed, claimed on sign-up), plus `companies.quality_score` and
-`companies.featured` (feed ranking inputs; `featured` is a stand-in for "has an
-active sponsored campaign" until the campaigns/credit tables land).
+- `websites` (1:1 company; block tree as JSON), `companies.quality_score` +
+  `companies.featured` (feed ranking inputs; `featured` stands in for "has an
+  active sponsored campaign").
+- `password_reset_tokens`; `users.password_changed_at`, `users.totp_secret`,
+  `users.totp_enabled_at`.
+- Dropped `website_drafts`.
+
 Migrations: `project/backend/prisma/migrations/`.

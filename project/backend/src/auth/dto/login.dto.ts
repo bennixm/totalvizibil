@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class LoginDto {
@@ -10,4 +10,10 @@ export class LoginDto {
   @IsString()
   @MaxLength(200)
   password!: string;
+
+  /** 6-digit TOTP code, required only when the account has 2FA enabled. */
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'The 2FA code must be 6 digits' })
+  totpCode?: string;
 }

@@ -1,6 +1,6 @@
 /**
- * Website content model (PRD §11.1) — a constrained block tree, stored as JSON.
- * The same shape is used for `WebsiteDraft.content` and `Website.content`.
+ * Website content model (PRD §11.1) — a constrained block tree, stored as JSON
+ * in `Website.content`.
  */
 
 export type SectionType =
