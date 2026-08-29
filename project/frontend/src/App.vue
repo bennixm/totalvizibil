@@ -14,24 +14,11 @@ useLocaleSync()
     <AppBar />
 
     <v-main>
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
-          <component :is="Component" />
-        </transition>
+      <router-view v-slot="{ Component, route }">
+        <component :is="Component" :key="route.path" />
       </router-view>
     </v-main>
 
     <AppFooter />
   </v-app>
 </template>
-
-<style>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>

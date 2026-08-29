@@ -16,6 +16,10 @@ interface AuthState {
   ready: boolean
 }
 
+// De-dupes concurrent bootstrap() calls (e.g. several router navigations firing
+// before the first /auth/me resolves) into a single in-flight request.
+let bootstrapInFlight: Promise<void> | null = null
+
 /**
  * Session state. The source of truth is the backend httpOnly cookie; this store
  * only mirrors the resolved user. `bootstrap()` runs once on app start.
@@ -34,17 +38,24 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     async bootstrap(): Promise<void> {
       if (this.ready) return
-      try {
-        const { user } = await apiFetch<{ user: AuthUser }>('/auth/me')
-        this.user = user
-      } catch (err) {
-        if (!(err instanceof ApiError && err.status === 401)) {
-          console.error('auth bootstrap failed', err)
+      if (bootstrapInFlight) return bootstrapInFlight
+
+      bootstrapInFlight = (async () => {
+        try {
+          const { user } = await apiFetch<{ user: AuthUser }>('/auth/me')
+          this.user = user
+        } catch (err) {
+          if (!(err instanceof ApiError && err.status === 401)) {
+            console.error('auth bootstrap failed', err)
+          }
+          this.user = null
+        } finally {
+          this.ready = true
+          bootstrapInFlight = null
         }
-        this.user = null
-      } finally {
-        this.ready = true
-      }
+      })()
+
+      return bootstrapInFlight
     },
 
     async register(input: { email: string; password: string; name: string }): Promise<void> {

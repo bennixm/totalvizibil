@@ -38,7 +38,6 @@ body {
   z-index: -1;
   pointer-events: none;
   background: var(--tvz-ambient), rgb(var(--v-theme-background));
-  background-attachment: fixed;
 }
 
 // Faint technical grid on top of the ambient wash.

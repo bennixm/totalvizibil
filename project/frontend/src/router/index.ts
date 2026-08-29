@@ -65,6 +65,8 @@ export const router = createRouter({
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
+  // bootstrap() swallows its own errors and de-dupes concurrent calls, so this
+  // never rejects and never blocks navigation on more than one /auth/me.
   if (!auth.ready) await auth.bootstrap()
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
