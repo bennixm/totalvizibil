@@ -4,26 +4,20 @@ import router from './router'
 import { i18n } from './i18n'
 import { vuetify } from './plugins/vuetify'
 
-import PrimeVue from 'primevue/config'
-import TVZ from './themes/TVZ'
 import './assets/styles.css'
-import './assets/theme.css'
-import './assets/tailwind.css'
 
-import 'primeicons/primeicons.css'
-import 'primeflex/primeflex.css'
-
+import PrimeVue from 'primevue/config'
+import Aura from '@primeuix/themes/aura';
 
 const app = createApp(App)
+
 app.use(router)
 app.use(i18n)
 app.use(vuetify)
 app.use(PrimeVue, {
     theme: {
-        preset: TVZ,
-        options: {
-            darkModeSelector: false
-        }
+        preset: Aura
     }
-})
+});
+
 app.mount('#app')
