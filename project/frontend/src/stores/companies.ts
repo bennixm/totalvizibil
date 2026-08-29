@@ -76,7 +76,15 @@ export interface DashboardPayload {
     viewerRole: CompanyRole | null
   }
   profileCompleteness: { score: number; missing: string[] }
-  website: { status: string; _status: string; note: string }
+  website:
+    | { status: 'none' }
+    | {
+        status: 'draft' | 'published' | 'unpublished'
+        mode: 'easy' | 'advanced'
+        generator: string
+        updatedAt: string
+        isLive: boolean
+      }
   metrics: {
     _status: string
     note: string
@@ -137,6 +145,13 @@ export const useCompaniesStore = defineStore('companies', {
 
     fetchDashboard(companyId: string): Promise<DashboardPayload> {
       return apiFetch<DashboardPayload>(`/companies/${companyId}/dashboard`)
+    },
+
+    setPublished(companyId: string, live: boolean): Promise<DashboardPayload> {
+      return apiFetch<DashboardPayload>(
+        `/companies/${companyId}/${live ? 'publish' : 'unpublish'}`,
+        { method: 'POST' },
+      )
     },
 
     reset(): void {

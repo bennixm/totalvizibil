@@ -48,4 +48,14 @@ export class CompaniesController {
   dashboard(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
     return this.companies.dashboard(user.id, id);
   }
+
+  @Post(':id/publish')
+  publish(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.companies.setPublished(user.id, id, true);
+  }
+
+  @Post(':id/unpublish')
+  unpublish(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.companies.setPublished(user.id, id, false);
+  }
 }

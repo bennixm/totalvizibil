@@ -7,6 +7,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
 import { CategoriesModule } from './categories/categories.module';
+import { FeedModule } from './feed/feed.module';
+import { WebsiteDraftsModule } from './website-drafts/website-drafts.module';
 import { HealthModule } from './health/health.module';
 
 @Module({
@@ -17,6 +19,8 @@ import { HealthModule } from './health/health.module';
     AuthModule,
     CompaniesModule,
     CategoriesModule,
+    FeedModule,
+    WebsiteDraftsModule,
     HealthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

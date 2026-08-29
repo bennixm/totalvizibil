@@ -4,11 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import {
-  useCompaniesStore,
-  type DashboardPayload,
-  type LocalizedName,
-} from '@/stores/companies'
+import { useCompaniesStore, type DashboardPayload, type LocalizedName } from '@/stores/companies'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -16,6 +12,7 @@ const auth = useAuthStore()
 const companies = useCompaniesStore()
 
 const loading = ref(true)
+const publishing = ref(false)
 const dashboard = ref<DashboardPayload | null>(null)
 
 const metricCards = [
@@ -31,32 +28,45 @@ function localized(name: LocalizedName | null | undefined): string {
   return name[locale.value as keyof LocalizedName] ?? name.en
 }
 
+const companyId = computed(() => dashboard.value?.company.id ?? null)
+const website = computed(() => dashboard.value?.website ?? null)
+const isLive = computed(() => website.value?.status !== 'none' && (website.value as { isLive?: boolean })?.isLive)
+
 const statusText = computed(() => {
   const s = dashboard.value?.company.status
   return s ? t(`dashboard.status${s.charAt(0).toUpperCase()}${s.slice(1)}`) : '—'
 })
-const statusColor = computed(() => {
-  switch (dashboard.value?.company.status) {
-    case 'active':
-      return 'success'
-    case 'suspended':
-      return 'error'
-    default:
-      return 'warning'
+const statusColor = computed(() =>
+  dashboard.value?.company.status === 'active'
+    ? 'success'
+    : dashboard.value?.company.status === 'suspended'
+      ? 'error'
+      : 'warning',
+)
+
+async function reload() {
+  await companies.ensureLoaded()
+  if (!companies.hasCompany) return
+  const wanted =
+    (typeof route.query.company === 'string' &&
+      companies.list.find((c) => c.id === route.query.company)) ||
+    companies.primary
+  if (wanted) dashboard.value = await companies.fetchDashboard(wanted.id)
+}
+
+async function togglePublish() {
+  if (!companyId.value) return
+  publishing.value = true
+  try {
+    dashboard.value = await companies.setPublished(companyId.value, !isLive.value)
+  } finally {
+    publishing.value = false
   }
-})
+}
 
 onMounted(async () => {
   try {
-    await companies.ensureLoaded()
-    if (!companies.hasCompany) return
-    const wanted =
-      (typeof route.query.company === 'string' &&
-        companies.list.find((c) => c.id === route.query.company)) ||
-      companies.primary
-    if (wanted) {
-      dashboard.value = await companies.fetchDashboard(wanted.id)
-    }
+    await reload()
   } finally {
     loading.value = false
   }
@@ -70,23 +80,21 @@ onMounted(async () => {
         <v-progress-circular indeterminate color="primary" />
       </div>
 
-      <!-- No company yet -->
       <template v-else-if="!companies.hasCompany">
         <div class="tvz-card pa-8 text-center d-flex flex-column align-center ga-3">
           <v-avatar color="primary" variant="tonal" size="56" rounded="lg">
-            <v-icon icon="mdi-store-plus-outline" size="30" />
+            <v-icon icon="mdi-sparkles" size="30" />
           </v-avatar>
           <h1 class="text-h5 font-weight-bold font-display">{{ t('dashboard.noCompanyTitle') }}</h1>
           <p class="text-body-1 text-medium-emphasis" style="max-width: 46ch">
             {{ t('dashboard.noCompanyText') }}
           </p>
-          <v-btn :to="{ name: 'company-create' }" color="primary" variant="flat" rounded="pill">
-            {{ t('dashboard.createCompany') }}
+          <v-btn :to="{ name: 'create' }" color="primary" variant="flat" rounded="pill">
+            {{ t('nav.createBusiness') }}
           </v-btn>
         </div>
       </template>
 
-      <!-- Dashboard -->
       <template v-else-if="dashboard">
         <div class="d-flex align-center flex-wrap ga-3">
           <h1 class="text-h4 font-weight-bold font-display">
@@ -95,13 +103,69 @@ onMounted(async () => {
           <v-chip :color="statusColor" size="small" variant="tonal">{{ statusText }}</v-chip>
         </div>
 
+        <!-- Website -->
+        <v-card border flat class="tvz-card">
+          <v-card-item>
+            <template #prepend><v-icon icon="mdi-web" color="primary" /></template>
+            <v-card-title class="font-display">{{ dashboard.company.displayName }}</v-card-title>
+            <v-card-subtitle>
+              {{ website?.status === 'none' ? t('dashboard.noWebsite') : t('dashboard.websiteReady') }}
+            </v-card-subtitle>
+          </v-card-item>
+          <v-card-text>
+            <div class="d-flex align-center flex-wrap ga-3">
+              <v-chip
+                size="small"
+                variant="tonal"
+                :color="isLive ? 'success' : 'default'"
+                :prepend-icon="isLive ? 'mdi-broadcast' : 'mdi-eye-off-outline'"
+              >
+                {{ isLive ? t('dashboard.live') : t('dashboard.notLive') }}
+              </v-chip>
+              <span v-if="website && website.status !== 'none'" class="text-caption text-medium-emphasis">
+                {{ t('dashboard.builtWith', { mode: t(`create.${website.mode}Title`) }) }}
+              </span>
+              <v-spacer />
+              <v-btn
+                v-if="isLive"
+                :to="{ name: 'company', params: { slug: dashboard.company.slug } }"
+                variant="text"
+                size="small"
+                prepend-icon="mdi-open-in-new"
+              >
+                {{ t('dashboard.viewPublic') }}
+              </v-btn>
+              <v-btn
+                v-if="website && website.status !== 'none'"
+                :color="isLive ? undefined : 'primary'"
+                :variant="isLive ? 'outlined' : 'flat'"
+                rounded="pill"
+                size="small"
+                :loading="publishing"
+                :prepend-icon="isLive ? 'mdi-pause' : 'mdi-broadcast'"
+                @click="togglePublish"
+              >
+                {{ isLive ? t('dashboard.unpublish') : t('dashboard.publish') }}
+              </v-btn>
+              <v-btn
+                v-else
+                :to="{ name: 'create' }"
+                color="primary"
+                variant="flat"
+                rounded="pill"
+                size="small"
+                prepend-icon="mdi-sparkles"
+              >
+                {{ t('dashboard.buildWebsite') }}
+              </v-btn>
+            </div>
+          </v-card-text>
+        </v-card>
+
         <!-- Profile -->
         <v-card border flat class="tvz-card">
           <v-card-item>
-            <v-card-title class="font-display">
-              {{ dashboard.company.displayName }}
-            </v-card-title>
-            <v-card-subtitle>{{ t('dashboard.profile') }}</v-card-subtitle>
+            <v-card-title class="font-display">{{ t('dashboard.profile') }}</v-card-title>
           </v-card-item>
           <v-card-text>
             <v-row>
@@ -124,12 +188,9 @@ onMounted(async () => {
                 <div class="font-weight-medium">{{ dashboard.company.servicesCount }}</div>
               </v-col>
             </v-row>
-
             <div class="mt-5">
-              <div class="d-flex justify-space-between text-caption text-medium-emphasis mb-1">
-                <span>
-                  {{ t('dashboard.profileCompleteness', { score: dashboard.profileCompleteness.score }) }}
-                </span>
+              <div class="text-caption text-medium-emphasis mb-1">
+                {{ t('dashboard.profileCompleteness', { score: dashboard.profileCompleteness.score }) }}
               </div>
               <v-progress-linear
                 :model-value="dashboard.profileCompleteness.score"
@@ -137,20 +198,6 @@ onMounted(async () => {
                 height="8"
                 rounded
               />
-              <div
-                v-if="dashboard.profileCompleteness.missing.length"
-                class="d-flex ga-2 flex-wrap mt-2"
-              >
-                <span class="text-caption text-medium-emphasis">{{ t('dashboard.missing') }}:</span>
-                <v-chip
-                  v-for="m in dashboard.profileCompleteness.missing"
-                  :key="m"
-                  size="x-small"
-                  variant="outlined"
-                >
-                  {{ m }}
-                </v-chip>
-              </div>
             </div>
           </v-card-text>
         </v-card>
@@ -170,21 +217,8 @@ onMounted(async () => {
               </v-card>
             </v-col>
           </v-row>
-          <p class="text-caption text-medium-emphasis mt-2">
-            {{ t('dashboard.metricsNote') }}
-          </p>
+          <p class="text-caption text-medium-emphasis mt-2">{{ t('dashboard.metricsNote') }}</p>
         </div>
-
-        <!-- Website placeholder -->
-        <v-card border flat class="tvz-card">
-          <v-card-item>
-            <template #prepend>
-              <v-icon icon="mdi-web" color="primary" />
-            </template>
-            <v-card-title class="font-display">{{ t('dashboard.website') }}</v-card-title>
-            <v-card-subtitle>{{ t('dashboard.websiteNote') }}</v-card-subtitle>
-          </v-card-item>
-        </v-card>
       </template>
     </div>
   </v-container>

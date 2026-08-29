@@ -15,9 +15,9 @@ const year = new Date().getFullYear()
         <div class="d-flex flex-column ga-3" style="max-width: 32ch">
           <div class="d-flex align-center ga-3">
             <span class="brand__mark">
-              <v-icon icon="mdi-hexagon-multiple-outline" size="20" />
+              <v-icon icon="mdi-compass-outline" size="18" />
             </span>
-            <span class="text-h6 font-weight-bold font-display text-gradient">
+            <span class="text-h6 font-weight-bold font-display">
               {{ t('app.name') }}
             </span>
           </div>
@@ -48,7 +48,7 @@ const year = new Date().getFullYear()
           >
             {{ t('footer.docs') }}
           </a>
-          <router-link :to="{ name: 'home' }" class="footer-link">
+          <router-link :to="{ name: 'feed' }" class="footer-link">
             {{ t('footer.contact') }}
           </router-link>
         </div>
@@ -68,12 +68,11 @@ const year = new Date().getFullYear()
 .brand__mark {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 9px;
   color: #fff;
   background: var(--tvz-gradient-brand);
-  box-shadow: var(--tvz-glow-primary);
 }
 
 .footer-link {

@@ -140,14 +140,16 @@ export class CompaniesService {
   }
 
   /**
-   * Real dashboard payload. Advertising / analytics metrics are not implemented
-   * yet — they are returned as explicit `null` with a status marker rather than
-   * faked (PRD §12, §19; later milestones).
+   * Dashboard payload. The website block is real (created by the "Create your
+   * business" flow); advertising / analytics metrics are still explicit `null`
+   * with a status marker rather than faked (PRD §12, §19; later milestones).
    */
   async dashboard(userId: string, companyId: string) {
     const company = await this.getForUser(userId, companyId);
     const primaryLocation =
       company.locations.find((l) => l.isPrimary) ?? company.locations[0] ?? null;
+
+    const website = await this.prisma.website.findUnique({ where: { companyId } });
 
     return {
       company: {
@@ -163,11 +165,15 @@ export class CompaniesService {
         viewerRole: company.viewerRole,
       },
       profileCompleteness: this.profileCompleteness(company),
-      website: {
-        status: 'none' as const,
-        _status: 'not_implemented' as const,
-        note: 'AI website generation is the next milestone (PRD §11).',
-      },
+      website: website
+        ? {
+            status: website.status,
+            mode: website.mode,
+            generator: website.generator,
+            updatedAt: website.updatedAt,
+            isLive: website.status === 'published' && company.status === 'active',
+          }
+        : { status: 'none' as const },
       metrics: {
         _status: 'not_implemented' as const,
         note: 'Advertising & analytics metrics arrive with later milestones (PRD §12, §19).',
@@ -181,6 +187,31 @@ export class CompaniesService {
         leads: null,
       },
     };
+  }
+
+  /** Make the company + its website publicly visible in the feed (PRD §11). */
+  async setPublished(userId: string, companyId: string, live: boolean) {
+    const role = await this.membershipRole(companyId, userId);
+    if (!role) throw new NotFoundException('Company not found');
+    if (!ROLES_THAT_CAN_EDIT.includes(role)) {
+      throw new ForbiddenException('Your role cannot publish this company');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.company.update({
+        where: { id: companyId },
+        data: {
+          status: live ? 'active' : 'draft',
+          claimedAt: live ? new Date() : undefined,
+        },
+      }),
+      this.prisma.website.updateMany({
+        where: { companyId },
+        data: { status: live ? 'published' : 'unpublished' },
+      }),
+    ]);
+
+    return this.dashboard(userId, companyId);
   }
 
   private profileCompleteness(company: CompanyView): { score: number; missing: string[] } {

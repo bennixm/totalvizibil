@@ -35,75 +35,80 @@
 //  Light theme
 // ---------------------------------------------------------------------------
 .v-theme--light {
-  --tvz-brand-1: #3b6ef5;
-  --tvz-brand-2: #7c3aed;
-  --tvz-brand-3: #0891b2;
+  --tvz-brand-1: #3f63e8;
+  --tvz-brand-2: #6d5ef0;
+  --tvz-brand-3: #1596a8;
 
-  --tvz-gradient-brand: linear-gradient(120deg, #3b6ef5 0%, #7c3aed 60%, #0891b2 120%);
-  --tvz-gradient-text: linear-gradient(100deg, #1f4fd8 0%, #7c3aed 55%, #0e7490 110%);
+  // AI accent — reserved for assistant moments only.
+  --tvz-ai: #6d5ef0;
+  --tvz-ai-soft: rgba(109, 94, 240, 0.12);
+
+  --tvz-gradient-brand: linear-gradient(115deg, #3f63e8 0%, #6d5ef0 100%);
+  --tvz-gradient-text: linear-gradient(100deg, #2b4bd8 0%, #6d5ef0 100%);
   --tvz-gradient-sheen: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(255, 255, 255, 0.4) 100%
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 255, 255, 0.25) 100%
   );
 
   // Frosted glass surface
-  --tvz-glass-bg: rgba(255, 255, 255, 0.72);
-  --tvz-glass-bg-strong: rgba(255, 255, 255, 0.86);
-  --tvz-glass-border: rgba(15, 23, 42, 0.08);
-  --tvz-glass-blur: 16px;
+  --tvz-glass-bg: rgba(255, 255, 255, 0.78);
+  --tvz-glass-bg-strong: rgba(255, 255, 255, 0.9);
+  --tvz-glass-border: rgba(15, 23, 42, 0.07);
+  --tvz-glass-blur: 14px;
 
-  // Shadows / glow
-  --tvz-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.05);
-  --tvz-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.09), 0 2px 6px rgba(15, 23, 42, 0.06);
-  --tvz-shadow-lg: 0 24px 60px rgba(30, 41, 92, 0.16), 0 8px 20px rgba(15, 23, 42, 0.08);
-  --tvz-glow-primary: 0 0 0 1px rgba(59, 110, 245, 0.28), 0 12px 40px rgba(59, 110, 245, 0.28);
-  --tvz-glow-accent: 0 0 40px rgba(8, 145, 178, 0.28);
+  // Shadows — soft depth, no coloured glow by default.
+  --tvz-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05), 0 3px 10px rgba(15, 23, 42, 0.04);
+  --tvz-shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08), 0 2px 5px rgba(15, 23, 42, 0.05);
+  --tvz-shadow-lg: 0 20px 48px rgba(23, 32, 71, 0.12), 0 6px 16px rgba(15, 23, 42, 0.06);
+  --tvz-glow-primary: 0 0 0 1px rgba(63, 99, 232, 0.22), 0 8px 26px rgba(63, 99, 232, 0.18);
+  --tvz-glow-accent: 0 0 28px rgba(21, 150, 168, 0.18);
 
-  --tvz-hairline: rgba(15, 23, 42, 0.1);
+  --tvz-hairline: rgba(15, 23, 42, 0.09);
 
-  // Ambient page background (behind everything)
+  // Ambient page background — very restrained.
   --tvz-ambient:
-    radial-gradient(60rem 40rem at 12% -8%, rgba(59, 110, 245, 0.14), transparent 60%),
-    radial-gradient(48rem 40rem at 105% 8%, rgba(124, 58, 237, 0.12), transparent 55%),
-    radial-gradient(50rem 44rem at 50% 118%, rgba(8, 145, 178, 0.1), transparent 60%);
-  --tvz-grid-line: rgba(15, 23, 42, 0.045);
+    radial-gradient(56rem 40rem at 8% -12%, rgba(63, 99, 232, 0.08), transparent 60%),
+    radial-gradient(46rem 38rem at 108% 2%, rgba(109, 94, 240, 0.07), transparent 58%);
+  --tvz-grid-line: rgba(15, 23, 42, 0.035);
 }
 
 // ---------------------------------------------------------------------------
 //  Dark theme
 // ---------------------------------------------------------------------------
 .v-theme--dark {
-  --tvz-brand-1: #5b8dff;
-  --tvz-brand-2: #a78bfa;
-  --tvz-brand-3: #22d3ee;
+  --tvz-brand-1: #6f97ff;
+  --tvz-brand-2: #a99bff;
+  --tvz-brand-3: #4fd0e0;
 
-  --tvz-gradient-brand: linear-gradient(120deg, #5b8dff 0%, #a78bfa 55%, #22d3ee 120%);
-  --tvz-gradient-text: linear-gradient(100deg, #8fb4ff 0%, #c4b5fd 50%, #67e8f9 110%);
+  --tvz-ai: #a99bff;
+  --tvz-ai-soft: rgba(169, 155, 255, 0.16);
+
+  --tvz-gradient-brand: linear-gradient(115deg, #6f97ff 0%, #a99bff 100%);
+  --tvz-gradient-text: linear-gradient(100deg, #9db9ff 0%, #c9bdff 100%);
   --tvz-gradient-sheen: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.02) 100%
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.015) 100%
   );
 
-  --tvz-glass-bg: rgba(17, 22, 38, 0.6);
-  --tvz-glass-bg-strong: rgba(17, 22, 38, 0.82);
-  --tvz-glass-border: rgba(255, 255, 255, 0.09);
-  --tvz-glass-blur: 18px;
+  --tvz-glass-bg: rgba(14, 19, 34, 0.62);
+  --tvz-glass-bg-strong: rgba(14, 19, 34, 0.84);
+  --tvz-glass-border: rgba(255, 255, 255, 0.08);
+  --tvz-glass-blur: 16px;
 
-  --tvz-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.35);
-  --tvz-shadow-md: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.4);
-  --tvz-shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.55), 0 10px 24px rgba(0, 0, 0, 0.45);
-  --tvz-glow-primary: 0 0 0 1px rgba(91, 141, 255, 0.35), 0 16px 50px rgba(91, 141, 255, 0.35);
-  --tvz-glow-accent: 0 0 46px rgba(34, 211, 238, 0.32);
+  --tvz-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 5px 14px rgba(0, 0, 0, 0.32);
+  --tvz-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.36);
+  --tvz-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.5), 0 8px 20px rgba(0, 0, 0, 0.4);
+  --tvz-glow-primary: 0 0 0 1px rgba(111, 151, 255, 0.28), 0 10px 34px rgba(111, 151, 255, 0.22);
+  --tvz-glow-accent: 0 0 30px rgba(79, 208, 224, 0.2);
 
-  --tvz-hairline: rgba(255, 255, 255, 0.1);
+  --tvz-hairline: rgba(255, 255, 255, 0.09);
 
   --tvz-ambient:
-    radial-gradient(64rem 46rem at 10% -10%, rgba(91, 141, 255, 0.22), transparent 60%),
-    radial-gradient(52rem 44rem at 108% 6%, rgba(167, 139, 250, 0.18), transparent 55%),
-    radial-gradient(56rem 48rem at 50% 120%, rgba(34, 211, 238, 0.14), transparent 60%);
-  --tvz-grid-line: rgba(255, 255, 255, 0.04);
+    radial-gradient(60rem 44rem at 6% -14%, rgba(111, 151, 255, 0.14), transparent 60%),
+    radial-gradient(50rem 40rem at 110% 0%, rgba(169, 155, 255, 0.11), transparent 58%);
+  --tvz-grid-line: rgba(255, 255, 255, 0.035);
 }
 
 // Respect reduced-motion for every decorative animation in the app.

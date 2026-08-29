@@ -119,8 +119,15 @@ model Company {
   currency     String        @default("RON")
   ownerUserId  String        @map("owner_user_id") @db.Uuid
   claimedAt    DateTime?     @map("claimed_at")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  // Feed ranking inputs (PRD §8). Cached, recomputed on profile changes.
+  // `featured` stands in for "has an active sponsored campaign" until the
+  // campaigns/credit tables land — it only drives the "sponsored" placement slot.
+  qualityScore Float   @default(0) @map("quality_score")
+  featured     Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   category  Category?         @relation(fields: [categoryId], references: [id])
   owner     User              @relation("CompanyOwner", fields: [ownerUserId], references: [id])
@@ -128,10 +135,75 @@ model Company {
   locations CompanyLocation[]
   contacts  CompanyContact[]
   services  CompanyService[]
+  website   Website?
 
   @@index([ownerUserId])
   @@index([categoryId])
+  @@index([status])
   @@map("companies")
+}
+
+// ---------------------------------------------------------------------------
+// Website (PRD §11) — one per company. Content is a typed block tree stored
+// as JSON for now; normalised page/section tables come in a later milestone.
+// ---------------------------------------------------------------------------
+
+enum WebsiteMode {
+  easy
+  advanced
+}
+
+enum WebsiteStatus {
+  draft
+  published
+  unpublished
+}
+
+model Website {
+  id        String        @id @default(uuid()) @db.Uuid
+  companyId String        @unique @map("company_id") @db.Uuid
+  mode      WebsiteMode   @default(easy)
+  status    WebsiteStatus @default(draft)
+  // { palette, fontPair, radius, density }
+  theme     Json
+  // { pages: [{ slug, title, isHome, sections: [{ type, ...content }] }], seo: {...} }
+  content   Json
+  generator String        @default("rule-based-v1")
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("websites")
+}
+
+// Anonymous, pre-account website draft. Created by the "Create your business"
+// flow before registration; claimed into a real Company + Website on sign-up.
+
+enum WebsiteDraftStatus {
+  generating
+  ready
+  claimed
+  abandoned
+}
+
+model WebsiteDraft {
+  id               String             @id @default(uuid()) @db.Uuid
+  token            String             @unique
+  mode             WebsiteMode        @default(easy)
+  status           WebsiteDraftStatus @default(ready)
+  // Raw user answers from the Easy/Advanced form.
+  input            Json
+  // Generated block tree (same shape as Website.content).
+  content          Json
+  theme            Json
+  generator        String             @default("rule-based-v1")
+  claimedCompanyId String?            @map("claimed_company_id") @db.Uuid
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("website_drafts")
 }
 
 enum CompanyRole {

@@ -10,7 +10,7 @@ const { t } = useI18n()
       <div class="text-h1 font-weight-bold text-primary">404</div>
       <h1 class="text-h5 font-weight-bold">{{ t('errors.notFoundTitle') }}</h1>
       <p class="text-body-1 text-medium-emphasis">{{ t('errors.notFoundText') }}</p>
-      <v-btn :to="{ name: 'home' }" color="primary" variant="flat">
+      <v-btn :to="{ name: 'feed' }" color="primary" variant="flat">
         {{ t('errors.goHome') }}
       </v-btn>
     </div>

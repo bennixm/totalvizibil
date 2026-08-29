@@ -29,7 +29,7 @@ async function submit() {
       return
     }
     await companies.fetchList()
-    router.push({ name: companies.hasCompany ? 'dashboard' : 'company-create' })
+    router.push({ name: companies.hasCompany ? 'dashboard' : 'create' })
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : t('auth.genericError')
   } finally {
@@ -88,8 +88,8 @@ async function submit() {
           </v-card-text>
           <v-card-actions>
             <span class="text-body-2 text-medium-emphasis ms-2">{{ t('auth.noAccount') }}</span>
-            <v-btn :to="{ name: 'register' }" variant="text" size="small">
-              {{ t('auth.registerTitle') }}
+            <v-btn :to="{ name: 'create' }" variant="text" size="small">
+              {{ t('nav.createBusiness') }}
             </v-btn>
           </v-card-actions>
         </v-card>

@@ -7,24 +7,16 @@ import { useDisplay } from 'vuetify'
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
+import { useDraftStore } from '@/stores/draft'
 
 const { t } = useI18n()
 const { mdAndUp } = useDisplay()
 const router = useRouter()
 const auth = useAuthStore()
 const companies = useCompaniesStore()
+const draft = useDraftStore()
 
 const drawer = ref(false)
-
-const links = computed(() => {
-  const base = [
-    { to: { name: 'home' }, key: 'nav.home' },
-    { to: { name: 'search' }, key: 'nav.search' },
-    { to: { name: 'onboarding' }, key: 'nav.forBusiness' },
-  ]
-  if (auth.isAuthenticated) base.push({ to: { name: 'dashboard' }, key: 'nav.dashboard' })
-  return base
-})
 
 const initials = computed(() =>
   (auth.user?.name ?? '?')
@@ -38,7 +30,7 @@ async function signOut() {
   drawer.value = false
   await auth.logout()
   companies.reset()
-  router.push({ name: 'home' })
+  router.push({ name: 'feed' })
 }
 </script>
 
@@ -47,26 +39,23 @@ async function signOut() {
     <v-container class="d-flex align-center ga-2 py-0">
       <v-app-bar-nav-icon v-if="!mdAndUp" @click="drawer = !drawer" />
 
-      <router-link
-        :to="{ name: 'home' }"
-        class="d-flex align-center ga-2 text-decoration-none brand"
-      >
-        <span class="brand__mark">
-          <v-icon icon="mdi-hexagon-multiple-outline" size="22" />
-        </span>
-        <span class="text-h6 font-weight-bold font-display text-gradient">{{ t('app.name') }}</span>
+      <router-link :to="{ name: 'feed' }" class="d-flex align-center ga-2 text-decoration-none brand">
+        <span class="brand__mark"><v-icon icon="mdi-compass-outline" size="20" /></span>
+        <span class="text-h6 font-weight-bold font-display">{{ t('app.name') }}</span>
       </router-link>
 
       <template v-if="mdAndUp">
+        <v-btn :to="{ name: 'feed' }" variant="text" rounded="pill" class="text-none ms-3 nav-link">
+          {{ t('nav.discover') }}
+        </v-btn>
         <v-btn
-          v-for="link in links"
-          :key="link.key"
-          :to="link.to"
+          v-if="auth.isAuthenticated"
+          :to="{ name: 'dashboard' }"
           variant="text"
           rounded="pill"
-          class="text-none ms-1 nav-link"
+          class="text-none nav-link"
         >
-          {{ t(link.key) }}
+          {{ t('nav.dashboard') }}
         </v-btn>
       </template>
 
@@ -74,14 +63,24 @@ async function signOut() {
 
       <LocaleSwitcher />
 
+      <v-btn
+        :to="{ name: draft.hasDraft ? 'create-preview' : 'create' }"
+        color="primary"
+        variant="flat"
+        rounded="pill"
+        class="text-none"
+        prepend-icon="mdi-sparkles"
+      >
+        {{ draft.hasDraft ? t('nav.resumeDraft') : t('nav.createBusiness') }}
+      </v-btn>
+
       <template v-if="auth.isAuthenticated">
         <v-menu location="bottom end">
           <template #activator="{ props }">
-            <v-btn v-bind="props" variant="text" rounded="pill" class="text-none">
-              <v-avatar color="primary" size="30" class="me-2">
+            <v-btn v-bind="props" icon variant="text" class="ms-1">
+              <v-avatar color="primary" size="32">
                 <span class="text-caption font-weight-bold">{{ initials }}</span>
               </v-avatar>
-              <span class="d-none d-sm-inline">{{ auth.user?.name }}</span>
             </v-btn>
           </template>
           <v-list nav density="compact" min-width="200">
@@ -91,48 +90,44 @@ async function signOut() {
               :title="t('account.dashboard')"
             />
             <v-divider class="my-1" />
-            <v-list-item
-              prepend-icon="mdi-logout"
-              :title="t('account.signOut')"
-              @click="signOut"
-            />
+            <v-list-item prepend-icon="mdi-logout" :title="t('account.signOut')" @click="signOut" />
           </v-list>
         </v-menu>
       </template>
-      <template v-else>
-        <v-btn
-          :to="{ name: 'login' }"
-          variant="text"
-          rounded="pill"
-          class="text-none d-none d-sm-inline-flex"
-        >
-          {{ t('nav.login') }}
-        </v-btn>
-        <v-btn
-          :to="{ name: 'register' }"
-          color="primary"
-          variant="flat"
-          rounded="pill"
-          class="text-none tvz-glow"
-        >
-          {{ t('nav.register') }}
-        </v-btn>
-      </template>
+      <v-btn
+        v-else
+        :to="{ name: 'login' }"
+        variant="text"
+        rounded="pill"
+        class="text-none d-none d-sm-inline-flex"
+      >
+        {{ t('nav.login') }}
+      </v-btn>
     </v-container>
   </v-app-bar>
 
   <v-navigation-drawer v-model="drawer" temporary class="tvz-glass--strong">
     <v-list nav>
       <v-list-item
-        v-for="link in links"
-        :key="link.key"
-        :to="link.to"
-        :title="t(link.key)"
+        :to="{ name: 'feed' }"
+        :title="t('nav.discover')"
+        rounded="lg"
+        @click="drawer = false"
+      />
+      <v-list-item
+        :to="{ name: 'create' }"
+        :title="t('nav.createBusiness')"
         rounded="lg"
         @click="drawer = false"
       />
       <v-divider class="my-2" />
       <template v-if="auth.isAuthenticated">
+        <v-list-item
+          :to="{ name: 'dashboard' }"
+          :title="t('account.dashboard')"
+          rounded="lg"
+          @click="drawer = false"
+        />
         <v-list-item
           prepend-icon="mdi-logout"
           :title="t('account.signOut')"
@@ -140,20 +135,13 @@ async function signOut() {
           @click="signOut"
         />
       </template>
-      <template v-else>
-        <v-list-item
-          :to="{ name: 'login' }"
-          :title="t('nav.login')"
-          rounded="lg"
-          @click="drawer = false"
-        />
-        <v-list-item
-          :to="{ name: 'register' }"
-          :title="t('nav.register')"
-          rounded="lg"
-          @click="drawer = false"
-        />
-      </template>
+      <v-list-item
+        v-else
+        :to="{ name: 'login' }"
+        :title="t('nav.login')"
+        rounded="lg"
+        @click="drawer = false"
+      />
     </v-list>
   </v-navigation-drawer>
 </template>
@@ -161,24 +149,21 @@ async function signOut() {
 <style scoped>
 .tvz-appbar {
   background: var(--tvz-glass-bg-strong) !important;
-  backdrop-filter: blur(var(--tvz-glass-blur)) saturate(1.6);
-  -webkit-backdrop-filter: blur(var(--tvz-glass-blur)) saturate(1.6);
+  backdrop-filter: blur(var(--tvz-glass-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur)) saturate(1.4);
   border-bottom: 1px solid var(--tvz-hairline);
 }
-
 .brand__mark {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
   color: #fff;
   background: var(--tvz-gradient-brand);
-  box-shadow: var(--tvz-glow-primary);
 }
-
 .nav-link {
-  opacity: 0.78;
+  opacity: 0.72;
   transition: opacity var(--tvz-dur-fast) var(--tvz-ease-out);
 }
 .nav-link:hover,

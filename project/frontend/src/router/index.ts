@@ -1,40 +1,56 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
+import { useDraftStore } from '@/stores/draft'
 
 const routes: RouteRecordRaw[] = [
+  // --- Discovery (public, the main experience) ---
   {
     path: '/',
-    name: 'home',
-    component: () => import('@/views/HomeView.vue'),
+    name: 'feed',
+    component: () => import('@/views/FeedView.vue'),
   },
   {
-    path: '/search',
-    name: 'search',
-    component: () => import('@/views/SearchView.vue'),
+    path: '/c/:slug',
+    name: 'company',
+    component: () => import('@/views/CompanyPublicView.vue'),
+  },
+
+  // --- Create your business (AI-first, register at the end) ---
+  {
+    path: '/create',
+    name: 'create',
+    component: () => import('@/views/CreateBusinessView.vue'),
   },
   {
-    path: '/for-business',
-    name: 'onboarding',
-    component: () => import('@/views/BusinessOnboardingView.vue'),
+    path: '/create/easy',
+    name: 'create-easy',
+    component: () => import('@/views/CreateEasyView.vue'),
   },
   {
-    path: '/companies/new',
-    name: 'company-create',
-    component: () => import('@/views/CreateCompanyView.vue'),
-    meta: { requiresAuth: true },
+    path: '/create/advanced',
+    name: 'create-advanced',
+    component: () => import('@/views/CreateAdvancedView.vue'),
   },
+  {
+    path: '/create/preview',
+    name: 'create-preview',
+    component: () => import('@/views/WebsitePreviewView.vue'),
+    meta: { requiresDraft: true },
+  },
+  {
+    path: '/create/account',
+    name: 'create-account',
+    component: () => import('@/views/ClaimAccountView.vue'),
+    meta: { requiresDraft: true },
+  },
+
+  // --- Owner area ---
   {
     path: '/dashboard',
     name: 'dashboard',
     component: () => import('@/views/DashboardView.vue'),
     meta: { requiresAuth: true },
-  },
-  {
-    path: '/admin',
-    name: 'admin',
-    component: () => import('@/views/AdminView.vue'),
-    meta: { requiresAuth: true, requiresPlatformStaff: true },
   },
   {
     path: '/login',
@@ -43,11 +59,18 @@ const routes: RouteRecordRaw[] = [
     meta: { guestOnly: true },
   },
   {
-    path: '/register',
-    name: 'register',
-    component: () => import('@/views/RegisterView.vue'),
-    meta: { guestOnly: true },
+    path: '/admin',
+    name: 'admin',
+    component: () => import('@/views/AdminView.vue'),
+    meta: { requiresAuth: true, requiresPlatformStaff: true },
   },
+
+  // --- Redirects from the old IA ---
+  { path: '/register', redirect: { name: 'create' } },
+  { path: '/for-business', redirect: { name: 'create' } },
+  { path: '/search', redirect: { name: 'feed' } },
+  { path: '/companies/new', redirect: { name: 'create' } },
+
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
@@ -65,8 +88,6 @@ export const router = createRouter({
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
-  // bootstrap() swallows its own errors and de-dupes concurrent calls, so this
-  // never rejects and never blocks navigation on more than one /auth/me.
   if (!auth.ready) await auth.bootstrap()
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
@@ -77,6 +98,9 @@ router.beforeEach(async (to) => {
   }
   if (to.meta.guestOnly && auth.isAuthenticated) {
     return { name: 'dashboard' }
+  }
+  if (to.meta.requiresDraft && !useDraftStore().hasDraft) {
+    return { name: 'create' }
   }
   return true
 })
