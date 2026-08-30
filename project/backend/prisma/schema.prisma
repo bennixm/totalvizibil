@@ -42,6 +42,7 @@ model User {
   companyMembers CompanyUser[]
   ownedCompanies Company[]                @relation("CompanyOwner")
   passwordResets PasswordResetToken[]
+  wallet         Wallet?
 
   @@map("users")
 }
@@ -148,16 +149,23 @@ model Company {
   qualityScore Float   @default(0) @map("quality_score")
   featured     Boolean @default(false)
 
+  // Advanced website builder — one-time paid unlock (spec: "Plata Planului Avansat").
+  advancedUnlockedAt DateTime? @map("advanced_unlocked_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  category  Category?         @relation(fields: [categoryId], references: [id])
-  owner     User              @relation("CompanyOwner", fields: [ownerUserId], references: [id])
-  members   CompanyUser[]
-  locations CompanyLocation[]
-  contacts  CompanyContact[]
-  services  CompanyService[]
-  website   Website?
+  category            Category?           @relation(fields: [categoryId], references: [id])
+  owner               User                @relation("CompanyOwner", fields: [ownerUserId], references: [id])
+  members             CompanyUser[]
+  locations           CompanyLocation[]
+  contacts            CompanyContact[]
+  services            CompanyService[]
+  website             Website?
+  campaign            Campaign?
+  walletTransactions  WalletTransaction[]
+  adClicks            AdClick[]
+  leads               Lead[]
 
   @@index([ownerUserId])
   @@index([categoryId])
@@ -191,12 +199,71 @@ model Website {
   // { pages: [{ slug, title, isHome, sections: [{ type, ...content }] }], seo: {...} }
   content   Json
   generator String        @default("rule-based-v1")
+  // Advanced builder inputs (AdvancedInput), so re-opening the builder restores state.
+  builderSpec Json?       @map("builder_spec")
+  // Scripted advanced-builder conversation transcript.
+  builderChat Json?       @map("builder_chat")
   createdAt DateTime      @default(now()) @map("created_at")
   updatedAt DateTime      @updatedAt @map("updated_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("websites")
+}
+
+// ---------------------------------------------------------------------------
+// Website draft (AI studio) — an anonymous, pre-account one-pager built by the
+// scripted assistant on the free plan. Identified by an opaque token (only the
+// SHA-256 hash is stored). It is "claimed" into a real Website once the visitor
+// creates an account (later milestone).
+// ---------------------------------------------------------------------------
+
+enum WebsiteDraftStatus {
+  in_progress
+  ready
+  claimed
+}
+
+model WebsiteDraft {
+  id        String             @id @default(uuid()) @db.Uuid
+  tokenHash String             @unique @map("token_hash")
+  mode      WebsiteMode        @default(easy)
+  plan      String             @default("free")
+  status    WebsiteDraftStatus @default(in_progress)
+
+  // Scripted-assistant progress.
+  step       String @default("business")
+  answers    Json   @default("{}")
+  transcript Json   @default("[]")
+  turnsUsed  Int    @default(0) @map("turns_used")
+
+  // Generated output (block tree + theme) — null until the first generation pass.
+  theme     Json?
+  content   Json?
+  generator String?
+
+  // Exact-niche category (leaf slug from the 2-level taxonomy). Chosen on the
+  // location step; copied onto the Company at claim time. A business must have
+  // one to appear in the feed.
+  categorySlug String? @map("category_slug")
+
+  // Location step (M2) — the service area that decides where the company can
+  // surface in the feed. Populated after the one-pager is generated.
+  locationCity     String? @map("location_city")
+  locationRegion   String? @map("location_region")
+  locationCountry  String? @map("location_country")
+  locationLat      Float?  @map("location_lat")
+  locationLng      Float?  @map("location_lng")
+  locationRadiusKm Int?    @map("location_radius_km")
+
+  claimedCompanyId String? @unique @map("claimed_company_id") @db.Uuid
+
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("website_drafts")
 }
 
 enum CompanyRole {
@@ -236,6 +303,8 @@ model CompanyLocation {
   city            String
   region          String?
   country         String   @default("RO")
+  lat             Float?
+  lng             Float?
   isPrimary       Boolean  @default(false) @map("is_primary")
   serviceRadiusKm Int?     @map("service_radius_km")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -279,4 +348,202 @@ model CompanyService {
 
   @@index([companyId])
   @@map("company_services")
+}
+
+// ---------------------------------------------------------------------------
+// Wallet & Credits (spec: "WALLET / CREDITS")
+// Credits are the internal currency, EUR-denominated: 1 Credit = 1 EUR. Money
+// is stored as integer minor units (hundredths of a credit = euro cents) to
+// keep the ledger exact. The wallet is prepaid: balance can never go negative.
+//
+// One wallet per user — it funds every business the user owns. Individual
+// campaigns have no balance of their own; each spend is tagged with the
+// business it belongs to (`WalletTransaction.companyId`) for per-campaign
+// consumption tracking.
+// ---------------------------------------------------------------------------
+
+model Wallet {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  // Hundredths of a credit. 1 Credit = 1 EUR, so this is also euro cents.
+  balanceMinor Int      @default(0) @map("balance_minor")
+  currency     String   @default("EUR")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@map("wallets")
+}
+
+enum WalletTxnType {
+  purchase
+  spend
+  refund
+  adjustment
+}
+
+enum WalletTxnStatus {
+  pending
+  completed
+  failed
+  canceled
+}
+
+model WalletTransaction {
+  id     String          @id @default(uuid()) @db.Uuid
+  wallet Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  walletId String        @map("wallet_id") @db.Uuid
+  // Which business this movement belongs to (spend attribution / per-campaign
+  // consumption). Null for wallet-level events like credit purchases.
+  company   Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyId String?       @map("company_id") @db.Uuid
+  type   WalletTxnType
+  status WalletTxnStatus @default(completed)
+
+  // Signed minor units: positive = credit in, negative = debit out.
+  // For a pending purchase the balance is not moved until it completes.
+  amountMinor       Int  @map("amount_minor")
+  balanceAfterMinor Int? @map("balance_after_minor")
+
+  // Payment context (purchases). `fxRate` is the EUR->RON rate used at checkout.
+  eurCents    Int?     @map("eur_cents")
+  ronBani     Int?     @map("ron_bani")
+  fxRate      Decimal? @map("fx_rate") @db.Decimal(10, 4)
+  provider    String?
+  providerRef String?  @map("provider_ref")
+
+  description String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([walletId, createdAt])
+  @@index([companyId])
+  @@map("wallet_transactions")
+}
+
+// ---------------------------------------------------------------------------
+// Campaign (spec: "Buget + CPC" / "APARI PRIMUL"). One per company for now.
+// A company appears in the feed only while its campaign is `active`, and the
+// wallet must hold at least one day's budget for it to run (prepaid).
+// ---------------------------------------------------------------------------
+
+enum CampaignStatus {
+  draft
+  active
+  paused
+  depleted
+}
+
+model Campaign {
+  id        String         @id @default(uuid()) @db.Uuid
+  companyId String         @unique @map("company_id") @db.Uuid
+  status    CampaignStatus @default(draft)
+
+  // Minor units (hundredths of a credit), same convention as the wallet.
+  dailyBudgetMinor Int     @map("daily_budget_minor")
+  cpcMinor         Int     @map("cpc_minor")
+  appearFirst      Boolean @default(false) @map("appear_first")
+
+  // CPC metering. `spentTodayMinor` is the credits burned on clicks for the UTC
+  // day `spendDay`; both reset lazily when the day rolls over.
+  spentTodayMinor Int       @default(0) @map("spent_today_minor")
+  spendDay        DateTime? @map("spend_day") @db.Date
+  activatedAt     DateTime? @map("activated_at")
+  pausedAt        DateTime? @map("paused_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("campaigns")
+}
+
+// ---------------------------------------------------------------------------
+// Ad click — one row per (company, visitor, UTC day). `visitor_hash` is
+// sha256(ip | user-agent | companyId | yyyy-mm-dd) so the same person is billed
+// at most once per day per listing (spam / repeat-click protection). Non-billed
+// rows (`reason` set) still record the view for analytics.
+// ---------------------------------------------------------------------------
+
+model AdClick {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  visitorHash String   @map("visitor_hash")
+  billed      Boolean  @default(false)
+  costMinor   Int      @default(0) @map("cost_minor")
+  // Why a click was not billed: no_campaign | bot | budget | insufficient
+  reason      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, visitorHash])
+  @@index([companyId, createdAt])
+  @@map("ad_clicks")
+}
+
+// ---------------------------------------------------------------------------
+// Lead — a request a visitor sent to a company from its generated site: a
+// contact-form message or a tap on the "call" button. Shown in the company's
+// panel ("Cereri"). `firstResponseAt` / `resolvedAt` capture how fast the
+// company reacted — the raw material for the response-time ranking input.
+// ---------------------------------------------------------------------------
+
+enum LeadChannel {
+  form
+  call
+}
+
+enum LeadStatus {
+  new
+  seen
+  resolved
+}
+
+model Lead {
+  id        String      @id @default(uuid()) @db.Uuid
+  companyId String      @map("company_id") @db.Uuid
+  channel   LeadChannel
+  status    LeadStatus  @default(new)
+
+  // Visitor-supplied (form). For a `call` the visitor stays anonymous and
+  // `phone` holds the company number that was dialed.
+  name    String?
+  email   String?
+  phone   String?
+  message String?
+
+  // Privacy-safe dedupe / spam key: sha256(ip | ua | companyId | channel | window).
+  visitorHash String @map("visitor_hash")
+
+  // Response tracking (feeds the feed ranking later).
+  firstResponseAt DateTime? @map("first_response_at")
+  resolvedAt      DateTime? @map("resolved_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, visitorHash])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, channel])
+  @@map("leads")
+}
+
+// ---------------------------------------------------------------------------
+// Platform settings — small key/value config the platform can change without a
+// deploy (e.g. the EUR/RON rate used when charging in lei). Never hardcoded.
+// ---------------------------------------------------------------------------
+
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
 }

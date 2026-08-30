@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 
 const { t } = useI18n()
+const router = useRouter()
 
 const modes = [
   { key: 'easy', icon: 'mdi-flash-outline', accent: 'primary' },
@@ -10,6 +12,11 @@ const modes = [
 ] as const
 
 const picked = ref<'easy' | 'advanced' | null>(null)
+
+function pick(key: 'easy' | 'advanced'): void {
+  picked.value = key
+  void router.push({ name: key === 'easy' ? 'create-easy' : 'create-advanced' })
+}
 </script>
 
 <template>
@@ -27,7 +34,7 @@ const picked = ref<'easy' | 'advanced' | null>(null)
         class="mode"
         :class="[`mode--${m.accent}`, { 'mode--picked': picked === m.key }]"
         :aria-pressed="picked === m.key"
-        @click="picked = m.key"
+        @click="pick(m.key)"
       >
         <v-icon :icon="m.icon" size="26" />
         <h2>{{ t(`create.${m.key}Title`) }}</h2>
@@ -37,7 +44,7 @@ const picked = ref<'easy' | 'advanced' | null>(null)
     </div>
 
     <v-expand-transition>
-      <div v-if="picked" class="cb__next">
+      <div v-if="picked === 'advanced'" class="cb__next">
         <v-icon icon="mdi-progress-wrench" size="20" />
         <div>
           <strong>{{ t('create.nextTitle') }}</strong>

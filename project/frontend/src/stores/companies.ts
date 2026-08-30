@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 
 import { apiFetch } from '@/services/api'
+import type { WebsiteContent, WebsiteTheme } from '@/types/website'
+import type { WalletSummary } from '@/stores/wallet'
+import type { CampaignData } from '@/stores/campaign'
 
 export type CompanyRole = 'owner' | 'manager' | 'editor' | 'billing'
 export type CompanyStatus = 'draft' | 'active' | 'suspended'
@@ -24,6 +27,8 @@ export interface CompanyLocation {
   address: string | null
   region: string | null
   country: string
+  lat: number | null
+  lng: number | null
   isPrimary: boolean
   serviceRadiusKm: number | null
 }
@@ -53,6 +58,7 @@ export interface Company {
   country: string
   defaultLocale: string
   currency: string
+  advancedUnlockedAt: string | null
   createdAt: string
   updatedAt: string
   viewerRole: CompanyRole | null
@@ -62,7 +68,44 @@ export interface Company {
   services: CompanyService[]
 }
 
+export interface DashboardLeadsSummary {
+  total: number
+  new: number
+  resolved: number
+  form: number
+  call: number
+  responded: number
+  avgResponseMinutes: number | null
+}
+
+export interface DashboardAnalytics {
+  clicks: { total: number; today: number }
+  calls: { total: number }
+  messages: { total: number; new: number }
+  campaign: {
+    consumedTotal: { minor: number; credits: number }
+    consumedToday: { minor: number; credits: number }
+    activeDays: number
+  }
+  response: {
+    avgMinutes: number | null
+    ratePct: number | null
+    responded: number
+    total: number
+  }
+  visibility: {
+    score: number
+    parts: { cpc: number; response: number; plan: number; age: number }
+    weights: { cpc: number; response: number; plan: number; age: number }
+  }
+  series: { days: string[]; clicks: number[]; messages: number[] }
+}
+
 export interface DashboardPayload {
+  wallet: WalletSummary
+  campaign: CampaignData | null
+  leads: DashboardLeadsSummary
+  analytics: DashboardAnalytics
   company: {
     id: string
     displayName: string
@@ -75,7 +118,6 @@ export interface DashboardPayload {
     createdAt: string
     viewerRole: CompanyRole | null
   }
-  profileCompleteness: { score: number; missing: string[] }
   website:
     | { status: 'none' }
     | {
@@ -84,7 +126,14 @@ export interface DashboardPayload {
         generator: string
         updatedAt: string
         isLive: boolean
+        theme: WebsiteTheme
+        content: WebsiteContent
       }
+  tasks: {
+    key: string
+    required: boolean
+    status: 'todo' | 'blocked' | 'done'
+  }[]
   metrics: {
     _status: string
     note: string
@@ -109,20 +158,50 @@ export interface CreateCompanyInput {
   services?: { name: string }[]
 }
 
+export interface CompanyOverview {
+  id: string
+  displayName: string
+  slug: string
+  status: CompanyStatus
+  website: { mode: 'easy' | 'advanced'; status: 'draft' | 'published' | 'unpublished' } | null
+  campaignStatus: 'draft' | 'active' | 'paused' | 'depleted' | null
+  /** Lifetime credits this business's campaign has consumed. */
+  consumedCredits: number
+  locationCity: string | null
+}
+
+const CURRENT_KEY = 'tvz.currentCompany'
+function loadCurrent(): string | null {
+  try {
+    return localStorage.getItem(CURRENT_KEY)
+  } catch {
+    return null
+  }
+}
+
 interface CompaniesState {
   list: Company[]
   loaded: boolean
+  overview: CompanyOverview[]
+  overviewLoaded: boolean
+  currentId: string | null
 }
 
 export const useCompaniesStore = defineStore('companies', {
   state: (): CompaniesState => ({
     list: [],
     loaded: false,
+    overview: [],
+    overviewLoaded: false,
+    currentId: loadCurrent(),
   }),
 
   getters: {
-    hasCompany: (state): boolean => state.list.length > 0,
+    hasCompany: (state): boolean => state.list.length > 0 || state.overview.length > 0,
     primary: (state): Company | null => state.list[0] ?? null,
+    /** The company the dashboard/sub-pages act on: sticky selection, else the first. */
+    currentOverview: (state): CompanyOverview | null =>
+      state.overview.find((c) => c.id === state.currentId) ?? state.overview[0] ?? null,
   },
 
   actions: {
@@ -136,6 +215,48 @@ export const useCompaniesStore = defineStore('companies', {
       if (!this.loaded) await this.fetchList()
     },
 
+    async fetchOverview(force = false): Promise<void> {
+      if (this.overviewLoaded && !force) return
+      const { data } = await apiFetch<{ data: CompanyOverview[] }>('/companies/overview')
+      this.overview = data
+      this.overviewLoaded = true
+      if (!this.currentId || !data.some((c) => c.id === this.currentId)) {
+        this.currentId = data[0]?.id ?? null
+      }
+    },
+
+    /** Pick the active company (sticky across pages). */
+    select(id: string | null): void {
+      this.currentId = id
+      try {
+        if (id) localStorage.setItem(CURRENT_KEY, id)
+        else localStorage.removeItem(CURRENT_KEY)
+      } catch {
+        /* ignore */
+      }
+    },
+
+    /** Permanently delete a business. */
+    async remove(companyId: string): Promise<void> {
+      await apiFetch(`/companies/${companyId}`, { method: 'DELETE' })
+      this.list = this.list.filter((c) => c.id !== companyId)
+      this.overview = this.overview.filter((c) => c.id !== companyId)
+      if (this.currentId === companyId) this.select(this.overview[0]?.id ?? null)
+    },
+
+    /** Resolve a company id: explicit route param → sticky selection → first. */
+    resolveId(routeC?: unknown): string | null {
+      const wanted = typeof routeC === 'string' ? routeC : null
+      const id =
+        wanted ??
+        this.currentId ??
+        this.overview[0]?.id ??
+        this.list[0]?.id ??
+        null
+      if (id) this.select(id)
+      return id
+    },
+
     async create(input: CreateCompanyInput): Promise<Company> {
       const company = await apiFetch<Company>('/companies', { method: 'POST', body: input })
       this.list = [company, ...this.list]
@@ -143,8 +264,46 @@ export const useCompaniesStore = defineStore('companies', {
       return company
     },
 
+    /** Claim an anonymous website draft into a real company (end of create flow). */
+    async createFromDraft(draftToken: string): Promise<Company> {
+      const company = await apiFetch<Company>('/companies/from-draft', {
+        method: 'POST',
+        body: { draftToken },
+      })
+      this.list = [company, ...this.list]
+      this.loaded = true
+      this.overviewLoaded = false
+      this.select(company.id)
+      return company
+    },
+
     fetchDashboard(companyId: string): Promise<DashboardPayload> {
       return apiFetch<DashboardPayload>(`/companies/${companyId}/dashboard`)
+    },
+
+    fetchOne(companyId: string): Promise<Company> {
+      return apiFetch<Company>(`/companies/${companyId}`)
+    },
+
+    async updateLocation(
+      companyId: string,
+      input: {
+        categorySlug: string
+        city: string
+        region?: string
+        country?: string
+        lat: number
+        lng: number
+        radiusKm: number
+      },
+    ): Promise<Company> {
+      const company = await apiFetch<Company>(`/companies/${companyId}/location`, {
+        method: 'PATCH',
+        body: input,
+      })
+      const i = this.list.findIndex((c) => c.id === companyId)
+      if (i >= 0) this.list[i] = company
+      return company
     },
 
     setPublished(companyId: string, live: boolean): Promise<DashboardPayload> {

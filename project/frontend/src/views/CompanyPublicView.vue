@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
 import { apiFetch, ApiError } from '@/services/api'
+import { trackCall } from '@/services/leads'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 import type { LocalizedName } from '@/stores/companies'
 
@@ -27,6 +28,11 @@ const route = useRoute()
 const company = ref<PublicCompany | null>(null)
 const loading = ref(true)
 const notFound = ref(false)
+const leadSent = ref(false)
+
+function onBarCall(): void {
+  if (company.value) trackCall(company.value.slug)
+}
 
 async function load(slug: string) {
   loading.value = true
@@ -60,12 +66,20 @@ const categoryName = computed(() => {
 
 <template>
   <div class="cp">
-    <div class="cp__bar page-container">
+    <div class="cp__bar">
       <v-btn :to="{ name: 'feed' }" variant="text" prepend-icon="mdi-arrow-left" size="small">
         {{ t('company.backToFeed') }}
       </v-btn>
+      <p v-if="company" class="cp__barName">{{ company.displayName }}</p>
       <div class="cp__bar-actions">
-        <v-btn v-if="phone" :href="`tel:${phone}`" variant="tonal" size="small" prepend-icon="mdi-phone">
+        <v-btn
+          v-if="phone"
+          :href="`tel:${phone}`"
+          variant="tonal"
+          size="small"
+          prepend-icon="mdi-phone"
+          @click="onBarCall"
+        >
           {{ t('company.call') }}
         </v-btn>
         <v-btn
@@ -94,9 +108,15 @@ const categoryName = computed(() => {
     </div>
 
     <template v-else-if="company">
-      <!-- Website identity -->
-      <div v-if="company.website" class="page-container cp__site">
-        <WebsiteRenderer :content="company.website.content" :theme="company.website.theme" />
+      <!-- Full website preview (edge to edge, like visiting the real site) -->
+      <div v-if="company.website" class="cp__site">
+        <WebsiteRenderer
+          class="cp__renderer"
+          :content="company.website.content"
+          :theme="company.website.theme"
+          :lead-slug="company.slug"
+          @lead-sent="leadSent = true"
+        />
       </div>
 
       <!-- Fallback identity page (no generated website) -->
@@ -126,16 +146,35 @@ const categoryName = computed(() => {
         </div>
       </div>
     </template>
+
+    <v-snackbar v-model="leadSent" :timeout="4000" color="success" location="bottom">
+      {{ t('company.leadSent') }}
+    </v-snackbar>
   </div>
 </template>
 
 <style scoped>
 .cp__bar {
+  position: sticky;
+  top: var(--tvz-topbar-h);
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding-block: 1rem;
+  padding: 0.6rem clamp(0.9rem, 3vw, 1.5rem);
+  background: var(--tvz-glass-bg-strong);
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.cp__barName {
+  flex: 1;
+  text-align: center;
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cp__bar-actions {
   display: flex;
@@ -150,8 +189,10 @@ const categoryName = computed(() => {
 .cp__missing {
   color: rgb(var(--v-theme-on-surface) / 0.7);
 }
-.cp__site {
-  padding-bottom: 4rem;
+/* The generated site renders full width, no frame — a real full preview. */
+.cp__site :deep(.site) {
+  border: 0;
+  border-radius: 0;
 }
 .cp__profile {
   padding-bottom: 5rem;

@@ -6,20 +6,180 @@ import { GeneratorInput } from '../src/website/website.types';
 const prisma = new PrismaClient();
 const generator = new RuleBasedWebsiteGenerator();
 
-/** Launch-category seed (PRD §6.2 — seed supply before demand). */
-const CATEGORIES: { slug: string; icon: string; name: { ro: string; en: string; de: string } }[] = [
-  { slug: 'electrician', icon: 'mdi-flash', name: { ro: 'Electricieni', en: 'Electricians', de: 'Elektriker' } },
-  { slug: 'plumbing', icon: 'mdi-pipe-wrench', name: { ro: 'Instalatori', en: 'Plumbers', de: 'Klempner' } },
-  { slug: 'roofing', icon: 'mdi-home-roof', name: { ro: 'Acoperișuri', en: 'Roofing', de: 'Dachdecker' } },
-  { slug: 'construction', icon: 'mdi-hammer', name: { ro: 'Construcții', en: 'Construction', de: 'Bau' } },
-  { slug: 'cleaning', icon: 'mdi-broom', name: { ro: 'Curățenie', en: 'Cleaning', de: 'Reinigung' } },
-  { slug: 'automotive', icon: 'mdi-car-wrench', name: { ro: 'Auto service', en: 'Automotive', de: 'Autowerkstatt' } },
-  { slug: 'restaurant', icon: 'mdi-silverware-fork-knife', name: { ro: 'Restaurante', en: 'Restaurants', de: 'Restaurants' } },
-  { slug: 'hairdresser', icon: 'mdi-content-cut', name: { ro: 'Coafor & frizerie', en: 'Hairdressers', de: 'Friseure' } },
-  { slug: 'dental', icon: 'mdi-tooth-outline', name: { ro: 'Cabinete stomatologice', en: 'Dental clinics', de: 'Zahnarztpraxen' } },
-  { slug: 'driving-school', icon: 'mdi-car', name: { ro: 'Școli de șoferi', en: 'Driving schools', de: 'Fahrschulen' } },
-  { slug: 'web-design', icon: 'mdi-monitor', name: { ro: 'Web design', en: 'Web design', de: 'Webdesign' } },
-  { slug: 'photography', icon: 'mdi-camera', name: { ro: 'Fotografi', en: 'Photographers', de: 'Fotografen' } },
+/**
+ * Category taxonomy: parent group -> exact service niches (PRD §6.2).
+ * Children inherit the parent's icon. Slugs are stable identifiers.
+ */
+type I18n = { ro: string; en: string; de: string };
+const TAXONOMY: {
+  slug: string;
+  icon: string;
+  name: I18n;
+  children: { slug: string; name: I18n }[];
+}[] = [
+  {
+    slug: 'constructii',
+    icon: 'mdi-hammer',
+    name: { ro: 'Construcții', en: 'Construction', de: 'Bau' },
+    children: [
+      { slug: 'acoperisuri', name: { ro: 'Acoperișuri', en: 'Roofing', de: 'Dachdecker' } },
+      {
+        slug: 'amenajari-interioare',
+        name: { ro: 'Amenajări interioare', en: 'Interior fit-out', de: 'Innenausbau' },
+      },
+      {
+        slug: 'zidarie',
+        name: { ro: 'Zidărie & structuri', en: 'Masonry & structures', de: 'Mauerwerk' },
+      },
+      {
+        slug: 'izolatii',
+        name: { ro: 'Izolații termice', en: 'Thermal insulation', de: 'Wärmedämmung' },
+      },
+    ],
+  },
+  {
+    slug: 'instalatii',
+    icon: 'mdi-pipe-wrench',
+    name: { ro: 'Instalații', en: 'Installations', de: 'Installationen' },
+    children: [
+      {
+        slug: 'instalatii-sanitare',
+        name: { ro: 'Instalații sanitare', en: 'Plumbing', de: 'Sanitärinstallation' },
+      },
+      {
+        slug: 'instalatii-electrice',
+        name: { ro: 'Instalații electrice', en: 'Electrical', de: 'Elektroinstallation' },
+      },
+      { slug: 'climatizare', name: { ro: 'Climatizare & HVAC', en: 'HVAC', de: 'Klimatechnik' } },
+    ],
+  },
+  {
+    slug: 'auto',
+    icon: 'mdi-car-wrench',
+    name: { ro: 'Auto & transport', en: 'Automotive', de: 'Auto' },
+    children: [
+      {
+        slug: 'service-auto',
+        name: { ro: 'Service auto', en: 'Car service', de: 'Autowerkstatt' },
+      },
+      {
+        slug: 'tinichigerie',
+        name: { ro: 'Tinichigerie & vopsitorie', en: 'Body & paint', de: 'Karosserie & Lack' },
+      },
+      {
+        slug: 'vulcanizare',
+        name: { ro: 'Vulcanizare & anvelope', en: 'Tyres', de: 'Reifenservice' },
+      },
+    ],
+  },
+  {
+    slug: 'curatenie',
+    icon: 'mdi-broom',
+    name: { ro: 'Curățenie', en: 'Cleaning', de: 'Reinigung' },
+    children: [
+      {
+        slug: 'curatenie-rezidentiala',
+        name: { ro: 'Curățenie rezidențială', en: 'Home cleaning', de: 'Wohnungsreinigung' },
+      },
+      {
+        slug: 'curatenie-birouri',
+        name: { ro: 'Curățenie birouri', en: 'Office cleaning', de: 'Büroreinigung' },
+      },
+      {
+        slug: 'curatenie-post-constructor',
+        name: {
+          ro: 'Curățenie după constructor',
+          en: 'Post-construction cleaning',
+          de: 'Bauendreinigung',
+        },
+      },
+    ],
+  },
+  {
+    slug: 'frumusete',
+    icon: 'mdi-content-cut',
+    name: { ro: 'Frumusețe & îngrijire', en: 'Beauty & care', de: 'Schönheit & Pflege' },
+    children: [
+      { slug: 'coafor', name: { ro: 'Coafor & frizerie', en: 'Hairdressers', de: 'Friseure' } },
+      {
+        slug: 'cosmetica',
+        name: { ro: 'Cosmetică & make-up', en: 'Cosmetics & make-up', de: 'Kosmetik & Make-up' },
+      },
+      {
+        slug: 'manichiura',
+        name: { ro: 'Manichiură & pedichiură', en: 'Nail salons', de: 'Nagelstudios' },
+      },
+    ],
+  },
+  {
+    slug: 'horeca',
+    icon: 'mdi-silverware-fork-knife',
+    name: { ro: 'Restaurante & catering', en: 'Food & catering', de: 'Gastronomie' },
+    children: [
+      { slug: 'restaurante', name: { ro: 'Restaurante', en: 'Restaurants', de: 'Restaurants' } },
+      {
+        slug: 'cafenele',
+        name: { ro: 'Cafenele & patiserii', en: 'Cafés & bakeries', de: 'Cafés & Bäckereien' },
+      },
+      {
+        slug: 'catering',
+        name: { ro: 'Catering & evenimente', en: 'Catering & events', de: 'Catering & Events' },
+      },
+    ],
+  },
+  {
+    slug: 'digital',
+    icon: 'mdi-monitor',
+    name: { ro: 'Servicii digitale', en: 'Digital services', de: 'Digitale Dienste' },
+    children: [
+      {
+        slug: 'web-design',
+        name: {
+          ro: 'Web design & dezvoltare',
+          en: 'Web design & development',
+          de: 'Webdesign & Entwicklung',
+        },
+      },
+      {
+        slug: 'marketing-seo',
+        name: { ro: 'Marketing & SEO', en: 'Marketing & SEO', de: 'Marketing & SEO' },
+      },
+      {
+        slug: 'foto-video',
+        name: { ro: 'Fotografie & video', en: 'Photography & video', de: 'Foto & Video' },
+      },
+    ],
+  },
+  {
+    slug: 'sanatate',
+    icon: 'mdi-hospital-box-outline',
+    name: { ro: 'Sănătate', en: 'Health', de: 'Gesundheit' },
+    children: [
+      {
+        slug: 'stomatologie',
+        name: { ro: 'Cabinete stomatologice', en: 'Dental clinics', de: 'Zahnarztpraxen' },
+      },
+      {
+        slug: 'kinetoterapie',
+        name: { ro: 'Kinetoterapie & recuperare', en: 'Physiotherapy', de: 'Physiotherapie' },
+      },
+    ],
+  },
+  {
+    slug: 'educatie',
+    icon: 'mdi-school-outline',
+    name: { ro: 'Educație', en: 'Education', de: 'Bildung' },
+    children: [
+      {
+        slug: 'scoli-soferi',
+        name: { ro: 'Școli de șoferi', en: 'Driving schools', de: 'Fahrschulen' },
+      },
+      {
+        slug: 'meditatii',
+        name: { ro: 'Meditații & cursuri', en: 'Tutoring & courses', de: 'Nachhilfe & Kurse' },
+      },
+    ],
+  },
 ];
 
 interface DemoCompany {
@@ -41,65 +201,184 @@ interface DemoCompany {
 
 const DEMO: DemoCompany[] = [
   {
-    slug: 'novak-bau-stuttgart', name: 'Novak Bau', categorySlug: 'construction', city: 'Stuttgart', country: 'DE',
-    type: 'construction company', services: ['Full renovations', 'Extensions', 'Bathrooms', 'Drywall'],
-    description: 'Novak Bau is a construction team in Stuttgart doing full renovations and extensions for homes and small offices.',
-    phone: '+49 711 123 456', email: 'kontakt@novakbau.de', featured: true, quality: 0.86, ageDays: 220,
+    slug: 'novak-bau-stuttgart',
+    name: 'Novak Bau',
+    categorySlug: 'amenajari-interioare',
+    city: 'Stuttgart',
+    country: 'DE',
+    type: 'construction company',
+    services: ['Full renovations', 'Extensions', 'Bathrooms', 'Drywall'],
+    description:
+      'Novak Bau is a construction team in Stuttgart doing full renovations and extensions for homes and small offices.',
+    phone: '+49 711 123 456',
+    email: 'kontakt@novakbau.de',
+    featured: true,
+    quality: 0.86,
+    ageDays: 220,
   },
   {
-    slug: 'lumina-electric-cluj', name: 'Lumina Electric', categorySlug: 'electrician', city: 'Cluj-Napoca', region: 'Cluj', country: 'RO',
-    type: 'electrical services', services: ['Panel upgrades', 'Wiring', 'EV chargers', 'Emergency callouts'],
-    description: 'Authorised electricians in Cluj-Napoca for homes and businesses. Same-day emergency callouts.',
-    phone: '+40 722 100 200', email: 'office@luminaelectric.ro', featured: true, quality: 0.82, ageDays: 140,
+    slug: 'lumina-electric-cluj',
+    name: 'Lumina Electric',
+    categorySlug: 'instalatii-electrice',
+    city: 'Cluj-Napoca',
+    region: 'Cluj',
+    country: 'RO',
+    type: 'electrical services',
+    services: ['Panel upgrades', 'Wiring', 'EV chargers', 'Emergency callouts'],
+    description:
+      'Authorised electricians in Cluj-Napoca for homes and businesses. Same-day emergency callouts.',
+    phone: '+40 722 100 200',
+    email: 'office@luminaelectric.ro',
+    featured: true,
+    quality: 0.82,
+    ageDays: 140,
   },
   {
-    slug: 'aqua-fix-muenchen', name: 'AquaFix', categorySlug: 'plumbing', city: 'München', country: 'DE',
-    type: 'plumbing company', services: ['Leak detection', 'Boiler service', 'Drain unblocking', 'Bathroom fit-out'],
-    description: 'AquaFix handles plumbing emergencies and bathroom renovations across München with transparent pricing.',
-    phone: '+49 89 555 010', email: 'hallo@aquafix.de', quality: 0.74, ageDays: 90,
+    slug: 'aqua-fix-muenchen',
+    name: 'AquaFix',
+    categorySlug: 'instalatii-sanitare',
+    city: 'München',
+    country: 'DE',
+    type: 'plumbing company',
+    services: ['Leak detection', 'Boiler service', 'Drain unblocking', 'Bathroom fit-out'],
+    description:
+      'AquaFix handles plumbing emergencies and bathroom renovations across München with transparent pricing.',
+    phone: '+49 89 555 010',
+    email: 'hallo@aquafix.de',
+    quality: 0.74,
+    ageDays: 90,
   },
   {
-    slug: 'acoperis-pro-timisoara', name: 'Acoperiș Pro', categorySlug: 'roofing', city: 'Timișoara', region: 'Timiș', country: 'RO',
-    type: 'roofing company', services: ['Roof repair', 'Full re-roofing', 'Gutters', 'Insulation'],
-    description: 'Roofing specialists in Timișoara: repairs, re-roofing and insulation with a 5-year workmanship guarantee.',
-    phone: '+40 744 300 400', email: 'contact@acoperispro.ro', quality: 0.7, ageDays: 60,
+    slug: 'acoperis-pro-timisoara',
+    name: 'Acoperiș Pro',
+    categorySlug: 'acoperisuri',
+    city: 'Timișoara',
+    region: 'Timiș',
+    country: 'RO',
+    type: 'roofing company',
+    services: ['Roof repair', 'Full re-roofing', 'Gutters', 'Insulation'],
+    description:
+      'Roofing specialists in Timișoara: repairs, re-roofing and insulation with a 5-year workmanship guarantee.',
+    phone: '+40 744 300 400',
+    email: 'contact@acoperispro.ro',
+    quality: 0.7,
+    ageDays: 60,
   },
   {
-    slug: 'sparkle-clean-berlin', name: 'Sparkle Clean', categorySlug: 'cleaning', city: 'Berlin', country: 'DE',
-    type: 'cleaning service', services: ['Office cleaning', 'Move-out cleaning', 'Window cleaning'],
-    description: 'Reliable office and move-out cleaning in Berlin, insured teams, flexible scheduling.',
-    phone: '+49 30 700 800', email: 'team@sparkleclean.de', quality: 0.63, ageDays: 30,
+    slug: 'sparkle-clean-berlin',
+    name: 'Sparkle Clean',
+    categorySlug: 'curatenie-birouri',
+    city: 'Berlin',
+    country: 'DE',
+    type: 'cleaning service',
+    services: ['Office cleaning', 'Move-out cleaning', 'Window cleaning'],
+    description:
+      'Reliable office and move-out cleaning in Berlin, insured teams, flexible scheduling.',
+    phone: '+49 30 700 800',
+    email: 'team@sparkleclean.de',
+    quality: 0.63,
+    ageDays: 30,
   },
   {
-    slug: 'autotech-garage-bucuresti', name: 'AutoTech Garage', categorySlug: 'automotive', city: 'București', country: 'RO',
-    type: 'car service', services: ['Diagnostics', 'Brakes & suspension', 'AC service', 'Pre-purchase check'],
-    description: 'Independent car service in București with dealer-level diagnostics at fair prices.',
-    phone: '+40 731 500 600', email: 'service@autotech.ro', quality: 0.68, ageDays: 45,
+    slug: 'autotech-garage-bucuresti',
+    name: 'AutoTech Garage',
+    categorySlug: 'service-auto',
+    city: 'București',
+    country: 'RO',
+    type: 'car service',
+    services: ['Diagnostics', 'Brakes & suspension', 'AC service', 'Pre-purchase check'],
+    description:
+      'Independent car service in București with dealer-level diagnostics at fair prices.',
+    phone: '+40 731 500 600',
+    email: 'service@autotech.ro',
+    quality: 0.68,
+    ageDays: 45,
   },
   {
-    slug: 'bistro-nordic-cluj', name: 'Bistro Nordic', categorySlug: 'restaurant', city: 'Cluj-Napoca', region: 'Cluj', country: 'RO',
-    type: 'bistro restaurant', services: ['Lunch menu', 'Events & catering', 'Vegetarian menu'],
-    description: 'A small Nordic-inspired bistro in central Cluj-Napoca. Seasonal menu, weekday lunch, private events.',
-    phone: '+40 726 111 222', email: 'hello@bistronordic.ro', quality: 0.71, ageDays: 12,
+    slug: 'bistro-nordic-cluj',
+    name: 'Bistro Nordic',
+    categorySlug: 'restaurante',
+    city: 'Cluj-Napoca',
+    region: 'Cluj',
+    country: 'RO',
+    type: 'bistro restaurant',
+    services: ['Lunch menu', 'Events & catering', 'Vegetarian menu'],
+    description:
+      'A small Nordic-inspired bistro in central Cluj-Napoca. Seasonal menu, weekday lunch, private events.',
+    phone: '+40 726 111 222',
+    email: 'hello@bistronordic.ro',
+    quality: 0.71,
+    ageDays: 12,
   },
   {
-    slug: 'pixel-studio-web-stuttgart', name: 'Pixel Studio', categorySlug: 'web-design', city: 'Stuttgart', country: 'DE',
-    type: 'web design studio', services: ['Website design', 'Branding', 'SEO', 'Webshops'],
-    description: 'Pixel Studio designs fast, modern websites and brand identities for local businesses in the Stuttgart area.',
-    phone: '+49 711 909 100', email: 'studio@pixel.de', quality: 0.6, ageDays: 3,
+    slug: 'pixel-studio-web-stuttgart',
+    name: 'Pixel Studio',
+    categorySlug: 'web-design',
+    city: 'Stuttgart',
+    country: 'DE',
+    type: 'web design studio',
+    services: ['Website design', 'Branding', 'SEO', 'Webshops'],
+    description:
+      'Pixel Studio designs fast, modern websites and brand identities for local businesses in the Stuttgart area.',
+    phone: '+49 711 909 100',
+    email: 'studio@pixel.de',
+    quality: 0.6,
+    ageDays: 3,
   },
 ];
 
 async function seedCategories() {
-  for (let i = 0; i < CATEGORIES.length; i++) {
-    const c = CATEGORIES[i];
-    await prisma.category.upsert({
-      where: { slug: c.slug },
-      update: { nameI18n: c.name, icon: c.icon, position: i, isActive: true },
-      create: { slug: c.slug, nameI18n: c.name, icon: c.icon, position: i },
+  const keep = new Set<string>();
+  let pos = 0;
+  let leafCount = 0;
+
+  for (const parent of TAXONOMY) {
+    keep.add(parent.slug);
+    const p = await prisma.category.upsert({
+      where: { slug: parent.slug },
+      update: {
+        nameI18n: parent.name,
+        icon: parent.icon,
+        position: pos,
+        isActive: true,
+        parentId: null,
+      },
+      create: { slug: parent.slug, nameI18n: parent.name, icon: parent.icon, position: pos },
     });
+    pos += 1;
+
+    let childPos = 0;
+    for (const child of parent.children) {
+      keep.add(child.slug);
+      await prisma.category.upsert({
+        where: { slug: child.slug },
+        update: {
+          nameI18n: child.name,
+          icon: parent.icon,
+          position: childPos,
+          isActive: true,
+          parentId: p.id,
+        },
+        create: {
+          slug: child.slug,
+          nameI18n: child.name,
+          icon: parent.icon,
+          position: childPos,
+          parentId: p.id,
+        },
+      });
+      childPos += 1;
+      leafCount += 1;
+    }
   }
-  console.log(`Seeded ${CATEGORIES.length} categories.`);
+
+  // Retire categories no longer in the taxonomy (kept for FK safety).
+  await prisma.category.updateMany({
+    where: { slug: { notIn: [...keep] } },
+    data: { isActive: false },
+  });
+
+  console.log(`Seeded ${TAXONOMY.length} category groups / ${leafCount} niches.`);
 }
 
 async function demoOwner() {
@@ -107,7 +386,11 @@ async function demoOwner() {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return existing;
   return prisma.user.create({
-    data: { email, name: 'Demo Seed Owner', passwordHash: await argon2.hash('demo-seed-' + Date.now()) },
+    data: {
+      email,
+      name: 'Demo Seed Owner',
+      passwordHash: await argon2.hash('demo-seed-' + Date.now()),
+    },
   });
 }
 
@@ -153,7 +436,12 @@ async function seedCompanies() {
     if (existing) {
       await prisma.company.update({
         where: { slug: d.slug },
-        data: { qualityScore: d.quality, featured: d.featured ?? false, status: 'active' },
+        data: {
+          qualityScore: d.quality,
+          featured: d.featured ?? false,
+          status: 'active',
+          categoryId: catId(d.categorySlug),
+        },
       });
       continue;
     }
@@ -203,9 +491,19 @@ async function seedCompanies() {
   console.log(`Seeded ${DEMO.length} demo companies (with websites).`);
 }
 
+async function seedPlatformSettings() {
+  await prisma.platformSetting.upsert({
+    where: { key: 'eur_ron_rate' },
+    create: { key: 'eur_ron_rate', value: '5.05' },
+    update: {},
+  });
+  console.log('Seeded platform settings (eur_ron_rate).');
+}
+
 async function main() {
   await seedCategories();
   await seedAdmin();
+  await seedPlatformSettings();
   await seedCompanies();
 }
 

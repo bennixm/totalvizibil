@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
+import { submitLead, trackCall } from '@/services/leads'
 import type { Section, WebsiteContent, WebsiteTheme } from '@/types/website'
 
 const props = defineProps<{
@@ -8,7 +10,48 @@ const props = defineProps<{
   theme: WebsiteTheme
   /** Render inside a scaled "browser frame" preview shell. */
   framed?: boolean
+  /**
+   * When set, the contact section becomes interactive: the form submits a lead
+   * and the phone link is tracked as a "call". Absent in previews.
+   */
+  leadSlug?: string
 }>()
+
+const emit = defineEmits<{ (e: 'lead-sent'): void; (e: 'call'): void }>()
+
+const { t } = useI18n()
+
+// --- interactive contact form (only when `leadSlug` is provided) ---
+const cf = reactive({ name: '', email: '', phone: '', message: '' })
+const cState = ref<'idle' | 'busy' | 'sent' | 'error'>('idle')
+const cError = ref('')
+const cValid = computed(
+  () => cf.message.trim().length > 1 && (cf.email.trim() !== '' || cf.phone.trim() !== ''),
+)
+
+async function sendContactForm(): Promise<void> {
+  if (!props.leadSlug || !cValid.value || cState.value === 'busy') return
+  cState.value = 'busy'
+  cError.value = ''
+  try {
+    await submitLead(props.leadSlug, {
+      name: cf.name.trim() || undefined,
+      email: cf.email.trim() || undefined,
+      phone: cf.phone.trim() || undefined,
+      message: cf.message.trim(),
+    })
+    cState.value = 'sent'
+    emit('lead-sent')
+  } catch (err) {
+    cState.value = 'error'
+    cError.value = err instanceof Error ? err.message : 'error'
+  }
+}
+
+function onCall(): void {
+  if (props.leadSlug) trackCall(props.leadSlug)
+  emit('call')
+}
 
 const PALETTES: Record<WebsiteTheme['palette'], { accent: string; ink: string; wash: string }> = {
   indigo: { accent: '#4f46e5', ink: '#1e1b4b', wash: '#eef2ff' },
@@ -47,7 +90,18 @@ const styleVars = computed(() => {
   } as Record<string, string>
 })
 
-const page = computed(() => props.content.pages.find((p) => p.isHome) ?? props.content.pages[0])
+const pages = computed(() => props.content.pages ?? [])
+const homeSlug = computed(
+  () => (pages.value.find((p) => p.isHome) ?? pages.value[0])?.slug ?? 'home',
+)
+const activeSlug = ref(homeSlug.value)
+watch(homeSlug, (s) => {
+  if (!pages.value.some((p) => p.slug === activeSlug.value)) activeSlug.value = s
+})
+
+const page = computed(
+  () => pages.value.find((p) => p.slug === activeSlug.value) ?? pages.value[0],
+)
 const sections = computed(() => (page.value?.sections ?? []).filter((s) => s.visible))
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -60,6 +114,18 @@ const f = (s: Section, key: string): any => (s as any)[key]
       <span /><span /><span />
       <div class="site__url">{{ content.seo.title }}</div>
     </div>
+
+    <nav v-if="pages.length > 1" class="site__nav">
+      <button
+        v-for="p in pages"
+        :key="p.slug"
+        type="button"
+        :class="{ 'is-on': p.slug === activeSlug }"
+        @click="activeSlug = p.slug"
+      >
+        {{ p.title }}
+      </button>
+    </nav>
 
     <div class="site__scroll">
       <template v-for="s in sections" :key="s.id">
@@ -91,6 +157,18 @@ const f = (s: Section, key: string): any => (s as any)[key]
           </div>
         </section>
 
+        <!-- GALLERY / PORTFOLIO -->
+        <section v-else-if="s.type === 'gallery'" class="s s--gallery">
+          <h2>{{ f(s, 'title') }}</h2>
+          <div class="grid grid--2">
+            <div v-for="(item, i) in f(s, 'items')" :key="i" class="tile">
+              <div class="tile__shot" aria-hidden="true" />
+              <h3>{{ item.title }}</h3>
+              <p v-if="item.description">{{ item.description }}</p>
+            </div>
+          </div>
+        </section>
+
         <!-- TESTIMONIALS -->
         <section v-else-if="s.type === 'testimonials'" class="s s--quotes">
           <h2>{{ f(s, 'title') }}</h2>
@@ -115,10 +193,32 @@ const f = (s: Section, key: string): any => (s as any)[key]
         <section v-else-if="s.type === 'contact'" class="s s--contact">
           <h2>{{ f(s, 'title') }}</h2>
           <ul>
-            <li v-if="f(s, 'phone')"><strong>Phone</strong> {{ f(s, 'phone') }}</li>
-            <li v-if="f(s, 'email')"><strong>Email</strong> {{ f(s, 'email') }}</li>
-            <li v-if="f(s, 'city')"><strong>Area</strong> {{ f(s, 'city') }}</li>
+            <li v-if="f(s, 'phone')">
+              <strong>{{ t('site.phone') }}</strong>
+              <a v-if="leadSlug" :href="`tel:${f(s, 'phone')}`" @click="onCall">{{ f(s, 'phone') }}</a>
+              <template v-else>{{ f(s, 'phone') }}</template>
+            </li>
+            <li v-if="f(s, 'email')"><strong>{{ t('site.email') }}</strong> {{ f(s, 'email') }}</li>
+            <li v-if="f(s, 'city')"><strong>{{ t('site.area') }}</strong> {{ f(s, 'city') }}</li>
           </ul>
+
+          <!-- Interactive request form (public site only) -->
+          <form v-if="leadSlug && cState !== 'sent'" class="cform" @submit.prevent="sendContactForm">
+            <p class="cform__lead">{{ t('site.formLead') }}</p>
+            <div class="cform__row">
+              <input v-model="cf.name" type="text" :placeholder="t('site.fName')" autocomplete="name" />
+              <input v-model="cf.email" type="email" :placeholder="t('site.fEmail')" autocomplete="email" />
+            </div>
+            <input v-model="cf.phone" type="tel" :placeholder="t('site.fPhone')" autocomplete="tel" />
+            <textarea v-model="cf.message" rows="3" :placeholder="t('site.fMessage')" required></textarea>
+            <p v-if="cState === 'error'" class="cform__err">{{ t('site.formError') }}</p>
+            <button type="submit" class="btn btn--solid" :disabled="!cValid || cState === 'busy'">
+              {{ cState === 'busy' ? t('site.formSending') : t('site.formSend') }}
+            </button>
+          </form>
+          <p v-else-if="leadSlug" class="cform__ok">
+            <span aria-hidden="true">✓</span> {{ t('site.formThanks') }}
+          </p>
         </section>
 
         <!-- CTA -->
@@ -167,11 +267,47 @@ const f = (s: Section, key: string): any => (s as any)[key]
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.site__nav {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.4rem 0.9rem;
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  overflow-x: auto;
+}
+.site__nav button {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  font-family: var(--site-body);
+}
+.site__nav button.is-on {
+  background: var(--site-accent);
+  color: #fff;
+}
 .site__scroll {
   overflow-y: auto;
 }
 .site--framed .site__scroll {
   max-height: 620px;
+}
+
+.s--gallery {
+  background: var(--site-wash);
+}
+.s--gallery h2 {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  margin-bottom: 1.6rem;
+}
+.tile__shot {
+  height: 120px;
+  border-radius: var(--site-radius);
+  margin-bottom: 0.8rem;
+  background: linear-gradient(135deg, var(--site-wash), var(--site-accent));
+  opacity: 0.5;
 }
 
 .s {
@@ -312,6 +448,71 @@ blockquote cite {
 .s--contact strong {
   display: inline-block;
   min-width: 5rem;
+  color: var(--site-accent);
+}
+.s--contact a {
+  color: var(--site-accent);
+  font-weight: 600;
+}
+
+.cform {
+  margin-top: 1.6rem;
+  max-width: 34rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.cform__lead {
+  margin: 0 0 0.2rem;
+  font-weight: 600;
+}
+.cform__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+@media (max-width: 520px) {
+  .cform__row {
+    grid-template-columns: 1fr;
+  }
+}
+.cform input,
+.cform textarea {
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--site-ink) 22%, #fff);
+  border-radius: var(--site-radius);
+  font: inherit;
+  font-size: 0.92rem;
+  background: #fff;
+  color: var(--site-ink);
+}
+.cform input:focus,
+.cform textarea:focus {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+.cform textarea {
+  resize: vertical;
+}
+.cform .btn {
+  align-self: flex-start;
+  border: 0;
+  cursor: pointer;
+}
+.cform .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.cform__err {
+  margin: 0;
+  color: #c0362c;
+  font-size: 0.85rem;
+}
+.cform__ok {
+  margin-top: 1.4rem;
+  font-weight: 600;
   color: var(--site-accent);
 }
 

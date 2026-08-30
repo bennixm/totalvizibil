@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { useFeedStore, type FeedSort } from '@/stores/feed'
+import { useFeedStore, type FeedCategoryNode, type FeedSort } from '@/stores/feed'
 import type { LocalizedName } from '@/stores/companies'
 
 const { t, locale } = useI18n()
@@ -24,8 +24,23 @@ const sortItems = computed<{ value: FeedSort; title: string }[]>(() => [
   { value: 'rating', title: t('feed.sortRating') },
 ])
 
-function toggleCategory(slug: string) {
-  feed.setFilter('category', feed.filters.category === slug ? null : slug)
+// The parent group currently in focus: either its own slug is selected, or one
+// of its niches is.
+const openParent = computed<FeedCategoryNode | null>(() => {
+  const sel = feed.filters.category
+  if (!sel) return null
+  return (
+    feed.facets.categories.find(
+      (p) => p.slug === sel || p.children.some((c) => c.slug === sel),
+    ) ?? null
+  )
+})
+
+function selectParent(p: FeedCategoryNode) {
+  feed.setFilter('category', openParent.value?.slug === p.slug ? null : p.slug)
+}
+function selectChild(slug: string) {
+  feed.setFilter('category', feed.filters.category === slug ? (openParent.value?.slug ?? null) : slug)
 }
 </script>
 
@@ -81,10 +96,30 @@ function toggleCategory(slug: string) {
         v-for="c in feed.facets.categories"
         :key="c.slug"
         class="cat"
-        :class="{ 'cat--on': feed.filters.category === c.slug }"
-        @click="toggleCategory(c.slug)"
+        :class="{ 'cat--on': openParent?.slug === c.slug }"
+        @click="selectParent(c)"
       >
         <v-icon v-if="c.icon" :icon="c.icon" size="15" />
+        {{ catName(c.name) }}
+      </button>
+    </div>
+
+    <!-- Niche subcategories for the focused group -->
+    <div v-if="openParent" class="controls__subs">
+      <button
+        class="sub"
+        :class="{ 'sub--on': feed.filters.category === openParent.slug }"
+        @click="feed.setFilter('category', openParent.slug)"
+      >
+        {{ t('feed.allIn', { group: catName(openParent.name) }) }}
+      </button>
+      <button
+        v-for="c in openParent.children"
+        :key="c.slug"
+        class="sub"
+        :class="{ 'sub--on': feed.filters.category === c.slug }"
+        @click="selectChild(c.slug)"
+      >
         {{ catName(c.name) }}
       </button>
     </div>
@@ -135,6 +170,35 @@ function toggleCategory(slug: string) {
 .cat--on {
   background: rgb(var(--v-theme-primary));
   border-color: rgb(var(--v-theme-primary));
+  color: #fff;
+}
+
+.controls__subs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--tvz-radius-md);
+  background: rgb(var(--v-theme-primary) / 0.06);
+  border: 1px solid rgb(var(--v-theme-primary) / 0.16);
+}
+.sub {
+  flex: 0 0 auto;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgb(var(--v-theme-on-surface) / 0.7);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.sub:hover {
+  color: rgb(var(--v-theme-on-surface));
+  background: rgb(var(--v-theme-on-surface) / 0.06);
+}
+.sub--on {
+  background: rgb(var(--v-theme-primary));
   color: #fff;
 }
 </style>

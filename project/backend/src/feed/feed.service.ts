@@ -1,19 +1,34 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
+import { DEFAULT_REFS, visibilityScore, type VisibilityInput } from '../analytics/visibility';
 import { FeedQueryDto } from './feed.query';
 
-type Placement = 'sponsored' | 'organic' | 'exploration';
-
 const RANKING_NOTE =
-  'Ordering blends relevance, quality, popularity and freshness; sponsored slots are capped ' +
-  'and one exploration slot is reserved for new businesses. Full auction + fairness engine: PRD §8–§9.';
+  'Only businesses with a funded, active campaign appear. Order among them is the ' +
+  'Visibility Score: CPC (daily budget) x0.35 + Response rate/speed x0.30 + Plan ' +
+  '(advanced > easy) x0.20 + Campaign age x0.15. A search query further gates by ' +
+  'relevance; a funded "appear first" tier adds a fixed lift. No reserved slots.';
+
+// A funded "appear first" campaign gets this added on top of the Visibility Score.
+const APPEAR_FIRST_BOOST = 0.25;
+
+const NO_VISIBILITY: VisibilityInput = {
+  dailyBudgetMinor: 0,
+  leadsTotal: 0,
+  leadsResponded: 0,
+  avgResponseMinutes: null,
+  planMode: null,
+  activatedAt: null,
+};
 
 const feedInclude = {
-  category: true,
+  category: { include: { parent: { select: { slug: true, nameI18n: true } } } },
   locations: { where: { isPrimary: true }, take: 1 },
   services: { orderBy: { position: 'asc' }, take: 4 },
   website: { select: { content: true, status: true } },
+  campaign: { select: { appearFirst: true, status: true } },
   _count: { select: { services: true } },
 } satisfies Prisma.CompanyInclude;
 
@@ -21,7 +36,10 @@ type FeedCompany = Prisma.CompanyGetPayload<{ include: typeof feedInclude }>;
 
 @Injectable()
 export class FeedService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly analytics: AnalyticsService,
+  ) {}
 
   private relevance(c: FeedCompany, q?: string): number {
     if (!q) return 1;
@@ -39,11 +57,6 @@ export class FeedService {
     return Math.min(1, 0.5 + exactName + Math.min(0.3, needle.length / 40));
   }
 
-  private freshness(createdAt: Date): number {
-    const days = (Date.now() - createdAt.getTime()) / 86_400_000;
-    return Math.max(0, 1 - days / 365);
-  }
-
   private quality(c: FeedCompany): number {
     if (c.qualityScore > 0) return Math.min(1, c.qualityScore);
     // Fallback: derive from profile completeness.
@@ -56,12 +69,24 @@ export class FeedService {
     return Math.min(1, score);
   }
 
+  /** Resolve a category slug to itself + its child slugs (so a parent group matches its niches). */
+  private async categorySlugs(slug?: string): Promise<string[] | undefined> {
+    if (!slug) return undefined;
+    const cat = await this.prisma.category.findUnique({
+      where: { slug },
+      include: { children: { select: { slug: true } } },
+    });
+    if (!cat) return [slug]; // unknown slug -> matches nothing
+    return [cat.slug, ...cat.children.map((c) => c.slug)];
+  }
+
   async list(query: FeedQueryDto) {
     const { q, category, city, sort = 'recommended', page = 1, pageSize = 12 } = query;
+    const catSlugs = await this.categorySlugs(category);
 
     const where: Prisma.CompanyWhereInput = {
       status: 'active',
-      ...(category ? { category: { slug: category } } : {}),
+      ...(catSlugs ? { category: { slug: { in: catSlugs } } } : {}),
       ...(city ? { locations: { some: { city: { contains: city, mode: 'insensitive' } } } } : {}),
       ...(q
         ? {
@@ -76,13 +101,18 @@ export class FeedService {
 
     const companies = await this.prisma.company.findMany({ where, include: feedInclude });
 
+    const vinputs = await this.analytics.visibilityInputsFor(companies.map((c) => c.id));
+    const now = new Date();
+
     const scored = companies.map((c) => {
       const relevance = this.relevance(c, q);
       const quality = this.quality(c);
-      const popularity = 0; // wired when engagement events land (PRD §19)
-      const freshness = this.freshness(c.createdAt);
-      const score = 0.4 * relevance + 0.25 * quality + 0.2 * popularity + 0.15 * freshness;
-      return { c, relevance, quality, popularity, freshness, score };
+      const vis = visibilityScore(vinputs.get(c.id) ?? NO_VISIBILITY, DEFAULT_REFS, now);
+      const appearFirst = c.campaign?.appearFirst === true && c.campaign.status === 'active';
+      // A search gates by relevance; browsing is pure Visibility Score.
+      const score =
+        vis.score * (q ? relevance : 1) + (appearFirst ? APPEAR_FIRST_BOOST : 0);
+      return { c, relevance, quality, vis, appearFirst, score };
     });
 
     if (sort === 'newest') {
@@ -93,26 +123,9 @@ export class FeedService {
       scored.sort((a, b) => b.score - a.score);
     }
 
-    // Placement: <=2 sponsored slots (featured companies), 1 exploration slot
-    // (newest, low-signal company), everything else organic.
-    const sponsored = scored.filter((x) => x.c.featured).slice(0, 2);
-    const sponsoredIds = new Set(sponsored.map((x) => x.c.id));
-    const rest = scored.filter((x) => !sponsoredIds.has(x.c.id));
-
-    const explorationPick = [...rest]
-      .filter((x) => this.freshness(x.c.createdAt) > 0.95)
-      .sort((a, b) => b.c.createdAt.getTime() - a.c.createdAt.getTime())[0];
-
-    const ordered: { row: (typeof scored)[number]; placement: Placement }[] = [];
-    sponsored.forEach((row) => ordered.push({ row, placement: 'sponsored' }));
-    if (explorationPick) ordered.push({ row: explorationPick, placement: 'exploration' });
-    rest
-      .filter((x) => x !== explorationPick)
-      .forEach((row) => ordered.push({ row, placement: 'organic' }));
-
-    const total = ordered.length;
+    const total = scored.length;
     const start = (page - 1) * pageSize;
-    const items = ordered.slice(start, start + pageSize).map(({ row, placement }) => {
+    const items = scored.slice(start, start + pageSize).map((row) => {
       const { c } = row;
       const loc = c.locations[0] ?? null;
       return {
@@ -121,19 +134,28 @@ export class FeedService {
         displayName: c.displayName,
         description: c.description,
         logoUrl: c.logoUrl,
-        placement,
         category: c.category
-          ? { slug: c.category.slug, name: c.category.nameI18n, icon: c.category.icon }
+          ? {
+              slug: c.category.slug,
+              name: c.category.nameI18n,
+              icon: c.category.icon,
+              parent: c.category.parent
+                ? { slug: c.category.parent.slug, name: c.category.parent.nameI18n }
+                : null,
+            }
           : null,
         location: loc ? { city: loc.city, region: loc.region } : null,
         services: c.services.map((s) => s.name),
         hasWebsite: !!c.website && c.website.status !== 'draft',
         score: Number(row.score.toFixed(4)),
         scoreBreakdown: {
+          visibility: Number(row.vis.score.toFixed(3)),
+          cpc: Number(row.vis.cpc.toFixed(3)),
+          response: Number(row.vis.response.toFixed(3)),
+          plan: Number(row.vis.plan.toFixed(3)),
+          age: Number(row.vis.age.toFixed(3)),
           relevance: Number(row.relevance.toFixed(3)),
-          quality: Number(row.quality.toFixed(3)),
-          popularity: row.popularity,
-          freshness: Number(row.freshness.toFixed(3)),
+          appearFirst: row.appearFirst,
         },
       };
     });
@@ -151,8 +173,8 @@ export class FeedService {
   async facets() {
     const [categories, cities] = await Promise.all([
       this.prisma.category.findMany({
-        where: { isActive: true, companies: { some: { status: 'active' } } },
-        orderBy: { position: 'asc' },
+        where: { isActive: true },
+        orderBy: [{ position: 'asc' }],
       }),
       this.prisma.companyLocation.findMany({
         where: { company: { status: 'active' } },
@@ -161,8 +183,28 @@ export class FeedService {
         orderBy: { city: 'asc' },
       }),
     ]);
+
+    const childrenByParent = new Map<string, typeof categories>();
+    for (const c of categories) {
+      if (!c.parentId) continue;
+      const list = childrenByParent.get(c.parentId) ?? [];
+      list.push(c);
+      childrenByParent.set(c.parentId, list);
+    }
+
     return {
-      categories: categories.map((c) => ({ slug: c.slug, name: c.nameI18n, icon: c.icon })),
+      categories: categories
+        .filter((c) => !c.parentId)
+        .map((p) => ({
+          slug: p.slug,
+          name: p.nameI18n,
+          icon: p.icon,
+          children: (childrenByParent.get(p.id) ?? []).map((c) => ({
+            slug: c.slug,
+            name: c.nameI18n,
+            icon: c.icon,
+          })),
+        })),
       cities: cities.map((c) => c.city),
     };
   }

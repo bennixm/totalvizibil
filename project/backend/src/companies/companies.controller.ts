@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -12,7 +14,9 @@ import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
 import { CompaniesService } from './companies.service';
+import { ClaimDraftDto } from './dto/claim-draft.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
+import { SetCompanyLocationDto } from './dto/set-company-location.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 
 @UseGuards(AuthGuard)
@@ -25,9 +29,21 @@ export class CompaniesController {
     return this.companies.create(user.id, dto);
   }
 
+  /** End of the "create your business" flow: claim an anonymous website draft. */
+  @Post('from-draft')
+  createFromDraft(@CurrentUser() user: AuthPrincipal, @Body() dto: ClaimDraftDto) {
+    return this.companies.createFromDraft(user.id, dto.draftToken);
+  }
+
   @Get()
   async list(@CurrentUser() user: AuthPrincipal) {
     return { data: await this.companies.listForUser(user.id) };
+  }
+
+  /** Compact list for the dashboard company switcher. */
+  @Get('overview')
+  async overview(@CurrentUser() user: AuthPrincipal) {
+    return { data: await this.companies.overview(user.id) };
   }
 
   @Get(':id')
@@ -44,9 +60,26 @@ export class CompaniesController {
     return this.companies.update(user.id, id, dto);
   }
 
+  /** Permanently delete a business (owner only). Cascades website / campaign / locations. */
+  @Delete(':id')
+  @HttpCode(204)
+  remove(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.companies.remove(user.id, id);
+  }
+
   @Get(':id/dashboard')
   dashboard(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
     return this.companies.dashboard(user.id, id);
+  }
+
+  /** Set / replace the company's primary service-area location (post-account). */
+  @Patch(':id/location')
+  setLocation(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetCompanyLocationDto,
+  ) {
+    return this.companies.setLocation(user.id, id, dto);
   }
 
   @Post(':id/publish')

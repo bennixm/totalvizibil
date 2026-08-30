@@ -71,10 +71,21 @@ export interface CtaSection extends BaseSection {
   buttonLabel: string;
 }
 
+export interface GalleryItem {
+  title: string;
+  description?: string;
+}
+export interface GallerySection extends BaseSection {
+  type: 'gallery';
+  title: string;
+  items: GalleryItem[];
+}
+
 export type Section =
   | HeroSection
   | AboutSection
   | ServicesSection
+  | GallerySection
   | TestimonialsSection
   | FaqSection
   | ContactSection
@@ -107,6 +118,8 @@ export interface WebsiteTheme {
 
 // --- Generator inputs -----------------------------------------------------
 
+export type ToneOfVoice = 'professional' | 'friendly' | 'premium' | 'bold' | 'calm';
+
 export interface EasyInput {
   mode: 'easy';
   businessName: string;
@@ -114,7 +127,14 @@ export interface EasyInput {
   city: string;
   services: string[];
   shortDescription: string;
+  // Optional tone tweak from the studio's "refine" step (free plan).
+  tone?: ToneOfVoice;
+  phone?: string;
+  email?: string;
 }
+
+/** Pages the advanced builder can compose. `home` is always present and first. */
+export type AdvancedPage = 'home' | 'about' | 'services' | 'portfolio' | 'faq' | 'contact';
 
 export interface AdvancedInput {
   mode: 'advanced';
@@ -125,7 +145,7 @@ export interface AdvancedInput {
   services: string[];
   shortDescription: string;
   targetAudience?: string;
-  toneOfVoice?: 'professional' | 'friendly' | 'premium' | 'bold' | 'calm';
+  toneOfVoice?: ToneOfVoice;
   palette?: WebsiteTheme['palette'];
   fontPair?: WebsiteTheme['fontPair'];
   radius?: WebsiteTheme['radius'];
@@ -135,6 +155,9 @@ export interface AdvancedInput {
   seoKeywords?: string[];
   phone?: string;
   email?: string;
+  // Advanced builder (M7)
+  pages?: AdvancedPage[];
+  portfolio?: GalleryItem[];
 }
 
 export type GeneratorInput = EasyInput | AdvancedInput;

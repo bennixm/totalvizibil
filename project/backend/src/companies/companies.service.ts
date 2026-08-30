@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,6 +8,13 @@ import {
 import { CompanyRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { uniqueSlug } from '../common/slug';
+import { WebsiteDraftService } from '../website/drafts/website-draft.service';
+import { WalletService } from '../wallet/wallet.service';
+import { CREDIT_MINOR } from '../wallet/money';
+import { CampaignService } from '../campaigns/campaign.service';
+import { LeadsService } from '../leads/leads.service';
+import { AnalyticsService } from '../analytics/analytics.service';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { companyInclude, toCompanyView, CompanyView } from './company.view';
@@ -15,7 +23,15 @@ const ROLES_THAT_CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manag
 
 @Injectable()
 export class CompaniesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly drafts: WebsiteDraftService,
+    private readonly wallet: WalletService,
+    private readonly campaigns: CampaignService,
+    private readonly leads: LeadsService,
+    private readonly analytics: AnalyticsService,
+    private readonly settings: PlatformSettingsService,
+  ) {}
 
   /** Membership role of a user in a company, or null if not a member. */
   private async membershipRole(companyId: string, userId: string): Promise<CompanyRole | null> {
@@ -85,6 +101,133 @@ export class CompaniesService {
     return toCompanyView(company, CompanyRole.owner);
   }
 
+  /**
+   * Turn an anonymous website draft into a real company for the user (end of the
+   * "create your business" flow). Creates the company, its `Website` and its
+   * primary `CompanyLocation` (if the location step was done), then marks the
+   * draft claimed — all in one transaction.
+   *
+   * The first business is free. Every business after that costs
+   * `additional_business_price_credits`, debited from the user's wallet.
+   */
+  async createFromDraft(userId: string, draftToken: string): Promise<CompanyView> {
+    const draft = await this.drafts.loadByToken(draftToken);
+
+    if (draft.status === 'claimed' || draft.claimedCompanyId) {
+      throw new ConflictException('draft_already_claimed');
+    }
+    if (draft.content == null || draft.theme == null) {
+      throw new BadRequestException('website_not_generated');
+    }
+    // Every business must be filed under a category (niche or whole group) to reach the feed.
+    if (!draft.categorySlug) {
+      throw new BadRequestException('category_required');
+    }
+    const category = await this.drafts.assertCategory(draft.categorySlug);
+
+    // --- additional-business paywall (charged to the user's single wallet) ---
+    // Waived for advanced-plan businesses — they already pay the advanced
+    // builder fee, which covers the extra listing.
+    const ownedCount = await this.prisma.company.count({ where: { ownerUserId: userId } });
+    let feeMinor = 0;
+    if (ownedCount >= 1 && draft.mode !== 'advanced') {
+      const price = await this.settings.additionalBusinessPriceCredits();
+      feeMinor = price * CREDIT_MINOR;
+    }
+
+    const answers = (draft.answers ?? {}) as {
+      businessName?: string;
+      businessType?: string;
+      description?: string;
+      phone?: string;
+      email?: string;
+    };
+    const displayName =
+      answers.businessName?.trim() || answers.businessType?.trim() || 'Afacerea mea';
+
+    const slug = await uniqueSlug(
+      displayName,
+      async (candidate) => (await this.prisma.company.count({ where: { slug: candidate } })) > 0,
+    );
+
+    const contacts: Prisma.CompanyContactCreateManyCompanyInput[] = [];
+    if (answers.phone) contacts.push({ type: 'phone', value: answers.phone.trim() });
+    if (answers.email) {
+      contacts.push({ type: 'email', value: answers.email.trim().toLowerCase() });
+    }
+
+    const hasLocation =
+      !!draft.locationCity && draft.locationLat != null && draft.locationLng != null;
+
+    const company = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.company.create({
+        data: {
+          displayName,
+          description: answers.description?.trim() || null,
+          categoryId: category.id,
+          ownerUserId: userId,
+          slug,
+          members: { create: { userId, role: CompanyRole.owner, status: 'active' } },
+          contacts: contacts.length ? { createMany: { data: contacts } } : undefined,
+          locations: hasLocation
+            ? {
+                create: {
+                  city: draft.locationCity!,
+                  region: draft.locationRegion,
+                  country: draft.locationCountry ?? 'RO',
+                  lat: draft.locationLat,
+                  lng: draft.locationLng,
+                  serviceRadiusKm: draft.locationRadiusKm,
+                  isPrimary: true,
+                },
+              }
+            : undefined,
+          website: {
+            create: {
+              mode: draft.mode === 'advanced' ? 'advanced' : 'easy',
+              status: 'draft',
+              theme: draft.theme as Prisma.InputJsonValue,
+              content: draft.content as Prisma.InputJsonValue,
+              generator: draft.generator ?? 'rule-based-v1',
+            },
+          },
+        },
+        include: companyInclude,
+      });
+
+      if (feeMinor > 0) {
+        const wallet = await tx.wallet.upsert({
+          where: { userId },
+          create: { userId },
+          update: {},
+        });
+        if (wallet.balanceMinor < feeMinor) {
+          throw new BadRequestException('insufficient_credits');
+        }
+        const uw = await tx.wallet.update({
+          where: { id: wallet.id },
+          data: { balanceMinor: { decrement: feeMinor } },
+        });
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            companyId: created.id,
+            type: 'spend',
+            status: 'completed',
+            amountMinor: -feeMinor,
+            balanceAfterMinor: uw.balanceMinor,
+            description: 'Additional business',
+          },
+        });
+      }
+
+      await this.drafts.markClaimed(tx, draft.id, created.id);
+      return created;
+    });
+
+    return toCompanyView(company, CompanyRole.owner);
+  }
+
   async listForUser(userId: string): Promise<CompanyView[]> {
     const companies = await this.prisma.company.findMany({
       where: { members: { some: { userId, status: 'active' } } },
@@ -140,18 +283,30 @@ export class CompaniesService {
   }
 
   /**
-   * Dashboard payload. The website block is real (created by the "Create your
-   * business" flow); advertising / analytics metrics are still explicit `null`
-   * with a status marker rather than faked (PRD §12, §19; later milestones).
+   * Dashboard payload: the company + website block, the wallet / campaign / leads
+   * summaries, and the `analytics` block (real clicks / calls / messages /
+   * response time / Visibility Score — see AnalyticsService).
    */
   async dashboard(userId: string, companyId: string) {
     const company = await this.getForUser(userId, companyId);
     const primaryLocation =
       company.locations.find((l) => l.isPrimary) ?? company.locations[0] ?? null;
 
-    const website = await this.prisma.website.findUnique({ where: { companyId } });
+    const ownerId = await this.wallet.ownerIdForCompany(companyId);
+    const [website, wallet, campaign, leads, analytics] = await Promise.all([
+      this.prisma.website.findUnique({ where: { companyId } }),
+      this.wallet.getSummary(ownerId),
+      this.campaigns.summaryFor(companyId),
+      this.leads.summaryFor(companyId),
+      this.analytics.companyAnalytics(companyId),
+    ]);
+    const campaignLive = campaign?.status === 'active';
 
     return {
+      wallet,
+      campaign,
+      leads,
+      analytics,
       company: {
         id: company.id,
         displayName: company.displayName,
@@ -164,7 +319,6 @@ export class CompaniesService {
         createdAt: company.createdAt,
         viewerRole: company.viewerRole,
       },
-      profileCompleteness: this.profileCompleteness(company),
       website: website
         ? {
             status: website.status,
@@ -172,21 +326,96 @@ export class CompaniesService {
             generator: website.generator,
             updatedAt: website.updatedAt,
             isLive: website.status === 'published' && company.status === 'active',
+            theme: website.theme,
+            content: website.content,
           }
         : { status: 'none' as const },
-      metrics: {
-        _status: 'not_implemented' as const,
-        note: 'Advertising & analytics metrics arrive with later milestones (PRD §12, §19).',
-        impressions: null,
-        clicks: null,
-        ctr: null,
-        averageCpc: null,
-        totalSpent: null,
-        remainingBalance: null,
-        websiteVisitors: null,
-        leads: null,
-      },
+      // Required onboarding tasks (in order).
+      tasks: website
+        ? [
+            ...(website.mode === 'advanced'
+              ? [
+                  {
+                    key: 'unlock_advanced_builder' as const,
+                    required: true,
+                    status: company.advancedUnlockedAt ? ('done' as const) : ('todo' as const),
+                  },
+                ]
+              : []),
+            {
+              key: 'set_location' as const,
+              required: true,
+              status:
+                company.category && primaryLocation && primaryLocation.lat != null
+                  ? ('done' as const)
+                  : ('todo' as const),
+            },
+            {
+              key: 'set_campaign_budget' as const,
+              required: true,
+              status: campaignLive ? ('done' as const) : ('todo' as const),
+            },
+          ]
+        : [],
     };
+  }
+
+  /**
+   * Set / replace the company's exact-niche category + primary service-area
+   * location (post-account: advanced onboarding, or editing later).
+   */
+  async setLocation(
+    userId: string,
+    companyId: string,
+    input: {
+      categorySlug: string;
+      city: string;
+      region?: string;
+      country?: string;
+      lat: number;
+      lng: number;
+      radiusKm: number;
+    },
+  ): Promise<CompanyView> {
+    const role = await this.membershipRole(companyId, userId);
+    if (!role) throw new NotFoundException('Company not found');
+    if (!ROLES_THAT_CAN_EDIT.includes(role)) {
+      throw new ForbiddenException('Your role cannot edit this company');
+    }
+    const category = await this.drafts.assertCategory(input.categorySlug);
+
+    const data = {
+      city: input.city.trim(),
+      region: input.region?.trim() || null,
+      country: (input.country || 'RO').toUpperCase().slice(0, 2),
+      lat: input.lat,
+      lng: input.lng,
+      serviceRadiusKm: Math.round(input.radiusKm),
+      isPrimary: true,
+    };
+
+    const existing = await this.prisma.companyLocation.findFirst({
+      where: { companyId, isPrimary: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.company.update({
+        where: { id: companyId },
+        data: { categoryId: category.id },
+      });
+      if (existing) {
+        await tx.companyLocation.update({ where: { id: existing.id }, data });
+      } else {
+        await tx.companyLocation.create({ data: { ...data, companyId } });
+      }
+    });
+
+    const company = await this.prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      include: companyInclude,
+    });
+    return toCompanyView(company, role);
   }
 
   /** Make the company + its website publicly visible in the feed (PRD §11). */
@@ -214,19 +443,51 @@ export class CompaniesService {
     return this.dashboard(userId, companyId);
   }
 
-  private profileCompleteness(company: CompanyView): { score: number; missing: string[] } {
-    const checks: [string, boolean][] = [
-      ['description', !!company.description],
-      ['category', !!company.category],
-      ['location', company.locations.length > 0],
-      ['contact', company.contacts.length > 0],
-      ['services', company.services.length > 0],
-      ['logo', !!company.logoUrl],
-    ];
-    const done = checks.filter(([, ok]) => ok).length;
-    return {
-      score: Math.round((done / checks.length) * 100),
-      missing: checks.filter(([, ok]) => !ok).map(([k]) => k),
-    };
+  /**
+   * Permanently delete a business. Owner only. Website / campaign / locations
+   * cascade via FKs; the user's wallet is untouched, and its past spend
+   * transactions keep their history with `companyId` nulled.
+   */
+  async remove(userId: string, companyId: string): Promise<void> {
+    const role = await this.membershipRole(companyId, userId);
+    if (!role) throw new NotFoundException('Company not found');
+    if (role !== CompanyRole.owner) {
+      throw new ForbiddenException('only_the_owner_can_delete');
+    }
+    await this.prisma.company.delete({ where: { id: companyId } });
+  }
+
+  /** Compact list of the user's businesses for the dashboard switcher. */
+  async overview(userId: string) {
+    const companies = await this.prisma.company.findMany({
+      where: { members: { some: { userId, status: 'active' } } },
+      orderBy: { createdAt: 'asc' },
+      include: { website: { select: { mode: true, status: true } } },
+    });
+    const ids = companies.map((c) => c.id);
+    const [campaigns, consumedMap, locations] = await Promise.all([
+      this.prisma.campaign.findMany({
+        where: { companyId: { in: ids } },
+        select: { companyId: true, status: true },
+      }),
+      this.wallet.consumedByCompanies(ids),
+      this.prisma.companyLocation.findMany({
+        where: { companyId: { in: ids }, isPrimary: true },
+        select: { companyId: true, city: true },
+      }),
+    ]);
+    const campMap = new Map(campaigns.map((x) => [x.companyId, x.status]));
+    const locMap = new Map(locations.map((x) => [x.companyId, x.city]));
+
+    return companies.map((c) => ({
+      id: c.id,
+      displayName: c.displayName,
+      slug: c.slug,
+      status: c.status,
+      website: c.website ? { mode: c.website.mode, status: c.website.status } : null,
+      campaignStatus: campMap.get(c.id) ?? null,
+      consumedCredits: (consumedMap.get(c.id) ?? 0) / CREDIT_MINOR,
+      locationCity: locMap.get(c.id) ?? null,
+    }));
   }
 }

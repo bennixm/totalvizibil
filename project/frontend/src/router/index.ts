@@ -7,8 +7,60 @@ const routes: RouteRecordRaw[] = [
   { path: '/', name: 'feed', component: () => import('@/views/FeedView.vue') },
   { path: '/c/:slug', name: 'company', component: () => import('@/views/CompanyPublicView.vue') },
 
-  // --- Create your business (only the mode choice for now) ---
+  // --- Create your business ---
   { path: '/create', name: 'create', component: () => import('@/views/CreateBusinessView.vue') },
+  {
+    path: '/create/easy',
+    name: 'create-easy',
+    component: () => import('@/views/CreateEasyStudioView.vue'),
+  },
+  {
+    path: '/create/location',
+    name: 'create-location',
+    component: () => import('@/views/CreateLocationView.vue'),
+  },
+  {
+    path: '/create/advanced',
+    name: 'create-advanced',
+    component: () => import('@/views/CreateAdvancedInfoView.vue'),
+  },
+  {
+    path: '/create/account',
+    name: 'create-account',
+    component: () => import('@/views/CreateAccountView.vue'),
+  },
+
+  // --- Business dashboard ---
+  {
+    path: '/dashboard',
+    name: 'dashboard',
+    component: () => import('@/views/DashboardView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/wallet',
+    name: 'wallet',
+    component: () => import('@/views/WalletView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/campaign',
+    name: 'campaign',
+    component: () => import('@/views/CampaignView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/leads',
+    name: 'leads',
+    component: () => import('@/views/LeadsView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/website/builder',
+    name: 'website-builder',
+    component: () => import('@/views/AdvancedBuilderView.vue'),
+    meta: { requiresAuth: true },
+  },
 
   // --- Account & auth ---
   {
@@ -55,7 +107,6 @@ const routes: RouteRecordRaw[] = [
   },
 
   // --- Redirects from the old IA ---
-  { path: '/dashboard', redirect: { name: 'account' } },
   { path: '/register', redirect: { name: 'create' } },
   { path: '/for-business', redirect: { name: 'create' } },
   { path: '/search', redirect: { name: 'feed' } },
