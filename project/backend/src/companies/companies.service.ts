@@ -18,6 +18,7 @@ import { PlatformSettingsService } from '../platform-settings/platform-settings.
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { companyInclude, toCompanyView, CompanyView } from './company.view';
+import { COMPANY_DELETE_GRACE_MS } from './companies.constants';
 
 const ROLES_THAT_CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager];
 
@@ -157,7 +158,8 @@ export class CompaniesService {
     }
 
     const hasLocation =
-      !!draft.locationCity && draft.locationLat != null && draft.locationLng != null;
+      draft.locationNationwide ||
+      (!!draft.locationCity && draft.locationLat != null && draft.locationLng != null);
 
     const company = await this.prisma.$transaction(async (tx) => {
       const created = await tx.company.create({
@@ -172,12 +174,13 @@ export class CompaniesService {
           locations: hasLocation
             ? {
                 create: {
-                  city: draft.locationCity!,
-                  region: draft.locationRegion,
+                  city: draft.locationNationwide ? null : draft.locationCity,
+                  region: draft.locationNationwide ? null : draft.locationRegion,
                   country: draft.locationCountry ?? 'RO',
-                  lat: draft.locationLat,
-                  lng: draft.locationLng,
-                  serviceRadiusKm: draft.locationRadiusKm,
+                  lat: draft.locationNationwide ? null : draft.locationLat,
+                  lng: draft.locationNationwide ? null : draft.locationLng,
+                  serviceRadiusKm: draft.locationNationwide ? null : draft.locationRadiusKm,
+                  nationwide: draft.locationNationwide,
                   isPrimary: true,
                 },
               }
@@ -247,10 +250,12 @@ export class CompaniesService {
     const role = await this.membershipRole(companyId, userId);
     if (!role) throw new NotFoundException('Company not found');
 
-    const company = await this.prisma.company.findUniqueOrThrow({
-      where: { id: companyId },
-      include: companyInclude,
-    });
+    await this.purgeExpiredDeletions([companyId]);
+    const company = await this.prisma.company
+      .findUniqueOrThrow({ where: { id: companyId }, include: companyInclude })
+      .catch(() => {
+        throw new NotFoundException('Company not found');
+      });
     return toCompanyView(company, role);
   }
 
@@ -318,6 +323,8 @@ export class CompaniesService {
         servicesCount: company.services.length,
         createdAt: company.createdAt,
         viewerRole: company.viewerRole,
+        deletionScheduledAt: company.deletionScheduledAt,
+        deletionEffectiveAt: company.deletionEffectiveAt,
       },
       website: website
         ? {
@@ -346,7 +353,9 @@ export class CompaniesService {
               key: 'set_location' as const,
               required: true,
               status:
-                company.category && primaryLocation && primaryLocation.lat != null
+                company.category &&
+                primaryLocation &&
+                (primaryLocation.lat != null || primaryLocation.nationwide)
                   ? ('done' as const)
                   : ('todo' as const),
             },
@@ -369,12 +378,13 @@ export class CompaniesService {
     companyId: string,
     input: {
       categorySlug: string;
-      city: string;
+      city?: string;
       region?: string;
       country?: string;
-      lat: number;
-      lng: number;
-      radiusKm: number;
+      lat?: number;
+      lng?: number;
+      radiusKm?: number;
+      nationwide?: boolean;
     },
   ): Promise<CompanyView> {
     const role = await this.membershipRole(companyId, userId);
@@ -384,13 +394,16 @@ export class CompaniesService {
     }
     const category = await this.drafts.assertCategory(input.categorySlug);
 
+    const nationwide = !!input.nationwide;
     const data = {
-      city: input.city.trim(),
-      region: input.region?.trim() || null,
+      // Whole-country coverage carries no city, coordinates or radius.
+      city: nationwide ? null : (input.city?.trim() ?? null),
+      region: nationwide ? null : input.region?.trim() || null,
       country: (input.country || 'RO').toUpperCase().slice(0, 2),
-      lat: input.lat,
-      lng: input.lng,
-      serviceRadiusKm: Math.round(input.radiusKm),
+      lat: nationwide ? null : (input.lat ?? null),
+      lng: nationwide ? null : (input.lng ?? null),
+      serviceRadiusKm: nationwide ? null : Math.round(input.radiusKm ?? 15),
+      nationwide,
       isPrimary: true,
     };
 
@@ -444,21 +457,87 @@ export class CompaniesService {
   }
 
   /**
-   * Permanently delete a business. Owner only. Website / campaign / locations
-   * cascade via FKs; the user's wallet is untouched, and its past spend
-   * transactions keep their history with `companyId` nulled.
+   * Schedule the business for deletion. Owner only. The listing comes down
+   * immediately (status → draft, un-featured, website unpublished, campaign
+   * paused) but the record is only wiped after `COMPANY_DELETE_GRACE_MS` — the
+   * owner can `cancelDeletion` until then. Re-requesting keeps the first
+   * deadline.
    */
-  async remove(userId: string, companyId: string): Promise<void> {
+  async requestDeletion(userId: string, companyId: string): Promise<void> {
     const role = await this.membershipRole(companyId, userId);
     if (!role) throw new NotFoundException('Company not found');
     if (role !== CompanyRole.owner) {
       throw new ForbiddenException('only_the_owner_can_delete');
     }
-    await this.prisma.company.delete({ where: { id: companyId } });
+    const company = await this.prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      select: { deletionScheduledAt: true },
+    });
+    if (company.deletionScheduledAt) return;
+
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.company.update({
+        where: { id: companyId },
+        data: { deletionScheduledAt: now, status: 'draft', featured: false },
+      }),
+      this.prisma.website.updateMany({
+        where: { companyId },
+        data: { status: 'unpublished' },
+      }),
+      this.prisma.campaign.updateMany({
+        where: { companyId, status: { in: ['active', 'depleted'] } },
+        data: { status: 'paused', pausedAt: now, autoOptimize: false },
+      }),
+    ]);
+  }
+
+  /** Call off a pending deletion — only while still inside the grace window. */
+  async cancelDeletion(userId: string, companyId: string): Promise<void> {
+    const role = await this.membershipRole(companyId, userId);
+    if (!role) throw new NotFoundException('Company not found');
+    if (role !== CompanyRole.owner) {
+      throw new ForbiddenException('only_the_owner_can_delete');
+    }
+    const company = await this.prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      select: { deletionScheduledAt: true },
+    });
+    if (!company.deletionScheduledAt) return;
+    if (Date.now() - company.deletionScheduledAt.getTime() >= COMPANY_DELETE_GRACE_MS) {
+      throw new BadRequestException('deletion_grace_expired');
+    }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { deletionScheduledAt: null },
+    });
+  }
+
+  /**
+   * Wipe any of the given businesses whose grace window has elapsed. There is no
+   * cron — this rides along with the reads that list a user's businesses.
+   */
+  private async purgeExpiredDeletions(companyIds: string[]): Promise<void> {
+    if (companyIds.length === 0) return;
+    const cutoff = new Date(Date.now() - COMPANY_DELETE_GRACE_MS);
+    const expired = await this.prisma.company.findMany({
+      where: { id: { in: companyIds }, deletionScheduledAt: { lte: cutoff } },
+      select: { id: true },
+    });
+    if (expired.length === 0) return;
+    await this.prisma.company.deleteMany({
+      where: { id: { in: expired.map((c) => c.id) } },
+    });
   }
 
   /** Compact list of the user's businesses for the dashboard switcher. */
   async overview(userId: string) {
+    const membership = await this.prisma.companyUser.findMany({
+      where: { userId, status: 'active' },
+      select: { companyId: true },
+    });
+    await this.purgeExpiredDeletions(membership.map((m) => m.companyId));
+
     const companies = await this.prisma.company.findMany({
       where: { members: { some: { userId, status: 'active' } } },
       orderBy: { createdAt: 'asc' },
@@ -488,6 +567,10 @@ export class CompaniesService {
       campaignStatus: campMap.get(c.id) ?? null,
       consumedCredits: (consumedMap.get(c.id) ?? 0) / CREDIT_MINOR,
       locationCity: locMap.get(c.id) ?? null,
+      deletionScheduledAt: c.deletionScheduledAt,
+      deletionEffectiveAt: c.deletionScheduledAt
+        ? new Date(c.deletionScheduledAt.getTime() + COMPANY_DELETE_GRACE_MS)
+        : null,
     }));
   }
 }

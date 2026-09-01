@@ -4,6 +4,7 @@ import { apiFetch } from '@/services/api'
 
 export type LeadChannel = 'form' | 'call'
 export type LeadStatus = 'new' | 'seen' | 'resolved'
+export type RespondedVia = 'email' | 'phone' | 'quick_reply' | 'manual'
 
 export interface Lead {
   id: string
@@ -11,9 +12,15 @@ export interface Lead {
   status: LeadStatus
   name: string | null
   email: string | null
+  /** Null until revealed (form leads); revealing it logs the first response. */
   phone: string | null
+  /** A phone number is on file — show a "reveal" button when `phone` is null. */
+  hasPhone: boolean
   message: string | null
   firstResponseAt: string | null
+  respondedVia: RespondedVia | null
+  replyText: string | null
+  repliedAt: string | null
   resolvedAt: string | null
   responseMinutes: number | null
   createdAt: string
@@ -107,7 +114,10 @@ export const useLeadsStore = defineStore('leads', {
       if (i >= 0) this.items[i] = lead
     },
 
-    async mutate(leadId: string, body: { status?: LeadStatus; responded?: boolean }): Promise<void> {
+    async mutate(
+      leadId: string,
+      body: { status?: LeadStatus; responded?: boolean; via?: 'email' | 'phone' | 'manual' },
+    ): Promise<void> {
       if (!this.companyId) return
       this.working = true
       this.error = ''
@@ -127,11 +137,49 @@ export const useLeadsStore = defineStore('leads', {
       }
     },
 
+    /**
+     * The owner opened the visitor's email/phone from the panel — that counts
+     * as the first response. Fire-and-forget so the mail/dialer link isn't
+     * blocked; skipped once a response is already on record.
+     */
+    logResponse(leadId: string, via: 'email' | 'phone'): void {
+      const lead = this.items.find((l) => l.id === leadId)
+      if (!lead || lead.firstResponseAt) return
+      void this.mutate(leadId, { responded: true, via })
+    },
+
+    /**
+     * Reveal a form lead's phone number. This counts as the first response, so
+     * the owner can't get the number without the response being recorded. The
+     * server returns the lead with `phone` now filled in.
+     */
+    async revealPhone(leadId: string): Promise<void> {
+      await this.mutate(leadId, { responded: true, via: 'phone' })
+    },
+
+    /** Send a quick reply email to the visitor; stamps the response time. */
+    async reply(leadId: string, message: string): Promise<boolean> {
+      if (!this.companyId) return false
+      this.working = true
+      this.error = ''
+      try {
+        const lead = await apiFetch<Lead>(
+          `/companies/${this.companyId}/leads/${leadId}/reply`,
+          { method: 'POST', body: { message } },
+        )
+        this.replace(lead)
+        this.summary = await apiFetch<LeadsSummary>(`/companies/${this.companyId}/leads/summary`)
+        return true
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : 'error'
+        return false
+      } finally {
+        this.working = false
+      }
+    },
+
     markResolved(leadId: string): Promise<void> {
       return this.mutate(leadId, { status: 'resolved' })
-    },
-    markResponded(leadId: string): Promise<void> {
-      return this.mutate(leadId, { responded: true })
     },
     reopen(leadId: string): Promise<void> {
       return this.mutate(leadId, { status: 'new' })

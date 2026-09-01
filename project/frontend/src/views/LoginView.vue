@@ -35,6 +35,8 @@ async function submit() {
       error.value = err.message === 'totp_invalid' ? t('auth.totpInvalid') : null
       await nextTick()
       document.getElementById('totp-input')?.focus()
+    } else if (err instanceof ApiError && err.message === 'account_suspended') {
+      error.value = t('auth.accountSuspended')
     } else {
       error.value = err instanceof ApiError ? err.message : t('auth.genericError')
     }

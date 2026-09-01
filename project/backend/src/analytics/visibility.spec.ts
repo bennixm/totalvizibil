@@ -1,18 +1,35 @@
 import {
   DEFAULT_REFS,
+  RUN_SCORE_GRACE_MS,
   campaignAgeScore,
   cpcScore,
+  effectiveActiveSeconds,
   planScore,
   responseRateScore,
   visibilityScore,
 } from './visibility';
 
+const DAY = 86_400;
+const HOUR_MS = 3_600_000;
+
 describe('cpcScore', () => {
-  it('is the daily budget over the reference, clamped to 0..1', () => {
-    expect(cpcScore(0)).toBe(0);
-    expect(cpcScore(1000)).toBeCloseTo(0.5); // 10 cr vs 20 cr ref
-    expect(cpcScore(2000)).toBe(1);
-    expect(cpcScore(9999)).toBe(1);
+  it('is the per-click bid over the category-leading bid, clamped to 0..1', () => {
+    // budget is ample (>= 2000 ref) in all of these, so the bid drives it
+    expect(cpcScore(0, 100, 5000)).toBe(0);
+    expect(cpcScore(50, 100, 5000)).toBeCloseTo(0.5); // half the leading bid
+    expect(cpcScore(100, 100, 5000)).toBe(1);
+    expect(cpcScore(250, 100, 5000)).toBe(1); // over the leader -> capped
+  });
+
+  it('is capped by budget adequacy — an underfunded budget holds it down', () => {
+    // competitive bid (100/100 = 1) but only 10 cr/day vs the 20 cr ref
+    expect(cpcScore(100, 100, 1000)).toBeCloseTo(0.5);
+    expect(cpcScore(100, 100, 0)).toBe(0);
+  });
+
+  it('treats any funded positive bid as competitive when the category has no rivals', () => {
+    expect(cpcScore(30, 0, 5000)).toBe(1);
+    expect(cpcScore(0, 0, 5000)).toBe(0);
   });
 });
 
@@ -47,16 +64,48 @@ describe('planScore', () => {
 });
 
 describe('campaignAgeScore', () => {
-  const now = new Date('2026-08-31T00:00:00.000Z');
-  it('is 0 for a campaign that never activated', () => {
-    expect(campaignAgeScore(null, now)).toBe(0);
+  it('is 0 for a campaign that never ran', () => {
+    expect(campaignAgeScore(0)).toBe(0);
   });
-  it('grows with days running, full at the reference', () => {
-    const d5 = campaignAgeScore(new Date('2026-08-26T00:00:00.000Z'), now); // 5 days
-    const d20 = campaignAgeScore(new Date('2026-08-11T00:00:00.000Z'), now); // 20 days
-    expect(d5).toBeCloseTo(5 / 30, 4);
-    expect(d20).toBeCloseTo(20 / 30, 4);
-    expect(campaignAgeScore(new Date('2026-07-01T00:00:00.000Z'), now)).toBe(1);
+  it('grows with live time, full at the reference', () => {
+    expect(campaignAgeScore(5 * DAY)).toBeCloseTo(5 / 30, 4);
+    expect(campaignAgeScore(20 * DAY)).toBeCloseTo(20 / 30, 4);
+    expect(campaignAgeScore(60 * DAY)).toBe(1);
+  });
+});
+
+describe('effectiveActiveSeconds', () => {
+  const now = new Date('2026-08-31T00:00:00.000Z');
+  it('is just the banked total while stopped (no pause timestamp tracked)', () => {
+    expect(effectiveActiveSeconds(3 * DAY, null, false, now)).toBe(3 * DAY);
+    expect(effectiveActiveSeconds(3 * DAY, new Date('2026-08-01T00:00:00.000Z'), false, now)).toBe(
+      3 * DAY,
+    );
+  });
+  it('adds the current run while active', () => {
+    // banked 3d + 2d into the live run = 5d
+    const since = new Date('2026-08-29T00:00:00.000Z');
+    expect(effectiveActiveSeconds(3 * DAY, since, true, now)).toBe(5 * DAY);
+  });
+
+  it('keeps the banked run time when stopped within the 24h grace window', () => {
+    const pausedAt = new Date(now.getTime() - (RUN_SCORE_GRACE_MS - HOUR_MS)); // 23h ago
+    const secs = effectiveActiveSeconds(4 * DAY, new Date('2026-06-01'), false, now, pausedAt);
+    expect(secs).toBe(4 * DAY);
+    expect(campaignAgeScore(secs)).toBeCloseTo(4 / 30, 4);
+  });
+
+  it('drops the banked run time once stopped for over 24h', () => {
+    const pausedAt = new Date(now.getTime() - (RUN_SCORE_GRACE_MS + HOUR_MS)); // 25h ago
+    const secs = effectiveActiveSeconds(4 * DAY, new Date('2026-06-01'), false, now, pausedAt);
+    expect(secs).toBe(0);
+    expect(campaignAgeScore(secs)).toBe(0);
+  });
+
+  it('the grace only applies while stopped — an active campaign ignores pausedAt', () => {
+    const since = new Date(now.getTime() - 5 * DAY * 1000);
+    const stalePausedAt = new Date(now.getTime() - 10 * RUN_SCORE_GRACE_MS);
+    expect(effectiveActiveSeconds(0, since, true, now, stalePausedAt)).toBe(5 * DAY);
   });
 });
 
@@ -66,12 +115,14 @@ describe('visibilityScore', () => {
   it('applies the fixed 0.35 / 0.30 / 0.20 / 0.15 weights', () => {
     const v = visibilityScore(
       {
-        dailyBudgetMinor: 2000, // cpc = 1
+        cpcMinor: 100, // bid at the category-leading bid -> cpc = 1
+        cpcRefMinor: 100,
+        dailyBudgetMinor: 2000, // funded past the 20 cr ref
         leadsTotal: 0, // response = 0.5
         leadsResponded: 0,
         avgResponseMinutes: null,
         planMode: 'advanced', // plan = 1
-        activatedAt: new Date('2026-07-01T00:00:00.000Z'), // age = 1
+        activeSeconds: 60 * DAY, // age = 1
       },
       DEFAULT_REFS,
       now,
@@ -87,24 +138,28 @@ describe('visibilityScore', () => {
   it('a fast-responding advanced veteran outranks a fresh low-budget easy listing', () => {
     const strong = visibilityScore(
       {
+        cpcMinor: 120, // bidding over the leader
+        cpcRefMinor: 100,
         dailyBudgetMinor: 1800,
         leadsTotal: 12,
         leadsResponded: 12,
         avgResponseMinutes: 6,
         planMode: 'advanced',
-        activatedAt: new Date('2026-07-15T00:00:00.000Z'),
+        activeSeconds: 16 * DAY,
       },
       DEFAULT_REFS,
       now,
     );
     const weak = visibilityScore(
       {
+        cpcMinor: 20, // a tenth of the leading bid
+        cpcRefMinor: 200,
         dailyBudgetMinor: 300,
         leadsTotal: 4,
         leadsResponded: 0,
         avgResponseMinutes: null,
         planMode: 'easy',
-        activatedAt: new Date('2026-08-30T00:00:00.000Z'),
+        activeSeconds: 1 * DAY,
       },
       DEFAULT_REFS,
       now,

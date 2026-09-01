@@ -9,4 +9,9 @@ export class UpdateLeadDto {
   @IsOptional()
   @IsBoolean()
   responded?: boolean;
+
+  /** How the response was logged, when `responded` is set. */
+  @IsOptional()
+  @IsIn(['email', 'phone', 'manual'])
+  via?: 'email' | 'phone' | 'manual';
 }

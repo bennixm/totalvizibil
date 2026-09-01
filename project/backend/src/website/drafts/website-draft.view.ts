@@ -22,7 +22,7 @@ export function toDraftView(d: WebsiteDraft) {
     ready: d.content != null,
     categorySlug: d.categorySlug ?? null,
     location:
-      d.locationCity && d.locationLat != null && d.locationLng != null
+      d.locationNationwide || (d.locationCity && d.locationLat != null && d.locationLng != null)
         ? {
             city: d.locationCity,
             region: d.locationRegion,
@@ -30,6 +30,7 @@ export function toDraftView(d: WebsiteDraft) {
             lat: d.locationLat,
             lng: d.locationLng,
             radiusKm: d.locationRadiusKm ?? null,
+            nationwide: d.locationNationwide,
           }
         : null,
     updatedAt: d.updatedAt,

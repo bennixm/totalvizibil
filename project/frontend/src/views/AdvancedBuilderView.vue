@@ -22,6 +22,8 @@ const mobilePane = ref<'chat' | 'preview'>('chat')
 const balance = computed(() => data.value?.wallet.balance.credits ?? 0)
 const price = computed(() => data.value?.priceCredits ?? 0)
 const funded = computed(() => balance.value >= price.value)
+/** Coming from an easy-plan site → the lock screen is really an "upgrade" prompt. */
+const isUpgrade = computed(() => data.value?.mode === 'easy')
 const disabled = computed(() => !data.value || working.value || !!data.value.complete)
 
 const KNOWN_ERR = ['insufficient_credits', 'advanced_builder_locked', 'not_an_advanced_website']
@@ -71,11 +73,11 @@ onMounted(async () => {
       <v-btn color="primary" variant="tonal" :to="{ name: 'dashboard' }">{{ t('builder.back') }}</v-btn>
     </div>
 
-    <!-- LOCKED: pay to unlock -->
+    <!-- LOCKED: pay to unlock / upgrade -->
     <div v-else-if="data && !data.unlocked" class="wb__lock">
-      <v-icon icon="mdi-lock-open-variant-outline" size="34" />
-      <h2>{{ t('builder.lockTitle') }}</h2>
-      <p class="wb__lockText">{{ t('builder.lockText') }}</p>
+      <v-icon :icon="isUpgrade ? 'mdi-creation' : 'mdi-lock-open-variant-outline'" size="34" />
+      <h2>{{ isUpgrade ? t('builder.upgradeTitle') : t('builder.lockTitle') }}</h2>
+      <p class="wb__lockText">{{ isUpgrade ? t('builder.upgradeText') : t('builder.lockText') }}</p>
       <div class="wb__lockPrice">
         <strong>{{ t('builder.priceValue', { credits: price }) }}</strong>
         <span>{{ t('builder.balance', { n: n(balance, { maximumFractionDigits: 2 }) }) }}</span>
@@ -99,7 +101,7 @@ onMounted(async () => {
           append-icon="mdi-arrow-right"
           @click="unlock"
         >
-          {{ t('builder.payCta', { credits: price }) }}
+          {{ isUpgrade ? t('builder.upgradeCta', { credits: price }) : t('builder.payCta', { credits: price }) }}
         </v-btn>
       </div>
     </div>

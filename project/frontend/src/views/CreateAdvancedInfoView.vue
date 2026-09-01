@@ -16,12 +16,8 @@ const busy = ref(false)
 const error = ref('')
 
 const businessName = ref('')
-const businessType = ref('')
-const city = ref('')
 
-const canStart = computed(
-  () => businessName.value.trim().length > 1 && businessType.value.trim().length > 2,
-)
+const canStart = computed(() => businessName.value.trim().length > 1)
 const ronApprox = computed(() =>
   priceCredits.value ? Math.round(priceCredits.value * eurRonRate.value) : null,
 )
@@ -34,8 +30,6 @@ async function start(): Promise<void> {
   error.value = ''
   const ok = await draftStore.createAdvanced({
     businessName: businessName.value.trim(),
-    businessType: businessType.value.trim(),
-    city: city.value.trim() || undefined,
   })
   busy.value = false
   if (ok) void router.push({ name: 'create-account' })
@@ -89,21 +83,7 @@ onMounted(async () => {
         variant="outlined"
         density="comfortable"
         prepend-inner-icon="mdi-domain"
-      />
-      <v-text-field
-        v-model="businessType"
-        :label="t('advanced.fieldType')"
-        :placeholder="t('advanced.fieldTypePlaceholder')"
-        variant="outlined"
-        density="comfortable"
-        prepend-inner-icon="mdi-shape-outline"
-      />
-      <v-text-field
-        v-model="city"
-        :label="t('advanced.fieldCity')"
-        variant="outlined"
-        density="comfortable"
-        prepend-inner-icon="mdi-map-marker-outline"
+        autofocus
       />
       <v-btn
         type="submit"

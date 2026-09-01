@@ -41,7 +41,7 @@ export class WebsiteDraftService {
   async create(
     input: {
       mode?: 'easy' | 'advanced';
-      seed?: { businessName: string; businessType: string; city?: string };
+      seed?: { businessName: string };
     } = {},
   ): Promise<{ id: string; token: string; draft: WebsiteDraftView }> {
     const token = randomBytes(32).toString('base64url');
@@ -57,12 +57,11 @@ export class WebsiteDraftService {
       expiresAt: new Date(Date.now() + DRAFT_TTL_MS),
     };
 
-    if (input.seed?.businessName && input.seed?.businessType) {
+    if (input.seed?.businessName) {
+      // The advanced info gate only asks for the business name — the trade,
+      // service area and details are collected later (location step + builder).
       const answers: DraftAnswers = {
         businessName: input.seed.businessName.trim().slice(0, 80),
-        businessType: input.seed.businessType.trim().slice(0, 80),
-        description: input.seed.businessType.trim(),
-        city: input.seed.city?.trim().slice(0, 80),
       };
       const g = this.generator.generate(buildEasyInput(answers));
       data.answers = answers as unknown as Prisma.InputJsonValue;
@@ -149,12 +148,13 @@ export class WebsiteDraftService {
     token: string,
     input: {
       categorySlug: string;
-      city: string;
+      city?: string;
       region?: string;
       country?: string;
-      lat: number;
-      lng: number;
-      radiusKm: number;
+      lat?: number;
+      lng?: number;
+      radiusKm?: number;
+      nationwide?: boolean;
     },
   ): Promise<WebsiteDraftView> {
     const draft = await this.load(id, token);
@@ -162,17 +162,20 @@ export class WebsiteDraftService {
       throw new BadRequestException('generate_website_first');
     }
     const category = await this.assertCategory(input.categorySlug);
+    const nationwide = !!input.nationwide;
 
     const updated = await this.prisma.websiteDraft.update({
       where: { id: draft.id },
       data: {
         categorySlug: category.slug,
-        locationCity: input.city.trim(),
-        locationRegion: input.region?.trim() || null,
+        // Whole-country coverage carries no city, coordinates or radius.
+        locationCity: nationwide ? null : (input.city?.trim() ?? null),
+        locationRegion: nationwide ? null : input.region?.trim() || null,
         locationCountry: (input.country || 'RO').toUpperCase().slice(0, 2),
-        locationLat: input.lat,
-        locationLng: input.lng,
-        locationRadiusKm: Math.round(input.radiusKm),
+        locationLat: nationwide ? null : (input.lat ?? null),
+        locationLng: nationwide ? null : (input.lng ?? null),
+        locationRadiusKm: nationwide ? null : Math.round(input.radiusKm ?? 15),
+        locationNationwide: nationwide,
       },
     });
     return toDraftView(updated);

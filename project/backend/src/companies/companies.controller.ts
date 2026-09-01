@@ -60,11 +60,21 @@ export class CompaniesController {
     return this.companies.update(user.id, id, dto);
   }
 
-  /** Permanently delete a business (owner only). Cascades website / campaign / locations. */
+  /**
+   * Schedule a business for deletion (owner only). The listing comes down now;
+   * the record is wiped after a 7-day grace window unless the owner cancels.
+   */
   @Delete(':id')
   @HttpCode(204)
   remove(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
-    return this.companies.remove(user.id, id);
+    return this.companies.requestDeletion(user.id, id);
+  }
+
+  /** Call off a pending deletion (owner only, inside the grace window). */
+  @Delete(':id/deletion')
+  @HttpCode(204)
+  cancelDeletion(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.companies.cancelDeletion(user.id, id);
   }
 
   @Get(':id/dashboard')

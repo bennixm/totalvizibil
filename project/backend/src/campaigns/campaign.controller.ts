@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
@@ -13,6 +24,19 @@ export class CampaignController {
   @Get()
   get(@CurrentUser() user: AuthPrincipal, @Param('companyId', ParseUUIDPipe) companyId: string) {
     return this.campaigns.get(user.id, companyId);
+  }
+
+  @Get('optimization')
+  optimization(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+  ) {
+    return this.campaigns.optimization(user.id, companyId);
+  }
+
+  @Get('spend')
+  spend(@CurrentUser() user: AuthPrincipal, @Param('companyId', ParseUUIDPipe) companyId: string) {
+    return this.campaigns.spendReport(user.id, companyId);
   }
 
   @Put()
@@ -35,5 +59,12 @@ export class CampaignController {
   @Post('pause')
   pause(@CurrentUser() user: AuthPrincipal, @Param('companyId', ParseUUIDPipe) companyId: string) {
     return this.campaigns.pause(user.id, companyId);
+  }
+
+  /** Delete the campaign immediately (it leaves the feed first). */
+  @Delete()
+  @HttpCode(204)
+  remove(@CurrentUser() user: AuthPrincipal, @Param('companyId', ParseUUIDPipe) companyId: string) {
+    return this.campaigns.remove(user.id, companyId);
   }
 }

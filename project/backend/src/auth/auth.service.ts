@@ -48,8 +48,13 @@ export class AuthService {
 
     // Constant-ish work whether or not the user exists, to blunt enumeration.
     const ok = await this.passwords.verify(user?.passwordHash ?? DUMMY_HASH, dto.password);
-    if (!user || !ok || user.status !== 'active') {
+    if (!user || !ok) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+    // The password checked out — it's safe to tell the real owner their account
+    // is suspended rather than pretending the credentials are wrong.
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('account_suspended');
     }
 
     if (user.totpEnabledAt && user.totpSecret) {

@@ -43,6 +43,9 @@ model User {
   ownedCompanies Company[]                @relation("CompanyOwner")
   passwordResets PasswordResetToken[]
   wallet         Wallet?
+  supportTicketsRequested SupportTicket[]  @relation("SupportRequester")
+  supportTicketsAssigned  SupportTicket[]  @relation("SupportAssignee")
+  supportMessages         SupportMessage[]
 
   @@map("users")
 }
@@ -152,6 +155,11 @@ model Company {
   // Advanced website builder — one-time paid unlock (spec: "Plata Planului Avansat").
   advancedUnlockedAt DateTime? @map("advanced_unlocked_at")
 
+  // Whole-business deletion is deferred: this is stamped on a delete request,
+  // the listing is taken down immediately, and the row (site, campaign, leads…)
+  // is purged only after the grace window. The owner can cancel until then.
+  deletionScheduledAt DateTime? @map("deletion_scheduled_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -166,6 +174,7 @@ model Company {
   walletTransactions  WalletTransaction[]
   adClicks            AdClick[]
   leads               Lead[]
+  supportTickets      SupportTicket[]
 
   @@index([ownerUserId])
   @@index([categoryId])
@@ -249,12 +258,14 @@ model WebsiteDraft {
 
   // Location step (M2) — the service area that decides where the company can
   // surface in the feed. Populated after the one-pager is generated.
-  locationCity     String? @map("location_city")
-  locationRegion   String? @map("location_region")
-  locationCountry  String? @map("location_country")
-  locationLat      Float?  @map("location_lat")
-  locationLng      Float?  @map("location_lng")
-  locationRadiusKm Int?    @map("location_radius_km")
+  locationCity       String? @map("location_city")
+  locationRegion     String? @map("location_region")
+  locationCountry    String? @map("location_country")
+  locationLat        Float?  @map("location_lat")
+  locationLng        Float?  @map("location_lng")
+  locationRadiusKm   Int?    @map("location_radius_km")
+  // Serves the whole country — no radius; the feed matches it for any area.
+  locationNationwide Boolean @default(false) @map("location_nationwide")
 
   claimedCompanyId String? @unique @map("claimed_company_id") @db.Uuid
 
@@ -300,13 +311,17 @@ model CompanyLocation {
   id              String   @id @default(uuid()) @db.Uuid
   companyId       String   @map("company_id") @db.Uuid
   address         String?
-  city            String
+  // Null when `nationwide` is set — whole-country coverage has no fixed city.
+  city            String?
   region          String?
   country         String   @default("RO")
   lat             Float?
   lng             Float?
   isPrimary       Boolean  @default(false) @map("is_primary")
   serviceRadiusKm Int?     @map("service_radius_km")
+  // Serves the whole country — `serviceRadiusKm` is null and the feed matches it
+  // for any searched area (the km radius no longer applies).
+  nationwide      Boolean  @default(false)
   createdAt       DateTime @default(now()) @map("created_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -368,6 +383,10 @@ model Wallet {
   // Hundredths of a credit. 1 Credit = 1 EUR, so this is also euro cents.
   balanceMinor Int      @default(0) @map("balance_minor")
   currency     String   @default("EUR")
+  // Admin freeze: while set, the wallet cannot be topped up or spent from
+  // (campaigns can't activate, clicks aren't billed). Balance is preserved.
+  blockedAt     DateTime? @map("blocked_at")
+  blockedReason String?   @map("blocked_reason")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -445,13 +464,22 @@ model Campaign {
   dailyBudgetMinor Int     @map("daily_budget_minor")
   cpcMinor         Int     @map("cpc_minor")
   appearFirst      Boolean @default(false) @map("appear_first")
+  // AUTO mode: the platform keeps the CPC just above the top competitor in the
+  // category (bidding for feed position #1) and keeps the campaign running,
+  // within the daily budget cap. Switches itself off if the campaign depletes.
+  autoOptimize     Boolean @default(false) @map("auto_optimize")
 
   // CPC metering. `spentTodayMinor` is the credits burned on clicks for the UTC
   // day `spendDay`; both reset lazily when the day rolls over.
   spentTodayMinor Int       @default(0) @map("spent_today_minor")
   spendDay        DateTime? @map("spend_day") @db.Date
-  activatedAt     DateTime? @map("activated_at")
-  pausedAt        DateTime? @map("paused_at")
+  // `activatedAt` marks the start of the CURRENT active run (re-stamped on every
+  // activation). `activeSecondsAccrued` banks the duration of all past runs, so
+  // the Age Score counts only time the campaign was actually live — not
+  // wall-clock time since it was first switched on.
+  activatedAt         DateTime? @map("activated_at")
+  activeSecondsAccrued Int      @default(0) @map("active_seconds_accrued")
+  pausedAt            DateTime? @map("paused_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -520,8 +548,15 @@ model Lead {
   // Privacy-safe dedupe / spam key: sha256(ip | ua | companyId | channel | window).
   visitorHash String @map("visitor_hash")
 
-  // Response tracking (feeds the feed ranking later).
+  // Response tracking (feeds the feed ranking later). `respondedVia` records how
+  // the first response was logged: 'email' / 'phone' (owner tapped the visitor's
+  // contact in the panel), 'quick_reply' (a reply sent straight from the panel),
+  // or 'manual' (resolved without an explicit reply). `replyText` / `repliedAt`
+  // hold that panel quick reply.
   firstResponseAt DateTime? @map("first_response_at")
+  respondedVia    String?   @map("responded_via")
+  replyText       String?   @map("reply_text")
+  repliedAt       DateTime? @map("replied_at")
   resolvedAt      DateTime? @map("resolved_at")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -546,4 +581,92 @@ model PlatformSetting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("platform_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Support — a lightweight ticketing system. Any signed-in user can open a
+// ticket; platform staff (admin / support roles) work the queue. The thread is
+// a flat list of messages: `reply` (visible to everyone on the ticket),
+// `note` (internal, staff-only) and `system` (status/assignment events).
+// ---------------------------------------------------------------------------
+
+enum SupportTicketStatus {
+  open
+  in_progress
+  waiting
+  resolved
+  closed
+}
+
+enum SupportTicketPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum SupportTicketCategory {
+  bug
+  problem
+  question
+  billing
+  feedback
+  other
+}
+
+enum SupportMessageKind {
+  reply
+  note
+  system
+}
+
+model SupportTicket {
+  id       String @id @default(uuid()) @db.Uuid
+  // Human-friendly running number shown as "#1042".
+  number   Int    @unique @default(autoincrement())
+  subject  String
+
+  status   SupportTicketStatus   @default(open)
+  priority SupportTicketPriority @default(normal)
+  category SupportTicketCategory @default(other)
+
+  requesterId String  @map("requester_id") @db.Uuid
+  assigneeId  String? @map("assignee_id") @db.Uuid
+  // Optional: the business the ticket is about.
+  companyId   String? @map("company_id") @db.Uuid
+
+  firstResponseAt DateTime? @map("first_response_at")
+  resolvedAt      DateTime? @map("resolved_at")
+  closedAt        DateTime? @map("closed_at")
+  lastActivityAt  DateTime  @default(now()) @map("last_activity_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  requester User     @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  assignee  User?    @relation("SupportAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  messages  SupportMessage[]
+
+  @@index([status])
+  @@index([requesterId])
+  @@index([assigneeId])
+  @@index([lastActivityAt])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id       String            @id @default(uuid()) @db.Uuid
+  ticketId String            @map("ticket_id") @db.Uuid
+  authorId String?           @map("author_id") @db.Uuid
+  kind     SupportMessageKind @default(reply)
+  body     String
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
 }

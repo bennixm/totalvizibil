@@ -142,6 +142,14 @@ export class LeadsService {
     opts: { status?: string; channel?: string; cursor?: string; limit?: number } = {},
   ) {
     await this.assertMember(companyId, userId);
+    return this.listFor(companyId, opts);
+  }
+
+  /** Lead list for one company, no membership check (platform-admin callers). */
+  async listFor(
+    companyId: string,
+    opts: { status?: string; channel?: string; cursor?: string; limit?: number } = {},
+  ) {
     const take = Math.min(Math.max(opts.limit ?? 20, 1), PAGE_MAX);
 
     const where: Prisma.LeadWhereInput = { companyId };
@@ -230,7 +238,7 @@ export class LeadsService {
     userId: string,
     companyId: string,
     leadId: string,
-    dto: { status?: string; responded?: boolean },
+    dto: { status?: string; responded?: boolean; via?: 'email' | 'phone' | 'manual' },
   ) {
     await this.assertMember(companyId, userId);
     const lead = await this.prisma.lead.findFirst({ where: { id: leadId, companyId } });
@@ -241,13 +249,17 @@ export class LeadsService {
 
     if (dto.responded && !lead.firstResponseAt) {
       data.firstResponseAt = now;
+      data.respondedVia = dto.via ?? 'manual';
       if (lead.status === 'new') data.status = 'seen';
     }
 
     if (dto.status === 'resolved') {
       data.status = 'resolved';
       data.resolvedAt = lead.resolvedAt ?? now;
-      if (!lead.firstResponseAt && !data.firstResponseAt) data.firstResponseAt = now;
+      if (!lead.firstResponseAt && !data.firstResponseAt) {
+        data.firstResponseAt = now;
+        data.respondedVia = 'manual';
+      }
     } else if (dto.status === 'seen' && lead.status === 'new') {
       data.status = 'seen';
     } else if (dto.status === 'new') {
@@ -257,6 +269,61 @@ export class LeadsService {
 
     if (Object.keys(data).length === 0) return this.view(lead);
     const updated = await this.prisma.lead.update({ where: { id: lead.id }, data });
+    return this.view(updated);
+  }
+
+  /**
+   * Send a quick reply straight from the panel: emails the visitor the given
+   * message (reply-to the owner), records it on the lead, and — if this is the
+   * first response — stamps the response time. Keeps the lead open.
+   */
+  async reply(userId: string, companyId: string, leadId: string, message: string) {
+    await this.assertMember(companyId, userId);
+    return this.replyFor(companyId, leadId, message);
+  }
+
+  /** Quick reply, no membership check (platform-admin callers). */
+  async replyFor(companyId: string, leadId: string, message: string) {
+    const lead = await this.prisma.lead.findFirst({ where: { id: leadId, companyId } });
+    if (!lead) throw new NotFoundException('Lead not found');
+    if (lead.channel !== 'form' || !lead.email) {
+      throw new BadRequestException('reply_needs_email');
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { displayName: true, owner: { select: { email: true } } },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+
+    const now = new Date();
+    await this.mail
+      .send({
+        to: lead.email,
+        replyTo: company.owner.email,
+        subject: `Răspuns de la ${company.displayName}`,
+        text: [
+          `${lead.name ? `Bună, ${lead.name},` : 'Bună,'}`,
+          '',
+          message,
+          '',
+          '—',
+          company.displayName,
+          '',
+          lead.message ? `Mesajul tău:\n"${lead.message}"` : '',
+        ].join('\n'),
+      })
+      .catch((err) => this.logger.error(`lead reply email failed: ${String(err)}`));
+
+    const updated = await this.prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        replyText: message,
+        repliedAt: now,
+        ...(lead.firstResponseAt ? {} : { firstResponseAt: now, respondedVia: 'quick_reply' }),
+        ...(lead.status === 'new' ? { status: 'seen' } : {}),
+      },
+    });
     return this.view(updated);
   }
 
@@ -272,15 +339,25 @@ export class LeadsService {
     const responseMinutes = l.firstResponseAt
       ? Math.round((l.firstResponseAt.getTime() - l.createdAt.getTime()) / 60000)
       : null;
+    // A form lead's phone number stays hidden until the owner reveals it — and
+    // revealing it stamps the first response (see `update` with via:'phone'), so
+    // the owner can't call without the response being tracked. A `call` lead's
+    // "phone" is the business's own dialled number, so it's never gated.
+    const phoneGated = l.channel === 'form' && !l.firstResponseAt;
     return {
       id: l.id,
       channel: l.channel,
       status: l.status,
       name: l.name,
       email: l.email,
-      phone: l.phone,
+      phone: phoneGated ? null : l.phone,
+      /** A number is on file — the client shows a "reveal" button when `phone` is null. */
+      hasPhone: !!l.phone,
       message: l.message,
       firstResponseAt: l.firstResponseAt,
+      respondedVia: l.respondedVia,
+      replyText: l.replyText,
+      repliedAt: l.repliedAt,
       resolvedAt: l.resolvedAt,
       responseMinutes,
       createdAt: l.createdAt,

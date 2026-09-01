@@ -35,7 +35,7 @@ export class WebsiteBuilderService {
     private readonly generator: RuleBasedWebsiteGenerator,
   ) {}
 
-  private async load(companyId: string, userId: string, needEdit = false) {
+  private async load(companyId: string, userId: string, needEdit = false, requireAdvanced = true) {
     const member = await this.prisma.companyUser.findUnique({
       where: { companyId_userId: { companyId, userId } },
     });
@@ -48,7 +48,9 @@ export class WebsiteBuilderService {
       include: { website: true },
     });
     if (!company.website) throw new NotFoundException('No website');
-    if (company.website.mode !== 'advanced') {
+    // Easy-plan sites can still open this page to *upgrade* — only the builder
+    // conversation itself requires the advanced mode.
+    if (requireAdvanced && company.website.mode !== 'advanced') {
       throw new BadRequestException('not_an_advanced_website');
     }
     return company;
@@ -60,7 +62,7 @@ export class WebsiteBuilderService {
   }
 
   private async view(companyId: string, userId: string) {
-    const company = await this.load(companyId, userId);
+    const company = await this.load(companyId, userId, false, false);
     const w = company.website!;
     const [price, walletSummary] = await Promise.all([
       this.settings.advancedBuilderPriceCredits(),
@@ -68,7 +70,9 @@ export class WebsiteBuilderService {
     ]);
     const { step } = this.state(w);
     return {
-      unlocked: company.advancedUnlockedAt != null,
+      mode: w.mode,
+      // "Unlocked" means the fee is paid AND the site is on the advanced plan.
+      unlocked: company.advancedUnlockedAt != null && w.mode === 'advanced',
       priceCredits: price,
       wallet: { balance: walletSummary.balance },
       websiteStatus: w.status,
@@ -84,20 +88,43 @@ export class WebsiteBuilderService {
     return this.view(companyId, userId);
   }
 
-  /** Pay the one-time advanced-builder fee from the wallet. */
+  /**
+   * Pay the one-time advanced-builder fee and put the site on the advanced plan.
+   * Works both for an advanced-plan site that hasn't paid yet and for an
+   * easy-plan site upgrading — the fee is only charged once.
+   */
   async unlock(userId: string, companyId: string) {
-    const company = await this.load(companyId, userId, true);
-    if (company.advancedUnlockedAt) return this.view(companyId, userId);
+    const company = await this.load(companyId, userId, true, false);
+    const w = company.website!;
+    if (company.advancedUnlockedAt && w.mode === 'advanced') {
+      return this.view(companyId, userId);
+    }
 
-    const price = await this.settings.advancedBuilderPriceCredits();
-    await this.wallet.spend(company.ownerUserId, price * CREDIT_MINOR, {
-      description: 'Advanced website builder',
-      companyId,
-    });
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { advancedUnlockedAt: new Date() },
-    });
+    if (!company.advancedUnlockedAt) {
+      const price = await this.settings.advancedBuilderPriceCredits();
+      await this.wallet.spend(company.ownerUserId, price * CREDIT_MINOR, {
+        description: 'Advanced website builder',
+        companyId,
+      });
+    }
+
+    // An easy site already has a finished page — mark the builder "done" so the
+    // upgrade doesn't make the (working) listing suddenly "not ready".
+    const websiteData: Prisma.WebsiteUpdateInput = { mode: 'advanced' };
+    if (w.mode === 'easy' && w.builderSpec == null) {
+      websiteData.builderSpec = {
+        step: 'done',
+        answers: {},
+      } as unknown as Prisma.InputJsonValue;
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.company.update({
+        where: { id: companyId },
+        data: { advancedUnlockedAt: company.advancedUnlockedAt ?? new Date() },
+      }),
+      this.prisma.website.update({ where: { companyId }, data: websiteData }),
+    ]);
     return this.view(companyId, userId);
   }
 

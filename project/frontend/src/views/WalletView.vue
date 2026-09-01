@@ -3,15 +3,32 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
+import CreditsValue from '@/components/CreditsValue.vue'
 import InfoHint from '@/components/InfoHint.vue'
+import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
 import { useWalletStore } from '@/stores/wallet'
 
 const { t, n } = useI18n()
 const companies = useCompaniesStore()
 const wallet = useWalletStore()
+const money = useMoney()
 const { summary, transactions, nextCursor, pending, loading, working, error } = storeToRefs(wallet)
 const { overview } = storeToRefs(companies)
+
+const CURRENCIES = ['EUR', 'RON'] as const
+
+const KNOWN_ERRORS = ['wallet_blocked', 'insufficient_credits']
+const errorText = computed<string>(() => {
+  const code = error.value
+  if (!code) return ''
+  if (code === 'wallet_blocked') {
+    return wallet.errorReason
+      ? t('wallet.err.wallet_blocked_reason', { reason: wallet.errorReason })
+      : t('wallet.err.wallet_blocked')
+  }
+  return KNOWN_ERRORS.includes(code) ? t('wallet.err.' + code) : code
+})
 
 const PRESETS = [10, 25, 50, 100]
 const amount = ref(50)
@@ -70,15 +87,40 @@ onMounted(async () => {
         <p class="wal__balanceValue">
           {{ credits(summary.balance.credits) }} <span>{{ t('wallet.credits') }}</span>
         </p>
-        <p class="wal__balanceEq">
-          ≈ {{ eur(summary.balance.credits) }} / ~{{ ron(summary.balance.credits) }}
-        </p>
+        <p class="wal__balanceEq">{{ money.approx(summary.balance.credits) }}</p>
+
+        <div class="wal__currency" role="group" :aria-label="t('wallet.currencyLabel')">
+          <span class="wal__currencyLabel">{{ t('wallet.currencyLabel') }}</span>
+          <div class="wal__currencyBtns">
+            <button
+              v-for="c in CURRENCIES"
+              :key="c"
+              type="button"
+              :class="{ 'is-on': summary.currency === c }"
+              :disabled="working"
+              @click="wallet.setCurrency(c)"
+            >
+              {{ t('wallet.currency' + c) }}
+            </button>
+          </div>
+        </div>
       </section>
 
       <div class="wal__stats">
-        <div><span>{{ t('wallet.deposited') }}</span><strong>{{ eur(summary.depositedEurCents / 100) }}</strong></div>
-        <div><span>{{ t('wallet.purchased') }}</span><strong>{{ credits(summary.purchased.credits) }}</strong></div>
-        <div><span>{{ t('wallet.spent') }}</span><strong>{{ credits(summary.spent.credits) }}</strong></div>
+        <div>
+          <span>{{ t('wallet.deposited') }}</span>
+          <strong>{{ eur(summary.depositedEurCents / 100) }}</strong>
+        </div>
+        <div>
+          <span>{{ t('wallet.purchased') }}</span>
+          <strong>{{ credits(summary.purchased.credits) }}</strong>
+          <em class="wal__statEq">{{ money.approx(summary.purchased.credits) }}</em>
+        </div>
+        <div>
+          <span>{{ t('wallet.spent') }}</span>
+          <strong>{{ credits(summary.spent.credits) }}</strong>
+          <em class="wal__statEq">{{ money.approx(summary.spent.credits) }}</em>
+        </div>
       </div>
 
       <!-- Buy credits -->
@@ -88,7 +130,16 @@ onMounted(async () => {
           <InfoHint :text="t('wallet.prepaidNote')" />
         </h2>
 
-        <div v-if="!pending" class="wal__buyForm">
+        <div v-if="summary?.blocked" class="wal__blocked">
+          <v-icon icon="mdi-lock" size="18" />
+          <div>
+            <strong>{{ t('wallet.err.wallet_blocked') }}</strong>
+            <p v-if="summary.blockedReason">{{ t('wallet.blockedReason', { reason: summary.blockedReason }) }}</p>
+            <p>{{ t('wallet.blockedHelp') }}</p>
+          </div>
+        </div>
+
+        <div v-else-if="!pending" class="wal__buyForm">
           <div class="wal__presets">
             <button
               v-for="p in PRESETS"
@@ -149,7 +200,7 @@ onMounted(async () => {
       </section>
 
       <div v-if="error" class="wal__error">
-        <v-icon icon="mdi-alert-circle-outline" size="18" /> {{ error }}
+        <v-icon icon="mdi-alert-circle-outline" size="18" /> {{ errorText }}
       </div>
 
       <!-- Consumption per business -->
@@ -158,7 +209,7 @@ onMounted(async () => {
         <ul>
           <li v-for="c in consumers" :key="c.id">
             <span class="wal__bybizName">{{ c.displayName }}</span>
-            <span class="wal__bybizVal">{{ credits(c.consumedCredits) }} {{ t('wallet.credits') }}</span>
+            <span class="wal__bybizVal"><CreditsValue :credits="c.consumedCredits" /></span>
           </li>
         </ul>
       </section>
@@ -186,7 +237,7 @@ onMounted(async () => {
                 <span v-if="txn.companyName" class="wal__txnBiz">· {{ txn.companyName }}</span>
               </td>
               <td :class="txn.amount.minor < 0 ? 'is-out' : 'is-in'">
-                {{ txn.amount.minor < 0 ? '−' : '+' }}{{ credits(Math.abs(txn.amount.credits)) }}
+                <CreditsValue :credits="txn.amount.credits" signed stacked />
               </td>
               <td>
                 <span class="wal__badge" :class="'wal__badge--' + txn.status">
@@ -275,6 +326,46 @@ onMounted(async () => {
   margin: 0;
   color: rgb(var(--v-theme-on-surface) / 0.7);
 }
+.wal__currency {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+.wal__currencyLabel {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgb(var(--v-theme-on-surface) / 0.5);
+}
+.wal__currencyBtns {
+  display: inline-flex;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface));
+}
+.wal__currencyBtns button {
+  padding: 0.35rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface) / 0.6);
+  transition:
+    background var(--tvz-dur-fast) var(--tvz-ease-out),
+    color var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.wal__currencyBtns button + button {
+  border-left: 1px solid var(--tvz-glass-border);
+}
+.wal__currencyBtns button.is-on {
+  background: rgb(var(--v-theme-primary) / 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.wal__currencyBtns button:disabled {
+  opacity: 0.5;
+}
 
 .wal__bybiz {
   margin-top: 1.75rem;
@@ -339,6 +430,15 @@ onMounted(async () => {
 }
 .wal__stats strong {
   font-size: 1.1rem;
+}
+.wal__statEq {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  color: rgb(var(--v-theme-on-surface) / 0.5);
 }
 
 .wal__buy,
@@ -419,6 +519,24 @@ onMounted(async () => {
   background: rgb(var(--v-theme-error) / 0.1);
   color: rgb(var(--v-theme-error));
   font-size: 0.82rem;
+}
+.wal__blocked {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--tvz-radius-md);
+  background: rgb(var(--v-theme-error) / 0.1);
+  border: 1px solid rgb(var(--v-theme-error) / 0.35);
+  color: rgb(var(--v-theme-error));
+  font-size: 0.85rem;
+}
+.wal__blocked strong {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+.wal__blocked p {
+  margin: 0.1rem 0 0;
+  color: rgb(var(--v-theme-on-surface) / 0.75);
 }
 
 .wal__table {

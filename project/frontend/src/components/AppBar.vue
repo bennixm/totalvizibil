@@ -9,12 +9,14 @@ import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import ThemeQuickToggle from '@/components/ThemeQuickToggle.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
+import { useMoneyStore } from '@/stores/money'
 
 const { t } = useI18n()
 const { mdAndUp } = useDisplay()
 const router = useRouter()
 const auth = useAuthStore()
 const companies = useCompaniesStore()
+const money = useMoneyStore()
 const { overview, currentId } = storeToRefs(companies)
 
 const menuOpen = ref(false)
@@ -27,18 +29,23 @@ const navLinks = computed(() => {
   return items
 })
 
-const accountLinks = computed(() => {
-  const items = [
-    { to: { name: 'dashboard' }, key: 'nav.dashboard', icon: 'mdi-view-dashboard-outline' },
-    { to: { name: 'leads' }, key: 'nav.leads', icon: 'mdi-inbox-arrow-down-outline' },
-    { to: { name: 'wallet' }, key: 'nav.wallet', icon: 'mdi-wallet-outline' },
-    { to: { name: 'account' }, key: 'nav.account', icon: 'mdi-account-cog-outline' },
-  ]
-  if (auth.isPlatformStaff) {
-    items.push({ to: { name: 'admin-dashboard' }, key: 'nav.admin', icon: 'mdi-shield-crown-outline' })
-  }
-  return items
-})
+// "Go to" — the everyday destinations, one roomy row each.
+const goLinks = [
+  { to: { name: 'dashboard' }, key: 'nav.dashboard', icon: 'mdi-view-dashboard-outline' },
+  { to: { name: 'leads' }, key: 'nav.leads', icon: 'mdi-inbox-arrow-down-outline' },
+  { to: { name: 'wallet' }, key: 'nav.wallet', icon: 'mdi-wallet-outline' },
+  { to: { name: 'support' }, key: 'nav.support', icon: 'mdi-lifebuoy' },
+]
+
+// Staff-only tools.
+const staffLinks = computed(() =>
+  auth.isPlatformStaff
+    ? [
+        { to: { name: 'support' }, key: 'nav.supportQueue', icon: 'mdi-face-agent' },
+        { to: { name: 'admin-dashboard' }, key: 'nav.admin', icon: 'mdi-shield-crown-outline' },
+      ]
+    : [],
+)
 
 const initials = computed(() =>
   (auth.user?.name ?? '?')
@@ -69,6 +76,7 @@ function signOut(): void {
   menuOpen.value = false
   auth.logout()
   companies.reset()
+  money.reset()
   void router.push({ name: 'feed' })
 }
 
@@ -128,67 +136,92 @@ watch(() => auth.isAuthenticated, loadCompanies)
             </button>
           </template>
 
-          <v-card class="menu" rounded="xl" :elevation="14">
+          <v-card class="menu" rounded="0" :elevation="16">
             <header class="menu__head">
               <span class="menu__av">{{ initials }}</span>
               <div class="menu__id">
                 <strong>{{ auth.user?.name }}</strong>
                 <span>{{ auth.user?.email }}</span>
               </div>
+              <span v-if="auth.isPlatformStaff" class="menu__staffTag">{{ t('nav.staff') }}</span>
             </header>
 
             <div class="menu__scroll">
+              <!-- Businesses -->
               <section class="menu__sec">
                 <p class="menu__label">{{ t('nav.myBusinesses') }}</p>
                 <button
                   v-for="c in overview"
                   :key="c.id"
                   type="button"
-                  class="menu__row menu__biz"
+                  class="menu__biz"
                   :class="{ 'is-current': c.id === currentId }"
                   @click="pickCompany(c.id)"
                 >
                   <span class="menu__bizDot" :class="`t-${STATUS_TONE[c.status] || 'idle'}`" />
                   <span class="menu__bizName">{{ c.displayName }}</span>
                   <span
-                    class="menu__chip"
-                    :class="c.campaignStatus === 'active' ? 'menu__chip--live' : ''"
-                  >
-                    {{ c.campaignStatus === 'active' ? t('nav.bizLive') : t('nav.bizDraft') }}
-                  </span>
+                    v-if="c.deletionScheduledAt"
+                    class="menu__chip menu__chip--del"
+                  >{{ t('nav.bizDeleting') }}</span>
+                  <span
+                    v-else-if="c.campaignStatus === 'active'"
+                    class="menu__chip menu__chip--live"
+                  >{{ t('nav.bizLive') }}</span>
+                  <span v-else class="menu__chip">{{ t('nav.bizDraft') }}</span>
                 </button>
                 <p v-if="!overview.length" class="menu__empty">{{ t('nav.noBusinesses') }}</p>
-                <button type="button" class="menu__row menu__row--add" @click="go({ name: 'create' })">
-                  <span class="menu__ic menu__ic--add"><v-icon icon="mdi-plus" size="16" /></span>
-                  <span>{{ t('nav.addBusiness') }}</span>
+                <button type="button" class="menu__biz menu__biz--add" @click="go({ name: 'create' })">
+                  <span class="menu__addIco"><v-icon icon="mdi-plus" size="15" /></span>
+                  <span class="menu__bizName">{{ t('nav.addBusiness') }}</span>
                 </button>
               </section>
 
-              <div class="menu__divider" />
+              <div class="menu__rule" />
 
+              <!-- Go to -->
               <section class="menu__sec">
+                <p class="menu__label">{{ t('nav.manage') }}</p>
                 <button
-                  v-for="link in accountLinks"
+                  v-for="link in goLinks"
                   :key="link.key"
                   type="button"
                   class="menu__row"
                   @click="go(link.to)"
                 >
-                  <span class="menu__ic"><v-icon :icon="link.icon" size="16" /></span>
+                  <span class="menu__ic"><v-icon :icon="link.icon" size="17" /></span>
                   <span>{{ t(link.key) }}</span>
-                  <v-icon class="menu__chev" icon="mdi-chevron-right" size="16" />
                 </button>
               </section>
 
-              <div class="menu__divider" />
-
-              <section class="menu__sec">
-                <button type="button" class="menu__row menu__row--danger" @click="signOut">
-                  <span class="menu__ic menu__ic--danger"><v-icon icon="mdi-logout" size="16" /></span>
-                  <span>{{ t('account.signOut') }}</span>
-                </button>
-              </section>
+              <template v-if="staffLinks.length">
+                <div class="menu__rule" />
+                <section class="menu__sec">
+                  <p class="menu__label">{{ t('nav.staff') }}</p>
+                  <button
+                    v-for="link in staffLinks"
+                    :key="link.key"
+                    type="button"
+                    class="menu__row"
+                    @click="go(link.to)"
+                  >
+                    <span class="menu__ic menu__ic--staff"><v-icon :icon="link.icon" size="17" /></span>
+                    <span>{{ t(link.key) }}</span>
+                  </button>
+                </section>
+              </template>
             </div>
+
+            <footer class="menu__foot">
+              <button type="button" class="menu__row" @click="go({ name: 'account' })">
+                <span class="menu__ic"><v-icon icon="mdi-account-cog-outline" size="17" /></span>
+                <span>{{ t('nav.account') }}</span>
+              </button>
+              <button type="button" class="menu__row menu__row--danger" @click="signOut">
+                <span class="menu__ic menu__ic--danger"><v-icon icon="mdi-logout" size="17" /></span>
+                <span>{{ t('account.signOut') }}</span>
+              </button>
+            </footer>
           </v-card>
         </v-menu>
 
@@ -343,172 +376,204 @@ watch(() => auth.isAuthenticated, loadCompanies)
    Rendered in a teleported overlay: rely only on Vuetify theme tokens
    (--v-theme-*), never on page-scoped --tvz-* custom properties. */
 .menu {
-  width: min(21.5rem, calc(100vw - 1.5rem));
+  width: min(23rem, calc(100vw - 1.5rem));
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
+  border: 1px solid rgb(var(--v-theme-on-surface) / 0.1);
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgb(var(--v-theme-on-surface) / 0.08);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.22), 0 8px 20px rgb(0 0 0 / 0.14);
 }
+
+/* Header --------------------------------------------------------------- */
 .menu__head {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  padding: 1.15rem 1.15rem 1rem;
-  background:
-    radial-gradient(120% 120% at 0% 0%, rgb(var(--v-theme-primary) / 0.16), transparent 60%),
-    rgb(var(--v-theme-primary) / 0.05);
-  border-bottom: 1px solid rgb(var(--v-theme-on-surface) / 0.08);
+  gap: 0.85rem;
+  padding: 1.35rem 1.35rem 1.25rem;
+  border-bottom: 1px solid rgb(var(--v-theme-on-surface) / 0.1);
 }
 .menu__av {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
   flex: none;
   color: #fff;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 700;
   background: var(--tvz-gradient-brand, linear-gradient(115deg, #3f63e8, #6d5ef0));
-  box-shadow: 0 4px 14px rgb(var(--v-theme-primary) / 0.4);
 }
 .menu__id {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 .menu__id strong {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.98rem;
+  font-size: 0.96rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .menu__id span {
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgb(var(--v-theme-on-surface) / 0.55);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.menu__staffTag {
+  flex: none;
+  margin-left: auto;
+  align-self: flex-start;
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.42rem;
+  border-radius: 4px;
+  background: rgb(var(--v-theme-primary) / 0.16);
+  color: rgb(var(--v-theme-primary));
+}
 
+/* Body ---------------------------------------------------------------- */
 .menu__scroll {
-  max-height: min(72vh, 32rem);
+  max-height: min(68vh, 34rem);
   overflow-y: auto;
-  padding: 0.5rem;
+  padding: 0.85rem 0.75rem 0.5rem;
 }
 .menu__sec {
   display: flex;
   flex-direction: column;
-  gap: 0.12rem;
+  gap: 0.15rem;
 }
-.menu__divider {
+.menu__sec + .menu__sec {
+  margin-top: 0.35rem;
+}
+.menu__rule {
   height: 1px;
-  margin: 0.5rem 0.35rem;
-  background: rgb(var(--v-theme-on-surface) / 0.09);
+  margin: 0.85rem 0.35rem;
+  background: rgb(var(--v-theme-on-surface) / 0.1);
 }
 .menu__label {
-  margin: 0.5rem 0.7rem 0.35rem;
+  margin: 0.35rem 0.6rem 0.55rem;
   font-size: 0.62rem;
   font-weight: 700;
-  letter-spacing: 0.13em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgb(var(--v-theme-on-surface) / 0.42);
+  color: rgb(var(--v-theme-on-surface) / 0.4);
 }
 .menu__empty {
-  margin: 0.1rem 0.7rem 0.4rem;
-  font-size: 0.8rem;
+  margin: 0.1rem 0.6rem 0.5rem;
+  font-size: 0.82rem;
   color: rgb(var(--v-theme-on-surface) / 0.5);
 }
 
+/* Rows -------------------------------------------------------------- */
 .menu__row {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.8rem;
   width: 100%;
-  min-height: 44px;
-  padding: 0.45rem 0.6rem;
-  border-radius: 12px;
-  font-size: 0.9rem;
+  min-height: 46px;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.92rem;
   font-weight: 500;
-  color: rgb(var(--v-theme-on-surface) / 0.92);
+  color: rgb(var(--v-theme-on-surface) / 0.9);
   background: transparent;
   border: 0;
   text-align: left;
   cursor: pointer;
-  transition:
-    background var(--tvz-dur-fast) var(--tvz-ease-out),
-    transform var(--tvz-dur-fast) var(--tvz-ease-out);
+  transition: background 0.14s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .menu__row:hover,
 .menu__row:focus-visible {
-  background: rgb(var(--v-theme-on-surface) / 0.06);
+  background: rgb(var(--v-theme-on-surface) / 0.055);
   outline: none;
-}
-.menu__row:active {
-  transform: scale(0.985);
 }
 .menu__ic {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
   flex: none;
-  background: rgb(var(--v-theme-on-surface) / 0.07);
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  background: rgb(var(--v-theme-on-surface) / 0.06);
+  color: rgb(var(--v-theme-on-surface) / 0.72);
 }
-.menu__ic--add {
+.menu__ic--staff {
   background: rgb(var(--v-theme-primary) / 0.14);
   color: rgb(var(--v-theme-primary));
 }
 .menu__ic--danger {
-  background: rgb(var(--v-theme-error) / 0.14);
+  background: rgb(var(--v-theme-error) / 0.12);
   color: rgb(var(--v-theme-error));
-}
-.menu__chev {
-  margin-left: auto;
-  color: rgb(var(--v-theme-on-surface) / 0.3);
-}
-.menu__row--add {
-  color: rgb(var(--v-theme-primary));
-  font-weight: 600;
 }
 .menu__row--danger {
   color: rgb(var(--v-theme-error));
 }
 
+/* Business rows --------------------------------------------------- */
+.menu__biz {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 46px;
+  padding: 0.55rem 0.65rem 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.14s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.menu__biz:hover,
+.menu__biz:focus-visible {
+  background: rgb(var(--v-theme-on-surface) / 0.055);
+  outline: none;
+}
 .menu__biz.is-current {
-  background: rgb(var(--v-theme-primary) / 0.1);
+  border-left-color: rgb(var(--v-theme-primary));
+  background: rgb(var(--v-theme-primary) / 0.06);
+}
+.menu__biz--add {
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+  margin-top: 0.1rem;
 }
 .menu__bizDot {
-  width: 28px;
-  height: 28px;
-  flex: none;
-  border-radius: 9px;
-  background: rgb(var(--v-theme-on-surface) / 0.06);
-  position: relative;
-}
-.menu__bizDot::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  margin: auto;
   width: 8px;
   height: 8px;
+  flex: none;
   border-radius: 50%;
-  background: rgb(var(--v-theme-on-surface) / 0.4);
+  background: rgb(var(--v-theme-on-surface) / 0.32);
+  margin-inline: 0.65rem 0.3rem;
 }
 .menu__bizDot.t-live {
-  background: rgb(var(--v-theme-success) / 0.14);
-}
-.menu__bizDot.t-live::after {
   background: rgb(var(--v-theme-success));
-  box-shadow: 0 0 0 3px rgb(var(--v-theme-success) / 0.2);
+  box-shadow: 0 0 0 3px rgb(var(--v-theme-success) / 0.18);
 }
-.menu__bizDot.t-error::after {
+.menu__bizDot.t-error {
   background: rgb(var(--v-theme-error));
+}
+.menu__addIco {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  margin-inline: 0.15rem 0.15rem;
+  border-radius: 6px;
+  background: rgb(var(--v-theme-primary) / 0.14);
+  color: rgb(var(--v-theme-primary));
 }
 .menu__bizName {
   flex: 1;
@@ -516,22 +581,37 @@ watch(() => auth.isAuthenticated, loadCompanies)
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 0.92rem;
   font-weight: 500;
 }
 .menu__chip {
   flex: none;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 0.16rem 0.5rem;
-  border-radius: 999px;
+  padding: 0.16rem 0.45rem;
+  border-radius: 4px;
   background: rgb(var(--v-theme-on-surface) / 0.08);
   color: rgb(var(--v-theme-on-surface) / 0.55);
 }
 .menu__chip--live {
   background: rgb(var(--v-theme-success) / 0.16);
   color: rgb(var(--v-theme-success));
+}
+.menu__chip--del {
+  background: rgb(var(--v-theme-error) / 0.16);
+  color: rgb(var(--v-theme-error));
+}
+
+/* Footer ---------------------------------------------------------- */
+.menu__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.75rem 0.75rem;
+  border-top: 1px solid rgb(var(--v-theme-on-surface) / 0.1);
+  background: rgb(var(--v-theme-on-surface) / 0.02);
 }
 </style>
 

@@ -13,12 +13,15 @@ export interface DraftTurn {
 }
 
 export interface DraftLocation {
-  city: string
+  /** Null when `nationwide` — whole-country coverage has no fixed city. */
+  city: string | null
   region: string | null
   country: string
-  lat: number
-  lng: number
+  lat: number | null
+  lng: number | null
   radiusKm: number | null
+  /** Serves the whole country — no city or radius applies. */
+  nationwide: boolean
 }
 
 export interface WebsiteDraftView {
@@ -44,12 +47,13 @@ export interface WebsiteDraftView {
 
 export interface SetLocationInput {
   categorySlug: string
-  city: string
+  city?: string
   region?: string
   country?: string
-  lat: number
-  lng: number
-  radiusKm: number
+  lat?: number
+  lng?: number
+  radiusKm?: number
+  nationwide?: boolean
 }
 
 interface CreateResponse {
@@ -124,9 +128,16 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       if (!ref) return false
       this.loading = true
       try {
-        this.draft = await apiFetch<WebsiteDraftView>(`/website-drafts/${ref.id}`, {
+        const draft = await apiFetch<WebsiteDraftView>(`/website-drafts/${ref.id}`, {
           headers: { 'X-Draft-Token': ref.token },
         })
+        // A draft that was already turned into a company is spent — drop the
+        // stale local reference so it can't resurrect the pre-account flow.
+        if (draft.status === 'claimed') {
+          clearRef()
+          return false
+        }
+        this.draft = draft
         return true
       } catch {
         clearRef()
@@ -208,12 +219,8 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       await this.resumeOrCreate()
     },
 
-    /** Start an advanced-plan draft from the info gate (name + type + city). */
-    async createAdvanced(seed: {
-      businessName: string
-      businessType: string
-      city?: string
-    }): Promise<boolean> {
+    /** Start an advanced-plan draft from the info gate (business name only). */
+    async createAdvanced(seed: { businessName: string }): Promise<boolean> {
       this.loading = true
       this.error = ''
       try {

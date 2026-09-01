@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
 import { LeadsService } from './leads.service';
 import { UpdateLeadDto } from './dto/update-lead.dto';
+import { ReplyLeadDto } from './dto/reply-lead.dto';
 
 @UseGuards(AuthGuard)
 @Controller('companies/:companyId/leads')
@@ -63,6 +65,16 @@ export class LeadsController {
     @Body() dto: UpdateLeadDto,
   ) {
     return this.leads.update(user.id, companyId, leadId, dto);
+  }
+
+  @Post(':leadId/reply')
+  reply(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+    @Param('leadId', ParseUUIDPipe) leadId: string,
+    @Body() dto: ReplyLeadDto,
+  ) {
+    return this.leads.reply(user.id, companyId, leadId, dto.message);
   }
 
   @Delete(':leadId')

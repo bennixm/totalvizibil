@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
+import AdminPager from '@/components/admin/AdminPager.vue'
 import { useAdminStore } from '@/stores/admin'
 import type { PlatformRole } from '@/stores/auth'
 import type { UserStatus } from '@/stores/admin'
 
-const { t } = useI18n()
+const { t, n } = useI18n()
 const router = useRouter()
 const admin = useAdminStore()
 
@@ -18,11 +20,11 @@ watch(search, (v) => {
   deb = setTimeout(() => admin.setFilter('search', v), 300)
 })
 
-const statusItems = [
+const statusItems = computed(() => [
   { value: null, title: t('admin.filterAnyStatus') },
   { value: 'active', title: t('dashboard.statusActive') },
   { value: 'suspended', title: t('dashboard.statusSuspended') },
-]
+])
 const roleItems = [
   { value: null, title: t('admin.filterAnyRole') },
   { value: 'admin', title: 'admin' },
@@ -31,159 +33,285 @@ const roleItems = [
   { value: 'moderator', title: 'moderator' },
 ]
 
-const headers = [
-  { title: t('admin.colUser'), key: 'name', sortable: false },
-  { title: t('admin.colStatus'), key: 'status', sortable: false },
-  { title: t('admin.colRoles'), key: 'platformRoles', sortable: false },
-  { title: '2FA', key: 'twoFactorEnabled', sortable: false, align: 'center' as const },
-  { title: t('admin.colCompanies'), key: 'companyCount', sortable: false, align: 'end' as const },
-  { title: t('admin.colLastLogin'), key: 'lastLoginAt', sortable: false },
-]
-
-function onOptions(o: { page: number; itemsPerPage: number }) {
-  admin.filters.pageSize = o.itemsPerPage
-  admin.setFilter('page', o.page)
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p.charAt(0).toUpperCase())
+    .join('')
+}
+function credits(v: number): string {
+  return n(Number(v), { maximumFractionDigits: 0 })
+}
+function lastLogin(iso: string | null): string {
+  return iso ? new Date(iso).toLocaleDateString() : t('admin.never')
 }
 
 onMounted(() => admin.fetchUsers())
 
-function openUser(_e: unknown, row: { item: { id: string } }) {
-  router.push({ name: 'admin-user', params: { id: row.item.id } })
+function open(id: string): void {
+  void router.push({ name: 'admin-user', params: { id } })
 }
 </script>
 
 <template>
   <div class="au">
-    <h1>{{ t('admin.navUsers') }}</h1>
+    <AdminPageHeader
+      :title="t('admin.navUsers')"
+      :eyebrow="t('admin.navGroupManage')"
+      :count="admin.usersTotal"
+    />
 
     <div class="au__filters">
       <v-text-field
         v-model="search"
         :placeholder="t('admin.searchUsers')"
         prepend-inner-icon="mdi-magnify"
-        variant="solo-filled"
-        flat
-        rounded="lg"
+        variant="outlined"
+        density="compact"
         hide-details
-        density="comfortable"
+        clearable
         class="au__search"
       />
       <v-select
         :model-value="admin.filters.status"
         :items="statusItems"
-        variant="solo-filled"
-        flat
-        rounded="lg"
+        variant="outlined"
+        density="compact"
         hide-details
-        density="comfortable"
-        style="max-width: 190px"
+        class="au__sel"
         @update:model-value="admin.setFilter('status', $event as UserStatus | null)"
       />
       <v-select
         :model-value="admin.filters.role"
         :items="roleItems"
-        variant="solo-filled"
-        flat
-        rounded="lg"
+        variant="outlined"
+        density="compact"
         hide-details
-        density="comfortable"
-        style="max-width: 190px"
+        class="au__sel"
         @update:model-value="admin.setFilter('role', $event as PlatformRole | null)"
       />
     </div>
 
-    <v-data-table-server
-      :headers="headers"
-      :items="admin.users"
-      :items-length="admin.usersTotal"
-      :loading="admin.loadingUsers"
-      :items-per-page="admin.filters.pageSize"
-      :page="admin.filters.page"
-      hover
-      class="au__table"
-      @update:options="onOptions"
-      @click:row="openUser"
-    >
-      <template #[`item.name`]="{ item }">
-        <div class="au__u">
-          <span class="au__u-name">{{ item.name }}</span>
-          <span class="au__u-mail">{{ item.email }}</span>
+    <div v-if="admin.loadingUsers && !admin.users.length" class="au__center">
+      <v-progress-circular indeterminate color="primary" />
+    </div>
+    <p v-else-if="!admin.users.length" class="au__empty">{{ t('admin.usersNone') }}</p>
+
+    <ul v-else class="au__list">
+      <li
+        v-for="u in admin.users"
+        :key="u.id"
+        class="urow"
+        :class="{ 'urow--suspended': u.status === 'suspended' }"
+        role="button"
+        tabindex="0"
+        @click="open(u.id)"
+        @keydown.enter="open(u.id)"
+      >
+        <span class="urow__av">{{ initials(u.name) }}</span>
+        <div class="urow__id">
+          <span class="urow__name">
+            {{ u.name }}
+            <span v-if="u.status === 'suspended'" class="tag tag--err">{{
+              t('dashboard.statusSuspended')
+            }}</span>
+          </span>
+          <span class="urow__mail">{{ u.email }}</span>
+          <span v-if="u.platformRoles.length" class="urow__roles">
+            <span v-for="r in u.platformRoles" :key="r" class="tag tag--role">{{ r }}</span>
+          </span>
         </div>
-      </template>
-      <template #[`item.status`]="{ item }">
-        <v-chip
-          size="x-small"
-          :color="item.status === 'active' ? 'success' : 'error'"
-          variant="tonal"
-        >
-          {{ t(`dashboard.status${item.status.charAt(0).toUpperCase()}${item.status.slice(1)}`) }}
-        </v-chip>
-      </template>
-      <template #[`item.platformRoles`]="{ item }">
-        <span v-if="!item.platformRoles.length" class="text-medium-emphasis">—</span>
-        <v-chip
-          v-for="r in item.platformRoles"
-          :key="r"
-          size="x-small"
-          color="primary"
-          variant="tonal"
-          class="me-1"
-        >
-          {{ r }}
-        </v-chip>
-      </template>
-      <template #[`item.twoFactorEnabled`]="{ item }">
-        <v-icon
-          :icon="item.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-minus'"
-          :color="item.twoFactorEnabled ? 'success' : undefined"
-          size="18"
-        />
-      </template>
-      <template #[`item.lastLoginAt`]="{ item }">
-        <span class="text-caption">
-          {{ item.lastLoginAt ? new Date(item.lastLoginAt).toLocaleDateString() : t('admin.never') }}
-        </span>
-      </template>
-    </v-data-table-server>
+        <div class="urow__stats">
+          <span class="urow__stat">
+            <v-icon v-if="u.walletBlocked" icon="mdi-lock" size="12" color="error" />
+            <b>{{ credits(u.walletCredits) }}</b>
+            <em>{{ t('admin.colWallet') }}</em>
+          </span>
+          <span class="urow__stat">
+            <b>{{ u.companyCount }}</b>
+            <em>{{ t('admin.colCompanies') }}</em>
+          </span>
+          <span class="urow__stat">
+            <v-icon
+              :icon="u.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'"
+              :color="u.twoFactorEnabled ? 'success' : undefined"
+              size="15"
+            />
+            <em>2FA</em>
+          </span>
+          <span class="urow__stat urow__stat--wide">
+            <b class="urow__login">{{ lastLogin(u.lastLoginAt) }}</b>
+            <em>{{ t('admin.colLastLogin') }}</em>
+          </span>
+        </div>
+        <v-icon icon="mdi-chevron-right" size="18" class="urow__chev" />
+      </li>
+    </ul>
+
+    <AdminPager
+      :page="admin.filters.page"
+      :page-size="admin.filters.pageSize"
+      :total="admin.usersTotal"
+      @update:page="admin.setFilter('page', $event)"
+    />
   </div>
 </template>
 
 <style scoped>
-.au h1 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  font-size: clamp(1.4rem, 3.5vw, 1.9rem);
-  letter-spacing: -0.02em;
-  margin: 0 0 1.2rem;
-}
 .au__filters {
   display: flex;
-  gap: 0.7rem;
+  gap: 0.6rem;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  margin-bottom: 1.1rem;
 }
 .au__search {
   flex: 1 1 240px;
 }
-.au__table {
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-surface));
+.au__sel {
+  max-width: 12rem;
 }
-.au__table :deep(tbody tr) {
-  cursor: pointer;
+.au__center {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
 }
-.au__u {
+.au__empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: rgb(var(--v-theme-on-surface) / 0.5);
+}
+.au__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  padding-block: 0.3rem;
+  gap: 0.5rem;
 }
-.au__u-name {
+.urow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--tvz-hairline);
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  background: rgb(var(--v-theme-surface));
+  cursor: pointer;
+  transition:
+    border-color 0.14s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.urow:hover,
+.urow:focus-visible {
+  outline: none;
+  border-color: rgb(var(--v-theme-primary) / 0.45);
+  border-left-color: rgb(var(--v-theme-primary));
+  background: rgb(var(--v-theme-primary) / 0.03);
+}
+.urow--suspended {
+  border-left-color: rgb(var(--v-theme-error) / 0.6);
+}
+.urow__av {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 11px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--tvz-gradient-brand, linear-gradient(115deg, #3f63e8, #6d5ef0));
+}
+.urow__id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.urow__name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.au__u-mail {
-  font-size: 0.76rem;
+.urow__mail {
+  font-size: 0.78rem;
   color: rgb(var(--v-theme-on-surface) / 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.urow__roles {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  margin-top: 0.15rem;
+}
+.urow__stats {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  flex: none;
+}
+.urow__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 3rem;
+}
+.urow__stat b {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+.urow__stat em {
+  font-style: normal;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgb(var(--v-theme-on-surface) / 0.45);
+}
+.urow__login {
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+}
+.urow__chev {
+  color: rgb(var(--v-theme-on-surface) / 0.3);
+  flex: none;
+}
+
+.tag {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  background: rgb(var(--v-theme-on-surface) / 0.08);
+  color: rgb(var(--v-theme-on-surface) / 0.6);
+}
+.tag--err {
+  background: rgb(var(--v-theme-error) / 0.16);
+  color: rgb(var(--v-theme-error));
+}
+.tag--role {
+  background: rgb(var(--v-theme-primary) / 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+
+@media (max-width: 780px) {
+  .urow__stats {
+    display: none;
+  }
 }
 </style>

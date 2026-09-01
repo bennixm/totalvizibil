@@ -23,9 +23,16 @@ let ro: ResizeObserver | null = null
 function render(fit: boolean): void {
   if (!map) return
   const pos: L.LatLngExpression = [props.lat, props.lng]
+  // A non-positive radius means "whole country" — draw only the centre pin.
+  const showRing = props.radiusKm > 0
   const radius = Math.max(props.radiusKm, 0.5) * 1000
 
-  if (!ring) {
+  if (!showRing) {
+    if (ring) {
+      ring.remove()
+      ring = null
+    }
+  } else if (!ring) {
     ring = L.circle(pos, {
       radius,
       color: '#3f63e8',
@@ -50,7 +57,10 @@ function render(fit: boolean): void {
     centre.setLatLng(pos)
   }
 
-  if (fit) map.fitBounds(ring.getBounds(), { padding: [24, 24], maxZoom: 13 })
+  if (fit) {
+    if (ring) map.fitBounds(ring.getBounds(), { padding: [24, 24], maxZoom: 13 })
+    else map.setView(pos, 11)
+  }
 }
 
 onMounted(() => {

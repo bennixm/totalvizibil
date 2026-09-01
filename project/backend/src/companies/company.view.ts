@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { COMPANY_DELETE_GRACE_MS } from './companies.constants';
 
 export const companyInclude = {
   category: true,
@@ -23,6 +24,10 @@ export function toCompanyView(c: CompanyWithRelations, viewerRole: string | null
     defaultLocale: c.defaultLocale,
     currency: c.currency,
     advancedUnlockedAt: c.advancedUnlockedAt,
+    deletionScheduledAt: c.deletionScheduledAt,
+    deletionEffectiveAt: c.deletionScheduledAt
+      ? new Date(c.deletionScheduledAt.getTime() + COMPANY_DELETE_GRACE_MS)
+      : null,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
     viewerRole,
@@ -39,6 +44,7 @@ export function toCompanyView(c: CompanyWithRelations, viewerRole: string | null
       lng: l.lng,
       isPrimary: l.isPrimary,
       serviceRadiusKm: l.serviceRadiusKm,
+      nationwide: l.nationwide,
     })),
     contacts: c.contacts.map((ct) => ({
       id: ct.id,

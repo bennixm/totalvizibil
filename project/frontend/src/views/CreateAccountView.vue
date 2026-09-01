@@ -45,7 +45,14 @@ const canSubmit = computed(
   () => name.value.trim() && /.+@.+\..+/.test(email.value) && password.value.length >= 8,
 )
 
-const KNOWN_ERR = ['insufficient_credits', 'draft_already_claimed', 'category_required']
+const KNOWN_ERR = [
+  'insufficient_credits',
+  'draft_already_claimed',
+  'category_required',
+  'additional_business_payment_required',
+  'cannot_pay_from_that_company',
+  'wallet_blocked',
+]
 function errText(code: string): string {
   return KNOWN_ERR.includes(code) ? t('claim.err.' + code) : t('claim.error')
 }

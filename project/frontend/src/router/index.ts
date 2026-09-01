@@ -1,11 +1,25 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
+import { useMoneyStore } from '@/stores/money'
 
 const routes: RouteRecordRaw[] = [
   // --- Discovery (public) ---
   { path: '/', name: 'feed', component: () => import('@/views/FeedView.vue') },
-  { path: '/c/:slug', name: 'company', component: () => import('@/views/CompanyPublicView.vue') },
+  {
+    // SEO path: /feed/{group} or /feed/{group}/{niche}. Bare /feed → home.
+    path: '/feed/:group/:niche?',
+    name: 'feed-category',
+    component: () => import('@/views/FeedView.vue'),
+  },
+  { path: '/feed', redirect: { name: 'feed' } },
+  {
+    // SEO path: /c/{group}/{niche}/{slug} (category crumbs before the slug).
+    // Legacy /c/{slug} still resolves — the page canonicalises to the full path.
+    path: '/c/:crumbs+',
+    name: 'company',
+    component: () => import('@/views/CompanyPublicView.vue'),
+  },
 
   // --- Create your business ---
   { path: '/create', name: 'create', component: () => import('@/views/CreateBusinessView.vue') },
@@ -44,15 +58,55 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    // The campaign hub — consumption stats + status + activate/stop, with links
+    // out to the optimiser and the budget/CPC editor.
     path: '/campaign',
     name: 'campaign',
+    component: () => import('@/views/CampaignSpendView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/campaign/budget',
+    name: 'campaign-budget',
     component: () => import('@/views/CampaignView.vue'),
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/campaign/optimize',
+    name: 'campaign-optimize',
+    component: () => import('@/views/CampaignOptimizeView.vue'),
+    meta: { requiresAuth: true },
+  },
+  // The old dedicated spend page is now the hub itself.
+  {
+    path: '/campaign/spend',
+    name: 'campaign-spend',
+    redirect: (to) => ({ name: 'campaign', query: to.query }),
   },
   {
     path: '/leads',
     name: 'leads',
     component: () => import('@/views/LeadsView.vue'),
+    meta: { requiresAuth: true },
+  },
+
+  // --- Support ---
+  {
+    path: '/support',
+    name: 'support',
+    component: () => import('@/views/SupportView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/support/new',
+    name: 'support-new',
+    component: () => import('@/views/SupportNewView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/support/:id',
+    name: 'support-ticket',
+    component: () => import('@/views/SupportTicketView.vue'),
     meta: { requiresAuth: true },
   },
   {
@@ -103,6 +157,26 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-user',
         component: () => import('@/views/admin/AdminUserDetailView.vue'),
       },
+      {
+        path: 'businesses',
+        name: 'admin-businesses',
+        component: () => import('@/views/admin/AdminBusinessesView.vue'),
+      },
+      {
+        path: 'categories',
+        name: 'admin-categories',
+        component: () => import('@/views/admin/AdminCategoriesView.vue'),
+      },
+      {
+        path: 'settings',
+        name: 'admin-settings',
+        component: () => import('@/views/admin/AdminSettingsView.vue'),
+      },
+      {
+        path: 'companies/:id',
+        name: 'admin-company',
+        component: () => import('@/views/admin/AdminCompanyDetailView.vue'),
+      },
     ],
   },
 
@@ -127,6 +201,10 @@ export const router = createRouter({
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (!auth.ready) await auth.bootstrap()
+
+  // Warm the FX context (display currency + EUR/RON rate) once signed in, so
+  // credit amounts render with their equivalent from the first paint.
+  if (auth.isAuthenticated) void useMoneyStore().ensureLoaded()
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }

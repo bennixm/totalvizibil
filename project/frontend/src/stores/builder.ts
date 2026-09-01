@@ -6,6 +6,8 @@ import type { Money } from '@/stores/wallet'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 
 export interface BuilderView {
+  /** `easy` here means the site is upgrading to the advanced plan. */
+  mode: 'easy' | 'advanced'
   unlocked: boolean
   priceCredits: number
   wallet: { balance: Money }

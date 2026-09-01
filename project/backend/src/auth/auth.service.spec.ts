@@ -82,6 +82,21 @@ describe('AuthService', () => {
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
+    it('tells a suspended user their account is suspended (password was right)', async () => {
+      const hash = await passwords.hash('the-real-password');
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'x@y.com',
+        name: 'X',
+        status: 'suspended',
+        passwordHash: hash,
+        platformRoles: [],
+      });
+      await expect(
+        service.validateCredentials({ email: 'x@y.com', password: 'the-real-password' }),
+      ).rejects.toMatchObject({ message: 'account_suspended' });
+    });
+
     it('returns the user view and stamps lastLoginAt on success', async () => {
       const hash = await passwords.hash('the-real-password');
       prisma.user.findUnique.mockResolvedValue({

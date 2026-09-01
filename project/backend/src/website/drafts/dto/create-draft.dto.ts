@@ -5,15 +5,6 @@ export class DraftSeedDto {
   @IsString()
   @MaxLength(120)
   businessName!: string;
-
-  @IsString()
-  @MaxLength(160)
-  businessType!: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  city?: string;
 }
 
 export class CreateDraftDto {

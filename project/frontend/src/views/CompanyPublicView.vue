@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
 import { apiFetch, ApiError } from '@/services/api'
 import { trackCall } from '@/services/leads'
+import { useSeo } from '@/composables/useSeo'
+import { companyCrumbs } from '@/services/routes'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 import type { LocalizedName } from '@/stores/companies'
 
@@ -15,8 +17,19 @@ interface PublicCompany {
   displayName: string
   description: string | null
   logoUrl: string | null
-  category: { slug: string; name: LocalizedName } | null
-  locations: { city: string; region: string | null; address: string | null; isPrimary: boolean }[]
+  category: {
+    slug: string
+    name: LocalizedName
+    parent: { slug: string; name: LocalizedName } | null
+  } | null
+  locations: {
+    city: string | null
+    region: string | null
+    address: string | null
+    country?: string
+    isPrimary: boolean
+    nationwide?: boolean
+  }[]
   contacts: { type: string; value: string }[]
   services: { name: string; description: string | null }[]
   website: { mode: string; theme: WebsiteTheme; content: WebsiteContent } | null
@@ -24,21 +37,35 @@ interface PublicCompany {
 
 const { t, locale } = useI18n()
 const route = useRoute()
+const router = useRouter()
 
 const company = ref<PublicCompany | null>(null)
 const loading = ref(true)
 const notFound = ref(false)
 const leadSent = ref(false)
 
+/** The company slug is always the LAST path segment under /c/…. */
+const slug = computed(() => {
+  const c = route.params.crumbs
+  const arr = Array.isArray(c) ? c : c ? [c] : []
+  return arr[arr.length - 1] ?? ''
+})
+
 function onBarCall(): void {
   if (company.value) trackCall(company.value.slug)
 }
 
-async function load(slug: string) {
+async function load(s: string) {
   loading.value = true
   notFound.value = false
   try {
-    company.value = await apiFetch<PublicCompany>(`/public/companies/${slug}`)
+    company.value = await apiFetch<PublicCompany>(`/public/companies/${s}`)
+    // Redirect a bare or mis-prefixed URL to the canonical category path.
+    const canonical = companyCrumbs(company.value)
+    const current = Array.isArray(route.params.crumbs) ? route.params.crumbs : [route.params.crumbs]
+    if (current.join('/') !== canonical.join('/')) {
+      void router.replace({ name: 'company', params: { crumbs: canonical } })
+    }
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) notFound.value = true
     company.value = null
@@ -47,20 +74,97 @@ async function load(slug: string) {
   }
 }
 
-onMounted(() => load(String(route.params.slug)))
-watch(
-  () => route.params.slug,
-  (s) => s && load(String(s)),
-)
+onMounted(() => load(slug.value))
+watch(slug, (s) => s && load(s))
 
 const phone = computed(() => company.value?.contacts.find((c) => c.type === 'phone')?.value)
 const email = computed(() => company.value?.contacts.find((c) => c.type === 'email')?.value)
 const primaryLocation = computed(
   () => company.value?.locations.find((l) => l.isPrimary) ?? company.value?.locations[0] ?? null,
 )
-const categoryName = computed(() => {
-  const n = company.value?.category?.name
-  return n ? (n[locale.value as keyof LocalizedName] ?? n.en) : null
+const catLoc = (n?: LocalizedName | null): string | null =>
+  n ? (n[locale.value as keyof LocalizedName] ?? n.en) : null
+const categoryName = computed(() => catLoc(company.value?.category?.name))
+const parentName = computed(() => catLoc(company.value?.category?.parent?.name))
+
+// --- SEO: title, description, canonical + LocalBusiness / breadcrumb JSON-LD ---
+useSeo(() => {
+  const c = company.value
+  if (!c) {
+    return notFound.value
+      ? { title: t('company.notFound'), noindex: true }
+      : { noindex: true }
+  }
+  const origin = window.location.origin
+  const path = `/c/${companyCrumbs(c).join('/')}`
+  const city = primaryLocation.value?.city
+  const descParts = [
+    c.description?.trim(),
+    categoryName.value && city ? t('company.seoDesc', { category: categoryName.value, city }) : null,
+  ].filter(Boolean)
+
+  const crumbs = companyCrumbs(c)
+  const breadcrumb: Record<string, unknown>[] = [
+    { '@type': 'ListItem', position: 1, name: t('feed.title'), item: `${origin}/` },
+  ]
+  if (parentName.value && crumbs.length >= 3) {
+    breadcrumb.push({
+      '@type': 'ListItem',
+      position: 2,
+      name: parentName.value,
+      item: `${origin}/feed/${crumbs[0]}`,
+    })
+  }
+  if (categoryName.value) {
+    breadcrumb.push({
+      '@type': 'ListItem',
+      position: breadcrumb.length + 1,
+      name: categoryName.value,
+      item: `${origin}/feed/${crumbs.slice(0, -1).join('/')}`,
+    })
+  }
+  breadcrumb.push({ '@type': 'ListItem', position: breadcrumb.length + 1, name: c.displayName })
+
+  const business: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    name: c.displayName,
+    url: `${origin}${path}`,
+    ...(c.description ? { description: c.description } : {}),
+    ...(c.logoUrl ? { image: c.logoUrl } : {}),
+    ...(phone.value ? { telephone: phone.value } : {}),
+    ...(email.value ? { email: email.value } : {}),
+    ...(primaryLocation.value?.city
+      ? {
+          address: {
+            '@type': 'PostalAddress',
+            addressLocality: primaryLocation.value.city,
+            ...(primaryLocation.value.region
+              ? { addressRegion: primaryLocation.value.region }
+              : {}),
+            addressCountry: primaryLocation.value.country ?? 'RO',
+          },
+        }
+      : {}),
+    ...(c.services.length
+      ? {
+          makesOffer: c.services.map((s) => ({
+            '@type': 'Offer',
+            itemOffered: { '@type': 'Service', name: s.name },
+          })),
+        }
+      : {}),
+  }
+
+  return {
+    title: city ? `${c.displayName} · ${city}` : c.displayName,
+    description: descParts.join(' — ') || undefined,
+    canonicalPath: path,
+    jsonLd: [
+      business,
+      { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: breadcrumb },
+    ],
+  }
 })
 </script>
 
@@ -129,9 +233,13 @@ const categoryName = computed(() => {
           <p v-if="categoryName" class="cp__cat">{{ categoryName }}</p>
           <h1>{{ company.displayName }}</h1>
           <p v-if="company.description" class="cp__desc">{{ company.description }}</p>
-          <p v-if="primaryLocation" class="cp__loc">
+          <p v-if="primaryLocation && (primaryLocation.city || primaryLocation.nationwide)" class="cp__loc">
             <v-icon icon="mdi-map-marker-outline" size="16" />
-            {{ primaryLocation.city }}<span v-if="primaryLocation.region">, {{ primaryLocation.region }}</span>
+            <template v-if="primaryLocation.nationwide">{{ t('feed.coverageCountry') }}</template>
+            <template v-else
+              >{{ primaryLocation.city
+              }}<span v-if="primaryLocation.region">, {{ primaryLocation.region }}</span></template
+            >
           </p>
         </div>
 

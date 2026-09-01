@@ -3,12 +3,22 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { pingAdClick } from '@/services/ads'
+import { companyRoute } from '@/services/routes'
 import type { FeedItem } from '@/stores/feed'
 import type { LocalizedName } from '@/stores/companies'
 
 const props = defineProps<{ item: FeedItem }>()
 
 const { t, locale } = useI18n()
+
+const to = computed(() =>
+  companyRoute({
+    slug: props.item.slug,
+    category: props.item.category
+      ? { slug: props.item.category.slug, parent: props.item.category.parent }
+      : null,
+  }),
+)
 
 function onOpen(): void {
   pingAdClick(props.item.id)
@@ -27,11 +37,7 @@ const initial = computed(() => props.item.displayName.charAt(0).toUpperCase())
 </script>
 
 <template>
-  <RouterLink
-    class="lst"
-    :to="{ name: 'company', params: { slug: item.slug } }"
-    @click="onOpen"
-  >
+  <RouterLink class="lst" :to="to" @click="onOpen">
     <span class="lst__spine" aria-hidden="true" />
 
     <div class="lst__media">
@@ -50,7 +56,13 @@ const initial = computed(() => props.item.displayName.charAt(0).toUpperCase())
 
       <p v-if="item.location" class="lst__loc">
         <v-icon icon="mdi-map-marker-outline" size="14" />
-        {{ item.location.city }}<span v-if="item.location.region">, {{ item.location.region }}</span>
+        <template v-if="item.location.nationwide">{{ t('feed.coverageCountry') }}</template>
+        <template v-else
+          >{{ item.location.city
+          }}<span v-if="item.location.radiusKm">
+            · {{ t('feed.coverageKm', { n: item.location.radiusKm }) }}</span
+          ></template
+        >
       </p>
 
       <p v-if="item.description" class="lst__desc">{{ item.description }}</p>

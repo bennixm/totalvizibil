@@ -3,8 +3,6 @@ import { defineStore } from 'pinia'
 import { apiFetch } from '@/services/api'
 import type { LocalizedName } from '@/stores/companies'
 
-export type FeedSort = 'recommended' | 'newest' | 'rating'
-
 export interface FeedCategoryLeaf {
   slug: string
   name: LocalizedName
@@ -33,7 +31,17 @@ export interface FeedItem {
         parent: { slug: string; name: LocalizedName } | null
       }
     | null
-  location: { city: string; region: string | null } | null
+  /**
+   * `radiusKm` = the coverage radius the business set for its own location;
+   * `nationwide` = it serves the whole country (no radius applies).
+   */
+  location: {
+    /** Null when `nationwide` — whole-country coverage has no fixed city. */
+    city: string | null
+    region: string | null
+    radiusKm: number | null
+    nationwide: boolean
+  } | null
   services: string[]
   hasWebsite: boolean
   score: number
@@ -44,13 +52,19 @@ interface FeedResponse {
   page: number
   pageSize: number
   total: number
+  requiresCategory: boolean
+}
+
+export interface FeedArea {
+  city: string
+  lat: number
+  lng: number
 }
 
 interface FeedFilters {
-  q: string
   category: string | null
-  city: string | null
-  sort: FeedSort
+  /** Selected city — a business shows if that city is inside its coverage radius. */
+  area: FeedArea | null
 }
 
 interface FeedState {
@@ -70,7 +84,7 @@ const PAGE_SIZE = 8
 
 export const useFeedStore = defineStore('feed', {
   state: (): FeedState => ({
-    filters: { q: '', category: null, city: null, sort: 'recommended' },
+    filters: { category: null, area: null },
     facets: { categories: [], cities: [] },
     facetsLoaded: false,
     items: [],
@@ -83,9 +97,10 @@ export const useFeedStore = defineStore('feed', {
   }),
 
   getters: {
-    hasActiveFilters: (s): boolean =>
-      s.filters.q.trim() !== '' || s.filters.category !== null || s.filters.city !== null,
+    hasActiveFilters: (s): boolean => s.filters.category !== null || s.filters.area !== null,
     pageCount: (s): number => Math.max(1, Math.ceil(s.total / s.pageSize)),
+    /** Discovery is category-first — nothing lists until one is picked. */
+    requiresCategory: (s): boolean => s.filters.category === null,
   },
 
   actions: {
@@ -97,17 +112,28 @@ export const useFeedStore = defineStore('feed', {
 
     query(page: number): string {
       const p = new URLSearchParams()
-      const q = this.filters.q.trim()
-      if (q) p.set('q', q)
       if (this.filters.category) p.set('category', this.filters.category)
-      if (this.filters.city) p.set('city', this.filters.city)
-      p.set('sort', this.filters.sort)
+      if (this.filters.area) {
+        p.set('city', this.filters.area.city)
+        p.set('lat', String(this.filters.area.lat))
+        p.set('lng', String(this.filters.area.lng))
+      }
       p.set('page', String(page))
       p.set('pageSize', String(this.pageSize))
       return p.toString()
     },
 
     async loadFeed(): Promise<void> {
+      // No category → nothing to fetch. The view shows the category picker.
+      if (!this.filters.category) {
+        this.items = []
+        this.total = 0
+        this.page = 1
+        this.error = ''
+        this.loaded = true
+        this.loading = false
+        return
+      }
       this.loading = true
       this.error = ''
       try {
@@ -131,14 +157,19 @@ export const useFeedStore = defineStore('feed', {
       await this.loadFeed()
     },
 
-    /** Change a filter and reset to page 1 (caller triggers the refetch). */
-    setFilter<K extends keyof FeedFilters>(key: K, value: FeedFilters[K]): void {
-      this.filters[key] = value
+    setCategory(slug: string | null): void {
+      this.filters.category = slug
+      this.page = 1
+    },
+
+    setArea(area: FeedArea | null): void {
+      this.filters.area = area
       this.page = 1
     },
 
     reset(): void {
-      this.filters = { q: '', category: null, city: null, sort: 'recommended' }
+      this.filters = { category: null, area: null }
+      this.page = 1
     },
   },
 })

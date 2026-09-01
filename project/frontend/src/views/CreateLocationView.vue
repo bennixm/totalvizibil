@@ -34,6 +34,8 @@ const region = ref<string>('')
 const lat = ref(DEFAULT.lat)
 const lng = ref(DEFAULT.lng)
 const radiusKm = ref(DEFAULT.radiusKm)
+// Serves the whole country — hides the km radius entirely.
+const nationwide = ref(false)
 
 const cityItems = ref<GeoCity[]>([])
 const searching = ref(false)
@@ -89,9 +91,9 @@ let debounce: ReturnType<typeof setTimeout> | undefined
 const canContinue = computed(
   () =>
     !!leafSlug.value &&
-    !!city.value &&
-    Number.isFinite(lat.value) &&
-    Number.isFinite(lng.value),
+    // Whole-country coverage needs no city or map pin.
+    (nationwide.value ||
+      (!!city.value && Number.isFinite(lat.value) && Number.isFinite(lng.value))),
 )
 // Where "back" goes in the pre-account flow — the advanced plan started at the
 // advanced info screen, not the easy studio.
@@ -145,33 +147,41 @@ function onMapPick(p: { lat: number; lng: number }): void {
 }
 
 function prefill(loc: {
-  city: string
+  city: string | null
   region: string | null
-  lat: number
-  lng: number
+  lat: number | null
+  lng: number | null
   radiusKm: number | null
+  nationwide?: boolean
 }): void {
-  const p: GeoCity = { name: loc.city, county: loc.region ?? '', lat: loc.lat, lng: loc.lng }
-  cityItems.value = [p]
-  city.value = p
-  region.value = loc.region ?? ''
-  lat.value = loc.lat
-  lng.value = loc.lng
+  nationwide.value = !!loc.nationwide
   radiusKm.value = loc.radiusKm ?? DEFAULT.radiusKm
+  // A whole-country location has no city / coordinates to restore.
+  if (loc.city && loc.lat != null && loc.lng != null) {
+    const p: GeoCity = { name: loc.city, county: loc.region ?? '', lat: loc.lat, lng: loc.lng }
+    cityItems.value = [p]
+    city.value = p
+    region.value = loc.region ?? ''
+    lat.value = loc.lat
+    lng.value = loc.lng
+  }
 }
 
 async function save(): Promise<void> {
   if (!canContinue.value || saving.value) return
   saving.value = true
   error.value = ''
-  const payload = {
-    categorySlug: leafSlug.value!,
-    city: city.value!.name,
-    region: region.value || undefined,
-    lat: lat.value,
-    lng: lng.value,
-    radiusKm: radiusKm.value,
-  }
+  const payload = nationwide.value
+    ? { categorySlug: leafSlug.value!, nationwide: true }
+    : {
+        categorySlug: leafSlug.value!,
+        city: city.value!.name,
+        region: region.value || undefined,
+        lat: lat.value,
+        lng: lng.value,
+        radiusKm: radiusKm.value,
+        nationwide: false,
+      }
   try {
     if (mode.value === 'company' && companyId.value) {
       await companies.updateLocation(companyId.value, payload)
@@ -197,9 +207,17 @@ async function save(): Promise<void> {
 onMounted(async () => {
   catTree.value = await fetchCategoryTree().catch(() => [])
 
-  // An in-progress draft always wins — it's the pre-account (free) flow, even
+  // Arriving with ?c=… while signed in means "edit this business's coverage
+  // area" — a plain settings change reached from the dashboard. It must operate
+  // on the real company and must never be hijacked by a leftover pre-account
+  // draft in localStorage (that dragged an already-published business back into
+  // the "continue → pay" onboarding flow).
+  const editingCompany =
+    auth.isAuthenticated && typeof route.query.c === 'string' && route.query.c.length > 0
+
+  // Otherwise an in-progress draft wins — it's the pre-account (free) flow, even
   // for a logged-in user building a second site.
-  const hasDraft = await draftStore.resumeIfAny()
+  const hasDraft = editingCompany ? false : await draftStore.resumeIfAny()
   if (hasDraft && draftStore.draft?.ready) {
     mode.value = 'draft'
     preselectCategory(draftStore.draft.categorySlug)
@@ -226,16 +244,18 @@ onMounted(async () => {
     companyId.value = company.id
     preselectCategory(company.category?.slug)
     const loc = company.locations.find((l) => l.isPrimary) ?? company.locations[0]
-    // A coverage area is already on file → this is a settings edit, not the
-    // onboarding step.
-    editing.value = !!(loc && loc.lat != null && loc.lng != null)
-    if (loc && loc.lat != null && loc.lng != null) {
+    // A coverage area is already on file (a city pin, or whole-country) → this
+    // is a settings edit, not the onboarding step.
+    const hasCoverage = !!loc && (loc.nationwide || (loc.lat != null && loc.lng != null))
+    editing.value = hasCoverage
+    if (loc && hasCoverage) {
       prefill({
         city: loc.city,
         region: loc.region,
         lat: loc.lat,
         lng: loc.lng,
         radiusKm: loc.serviceRadiusKm,
+        nationwide: loc.nationwide,
       })
     }
     await runSearch(loc?.city ?? '')
@@ -291,60 +311,78 @@ onBeforeUnmount(() => clearTimeout(debounce))
         />
       </div>
 
-      <div class="loc__fieldhead">
-        <span>{{ t('location.areaSection') }}</span>
-        <InfoHint :text="`${t('location.feedNote')} ${t('location.mapHint')}`" />
-      </div>
-      <v-autocomplete
-        v-model="city"
-        :items="cityItems"
-        item-title="name"
-        return-object
-        no-filter
-        hide-no-data
-        auto-select-first
-        :loading="searching"
-        :label="t('location.cityLabel')"
-        :placeholder="t('location.cityPlaceholder')"
-        prepend-inner-icon="mdi-map-marker-outline"
-        variant="outlined"
+      <v-switch
+        v-model="nationwide"
+        :label="t('location.nationwideLabel')"
+        color="primary"
         density="comfortable"
-        @update:search="onSearch"
-        @update:model-value="onCityPick"
-      >
-        <template #item="{ props: itemProps, item }">
-          <v-list-item v-bind="itemProps" :title="item.raw.name" :subtitle="item.raw.county" />
-        </template>
-      </v-autocomplete>
+        hide-details
+        class="loc__nationwide"
+        @update:model-value="saved = false"
+      />
 
-      <div class="loc__map">
-        <LocationMap :lat="lat" :lng="lng" :radius-km="radiusKm" @pick="onMapPick" />
+      <div v-if="nationwide" class="loc__note">
+        <span>{{ t('location.nationwideHint') }}</span>
       </div>
 
-      <div class="loc__radius">
-        <div class="loc__radiusTop">
-          <label for="loc-radius">{{ t('location.radiusLabel') }}</label>
-          <strong>{{ t('location.radiusValue', { n: radiusKm }) }}</strong>
+      <template v-else>
+        <div class="loc__fieldhead">
+          <span>{{ t('location.areaSection') }}</span>
+          <InfoHint :text="`${t('location.feedNote')} ${t('location.mapHint')}`" />
         </div>
-        <v-slider
-          id="loc-radius"
-          v-model="radiusKm"
-          :min="1"
-          :max="100"
-          :step="1"
-          color="primary"
-          thumb-label
-          hide-details
-          @update:model-value="saved = false"
-        />
-      </div>
+        <v-autocomplete
+          v-model="city"
+          :items="cityItems"
+          item-title="name"
+          return-object
+          no-filter
+          hide-no-data
+          auto-select-first
+          :loading="searching"
+          :label="t('location.cityLabel')"
+          :placeholder="t('location.cityPlaceholder')"
+          prepend-inner-icon="mdi-map-marker-outline"
+          variant="outlined"
+          density="comfortable"
+          @update:search="onSearch"
+          @update:model-value="onCityPick"
+        >
+          <template #item="{ props: itemProps, item }">
+            <v-list-item v-bind="itemProps" :title="item.raw.name" :subtitle="item.raw.county" />
+          </template>
+        </v-autocomplete>
+
+        <div class="loc__map">
+          <LocationMap :lat="lat" :lng="lng" :radius-km="radiusKm" @pick="onMapPick" />
+        </div>
+
+        <div class="loc__radius">
+          <div class="loc__radiusTop">
+            <label for="loc-radius">{{ t('location.radiusLabel') }}</label>
+            <strong>{{ t('location.radiusValue', { n: radiusKm }) }}</strong>
+          </div>
+          <v-slider
+            id="loc-radius"
+            v-model="radiusKm"
+            :min="1"
+            :max="100"
+            :step="1"
+            color="primary"
+            thumb-label
+            hide-details
+            @update:model-value="saved = false"
+          />
+        </div>
+      </template>
 
       <div v-if="error" class="loc__note loc__note--error">
         <v-icon icon="mdi-alert-circle-outline" size="18" /> {{ error }}
       </div>
 
-      <div class="loc__actions">
-        <v-btn variant="text" prepend-icon="mdi-arrow-left" :to="backTarget">
+      <div class="loc__actions" :class="{ 'loc__actions--solo': editing }">
+        <!-- No "back" when this is a settings edit — there is no previous
+             onboarding step to return to, only the dashboard. -->
+        <v-btn v-if="!editing" variant="text" prepend-icon="mdi-arrow-left" :to="backTarget">
           {{ backText }}
         </v-btn>
         <v-btn
@@ -435,6 +473,9 @@ onBeforeUnmount(() => clearTimeout(debounce))
   margin-top: 0.75rem;
 }
 
+.loc__nationwide {
+  margin-top: 1.5rem;
+}
 .loc__radius {
   margin-top: 1.5rem;
 }
@@ -482,5 +523,8 @@ onBeforeUnmount(() => clearTimeout(debounce))
   justify-content: space-between;
   align-items: center;
   margin-top: 1.75rem;
+}
+.loc__actions--solo {
+  justify-content: flex-end;
 }
 </style>

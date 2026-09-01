@@ -11,6 +11,15 @@ export class ApiError extends Error {
   }
 }
 
+/** Extra `reason` string some structured API errors carry (e.g. a frozen wallet). */
+export function errorReason(e: unknown): string | null {
+  if (e instanceof ApiError && e.body && typeof e.body === 'object' && 'reason' in e.body) {
+    const r = (e.body as { reason: unknown }).reason
+    return typeof r === 'string' && r.trim() ? r : null
+  }
+  return null
+}
+
 type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown; timeoutMs?: number }
 
 const DEFAULT_TIMEOUT_MS = 12_000

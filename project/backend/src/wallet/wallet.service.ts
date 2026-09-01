@@ -1,8 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { CREDIT_MINOR, eurCentsToRonBani, money } from './money';
+import { WALLET_CURRENCIES, WalletCurrency } from './dto/set-currency.dto';
 
 const MAX_PURCHASE_CREDITS = 100_000;
 const STUB_PROVIDER = 'stub-dev';
@@ -22,6 +28,26 @@ export class WalletService {
   ) {}
 
   // --- helpers ---------------------------------------------------------
+
+  /** Freeze state of a wallet, without creating one. */
+  async blockInfo(userId: string): Promise<{ blocked: boolean; reason: string | null }> {
+    const w = await this.prisma.wallet.findUnique({
+      where: { userId },
+      select: { blockedAt: true, blockedReason: true },
+    });
+    return { blocked: !!w?.blockedAt, reason: w?.blockedReason ?? null };
+  }
+
+  /**
+   * Throw a structured `wallet_blocked` error (carrying the admin's reason) if
+   * the wallet is frozen. Call before any top-up or spend so the user sees why.
+   */
+  async assertSpendable(userId: string): Promise<void> {
+    const { blocked, reason } = await this.blockInfo(userId);
+    if (blocked) {
+      throw new ForbiddenException({ message: 'wallet_blocked', reason, statusCode: 403 });
+    }
+  }
 
   /** Get or lazily create the user's wallet row. */
   private async ensureWallet(userId: string) {
@@ -64,13 +90,91 @@ export class WalletService {
 
     return {
       balance: money(wallet.balanceMinor),
-      currency: wallet.currency,
+      currency: this.normalizeCurrency(wallet.currency),
       eurRonRate,
       depositedEurCents: purchases._sum.eurCents ?? 0,
       purchased: money(purchasedMinor),
       spent: money(spentMinor),
+      blocked: !!wallet.blockedAt,
+      blockedAt: wallet.blockedAt,
+      blockedReason: wallet.blockedReason,
       updatedAt: wallet.updatedAt,
     };
+  }
+
+  /**
+   * Lightweight FX context for the client: the wallet's chosen display currency
+   * and the live EUR->RON rate. Read on every page that shows a credit amount,
+   * so it stays cheap (one wallet row + the cached rate).
+   */
+  async fx(userId: string): Promise<{ currency: WalletCurrency; eurRonRate: number }> {
+    const [wallet, eurRonRate] = await Promise.all([
+      this.prisma.wallet.findUnique({ where: { userId }, select: { currency: true } }),
+      this.settings.eurRonRate(),
+    ]);
+    return { currency: this.normalizeCurrency(wallet?.currency), eurRonRate };
+  }
+
+  /** Set the wallet's display currency (EUR or RON). Credits are unaffected. */
+  async setCurrency(userId: string, currency: WalletCurrency) {
+    const wallet = await this.ensureWallet(userId);
+    if (wallet.currency !== currency) {
+      await this.prisma.wallet.update({ where: { id: wallet.id }, data: { currency } });
+    }
+    return this.getSummary(userId);
+  }
+
+  private normalizeCurrency(raw: string | null | undefined): WalletCurrency {
+    return (WALLET_CURRENCIES as readonly string[]).includes(raw ?? '')
+      ? (raw as WalletCurrency)
+      : 'EUR';
+  }
+
+  // --- admin controls ----------------------------------------------
+
+  /** Freeze / unfreeze a wallet. Blocked wallets can't top up or spend. */
+  async setBlocked(userId: string, blocked: boolean, reason?: string | null) {
+    const wallet = await this.ensureWallet(userId);
+    await this.prisma.wallet.update({
+      where: { id: wallet.id },
+      data: {
+        blockedAt: blocked ? (wallet.blockedAt ?? new Date()) : null,
+        blockedReason: blocked ? (reason ?? wallet.blockedReason ?? null) : null,
+      },
+    });
+    return this.getSummary(userId);
+  }
+
+  /**
+   * Admin credit/debit. `credits` may be negative (a claw-back); a debit is
+   * clamped so the balance never goes below zero. Records an `adjustment`
+   * transaction with the reason.
+   */
+  async adjust(userId: string, credits: number, reason: string) {
+    if (!Number.isFinite(credits) || credits === 0) {
+      throw new BadRequestException('credits must be a non-zero number');
+    }
+    const wallet = await this.ensureWallet(userId);
+    let deltaMinor = Math.round(credits * CREDIT_MINOR);
+    if (wallet.balanceMinor + deltaMinor < 0) deltaMinor = -wallet.balanceMinor;
+
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balanceMinor: { increment: deltaMinor } },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: 'adjustment',
+          status: 'completed',
+          amountMinor: deltaMinor,
+          balanceAfterMinor: updated.balanceMinor,
+          description: reason.trim() || 'Admin adjustment',
+        },
+      });
+    });
+    return this.getSummary(userId);
   }
 
   /** Lifetime credits consumed by one business (completed spend transactions). */
@@ -150,6 +254,7 @@ export class WalletService {
       throw new BadRequestException('credits must be a whole number between 1 and 100000');
     }
 
+    await this.assertSpendable(userId);
     const wallet = await this.ensureWallet(userId);
     const amountMinor = credits * CREDIT_MINOR;
     const eurCents = credits * 100;
@@ -215,10 +320,10 @@ export class WalletService {
 
   // --- spend --------------------------------------------------------
 
-  /** Prepaid guard — never let the balance go negative. */
+  /** Prepaid guard — never let the balance go negative, and a blocked wallet can never spend. */
   async canAfford(userId: string, minor: number): Promise<boolean> {
     const wallet = await this.ensureWallet(userId);
-    return wallet.balanceMinor >= minor;
+    return !wallet.blockedAt && wallet.balanceMinor >= minor;
   }
 
   /**
@@ -241,7 +346,7 @@ export class WalletService {
       create: { userId },
       update: {},
     });
-    if (wallet.balanceMinor < amountMinor) return null;
+    if (wallet.blockedAt || wallet.balanceMinor < amountMinor) return null;
 
     const updated = await tx.wallet.update({
       where: { id: wallet.id },
@@ -279,7 +384,7 @@ export class WalletService {
       create: { userId },
       update: {},
     });
-    if (wallet.balanceMinor < amountMinor) return null;
+    if (wallet.blockedAt || wallet.balanceMinor < amountMinor) return null;
 
     const updated = await tx.wallet.update({
       where: { id: wallet.id },
@@ -335,6 +440,7 @@ export class WalletService {
     amountMinor: number,
     opts: { description: string; companyId?: string },
   ): Promise<{ balanceMinor: number; transactionId: string }> {
+    await this.assertSpendable(userId);
     const result = await this.prisma.$transaction((tx) =>
       this.spendWithin(tx, userId, amountMinor, opts),
     );

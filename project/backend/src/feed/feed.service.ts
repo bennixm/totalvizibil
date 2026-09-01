@@ -2,25 +2,45 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnalyticsService } from '../analytics/analytics.service';
-import { DEFAULT_REFS, visibilityScore, type VisibilityInput } from '../analytics/visibility';
+import {
+  APPEAR_FIRST_BOOST,
+  DEFAULT_REFS,
+  visibilityScore,
+  type VisibilityInput,
+} from '../analytics/visibility';
 import { FeedQueryDto } from './feed.query';
 
 const RANKING_NOTE =
-  'Only businesses with a funded, active campaign appear. Order among them is the ' +
-  'Visibility Score: CPC (daily budget) x0.35 + Response rate/speed x0.30 + Plan ' +
-  '(advanced > easy) x0.20 + Campaign age x0.15. A search query further gates by ' +
-  'relevance; a funded "appear first" tier adds a fixed lift. No reserved slots.';
+  'A category (group or niche) must be selected — nothing is listed otherwise. ' +
+  'Only businesses with a funded, active campaign appear. Order is strictly the ' +
+  'Visibility Score: CPC (per-click bid vs the category-leading bid, capped by ' +
+  'daily budget) x0.35 + Response rate/speed x0.30 + Plan (advanced > easy) x0.20 ' +
+  '+ Campaign age x0.15; a funded "appear first" tier adds a fixed lift. Category, ' +
+  'and city (matched against each business’s own coverage radius), only filter — ' +
+  'never reorder.';
 
-// A funded "appear first" campaign gets this added on top of the Visibility Score.
-const APPEAR_FIRST_BOOST = 0.25;
+const EARTH_KM = 6371;
+
+/** Great-circle distance between two lat/lng points, in kilometres. */
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return EARTH_KM * 2 * Math.asin(Math.min(1, Math.sqrt(s)));
+}
 
 const NO_VISIBILITY: VisibilityInput = {
+  cpcMinor: 0,
+  cpcRefMinor: 0,
   dailyBudgetMinor: 0,
   leadsTotal: 0,
   leadsResponded: 0,
   avgResponseMinutes: null,
   planMode: null,
-  activatedAt: null,
+  activeSeconds: 0,
 };
 
 const feedInclude = {
@@ -57,18 +77,6 @@ export class FeedService {
     return Math.min(1, 0.5 + exactName + Math.min(0.3, needle.length / 40));
   }
 
-  private quality(c: FeedCompany): number {
-    if (c.qualityScore > 0) return Math.min(1, c.qualityScore);
-    // Fallback: derive from profile completeness.
-    let score = 0.2;
-    if (c.description) score += 0.15;
-    if (c.category) score += 0.1;
-    if (c.locations.length) score += 0.15;
-    if (c._count.services > 0) score += 0.2;
-    if (c.website && c.website.status !== 'draft') score += 0.2;
-    return Math.min(1, score);
-  }
-
   /** Resolve a category slug to itself + its child slugs (so a parent group matches its niches). */
   private async categorySlugs(slug?: string): Promise<string[] | undefined> {
     if (!slug) return undefined;
@@ -81,13 +89,40 @@ export class FeedService {
   }
 
   async list(query: FeedQueryDto) {
-    const { q, category, city, sort = 'recommended', page = 1, pageSize = 12 } = query;
+    const { q, category, city, lat, lng, page = 1, pageSize = 12 } = query;
+
+    // Discovery is category-first: nothing is listed until a category (group or
+    // niche) is chosen. Browsing "everything at once" isn't a useful entry
+    // point for a local-services directory.
+    if (!category) {
+      return {
+        items: [] as never[],
+        page: 1,
+        pageSize,
+        total: 0,
+        requiresCategory: true as const,
+        appliedFilters: { q: q ?? null, category: null, city: city ?? null, area: null },
+        _ranking: RANKING_NOTE,
+      };
+    }
+
     const catSlugs = await this.categorySlugs(category);
+    const geo = typeof lat === 'number' && typeof lng === 'number' ? { lat, lng } : null;
 
     const where: Prisma.CompanyWhereInput = {
       status: 'active',
       ...(catSlugs ? { category: { slug: { in: catSlugs } } } : {}),
-      ...(city ? { locations: { some: { city: { contains: city, mode: 'insensitive' } } } } : {}),
+      // A coarse city-name match only when there are no coordinates to work with.
+      // A whole-country business matches any named city too.
+      ...(!geo && city
+        ? {
+            locations: {
+              some: {
+                OR: [{ city: { contains: city, mode: 'insensitive' } }, { nationwide: true }],
+              },
+            },
+          }
+        : {}),
       ...(q
         ? {
             OR: [
@@ -99,29 +134,36 @@ export class FeedService {
         : {}),
     };
 
-    const companies = await this.prisma.company.findMany({ where, include: feedInclude });
+    let companies = await this.prisma.company.findMany({ where, include: feedInclude });
+
+    // Coverage filter: the searcher picks a city; a business shows when that
+    // city falls inside the coverage radius it set for its own location
+    // (e.g. "Sibiu + 100 km" reaches Vâlcea, 100 km away).
+    if (geo) {
+      companies = companies.filter((c) => {
+        const loc = c.locations[0];
+        if (!loc) return false;
+        // Whole-country coverage matches every searched area, no radius involved.
+        if (loc.nationwide) return true;
+        if (loc.lat == null || loc.lng == null || !loc.serviceRadiusKm) return false;
+        return haversineKm(geo.lat, geo.lng, loc.lat, loc.lng) <= loc.serviceRadiusKm;
+      });
+    }
 
     const vinputs = await this.analytics.visibilityInputsFor(companies.map((c) => c.id));
     const now = new Date();
 
     const scored = companies.map((c) => {
       const relevance = this.relevance(c, q);
-      const quality = this.quality(c);
       const vis = visibilityScore(vinputs.get(c.id) ?? NO_VISIBILITY, DEFAULT_REFS, now);
       const appearFirst = c.campaign?.appearFirst === true && c.campaign.status === 'active';
       // A search gates by relevance; browsing is pure Visibility Score.
-      const score =
-        vis.score * (q ? relevance : 1) + (appearFirst ? APPEAR_FIRST_BOOST : 0);
-      return { c, relevance, quality, vis, appearFirst, score };
+      const score = vis.score * (q ? relevance : 1) + (appearFirst ? APPEAR_FIRST_BOOST : 0);
+      return { c, relevance, vis, appearFirst, score };
     });
 
-    if (sort === 'newest') {
-      scored.sort((a, b) => b.c.createdAt.getTime() - a.c.createdAt.getTime());
-    } else if (sort === 'rating') {
-      scored.sort((a, b) => b.quality - a.quality);
-    } else {
-      scored.sort((a, b) => b.score - a.score);
-    }
+    // Strictly our ranking — highest Visibility Score (+ appear-first lift) first.
+    scored.sort((a, b) => b.score - a.score);
 
     const total = scored.length;
     const start = (page - 1) * pageSize;
@@ -144,7 +186,14 @@ export class FeedService {
                 : null,
             }
           : null,
-        location: loc ? { city: loc.city, region: loc.region } : null,
+        location: loc
+          ? {
+              city: loc.city,
+              region: loc.region,
+              radiusKm: loc.serviceRadiusKm ?? null,
+              nationwide: loc.nationwide,
+            }
+          : null,
         services: c.services.map((s) => s.name),
         hasWebsite: !!c.website && c.website.status !== 'draft',
         score: Number(row.score.toFixed(4)),
@@ -165,7 +214,13 @@ export class FeedService {
       page,
       pageSize,
       total,
-      appliedFilters: { q: q ?? null, category: category ?? null, city: city ?? null, sort },
+      requiresCategory: false as const,
+      appliedFilters: {
+        q: q ?? null,
+        category: category ?? null,
+        city: city ?? null,
+        area: geo ? { lat: geo.lat, lng: geo.lng } : null,
+      },
       _ranking: RANKING_NOTE,
     };
   }
@@ -177,7 +232,8 @@ export class FeedService {
         orderBy: [{ position: 'asc' }],
       }),
       this.prisma.companyLocation.findMany({
-        where: { company: { status: 'active' } },
+        // Whole-country locations have no city — keep them out of the city facet.
+        where: { company: { status: 'active' }, city: { not: null } },
         distinct: ['city'],
         select: { city: true },
         orderBy: { city: 'asc' },
@@ -205,7 +261,7 @@ export class FeedService {
             icon: c.icon,
           })),
         })),
-      cities: cities.map((c) => c.city),
+      cities: cities.map((c) => c.city).filter((c): c is string => c != null),
     };
   }
 }

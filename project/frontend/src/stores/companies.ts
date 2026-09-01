@@ -23,7 +23,8 @@ export interface CompanyCategory {
 
 export interface CompanyLocation {
   id: string
-  city: string
+  /** Null when `nationwide` — whole-country coverage has no fixed city. */
+  city: string | null
   address: string | null
   region: string | null
   country: string
@@ -31,6 +32,8 @@ export interface CompanyLocation {
   lng: number | null
   isPrimary: boolean
   serviceRadiusKm: number | null
+  /** Serves the whole country — no radius applies. */
+  nationwide: boolean
 }
 
 export interface CompanyContact {
@@ -59,6 +62,10 @@ export interface Company {
   defaultLocale: string
   currency: string
   advancedUnlockedAt: string | null
+  /** Set once the owner requests deletion; the record is wiped after the grace window. */
+  deletionScheduledAt: string | null
+  /** When the record is actually wiped unless the owner cancels first. */
+  deletionEffectiveAt: string | null
   createdAt: string
   updatedAt: string
   viewerRole: CompanyRole | null
@@ -78,7 +85,15 @@ export interface DashboardLeadsSummary {
   avgResponseMinutes: number | null
 }
 
+export interface FeedRank {
+  position: number
+  total: number
+}
+
 export interface DashboardAnalytics {
+  planMode: string | null
+  /** Feed position in the company's category group — null when not live. */
+  feedRank: FeedRank | null
   clicks: { total: number; today: number }
   calls: { total: number }
   messages: { total: number; new: number }
@@ -117,6 +132,8 @@ export interface DashboardPayload {
     servicesCount: number
     createdAt: string
     viewerRole: CompanyRole | null
+    deletionScheduledAt: string | null
+    deletionEffectiveAt: string | null
   }
   website:
     | { status: 'none' }
@@ -168,6 +185,9 @@ export interface CompanyOverview {
   /** Lifetime credits this business's campaign has consumed. */
   consumedCredits: number
   locationCity: string | null
+  /** Set once the owner requests deletion of the whole business. */
+  deletionScheduledAt: string | null
+  deletionEffectiveAt: string | null
 }
 
 const CURRENT_KEY = 'tvz.currentCompany'
@@ -236,12 +256,20 @@ export const useCompaniesStore = defineStore('companies', {
       }
     },
 
-    /** Permanently delete a business. */
+    /**
+     * Schedule a business for deletion. The listing is taken down at once but
+     * the record is wiped only after a 7-day grace window — the owner can
+     * `cancelDeletion` until then, so we keep it in the local lists.
+     */
     async remove(companyId: string): Promise<void> {
       await apiFetch(`/companies/${companyId}`, { method: 'DELETE' })
-      this.list = this.list.filter((c) => c.id !== companyId)
-      this.overview = this.overview.filter((c) => c.id !== companyId)
-      if (this.currentId === companyId) this.select(this.overview[0]?.id ?? null)
+      await this.fetchOverview(true)
+    },
+
+    /** Call off a pending deletion (inside the grace window). */
+    async cancelDeletion(companyId: string): Promise<void> {
+      await apiFetch(`/companies/${companyId}/deletion`, { method: 'DELETE' })
+      await this.fetchOverview(true)
     },
 
     /** Resolve a company id: explicit route param → sticky selection → first. */
@@ -289,12 +317,13 @@ export const useCompaniesStore = defineStore('companies', {
       companyId: string,
       input: {
         categorySlug: string
-        city: string
+        city?: string
         region?: string
         country?: string
-        lat: number
-        lng: number
-        radiusKm: number
+        lat?: number
+        lng?: number
+        radiusKm?: number
+        nationwide?: boolean
       },
     ): Promise<Company> {
       const company = await apiFetch<Company>(`/companies/${companyId}/location`, {

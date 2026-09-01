@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 
-import { apiFetch } from '@/services/api'
+import { apiFetch, errorReason } from '@/services/api'
+import { useMoneyStore } from '@/stores/money'
 
 export interface Money {
   minor: number
@@ -14,6 +15,8 @@ export interface WalletSummary {
   depositedEurCents: number
   purchased: Money
   spent: Money
+  blocked: boolean
+  blockedReason: string | null
   updatedAt: string
 }
 
@@ -56,7 +59,10 @@ interface State {
   pending: PendingPurchase | null
   loading: boolean
   working: boolean
+  /** Error code from the API (e.g. `wallet_blocked`), or a raw message. */
   error: string
+  /** Extra context for a structured error, e.g. the admin's block reason. */
+  errorReason: string | null
 }
 
 /** The user's single wallet — funds every business they own. */
@@ -69,19 +75,47 @@ export const useWalletStore = defineStore('wallet', {
     loading: false,
     working: false,
     error: '',
+    errorReason: null,
   }),
 
   actions: {
+    setError(err: unknown): void {
+      this.error = err instanceof Error ? err.message : 'error'
+      this.errorReason = errorReason(err)
+    },
+
     async load(): Promise<void> {
       this.loading = true
       this.error = ''
+      this.errorReason = null
       try {
         this.summary = await apiFetch<WalletSummary>('/wallet')
+        useMoneyStore().applyFx(this.summary)
         await this.loadTransactions(false)
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.setError(err)
       } finally {
         this.loading = false
+      }
+    },
+
+    /** Switch the wallet's display currency (EUR or RON). */
+    async setCurrency(currency: 'EUR' | 'RON'): Promise<void> {
+      const prev = this.summary?.currency
+      if (prev === currency) return
+      this.working = true
+      this.error = ''
+      this.errorReason = null
+      try {
+        this.summary = await apiFetch<WalletSummary>('/wallet/currency', {
+          method: 'PATCH',
+          body: { currency },
+        })
+        useMoneyStore().applyFx(this.summary)
+      } catch (err) {
+        this.setError(err)
+      } finally {
+        this.working = false
       }
     },
 
@@ -97,13 +131,14 @@ export const useWalletStore = defineStore('wallet', {
     async startPurchase(credits: number): Promise<void> {
       this.working = true
       this.error = ''
+      this.errorReason = null
       try {
         this.pending = await apiFetch<PendingPurchase>('/wallet/purchases', {
           method: 'POST',
           body: { credits },
         })
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.setError(err)
       } finally {
         this.working = false
       }
@@ -113,16 +148,18 @@ export const useWalletStore = defineStore('wallet', {
       if (!this.pending) return false
       this.working = true
       this.error = ''
+      this.errorReason = null
       try {
         this.summary = await apiFetch<WalletSummary>(
           `/wallet/purchases/${this.pending.transactionId}/confirm`,
           { method: 'POST' },
         )
+        useMoneyStore().applyFx(this.summary)
         this.pending = null
         await this.loadTransactions(false)
         return true
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.setError(err)
         return false
       } finally {
         this.working = false

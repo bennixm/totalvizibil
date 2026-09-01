@@ -23,6 +23,16 @@ describe('campaign advisor', () => {
     expect(huge.standard.cpcMinor).toBe(big.standard.cpcMinor);
   });
 
+  it('recommended CPC is set above the current market-leading CPC', () => {
+    const s = suggestCampaign({ radiusKm: 10, marketMaxCpcMinor: 500 });
+    expect(s.appearFirst.cpcMinor).toBeGreaterThan(500);
+  });
+
+  it('recommended daily budget clears the full-CPC-score reference (2000)', () => {
+    const s = suggestCampaign({ radiusKm: 10, marketMaxCpcMinor: 20 });
+    expect(s.appearFirst.dailyBudgetMinor).toBeGreaterThanOrEqual(2000);
+  });
+
   it('handles a missing radius', () => {
     const s = suggestCampaign({});
     expect(s.standard.cpcMinor).toBeGreaterThan(0);

@@ -17,6 +17,7 @@ import { CampaignModule } from './campaigns/campaign.module';
 import { LeadsModule } from './leads/leads.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AdminModule } from './admin/admin.module';
+import { SupportModule } from './support/support.module';
 import { HealthModule } from './health/health.module';
 
 @Module({
@@ -37,6 +38,7 @@ import { HealthModule } from './health/health.module';
     LeadsModule,
     AnalyticsModule,
     AdminModule,
+    SupportModule,
     HealthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
