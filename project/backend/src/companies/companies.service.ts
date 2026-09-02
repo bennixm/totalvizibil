@@ -137,14 +137,18 @@ export class CompaniesService {
     }
 
     const answers = (draft.answers ?? {}) as {
+      // Easy studio stores `companyName`; older/advanced drafts used `businessName`.
+      companyName?: string;
       businessName?: string;
       businessType?: string;
+      about?: string;
       description?: string;
       phone?: string;
       email?: string;
     };
+    // The panel must show the FIRM name, never the trade/what-they-do.
     const displayName =
-      answers.businessName?.trim() || answers.businessType?.trim() || 'Afacerea mea';
+      answers.companyName?.trim() || answers.businessName?.trim() || 'Afacerea mea';
 
     const slug = await uniqueSlug(
       displayName,
@@ -165,7 +169,11 @@ export class CompaniesService {
       const created = await tx.company.create({
         data: {
           displayName,
-          description: answers.description?.trim() || null,
+          description:
+            answers.description?.trim() ||
+            answers.businessType?.trim() ||
+            answers.about?.trim().slice(0, 240) ||
+            null,
           categoryId: category.id,
           ownerUserId: userId,
           slug,

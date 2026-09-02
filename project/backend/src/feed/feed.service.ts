@@ -21,6 +21,26 @@ const RANKING_NOTE =
 
 const EARTH_KM = 6371;
 
+/**
+ * The landing headline + background image from a generated site — reused as the
+ * feed ad card's title and visual (Simple-site builder spec). Reads the home
+ * page's hero block out of the content JSON.
+ */
+function heroBillboard(content: unknown): { title: string | null; image: string | null } {
+  const pages = (content as { pages?: unknown[] } | null)?.pages;
+  if (!Array.isArray(pages)) return { title: null, image: null };
+  const home =
+    (pages as Record<string, unknown>[]).find((p) => p.isHome) ??
+    (pages[0] as Record<string, unknown>);
+  const sections = home?.sections;
+  if (!Array.isArray(sections)) return { title: null, image: null };
+  const hero = (sections as Record<string, unknown>[]).find((s) => s.type === 'hero');
+  if (!hero) return { title: null, image: null };
+  const title = typeof hero.headline === 'string' ? hero.headline.trim() || null : null;
+  const image = typeof hero.backgroundImage === 'string' ? hero.backgroundImage || null : null;
+  return { title, image };
+}
+
 /** Great-circle distance between two lat/lng points, in kilometres. */
 function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -170,12 +190,19 @@ export class FeedService {
     const items = scored.slice(start, start + pageSize).map((row) => {
       const { c } = row;
       const loc = c.locations[0] ?? null;
+      const hasWebsite = !!c.website && c.website.status !== 'draft';
+      const billboard = hasWebsite
+        ? heroBillboard(c.website?.content)
+        : { title: null, image: null };
       return {
         id: c.id,
         slug: c.slug,
         displayName: c.displayName,
         description: c.description,
         logoUrl: c.logoUrl,
+        // Landing title + background image, reused for the ad card.
+        heroTitle: billboard.title,
+        heroImage: billboard.image,
         category: c.category
           ? {
               slug: c.category.slug,
@@ -195,7 +222,7 @@ export class FeedService {
             }
           : null,
         services: c.services.map((s) => s.name),
-        hasWebsite: !!c.website && c.website.status !== 'draft',
+        hasWebsite,
         score: Number(row.score.toFixed(4)),
         scoreBreakdown: {
           visibility: Number(row.vis.score.toFixed(3)),

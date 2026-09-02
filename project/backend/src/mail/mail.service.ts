@@ -26,9 +26,7 @@ export class MailService {
 
   async send(msg: MailMessage): Promise<{ dispatched: boolean }> {
     if (this.isProd) {
-      this.logger.warn(
-        `Email to ${msg.to} not sent — no transport configured ("${msg.subject}")`,
-      );
+      this.logger.warn(`Email to ${msg.to} not sent — no transport configured ("${msg.subject}")`);
       return { dispatched: false };
     }
     this.logger.log(

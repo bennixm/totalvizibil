@@ -34,11 +34,17 @@ describe('leadFingerprint', () => {
 describe('cleanLeadInput', () => {
   it('accepts a form with a message and an email', () => {
     const r = cleanLeadInput('form', { name: '  Ana  ', email: 'ana@x.ro', message: 'Salut' });
-    expect(r).toEqual({ ok: true, value: { name: 'Ana', email: 'ana@x.ro', phone: null, message: 'Salut' } });
+    expect(r).toEqual({
+      ok: true,
+      value: { name: 'Ana', email: 'ana@x.ro', phone: null, message: 'Salut' },
+    });
   });
 
   it('rejects a form with no message', () => {
-    expect(cleanLeadInput('form', { email: 'a@b.ro' })).toEqual({ ok: false, error: 'message_required' });
+    expect(cleanLeadInput('form', { email: 'a@b.ro' })).toEqual({
+      ok: false,
+      error: 'message_required',
+    });
   });
 
   it('rejects a form with a message but no way to reply', () => {

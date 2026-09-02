@@ -44,6 +44,9 @@ export interface FeedItem {
   } | null
   services: string[]
   hasWebsite: boolean
+  /** Landing headline + background image from the generated site, reused on the ad card. */
+  heroTitle: string | null
+  heroImage: string | null
   score: number
 }
 

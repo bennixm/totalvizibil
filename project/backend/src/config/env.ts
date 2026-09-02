@@ -9,6 +9,8 @@ export interface AppConfig {
   sessionTtlDays: number;
   sessionCookieSecure: boolean;
   frontendOrigin: string;
+  /** DeepSeek API key — powers the one Simple-site AI call (Services copy). Empty = deterministic fallback. */
+  deepseekApiKey: string;
 }
 
 // Matches project/docker-compose.yml. Used only as a dev fallback when .env is
@@ -37,6 +39,7 @@ export function loadConfig(): AppConfig {
     sessionTtlDays: Number(process.env.SESSION_TTL_DAYS ?? 30),
     sessionCookieSecure: process.env.SESSION_COOKIE_SECURE === 'true',
     frontendOrigin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173',
+    deepseekApiKey: process.env.DEEPSEEK_API_KEY?.trim() ?? '',
   };
 }
 

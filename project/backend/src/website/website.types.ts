@@ -4,7 +4,15 @@
  */
 
 export type SectionType =
-  'hero' | 'about' | 'services' | 'gallery' | 'testimonials' | 'faq' | 'contact' | 'cta';
+  | 'hero'
+  | 'about'
+  | 'services'
+  | 'features'
+  | 'gallery'
+  | 'testimonials'
+  | 'faq'
+  | 'contact'
+  | 'cta';
 
 export interface BaseSection {
   id: string;
@@ -18,6 +26,10 @@ export interface HeroSection extends BaseSection {
   subheadline: string;
   primaryCta: string;
   secondaryCta?: string;
+  /** Landing background image (Simple-site builder) — a `/website-assets/:id` URL. */
+  backgroundImage?: string;
+  /** Text alignment (template variation). */
+  align?: 'center' | 'start';
 }
 
 export interface AboutSection extends BaseSection {
@@ -29,11 +41,27 @@ export interface AboutSection extends BaseSection {
 export interface ServiceItem {
   name: string;
   description: string;
+  /** mdi icon name picked from the service name (Simple-site builder). */
+  icon?: string;
 }
 export interface ServicesSection extends BaseSection {
   type: 'services';
   title: string;
   items: ServiceItem[];
+  /** Card grid vs. stacked rows (template variation). */
+  layout?: 'cards' | 'list';
+}
+
+export interface FeatureItem {
+  title: string;
+  text?: string;
+  /** mdi icon picked from the point's wording (Simple-site builder). */
+  icon?: string;
+}
+export interface FeaturesSection extends BaseSection {
+  type: 'features';
+  title: string;
+  items: FeatureItem[];
 }
 
 export interface TestimonialItem {
@@ -74,6 +102,8 @@ export interface CtaSection extends BaseSection {
 export interface GalleryItem {
   title: string;
   description?: string;
+  /** Portfolio photo (Simple-site builder) — a `/website-assets/:id` URL. */
+  imageUrl?: string;
 }
 export interface GallerySection extends BaseSection {
   type: 'gallery';
@@ -85,6 +115,7 @@ export type Section =
   | HeroSection
   | AboutSection
   | ServicesSection
+  | FeaturesSection
   | GallerySection
   | TestimonialsSection
   | FaqSection
@@ -114,6 +145,12 @@ export interface WebsiteTheme {
   fontPair: 'grotesk-inter' | 'serif-sans' | 'mono-sans';
   radius: 'sharp' | 'soft' | 'round';
   density: 'compact' | 'comfortable' | 'spacious';
+  /**
+   * Custom brand colour picked in the Simple-site builder (`#rrggbb`). When set
+   * it overrides the named `palette` in the renderer; `palette` is kept as the
+   * nearest-match fallback.
+   */
+  accent?: string;
 }
 
 // --- Generator inputs -----------------------------------------------------

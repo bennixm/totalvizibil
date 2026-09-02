@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { loadConfig } from './config/env';
+import { AiModule } from './ai/ai.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 import { MailModule } from './mail/mail.module';
@@ -24,6 +25,7 @@ import { HealthModule } from './health/health.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, cache: true, load: [loadConfig] }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    AiModule,
     PrismaModule,
     PlatformSettingsModule,
     MailModule,

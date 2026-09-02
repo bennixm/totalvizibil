@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 
 import { apiFetch } from '@/services/api'
+import { i18n } from '@/plugins/i18n'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 
 export interface DraftTurn {
@@ -24,6 +25,87 @@ export interface DraftLocation {
   nationwide: boolean
 }
 
+export interface EasyServiceCopy {
+  name: string
+  description: string
+  icon?: string
+}
+
+export interface EasyTestimonial {
+  quote: string
+  author?: string
+}
+export interface EasyFaq {
+  q: string
+  a: string
+}
+
+/** Guided-answer snapshot the "Site Simplu" studio widgets prefill from. */
+export interface EasyBlock {
+  companyName: string
+  businessType: string
+  landingTitle: string
+  landingSubtitle: string
+  accentColor: string | null
+  landingImage: string | null
+  serviceNames: string[]
+  services: EasyServiceCopy[]
+  portfolio: string[]
+  phone: string
+  email: string
+  city: string
+  about: string
+  showAbout: boolean
+  whyUs: string[]
+  showWhyUs: boolean
+  testimonials: EasyTestimonial[]
+  faq: EasyFaq[]
+  ctaHeadline: string
+  ctaButton: string
+  showCta: boolean
+  template: EasyTemplate
+  autoGrammar: boolean
+  locale: 'ro' | 'en' | 'de'
+  aiCalls: number
+}
+
+export type EasyTemplate = 'classic' | 'bold' | 'minimal'
+
+export type EasyStep =
+  | 'template'
+  | 'name'
+  | 'field'
+  | 'color'
+  | 'landing'
+  | 'services'
+  | 'portfolio'
+  | 'contact'
+  | 'done'
+
+/** Fields the studio widgets can patch without spending a chat turn. */
+export interface EasyPatch {
+  accentColor?: string
+  landingTitle?: string
+  landingSubtitle?: string
+  landingImage?: string
+  portfolio?: string[]
+  services?: EasyServiceCopy[]
+  phone?: string
+  email?: string
+  city?: string
+  about?: string
+  showAbout?: boolean
+  whyUs?: string[]
+  showWhyUs?: boolean
+  testimonials?: EasyTestimonial[]
+  faq?: EasyFaq[]
+  ctaHeadline?: string
+  ctaButton?: string
+  showCta?: boolean
+  template?: 'classic' | 'bold' | 'minimal'
+  autoGrammar?: boolean
+}
+
 export interface WebsiteDraftView {
   id: string
   mode: 'easy' | 'advanced'
@@ -40,6 +122,7 @@ export interface WebsiteDraftView {
   content: WebsiteContent | null
   generator: string | null
   ready: boolean
+  easy: EasyBlock | null
   categorySlug: string | null
   location: DraftLocation | null
   updatedAt: string
@@ -164,7 +247,10 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
             clearRef()
           }
         }
-        const created = await apiFetch<CreateResponse>('/website-drafts', { method: 'POST' })
+        const created = await apiFetch<CreateResponse>('/website-drafts', {
+          method: 'POST',
+          body: { locale: i18n.global.locale.value },
+        })
         saveRef({ id: created.id, token: created.token })
         this.draft = created.draft
       } catch (err) {
@@ -190,6 +276,100 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
         this.error = err instanceof Error ? err.message : 'error'
       } finally {
         this.sending = false
+      }
+    },
+
+    /** Guided widget step advance (colour / portfolio → "Continue"). */
+    async advanceEasy(): Promise<void> {
+      const ref = loadRef()
+      if (!ref || this.sending) return
+      this.sending = true
+      this.error = ''
+      try {
+        this.draft = await apiFetch<WebsiteDraftView>(`/website-drafts/${ref.id}/advance`, {
+          method: 'POST',
+          headers: { 'X-Draft-Token': ref.token },
+        })
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : 'error'
+      } finally {
+        this.sending = false
+      }
+    },
+
+    /** Live config edit from a studio widget — colour, image, contact, order. */
+    async patchEasy(patch: EasyPatch): Promise<void> {
+      const ref = loadRef()
+      if (!ref) return
+      this.error = ''
+      try {
+        this.draft = await apiFetch<WebsiteDraftView>(`/website-drafts/${ref.id}/easy`, {
+          method: 'PATCH',
+          headers: { 'X-Draft-Token': ref.token },
+          body: { ...patch, locale: i18n.global.locale.value },
+        })
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : 'error'
+      }
+    },
+
+    /** Upload a landing / portfolio image (base64 data-URI). Returns its URL. */
+    async uploadAsset(kind: 'landing' | 'portfolio', dataUri: string): Promise<string | null> {
+      const ref = loadRef()
+      if (!ref) return null
+      this.error = ''
+      try {
+        const res = await apiFetch<{ id: string; url: string }>(
+          `/website-drafts/${ref.id}/assets`,
+          {
+            method: 'POST',
+            headers: { 'X-Draft-Token': ref.token },
+            body: { dataUri, kind },
+            timeoutMs: 30_000,
+          },
+        )
+        return res.url
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : 'error'
+        return null
+      }
+    },
+
+    /** Re-run the single AI call for a new/edited list of service names. */
+    async regenerateServices(names: string[]): Promise<void> {
+      const ref = loadRef()
+      if (!ref || this.sending) return
+      this.sending = true
+      this.error = ''
+      try {
+        this.draft = await apiFetch<WebsiteDraftView>(`/website-drafts/${ref.id}/services`, {
+          method: 'POST',
+          headers: { 'X-Draft-Token': ref.token },
+          body: { names },
+          timeoutMs: 30_000,
+        })
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : 'error'
+      } finally {
+        this.sending = false
+      }
+    },
+
+    /** Fix spelling / grammar in a manual prose string (grammar toggle on). */
+    async proofread(text: string): Promise<string> {
+      const ref = loadRef()
+      const src = text.trim()
+      if (!ref || !src) return text
+      try {
+        const res = await apiFetch<{ text: string }>(`/website-drafts/${ref.id}/proofread`, {
+          method: 'POST',
+          headers: { 'X-Draft-Token': ref.token },
+          body: { text: src },
+          timeoutMs: 25_000,
+        })
+        return res.text || text
+      } catch {
+        return text
       }
     },
 
@@ -226,7 +406,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       try {
         const created = await apiFetch<CreateResponse>('/website-drafts', {
           method: 'POST',
-          body: { mode: 'advanced', seed },
+          body: { mode: 'advanced', seed, locale: i18n.global.locale.value },
         })
         saveRef({ id: created.id, token: created.token })
         this.draft = created.draft

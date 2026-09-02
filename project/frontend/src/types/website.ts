@@ -5,6 +5,7 @@ export type SectionType =
   | 'hero'
   | 'about'
   | 'services'
+  | 'features'
   | 'gallery'
   | 'testimonials'
   | 'faq'
@@ -35,4 +36,6 @@ export interface WebsiteTheme {
   fontPair: 'grotesk-inter' | 'serif-sans' | 'mono-sans'
   radius: 'sharp' | 'soft' | 'round'
   density: 'compact' | 'comfortable' | 'spacious'
+  /** Custom brand colour (`#rrggbb`) from the Simple-site builder; overrides `palette`. */
+  accent?: string
 }

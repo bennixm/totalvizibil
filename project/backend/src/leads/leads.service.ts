@@ -11,7 +11,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { AppConfig } from '../config/env';
 import { isLikelyBot } from '../campaigns/ad-click';
-import { cleanLeadInput, leadFingerprint, type LeadChannelName, type RawLeadInput } from './lead.util';
+import {
+  cleanLeadInput,
+  leadFingerprint,
+  type LeadChannelName,
+  type RawLeadInput,
+} from './lead.util';
 
 const PAGE_MAX = 50;
 
@@ -190,8 +195,7 @@ export class LeadsService {
       }),
     ]);
 
-    const statusCount = (s: LeadStatus) =>
-      byStatus.find((r) => r.status === s)?._count._all ?? 0;
+    const statusCount = (s: LeadStatus) => byStatus.find((r) => r.status === s)?._count._all ?? 0;
     const channelCount = (c: LeadChannel) =>
       byChannel.find((r) => r.channel === c)?._count._all ?? 0;
 

@@ -227,6 +227,28 @@ model Website {
 // creates an account (later milestone).
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Website assets — client-uploaded images for the "Site Simplu" builder (the
+// landing background + up to 10 portfolio images). Stored as bytes in Postgres
+// (there is no blob store yet). Held against the anonymous draft first, then
+// re-pointed to the company when the draft is claimed. Referenced from the
+// content JSON only by URL (`/api/v1/website-assets/:id`), never inlined.
+// ---------------------------------------------------------------------------
+model WebsiteAsset {
+  id        String   @id @default(uuid()) @db.Uuid
+  draftId   String?  @map("draft_id") @db.Uuid
+  companyId String?  @map("company_id") @db.Uuid
+  kind      String // "landing" | "portfolio"
+  mime      String
+  bytes     Bytes
+  size      Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([draftId])
+  @@index([companyId])
+  @@map("website_assets")
+}
+
 enum WebsiteDraftStatus {
   in_progress
   ready

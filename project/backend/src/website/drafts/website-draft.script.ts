@@ -1,32 +1,52 @@
 /**
- * Scripted assistant for the free one-pager studio.
+ * Scripted guide for the "Site Simplu" studio.
  *
- * This is deliberately NOT an LLM: it is a small, deterministic state machine
- * that walks the visitor through a fixed set of questions and feeds the answers
- * into `RuleBasedWebsiteGenerator`. It sits behind the same draft API an
- * LLM-backed assistant would use later, so swapping it out touches only this
- * file and the service that persists its output.
+ * This is deliberately NOT an LLM: a small deterministic state machine that
+ * walks the visitor through configuring the fixed one-pager template (name,
+ * colour, landing, services, portfolio, contact). The ONE real AI touchpoint —
+ * writing the Services copy with DeepSeek — is triggered by this script but
+ * executed by the service (`generateServicesFor`).
  *
  * Assistant turns are returned as i18n KEYS (resolved under `studio.msg.*` on
  * the frontend), never as baked strings — the platform is RO/EN/DE.
+ *
+ * The tone/email/phone/list helpers here are also reused by the advanced
+ * builder script (`builder/builder-script.ts`).
  */
-import { EasyInput, ToneOfVoice } from '../website.types';
+import { ToneOfVoice } from '../website.types';
+import { EasyAnswers } from './easy-compose';
 
-export type DraftStep = 'business' | 'name' | 'city' | 'services' | 'contact' | 'refine' | 'done';
+export type { EasyAnswers } from './easy-compose';
 
-/** Free plan: how many visitor messages the assistant will process. */
-export const FREE_MAX_TURNS = 12;
+/** Guided steps, in order. `done` is terminal. */
+export type EasyStep =
+  | 'template'
+  | 'name'
+  | 'field'
+  | 'color'
+  | 'landing'
+  | 'services'
+  | 'portfolio'
+  | 'contact'
+  | 'done';
+export const EASY_STEPS: EasyStep[] = [
+  'template',
+  'name',
+  'field',
+  'color',
+  'landing',
+  'services',
+  'portfolio',
+  'contact',
+  'done',
+];
 
-export interface DraftAnswers {
-  description?: string;
-  businessType?: string;
-  businessName?: string;
-  city?: string;
-  services?: string[];
-  phone?: string;
-  email?: string;
-  tone?: ToneOfVoice;
-}
+/**
+ * Guidance is cheap (no LLM), so the message budget is generous — it only
+ * exists to stop a runaway client. The single billable action (DeepSeek) is
+ * capped separately, per draft, in the service.
+ */
+export const FREE_MAX_TURNS = 40;
 
 export interface TranscriptTurn {
   role: 'assistant' | 'user';
@@ -37,16 +57,18 @@ export interface TranscriptTurn {
   at: string;
 }
 
-export interface AdvanceResult {
-  answers: DraftAnswers;
-  step: DraftStep;
+export interface EasyAdvance {
+  answers: EasyAnswers;
+  step: EasyStep;
   /** i18n keys for the assistant replies to append, in order */
   assistant: string[];
-  /** whether the website should be re-generated from the new answers */
+  /** whether the site should be re-composed from the new answers */
   regenerate: boolean;
+  /** service names to run through DeepSeek before composing (services step only) */
+  generateServicesFor?: string[];
 }
 
-/** The assistant's first message on a fresh draft. */
+/** The assistant's first message on a fresh draft (asks for the company name). */
 export function openingTranscript(now = new Date()): TranscriptTurn[] {
   return [{ role: 'assistant', key: 'opening', at: now.toISOString() }];
 }
@@ -59,8 +81,7 @@ const TONE_PATTERNS: [RegExp, ToneOfVoice][] = [
   [/calm|lini[sș]tit|relax|reassur|blând|bland/i, 'calm'],
 ];
 
-const DONE_PATTERN =
-  /^(gata|ok(ay)?|perfect|bine|da|done|finish(ed)?|termin|continu|next|mai departe|e bun|arata bine|arată bine|nimic)/i;
+const SKIP_PATTERN = /^(skip|sar|sări|sar peste|pas|nu|no|n\/a|later|mai t[âa]rziu|-)$/i;
 
 export function matchTone(text: string): ToneOfVoice | null {
   for (const [re, tone] of TONE_PATTERNS) if (re.test(text)) return tone;
@@ -78,7 +99,7 @@ export function extractPhone(text: string): string | undefined {
   return m[0].replace(/[^\d+]/g, '').slice(0, 20);
 }
 
-/** Turn a free-text sentence into a short business-type label for headlines. */
+/** Turn a free-text sentence into a short label for headlines / SEO. */
 export function condenseType(text: string): string {
   const cleaned = text
     .replace(
@@ -87,8 +108,10 @@ export function condenseType(text: string): string {
     )
     .replace(/\s+/g, ' ')
     .trim();
-  const words = cleaned.split(' ').slice(0, 6).join(' ');
-  return words.slice(0, 48).replace(/[.,;:!?]+$/, '') || cleaned.slice(0, 48);
+  // Up to 6 words, but never cut mid-word — drop trailing words past ~52 chars.
+  const words = cleaned.split(' ').slice(0, 6);
+  while (words.length > 1 && words.join(' ').length > 52) words.pop();
+  return words.join(' ').replace(/[.,;:!?]+$/, '') || cleaned.slice(0, 48);
 }
 
 export function splitList(text: string): string[] {
@@ -99,82 +122,78 @@ export function splitList(text: string): string[] {
         .map((s) => s.replace(/\s+/g, ' ').trim())
         .filter((s) => s.length > 1 && s.length < 80),
     ),
-  ).slice(0, 8);
+  ).slice(0, 10);
 }
 
-/** Build a generator input from whatever answers we have so far (with fallbacks). */
-export function buildEasyInput(answers: DraftAnswers): EasyInput {
-  return {
-    mode: 'easy',
-    businessName: answers.businessName?.trim() || '',
-    businessType: (answers.businessType || answers.description || '').trim().slice(0, 48),
-    city: answers.city?.trim() || '',
-    services: answers.services ?? [],
-    shortDescription: answers.description?.trim() || '',
-    tone: answers.tone,
-    phone: answers.phone,
-    email: answers.email,
-  };
+export function nextEasyStep(step: EasyStep): EasyStep {
+  const i = EASY_STEPS.indexOf(step);
+  return i < 0 || i >= EASY_STEPS.length - 1 ? 'done' : EASY_STEPS[i + 1];
 }
-
-const SKIP_PATTERN = /^(skip|sar|sări|sar peste|pas|nu|no|n\/a|later|mai t[âa]rziu|-)$/i;
 
 /**
- * Advance the conversation one visitor message. Pure: callers persist the
- * returned answers/step and (if `regenerate`) the new website.
+ * Advance the guided flow one step. `text` is the visitor's chat message for
+ * the text steps (name / landing title / services list / contact); the widget
+ * steps (colour, portfolio) carry no text and are advanced from the studio's
+ * "Continue" button. Pure: the caller persists answers/step, runs the single
+ * DeepSeek call if `generateServicesFor` is set, then re-composes the site.
  */
-export function advance(step: DraftStep, answers: DraftAnswers, userText: string): AdvanceResult {
-  const text = userText.trim();
-  const a: DraftAnswers = { ...answers };
+export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string): EasyAdvance {
+  const a: EasyAnswers = { ...answers };
+  const t = (text ?? '').trim();
 
   switch (step) {
-    case 'business':
-      a.description = text;
-      a.businessType = condenseType(text);
+    case 'template':
+      // The layout variant is chosen from the widget; nothing to read from text.
       return { answers: a, step: 'name', assistant: ['askName'], regenerate: true };
 
-    case 'name':
-      a.businessName = text.slice(0, 80);
-      return { answers: a, step: 'city', assistant: ['askCity'], regenerate: true };
+    case 'name': {
+      if (t) a.companyName = t.slice(0, 80);
+      return { answers: a, step: 'field', assistant: ['askField'], regenerate: true };
+    }
 
-    case 'city':
-      a.city = text.slice(0, 80);
+    case 'field': {
+      // The trade/field — given to DeepSeek so the Services copy is on point.
+      if (t && !SKIP_PATTERN.test(t)) a.businessType = condenseType(t);
+      return { answers: a, step: 'color', assistant: ['askColor'], regenerate: true };
+    }
+
+    case 'color':
+      // Colour is applied live via `patchEasy` — nothing to read from text here.
+      return { answers: a, step: 'landing', assistant: ['askLanding'], regenerate: true };
+
+    case 'landing': {
+      if (t && !SKIP_PATTERN.test(t)) a.landingTitle = t.slice(0, 120);
       return { answers: a, step: 'services', assistant: ['askServices'], regenerate: true };
+    }
 
-    case 'services':
-      a.services = SKIP_PATTERN.test(text) ? [] : splitList(text);
-      return { answers: a, step: 'contact', assistant: ['askContact'], regenerate: true };
-
-    case 'contact':
-      if (!SKIP_PATTERN.test(text)) {
-        a.phone = extractPhone(text) ?? a.phone;
-        a.email = extractEmail(text) ?? a.email;
-      }
-      return {
-        answers: a,
-        step: 'refine',
-        assistant: ['generated', 'askRefine'],
-        regenerate: true,
-      };
-
-    case 'refine': {
-      const tone = matchTone(text);
-      if (tone) {
-        a.tone = tone;
+    case 'services': {
+      // A real list keeps us on this step (so the client can reorder / tweak the
+      // AI copy); an empty message or the "Continue" button moves on.
+      if (t && !SKIP_PATTERN.test(t)) {
+        const names = splitList(t);
+        a.serviceNames = names;
+        if (!a.businessType && names.length) a.businessType = names.slice(0, 3).join(', ');
         return {
           answers: a,
-          step: 'refine',
-          assistant: ['updated', 'askRefine'],
+          step: 'services',
+          assistant: names.length ? ['servicesGenerated'] : ['askServices'],
           regenerate: true,
+          generateServicesFor: names.length ? names : undefined,
         };
       }
-      if (DONE_PATTERN.test(text)) {
-        return { answers: a, step: 'done', assistant: ['done'], regenerate: false };
+      return { answers: a, step: 'portfolio', assistant: ['askPortfolio'], regenerate: true };
+    }
+
+    case 'portfolio':
+      // Photos are added live via `addAsset` + `patchEasy`.
+      return { answers: a, step: 'contact', assistant: ['askContact'], regenerate: true };
+
+    case 'contact': {
+      if (!SKIP_PATTERN.test(t)) {
+        a.phone = extractPhone(t) ?? a.phone;
+        a.email = extractEmail(t) ?? a.email;
       }
-      // Anything else: treat as a description tweak and regenerate.
-      a.description = text;
-      a.businessType = condenseType(text);
-      return { answers: a, step: 'refine', assistant: ['updated', 'askRefine'], regenerate: true };
+      return { answers: a, step: 'done', assistant: ['contactSaved', 'done'], regenerate: true };
     }
 
     case 'done':

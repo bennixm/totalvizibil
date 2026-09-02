@@ -17,4 +17,9 @@ export class CreateDraftDto {
   @ValidateNested()
   @Type(() => DraftSeedDto)
   seed?: DraftSeedDto;
+
+  /** UI language — drives the composed section titles and the AI Services copy. */
+  @IsOptional()
+  @IsIn(['ro', 'en', 'de'])
+  locale?: 'ro' | 'en' | 'de';
 }

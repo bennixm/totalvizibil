@@ -34,6 +34,13 @@ const parentName = computed(() => loc(props.item.category?.parent?.name ?? undef
 const shownServices = computed(() => props.item.services.slice(0, 4))
 const extraServices = computed(() => Math.max(0, props.item.services.length - 4))
 const initial = computed(() => props.item.displayName.charAt(0).toUpperCase())
+
+// Landing background + title from the generated site — reused on the ad card.
+const visual = computed(() => props.item.heroImage || props.item.logoUrl)
+const tagline = computed(() => {
+  const h = props.item.heroTitle?.trim()
+  return h && h.toLowerCase() !== props.item.displayName.trim().toLowerCase() ? h : null
+})
 </script>
 
 <template>
@@ -41,7 +48,7 @@ const initial = computed(() => props.item.displayName.charAt(0).toUpperCase())
     <span class="lst__spine" aria-hidden="true" />
 
     <div class="lst__media">
-      <img v-if="item.logoUrl" :src="item.logoUrl" alt="" />
+      <img v-if="visual" :src="visual" alt="" />
       <span v-else>{{ initial }}</span>
     </div>
 
@@ -53,6 +60,8 @@ const initial = computed(() => props.item.displayName.charAt(0).toUpperCase())
       </p>
 
       <h3 class="lst__name">{{ item.displayName }}</h3>
+
+      <p v-if="tagline" class="lst__tagline">{{ tagline }}</p>
 
       <p v-if="item.location" class="lst__loc">
         <v-icon icon="mdi-map-marker-outline" size="14" />
@@ -169,6 +178,12 @@ const initial = computed(() => props.item.displayName.charAt(0).toUpperCase())
   letter-spacing: -0.02em;
   line-height: 1.15;
   margin: 0;
+}
+.lst__tagline {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: rgb(var(--v-theme-on-surface) / 0.78);
 }
 .lst__loc {
   display: inline-flex;

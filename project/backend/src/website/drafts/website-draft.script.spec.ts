@@ -1,91 +1,119 @@
 import {
-  DraftAnswers,
-  DraftStep,
-  advance,
-  buildEasyInput,
+  EasyAnswers,
+  EasyStep,
+  advanceEasy,
   condenseType,
   extractEmail,
   extractPhone,
   matchTone,
+  nextEasyStep,
   openingTranscript,
   splitList,
 } from './website-draft.script';
 
-describe('website-draft script', () => {
-  it('opens with the fixed "describe your business" prompt key', () => {
+describe('website-draft guided script', () => {
+  it('opens with the style/template prompt', () => {
     const t = openingTranscript();
     expect(t).toHaveLength(1);
     expect(t[0]).toMatchObject({ role: 'assistant', key: 'opening' });
   });
 
-  it('walks business -> name -> city -> services -> contact -> refine', () => {
-    let step: DraftStep = 'business';
-    let answers: DraftAnswers = {};
+  it('walks template -> name -> field -> color -> landing -> services -> portfolio -> contact -> done', () => {
+    let step: EasyStep = 'template';
+    let answers: EasyAnswers = { locale: 'ro' };
 
-    const feed = (text: string) => {
-      const r = advance(step, answers, text);
+    const feed = (text?: string) => {
+      const r = advanceEasy(step, answers, text);
       step = r.step;
       answers = r.answers;
       return r;
     };
 
-    let r = feed('Instalatii sanitare si termice, interventii rapide');
+    // template step is advanced from the picker widget, no text
+    let r = feed();
     expect(step).toBe('name');
-    expect(answers.businessType).toBeTruthy();
-    expect(r.regenerate).toBe(true);
+    expect(r.assistant).toEqual(['askName']);
 
-    feed('AquaFix');
-    expect(step).toBe('city');
-    expect(answers.businessName).toBe('AquaFix');
+    r = feed('AquaFix');
+    expect(step).toBe('field');
+    expect(answers.companyName).toBe('AquaFix');
+    expect(r.assistant).toEqual(['askField']);
 
-    feed('Cluj-Napoca');
+    r = feed('instalații sanitare și termice');
+    expect(step).toBe('color');
+    expect(answers.businessType).toBe('instalații sanitare și termice');
+    expect(r.assistant).toEqual(['askColor']);
+
+    // colour step is advanced from the widget, no text
+    feed();
+    expect(step).toBe('landing');
+
+    feed('Instalatori de încredere în Cluj');
     expect(step).toBe('services');
-    expect(answers.city).toBe('Cluj-Napoca');
+    expect(answers.landingTitle).toBe('Instalatori de încredere în Cluj');
 
-    feed('Montaj centrale, Desfundare canalizare, Reparatii baterii');
-    expect(step).toBe('contact');
-    expect(answers.services).toEqual([
+    r = feed('Montaj centrale, Desfundare canalizare, Reparatii baterii');
+    // a real list keeps us on the services step so the copy can be reordered
+    expect(step).toBe('services');
+    expect(answers.serviceNames).toEqual([
       'Montaj centrale',
       'Desfundare canalizare',
       'Reparatii baterii',
     ]);
+    // the one AI call is requested for exactly these names
+    expect(r.generateServicesFor).toEqual([
+      'Montaj centrale',
+      'Desfundare canalizare',
+      'Reparatii baterii',
+    ]);
+    expect(r.assistant).toEqual(['servicesGenerated']);
+    // the trade from the "field" step is preserved (not overwritten by service names)
+    expect(answers.businessType).toBe('instalații sanitare și termice');
 
-    r = feed('0722 123 456, contact@aquafix.ro');
-    expect(step).toBe('refine');
+    // "Continue" (no text) advances services -> portfolio -> contact
+    feed();
+    expect(step).toBe('portfolio');
+    feed();
+    expect(step).toBe('contact');
+
+    const c = feed('0722 123 456, contact@aquafix.ro');
+    expect(step).toBe('done');
     expect(answers.phone).toBe('0722123456');
     expect(answers.email).toBe('contact@aquafix.ro');
-    expect(r.assistant).toEqual(['generated', 'askRefine']);
-    expect(r.regenerate).toBe(true);
+    expect(c.assistant).toEqual(['contactSaved', 'done']);
+    expect(c.regenerate).toBe(true);
   });
 
-  it('refine step maps a tone keyword and regenerates', () => {
-    const r = advance('refine', { description: 'x' }, 'as vrea sa fie mai prietenos');
-    expect(r.answers.tone).toBe('friendly');
-    expect(r.step).toBe('refine');
-    expect(r.regenerate).toBe(true);
-  });
-
-  it('refine step finishes on an acknowledgement', () => {
-    const r = advance('refine', { description: 'x', tone: 'calm' }, 'gata, arata bine');
-    expect(r.step).toBe('done');
-    expect(r.regenerate).toBe(false);
-    expect(r.assistant).toEqual(['done']);
-  });
-
-  it('a finished draft stays finished', () => {
-    const r = advance('done', {}, 'hello?');
-    expect(r.step).toBe('done');
-    expect(r.assistant).toEqual(['alreadyDone']);
+  it('services step with "skip" moves on without an AI call', () => {
+    const r = advanceEasy('services', { locale: 'ro' }, 'skip');
+    expect(r.step).toBe('portfolio');
+    expect(r.generateServicesFor).toBeUndefined();
+    expect(r.assistant).toEqual(['askPortfolio']);
   });
 
   it('contact step accepts "skip"', () => {
-    const r = advance('contact', {}, 'skip');
-    expect(r.step).toBe('refine');
+    const r = advanceEasy('contact', { locale: 'ro' }, 'skip');
+    expect(r.step).toBe('done');
     expect(r.answers.phone).toBeUndefined();
     expect(r.answers.email).toBeUndefined();
   });
 
-  describe('helpers', () => {
+  it('a finished draft stays finished', () => {
+    const r = advanceEasy('done', {}, 'hello?');
+    expect(r.step).toBe('done');
+    expect(r.assistant).toEqual(['alreadyDone']);
+    expect(r.regenerate).toBe(false);
+  });
+
+  it('nextEasyStep clamps at done', () => {
+    expect(nextEasyStep('template')).toBe('name');
+    expect(nextEasyStep('name')).toBe('field');
+    expect(nextEasyStep('field')).toBe('color');
+    expect(nextEasyStep('contact')).toBe('done');
+    expect(nextEasyStep('done')).toBe('done');
+  });
+
+  describe('helpers (shared with the advanced builder script)', () => {
     it('condenseType trims filler and caps length', () => {
       expect(condenseType('Suntem o firma de constructii civile din Brasov')).toBe(
         'firma de constructii civile din Brasov',
@@ -110,14 +138,6 @@ describe('website-draft script', () => {
       expect(matchTone('premium si elegant')).toBe('premium');
       expect(matchTone('keep it professional')).toBe('professional');
       expect(matchTone('whatever')).toBeNull();
-    });
-
-    it('buildEasyInput fills sane fallbacks', () => {
-      const input = buildEasyInput({ description: 'cofetarie artizanala' });
-      expect(input.mode).toBe('easy');
-      expect(input.businessType).toBe('cofetarie artizanala');
-      expect(input.businessName).toBe('');
-      expect(input.services).toEqual([]);
     });
   });
 });

@@ -1,28 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
-import AiAgentPanel from '@/components/AiAgentPanel.vue'
+import EasyStudioAgent from '@/components/studio/EasyStudioAgent.vue'
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
 
 const { t } = useI18n()
 const store = useWebsiteDraftStore()
-const { draft, loading, sending, error } = storeToRefs(store)
+const { draft, loading } = storeToRefs(store)
 
 // Mobile: toggle between the preview and the chat (the app-like split doesn't
 // fit a phone). Desktop shows both side by side.
 const mobilePane = ref<'chat' | 'preview'>('chat')
-
-const disabled = computed(
-  () => !draft.value || sending.value || draft.value.capReached || draft.value.complete,
-)
-const finished = computed(() => !!draft.value && (draft.value.capReached || draft.value.complete))
-
-function onSend(text: string): void {
-  void store.send(text)
-}
 
 onMounted(async () => {
   await store.resumeOrCreate()
@@ -39,11 +30,7 @@ onMounted(async () => {
         <h1>{{ t('studio.title') }}</h1>
       </div>
       <div class="studio__tabs">
-        <button
-          :class="{ 'is-on': mobilePane === 'chat' }"
-          type="button"
-          @click="mobilePane = 'chat'"
-        >
+        <button :class="{ 'is-on': mobilePane === 'chat' }" type="button" @click="mobilePane = 'chat'">
           <v-icon icon="mdi-message-text-outline" size="18" /> {{ t('studio.paneChat') }}
         </button>
         <button
@@ -78,47 +65,16 @@ onMounted(async () => {
         </div>
       </section>
 
-      <!-- RIGHT: AI agent -->
+      <!-- RIGHT: AI agent + guided tools -->
       <aside
         class="studio__agent"
         :class="{ 'is-hidden-mobile': mobilePane !== 'chat' }"
         :aria-label="t('studio.agentName')"
       >
-        <AiAgentPanel
-          v-if="draft"
-          :transcript="draft.transcript"
-          :sending="sending"
-          :disabled="disabled"
-          :turns-left="draft.turnsLeft"
-          @send="onSend"
-        />
+        <EasyStudioAgent v-if="draft" />
         <div v-else-if="loading" class="studio__agentLoading">
           <v-progress-circular indeterminate color="primary" size="26" />
         </div>
-
-        <div v-if="error" class="studio__note studio__note--error">
-          <v-icon icon="mdi-alert-circle-outline" size="18" /> {{ t('studio.loadError') }}
-        </div>
-
-        <div v-if="finished" class="studio__note">
-          <strong>
-            {{ draft?.complete ? t('studio.doneTitle') : t('studio.capTitle') }}
-          </strong>
-          <span>{{ draft?.complete ? t('studio.doneText') : t('studio.capText') }}</span>
-          <v-btn
-            class="studio__continue"
-            color="primary"
-            size="small"
-            append-icon="mdi-arrow-right"
-            :to="{ name: 'create-location' }"
-          >
-            {{ t('studio.continueLocation') }}
-          </v-btn>
-        </div>
-
-        <button v-if="draft" class="studio__restart" type="button" @click="store.restart()">
-          <v-icon icon="mdi-restart" size="15" /> {{ t('studio.restart') }}
-        </button>
       </aside>
     </div>
   </div>
@@ -128,8 +84,8 @@ onMounted(async () => {
 .studio {
   display: flex;
   flex-direction: column;
-  /* fill the shell minus the top bar */
-  min-height: calc(100dvh - var(--tvz-topbar-h) - 2px);
+  /* fill the shell minus the top bar (fixed so inner panels can scroll) */
+  height: calc(100dvh - var(--tvz-topbar-h) - 2px);
   padding: clamp(1rem, 3vw, 1.75rem);
   gap: 1rem;
 }
@@ -194,7 +150,8 @@ onMounted(async () => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
+  grid-template-columns: minmax(0, 0.86fr) minmax(520px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 1rem;
 }
 
@@ -235,7 +192,6 @@ onMounted(async () => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
 }
 .studio__agent > :first-child {
   flex: 1;
@@ -247,47 +203,13 @@ onMounted(async () => {
   place-items: center;
 }
 
-.studio__note {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.8rem 1rem;
-  border-radius: var(--tvz-radius-md);
-  background: var(--tvz-ai-soft);
-  border: 1px solid var(--tvz-glass-border);
-  font-size: 0.82rem;
-}
-.studio__note strong {
-  font-size: 0.9rem;
-}
-.studio__note span {
-  color: rgb(var(--v-theme-on-surface) / 0.7);
-}
-.studio__continue {
-  align-self: flex-start;
-  margin-top: 0.6rem;
-}
-.studio__note--error {
-  background: rgb(var(--v-theme-error) / 0.1);
-  color: rgb(var(--v-theme-error));
-  flex-direction: row;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.studio__restart {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
-}
-.studio__restart:hover {
-  color: rgb(var(--v-theme-on-surface) / 0.8);
-}
-
 @media (max-width: 900px) {
+  .studio {
+    /* leave room for the fixed mobile tab bar so the chat input stays reachable */
+    height: calc(
+      100dvh - var(--tvz-topbar-h) - var(--tvz-tabbar-h) - env(safe-area-inset-bottom, 0px) - 18px
+    );
+  }
   .studio__tabs {
     display: flex;
   }
