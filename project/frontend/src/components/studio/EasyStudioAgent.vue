@@ -8,7 +8,9 @@ import { useWebsiteDraftStore } from '@/stores/websiteDraft'
 import type {
   DraftTurn,
   EasyFaq,
+  EasyProcessStep,
   EasyServiceCopy,
+  EasyStat,
   EasyStep,
   EasyTemplate,
   EasyTestimonial,
@@ -36,6 +38,8 @@ const MAX_PORTFOLIO = 10
 const MAX_WHYUS = 6
 const MAX_TESTI = 8
 const MAX_FAQ = 10
+const MAX_STATS = 4
+const MAX_PROCESS = 6
 
 const step = computed<EasyStep>(() => (draft.value?.step ?? 'name') as EasyStep)
 const easy = computed(() => draft.value?.easy ?? null)
@@ -267,6 +271,75 @@ function resetAbout(): void {
   void store.patchEasy({ about: '' })
 }
 
+// --- stats (numbers band) ---------------------------------
+const stats = ref<EasyStat[]>([])
+watch(
+  () => easy.value?.stats,
+  (v) => {
+    if (!document.activeElement?.getAttribute('data-grp')) {
+      stats.value = (v ?? []).map((x) => ({ ...x }))
+    }
+  },
+  { immediate: true, deep: true },
+)
+function patchStats(): void {
+  void store.patchEasy({
+    stats: stats.value
+      .map((x) => ({ value: x.value.trim(), label: x.label.trim() }))
+      .filter((x) => x.value && x.label),
+  })
+}
+function addStat(): void {
+  if (stats.value.length < MAX_STATS) stats.value.push({ value: '', label: '' })
+}
+function removeStat(i: number): void {
+  stats.value.splice(i, 1)
+  patchStats()
+}
+
+// --- process ("how we work") ------------------------------
+const processSteps = ref<EasyProcessStep[]>([])
+watch(
+  () => easy.value?.process,
+  (v) => {
+    if (!document.activeElement?.getAttribute('data-grp')) {
+      processSteps.value = (v ?? []).map((x) => ({ title: x.title, text: x.text ?? '' }))
+    }
+  },
+  { immediate: true, deep: true },
+)
+function patchProcess(): void {
+  void store.patchEasy({
+    process: processSteps.value
+      .map((x) => ({ title: x.title.trim(), text: (x.text ?? '').trim() }))
+      .filter((x) => x.title),
+  })
+}
+function addStep(): void {
+  if (processSteps.value.length < MAX_PROCESS) processSteps.value.push({ title: '', text: '' })
+}
+function removeStep(i: number): void {
+  processSteps.value.splice(i, 1)
+  patchProcess()
+}
+async function blurStepText(i: number): Promise<void> {
+  const it = processSteps.value[i]
+  if (it) it.text = await proof(`ps${i}`, it.text ?? '')
+  patchProcess()
+}
+
+// --- opening hours (contact) -----------------------------
+const hours = ref(easy.value?.hours || '')
+watch(
+  () => easy.value?.hours,
+  (v) => {
+    if (document.activeElement?.getAttribute('data-f') !== 'hours') hours.value = v || ''
+  },
+)
+function saveHours(): void {
+  void store.patchEasy({ hours: hours.value.trim() })
+}
+
 // --- why us ------------------------------------------------
 const whyUs = ref<string[]>([])
 watch(
@@ -370,7 +443,9 @@ async function blurCtaH(): Promise<void> {
 }
 
 // section visibility toggles
-function toggleSection(key: 'showAbout' | 'showWhyUs' | 'showCta'): void {
+function toggleSection(
+  key: 'showAbout' | 'showStats' | 'showWhyUs' | 'showProcess' | 'showCta',
+): void {
   const cur = easy.value?.[key] !== false
   void store.patchEasy({ [key]: !cur })
 }
@@ -684,6 +759,40 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
             </button>
           </div>
 
+          <!-- Stats -->
+          <div class="ed" data-grp="stat">
+            <span class="ed__k">
+              {{ t('studio.statsTool') }}
+              <button class="tog" type="button" :class="{ 'is-on': easy?.showStats }" @click="toggleSection('showStats')">
+                {{ easy?.showStats ? t('studio.on') : t('studio.off') }}
+              </button>
+            </span>
+            <div v-for="(_, i) in stats" :key="i" class="lrow">
+              <input
+                v-model="stats[i].value"
+                class="fld fld--stat"
+                type="text"
+                data-grp="stat"
+                maxlength="24"
+                :placeholder="t('studio.statValue')"
+                @blur="patchStats"
+              />
+              <input
+                v-model="stats[i].label"
+                class="fld"
+                type="text"
+                data-grp="stat"
+                maxlength="60"
+                :placeholder="t('studio.statLabel')"
+                @blur="patchStats"
+              />
+              <button class="del" type="button" @click="removeStat(i)"><v-icon icon="mdi-close" size="14" /></button>
+            </div>
+            <button v-if="stats.length < MAX_STATS" class="ghost ghost--xs" type="button" @click="addStat">
+              <v-icon icon="mdi-plus" size="13" /> {{ t('studio.addStat') }}
+            </button>
+          </div>
+
           <!-- Services -->
           <div v-if="servicesReady" class="ed">
             <span class="ed__k">{{ t('studio.servicesReorder') }}</span>
@@ -717,6 +826,41 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
             </ul>
             <button class="ghost" type="button" :disabled="sending" @click="regenServices">
               <v-icon icon="mdi-refresh" size="14" /> {{ t('studio.servicesRegen') }}
+            </button>
+          </div>
+
+          <!-- Process -->
+          <div class="ed" data-grp="proc">
+            <span class="ed__k">
+              {{ t('studio.processTool') }}
+              <button class="tog" type="button" :class="{ 'is-on': easy?.showProcess }" @click="toggleSection('showProcess')">
+                {{ easy?.showProcess ? t('studio.on') : t('studio.off') }}
+              </button>
+            </span>
+            <div v-for="(_, i) in processSteps" :key="i" class="tcard">
+              <input
+                v-model="processSteps[i].title"
+                class="fld"
+                type="text"
+                data-grp="proc"
+                maxlength="80"
+                :placeholder="t('studio.processStep')"
+                @blur="patchProcess"
+              />
+              <div class="lrow">
+                <textarea
+                  v-model="processSteps[i].text"
+                  class="fld fld--mini"
+                  rows="2"
+                  data-grp="proc"
+                  :placeholder="t('studio.processText')"
+                  @blur="blurStepText(i)"
+                />
+                <button class="del" type="button" @click="removeStep(i)"><v-icon icon="mdi-close" size="14" /></button>
+              </div>
+            </div>
+            <button v-if="processSteps.length < MAX_PROCESS" class="ghost ghost--xs" type="button" @click="addStep">
+              <v-icon icon="mdi-plus" size="13" /> {{ t('studio.addStep') }}
             </button>
           </div>
 
@@ -842,6 +986,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
             <span class="ed__k">{{ t('studio.contactTool') }}</span>
             <input v-model="phone" class="fld" type="tel" data-f="phone" :placeholder="t('studio.contactPhone')" @blur="saveContact" />
             <input v-model="email" class="fld" type="email" data-f="email" :placeholder="t('studio.contactEmail')" @blur="saveContact" />
+            <input v-model="hours" class="fld" type="text" data-f="hours" maxlength="120" :placeholder="t('studio.hoursPlaceholder')" @blur="saveHours" />
           </div>
 
           <p v-if="uploadErr" class="uerr">{{ uploadErr }}</p>
@@ -1288,6 +1433,10 @@ textarea.fld {
 .fld--mini {
   font-size: 0.8rem;
   margin: 0.25rem 0 0;
+}
+.lrow .fld.fld--stat {
+  flex: none;
+  width: 92px;
 }
 
 .svc {

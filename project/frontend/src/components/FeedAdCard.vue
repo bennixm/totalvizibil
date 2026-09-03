@@ -31,12 +31,26 @@ function loc(n?: LocalizedName): string | null {
 const catName = computed(() => loc(props.item.category?.name))
 const parentName = computed(() => loc(props.item.category?.parent?.name ?? undefined))
 
-const shownServices = computed(() => props.item.services.slice(0, 4))
-const extraServices = computed(() => Math.max(0, props.item.services.length - 4))
+const shownServices = computed(() => props.item.services.slice(0, 6))
+const extraServices = computed(() =>
+  Math.max(0, props.item.servicesTotal - shownServices.value.length),
+)
 const initial = computed(() => props.item.displayName.charAt(0).toUpperCase())
 
-// Landing background + title from the generated site — reused on the ad card.
-const visual = computed(() => props.item.heroImage || props.item.logoUrl)
+// Advanced-builder sites get the media-forward "own website" card.
+const featured = computed(() => props.item.builtWithBuilder)
+const accentColor = computed(() => props.item.accent || 'rgb(var(--v-theme-primary))')
+
+const headline = computed(() => {
+  const h = props.item.heroTitle?.trim()
+  return h && h.toLowerCase() !== props.item.displayName.trim().toLowerCase()
+    ? h
+    : props.item.displayName
+})
+const blurb = computed(
+  () => props.item.heroSubtitle?.trim() || props.item.description || null,
+)
+// standard-card tagline: only when it adds something over the name
 const tagline = computed(() => {
   const h = props.item.heroTitle?.trim()
   return h && h.toLowerCase() !== props.item.displayName.trim().toLowerCase() ? h : null
@@ -44,11 +58,60 @@ const tagline = computed(() => {
 </script>
 
 <template>
-  <RouterLink class="lst" :to="to" @click="onOpen">
+  <!-- ===== Featured: site built with the Advanced builder ===== -->
+  <RouterLink
+    v-if="featured"
+    class="fc"
+    :to="to"
+    :style="{ '--card-accent': accentColor }"
+    @click="onOpen"
+  >
+    <div class="fc__banner" :class="{ 'fc__banner--plain': !item.heroImage }">
+      <img v-if="item.heroImage" :src="item.heroImage" alt="" loading="lazy" />
+      <span v-else class="fc__grad" aria-hidden="true" />
+      <span class="fc__scrim" aria-hidden="true" />
+      <span class="fc__badge">
+        <v-icon icon="mdi-web" size="13" /> {{ t('feed.ownSite') }}
+      </span>
+      <p class="fc__headline">{{ headline }}</p>
+    </div>
+
+    <div class="fc__body">
+      <p v-if="catName" class="fc__crumb">
+        <span v-if="parentName">{{ parentName }}</span>
+        <v-icon v-if="parentName" icon="mdi-chevron-right" size="12" />
+        <span class="fc__niche">{{ catName }}</span>
+      </p>
+
+      <h3 class="fc__name">{{ item.displayName }}</h3>
+      <p v-if="blurb" class="fc__blurb">{{ blurb }}</p>
+
+      <p v-if="item.location" class="fc__loc">
+        <v-icon icon="mdi-map-marker-outline" size="14" />
+        <template v-if="item.location.nationwide">{{ t('feed.coverageCountry') }}</template>
+        <template v-else>
+          {{ item.location.city
+          }}<span v-if="item.location.radiusKm"> · {{ t('feed.coverageKm', { n: item.location.radiusKm }) }}</span>
+        </template>
+      </p>
+
+      <div v-if="shownServices.length" class="tags">
+        <span v-for="s in shownServices" :key="s" class="tag">{{ s }}</span>
+        <span v-if="extraServices" class="tag tag--more">+{{ extraServices }}</span>
+      </div>
+
+      <span class="btnv btnv--solid">
+        {{ t('feed.viewSite') }} <v-icon icon="mdi-arrow-right" size="17" />
+      </span>
+    </div>
+  </RouterLink>
+
+  <!-- ===== Standard listing row ===== -->
+  <RouterLink v-else class="lst" :to="to" @click="onOpen">
     <span class="lst__spine" aria-hidden="true" />
 
     <div class="lst__media">
-      <img v-if="visual" :src="visual" alt="" />
+      <img v-if="item.logoUrl" :src="item.logoUrl" alt="" />
       <span v-else>{{ initial }}</span>
     </div>
 
@@ -60,46 +123,91 @@ const tagline = computed(() => {
       </p>
 
       <h3 class="lst__name">{{ item.displayName }}</h3>
-
       <p v-if="tagline" class="lst__tagline">{{ tagline }}</p>
 
       <p v-if="item.location" class="lst__loc">
         <v-icon icon="mdi-map-marker-outline" size="14" />
         <template v-if="item.location.nationwide">{{ t('feed.coverageCountry') }}</template>
-        <template v-else
-          >{{ item.location.city
-          }}<span v-if="item.location.radiusKm">
-            · {{ t('feed.coverageKm', { n: item.location.radiusKm }) }}</span
-          ></template
-        >
+        <template v-else>
+          {{ item.location.city
+          }}<span v-if="item.location.radiusKm"> · {{ t('feed.coverageKm', { n: item.location.radiusKm }) }}</span>
+        </template>
       </p>
 
       <p v-if="item.description" class="lst__desc">{{ item.description }}</p>
 
-      <div v-if="shownServices.length" class="lst__tags">
-        <span v-for="s in shownServices" :key="s" class="lst__tag">{{ s }}</span>
-        <span v-if="extraServices" class="lst__tag lst__tag--more">+{{ extraServices }}</span>
+      <div v-if="shownServices.length" class="tags">
+        <span v-for="s in shownServices" :key="s" class="tag">{{ s }}</span>
+        <span v-if="extraServices" class="tag tag--more">+{{ extraServices }}</span>
       </div>
     </div>
 
     <div class="lst__aside">
-      <span class="lst__cta">
-        {{ t('feed.viewSite') }}
-        <v-icon icon="mdi-arrow-right" size="18" class="lst__arrow" />
+      <span class="btnv btnv--ghost">
+        {{ t('feed.viewSite') }} <v-icon icon="mdi-arrow-right" size="17" class="btnv__arrow" />
       </span>
     </div>
   </RouterLink>
 </template>
 
 <style scoped>
+/* ---------- shared bits ---------- */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+.tag {
+  font-size: 0.74rem;
+  padding: 0.22rem 0.6rem;
+  border-radius: 8px;
+  background: rgb(var(--v-theme-on-surface) / 0.06);
+  color: rgb(var(--v-theme-on-surface) / 0.72);
+  white-space: nowrap;
+}
+.tag--more {
+  color: rgb(var(--v-theme-on-surface) / 0.5);
+}
+
+.btnv {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    transform var(--tvz-dur-med) var(--tvz-ease-out),
+    box-shadow var(--tvz-dur-med) var(--tvz-ease-out),
+    background var(--tvz-dur-med) var(--tvz-ease-out);
+}
+.btnv--solid {
+  color: #fff;
+  background: var(--tvz-gradient-brand);
+  box-shadow: 0 12px 26px -14px rgb(var(--v-theme-primary) / 0.9);
+  align-self: flex-start;
+  margin-top: 0.9rem;
+}
+.btnv--ghost {
+  color: rgb(var(--v-theme-primary));
+  border: 1.5px solid rgb(var(--v-theme-primary) / 0.35);
+}
+.btnv__arrow {
+  transition: transform var(--tvz-dur-med) var(--tvz-ease-out);
+}
+
+/* ---------- standard row ---------- */
 .lst {
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.6rem;
   width: 100%;
-  padding: 1.4rem 1.6rem 1.4rem 1.9rem;
+  padding: 1.7rem 1.8rem 1.7rem 2.1rem;
   border-radius: var(--tvz-radius-lg);
   border: 1px solid var(--tvz-glass-border);
   background: rgb(var(--v-theme-surface));
@@ -117,8 +225,12 @@ const tagline = computed(() => {
   border-color: rgb(var(--v-theme-primary) / 0.45);
   box-shadow: var(--tvz-shadow-lg);
 }
-
-/* Left accent spine — the modern signature of the listing. */
+.lst:hover .btnv--ghost {
+  background: rgb(var(--v-theme-primary) / 0.08);
+}
+.lst:hover .btnv__arrow {
+  transform: translateX(4px);
+}
 .lst__spine {
   position: absolute;
   inset: 0 auto 0 0;
@@ -130,14 +242,13 @@ const tagline = computed(() => {
   width: 6px;
   background: rgb(var(--v-theme-primary));
 }
-
 .lst__media {
   display: grid;
   place-items: center;
-  width: 84px;
-  height: 84px;
-  border-radius: 20px;
-  font-size: 1.9rem;
+  width: 104px;
+  height: 104px;
+  border-radius: 22px;
+  font-size: 2.2rem;
   font-weight: 700;
   color: #fff;
   background: var(--tvz-gradient-brand);
@@ -150,14 +261,14 @@ const tagline = computed(() => {
   height: 100%;
   object-fit: cover;
 }
-
 .lst__main {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.32rem;
 }
-.lst__crumb {
+.lst__crumb,
+.fc__crumb {
   display: flex;
   align-items: center;
   gap: 0.15rem;
@@ -168,113 +279,207 @@ const tagline = computed(() => {
   letter-spacing: 0.13em;
   color: rgb(var(--v-theme-on-surface) / 0.45);
 }
-.lst__niche {
+.lst__niche,
+.fc__niche {
   color: rgb(var(--v-theme-primary));
 }
 .lst__name {
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   letter-spacing: -0.02em;
-  line-height: 1.15;
+  line-height: 1.14;
   margin: 0;
 }
 .lst__tagline {
   margin: 0;
-  font-size: 0.86rem;
+  font-size: 0.9rem;
   font-weight: 500;
   color: rgb(var(--v-theme-on-surface) / 0.78);
 }
-.lst__loc {
+.lst__loc,
+.fc__loc {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  margin: 0;
+  margin: 0.1rem 0 0;
   font-size: 0.82rem;
   color: rgb(var(--v-theme-on-surface) / 0.6);
 }
 .lst__desc {
-  margin: 0.15rem 0 0;
-  font-size: 0.9rem;
+  margin: 0.25rem 0 0;
+  font-size: 0.92rem;
   line-height: 1.55;
   color: rgb(var(--v-theme-on-surface) / 0.72);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lst__aside {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+/* ---------- featured card ---------- */
+.fc {
+  position: relative;
+  display: block;
+  width: 100%;
+  border-radius: var(--tvz-radius-lg);
+  border: 1px solid var(--tvz-glass-border);
+  background: rgb(var(--v-theme-surface));
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  box-shadow: var(--tvz-shadow-sm);
+  transition:
+    transform var(--tvz-dur-med) var(--tvz-ease-out),
+    border-color var(--tvz-dur-med) var(--tvz-ease-out),
+    box-shadow var(--tvz-dur-med) var(--tvz-ease-out);
+}
+.fc:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--card-accent) 55%, transparent);
+  box-shadow: 0 30px 60px -30px color-mix(in srgb, var(--card-accent) 60%, transparent);
+}
+.fc:hover .btnv--solid {
+  transform: translateY(-1px);
+}
+.fc__banner {
+  position: relative;
+  aspect-ratio: 16 / 7;
+  overflow: hidden;
+}
+.fc__banner--plain {
+  aspect-ratio: auto;
+  height: 150px;
+}
+.fc__banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.fc__grad {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    var(--card-accent),
+    color-mix(in srgb, var(--card-accent) 45%, #0b0b12)
+  );
+}
+.fc__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 12, 22, 0.15) 0%, rgba(10, 12, 22, 0.78) 100%);
+}
+.fc__badge {
+  position: absolute;
+  top: 0.9rem;
+  left: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: color-mix(in srgb, var(--card-accent) 78%, rgba(0, 0, 0, 0.4));
+  backdrop-filter: blur(4px);
+}
+.fc__headline {
+  position: absolute;
+  left: 1.3rem;
+  right: 1.3rem;
+  bottom: 1.1rem;
+  margin: 0;
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.25rem, 2.6vw, 1.7rem);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #fff;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.lst__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
-}
-.lst__tag {
-  font-size: 0.72rem;
-  padding: 0.18rem 0.55rem;
-  border-radius: 8px;
-  background: rgb(var(--v-theme-on-surface) / 0.06);
-  color: rgb(var(--v-theme-on-surface) / 0.7);
-  white-space: nowrap;
-}
-.lst__tag--more {
-  color: rgb(var(--v-theme-on-surface) / 0.5);
-}
-
-.lst__aside {
+.fc__body {
+  padding: 1.4rem 1.7rem 1.7rem;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 0.7rem;
-  flex: none;
-}
-.lst__cta {
-  display: inline-flex;
-  align-items: center;
   gap: 0.35rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: rgb(var(--v-theme-primary));
-  white-space: nowrap;
 }
-.lst__arrow {
-  transition: transform var(--tvz-dur-med) var(--tvz-ease-out);
+.fc__name {
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+  margin: 0.1rem 0 0;
 }
-.lst:hover .lst__arrow {
-  transform: translateX(4px);
+.fc__blurb {
+  margin: 0.2rem 0 0;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  color: rgb(var(--v-theme-on-surface) / 0.74);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 @media (max-width: 720px) {
   .lst {
     grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
     gap: 1rem;
-    padding: 1.1rem 1.1rem 1.1rem 1.4rem;
+    padding: 1.2rem 1.2rem 1.3rem 1.5rem;
   }
   .lst__media {
     width: 56px;
     height: 56px;
     border-radius: 14px;
-    font-size: 1.3rem;
+    font-size: 1.35rem;
+    align-self: flex-start;
   }
   .lst__name {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
   }
   .lst__aside {
     grid-column: 1 / -1;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
+  }
+  .btnv--ghost {
+    width: 100%;
+    justify-content: center;
+  }
+  .fc__body {
+    padding: 1.1rem 1.2rem 1.4rem;
+  }
+  .btnv--solid {
+    width: 100%;
+    justify-content: center;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .lst,
-  .lst__arrow,
+  .fc,
+  .btnv,
+  .btnv__arrow,
   .lst__spine {
     transition: none;
   }
-  .lst:hover {
+  .lst:hover,
+  .fc:hover {
     transform: none;
   }
 }

@@ -2,6 +2,8 @@ import { createApp } from 'vue'
 
 import '@fontsource-variable/inter'
 import '@fontsource-variable/space-grotesk'
+import '@fontsource-variable/fraunces'
+import '@fontsource-variable/jetbrains-mono'
 
 import App from './App.vue'
 import { i18n } from '@/plugins/i18n'

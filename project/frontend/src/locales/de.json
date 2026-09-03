@@ -83,7 +83,8 @@
     "pickNiche": "Wählen Sie eine Unterkategorie, um genauer zu filtern.",
     "subCount": "{n} Unterkategorien",
     "coverageKm": "{n} km",
-    "coverageCountry": "Ganzes Land"
+    "coverageCountry": "Ganzes Land",
+    "ownSite": "Eigene Website"
   },
   "company": {
     "backToFeed": "Zurück zu Entdecken",
@@ -212,7 +213,16 @@
       "classic": "Ausgewogen: Intro, Leistungen als Karten, dann Gründe und Portfolio.",
       "bold": "Starke Wirkung: große linksbündige Überschrift, Leistungen als Zeilen, Portfolio früh.",
       "minimal": "Luftig und zurückhaltend, textbetont mit weniger Bereichen."
-    }
+    },
+    "statsTool": "Kennzahlen",
+    "statValue": "Wert (z. B. 12)",
+    "statLabel": "Bezeichnung (z. B. Jahre Erfahrung)",
+    "addStat": "Kennzahl hinzufügen",
+    "processTool": "So arbeiten wir",
+    "processStep": "Titel des Schritts",
+    "processText": "Details (optional)",
+    "addStep": "Schritt hinzufügen",
+    "hoursPlaceholder": "z. B. Mo–Fr 9–18 Uhr"
   },
   "location": {
     "eyebrow": "Schritt 2 · Standort",
@@ -741,9 +751,14 @@
     "doneText": "Fahren Sie mit Standort und Kampagne fort, um sie zu veröffentlichen.",
     "continueLocation": "Weiter → Standort",
     "err": {
-      "insufficient_credits": "Nicht genug Guthaben. Fügen Sie Credits hinzu.",
+      "insufficient_credits": "Nicht genug Guthaben. Guthaben aufladen.",
       "advanced_builder_locked": "Der Builder ist nicht freigeschaltet.",
-      "not_an_advanced_website": "Diese Website ist nicht im erweiterten Plan."
+      "not_an_advanced_website": "Diese Website ist nicht im erweiterten Plan.",
+      "ai_plan_limit": "Sie haben das KI-Limit für diese Website erreicht.",
+      "ai_section_limit": "Sie haben das Limit für KI-Anpassungen erreicht.",
+      "ai_unavailable": "Die KI konnte gerade nichts erzeugen. Bitte erneut versuchen.",
+      "nothing_to_undo": "Es gibt keine vorherige Version.",
+      "banned_content": "Der Text enthält unzulässige Wörter. Bitte umformulieren."
     },
     "msg": {
       "opening": "Hallo! Ich bin der Totalvizibil-Assistent und baue Ihnen eine komplexe Website. Beschreiben Sie, was Ihr Unternehmen macht.",
@@ -767,7 +782,165 @@
     "loadErrorText": "Versuchen Sie es erneut über das Dashboard.",
     "upgradeTitle": "Auf den Advanced-Plan upgraden",
     "upgradeText": "Deine einfache Website bleibt genau so. Zusätzlich erhältst du den KI-Baukasten mit voller Kontrolle über Abschnitte, Ton, Branding und SEO.",
-    "upgradeCta": "Upgraden · {credits} cr"
+    "upgradeCta": "Upgraden · {credits} cr",
+    "on": "An",
+    "off": "Aus",
+    "addRow": "Hinzufügen",
+    "addSection": "Abschnitt hinzufügen",
+    "variantsShort": "Varianten",
+    "editorEmpty": "Wählen Sie einen Abschnitt in der Vorschau oder Liste, um ihn zu bearbeiten.",
+    "variant": "Design",
+    "rename": "Umbenennen",
+    "setHome": "Als Startseite",
+    "inNav": "Im Menü",
+    "notInNav": "Nicht im Menü",
+    "toggleVisible": "Ein-/ausblenden",
+    "moveToPage": "Auf Seite verschieben",
+    "remove": "Entfernen",
+    "pageN": "Seite {n}",
+    "palette": "Farbe",
+    "customColor": "Eigene Farbe",
+    "fontLabel": "Schrift",
+    "radiusLabel": "Ecken",
+    "densityLabel": "Abstände",
+    "generateAi": "Mit KI erzeugen",
+    "aiSoon": "Bald verfügbar",
+    "imageAdd": "Hochladen",
+    "imageChange": "Ändern",
+    "panePages": "Seiten",
+    "panePreview": "Vorschau",
+    "paneEditor": "Editor",
+    "previewEmpty": "Ihre Website erscheint hier.",
+    "cat": {
+      "header": "Kopf",
+      "story": "Story",
+      "proof": "Vertrauen",
+      "offer": "Angebot",
+      "content": "Inhalt",
+      "conversion": "Conversion"
+    },
+    "font": {
+      "grotesk-inter": "Modern",
+      "serif-sans": "Klassisch",
+      "mono-sans": "Technisch",
+      "grotesk": "Grotesk",
+      "inter": "Inter",
+      "fraunces": "Serif",
+      "jetbrains": "Mono"
+    },
+    "radius": {
+      "sharp": "Kantig",
+      "soft": "Weich",
+      "round": "Rund",
+      "none": "Kantig",
+      "subtle": "Dezent",
+      "rounded": "Abgerundet",
+      "large": "Groß",
+      "pill": "Pille"
+    },
+    "density": {
+      "compact": "Kompakt",
+      "comfortable": "Normal",
+      "spacious": "Luftig"
+    },
+    "opt": {
+      "right": "Rechts",
+      "left": "Links"
+    },
+    "field": {
+      "headline": "Überschrift",
+      "subheadline": "Untertitel",
+      "primaryCta": "Hauptbutton",
+      "secondaryCta": "Zweiter Button",
+      "image": "Bild",
+      "title": "Titel",
+      "body": "Text",
+      "value": "Wert",
+      "statLabel": "Bezeichnung",
+      "name": "Name",
+      "description": "Beschreibung",
+      "steps": "Schritte",
+      "stepTitle": "Schritt-Titel",
+      "stepText": "Details",
+      "points": "Punkte",
+      "pointTitle": "Titel",
+      "pointText": "Details",
+      "rows": "Zeilen",
+      "rowTitle": "Titel",
+      "rowText": "Text",
+      "mediaSide": "Bildseite",
+      "photos": "Fotos",
+      "photoTitle": "Titel",
+      "photoCaption": "Bildunterschrift",
+      "members": "Mitglieder",
+      "memberName": "Name",
+      "memberRole": "Rolle",
+      "memberBio": "Kurzbio",
+      "quotes": "Referenzen",
+      "quote": "Zitat",
+      "author": "Autor",
+      "authorRole": "Rolle / Firma",
+      "plans": "Pakete",
+      "planName": "Name",
+      "price": "Preis",
+      "period": "Zeitraum",
+      "planFeatures": "Leistungen",
+      "planCta": "Button",
+      "highlighted": "Hervorgehoben",
+      "questions": "Fragen",
+      "question": "Frage",
+      "answer": "Antwort",
+      "logos": "Logos",
+      "phone": "Telefon",
+      "email": "E-Mail",
+      "city": "Stadt",
+      "addressLine": "Adresse",
+      "hours": "Zeiten",
+      "buttonLabel": "Button-Text"
+    },
+    "aiTitle": "Website mit KI erzeugen",
+    "aiLead": "Beschreiben Sie das Unternehmen und was auf die Website soll. Die KI wählt Seiten, Abschnitte und Texte.",
+    "aiPlaceholder": "z. B. Architekturbüro in Cluj, Wohn- und Gewerbeprojekte. Seiten: Start, Projekte, Leistungen, Über uns, Kontakt. Zurückhaltender Ton.",
+    "aiNoKey": "KI ist nicht konfiguriert — stattdessen wird ein Plan aus Stichwörtern erzeugt.",
+    "aiConfirm": "Mir ist klar, dass dies die ganze Website neu schreibt (rückgängig mit „KI rückgängig”).",
+    "aiGo": "Erzeugen",
+    "aiUndo": "KI rückgängig",
+    "aiTweak": "Mit KI anpassen",
+    "aiTweakPh": "z. B. kürzer und prägnanter",
+    "cancel": "Abbrechen",
+    "preset": {
+      "studio": "Studio",
+      "bold": "Kräftig",
+      "editorial": "Editorial",
+      "soft": "Sanft",
+      "tech": "Tech",
+      "warm": "Warm",
+      "mono": "Mono"
+    },
+    "fineTune": "Feinabstimmung",
+    "background": "Hintergrund",
+    "btnStyleLabel": "Buttons",
+    "shadowLabel": "Schatten",
+    "headingFontLabel": "Titelschrift",
+    "bodyFontLabel": "Textschrift",
+    "bg": {
+      "light": "Hell",
+      "tinted": "Getönt",
+      "dark": "Dunkel"
+    },
+    "btn": {
+      "solid": "Gefüllt",
+      "outline": "Umriss",
+      "soft": "Sanft",
+      "pill": "Pille"
+    },
+    "shadow": {
+      "none": "Keiner",
+      "soft": "Weich",
+      "bold": "Stark"
+    },
+    "presetLabel": "Stil",
+    "autosaved": "Änderungen werden automatisch gespeichert."
   },
   "site": {
     "phone": "Telefon",
@@ -781,7 +954,8 @@
     "formSend": "Anfrage senden",
     "formSending": "Wird gesendet…",
     "formError": "Konnte nicht gesendet werden. Prüfe deine Angaben und versuche es erneut.",
-    "formThanks": "Danke! Das Unternehmen meldet sich bald bei dir."
+    "formThanks": "Danke! Das Unternehmen meldet sich bald bei dir.",
+    "hours": "Zeiten"
   },
   "leads": {
     "eyebrow": "Von deiner Website",
@@ -1152,5 +1326,102 @@
     "investigate": "Untersuchen",
     "openUserAdmin": "Nutzer im Admin öffnen",
     "openBusinessAdmin": "Unternehmen im Admin öffnen"
+  },
+  "catalog": {
+    "variant": {
+      "split": "Geteilt",
+      "centered": "Zentriert",
+      "imageBg": "Bildhintergrund",
+      "minimal": "Minimal",
+      "strip": "Leiste",
+      "grid": "Raster",
+      "text": "Nur Text",
+      "imageRight": "Bild rechts",
+      "imageLeft": "Bild links",
+      "twoCol": "Zwei Spalten",
+      "band": "Dunkles Band",
+      "plain": "Schlicht",
+      "cards": "Karten",
+      "list": "Liste",
+      "iconGrid": "Icon-Raster",
+      "vertical": "Vertikal",
+      "horizontal": "Horizontal",
+      "alternating": "Abwechselnd",
+      "stacked": "Gestapelt",
+      "masonry": "Mosaik",
+      "wide": "Breit",
+      "compact": "Kompakt",
+      "quote": "Großes Zitat",
+      "columns": "Spalten",
+      "tiers": "Pakete",
+      "accordion": "Akkordeon",
+      "narrow": "Schmal",
+      "gradient": "Verlauf",
+      "solid": "Einfarbig"
+    },
+    "hero": {
+      "label": "Hero",
+      "desc": "Großer Kopfbereich mit Überschrift und Button"
+    },
+    "logos": {
+      "label": "Kundenlogos",
+      "desc": "Leiste mit Kunden- oder Partnerlogos"
+    },
+    "about": {
+      "label": "Über uns",
+      "desc": "Vorstellungsabsatz, optional mit Bild"
+    },
+    "stats": {
+      "label": "Zahlen",
+      "desc": "Band mit Kennzahlen"
+    },
+    "services": {
+      "label": "Leistungen",
+      "desc": "Raster oder Liste von Leistungen"
+    },
+    "process": {
+      "label": "Ablauf",
+      "desc": "Wie Sie arbeiten, in nummerierten Schritten"
+    },
+    "features": {
+      "label": "Vorteile",
+      "desc": "Stärken im Raster"
+    },
+    "featureSplit": {
+      "label": "Text + Bild",
+      "desc": "Abwechselnde Text- und Bildzeilen"
+    },
+    "gallery": {
+      "label": "Galerie",
+      "desc": "Bildportfolio"
+    },
+    "team": {
+      "label": "Team",
+      "desc": "Teammitglieder"
+    },
+    "testimonials": {
+      "label": "Referenzen",
+      "desc": "Was Kunden sagen"
+    },
+    "pricing": {
+      "label": "Preise",
+      "desc": "Preispakete"
+    },
+    "faq": {
+      "label": "FAQ",
+      "desc": "Liste von Fragen und Antworten"
+    },
+    "richText": {
+      "label": "Freitext",
+      "desc": "Textblock für Inhaltsseiten"
+    },
+    "cta": {
+      "label": "Call to Action",
+      "desc": "Handlungsaufforderung mit Button"
+    },
+    "contact": {
+      "label": "Kontakt",
+      "desc": "Kontaktdaten und Öffnungszeiten"
+    }
   }
 }

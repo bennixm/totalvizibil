@@ -19,6 +19,8 @@ import {
 import {
   EasyAnswers,
   EasyFaq,
+  EasyProcessStep,
+  EasyStat,
   EasyTestimonial,
   StudioLocale,
   composeEasySite,
@@ -55,13 +57,18 @@ export interface EasyPatch {
   city?: string;
   about?: string;
   showAbout?: boolean;
+  stats?: EasyStat[];
+  showStats?: boolean;
   whyUs?: string[];
   showWhyUs?: boolean;
+  process?: EasyProcessStep[];
+  showProcess?: boolean;
   testimonials?: EasyTestimonial[];
   faq?: EasyFaq[];
   ctaHeadline?: string;
   ctaButton?: string;
   showCta?: boolean;
+  hours?: string;
   template?: 'classic' | 'bold' | 'minimal';
   autoGrammar?: boolean;
   locale?: StudioLocale;
@@ -266,10 +273,13 @@ export class WebsiteDraftService {
       patch.about,
       patch.ctaHeadline,
       patch.ctaButton,
+      patch.hours,
       ...(patch.whyUs ?? []),
       ...(patch.services ?? []).flatMap((s) => [s.name, s.description]),
       ...(patch.testimonials ?? []).flatMap((tt) => [tt.quote, tt.author ?? '']),
       ...(patch.faq ?? []).flatMap((q) => [q.q, q.a]),
+      ...(patch.stats ?? []).flatMap((s) => [s.value, s.label]),
+      ...(patch.process ?? []).flatMap((s) => [s.title, s.text ?? '']),
     );
 
     const a = this.answersOf(draft);
@@ -304,6 +314,16 @@ export class WebsiteDraftService {
 
     if (patch.about !== undefined) a.about = patch.about.slice(0, 900) || undefined;
     if (patch.showAbout !== undefined) a.showAbout = patch.showAbout;
+    if (patch.stats !== undefined) {
+      a.stats = patch.stats
+        .map((s) => ({
+          value: String(s.value ?? '').slice(0, 24),
+          label: String(s.label ?? '').slice(0, 60),
+        }))
+        .filter((s) => s.value.trim() && s.label.trim())
+        .slice(0, 4);
+    }
+    if (patch.showStats !== undefined) a.showStats = patch.showStats;
     if (patch.whyUs !== undefined) {
       a.whyUs = patch.whyUs
         .map((s) => String(s ?? '').slice(0, 90))
@@ -311,6 +331,16 @@ export class WebsiteDraftService {
         .slice(0, 6);
     }
     if (patch.showWhyUs !== undefined) a.showWhyUs = patch.showWhyUs;
+    if (patch.process !== undefined) {
+      a.process = patch.process
+        .map((s) => ({
+          title: String(s.title ?? '').slice(0, 80),
+          text: String(s.text ?? '').slice(0, 200) || undefined,
+        }))
+        .filter((s) => s.title.trim())
+        .slice(0, 6);
+    }
+    if (patch.showProcess !== undefined) a.showProcess = patch.showProcess;
     if (patch.testimonials !== undefined) {
       a.testimonials = patch.testimonials
         .map((tt) => ({
@@ -330,6 +360,7 @@ export class WebsiteDraftService {
       a.ctaHeadline = patch.ctaHeadline.slice(0, 120) || undefined;
     if (patch.ctaButton !== undefined) a.ctaButton = patch.ctaButton.slice(0, 40) || undefined;
     if (patch.showCta !== undefined) a.showCta = patch.showCta;
+    if (patch.hours !== undefined) a.hours = patch.hours.slice(0, 120) || undefined;
     if (patch.template !== undefined) {
       a.template = ['classic', 'bold', 'minimal'].includes(patch.template)
         ? patch.template

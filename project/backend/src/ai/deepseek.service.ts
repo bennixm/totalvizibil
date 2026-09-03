@@ -17,8 +17,38 @@ export interface ServiceCopy {
   description: string;
 }
 
+/** Advanced builder — "generate a whole site from a prompt". */
+export interface PlanWebsiteInput {
+  brief: string;
+  business: { name: string; type?: string; city?: string; services: string[] };
+  locale: AiLocale;
+  /** Pre-rendered catalog description (one line per section type). */
+  catalogText: string;
+}
+export interface AiSitePlan {
+  theme?: Record<string, unknown>;
+  pages?: unknown[];
+}
+
+/** Advanced builder — rewrite one section's content from an instruction. */
+export interface SectionContentInput {
+  type: string;
+  variant: string;
+  fieldKeys: string[];
+  instruction: string;
+  current: Record<string, unknown>;
+  locale: AiLocale;
+}
+
 const ENDPOINT = 'https://api.deepseek.com/chat/completions';
 const TIMEOUT_MS = 20_000;
+const PLAN_TIMEOUT_MS = 45_000;
+
+const LOCALE_NAME: Record<AiLocale, string> = {
+  ro: 'Romanian',
+  en: 'English',
+  de: 'German',
+};
 
 const SYSTEM: Record<AiLocale, string> = {
   ro: 'Ești copywriter pentru site-uri de prezentare ale firmelor locale. Scrii descrieri scurte, concrete și convingătoare pentru servicii, la persoana I plural, fără clișee de marketing. Răspunzi DOAR cu JSON valid.',
@@ -178,6 +208,203 @@ export class DeepseekService {
     } catch (err) {
       this.logger.warn(
         `DeepSeek proofread failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
+  }
+
+  /** One OpenAI-compatible chat completion, JSON mode. Returns the parsed object or `null`. */
+  private async chatJson(
+    system: string,
+    user: string,
+    opts: { maxTokens: number; temperature?: number; timeoutMs?: number },
+  ): Promise<Record<string, unknown> | null> {
+    try {
+      const res = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          temperature: opts.temperature ?? 0.6,
+          max_tokens: opts.maxTokens,
+          response_format: { type: 'json_object' },
+        }),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        this.logger.warn(`DeepSeek responded ${res.status}`);
+        return null;
+      }
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const raw = data.choices?.[0]?.message?.content;
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (err) {
+      this.logger.warn(`DeepSeek call failed: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Advanced builder — turn a free-text brief into a structured multi-page site
+   * plan. Two phases: (A) one small call decides the STRUCTURE + theme and
+   * infers the site's scope from the brief; (B) one call per page, in parallel,
+   * writes that page's copy. The caller validates everything against the catalog.
+   * `null` (phase A failed / no key) ⇒ caller uses the deterministic fallback.
+   */
+  async planWebsite(input: PlanWebsiteInput): Promise<AiSitePlan | null> {
+    if (!this.configured) {
+      this.logger.log(
+        '[DEV] DEEPSEEK_API_KEY not set — AI site plan will use the keyword fallback',
+      );
+      return null;
+    }
+    const lang = LOCALE_NAME[input.locale] ?? 'Romanian';
+    const facts =
+      `Business name: ${input.business.name || '(unnamed)'}\n` +
+      (input.business.type ? `Field: ${input.business.type}\n` : '') +
+      (input.business.city ? `City: ${input.business.city}\n` : '') +
+      (input.business.services.length ? `Services: ${input.business.services.join(', ')}\n` : '');
+
+    // --- Phase A: structure + theme ---------------------------------
+    const outlineSys =
+      `You are a senior web designer. Design the STRUCTURE of a small-business marketing website ` +
+      `(no body text yet). Decide the scope FROM THE BRIEF: a short or vague brief → 1–2 focused pages; ` +
+      `a detailed brief that names pages, audiences or many services → 4–6 pages.\n` +
+      `Rules:\n` +
+      `- Output: { "theme": {...}, "pages": [{ "title": string, "purpose": string, "nav": boolean, ` +
+      `"sections": [{ "type": string, "variant": string }] }] }.\n` +
+      `- First page is the home page (the caller marks isHome). Home starts with a "hero". ` +
+      `The last page has a "contact" section.\n` +
+      `- Use ONLY these section types + variants:\n${input.catalogText}\n` +
+      `- "theme": { "preset": "studio|bold|editorial|soft|tech|warm|mono", ` +
+      `"palette": "indigo|violet|blue|cyan|teal|emerald|lime|amber|orange|rose|fuchsia|slate", ` +
+      `"background": "light|tinted|dark", "headingFont": "grotesk|inter|fraunces|jetbrains", ` +
+      `"bodyFont": "grotesk|inter", "radius": "none|subtle|rounded|large|pill", ` +
+      `"buttonStyle": "solid|outline|soft|pill", "shadow": "none|soft|bold", ` +
+      `"density": "compact|comfortable|spacious" } — choose values that fit the business's character ` +
+      `(e.g. a tech product → dark + cyan; a studio → tinted + editorial serif).\n` +
+      `Reply with JSON only.`;
+    const outline = (await this.chatJson(outlineSys, `Brief: ${input.brief}\n${facts}`, {
+      maxTokens: 1400,
+      temperature: 0.5,
+      timeoutMs: PLAN_TIMEOUT_MS,
+    })) as { theme?: Record<string, unknown>; pages?: unknown[] } | null;
+
+    if (!outline || !Array.isArray(outline.pages) || !outline.pages.length) return null;
+
+    const pages = outline.pages.slice(0, 6).map((p) => {
+      const pp = (p && typeof p === 'object' ? p : {}) as Record<string, unknown>;
+      const sections = Array.isArray(pp.sections)
+        ? pp.sections
+            .map((s) => {
+              const ss = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>;
+              return { type: String(ss.type ?? ''), variant: String(ss.variant ?? '') };
+            })
+            .filter((s) => s.type)
+        : [];
+      return {
+        title: String(pp.title ?? 'Page'),
+        purpose: String(pp.purpose ?? ''),
+        nav: pp.nav !== false,
+        sections,
+      };
+    });
+
+    // --- Phase B: per-page copy, in parallel -----------------------
+    const priorFacts =
+      `Business: ${input.business.name || '(unnamed)'}` +
+      (input.business.services.length ? `; services: ${input.business.services.join(', ')}` : '');
+    const contentSys =
+      `You write website copy. For the given page, fill each section's "content" object using its ` +
+      `catalog fields. Keep the section order and the type/variant unchanged. "items" fields are ` +
+      `arrays of objects with the listed sub-keys; "list" fields are arrays of strings.\n` +
+      `Catalog:\n${input.catalogText}\n` +
+      `Write ALL text in ${lang}, concrete and specific, no lorem ipsum, no empty clichés.\n` +
+      `For "image" fields, give a relevant royalty-free photo URL from https://images.unsplash.com/ ` +
+      `(a real photo id, sized "&w=1400&q=80"), or leave it "" if unsure. Do NOT use other image hosts.\n` +
+      `Reply with JSON only: { "sections": [{ "type": string, "variant": string, "content": {...} }] }.`;
+
+    const results = await Promise.allSettled(
+      pages.map((pg) =>
+        this.chatJson(
+          contentSys,
+          `Brief: ${input.brief}\n${facts}Consistency facts: ${priorFacts}\n\n` +
+            `Page: "${pg.title}" — ${pg.purpose || 'a page of the site'}\n` +
+            `Sections (write content for each, in order):\n${JSON.stringify(pg.sections)}`,
+          { maxTokens: 2000, temperature: 0.7 },
+        ),
+      ),
+    );
+
+    const outPages = pages.map((pg, i) => {
+      const r = results[i];
+      const filled =
+        r.status === 'fulfilled' && r.value && Array.isArray(r.value.sections)
+          ? (r.value.sections as Record<string, unknown>[])
+          : [];
+      const sections = pg.sections.map((s, j) => {
+        const f = filled[j];
+        const content =
+          f && typeof f.content === 'object' && f.content
+            ? (f.content as Record<string, unknown>)
+            : {};
+        return { type: s.type, variant: s.variant, content };
+      });
+      return { title: pg.title, nav: pg.nav, sections };
+    });
+
+    return { theme: outline.theme, pages: outPages };
+  }
+
+  /**
+   * Advanced builder — rewrite a single section's content per an instruction,
+   * keeping the same field shape. Returns the raw content object or `null`.
+   */
+  async sectionContent(input: SectionContentInput): Promise<Record<string, unknown> | null> {
+    if (!this.configured) return null;
+    const lang = LOCALE_NAME[input.locale] ?? 'Romanian';
+    const system =
+      `You edit one section of a small-business website. Apply the user's instruction to the ` +
+      `content below. Keep EXACTLY these top-level keys and their types: ${input.fieldKeys.join(', ')}. ` +
+      `Do not add or drop keys. Write user-facing text in ${lang}. Reply with JSON only — the content object.`;
+    const user =
+      `Section type: ${input.type} (variant: ${input.variant})\n` +
+      `Instruction: ${input.instruction}\n` +
+      `Current content:\n${JSON.stringify(input.current)}`;
+    try {
+      const res = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          temperature: 0.6,
+          max_tokens: 1200,
+          response_format: { type: 'json_object' },
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        this.logger.warn(`DeepSeek sectionContent responded ${res.status}`);
+        return null;
+      }
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const raw = data.choices?.[0]?.message?.content;
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (err) {
+      this.logger.warn(
+        `DeepSeek sectionContent failed: ${err instanceof Error ? err.message : String(err)}`,
       );
       return null;
     }

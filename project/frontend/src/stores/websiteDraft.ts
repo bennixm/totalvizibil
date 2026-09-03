@@ -39,6 +39,14 @@ export interface EasyFaq {
   q: string
   a: string
 }
+export interface EasyStat {
+  value: string
+  label: string
+}
+export interface EasyProcessStep {
+  title: string
+  text?: string
+}
 
 /** Guided-answer snapshot the "Site Simplu" studio widgets prefill from. */
 export interface EasyBlock {
@@ -56,13 +64,18 @@ export interface EasyBlock {
   city: string
   about: string
   showAbout: boolean
+  stats: EasyStat[]
+  showStats: boolean
   whyUs: string[]
   showWhyUs: boolean
+  process: EasyProcessStep[]
+  showProcess: boolean
   testimonials: EasyTestimonial[]
   faq: EasyFaq[]
   ctaHeadline: string
   ctaButton: string
   showCta: boolean
+  hours: string
   template: EasyTemplate
   autoGrammar: boolean
   locale: 'ro' | 'en' | 'de'
@@ -95,13 +108,18 @@ export interface EasyPatch {
   city?: string
   about?: string
   showAbout?: boolean
+  stats?: EasyStat[]
+  showStats?: boolean
   whyUs?: string[]
   showWhyUs?: boolean
+  process?: EasyProcessStep[]
+  showProcess?: boolean
   testimonials?: EasyTestimonial[]
   faq?: EasyFaq[]
   ctaHeadline?: string
   ctaButton?: string
   showCta?: boolean
+  hours?: string
   template?: 'classic' | 'bold' | 'minimal'
   autoGrammar?: boolean
 }

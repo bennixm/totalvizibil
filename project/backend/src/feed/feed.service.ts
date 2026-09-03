@@ -21,24 +21,77 @@ const RANKING_NOTE =
 
 const EARTH_KM = 6371;
 
+/** Named-palette → accent hex — mirrors WebsiteRenderer's PALETTE_ACCENT. */
+const PALETTE_HEX: Record<string, string> = {
+  indigo: '#4f46e5',
+  violet: '#7c3aed',
+  blue: '#2563eb',
+  cyan: '#0891b2',
+  teal: '#0d9488',
+  emerald: '#059669',
+  lime: '#65a30d',
+  amber: '#d97706',
+  orange: '#ea580c',
+  rose: '#e11d48',
+  fuchsia: '#c026d3',
+  slate: '#475569',
+};
+
+interface Billboard {
+  title: string | null;
+  subtitle: string | null;
+  image: string | null;
+  builtWithBuilder: boolean;
+  accent: string | null;
+}
+
 /**
- * The landing headline + background image from a generated site — reused as the
- * feed ad card's title and visual (Simple-site builder spec). Reads the home
- * page's hero block out of the content JSON.
+ * The headline / sub / hero visual + theme accent from a generated site — reused
+ * on the feed ad card. Advanced-builder sites (`generator` = `advanced-builder…`)
+ * get the "own website" featured card. Reads the home page out of `content`.
  */
-function heroBillboard(content: unknown): { title: string | null; image: string | null } {
+function heroBillboard(content: unknown, theme: unknown, generator: string | null): Billboard {
+  const builtWithBuilder =
+    typeof generator === 'string' && generator.startsWith('advanced-builder');
+  const th = (theme ?? null) as { accent?: unknown; palette?: unknown } | null;
+  const accent =
+    typeof th?.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(th.accent)
+      ? th.accent
+      : typeof th?.palette === 'string' && PALETTE_HEX[th.palette]
+        ? PALETTE_HEX[th.palette]
+        : null;
+
+  const empty: Billboard = { title: null, subtitle: null, image: null, builtWithBuilder, accent };
   const pages = (content as { pages?: unknown[] } | null)?.pages;
-  if (!Array.isArray(pages)) return { title: null, image: null };
+  if (!Array.isArray(pages)) return empty;
   const home =
     (pages as Record<string, unknown>[]).find((p) => p.isHome) ??
     (pages[0] as Record<string, unknown>);
   const sections = home?.sections;
-  if (!Array.isArray(sections)) return { title: null, image: null };
-  const hero = (sections as Record<string, unknown>[]).find((s) => s.type === 'hero');
-  if (!hero) return { title: null, image: null };
-  const title = typeof hero.headline === 'string' ? hero.headline.trim() || null : null;
-  const image = typeof hero.backgroundImage === 'string' ? hero.backgroundImage || null : null;
-  return { title, image };
+  if (!Array.isArray(sections)) return empty;
+  const secs = sections as Record<string, unknown>[];
+
+  const hero = secs.find((s) => s.type === 'hero');
+  const title = hero && typeof hero.headline === 'string' ? hero.headline.trim() || null : null;
+  const subtitle =
+    hero && typeof hero.subheadline === 'string'
+      ? hero.subheadline.trim().slice(0, 160) || null
+      : null;
+
+  // Image: the hero background, else the first gallery / feature-split photo.
+  const firstItemImage = (type: string): string | null => {
+    const s = secs.find((x) => x.type === type);
+    const items = Array.isArray(s?.items) ? (s!.items as Record<string, unknown>[]) : [];
+    const url = items.map((i) => i.imageUrl).find((u) => typeof u === 'string' && u);
+    return typeof url === 'string' ? url : null;
+  };
+  const image =
+    (hero && typeof hero.backgroundImage === 'string' && hero.backgroundImage) ||
+    firstItemImage('gallery') ||
+    firstItemImage('featureSplit') ||
+    null;
+
+  return { title, subtitle, image, builtWithBuilder, accent };
 }
 
 /** Great-circle distance between two lat/lng points, in kilometres. */
@@ -66,8 +119,8 @@ const NO_VISIBILITY: VisibilityInput = {
 const feedInclude = {
   category: { include: { parent: { select: { slug: true, nameI18n: true } } } },
   locations: { where: { isPrimary: true }, take: 1 },
-  services: { orderBy: { position: 'asc' }, take: 4 },
-  website: { select: { content: true, status: true } },
+  services: { orderBy: { position: 'asc' }, take: 6 },
+  website: { select: { content: true, status: true, theme: true, generator: true } },
   campaign: { select: { appearFirst: true, status: true } },
   _count: { select: { services: true } },
 } satisfies Prisma.CompanyInclude;
@@ -191,18 +244,21 @@ export class FeedService {
       const { c } = row;
       const loc = c.locations[0] ?? null;
       const hasWebsite = !!c.website && c.website.status !== 'draft';
-      const billboard = hasWebsite
-        ? heroBillboard(c.website?.content)
-        : { title: null, image: null };
+      const billboard: Billboard = hasWebsite
+        ? heroBillboard(c.website?.content, c.website?.theme, c.website?.generator ?? null)
+        : { title: null, subtitle: null, image: null, builtWithBuilder: false, accent: null };
       return {
         id: c.id,
         slug: c.slug,
         displayName: c.displayName,
         description: c.description,
         logoUrl: c.logoUrl,
-        // Landing title + background image, reused for the ad card.
+        // Landing title / sub / visual + theme accent, reused for the ad card.
         heroTitle: billboard.title,
+        heroSubtitle: billboard.subtitle,
         heroImage: billboard.image,
+        builtWithBuilder: billboard.builtWithBuilder,
+        accent: billboard.accent,
         category: c.category
           ? {
               slug: c.category.slug,
@@ -222,6 +278,7 @@ export class FeedService {
             }
           : null,
         services: c.services.map((s) => s.name),
+        servicesTotal: c._count.services,
         hasWebsite,
         score: Number(row.score.toFixed(4)),
         scoreBreakdown: {

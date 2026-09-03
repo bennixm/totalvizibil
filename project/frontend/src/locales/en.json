@@ -83,7 +83,8 @@
     "pickNiche": "Pick a subcategory to narrow it down.",
     "subCount": "{n} subcategories",
     "coverageKm": "{n} km",
-    "coverageCountry": "Whole country"
+    "coverageCountry": "Whole country",
+    "ownSite": "Own website"
   },
   "company": {
     "backToFeed": "Back to discover",
@@ -212,7 +213,16 @@
       "classic": "Balanced: intro, services as cards, then reasons and portfolio.",
       "bold": "High impact: big left-aligned headline, services as rows, portfolio early.",
       "minimal": "Airy and understated, text-led with fewer sections."
-    }
+    },
+    "statsTool": "Key numbers",
+    "statValue": "Value (e.g. 12)",
+    "statLabel": "Label (e.g. years' experience)",
+    "addStat": "Add number",
+    "processTool": "How we work",
+    "processStep": "Step title",
+    "processText": "Detail (optional)",
+    "addStep": "Add step",
+    "hoursPlaceholder": "e.g. Mon–Fri 9am–6pm"
   },
   "location": {
     "eyebrow": "Step 2 · Location",
@@ -741,9 +751,14 @@
     "doneText": "Continue with the location and campaign to publish it.",
     "continueLocation": "Continue → Location",
     "err": {
-      "insufficient_credits": "Not enough balance. Add credits.",
+      "insufficient_credits": "Not enough credits. Add credits.",
       "advanced_builder_locked": "The builder is not unlocked.",
-      "not_an_advanced_website": "This website is not on the advanced plan."
+      "not_an_advanced_website": "This website is not on the advanced plan.",
+      "ai_plan_limit": "You have reached the AI generation limit for this site.",
+      "ai_section_limit": "You have reached the AI section-tweak limit.",
+      "ai_unavailable": "AI could not generate right now. Try again.",
+      "nothing_to_undo": "There is no previous version.",
+      "banned_content": "The text contains words that are not allowed. Please rephrase."
     },
     "msg": {
       "opening": "Hi! I'm the Totalvizibil assistant and I'll build you a complex website. Tell us what your business does.",
@@ -767,7 +782,165 @@
     "loadErrorText": "Try again from the dashboard.",
     "upgradeTitle": "Upgrade to the Advanced plan",
     "upgradeText": "Your easy site stays exactly as it is. You also get the AI builder with full control over sections, tone, branding and SEO.",
-    "upgradeCta": "Upgrade · {credits} cr"
+    "upgradeCta": "Upgrade · {credits} cr",
+    "on": "On",
+    "off": "Off",
+    "addRow": "Add",
+    "addSection": "Add section",
+    "variantsShort": "variants",
+    "editorEmpty": "Select a section in the preview or the list to edit it.",
+    "variant": "Design",
+    "rename": "Rename",
+    "setHome": "Set as home",
+    "inNav": "In menu",
+    "notInNav": "Hidden from menu",
+    "toggleVisible": "Hide / show",
+    "moveToPage": "Move to page",
+    "remove": "Remove",
+    "pageN": "Page {n}",
+    "palette": "Colour",
+    "customColor": "Custom colour",
+    "fontLabel": "Font",
+    "radiusLabel": "Corners",
+    "densityLabel": "Spacing",
+    "generateAi": "Generate with AI",
+    "aiSoon": "Coming soon",
+    "imageAdd": "Upload",
+    "imageChange": "Change",
+    "panePages": "Pages",
+    "panePreview": "Preview",
+    "paneEditor": "Editor",
+    "previewEmpty": "Your site appears here.",
+    "cat": {
+      "header": "Header",
+      "story": "Story",
+      "proof": "Proof",
+      "offer": "Offer",
+      "content": "Content",
+      "conversion": "Conversion"
+    },
+    "font": {
+      "grotesk-inter": "Modern",
+      "serif-sans": "Classic",
+      "mono-sans": "Technical",
+      "grotesk": "Grotesk",
+      "inter": "Inter",
+      "fraunces": "Serif",
+      "jetbrains": "Mono"
+    },
+    "radius": {
+      "sharp": "Sharp",
+      "soft": "Soft",
+      "round": "Round",
+      "none": "None",
+      "subtle": "Subtle",
+      "rounded": "Rounded",
+      "large": "Large",
+      "pill": "Pill"
+    },
+    "density": {
+      "compact": "Compact",
+      "comfortable": "Comfortable",
+      "spacious": "Spacious"
+    },
+    "opt": {
+      "right": "Right",
+      "left": "Left"
+    },
+    "field": {
+      "headline": "Headline",
+      "subheadline": "Subtitle",
+      "primaryCta": "Primary button",
+      "secondaryCta": "Secondary button",
+      "image": "Image",
+      "title": "Title",
+      "body": "Body",
+      "value": "Value",
+      "statLabel": "Label",
+      "name": "Name",
+      "description": "Description",
+      "steps": "Steps",
+      "stepTitle": "Step title",
+      "stepText": "Detail",
+      "points": "Points",
+      "pointTitle": "Title",
+      "pointText": "Detail",
+      "rows": "Rows",
+      "rowTitle": "Title",
+      "rowText": "Text",
+      "mediaSide": "Image side",
+      "photos": "Photos",
+      "photoTitle": "Title",
+      "photoCaption": "Caption",
+      "members": "Members",
+      "memberName": "Name",
+      "memberRole": "Role",
+      "memberBio": "Bio",
+      "quotes": "Testimonials",
+      "quote": "Quote",
+      "author": "Author",
+      "authorRole": "Role / company",
+      "plans": "Plans",
+      "planName": "Name",
+      "price": "Price",
+      "period": "Period",
+      "planFeatures": "Features",
+      "planCta": "Button",
+      "highlighted": "Highlighted",
+      "questions": "Questions",
+      "question": "Question",
+      "answer": "Answer",
+      "logos": "Logos",
+      "phone": "Phone",
+      "email": "Email",
+      "city": "City",
+      "addressLine": "Address",
+      "hours": "Hours",
+      "buttonLabel": "Button label"
+    },
+    "aiTitle": "Generate the site with AI",
+    "aiLead": "Describe the business and what you want on the site. AI picks the pages, sections and copy.",
+    "aiPlaceholder": "e.g. Architecture studio in Cluj, residential and commercial projects. I want Home, Projects, Services, About, Contact pages. Understated tone.",
+    "aiNoKey": "AI is not configured — a plan is generated automatically from keywords instead.",
+    "aiConfirm": "I understand this rewrites the whole site (I can revert with “Undo AI”).",
+    "aiGo": "Generate",
+    "aiUndo": "Undo AI",
+    "aiTweak": "Tweak with AI",
+    "aiTweakPh": "e.g. make it shorter and punchier",
+    "cancel": "Cancel",
+    "preset": {
+      "studio": "Studio",
+      "bold": "Bold",
+      "editorial": "Editorial",
+      "soft": "Soft",
+      "tech": "Tech",
+      "warm": "Warm",
+      "mono": "Mono"
+    },
+    "fineTune": "Fine-tune",
+    "background": "Background",
+    "btnStyleLabel": "Buttons",
+    "shadowLabel": "Shadow",
+    "headingFontLabel": "Heading font",
+    "bodyFontLabel": "Body font",
+    "bg": {
+      "light": "Light",
+      "tinted": "Tinted",
+      "dark": "Dark"
+    },
+    "btn": {
+      "solid": "Solid",
+      "outline": "Outline",
+      "soft": "Soft",
+      "pill": "Pill"
+    },
+    "shadow": {
+      "none": "None",
+      "soft": "Soft",
+      "bold": "Bold"
+    },
+    "presetLabel": "Style",
+    "autosaved": "Changes are saved automatically."
   },
   "site": {
     "phone": "Phone",
@@ -781,7 +954,8 @@
     "formSend": "Send request",
     "formSending": "Sending…",
     "formError": "Couldn't send. Check your details and try again.",
-    "formThanks": "Thanks! The business will get back to you soon."
+    "formThanks": "Thanks! The business will get back to you soon.",
+    "hours": "Hours"
   },
   "leads": {
     "eyebrow": "From your site",
@@ -1152,5 +1326,102 @@
     "investigate": "Investigate",
     "openUserAdmin": "Open user in admin",
     "openBusinessAdmin": "Open business in admin"
+  },
+  "catalog": {
+    "variant": {
+      "split": "Split",
+      "centered": "Centered",
+      "imageBg": "Image background",
+      "minimal": "Minimal",
+      "strip": "Strip",
+      "grid": "Grid",
+      "text": "Text only",
+      "imageRight": "Image right",
+      "imageLeft": "Image left",
+      "twoCol": "Two columns",
+      "band": "Dark band",
+      "plain": "Plain",
+      "cards": "Cards",
+      "list": "List",
+      "iconGrid": "Icon grid",
+      "vertical": "Vertical",
+      "horizontal": "Horizontal",
+      "alternating": "Alternating",
+      "stacked": "Stacked",
+      "masonry": "Masonry",
+      "wide": "Wide",
+      "compact": "Compact",
+      "quote": "Large quote",
+      "columns": "Columns",
+      "tiers": "Tiers",
+      "accordion": "Accordion",
+      "narrow": "Narrow",
+      "gradient": "Gradient",
+      "solid": "Solid"
+    },
+    "hero": {
+      "label": "Hero",
+      "desc": "Big header with headline and button"
+    },
+    "logos": {
+      "label": "Client logos",
+      "desc": "Strip of client or partner logos"
+    },
+    "about": {
+      "label": "About",
+      "desc": "Intro paragraph, optionally with an image"
+    },
+    "stats": {
+      "label": "Numbers",
+      "desc": "Band of headline numbers"
+    },
+    "services": {
+      "label": "Services",
+      "desc": "Grid or list of services"
+    },
+    "process": {
+      "label": "Process",
+      "desc": "How you work, in numbered steps"
+    },
+    "features": {
+      "label": "Highlights",
+      "desc": "Strong points in a grid"
+    },
+    "featureSplit": {
+      "label": "Text + image",
+      "desc": "Alternating text and image rows"
+    },
+    "gallery": {
+      "label": "Gallery",
+      "desc": "Image portfolio"
+    },
+    "team": {
+      "label": "Team",
+      "desc": "Team members"
+    },
+    "testimonials": {
+      "label": "Testimonials",
+      "desc": "What clients say"
+    },
+    "pricing": {
+      "label": "Pricing",
+      "desc": "Pricing tiers"
+    },
+    "faq": {
+      "label": "FAQ",
+      "desc": "List of questions and answers"
+    },
+    "richText": {
+      "label": "Rich text",
+      "desc": "Text block for content pages"
+    },
+    "cta": {
+      "label": "Call to action",
+      "desc": "A prompt to act, with a button"
+    },
+    "contact": {
+      "label": "Contact",
+      "desc": "Contact details and hours"
+    }
   }
 }

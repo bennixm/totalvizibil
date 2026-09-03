@@ -3,12 +3,19 @@
 
 export type SectionType =
   | 'hero'
+  | 'logos'
   | 'about'
+  | 'stats'
   | 'services'
+  | 'process'
   | 'features'
+  | 'featureSplit'
   | 'gallery'
+  | 'team'
   | 'testimonials'
+  | 'pricing'
   | 'faq'
+  | 'richText'
   | 'contact'
   | 'cta'
 
@@ -16,6 +23,8 @@ export interface Section {
   id: string
   type: SectionType
   visible: boolean
+  /** Design variant within the section type (Advanced builder catalog). */
+  variant?: string
   [key: string]: unknown
 }
 
@@ -23,6 +32,8 @@ export interface WebsitePage {
   slug: string
   title: string
   isHome: boolean
+  /** Show this page in the site's top nav (Advanced builder). Default true. */
+  nav?: boolean
   sections: Section[]
 }
 
@@ -31,11 +42,34 @@ export interface WebsiteContent {
   seo: { title: string; description: string; schemaType: string }
 }
 
+export type ThemePalette =
+  | 'indigo'
+  | 'violet'
+  | 'blue'
+  | 'cyan'
+  | 'teal'
+  | 'emerald'
+  | 'lime'
+  | 'amber'
+  | 'orange'
+  | 'rose'
+  | 'fuchsia'
+  | 'slate'
+export type ThemeRadius = 'none' | 'subtle' | 'rounded' | 'large' | 'pill'
+export type ThemeFont = 'grotesk' | 'inter' | 'fraunces' | 'jetbrains'
+
 export interface WebsiteTheme {
-  palette: 'indigo' | 'emerald' | 'amber' | 'slate' | 'rose'
+  palette: ThemePalette
   fontPair: 'grotesk-inter' | 'serif-sans' | 'mono-sans'
-  radius: 'sharp' | 'soft' | 'round'
+  radius: ThemeRadius
   density: 'compact' | 'comfortable' | 'spacious'
-  /** Custom brand colour (`#rrggbb`) from the Simple-site builder; overrides `palette`. */
+  /** Custom brand colour (`#rrggbb`); overrides `palette`. */
   accent?: string
+  /** Named style bundle chosen in the Advanced builder. */
+  preset?: string
+  background?: 'light' | 'tinted' | 'dark'
+  headingFont?: ThemeFont
+  bodyFont?: ThemeFont
+  buttonStyle?: 'solid' | 'outline' | 'soft' | 'pill'
+  shadow?: 'none' | 'soft' | 'bold'
 }

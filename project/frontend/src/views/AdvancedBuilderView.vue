@@ -4,8 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
-import AiAgentPanel from '@/components/AiAgentPanel.vue'
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
+import PagePanel from '@/components/builder/PagePanel.vue'
+import SectionEditor from '@/components/builder/SectionEditor.vue'
+import SectionCatalog from '@/components/builder/SectionCatalog.vue'
+import ThemeBar from '@/components/builder/ThemeBar.vue'
+import AiBrief from '@/components/builder/AiBrief.vue'
 import { useCompaniesStore } from '@/stores/companies'
 import { useBuilderStore } from '@/stores/builder'
 
@@ -14,28 +18,46 @@ const route = useRoute()
 const router = useRouter()
 const companies = useCompaniesStore()
 const builder = useBuilderStore()
-const { data, loading, working, error } = storeToRefs(builder)
+const { view, activePage, selectedId, loading, working, error } = storeToRefs(builder)
 
 const companyId = ref<string | null>(null)
-const mobilePane = ref<'chat' | 'preview'>('chat')
+const pane = ref<'pages' | 'preview' | 'editor'>('pages')
+const catalogPayload = ref<{ pageId: string; index?: number } | null>(null)
+const aiOpen = ref(false)
 
-const balance = computed(() => data.value?.wallet.balance.credits ?? 0)
-const price = computed(() => data.value?.priceCredits ?? 0)
+const balance = computed(() => view.value?.wallet.balance.credits ?? 0)
+const price = computed(() => view.value?.priceCredits ?? 0)
 const funded = computed(() => balance.value >= price.value)
-/** Coming from an easy-plan site → the lock screen is really an "upgrade" prompt. */
-const isUpgrade = computed(() => data.value?.mode === 'easy')
-const disabled = computed(() => !data.value || working.value || !!data.value.complete)
+const isUpgrade = computed(() => view.value?.mode === 'easy')
 
-const KNOWN_ERR = ['insufficient_credits', 'advanced_builder_locked', 'not_an_advanced_website']
+const KNOWN_ERR = [
+  'insufficient_credits',
+  'advanced_builder_locked',
+  'not_an_advanced_website',
+  'ai_plan_limit',
+  'ai_section_limit',
+  'ai_unavailable',
+  'nothing_to_undo',
+  'banned_content',
+]
 function errText(code: string): string {
   return KNOWN_ERR.includes(code) ? t('builder.err.' + code) : code
 }
 
+/** The renderer wants a single page's content; feed it the active page only. */
+const previewContent = computed(() => {
+  const c = view.value?.content
+  if (!c) return null
+  const p = c.pages.find((x) => x.slug === activePage.value?.slug) ?? c.pages[0]
+  return { pages: p ? [p] : c.pages, seo: c.seo }
+})
+
 async function unlock(): Promise<void> {
   if (companyId.value) await builder.unlock(companyId.value)
 }
-function onSend(text: string): void {
-  if (companyId.value) void builder.send(companyId.value, text)
+function onSelect(id: string): void {
+  builder.select(id)
+  pane.value = 'editor'
 }
 
 onMounted(async () => {
@@ -62,11 +84,11 @@ onMounted(async () => {
       </v-btn>
     </header>
 
-    <div v-if="loading && !data" class="wb__center">
+    <div v-if="loading && !view" class="wb__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
 
-    <div v-else-if="!data" class="wb__lock">
+    <div v-else-if="!view" class="wb__lock">
       <v-icon icon="mdi-alert-circle-outline" size="34" />
       <h2>{{ t('builder.loadErrorTitle') }}</h2>
       <p class="wb__lockText">{{ error ? errText(error) : t('builder.loadErrorText') }}</p>
@@ -74,7 +96,7 @@ onMounted(async () => {
     </div>
 
     <!-- LOCKED: pay to unlock / upgrade -->
-    <div v-else-if="data && !data.unlocked" class="wb__lock">
+    <div v-else-if="!view.unlocked" class="wb__lock">
       <v-icon :icon="isUpgrade ? 'mdi-creation' : 'mdi-lock-open-variant-outline'" size="34" />
       <h2>{{ isUpgrade ? t('builder.upgradeTitle') : t('builder.lockTitle') }}</h2>
       <p class="wb__lockText">{{ isUpgrade ? t('builder.upgradeText') : t('builder.lockText') }}</p>
@@ -106,70 +128,83 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- UNLOCKED: the split studio -->
-    <template v-else-if="data">
+    <!-- UNLOCKED: the component builder -->
+    <template v-else>
+      <ThemeBar v-if="companyId" :company-id="companyId" @open-ai="aiOpen = true" />
+
       <div class="wb__tabs">
-        <button :class="{ 'is-on': mobilePane === 'chat' }" type="button" @click="mobilePane = 'chat'">
-          <v-icon icon="mdi-message-text-outline" size="18" /> {{ t('studio.paneChat') }}
+        <button :class="{ 'is-on': pane === 'pages' }" type="button" @click="pane = 'pages'">
+          <v-icon icon="mdi-file-tree-outline" size="18" /> {{ t('builder.panePages') }}
         </button>
-        <button
-          :class="{ 'is-on': mobilePane === 'preview' }"
-          type="button"
-          @click="mobilePane = 'preview'"
-        >
-          <v-icon icon="mdi-monitor" size="18" /> {{ t('studio.panePreview') }}
+        <button :class="{ 'is-on': pane === 'preview' }" type="button" @click="pane = 'preview'">
+          <v-icon icon="mdi-monitor" size="18" /> {{ t('builder.panePreview') }}
+        </button>
+        <button :class="{ 'is-on': pane === 'editor' }" type="button" @click="pane = 'editor'">
+          <v-icon icon="mdi-tune-variant" size="18" /> {{ t('builder.paneEditor') }}
         </button>
       </div>
 
       <div class="wb__grid">
-        <section
-          class="wb__preview"
-          :class="{ 'is-hidden-mobile': mobilePane !== 'preview' }"
-          :aria-label="t('studio.panePreview')"
-        >
+        <aside class="wb__rail" :class="{ 'is-hidden-mobile': pane !== 'pages' }">
+          <PagePanel
+            v-if="companyId"
+            :company-id="companyId"
+            @open-catalog="catalogPayload = $event"
+          />
+        </aside>
+
+        <section class="wb__preview" :class="{ 'is-hidden-mobile': pane !== 'preview' }">
           <WebsiteRenderer
-            v-if="data.content && data.theme"
-            :content="data.content"
-            :theme="data.theme"
+            v-if="previewContent && view.theme"
+            :content="previewContent"
+            :theme="view.theme"
+            :selected-id="selectedId"
+            editable
             framed
+            @select="onSelect"
           />
           <div v-else class="wb__empty">
             <v-icon icon="mdi-image-frame" size="34" />
-            <p>{{ t('studio.previewEmpty') }}</p>
+            <p>{{ t('builder.previewEmpty') }}</p>
           </div>
         </section>
 
-        <aside
-          class="wb__agent"
-          :class="{ 'is-hidden-mobile': mobilePane !== 'chat' }"
-          :aria-label="t('studio.agentName')"
-        >
-          <AiAgentPanel
-            :transcript="data.transcript"
-            :sending="working"
-            :disabled="disabled"
-            :note="data.complete ? t('builder.doneNote') : t('builder.liveNote')"
-            msg-prefix="builder.msg."
-            @send="onSend"
-          />
-          <div v-if="error" class="wb__err">
-            <v-icon icon="mdi-alert-circle-outline" size="16" /> {{ errText(error) }}
-          </div>
-          <div v-if="data.complete" class="wb__note">
-            <strong>{{ t('builder.doneTitle') }}</strong>
-            <span>{{ t('builder.doneText') }}</span>
-            <v-btn
-              class="mt-2"
-              color="primary"
-              size="small"
-              append-icon="mdi-arrow-right"
-              :to="{ name: 'create-location', query: { c: companyId } }"
-            >
-              {{ t('builder.continueLocation') }}
-            </v-btn>
-          </div>
+        <aside class="wb__editor" :class="{ 'is-hidden-mobile': pane !== 'editor' }">
+          <SectionEditor v-if="companyId" :company-id="companyId" />
         </aside>
       </div>
+
+      <div v-if="error" class="wb__err">
+        <v-icon icon="mdi-alert-circle-outline" size="16" /> {{ errText(error) }}
+      </div>
+
+      <div v-if="!view.locationSet" class="wb__note">
+        <strong>{{ t('builder.doneTitle') }}</strong>
+        <span>{{ t('builder.doneText') }}</span>
+        <v-btn
+          class="mt-2"
+          color="primary"
+          size="small"
+          append-icon="mdi-arrow-right"
+          :to="{ name: 'create-location', query: { c: companyId } }"
+        >
+          {{ t('builder.continueLocation') }}
+        </v-btn>
+      </div>
+      <div v-else class="wb__note wb__note--ok">
+        <v-icon icon="mdi-check-circle-outline" size="16" />
+        <span>{{ t('builder.autosaved') }}</span>
+      </div>
+
+      <SectionCatalog
+        v-if="catalogPayload && companyId"
+        :company-id="companyId"
+        :page-id="catalogPayload.pageId"
+        :index="catalogPayload.index"
+        @close="catalogPayload = null"
+      />
+
+      <AiBrief v-if="aiOpen && companyId" :company-id="companyId" @close="aiOpen = false" />
     </template>
   </div>
 </template>
@@ -180,7 +215,7 @@ onMounted(async () => {
   flex-direction: column;
   min-height: calc(100dvh - var(--tvz-topbar-h) - 2px);
   padding: clamp(1rem, 3vw, 1.75rem);
-  gap: 1rem;
+  gap: 0.9rem;
 }
 .wb__bar {
   display: flex;
@@ -291,8 +326,16 @@ onMounted(async () => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
-  gap: 1rem;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(280px, 340px);
+  gap: 0.8rem;
+}
+.wb__rail,
+.wb__editor {
+  min-height: 0;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: var(--tvz-radius-lg);
+  background: rgb(var(--v-theme-surface));
+  overflow: hidden;
 }
 .wb__preview {
   min-height: 0;
@@ -318,16 +361,6 @@ onMounted(async () => {
   border: 1px dashed var(--tvz-glass-border);
   border-radius: var(--tvz-radius-lg);
 }
-.wb__agent {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-.wb__agent > :first-child {
-  flex: 1;
-  min-height: 0;
-}
 .wb__note {
   display: flex;
   flex-direction: column;
@@ -337,6 +370,13 @@ onMounted(async () => {
   background: var(--tvz-ai-soft);
   border: 1px solid var(--tvz-glass-border);
   font-size: 0.82rem;
+}
+.wb__note--ok {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgb(var(--v-theme-on-surface) / 0.04);
+  color: rgb(var(--v-theme-on-surface) / 0.6);
 }
 .wb__note strong {
   font-size: 0.9rem;
@@ -352,7 +392,7 @@ onMounted(async () => {
   font-size: 0.8rem;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .wb__tabs {
     display: flex;
   }
@@ -360,7 +400,7 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
   .is-hidden-mobile {
-    display: none;
+    display: none !important;
   }
 }
 </style>

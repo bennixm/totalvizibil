@@ -83,7 +83,8 @@
     "pickNiche": "Alege o subcategorie ca să filtrezi mai fin.",
     "subCount": "{n} subcategorii",
     "coverageKm": "{n} km",
-    "coverageCountry": "Toată țara"
+    "coverageCountry": "Toată țara",
+    "ownSite": "Site propriu"
   },
   "company": {
     "backToFeed": "Înapoi la descoperă",
@@ -212,7 +213,16 @@
       "classic": "Echilibrat: prezentare, servicii în carduri, apoi motive și portofoliu.",
       "bold": "Impact: titlu mare aliniat la stânga, serviciile pe rânduri, portofoliu devreme.",
       "minimal": "Aerisit și sobru, cu accent pe text și mai puține secțiuni."
-    }
+    },
+    "statsTool": "Cifre cheie",
+    "statValue": "Valoare (ex: 12)",
+    "statLabel": "Etichetă (ex: ani de experiență)",
+    "addStat": "Adaugă cifră",
+    "processTool": "Cum lucrăm",
+    "processStep": "Titlul pasului",
+    "processText": "Detalii (opțional)",
+    "addStep": "Adaugă pas",
+    "hoursPlaceholder": "ex: Luni–Vineri 09:00–18:00"
   },
   "location": {
     "eyebrow": "Pasul 2 · Locație",
@@ -743,7 +753,12 @@
     "err": {
       "insufficient_credits": "Sold insuficient. Adaugă credite.",
       "advanced_builder_locked": "Builder-ul nu e deblocat.",
-      "not_an_advanced_website": "Acest website nu e pe planul avansat."
+      "not_an_advanced_website": "Acest website nu e pe planul avansat.",
+      "ai_plan_limit": "Ai atins limita de generări AI pentru acest site.",
+      "ai_section_limit": "Ai atins limita de ajustări AI pe secțiuni.",
+      "ai_unavailable": "AI-ul nu a putut genera acum. Încearcă din nou.",
+      "nothing_to_undo": "Nu există o versiune anterioară.",
+      "banned_content": "Textul conține cuvinte care nu sunt permise. Reformulează."
     },
     "msg": {
       "opening": "Salut! Sunt asistentul Totalvizibil și îți construiesc un website complex. Descrie-ne cu ce se ocupă afacerea ta.",
@@ -767,7 +782,165 @@
     "loadErrorText": "Încearcă din nou din panou.",
     "upgradeTitle": "Upgrade la planul Avansat",
     "upgradeText": "Site-ul tău simplu rămâne așa cum e. În plus primești builder-ul AI cu control complet pe secțiuni, ton, branding și SEO.",
-    "upgradeCta": "Fă upgrade · {credits} cr"
+    "upgradeCta": "Fă upgrade · {credits} cr",
+    "on": "Pornit",
+    "off": "Oprit",
+    "addRow": "Adaugă",
+    "addSection": "Adaugă secțiune",
+    "variantsShort": "variante",
+    "editorEmpty": "Selectează o secțiune din previzualizare sau din listă ca să o editezi.",
+    "variant": "Design",
+    "rename": "Redenumește",
+    "setHome": "Pagină principală",
+    "inNav": "În meniu",
+    "notInNav": "Ascunsă din meniu",
+    "toggleVisible": "Ascunde / arată",
+    "moveToPage": "Mută pe pagină",
+    "remove": "Șterge",
+    "pageN": "Pagina {n}",
+    "palette": "Culoare",
+    "customColor": "Culoare personalizată",
+    "fontLabel": "Font",
+    "radiusLabel": "Colțuri",
+    "densityLabel": "Spațiere",
+    "generateAi": "Generează cu AI",
+    "aiSoon": "Disponibil în curând",
+    "imageAdd": "Încarcă",
+    "imageChange": "Schimbă",
+    "panePages": "Pagini",
+    "panePreview": "Previzualizare",
+    "paneEditor": "Editor",
+    "previewEmpty": "Site-ul apare aici.",
+    "cat": {
+      "header": "Antet",
+      "story": "Prezentare",
+      "proof": "Încredere",
+      "offer": "Ofertă",
+      "content": "Conținut",
+      "conversion": "Conversie"
+    },
+    "font": {
+      "grotesk-inter": "Modern",
+      "serif-sans": "Clasic",
+      "mono-sans": "Tehnic",
+      "grotesk": "Grotesk",
+      "inter": "Inter",
+      "fraunces": "Serif",
+      "jetbrains": "Mono"
+    },
+    "radius": {
+      "sharp": "Drepte",
+      "soft": "Rotunjite",
+      "round": "Foarte rotunde",
+      "none": "Drepte",
+      "subtle": "Subtile",
+      "rounded": "Rotunjite",
+      "large": "Mari",
+      "pill": "Foarte rotunde"
+    },
+    "density": {
+      "compact": "Compactă",
+      "comfortable": "Normală",
+      "spacious": "Aerisită"
+    },
+    "opt": {
+      "right": "Dreapta",
+      "left": "Stânga"
+    },
+    "field": {
+      "headline": "Titlu",
+      "subheadline": "Subtitlu",
+      "primaryCta": "Buton principal",
+      "secondaryCta": "Buton secundar",
+      "image": "Imagine",
+      "title": "Titlu",
+      "body": "Text",
+      "value": "Valoare",
+      "statLabel": "Etichetă",
+      "name": "Nume",
+      "description": "Descriere",
+      "steps": "Pași",
+      "stepTitle": "Titlu pas",
+      "stepText": "Detalii",
+      "points": "Puncte",
+      "pointTitle": "Titlu",
+      "pointText": "Detalii",
+      "rows": "Rânduri",
+      "rowTitle": "Titlu",
+      "rowText": "Text",
+      "mediaSide": "Poziție imagine",
+      "photos": "Fotografii",
+      "photoTitle": "Titlu",
+      "photoCaption": "Descriere",
+      "members": "Membri",
+      "memberName": "Nume",
+      "memberRole": "Rol",
+      "memberBio": "Descriere",
+      "quotes": "Testimoniale",
+      "quote": "Citat",
+      "author": "Autor",
+      "authorRole": "Rol / companie",
+      "plans": "Planuri",
+      "planName": "Nume",
+      "price": "Preț",
+      "period": "Perioadă",
+      "planFeatures": "Ce include",
+      "planCta": "Buton",
+      "highlighted": "Evidențiat",
+      "questions": "Întrebări",
+      "question": "Întrebare",
+      "answer": "Răspuns",
+      "logos": "Logo-uri",
+      "phone": "Telefon",
+      "email": "Email",
+      "city": "Oraș",
+      "addressLine": "Adresă",
+      "hours": "Program",
+      "buttonLabel": "Text buton"
+    },
+    "aiTitle": "Generează site-ul cu AI",
+    "aiLead": "Descrie afacerea și ce vrei pe site. AI-ul alege paginile, secțiunile și textele.",
+    "aiPlaceholder": "ex: Studio de arhitectură din Cluj, proiecte rezidențiale și comerciale. Vreau pagini Acasă, Proiecte, Servicii, Despre, Contact. Ton sobru.",
+    "aiNoKey": "AI-ul nu e configurat — se folosește un plan generat automat din cuvintele-cheie.",
+    "aiConfirm": "Înțeleg că asta rescrie tot site-ul (pot reveni cu „Anulează AI”).",
+    "aiGo": "Generează",
+    "aiUndo": "Anulează AI",
+    "aiTweak": "Ajustează cu AI",
+    "aiTweakPh": "ex: fă textul mai scurt și mai direct",
+    "cancel": "Anulează",
+    "preset": {
+      "studio": "Studio",
+      "bold": "Îndrăzneț",
+      "editorial": "Editorial",
+      "soft": "Blând",
+      "tech": "Tech",
+      "warm": "Cald",
+      "mono": "Mono"
+    },
+    "fineTune": "Ajustări",
+    "background": "Fundal",
+    "btnStyleLabel": "Butoane",
+    "shadowLabel": "Umbră",
+    "headingFontLabel": "Font titluri",
+    "bodyFontLabel": "Font text",
+    "bg": {
+      "light": "Deschis",
+      "tinted": "Nuanțat",
+      "dark": "Închis"
+    },
+    "btn": {
+      "solid": "Plin",
+      "outline": "Contur",
+      "soft": "Blând",
+      "pill": "Rotund"
+    },
+    "shadow": {
+      "none": "Fără",
+      "soft": "Discretă",
+      "bold": "Pronunțată"
+    },
+    "presetLabel": "Stil",
+    "autosaved": "Modificările se salvează automat."
   },
   "site": {
     "phone": "Telefon",
@@ -781,7 +954,8 @@
     "formSend": "Trimite cererea",
     "formSending": "Se trimite…",
     "formError": "Nu am putut trimite. Verifică datele și încearcă din nou.",
-    "formThanks": "Mulțumim! Firma te va contacta în curând."
+    "formThanks": "Mulțumim! Firma te va contacta în curând.",
+    "hours": "Program"
   },
   "leads": {
     "eyebrow": "Din site-ul tău",
@@ -1152,5 +1326,102 @@
     "investigate": "Investighează",
     "openUserAdmin": "Deschide utilizatorul în admin",
     "openBusinessAdmin": "Deschide afacerea în admin"
+  },
+  "catalog": {
+    "variant": {
+      "split": "Împărțit",
+      "centered": "Centrat",
+      "imageBg": "Imagine de fundal",
+      "minimal": "Minimal",
+      "strip": "Bandă",
+      "grid": "Grilă",
+      "text": "Doar text",
+      "imageRight": "Imagine dreapta",
+      "imageLeft": "Imagine stânga",
+      "twoCol": "Două coloane",
+      "band": "Bandă închisă",
+      "plain": "Simplu",
+      "cards": "Carduri",
+      "list": "Listă",
+      "iconGrid": "Grilă cu iconuri",
+      "vertical": "Vertical",
+      "horizontal": "Orizontal",
+      "alternating": "Alternat",
+      "stacked": "Stivuit",
+      "masonry": "Mozaic",
+      "wide": "Lat",
+      "compact": "Compact",
+      "quote": "Citat mare",
+      "columns": "Coloane",
+      "tiers": "Pachete",
+      "accordion": "Acordeon",
+      "narrow": "Îngust",
+      "gradient": "Degrade",
+      "solid": "Plin"
+    },
+    "hero": {
+      "label": "Hero",
+      "desc": "Antet mare cu titlu și buton"
+    },
+    "logos": {
+      "label": "Logo-uri clienți",
+      "desc": "Bandă cu logo-uri de clienți sau parteneri"
+    },
+    "about": {
+      "label": "Despre",
+      "desc": "Paragraf de prezentare, opțional cu imagine"
+    },
+    "stats": {
+      "label": "Cifre",
+      "desc": "Bandă cu numere cheie"
+    },
+    "services": {
+      "label": "Servicii",
+      "desc": "Grilă sau listă de servicii"
+    },
+    "process": {
+      "label": "Pași",
+      "desc": "Cum lucrați, în pași numerotați"
+    },
+    "features": {
+      "label": "Avantaje",
+      "desc": "Puncte forte pe grilă"
+    },
+    "featureSplit": {
+      "label": "Text + imagine",
+      "desc": "Rânduri alternate text și imagine"
+    },
+    "gallery": {
+      "label": "Galerie",
+      "desc": "Portofoliu de imagini"
+    },
+    "team": {
+      "label": "Echipă",
+      "desc": "Membrii echipei"
+    },
+    "testimonials": {
+      "label": "Testimoniale",
+      "desc": "Ce spun clienții"
+    },
+    "pricing": {
+      "label": "Prețuri",
+      "desc": "Pachete de preț"
+    },
+    "faq": {
+      "label": "Întrebări frecvente",
+      "desc": "Listă de întrebări și răspunsuri"
+    },
+    "richText": {
+      "label": "Text liber",
+      "desc": "Bloc de text pentru pagini de conținut"
+    },
+    "cta": {
+      "label": "Call to action",
+      "desc": "Îndemn la acțiune cu buton"
+    },
+    "contact": {
+      "label": "Contact",
+      "desc": "Date de contact și program"
+    }
   }
 }

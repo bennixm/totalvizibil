@@ -51,7 +51,7 @@ function pickTheme(input: GeneratorInput): WebsiteTheme {
     return {
       palette: input.palette ?? 'indigo',
       fontPair: input.fontPair ?? 'grotesk-inter',
-      radius: input.radius ?? 'soft',
+      radius: input.radius ?? 'rounded',
       density: 'comfortable',
     };
   }
@@ -66,7 +66,7 @@ function pickTheme(input: GeneratorInput): WebsiteTheme {
         : /(beauty|salon|hair|spa|studio)/.test(t)
           ? 'rose'
           : 'indigo';
-  return { palette, fontPair: 'grotesk-inter', radius: 'soft', density: 'comfortable' };
+  return { palette, fontPair: 'grotesk-inter', radius: 'rounded', density: 'comfortable' };
 }
 
 function serviceItems(names: string[], businessType: string): ServiceItem[] {

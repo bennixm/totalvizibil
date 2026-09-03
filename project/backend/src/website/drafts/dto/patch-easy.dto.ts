@@ -42,6 +42,27 @@ export class EasyFaqDto {
   a!: string;
 }
 
+export class EasyStatDto {
+  @IsString()
+  @MaxLength(24)
+  value!: string;
+
+  @IsString()
+  @MaxLength(60)
+  label!: string;
+}
+
+export class EasyProcessDto {
+  @IsString()
+  @MaxLength(80)
+  title!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  text?: string;
+}
+
 /** Live config edits from the studio widgets — no chat turn is spent. */
 export class PatchEasyDto {
   @IsOptional()
@@ -105,6 +126,17 @@ export class PatchEasyDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(4)
+  @ValidateNested({ each: true })
+  @Type(() => EasyStatDto)
+  stats?: EasyStatDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  showStats?: boolean;
+
+  @IsOptional()
+  @IsArray()
   @ArrayMaxSize(6)
   @IsString({ each: true })
   @MaxLength(90, { each: true })
@@ -113,6 +145,17 @@ export class PatchEasyDto {
   @IsOptional()
   @IsBoolean()
   showWhyUs?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(6)
+  @ValidateNested({ each: true })
+  @Type(() => EasyProcessDto)
+  process?: EasyProcessDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  showProcess?: boolean;
 
   @IsOptional()
   @IsArray()
@@ -141,6 +184,11 @@ export class PatchEasyDto {
   @IsOptional()
   @IsBoolean()
   showCta?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  hours?: string;
 
   @IsOptional()
   @IsIn(['classic', 'bold', 'minimal'])

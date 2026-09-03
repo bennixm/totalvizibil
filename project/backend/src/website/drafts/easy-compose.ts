@@ -12,8 +12,10 @@ import {
   FeatureItem,
   GeneratedWebsite,
   GalleryItem,
+  ProcessItem,
   Section,
   ServiceItem,
+  StatItem,
   WebsiteTheme,
 } from '../website.types';
 import { pickFeatureIcon, pickServiceIcon } from './service-icons';
@@ -27,6 +29,14 @@ export interface EasyTestimonial {
 export interface EasyFaq {
   q: string;
   a: string;
+}
+export interface EasyStat {
+  value: string;
+  label: string;
+}
+export interface EasyProcessStep {
+  title: string;
+  text?: string;
 }
 
 export interface EasyAnswers {
@@ -54,14 +64,22 @@ export interface EasyAnswers {
   /** "About us" paragraph. Empty ⇒ a deterministic default is used. */
   about?: string;
   showAbout?: boolean;
+  /** Headline numbers band (years, projects, rating…). Opt-in. */
+  stats?: EasyStat[];
+  showStats?: boolean;
   /** "Why choose us" bullet points. Empty ⇒ deterministic defaults. */
   whyUs?: string[];
   showWhyUs?: boolean;
+  /** "How we work" steps. Empty ⇒ deterministic defaults. */
+  process?: EasyProcessStep[];
+  showProcess?: boolean;
   testimonials?: EasyTestimonial[];
   faq?: EasyFaq[];
   ctaHeadline?: string;
   ctaButton?: string;
   showCta?: boolean;
+  /** Opening hours, free text (Contact section). */
+  hours?: string;
 
   /** One-pager layout variant chosen at the start. */
   template?: 'classic' | 'bold' | 'minimal';
@@ -81,8 +99,11 @@ interface Labels {
   servicesTitle: string;
   aboutTitle: string;
   aboutDefault: (name: string, trade: string, city: string) => string;
+  statsTitle: string;
   whyUsTitle: string;
   whyUsDefault: string[];
+  processTitle: string;
+  processDefault: EasyProcessStep[];
   portfolioTitle: string;
   testimonialsTitle: string;
   faqTitle: string;
@@ -104,12 +125,26 @@ const LABELS: Record<StudioLocale, Labels> = {
       `${name} este o echipă${trade ? ` de ${trade.toLowerCase()}` : ''}${city ? ` din ${city}` : ''} ` +
       `care pune accent pe lucrări făcute corect, comunicare clară și termene respectate. ` +
       `Venim la evaluare, îți explicăm opțiunile pe înțelesul tău și ducem treaba la capăt.`,
+    statsTitle: 'În cifre',
     whyUsTitle: 'De ce să ne alegi',
     whyUsDefault: [
       'Răspuns rapid la solicitări',
       'Preț corect, comunicat din start',
       'Lucrări cu garanție',
       'Echipă cu experiență',
+    ],
+    processTitle: 'Cum lucrăm',
+    processDefault: [
+      { title: 'Contact și programare', text: 'Ne spui ce ai nevoie și stabilim o vizită.' },
+      {
+        title: 'Evaluare și ofertă',
+        text: 'Vedem lucrarea la fața locului și primești o ofertă clară.',
+      },
+      { title: 'Execuție', text: 'Ne apucăm de treabă, cu materiale de calitate și la termen.' },
+      {
+        title: 'Predare și garanție',
+        text: 'Verificăm împreună rezultatul și îți lăsăm garanție.',
+      },
     ],
     portfolioTitle: 'Portofoliu',
     testimonialsTitle: 'Ce spun clienții',
@@ -134,12 +169,26 @@ const LABELS: Record<StudioLocale, Labels> = {
       `${name} is a${trade ? ` ${trade.toLowerCase()}` : ''} team${city ? ` based in ${city}` : ''} ` +
       `focused on work done right, clear communication and deadlines that hold. ` +
       `We assess on site, walk you through the options in plain terms, and see the job through.`,
+    statsTitle: 'By the numbers',
     whyUsTitle: 'Why choose us',
     whyUsDefault: [
       'Fast response to enquiries',
       'Fair pricing, quoted up front',
       'Work backed by a guarantee',
       'An experienced team',
+    ],
+    processTitle: 'How we work',
+    processDefault: [
+      { title: 'Get in touch', text: 'Tell us what you need and we set up a visit.' },
+      {
+        title: 'Assessment & quote',
+        text: 'We look at the job on site and you get a clear quote.',
+      },
+      { title: 'The work', text: 'We get started, with quality materials and on schedule.' },
+      {
+        title: 'Handover & guarantee',
+        text: 'We check the result together and leave you a guarantee.',
+      },
     ],
     portfolioTitle: 'Portfolio',
     testimonialsTitle: 'What clients say',
@@ -164,12 +213,29 @@ const LABELS: Record<StudioLocale, Labels> = {
       `${name} ist ein${trade ? ` ${trade}` : ''}-Team${city ? ` aus ${city}` : ''}, ` +
       `das auf saubere Ausführung, klare Kommunikation und verlässliche Termine setzt. ` +
       `Wir schauen uns alles vor Ort an, erklären die Optionen verständlich und bringen den Auftrag zu Ende.`,
+    statsTitle: 'In Zahlen',
     whyUsTitle: 'Warum wir',
     whyUsDefault: [
       'Schnelle Rückmeldung auf Anfragen',
       'Faire Preise, vorab genannt',
       'Arbeiten mit Garantie',
       'Ein erfahrenes Team',
+    ],
+    processTitle: 'So arbeiten wir',
+    processDefault: [
+      {
+        title: 'Kontakt & Termin',
+        text: 'Sagen Sie uns, was Sie brauchen, wir vereinbaren einen Termin.',
+      },
+      {
+        title: 'Einschätzung & Angebot',
+        text: 'Wir sehen uns die Arbeit vor Ort an, Sie erhalten ein klares Angebot.',
+      },
+      { title: 'Ausführung', text: 'Wir legen los, mit guten Materialien und termingerecht.' },
+      {
+        title: 'Übergabe & Garantie',
+        text: 'Wir prüfen das Ergebnis gemeinsam und geben Ihnen Garantie.',
+      },
     ],
     portfolioTitle: 'Portfolio',
     testimonialsTitle: 'Das sagen Kunden',
@@ -240,7 +306,9 @@ export type TemplateKey = 'classic' | 'bold' | 'minimal';
 type SectionKind =
   | 'hero'
   | 'about'
+  | 'stats'
   | 'services'
+  | 'process'
   | 'features'
   | 'gallery'
   | 'testimonials'
@@ -255,12 +323,12 @@ interface TemplateSpec {
   heroAlign: 'center' | 'start';
   servicesLayout: 'cards' | 'list';
   order: SectionKind[];
-  defaults: { about: boolean; whyUs: boolean; cta: boolean };
+  defaults: { about: boolean; stats: boolean; whyUs: boolean; process: boolean; cta: boolean };
 }
 
 const TEMPLATES: Record<TemplateKey, TemplateSpec> = {
   classic: {
-    radius: 'soft',
+    radius: 'rounded',
     fontPair: 'grotesk-inter',
     density: 'comfortable',
     heroAlign: 'center',
@@ -268,7 +336,9 @@ const TEMPLATES: Record<TemplateKey, TemplateSpec> = {
     order: [
       'hero',
       'about',
+      'stats',
       'services',
+      'process',
       'features',
       'gallery',
       'testimonials',
@@ -276,18 +346,20 @@ const TEMPLATES: Record<TemplateKey, TemplateSpec> = {
       'cta',
       'contact',
     ],
-    defaults: { about: true, whyUs: true, cta: true },
+    defaults: { about: true, stats: false, whyUs: true, process: true, cta: true },
   },
   bold: {
-    radius: 'sharp',
+    radius: 'subtle',
     fontPair: 'grotesk-inter',
     density: 'compact',
     heroAlign: 'start',
     servicesLayout: 'list',
     order: [
       'hero',
+      'stats',
       'services',
       'gallery',
+      'process',
       'features',
       'testimonials',
       'about',
@@ -295,16 +367,26 @@ const TEMPLATES: Record<TemplateKey, TemplateSpec> = {
       'cta',
       'contact',
     ],
-    defaults: { about: true, whyUs: true, cta: true },
+    defaults: { about: true, stats: false, whyUs: true, process: true, cta: true },
   },
   minimal: {
-    radius: 'round',
+    radius: 'large',
     fontPair: 'serif-sans',
     density: 'spacious',
     heroAlign: 'center',
     servicesLayout: 'cards',
-    order: ['hero', 'about', 'services', 'gallery', 'testimonials', 'faq', 'cta', 'contact'],
-    defaults: { about: true, whyUs: false, cta: true },
+    order: [
+      'hero',
+      'about',
+      'services',
+      'process',
+      'gallery',
+      'testimonials',
+      'faq',
+      'cta',
+      'contact',
+    ],
+    defaults: { about: true, stats: false, whyUs: false, process: false, cta: true },
   },
 };
 
@@ -316,13 +398,17 @@ export const TEMPLATE_KEYS: TemplateKey[] = ['classic', 'bold', 'minimal'];
 /** Effective section visibility = the client's answer, or the template default. */
 export function effectiveToggles(a: EasyAnswers): {
   showAbout: boolean;
+  showStats: boolean;
   showWhyUs: boolean;
+  showProcess: boolean;
   showCta: boolean;
 } {
   const d = TEMPLATES[templateKey(a.template)].defaults;
   return {
     showAbout: a.showAbout ?? d.about,
+    showStats: a.showStats ?? d.stats,
     showWhyUs: a.showWhyUs ?? d.whyUs,
+    showProcess: a.showProcess ?? d.process,
     showCta: a.showCta ?? d.cta,
   };
 }
@@ -338,7 +424,9 @@ export function composeEasySite(a: EasyAnswers): GeneratedWebsite {
   const accent = /^#[0-9a-fA-F]{6}$/.test(a.accentColor ?? '') ? a.accentColor : undefined;
 
   const showAbout = a.showAbout ?? tpl.defaults.about;
+  const showStats = a.showStats ?? tpl.defaults.stats;
   const showWhyUs = a.showWhyUs ?? tpl.defaults.whyUs;
+  const showProcess = a.showProcess ?? tpl.defaults.process;
   const showCta = a.showCta ?? tpl.defaults.cta;
 
   const rawServices: ServiceItem[] = a.services?.length
@@ -368,6 +456,24 @@ export function composeEasySite(a: EasyAnswers): GeneratedWebsite {
     title,
     icon: pickFeatureIcon(title),
   }));
+
+  const statItems: StatItem[] = (a.stats ?? [])
+    .map((s) => ({ value: (s.value ?? '').trim(), label: (s.label ?? '').trim() }))
+    .filter((s) => s.value && s.label)
+    .slice(0, 4);
+
+  const processSteps: ProcessItem[] = (
+    a.process
+      ?.map((s) => ({ title: (s.title ?? '').trim(), text: (s.text ?? '').trim() }))
+      .filter((s) => s.title).length
+      ? a
+          .process!.map((s) => ({
+            title: (s.title ?? '').trim(),
+            text: (s.text ?? '').trim() || undefined,
+          }))
+          .filter((s) => s.title)
+      : L.processDefault.map((s) => ({ ...s }))
+  ).slice(0, 6);
 
   const testimonials = (a.testimonials ?? [])
     .map((tt) => ({ quote: (tt.quote ?? '').trim(), author: (tt.author ?? '').trim() }))
@@ -405,6 +511,7 @@ export function composeEasySite(a: EasyAnswers): GeneratedWebsite {
       phone: a.phone?.trim() || undefined,
       email: a.email?.trim() || undefined,
       city: city || undefined,
+      hours: a.hours?.trim() || undefined,
     },
   };
 
@@ -415,6 +522,24 @@ export function composeEasySite(a: EasyAnswers): GeneratedWebsite {
       visible: true,
       title: L.aboutTitle,
       body: (a.about ?? '').trim() || L.aboutDefault(name, trade, city),
+    };
+  }
+  if (showStats && statItems.length) {
+    byKind.stats = {
+      id: 'stats',
+      type: 'stats',
+      visible: true,
+      title: L.statsTitle,
+      items: statItems,
+    };
+  }
+  if (showProcess && processSteps.length) {
+    byKind.process = {
+      id: 'process',
+      type: 'process',
+      visible: true,
+      title: L.processTitle,
+      items: processSteps,
     };
   }
   if (showWhyUs && features.length) {

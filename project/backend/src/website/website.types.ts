@@ -5,12 +5,19 @@
 
 export type SectionType =
   | 'hero'
+  | 'logos'
   | 'about'
+  | 'stats'
   | 'services'
+  | 'process'
   | 'features'
+  | 'featureSplit'
   | 'gallery'
+  | 'team'
   | 'testimonials'
+  | 'pricing'
   | 'faq'
+  | 'richText'
   | 'contact'
   | 'cta';
 
@@ -18,6 +25,8 @@ export interface BaseSection {
   id: string;
   type: SectionType;
   visible: boolean;
+  /** Design variant within the section type (Advanced builder catalog). */
+  variant?: string;
 }
 
 export interface HeroSection extends BaseSection {
@@ -36,6 +45,18 @@ export interface AboutSection extends BaseSection {
   type: 'about';
   title: string;
   body: string;
+  /** Optional side image (`imageRight` / `imageLeft` variants). */
+  imageUrl?: string;
+}
+
+export interface LogoItem {
+  name: string;
+  imageUrl?: string;
+}
+export interface LogosSection extends BaseSection {
+  type: 'logos';
+  title?: string;
+  items: LogoItem[];
 }
 
 export interface ServiceItem {
@@ -64,14 +85,63 @@ export interface FeaturesSection extends BaseSection {
   items: FeatureItem[];
 }
 
+export interface FeatureSplitItem {
+  title: string;
+  text?: string;
+  imageUrl?: string;
+  /** Which side the image sits on for this row. */
+  mediaSide?: 'left' | 'right';
+}
+export interface FeatureSplitSection extends BaseSection {
+  type: 'featureSplit';
+  title?: string;
+  items: FeatureSplitItem[];
+}
+
+export interface StatItem {
+  value: string;
+  label: string;
+}
+export interface StatsSection extends BaseSection {
+  type: 'stats';
+  title?: string;
+  items: StatItem[];
+}
+
+export interface ProcessItem {
+  title: string;
+  text?: string;
+}
+export interface ProcessSection extends BaseSection {
+  type: 'process';
+  title: string;
+  items: ProcessItem[];
+}
+
 export interface TestimonialItem {
   quote: string;
   author: string;
+  /** Optional role/company line under the author. */
+  role?: string;
 }
 export interface TestimonialsSection extends BaseSection {
   type: 'testimonials';
   title: string;
   items: TestimonialItem[];
+}
+
+export interface PricingItem {
+  name: string;
+  price: string;
+  period?: string;
+  features: string[];
+  cta?: string;
+  highlighted?: boolean;
+}
+export interface PricingSection extends BaseSection {
+  type: 'pricing';
+  title: string;
+  items: PricingItem[];
 }
 
 export interface FaqItem {
@@ -84,6 +154,13 @@ export interface FaqSection extends BaseSection {
   items: FaqItem[];
 }
 
+export interface RichTextSection extends BaseSection {
+  type: 'richText';
+  title?: string;
+  /** Plain text; the renderer splits paragraphs on blank lines. */
+  body: string;
+}
+
 export interface ContactSection extends BaseSection {
   type: 'contact';
   title: string;
@@ -91,6 +168,8 @@ export interface ContactSection extends BaseSection {
   email?: string;
   city?: string;
   addressLine?: string;
+  /** Opening hours, free text (Simple-site builder). */
+  hours?: string;
 }
 
 export interface CtaSection extends BaseSection {
@@ -111,14 +190,38 @@ export interface GallerySection extends BaseSection {
   items: GalleryItem[];
 }
 
+export interface TeamLink {
+  label: string;
+  url: string;
+}
+export interface TeamMember {
+  name: string;
+  role?: string;
+  bio?: string;
+  imageUrl?: string;
+  links?: TeamLink[];
+}
+export interface TeamSection extends BaseSection {
+  type: 'team';
+  title: string;
+  items: TeamMember[];
+}
+
 export type Section =
   | HeroSection
+  | LogosSection
   | AboutSection
+  | StatsSection
   | ServicesSection
+  | ProcessSection
   | FeaturesSection
+  | FeatureSplitSection
   | GallerySection
+  | TeamSection
   | TestimonialsSection
+  | PricingSection
   | FaqSection
+  | RichTextSection
   | ContactSection
   | CtaSection;
 
@@ -126,6 +229,8 @@ export interface WebsitePage {
   slug: string;
   title: string;
   isHome: boolean;
+  /** Show this page in the site's top navigation (Advanced builder). Default true. */
+  nav?: boolean;
   sections: Section[];
 }
 
@@ -140,17 +245,42 @@ export interface WebsiteContent {
   seo: WebsiteSeo;
 }
 
+export type ThemePalette =
+  | 'indigo'
+  | 'violet'
+  | 'blue'
+  | 'cyan'
+  | 'teal'
+  | 'emerald'
+  | 'lime'
+  | 'amber'
+  | 'orange'
+  | 'rose'
+  | 'fuchsia'
+  | 'slate';
+
+export type ThemeRadius = 'none' | 'subtle' | 'rounded' | 'large' | 'pill';
+export type ThemeFont = 'grotesk' | 'inter' | 'fraunces' | 'jetbrains';
+
 export interface WebsiteTheme {
-  palette: 'indigo' | 'emerald' | 'amber' | 'slate' | 'rose';
+  palette: ThemePalette;
+  /** Legacy coupled font pair (Simple-site builder). `headingFont`/`bodyFont` win when set. */
   fontPair: 'grotesk-inter' | 'serif-sans' | 'mono-sans';
-  radius: 'sharp' | 'soft' | 'round';
+  radius: ThemeRadius;
   density: 'compact' | 'comfortable' | 'spacious';
   /**
-   * Custom brand colour picked in the Simple-site builder (`#rrggbb`). When set
-   * it overrides the named `palette` in the renderer; `palette` is kept as the
-   * nearest-match fallback.
+   * Custom brand colour (`#rrggbb`). When set it overrides the named `palette`
+   * in the renderer; `palette` is kept as the nearest-match fallback.
    */
   accent?: string;
+  /** Named style bundle chosen in the Advanced builder (UI highlight + round-trip). */
+  preset?: string;
+  /** Page surface mode (Advanced builder). */
+  background?: 'light' | 'tinted' | 'dark';
+  headingFont?: ThemeFont;
+  bodyFont?: ThemeFont;
+  buttonStyle?: 'solid' | 'outline' | 'soft' | 'pill';
+  shadow?: 'none' | 'soft' | 'bold';
 }
 
 // --- Generator inputs -----------------------------------------------------

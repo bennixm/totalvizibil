@@ -43,10 +43,15 @@ export interface FeedItem {
     nationwide: boolean
   } | null
   services: string[]
+  servicesTotal: number
   hasWebsite: boolean
-  /** Landing headline + background image from the generated site, reused on the ad card. */
+  /** Landing headline / sub / visual + theme accent from the generated site. */
   heroTitle: string | null
+  heroSubtitle: string | null
   heroImage: string | null
+  /** The site was made with the Advanced builder → featured ("own website") card. */
+  builtWithBuilder: boolean
+  accent: string | null
   score: number
 }
 
