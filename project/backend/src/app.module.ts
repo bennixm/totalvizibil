@@ -14,6 +14,7 @@ import { FeedModule } from './feed/feed.module';
 import { WebsiteModule } from './website/website.module';
 import { GeoModule } from './geo/geo.module';
 import { WalletModule } from './wallet/wallet.module';
+import { BillingModule } from './billing/billing.module';
 import { CampaignModule } from './campaigns/campaign.module';
 import { LeadsModule } from './leads/leads.module';
 import { AnalyticsModule } from './analytics/analytics.module';
@@ -35,6 +36,7 @@ import { HealthModule } from './health/health.module';
     FeedModule,
     WebsiteModule,
     GeoModule,
+    BillingModule,
     WalletModule,
     CampaignModule,
     LeadsModule,

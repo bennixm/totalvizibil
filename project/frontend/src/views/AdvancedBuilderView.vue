@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -10,6 +10,7 @@ import SectionEditor from '@/components/builder/SectionEditor.vue'
 import SectionCatalog from '@/components/builder/SectionCatalog.vue'
 import ThemeBar from '@/components/builder/ThemeBar.vue'
 import AiBrief from '@/components/builder/AiBrief.vue'
+import AiLoader from '@/components/builder/AiLoader.vue'
 import { useCompaniesStore } from '@/stores/companies'
 import { useBuilderStore } from '@/stores/builder'
 
@@ -18,22 +19,40 @@ const route = useRoute()
 const router = useRouter()
 const companies = useCompaniesStore()
 const builder = useBuilderStore()
-const { view, activePage, selectedId, loading, working, error } = storeToRefs(builder)
+const { overview } = storeToRefs(companies)
+const { view, activePage, selectedId, loading, working, aiPlanning, error } = storeToRefs(builder)
 
 const companyId = ref<string | null>(null)
 const pane = ref<'pages' | 'preview' | 'editor'>('pages')
 const catalogPayload = ref<{ pageId: string; index?: number } | null>(null)
 const aiOpen = ref(false)
+const aiNotesDismissed = ref(false)
+const aiNotes = computed(() => view.value?.doc?.ai?.notes ?? [])
+watch(aiNotes, () => (aiNotesDismissed.value = false))
 
 const balance = computed(() => view.value?.wallet.balance.credits ?? 0)
 const price = computed(() => view.value?.priceCredits ?? 0)
 const funded = computed(() => balance.value >= price.value)
 const isUpgrade = computed(() => view.value?.mode === 'easy')
+// No campaign row yet at all → this is the first pass through the builder
+// (unlock → build → set location → set budget), not a later edit visit.
+const isFirstTimeSetup = computed(
+  () => overview.value.find((c) => c.id === companyId.value)?.campaignStatus == null,
+)
+// A business scheduled for deletion can't unlock/edit the builder during its
+// grace window (see `website-builder.service.ts` `load()`'s `needEdit` gate).
+const pendingDeletion = computed(
+  () => !!overview.value.find((c) => c.id === companyId.value)?.deletionScheduledAt,
+)
+const aiPlanLimit = computed(() => view.value?.aiLimits?.plan ?? 6)
+const aiSectionLimit = computed(() => view.value?.aiLimits?.section ?? 40)
+const aiPlanLeft = computed(() => view.value?.aiLimits?.planLeft ?? aiPlanLimit.value)
 
 const KNOWN_ERR = [
   'insufficient_credits',
   'advanced_builder_locked',
   'not_an_advanced_website',
+  'company_pending_deletion',
   'ai_plan_limit',
   'ai_section_limit',
   'ai_unavailable',
@@ -100,6 +119,20 @@ onMounted(async () => {
       <v-icon :icon="isUpgrade ? 'mdi-creation' : 'mdi-lock-open-variant-outline'" size="34" />
       <h2>{{ isUpgrade ? t('builder.upgradeTitle') : t('builder.lockTitle') }}</h2>
       <p class="wb__lockText">{{ isUpgrade ? t('builder.upgradeText') : t('builder.lockText') }}</p>
+
+      <ul class="wb__feats">
+        <li><v-icon icon="mdi-file-tree" size="16" /> {{ t('builder.feat.pages') }}</li>
+        <li><v-icon icon="mdi-view-grid-plus-outline" size="16" /> {{ t('builder.feat.sections') }}</li>
+        <li><v-icon icon="mdi-palette-outline" size="16" /> {{ t('builder.feat.design') }}</li>
+        <li class="wb__feats-hi">
+          <v-icon icon="mdi-infinity" size="16" /> {{ t('builder.feat.unlimited') }}
+        </li>
+        <li>
+          <v-icon icon="mdi-creation" size="16" />
+          {{ t('builder.feat.ai', { plan: aiPlanLimit, section: aiSectionLimit }) }}
+        </li>
+      </ul>
+
       <div class="wb__lockPrice">
         <strong>{{ t('builder.priceValue', { credits: price }) }}</strong>
         <span>{{ t('builder.balance', { n: n(balance, { maximumFractionDigits: 2 }) }) }}</span>
@@ -118,7 +151,7 @@ onMounted(async () => {
         </v-btn>
         <v-btn
           color="primary"
-          :disabled="!funded"
+          :disabled="!funded || pendingDeletion"
           :loading="working"
           append-icon="mdi-arrow-right"
           @click="unlock"
@@ -178,6 +211,19 @@ onMounted(async () => {
         <v-icon icon="mdi-alert-circle-outline" size="16" /> {{ errText(error) }}
       </div>
 
+      <div v-if="aiNotes.length && !aiNotesDismissed" class="wb__ainote">
+        <v-icon icon="mdi-pencil-outline" size="16" />
+        <div>
+          <strong>{{ t('builder.aiNoteTitle') }}</strong>
+          <ul>
+            <li v-for="n in aiNotes" :key="n">{{ t(`builder.aiNote.${n}`) }}</li>
+          </ul>
+        </div>
+        <button type="button" class="wb__ainote-x" @click="aiNotesDismissed = true">
+          <v-icon icon="mdi-close" size="16" />
+        </button>
+      </div>
+
       <div v-if="!view.locationSet" class="wb__note">
         <strong>{{ t('builder.doneTitle') }}</strong>
         <span>{{ t('builder.doneText') }}</span>
@@ -191,10 +237,28 @@ onMounted(async () => {
           {{ t('builder.continueLocation') }}
         </v-btn>
       </div>
+      <div v-else-if="isFirstTimeSetup" class="wb__note">
+        <strong>{{ t('builder.doneTitle') }}</strong>
+        <span>{{ t('builder.doneText') }}</span>
+        <v-btn
+          class="mt-2"
+          color="primary"
+          size="small"
+          append-icon="mdi-arrow-right"
+          :to="{ name: 'campaign', query: { c: companyId } }"
+        >
+          {{ t('builder.continueBudget') }}
+        </v-btn>
+      </div>
       <div v-else class="wb__note wb__note--ok">
         <v-icon icon="mdi-check-circle-outline" size="16" />
         <span>{{ t('builder.autosaved') }}</span>
       </div>
+
+      <p v-if="view.aiConfigured" class="wb__aiquota">
+        <v-icon icon="mdi-creation" size="13" />
+        {{ t('builder.aiQuota', { left: aiPlanLeft, limit: aiPlanLimit }) }}
+      </p>
 
       <SectionCatalog
         v-if="catalogPayload && companyId"
@@ -206,6 +270,8 @@ onMounted(async () => {
 
       <AiBrief v-if="aiOpen && companyId" :company-id="companyId" @close="aiOpen = false" />
     </template>
+
+    <AiLoader v-if="aiPlanning" />
   </div>
 </template>
 
@@ -278,6 +344,35 @@ onMounted(async () => {
   margin: 0;
   color: rgb(var(--v-theme-on-surface) / 0.66);
   font-size: 0.9rem;
+}
+.wb__feats {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0.9rem 1rem;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-radius: var(--tvz-radius-md);
+  background: rgb(var(--v-theme-on-surface) / 0.04);
+  border: 1px solid var(--tvz-hairline);
+  font-size: 0.84rem;
+  color: rgb(var(--v-theme-on-surface) / 0.8);
+}
+.wb__feats li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.wb__feats li .v-icon {
+  margin-top: 0.1rem;
+  color: rgb(var(--v-theme-primary));
+  flex: none;
+}
+.wb__feats-hi {
+  font-weight: 700;
+  color: rgb(var(--v-theme-on-surface) / 0.95);
 }
 .wb__lockPrice {
   margin: 0.6rem 0;
@@ -370,6 +465,38 @@ onMounted(async () => {
   background: var(--tvz-ai-soft);
   border: 1px solid var(--tvz-glass-border);
   font-size: 0.82rem;
+}
+.wb__ainote {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem;
+  border-radius: var(--tvz-radius-md);
+  background: rgb(var(--v-theme-warning) / 0.12);
+  border: 1px solid rgb(var(--v-theme-warning) / 0.35);
+  font-size: 0.82rem;
+}
+.wb__ainote strong {
+  font-size: 0.86rem;
+}
+.wb__ainote ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+.wb__ainote-x {
+  margin-left: auto;
+  color: rgb(var(--v-theme-on-surface) / 0.5);
+}
+.wb__aiquota {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: rgb(var(--v-theme-on-surface) / 0.5);
+}
+.wb__aiquota .v-icon {
+  color: rgb(var(--v-theme-primary));
 }
 .wb__note--ok {
   flex-direction: row;

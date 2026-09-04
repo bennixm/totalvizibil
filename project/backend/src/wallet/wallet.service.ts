@@ -7,7 +7,8 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
-import { CREDIT_MINOR, eurCentsToRonBani, money } from './money';
+import { BillingService, isProfileComplete } from '../billing/billing.service';
+import { CREDIT_MINOR, eurCentsToRonBani, minorToCredits, money } from './money';
 import { WALLET_CURRENCIES, WalletCurrency } from './dto/set-currency.dto';
 
 const MAX_PURCHASE_CREDITS = 100_000;
@@ -25,6 +26,7 @@ export class WalletService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: PlatformSettingsService,
+    private readonly billing: BillingService,
   ) {}
 
   // --- helpers ---------------------------------------------------------
@@ -73,7 +75,7 @@ export class WalletService {
   /** Wallet summary for a user. No auth check — callers guard access. */
   async getSummary(userId: string) {
     const wallet = await this.ensureWallet(userId);
-    const [purchases, spends, eurRonRate] = await Promise.all([
+    const [purchases, spends, eurRonRate, billingProfile, unbilled] = await Promise.all([
       this.prisma.walletTransaction.aggregate({
         where: { walletId: wallet.id, type: 'purchase', status: 'completed' },
         _sum: { amountMinor: true, eurCents: true },
@@ -83,6 +85,8 @@ export class WalletService {
         _sum: { amountMinor: true },
       }),
       this.settings.eurRonRate(),
+      this.billing.getProfile(userId),
+      this.billing.unbilledPurchases(userId),
     ]);
 
     const purchasedMinor = purchases._sum.amountMinor ?? 0;
@@ -99,6 +103,11 @@ export class WalletService {
       blockedAt: wallet.blockedAt,
       blockedReason: wallet.blockedReason,
       updatedAt: wallet.updatedAt,
+      // A deposit can never be confirmed without a complete billing profile
+      // (see confirmPurchase) — surfaced here so the Wallet page can show the
+      // gate/alert without a second round-trip.
+      billingProfileComplete: isProfileComplete(billingProfile),
+      unbilledPurchases: unbilled.count,
     };
   }
 
@@ -234,7 +243,7 @@ export class WalletService {
       companyId: t.companyId,
       companyName: t.company?.displayName ?? null,
       // Rolled-up ad-click count for the daily CPC row (else null).
-      clicks: t.provider === CPC_PROVIDER && t.providerRef ? Number(t.providerRef) : null,
+      clicks: t.provider === CPC_PROVIDER ? (t.clickCount ?? null) : null,
       createdAt: t.createdAt,
     }));
 
@@ -288,11 +297,19 @@ export class WalletService {
     };
   }
 
-  /** Confirm a pending purchase and apply the credits to the balance. Atomic. */
+  /**
+   * Confirm a pending purchase and apply the credits to the balance. Atomic.
+   * Every deposit must produce an invoice, so a client with no complete billing
+   * profile is rejected up front — no balance change, nothing to undo.
+   */
   async confirmPurchase(userId: string, transactionId: string) {
     const wallet = await this.ensureWallet(userId);
+    const profile = await this.billing.getProfile(userId);
+    if (!isProfileComplete(profile)) {
+      throw new BadRequestException('billing_profile_incomplete');
+    }
 
-    await this.prisma.$transaction(async (tx) => {
+    const invoice = await this.prisma.$transaction(async (tx) => {
       const txn = await tx.walletTransaction.findUnique({ where: { id: transactionId } });
       if (!txn || txn.walletId !== wallet.id || txn.type !== 'purchase') {
         throw new NotFoundException('Transaction not found');
@@ -313,9 +330,18 @@ export class WalletService {
           providerRef: `dev-${Date.now()}`,
         },
       });
+
+      return this.billing.issueInvoice(tx, {
+        userId,
+        walletTransactionId: txn.id,
+        ronBani: txn.ronBani ?? txn.amountMinor,
+        eurCents: txn.eurCents,
+        fxRate: txn.fxRate,
+        credits: minorToCredits(txn.amountMinor),
+      });
     });
 
-    return this.getSummary(userId);
+    return { ...(await this.getSummary(userId)), invoice };
   }
 
   // --- spend --------------------------------------------------------
@@ -369,7 +395,11 @@ export class WalletService {
   /**
    * CPC click charge. Instead of one ledger row per click (a spam of tiny
    * transactions), it accumulates into a single "Ad clicks" `spend` row per
-   * company per UTC day — amount and click count roll up on that row.
+   * company per UTC day — amount and click count roll up on that row. The
+   * roll-up is a single atomic `upsert` on the `(walletId, companyId,
+   * provider, spendDay)` unique constraint (schema), so two clicks landing at
+   * the same instant for the same company can never create two rows for the
+   * same day — the DB serializes the conflict, not a racy read-then-write.
    * Prepaid — returns `null` if the balance can't cover one more click.
    */
   async chargeClickWithin(
@@ -391,42 +421,33 @@ export class WalletService {
       data: { balanceMinor: { decrement: amountMinor } },
     });
 
-    const dayRow = await tx.walletTransaction.findFirst({
+    await tx.walletTransaction.upsert({
       where: {
+        walletId_companyId_provider_spendDay: {
+          walletId: wallet.id,
+          companyId,
+          provider: CPC_PROVIDER,
+          spendDay: dayStart,
+        },
+      },
+      create: {
         walletId: wallet.id,
         companyId,
         type: 'spend',
+        status: 'completed',
         provider: CPC_PROVIDER,
-        createdAt: { gte: dayStart },
+        spendDay: dayStart,
+        clickCount: 1,
+        amountMinor: -amountMinor,
+        balanceAfterMinor: updated.balanceMinor,
+        description: 'Ad clicks',
       },
-      orderBy: { createdAt: 'desc' },
+      update: {
+        amountMinor: { decrement: amountMinor },
+        balanceAfterMinor: updated.balanceMinor,
+        clickCount: { increment: 1 },
+      },
     });
-
-    if (dayRow) {
-      const clicks = (dayRow.providerRef ? Number(dayRow.providerRef) : 0) + 1;
-      await tx.walletTransaction.update({
-        where: { id: dayRow.id },
-        data: {
-          amountMinor: { decrement: amountMinor },
-          balanceAfterMinor: updated.balanceMinor,
-          providerRef: String(clicks),
-        },
-      });
-    } else {
-      await tx.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          companyId,
-          type: 'spend',
-          status: 'completed',
-          provider: CPC_PROVIDER,
-          providerRef: '1',
-          amountMinor: -amountMinor,
-          balanceAfterMinor: updated.balanceMinor,
-          description: 'Ad clicks',
-        },
-      });
-    }
     return { balanceMinor: updated.balanceMinor };
   }
 

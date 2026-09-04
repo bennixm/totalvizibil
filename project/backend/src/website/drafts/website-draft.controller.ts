@@ -19,7 +19,11 @@ import { ProofreadDto } from './dto/proofread.dto';
 export class WebsiteDraftController {
   constructor(private readonly drafts: WebsiteDraftService) {}
 
-  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  // Each fresh draft resets its own `aiCalls` allowance (see `AI_CALL_CAP` in
+  // the service) — a loose limit here would let someone bypass that cap for
+  // real by just restarting the whole guided process over and over. A
+  // genuine visitor never needs more than a handful of tries per hour.
+  @Throttle({ default: { ttl: 3_600_000, limit: 6 } })
   @Post()
   create(@Body() dto: CreateDraftDto) {
     return this.drafts.create(dto);

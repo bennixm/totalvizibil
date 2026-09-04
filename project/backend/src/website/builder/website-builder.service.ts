@@ -16,18 +16,21 @@ import { SectionType } from '../website.types';
 import { assertClean } from '../drafts/content-filter';
 import { WebsiteAssetService } from '../assets/website-asset.service';
 import {
+  ANIMATIONS,
   SECTION_CATALOG,
   SECTION_TYPES,
   SeedCtx,
   catalogForClient,
   coerceContent,
   seedSectionContent,
+  snapAnimation,
   snapVariant,
 } from './section-catalog';
 import {
   BuilderDoc,
   DocSection,
   MAX_PAGES,
+  MOTIONS,
   PageSpec,
   composeAdvancedDoc,
   docFromLegacy,
@@ -69,6 +72,46 @@ function catalogPromptText(): string {
   }).join('\n');
 }
 
+/**
+ * Post-AI hygiene: the model can't know real client logos, real contact details
+ * or real team members. Blank / placeholder those and return note keys so the
+ * studio can tell the owner what still needs their input.
+ */
+function sanitizeAiPlan(doc: BuilderDoc, ctx: SeedCtx): string[] {
+  const notes = new Set<string>();
+  const placeholder =
+    ctx.locale === 'de' ? 'Vorname Name' : ctx.locale === 'en' ? 'Full Name' : 'Nume Prenume';
+  const localAsset = (v: unknown): string =>
+    typeof v === 'string' && /^\/api\/v1\/website-assets\//.test(v) ? v : '';
+
+  for (const p of doc.pages) {
+    for (const s of p.sections) {
+      const anim = snapAnimation(s.animation);
+      if (anim) s.animation = anim;
+      else delete s.animation;
+      if (s.type === 'logos' && Array.isArray(s.content.items)) {
+        for (const it of s.content.items as Record<string, unknown>[]) {
+          it.imageUrl = localAsset(it.imageUrl);
+        }
+      }
+      if (s.type === 'contact') {
+        s.content.phone = ctx.phone ?? '';
+        s.content.email = ctx.email ?? '';
+        s.content.addressLine = '';
+        if (!ctx.phone && !ctx.email) notes.add('contact');
+      }
+      if (s.type === 'team' && Array.isArray(s.content.items)) {
+        for (const m of s.content.items as Record<string, unknown>[]) {
+          m.name = placeholder;
+          m.bio = '';
+        }
+        notes.add('team');
+      }
+    }
+  }
+  return [...notes];
+}
+
 type LoadedCompany = Prisma.CompanyGetPayload<{
   include: { website: true; locations: true; services: true; contacts: true };
 }>;
@@ -103,6 +146,11 @@ export class WebsiteBuilderService {
       include: { website: true, locations: true, services: true, contacts: true },
     });
     if (!company.website) throw new NotFoundException('No website');
+    // A business scheduled for deletion can still be viewed, just not edited
+    // or (re-)unlocked, during its grace window.
+    if (needEdit && company.deletionScheduledAt) {
+      throw new ForbiddenException('company_pending_deletion');
+    }
     if (requireAdvanced && company.website.mode !== 'advanced') {
       throw new BadRequestException('not_an_advanced_website');
     }
@@ -237,7 +285,19 @@ export class WebsiteBuilderService {
       doc: clientDoc,
       aiCanUndo,
       aiConfigured: this.deepseek.configured,
+      // Manual editing is unlimited; AI is metered per site so it can't run away
+      // with cost. `left` is what's still available on this site.
+      aiLimits: {
+        plan: AI_PLAN_CAP,
+        section: AI_SECTION_CAP,
+        planUsed: doc?.ai?.planCount ?? 0,
+        sectionUsed: doc?.ai?.sectionCount ?? 0,
+        planLeft: Math.max(0, AI_PLAN_CAP - (doc?.ai?.planCount ?? 0)),
+        sectionLeft: Math.max(0, AI_SECTION_CAP - (doc?.ai?.sectionCount ?? 0)),
+      },
       catalog: unlocked ? catalogForClient() : null,
+      animations: ANIMATIONS,
+      motions: MOTIONS,
     };
   }
 
@@ -366,6 +426,11 @@ export class WebsiteBuilderService {
     if (dto.variant !== undefined) {
       found.section.variant = snapVariant(found.section.type, dto.variant);
     }
+    if (dto.animation !== undefined) {
+      const anim = snapAnimation(dto.animation);
+      if (anim) found.section.animation = anim;
+      else delete found.section.animation;
+    }
     if (dto.visible !== undefined) found.section.visible = dto.visible;
     if (dto.content) {
       found.section.content = coerceContent(found.section.type, {
@@ -460,11 +525,13 @@ export class WebsiteBuilderService {
         ? normalizeDoc({ v: 2, mode: 'ai', theme: raw.theme ?? doc.theme, pages: raw.pages }, ctx)
         : keywordPlanDoc(brief, ctx);
 
+    const notes = sanitizeAiPlan(planned, ctx);
     planned.mode = 'ai';
     planned.ai = {
       brief,
       planCount: spent + 1,
       sectionCount: doc.ai?.sectionCount ?? 0,
+      ...(notes.length ? { notes } : {}),
     };
     planned.history = [...(doc.history ?? []).slice(-2), doc.pages];
 

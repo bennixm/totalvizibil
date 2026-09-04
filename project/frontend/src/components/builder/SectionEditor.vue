@@ -11,6 +11,27 @@ const { t } = useI18n()
 const store = useBuilderStore()
 const { selectedSection, selectedSpec, working, view } = storeToRefs(store)
 
+const ANIM_FALLBACK = ['none', 'fade', 'rise', 'slideLeft', 'slideRight', 'zoom', 'blur']
+// "auto" = clear the per-section override and follow the site's motion setting.
+const animOptions = computed<string[]>(() => [
+  'auto',
+  ...(view.value?.animations ?? ANIM_FALLBACK.map((id) => ({ id, label: id }))).map((a) =>
+    typeof a === 'string' ? a : a.id,
+  ),
+])
+const currentAnim = computed(() => selectedSection.value?.animation || 'auto')
+function setAnim(id: string): void {
+  if (!selectedSection.value) return
+  store.patchSection(props.companyId, selectedSection.value.id, {
+    animation: id === 'auto' ? '' : id,
+  })
+}
+function animLabel(id: string): string {
+  const k = `catalog.anim.${id}`
+  const s = t(k)
+  return s === k ? id : s
+}
+
 const tweak = ref('')
 async function runTweak(): Promise<void> {
   const ins = tweak.value.trim()
@@ -69,6 +90,22 @@ function variantLabel(id: string): string {
             @click="setVariant(v.id)"
           >
             {{ variantLabel(v.id) }}
+          </button>
+        </div>
+      </div>
+
+      <div class="se__block">
+        <span class="se__k"><v-icon icon="mdi-motion-outline" size="13" /> {{ t('builder.animation') }}</span>
+        <div class="se__chips">
+          <button
+            v-for="a in animOptions"
+            :key="a"
+            type="button"
+            class="chip"
+            :class="{ 'is-on': currentAnim === a }"
+            @click="setAnim(a)"
+          >
+            {{ animLabel(a) }}
           </button>
         </div>
       </div>

@@ -128,6 +128,23 @@ const F = {
 
 const v = (...ids: string[]): VariantSpec[] => ids.map((id) => ({ id, label: id }));
 
+/** Entrance animations a section can use (client label: `catalog.anim.<id>`). */
+export const ANIMATIONS: VariantSpec[] = v(
+  'none',
+  'fade',
+  'rise',
+  'slideLeft',
+  'slideRight',
+  'zoom',
+  'blur',
+);
+const ANIM_IDS = ANIMATIONS.map((a) => a.id);
+
+/** Snap an arbitrary animation string to a known id, or `undefined` (inherit). */
+export function snapAnimation(raw: unknown): string | undefined {
+  return typeof raw === 'string' && ANIM_IDS.includes(raw) ? raw : undefined;
+}
+
 // --- the catalog -------------------------------------------------------
 
 export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
@@ -136,7 +153,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'header',
     label: 'hero',
     icon: 'mdi-page-layout-header',
-    variants: v('split', 'centered', 'imageBg', 'minimal'),
+    variants: v('split', 'centered', 'imageBg', 'minimal', 'gradient', 'overlap'),
     fields: [
       F.text('headline', 'headline', 120),
       F.area('subheadline', 'subheadline', 240),
@@ -195,7 +212,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'story',
     label: 'about',
     icon: 'mdi-account-group-outline',
-    variants: v('text', 'imageRight', 'imageLeft', 'twoCol'),
+    variants: v('text', 'imageRight', 'imageLeft', 'twoCol', 'stat'),
     fields: [
       F.text('title', 'title', 120),
       F.area('body', 'body', 900),
@@ -221,7 +238,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'proof',
     label: 'stats',
     icon: 'mdi-numeric',
-    variants: v('band', 'plain'),
+    variants: v('band', 'plain', 'cards', 'inline'),
     fields: [
       F.text('title', 'title', 80),
       F.items('items', 'stats', 4, [
@@ -265,7 +282,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'offer',
     label: 'services',
     icon: 'mdi-view-grid-plus-outline',
-    variants: v('cards', 'list', 'iconGrid'),
+    variants: v('cards', 'list', 'iconGrid', 'rows', 'numbered'),
     fields: [
       F.text('title', 'title', 120),
       F.items('items', 'services', 12, [
@@ -359,7 +376,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'proof',
     label: 'features',
     icon: 'mdi-star-check-outline',
-    variants: v('grid', 'list'),
+    variants: v('grid', 'list', 'checklist', 'cards'),
     fields: [
       F.text('title', 'title', 120),
       F.items('items', 'points', 6, [
@@ -461,7 +478,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'proof',
     label: 'gallery',
     icon: 'mdi-image-multiple-outline',
-    variants: v('grid', 'masonry', 'wide'),
+    variants: v('grid', 'masonry', 'wide', 'carousel'),
     fields: [
       F.text('title', 'title', 120),
       F.items('items', 'photos', 12, [
@@ -489,7 +506,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'story',
     label: 'team',
     icon: 'mdi-account-multiple-outline',
-    variants: v('cards', 'compact'),
+    variants: v('cards', 'compact', 'grid', 'row'),
     fields: [
       F.text('title', 'title', 120),
       F.items('items', 'members', 8, [
@@ -523,7 +540,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'proof',
     label: 'testimonials',
     icon: 'mdi-format-quote-close-outline',
-    variants: v('cards', 'quote', 'columns'),
+    variants: v('cards', 'quote', 'columns', 'single', 'ticker'),
     fields: [
       F.text('title', 'title', 120),
       F.items('items', 'quotes', 8, [
@@ -574,7 +591,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'offer',
     label: 'pricing',
     icon: 'mdi-tag-multiple-outline',
-    variants: v('tiers', 'compact'),
+    variants: v('tiers', 'compact', 'table'),
     fields: [
       F.text('title', 'title', 120),
       F.items('items', 'plans', 4, [
@@ -640,7 +657,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'content',
     label: 'faq',
     icon: 'mdi-comment-question-outline',
-    variants: v('accordion', 'twoCol'),
+    variants: v('accordion', 'twoCol', 'plain'),
     fields: [
       F.text('title', 'title', 120),
       F.items('items', 'questions', 12, [F.text('q', 'question', 160), F.area('a', 'answer', 600)]),
@@ -720,7 +737,7 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     category: 'conversion',
     label: 'cta',
     icon: 'mdi-bullhorn-outline',
-    variants: v('gradient', 'solid', 'split'),
+    variants: v('gradient', 'solid', 'split', 'boxed'),
     fields: [F.text('headline', 'headline', 120), F.text('buttonLabel', 'buttonLabel', 40)],
     seed: (ctx) => ({
       headline: L(ctx.locale, {
@@ -757,6 +774,220 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
       city: ctx.city ?? '',
       addressLine: '',
       hours: '',
+    }),
+  },
+
+  marquee: {
+    type: 'marquee',
+    category: 'proof',
+    label: 'marquee',
+    icon: 'mdi-transfer-right',
+    variants: v('text', 'logos'),
+    fields: [
+      F.text('title', 'title', 80),
+      F.list('items', 'phrases', 14, 60),
+      F.enumf('speed', 'speed', ['normal', 'slow', 'fast']),
+    ],
+    seed: (ctx) => {
+      const extras =
+        ctx.locale === 'de'
+          ? ['Termintreue', 'Faire Preise', 'Mit Garantie']
+          : ctx.locale === 'en'
+            ? ['On-time delivery', 'Fair pricing', 'Guaranteed work']
+            : ['Termene respectate', 'Preț corect', 'Garanție inclusă'];
+      return {
+        title: '',
+        items: seedServiceNames(ctx).map(cap).concat(extras),
+        speed: 'normal',
+      };
+    },
+  },
+
+  bento: {
+    type: 'bento',
+    category: 'proof',
+    label: 'bento',
+    icon: 'mdi-view-dashboard-outline',
+    variants: v('mixed', 'even'),
+    fields: [
+      F.text('title', 'title', 120),
+      F.items('items', 'tiles', 6, [
+        F.text('title', 'tileTitle', 80),
+        F.area('text', 'tileText', 220),
+        F.image('imageUrl', 'image'),
+      ]),
+    ],
+    seed: (ctx) => ({
+      title: L(ctx.locale, {
+        ro: 'Ce ne face diferiți',
+        en: 'What sets us apart',
+        de: 'Was uns auszeichnet',
+      }),
+      items: [
+        {
+          title: L(ctx.locale, {
+            ro: 'Experiență dovedită',
+            en: 'Proven experience',
+            de: 'Bewährte Erfahrung',
+          }),
+          text: L(ctx.locale, {
+            ro: 'Ani de proiecte finalizate corect, la termen și în buget.',
+            en: 'Years of projects delivered right, on time and on budget.',
+            de: 'Jahre an Projekten — sauber, pünktlich und im Budget.',
+          }),
+          imageUrl: '',
+        },
+        {
+          title: L(ctx.locale, {
+            ro: 'Comunicare clară',
+            en: 'Clear communication',
+            de: 'Klare Kommunikation',
+          }),
+          text: L(ctx.locale, {
+            ro: 'Un singur punct de contact și răspuns în aceeași zi lucrătoare.',
+            en: 'One point of contact and a reply within the same business day.',
+            de: 'Ein Ansprechpartner und Antwort am selben Werktag.',
+          }),
+          imageUrl: '',
+        },
+        {
+          title: L(ctx.locale, {
+            ro: 'Preț transparent',
+            en: 'Transparent pricing',
+            de: 'Transparente Preise',
+          }),
+          text: L(ctx.locale, {
+            ro: 'Ofertă detaliată din start, fără costuri ascunse pe parcurs.',
+            en: 'A detailed quote up front, with no hidden costs along the way.',
+            de: 'Detailliertes Angebot vorab, ohne versteckte Kosten.',
+          }),
+          imageUrl: '',
+        },
+        {
+          title: L(ctx.locale, {
+            ro: 'Lucrări cu garanție',
+            en: 'Guaranteed work',
+            de: 'Arbeit mit Garantie',
+          }),
+          text: L(ctx.locale, {
+            ro: 'Verificăm rezultatul împreună și lăsăm garanție scrisă.',
+            en: 'We check the result together and leave a written guarantee.',
+            de: 'Wir prüfen das Ergebnis gemeinsam und geben schriftliche Garantie.',
+          }),
+          imageUrl: '',
+        },
+      ],
+    }),
+  },
+
+  timeline: {
+    type: 'timeline',
+    category: 'story',
+    label: 'timeline',
+    icon: 'mdi-timeline-outline',
+    variants: v('line', 'alternating'),
+    fields: [
+      F.text('title', 'title', 120),
+      F.items('items', 'milestones', 8, [
+        F.text('date', 'milestoneDate', 24),
+        F.text('title', 'milestoneTitle', 90),
+        F.area('text', 'milestoneText', 240),
+      ]),
+    ],
+    seed: (ctx) => ({
+      title: L(ctx.locale, { ro: 'Parcursul nostru', en: 'Our story', de: 'Unser Weg' }),
+      items: [
+        {
+          date: '2014',
+          title: L(ctx.locale, { ro: 'Început', en: 'Founded', de: 'Gegründet' }),
+          text: L(ctx.locale, {
+            ro: `${ctx.businessName || 'Firma'} pornește cu o echipă mică și primele proiecte locale.`,
+            en: `${ctx.businessName || 'The company'} starts out with a small team and its first local projects.`,
+            de: `${ctx.businessName || 'Das Unternehmen'} startet mit einem kleinen Team und den ersten lokalen Projekten.`,
+          }),
+        },
+        {
+          date: '2019',
+          title: L(ctx.locale, { ro: 'Creștere', en: 'Growth', de: 'Wachstum' }),
+          text: '',
+        },
+        {
+          date: L(ctx.locale, { ro: 'Azi', en: 'Today', de: 'Heute' }),
+          title: L(ctx.locale, { ro: 'Echipă completă', en: 'A full team', de: 'Ein volles Team' }),
+          text: '',
+        },
+      ],
+    }),
+  },
+
+  comparison: {
+    type: 'comparison',
+    category: 'offer',
+    label: 'comparison',
+    icon: 'mdi-table-column',
+    variants: v('columns', 'table'),
+    fields: [
+      F.text('usTitle', 'usTitle', 40),
+      F.text('themTitle', 'themTitle', 40),
+      F.items('items', 'rows', 8, [
+        F.text('label', 'rowLabel', 90),
+        F.text('us', 'usValue', 60),
+        F.text('them', 'themValue', 60),
+      ]),
+    ],
+    seed: (ctx) => {
+      const yes = L(ctx.locale, { ro: 'da', en: 'yes', de: 'ja' });
+      const no = L(ctx.locale, { ro: 'nu', en: 'no', de: 'nein' });
+      return {
+        usTitle: ctx.businessName || L(ctx.locale, { ro: 'Cu noi', en: 'With us', de: 'Mit uns' }),
+        themTitle: L(ctx.locale, { ro: 'În altă parte', en: 'Elsewhere', de: 'Anderswo' }),
+        items: [
+          {
+            label: L(ctx.locale, {
+              ro: 'Ofertă în 24h',
+              en: 'Quote within 24h',
+              de: 'Angebot in 24 h',
+            }),
+            us: yes,
+            them: no,
+          },
+          {
+            label: L(ctx.locale, {
+              ro: 'Preț fix, fără surprize',
+              en: 'Fixed price, no surprises',
+              de: 'Festpreis, keine Überraschungen',
+            }),
+            us: yes,
+            them: no,
+          },
+          {
+            label: L(ctx.locale, {
+              ro: 'Garanție scrisă',
+              en: 'Written guarantee',
+              de: 'Schriftliche Garantie',
+            }),
+            us: yes,
+            them: no,
+          },
+        ],
+      };
+    },
+  },
+
+  banner: {
+    type: 'banner',
+    category: 'conversion',
+    label: 'banner',
+    icon: 'mdi-bullhorn-variant-outline',
+    variants: v('flat', 'gradient'),
+    fields: [F.text('text', 'bannerText', 160), F.text('buttonLabel', 'buttonLabel', 40)],
+    seed: (ctx) => ({
+      text: L(ctx.locale, {
+        ro: `Programează o vizită cu ${ctx.businessName || 'echipa noastră'} săptămâna aceasta.`,
+        en: `Book a visit with ${ctx.businessName || 'our team'} this week.`,
+        de: `Vereinbaren Sie diese Woche einen Termin mit ${ctx.businessName || 'unserem Team'}.`,
+      }),
+      buttonLabel: L(ctx.locale, { ro: 'Programează', en: 'Book now', de: 'Termin buchen' }),
     }),
   },
 };
@@ -871,11 +1102,13 @@ export function coerceSection(raw: unknown): Section | null {
   const src = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   if (!isSectionType(src.type)) return null;
   const type = src.type;
+  const animation = snapAnimation(src.animation);
   return {
     id: typeof src.id === 'string' && src.id ? src.id : randomUUID(),
     type,
     visible: src.visible !== false,
     variant: snapVariant(type, src.variant),
+    ...(animation ? { animation } : {}),
     ...coerceContent(type, src),
   } as Section;
 }

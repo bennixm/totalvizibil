@@ -19,7 +19,16 @@ export type SectionType =
   | 'faq'
   | 'richText'
   | 'contact'
-  | 'cta';
+  | 'cta'
+  | 'marquee'
+  | 'bento'
+  | 'timeline'
+  | 'comparison'
+  | 'banner';
+
+/** Scroll-in animation preset for a section (Advanced builder). */
+export type SectionAnimation =
+  'none' | 'fade' | 'rise' | 'slideLeft' | 'slideRight' | 'zoom' | 'blur';
 
 export interface BaseSection {
   id: string;
@@ -27,6 +36,8 @@ export interface BaseSection {
   visible: boolean;
   /** Design variant within the section type (Advanced builder catalog). */
   variant?: string;
+  /** Entrance animation; absent = inherit the theme's motion default. */
+  animation?: string;
 }
 
 export interface HeroSection extends BaseSection {
@@ -207,6 +218,55 @@ export interface TeamSection extends BaseSection {
   items: TeamMember[];
 }
 
+export interface MarqueeSection extends BaseSection {
+  type: 'marquee';
+  title?: string;
+  /** Short phrases (text variant) or client names (logos variant). */
+  items: string[];
+  speed?: 'slow' | 'normal' | 'fast';
+}
+
+export interface BentoItem {
+  title: string;
+  text?: string;
+  imageUrl?: string;
+}
+export interface BentoSection extends BaseSection {
+  type: 'bento';
+  title?: string;
+  items: BentoItem[];
+}
+
+export interface TimelineItem {
+  date: string;
+  title: string;
+  text?: string;
+}
+export interface TimelineSection extends BaseSection {
+  type: 'timeline';
+  title?: string;
+  items: TimelineItem[];
+}
+
+export interface ComparisonItem {
+  label: string;
+  /** Short text, or "yes"/"no"/"" — the renderer shows a ✓/✗ for the latter. */
+  us: string;
+  them: string;
+}
+export interface ComparisonSection extends BaseSection {
+  type: 'comparison';
+  usTitle: string;
+  themTitle: string;
+  items: ComparisonItem[];
+}
+
+export interface BannerSection extends BaseSection {
+  type: 'banner';
+  text: string;
+  buttonLabel?: string;
+}
+
 export type Section =
   | HeroSection
   | LogosSection
@@ -223,7 +283,12 @@ export type Section =
   | FaqSection
   | RichTextSection
   | ContactSection
-  | CtaSection;
+  | CtaSection
+  | MarqueeSection
+  | BentoSection
+  | TimelineSection
+  | ComparisonSection
+  | BannerSection;
 
 export interface WebsitePage {
   slug: string;
@@ -281,6 +346,8 @@ export interface WebsiteTheme {
   bodyFont?: ThemeFont;
   buttonStyle?: 'solid' | 'outline' | 'soft' | 'pill';
   shadow?: 'none' | 'soft' | 'bold';
+  /** Scroll-animation intensity for the whole site (Advanced builder). */
+  motion?: 'off' | 'subtle' | 'lively';
 }
 
 // --- Generator inputs -----------------------------------------------------

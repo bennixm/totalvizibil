@@ -21,7 +21,24 @@ const form = reactive({
   eurRonRate: 0,
   advancedBuilderPriceCredits: 0,
   additionalBusinessPriceCredits: 0,
+  invoiceVatRatePct: 0,
 })
+const issuer = reactive({
+  invoiceIssuerName: '',
+  invoiceIssuerTaxId: '',
+  invoiceIssuerRegCom: '',
+  invoiceIssuerAddress: '',
+  invoiceIssuerIban: '',
+  invoiceIssuerBank: '',
+})
+const issuerFields = [
+  { key: 'invoiceIssuerName' as const, label: 'adminSettings.issuerName' },
+  { key: 'invoiceIssuerTaxId' as const, label: 'adminSettings.issuerTaxId' },
+  { key: 'invoiceIssuerRegCom' as const, label: 'adminSettings.issuerRegCom' },
+  { key: 'invoiceIssuerAddress' as const, label: 'adminSettings.issuerAddress' },
+  { key: 'invoiceIssuerIban' as const, label: 'adminSettings.issuerIban' },
+  { key: 'invoiceIssuerBank' as const, label: 'adminSettings.issuerBank' },
+]
 
 const fields = [
   {
@@ -54,6 +71,16 @@ const fields = [
     step: 1,
     suffix: 'cr',
   },
+  {
+    key: 'invoiceVatRatePct' as const,
+    label: 'adminSettings.vatRate',
+    hint: 'adminSettings.vatRateHint',
+    icon: 'mdi-receipt-text-outline',
+    min: 0,
+    max: 30,
+    step: 1,
+    suffix: '%',
+  },
 ]
 
 function hydrate() {
@@ -61,6 +88,8 @@ function hydrate() {
   form.eurRonRate = admin.settings.eurRonRate
   form.advancedBuilderPriceCredits = admin.settings.advancedBuilderPriceCredits
   form.additionalBusinessPriceCredits = admin.settings.additionalBusinessPriceCredits
+  form.invoiceVatRatePct = admin.settings.invoiceVatRatePct
+  for (const f of issuerFields) issuer[f.key] = admin.settings[f.key]
 }
 
 const dirty = computed(
@@ -68,7 +97,9 @@ const dirty = computed(
     !!admin.settings &&
     (form.eurRonRate !== admin.settings.eurRonRate ||
       form.advancedBuilderPriceCredits !== admin.settings.advancedBuilderPriceCredits ||
-      form.additionalBusinessPriceCredits !== admin.settings.additionalBusinessPriceCredits),
+      form.additionalBusinessPriceCredits !== admin.settings.additionalBusinessPriceCredits ||
+      form.invoiceVatRatePct !== admin.settings.invoiceVatRatePct ||
+      issuerFields.some((f) => issuer[f.key] !== admin.settings![f.key])),
 )
 const valid = computed(() =>
   fields.every((f) => {
@@ -92,7 +123,7 @@ async function save() {
   if (!dirty.value || !valid.value) return
   saving.value = true
   try {
-    await admin.updateSettings({ ...form })
+    await admin.updateSettings({ ...form, ...issuer })
     hydrate()
     flash(t('adminSettings.saved'))
   } catch (e) {
@@ -139,20 +170,41 @@ async function save() {
         </div>
       </div>
 
-      <div class="as__foot">
-        <span v-if="dirty" class="as__dirty">{{ t('adminSettings.unsaved') }}</span>
-        <v-btn
-          color="primary"
-          variant="flat"
-          :disabled="!dirty || !valid"
-          :loading="saving"
-          prepend-icon="mdi-content-save-outline"
-          @click="save"
-        >
-          {{ t('common.save') }}
-        </v-btn>
+    </AdminSection>
+
+    <AdminSection
+      v-if="!loading"
+      :title="t('adminSettings.issuerTitle')"
+      icon="mdi-file-document-edit-outline"
+      class="mt-4"
+    >
+      <p class="as__sectionNote">{{ t('adminSettings.issuerNote') }}</p>
+      <div class="as__issuerGrid">
+        <v-text-field
+          v-for="f in issuerFields"
+          :key="f.key"
+          v-model="issuer[f.key]"
+          :label="t(f.label)"
+          variant="outlined"
+          density="compact"
+          hide-details
+        />
       </div>
     </AdminSection>
+
+    <div v-if="!loading" class="as__foot">
+      <span v-if="dirty" class="as__dirty">{{ t('adminSettings.unsaved') }}</span>
+      <v-btn
+        color="primary"
+        variant="flat"
+        :disabled="!dirty || !valid"
+        :loading="saving"
+        prepend-icon="mdi-content-save-outline"
+        @click="save"
+      >
+        {{ t('common.save') }}
+      </v-btn>
+    </div>
 
     <v-snackbar v-model="toast.show" :color="toast.color" timeout="2600">{{ toast.text }}</v-snackbar>
   </div>
@@ -210,5 +262,15 @@ async function save() {
 .as__dirty {
   font-size: 0.8rem;
   color: rgb(var(--v-theme-warning));
+}
+.as__sectionNote {
+  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  color: rgb(var(--v-theme-on-surface) / 0.6);
+}
+.as__issuerGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
 }
 </style>

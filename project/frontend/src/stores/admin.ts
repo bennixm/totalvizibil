@@ -60,6 +60,13 @@ export interface AdminSettings {
   eurRonRate: number
   advancedBuilderPriceCredits: number
   additionalBusinessPriceCredits: number
+  invoiceVatRatePct: number
+  invoiceIssuerName: string
+  invoiceIssuerTaxId: string
+  invoiceIssuerRegCom: string
+  invoiceIssuerAddress: string
+  invoiceIssuerIban: string
+  invoiceIssuerBank: string
 }
 
 export type UserStatus = 'active' | 'suspended'
@@ -140,7 +147,41 @@ export interface AdminUserDetail {
   }
   companies: AdminUserCompany[]
   transactions: AdminUserTxn[]
+  invoices: AdminUserInvoice[]
   sessions: { id: string; userAgent: string | null; ip: string | null; createdAt: string }[]
+}
+
+/** Compact invoice row embedded in a user's admin detail page. */
+export interface AdminUserInvoice {
+  id: string
+  number: string
+  totalMinor: number
+  currency: string
+  voided: boolean
+  issuedAt: string
+}
+
+export type InvoiceStatusFilter = 'issued' | 'void'
+
+/** One row in the global admin invoices list. */
+export interface AdminInvoiceRow {
+  id: string
+  number: string
+  issuedAt: string
+  buyerKind: 'individual' | 'company'
+  buyerName: string
+  totalMinor: number
+  currency: string
+  voidedAt: string | null
+  voidReason: string | null
+  user: { id: string; email: string; name: string }
+}
+
+export interface InvoicesFilters {
+  search: string
+  status: InvoiceStatusFilter | null
+  page: number
+  pageSize: number
 }
 
 export interface UsersFilters {
@@ -212,6 +253,10 @@ interface AdminState {
   settings: AdminSettings | null
   categories: AdminCategoryGroup[]
   loadingCategories: boolean
+  invoices: AdminInvoiceRow[]
+  invoicesTotal: number
+  invoiceFilters: InvoicesFilters
+  loadingInvoices: boolean
 }
 
 export interface UpdateUserInput {
@@ -334,6 +379,10 @@ export const useAdminStore = defineStore('admin', {
     settings: null,
     categories: [],
     loadingCategories: false,
+    invoices: [],
+    invoicesTotal: 0,
+    invoiceFilters: { search: '', status: null, page: 1, pageSize: 20 },
+    loadingInvoices: false,
   }),
 
   actions: {
@@ -390,6 +439,41 @@ export const useAdminStore = defineStore('admin', {
       this.businessFilters[key] = value
       if (key !== 'page') this.businessFilters.page = 1
       void this.fetchBusinesses()
+    },
+
+    async fetchInvoices(): Promise<void> {
+      this.loadingInvoices = true
+      try {
+        const f = this.invoiceFilters
+        const p = new URLSearchParams()
+        if (f.search.trim()) p.set('search', f.search.trim())
+        if (f.status) p.set('status', f.status)
+        p.set('page', String(f.page))
+        p.set('pageSize', String(f.pageSize))
+        const res = await apiFetch<{ items: AdminInvoiceRow[]; total: number }>(
+          `/admin/invoices?${p.toString()}`,
+        )
+        this.invoices = res.items
+        this.invoicesTotal = res.total
+      } finally {
+        this.loadingInvoices = false
+      }
+    },
+
+    setInvoiceFilter<K extends keyof InvoicesFilters>(key: K, value: InvoicesFilters[K]): void {
+      this.invoiceFilters[key] = value
+      if (key !== 'page') this.invoiceFilters.page = 1
+      void this.fetchInvoices()
+    },
+
+    async voidInvoice(id: string, reason: string): Promise<void> {
+      await apiFetch(`/admin/invoices/${id}/void`, { method: 'POST', body: { reason } })
+      await this.fetchInvoices()
+    },
+
+    async unvoidInvoice(id: string): Promise<void> {
+      await apiFetch(`/admin/invoices/${id}/unvoid`, { method: 'POST' })
+      await this.fetchInvoices()
     },
 
     async fetchSettings(): Promise<void> {

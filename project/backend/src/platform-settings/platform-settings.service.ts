@@ -5,6 +5,13 @@ export const SETTING_KEYS = {
   eurRonRate: 'eur_ron_rate',
   advancedBuilderPriceCredits: 'advanced_builder_price_credits',
   additionalBusinessPriceCredits: 'additional_business_price_credits',
+  invoiceVatRatePct: 'invoice_vat_rate_pct',
+  invoiceIssuerName: 'invoice_issuer_name',
+  invoiceIssuerTaxId: 'invoice_issuer_tax_id',
+  invoiceIssuerRegCom: 'invoice_issuer_reg_com',
+  invoiceIssuerAddress: 'invoice_issuer_address',
+  invoiceIssuerIban: 'invoice_issuer_iban',
+  invoiceIssuerBank: 'invoice_issuer_bank',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -18,6 +25,20 @@ const DEFAULT_ADVANCED_PRICE = 49;
 const DEFAULT_ADDITIONAL_BUSINESS_PRICE = 20;
 const MIN_PRICE = 1;
 const MAX_PRICE = 100_000;
+
+/** VAT rate applied to invoices, as a whole percent (0 = "neplătitor de TVA"). */
+const DEFAULT_VAT_RATE_PCT = 0;
+const MIN_VAT_RATE_PCT = 0;
+const MAX_VAT_RATE_PCT = 30;
+
+export interface InvoiceIssuer {
+  name: string;
+  taxId: string;
+  regCom: string;
+  address: string;
+  iban: string;
+  bank: string;
+}
 
 /**
  * Small key/value config store. Values the platform can change without a deploy
@@ -108,5 +129,59 @@ export class PlatformSettingsService {
   }
   setAdditionalBusinessPriceCredits(credits: number): Promise<number> {
     return this.setPriceSetting(SETTING_KEYS.additionalBusinessPriceCredits, credits);
+  }
+
+  /** VAT rate (whole percent) applied to every invoice issued from now on. */
+  async invoiceVatRatePct(): Promise<number> {
+    const raw = await this.get(SETTING_KEYS.invoiceVatRatePct);
+    const parsed = raw != null ? Number(raw) : NaN;
+    if (!Number.isFinite(parsed) || parsed < MIN_VAT_RATE_PCT || parsed > MAX_VAT_RATE_PCT) {
+      if (raw != null)
+        this.logger.warn(`Ignoring invalid ${SETTING_KEYS.invoiceVatRatePct}=${raw}`);
+      return DEFAULT_VAT_RATE_PCT;
+    }
+    return Math.round(parsed);
+  }
+  async setInvoiceVatRatePct(pct: number): Promise<number> {
+    if (!Number.isFinite(pct) || pct < MIN_VAT_RATE_PCT || pct > MAX_VAT_RATE_PCT) {
+      throw new BadRequestException('invoice_vat_rate_pct out of range');
+    }
+    const rounded = Math.round(pct);
+    await this.set(SETTING_KEYS.invoiceVatRatePct, String(rounded));
+    return rounded;
+  }
+
+  /** The platform's own billing identity, snapshotted onto every invoice issued. */
+  async invoiceIssuer(): Promise<InvoiceIssuer> {
+    const [name, taxId, regCom, address, iban, bank] = await Promise.all([
+      this.get(SETTING_KEYS.invoiceIssuerName),
+      this.get(SETTING_KEYS.invoiceIssuerTaxId),
+      this.get(SETTING_KEYS.invoiceIssuerRegCom),
+      this.get(SETTING_KEYS.invoiceIssuerAddress),
+      this.get(SETTING_KEYS.invoiceIssuerIban),
+      this.get(SETTING_KEYS.invoiceIssuerBank),
+    ]);
+    return {
+      name: name ?? '',
+      taxId: taxId ?? '',
+      regCom: regCom ?? '',
+      address: address ?? '',
+      iban: iban ?? '',
+      bank: bank ?? '',
+    };
+  }
+  async setInvoiceIssuer(input: Partial<InvoiceIssuer>): Promise<InvoiceIssuer> {
+    const map: Record<keyof InvoiceIssuer, string> = {
+      name: SETTING_KEYS.invoiceIssuerName,
+      taxId: SETTING_KEYS.invoiceIssuerTaxId,
+      regCom: SETTING_KEYS.invoiceIssuerRegCom,
+      address: SETTING_KEYS.invoiceIssuerAddress,
+      iban: SETTING_KEYS.invoiceIssuerIban,
+      bank: SETTING_KEYS.invoiceIssuerBank,
+    };
+    for (const [field, key] of Object.entries(map) as [keyof InvoiceIssuer, string][]) {
+      if (input[field] !== undefined) await this.set(key, input[field]!.trim().slice(0, 300));
+    }
+    return this.invoiceIssuer();
   }
 }

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { BillingModule } from '../billing/billing.module';
 import { CampaignModule } from '../campaigns/campaign.module';
 import { LeadsModule } from '../leads/leads.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
@@ -11,7 +12,7 @@ import { AdminCompaniesService } from './admin-companies.service';
 import { AdminCategoriesService } from './admin-categories.service';
 
 @Module({
-  imports: [AuthModule, WalletModule, CampaignModule, LeadsModule, AnalyticsModule],
+  imports: [AuthModule, WalletModule, BillingModule, CampaignModule, LeadsModule, AnalyticsModule],
   controllers: [AdminController],
   providers: [AdminStatsService, AdminUsersService, AdminCompaniesService, AdminCategoriesService],
 })

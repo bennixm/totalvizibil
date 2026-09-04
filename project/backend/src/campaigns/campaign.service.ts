@@ -337,23 +337,19 @@ export class CampaignService {
     const campaign = await this.reconcile(companyId);
     const owner = await this.walletOwner(companyId);
 
-    const [walletSummary, consumedMinor, clicks, s, marketCpcMinor, website] = await Promise.all([
-      this.wallet.getSummary(owner),
-      this.wallet.consumedByCompany(companyId),
-      this.clickCount(companyId),
-      this.suggestFor(companyId),
-      this.analytics.marketCpcFor(companyId),
-      this.prisma.website.findUnique({
-        where: { companyId },
-        select: { mode: true, builderSpec: true },
-      }),
-    ]);
+    const [walletSummary, consumedMinor, clicks, s, marketCpcMinor, websiteReady] =
+      await Promise.all([
+        this.wallet.getSummary(owner),
+        this.wallet.consumedByCompany(companyId),
+        this.clickCount(companyId),
+        this.suggestFor(companyId),
+        this.analytics.marketCpcFor(companyId),
+        this.isListingWebsiteReady(companyId),
+      ]);
 
     // An advanced-plan campaign can't go live until its builder is finished —
     // the UI disables Activate and points the owner to the builder.
-    const requiresWebsiteBuilder =
-      website?.mode === 'advanced' &&
-      (website.builderSpec as { step?: string } | null)?.step !== 'done';
+    const requiresWebsiteBuilder = !websiteReady;
 
     const neededMinor = campaign?.dailyBudgetMinor ?? s.standard.dailyBudgetMinor;
 
@@ -387,7 +383,10 @@ export class CampaignService {
       },
       consumed: money(consumedMinor),
       required: money(neededMinor),
-      canActivate: !!campaign && walletSummary.balance.minor >= campaign.dailyBudgetMinor,
+      canActivate:
+        !!campaign &&
+        walletSummary.balance.minor >= campaign.dailyBudgetMinor &&
+        !requiresWebsiteBuilder,
       requiresWebsiteBuilder,
       runnable: campaign?.status === CampaignStatus.active,
     };
@@ -831,10 +830,14 @@ export class CampaignService {
 
     const [campaign, company] = await Promise.all([
       this.prisma.campaign.findUnique({ where: { companyId } }),
-      this.prisma.company.findUnique({ where: { id: companyId }, select: { status: true } }),
+      this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { status: true, deletionScheduledAt: true },
+      }),
     ]);
     if (!campaign) throw new BadRequestException('set_budget_first');
     if (company?.status === 'suspended') throw new ForbiddenException('company_suspended');
+    if (company?.deletionScheduledAt) throw new ForbiddenException('company_pending_deletion');
     if (!(await this.isListingWebsiteReady(companyId))) {
       throw new BadRequestException('website_builder_incomplete');
     }

@@ -50,9 +50,11 @@ const progressPct = computed(() =>
 const transcript = computed(() => draft.value?.transcript ?? [])
 const stepLabel = computed(() => t(`studio.step.${step.value}`))
 
-const errorText = computed(() =>
-  error.value === 'banned_content' ? t('studio.bannedContent') : t('studio.loadError'),
-)
+const errorText = computed(() => {
+  if (error.value === 'banned_content') return t('studio.bannedContent')
+  if (error.value === 'rate_limited') return t('studio.rateLimited')
+  return t('studio.loadError')
+})
 
 // --- template picker -------------------------------------------------
 const template = computed<EasyTemplate>(() => easy.value?.template ?? 'classic')

@@ -18,6 +18,20 @@ export type SectionType =
   | 'richText'
   | 'contact'
   | 'cta'
+  | 'marquee'
+  | 'bento'
+  | 'timeline'
+  | 'comparison'
+  | 'banner'
+
+export type SectionAnimation =
+  | 'none'
+  | 'fade'
+  | 'rise'
+  | 'slideLeft'
+  | 'slideRight'
+  | 'zoom'
+  | 'blur'
 
 export interface Section {
   id: string
@@ -25,6 +39,8 @@ export interface Section {
   visible: boolean
   /** Design variant within the section type (Advanced builder catalog). */
   variant?: string
+  /** Entrance animation; absent = inherit the theme's motion default. */
+  animation?: string
   [key: string]: unknown
 }
 
@@ -72,4 +88,6 @@ export interface WebsiteTheme {
   bodyFont?: ThemeFont
   buttonStyle?: 'solid' | 'outline' | 'soft' | 'pill'
   shadow?: 'none' | 'soft' | 'bold'
+  /** Scroll-animation intensity for the whole site (Advanced builder). */
+  motion?: 'off' | 'subtle' | 'lively'
 }

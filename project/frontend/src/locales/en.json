@@ -33,7 +33,8 @@
     "supportQueue": "Support queue",
     "staff": "Staff",
     "manage": "Navigate",
-    "bizDeleting": "deleting"
+    "bizDeleting": "deleting",
+    "invoices": "Invoices"
   },
   "theme": {
     "label": "Theme",
@@ -222,7 +223,9 @@
     "processStep": "Step title",
     "processText": "Detail (optional)",
     "addStep": "Add step",
-    "hoursPlaceholder": "e.g. Mon–Fri 9am–6pm"
+    "hoursPlaceholder": "e.g. Mon–Fri 9am–6pm",
+    "rateLimited": "Too many attempts in a short time. Wait a few minutes and try again.",
+    "retry": "Try again"
   },
   "location": {
     "eyebrow": "Step 2 · Location",
@@ -287,7 +290,6 @@
     "taskBudgetText": "Your website is saved as a draft. To appear in the feed it needs a campaign budget.",
     "taskCta": "Set budget",
     "taskSoon": "Budget & Wallet coming soon",
-    "taskBudgetDone": "Your campaign is live — your business appears in the feed.",
     "taskManage": "Manage campaign",
     "websiteTitle": "Website",
     "websiteStatusLabel": "Status",
@@ -310,12 +312,9 @@
     "createCta": "Create your business",
     "taskAdvancedTitle": "Activate the Advanced Website Builder",
     "taskAdvancedText": "Pay for the advanced plan from your wallet to unlock the full builder.",
-    "taskAdvancedDone": "The advanced builder is active.",
     "taskLocationTitle": "Set the area you appear in the feed",
     "taskLocationText": "Pick your city and radius on the map — it decides where your business can show up.",
-    "taskLocationDone": "Your coverage area is set.",
     "taskAdvancedCta": "Activate",
-    "taskAdvancedManage": "Open the builder",
     "taskLocationCta": "Set location",
     "taskEdit": "Edit",
     "addBusiness": "Add a business",
@@ -382,7 +381,18 @@
       "responseText": "Your response time is dragging the score down. Answer requests faster.",
       "feedTitle": "Not in the feed",
       "feedText": "The campaign is active but the business isn't showing yet. Check the optimiser."
-    }
+    },
+    "websiteUnpublished": "Not published",
+    "invoicesTitle": "Invoices",
+    "invoicesIncompleteText": "Billing details incomplete",
+    "invoicesIncompleteCta": "Complete billing details",
+    "invoicesUnbilledWord": "unbilled",
+    "invoicesUnbilledCta": "Issue invoices",
+    "invoicesWord": "invoices",
+    "invoicesNone": "No invoices yet",
+    "invoicesLast": "Last: {number}",
+    "invoicesCta": "View invoices",
+    "editSite": "Edit site"
   },
   "campaign": {
     "eyebrow": "Feed promotion",
@@ -409,7 +419,8 @@
       "set_budget_first": "Set the campaign budget first.",
       "wallet_blocked": "The owner wallet is frozen. Unblock it to activate the campaign.",
       "company_suspended": "The business is suspended and cannot run campaigns.",
-      "website_builder_incomplete": "Finish the advanced website builder before listing the campaign."
+      "website_builder_incomplete": "Finish the advanced website builder before listing the campaign.",
+      "company_pending_deletion": "This business is scheduled for deletion — it can no longer be edited."
     },
     "builderRequiredTitle": "Finish your website first",
     "builderRequiredNote": "This is an advanced-plan business. Build and finish its website before the campaign can go live.",
@@ -440,7 +451,10 @@
     "spendCta": "View spend",
     "autoDepletedNote": "Today's budget is spent. AUTO resumes the campaign when the daily budget resets.",
     "autoBudgetLimited": "Your daily budget is too low for AUTO to reach a full CPC score — raise it so AUTO can bid the recommended CPC.",
-    "toOverview": "Campaign overview"
+    "toOverview": "Campaign overview",
+    "pauseConfirmTitle": "Pause the campaign?",
+    "pauseConfirmText": "If it stays paused for more than 24 hours, the accumulated run time (age score) will reset to 0.",
+    "pauseKeep": "No, keep it running"
   },
   "wallet": {
     "eyebrow": "Billing",
@@ -489,10 +503,20 @@
     "err": {
       "wallet_blocked": "Your wallet has been frozen by an administrator. You cannot top up or spend credits.",
       "wallet_blocked_reason": "Your wallet has been frozen by an administrator. Reason: {reason}. You cannot top up or spend credits.",
-      "insufficient_credits": "Not enough credits in your wallet."
+      "insufficient_credits": "Not enough credits in your wallet.",
+      "billing_profile_incomplete": "You need to complete your billing details before depositing money."
     },
     "blockedReason": "Reason: {reason}",
-    "blockedHelp": "Contact support if you think this is a mistake."
+    "blockedHelp": "Contact support if you think this is a mistake.",
+    "billingRequiredTitle": "Billing details required",
+    "billingRequiredText": "You need to complete your billing details (Individual / Company) before you can deposit money — every deposit gets an invoice.",
+    "billingRequiredCta": "Complete billing details",
+    "unbilledTitle": "Missing invoices",
+    "unbilledText": "You have {n} past deposits with no invoice issued.",
+    "unbilledCta": "Issue missing invoices",
+    "invoiceIssued": "Invoice {number} was issued.",
+    "invoiceView": "View invoice",
+    "viewTransactionsCta": "View all transactions"
   },
   "auth": {
     "loginTitle": "Log in",
@@ -566,7 +590,29 @@
     "signOutOthers": "Sign out other devices",
     "thisDevice": "This device",
     "unknownDevice": "Unknown device",
-    "sessionsRevoked": "Signed out {n} other session(s)"
+    "sessionsRevoked": "Signed out {n} other session(s)",
+    "tabBilling": "Billing",
+    "billingIncompleteAlert": "Complete your billing details (Individual / Company) before you can deposit money — without them we can't issue an invoice.",
+    "billingTitle": "Billing details",
+    "billingNote": "These details appear on every invoice issued for a deposit. Pick the account type and fill in the fields.",
+    "billingKindIndividual": "Individual",
+    "billingKindCompany": "Company",
+    "billingLegalName": "Legal company name",
+    "billingFullName": "Full name",
+    "billingTaxId": "Tax ID (CUI/CIF)",
+    "billingRegCom": "Company registration no.",
+    "billingVatPayer": "VAT payer",
+    "billingAddress": "Address",
+    "billingCity": "City",
+    "billingCounty": "County",
+    "billingPostalCode": "Postal code",
+    "billingCountry": "Country",
+    "billingEmail": "Billing email",
+    "billingIban": "IBAN",
+    "billingBankName": "Bank",
+    "billingSaved": "Billing details saved.",
+    "billingSavedBackfilled": "Saved — {n} invoices issued retroactively.",
+    "billingSeeInvoices": "See your invoices"
   },
   "admin": {
     "title": "Admin panel",
@@ -704,7 +750,22 @@
     "legendConsumed": "Consumed",
     "groupAtAGlance": "At a glance",
     "showingRange": "{from}–{to} of {total}",
-    "usersNone": "No users"
+    "usersNone": "No users",
+    "navInvoices": "Invoices",
+    "searchInvoices": "Search by number, buyer or email…",
+    "invoicesNone": "No invoices found.",
+    "invStatusIssued": "Issued",
+    "invStatusVoid": "Void",
+    "invVoided": "The invoice was voided.",
+    "invUnvoided": "The void was reverted.",
+    "invVoid": "Void",
+    "invUnvoid": "Unvoid",
+    "invVoidTitle": "Void invoice {number}",
+    "invVoidNote": "The invoice stays visible, marked void, with the reason below. It is never deleted and does not affect the wallet balance.",
+    "invVoidReason": "Reason",
+    "invSeeAll": "See all invoices",
+    "colTotal": "Total",
+    "colDate": "Date"
   },
   "errors": {
     "notFoundTitle": "Page not found",
@@ -713,25 +774,26 @@
   },
   "footer": {
     "rights": "All rights reserved.",
-    "docs": "Documentation",
     "contact": "Contact"
   },
   "advanced": {
     "eyebrow": "Advanced plan",
     "title": "A complex, AI-built website",
-    "lead": "More pages, a design of your choice, a portfolio and sections — built step by step with the assistant.",
+    "lead": "A multi-page site with dozens of ready-made sections, animations and full design control — built by hand or with AI.",
     "priceLabel": "One-time cost",
     "priceValue": "{credits} credits",
     "priceNote": "Paid from your wallet after you create an account, before you use the builder.",
     "perk": {
-      "pages": "Multiple pages (Home, About, Services, Portfolio…)",
-      "design": "Colour palette and typography of your choice",
+      "pages": "Page-based site — up to 6 pages, fully editable",
+      "design": "Full design control: themes, colours, fonts, corners, motion",
       "portfolio": "Portfolio / work section",
-      "sections": "Configurable sections and CTAs"
+      "sections": "Dozens of pre-designed sections, with variants and animations",
+      "unlimited": "Unlimited builder access — edit manually as much as you want",
+      "ai": "AI generation included (metered), plus per-section tweaks"
     },
     "fieldName": "Business name",
     "cta": "Continue to account",
-    "flowNote": "Next: account → pay for the plan → builder → location → campaign.",
+    "flowNote": "Next: location & category → account → builder (plan payment) → campaign.",
     "error": "Couldn't start. Please try again.",
     "back": "Back"
   },
@@ -739,8 +801,8 @@
     "eyebrow": "Advanced builder",
     "title": "Website Builder",
     "back": "Back to dashboard",
-    "lockTitle": "Activate the Advanced Website Builder",
-    "lockText": "Pay once from your wallet to unlock the full builder.",
+    "lockTitle": "Activate Advanced mode",
+    "lockText": "Unlock Advanced mode: a page-based builder with dozens of ready-made sections, variants and animations, plus full control over the design. Manual editing stays unlimited; AI generations are included up to the limit below.",
     "priceValue": "{credits} credits",
     "balance": "Wallet balance: {n} credits",
     "addCredits": "Add credits",
@@ -758,7 +820,8 @@
       "ai_section_limit": "You have reached the AI section-tweak limit.",
       "ai_unavailable": "AI could not generate right now. Try again.",
       "nothing_to_undo": "There is no previous version.",
-      "banned_content": "The text contains words that are not allowed. Please rephrase."
+      "banned_content": "The text contains words that are not allowed. Please rephrase.",
+      "company_pending_deletion": "This business is scheduled for deletion — it can no longer be edited."
     },
     "msg": {
       "opening": "Hi! I'm the Totalvizibil assistant and I'll build you a complex website. Tell us what your business does.",
@@ -781,7 +844,7 @@
     "loadErrorTitle": "Couldn't load the builder",
     "loadErrorText": "Try again from the dashboard.",
     "upgradeTitle": "Upgrade to the Advanced plan",
-    "upgradeText": "Your easy site stays exactly as it is. You also get the AI builder with full control over sections, tone, branding and SEO.",
+    "upgradeText": "Your simple site stays as it is. On top you get Advanced mode: a page-based builder, pre-designed sections with variants and animations, full control over theme, branding and SEO, plus AI generation.",
     "upgradeCta": "Upgrade · {credits} cr",
     "on": "On",
     "off": "Off",
@@ -896,7 +959,22 @@
       "city": "City",
       "addressLine": "Address",
       "hours": "Hours",
-      "buttonLabel": "Button label"
+      "buttonLabel": "Button label",
+      "phrases": "Phrases",
+      "speed": "Speed",
+      "tiles": "Tiles",
+      "tileTitle": "Tile title",
+      "tileText": "Tile text",
+      "milestones": "Milestones",
+      "milestoneDate": "Date",
+      "milestoneTitle": "Milestone title",
+      "milestoneText": "Milestone text",
+      "usTitle": "\"Us\" label",
+      "themTitle": "\"Them\" label",
+      "rowLabel": "Criterion",
+      "usValue": "With us",
+      "themValue": "Elsewhere",
+      "bannerText": "Message"
     },
     "aiTitle": "Generate the site with AI",
     "aiLead": "Describe the business and what you want on the site. AI picks the pages, sections and copy.",
@@ -940,7 +1018,35 @@
       "bold": "Bold"
     },
     "presetLabel": "Style",
-    "autosaved": "Changes are saved automatically."
+    "autosaved": "Changes are saved automatically.",
+    "aiNoteTitle": "Check before publishing",
+    "aiNote": {
+      "contact": "Add your real contact details (phone, email) — AI left them blank.",
+      "team": "Fill in your real team names — AI only left placeholder text."
+    },
+    "motionLabel": "Motion",
+    "animation": "Animation",
+    "motion": {
+      "off": "Off",
+      "subtle": "Subtle",
+      "lively": "Lively"
+    },
+    "aiBuilding": "Building your site…",
+    "aiStage": {
+      "structure": "Planning the structure",
+      "copy": "Writing the copy",
+      "design": "Applying the design"
+    },
+    "feat": {
+      "pages": "Page-based builder — up to 6 pages, fully editable",
+      "sections": "Dozens of pre-designed sections, with variants and transitions",
+      "design": "Full design control: theme, colours, fonts, corners, shadows, motion",
+      "unlimited": "Unlimited builder access — edit manually as much as you want, no cap",
+      "ai": "AI generation included — {plan} full-site generations + {section} per-section tweaks"
+    },
+    "aiQuota": "AI generations left on this site: {left} of {limit}. Manual editing is unlimited.",
+    "aiQuotaOut": "You've used every AI generation for this site. You can still edit manually, with no limit.",
+    "continueBudget": "Continue → Budget"
   },
   "site": {
     "phone": "Phone",
@@ -955,7 +1061,11 @@
     "formSending": "Sending…",
     "formError": "Couldn't send. Check your details and try again.",
     "formThanks": "Thanks! The business will get back to you soon.",
-    "hours": "Hours"
+    "hours": "Hours",
+    "footExplore": "Explore",
+    "footContact": "Contact",
+    "madeWith": "Website by Totalvizibil",
+    "formPreview": "The form goes live once the site is published."
   },
   "leads": {
     "eyebrow": "From your site",
@@ -1154,7 +1264,17 @@
     "advancedPrice": "Advanced builder price",
     "advancedPriceHint": "One-time unlock of the advanced website editor, in credits.",
     "extraBizPrice": "Extra business price",
-    "extraBizPriceHint": "Cost to create a business beyond the first, in credits."
+    "extraBizPriceHint": "Cost to create a business beyond the first, in credits.",
+    "vatRate": "Invoice VAT rate",
+    "vatRateHint": "0% if the company is not VAT-registered.",
+    "issuerTitle": "Invoicing — issuer details",
+    "issuerNote": "These details appear as the issuer on every invoice issued to clients.",
+    "issuerName": "Legal company name",
+    "issuerTaxId": "Tax ID",
+    "issuerRegCom": "Registration no.",
+    "issuerAddress": "Registered address",
+    "issuerIban": "IBAN",
+    "issuerBank": "Bank"
   },
   "spend": {
     "eyebrow": "Feed promotion",
@@ -1357,7 +1477,22 @@
       "accordion": "Accordion",
       "narrow": "Narrow",
       "gradient": "Gradient",
-      "solid": "Solid"
+      "solid": "Solid",
+      "overlap": "Overlap",
+      "stat": "With figures",
+      "rows": "Rows",
+      "numbered": "Numbered",
+      "checklist": "Checklist",
+      "inline": "Inline",
+      "carousel": "Carousel",
+      "single": "Single quote",
+      "ticker": "Ticker",
+      "table": "Table",
+      "row": "Row",
+      "boxed": "Boxed",
+      "even": "Even",
+      "mixed": "Mixed",
+      "line": "Line"
     },
     "hero": {
       "label": "Hero",
@@ -1422,6 +1557,82 @@
     "contact": {
       "label": "Contact",
       "desc": "Contact details and hours"
+    },
+    "anim": {
+      "auto": "Auto",
+      "none": "None",
+      "fade": "Fade",
+      "rise": "Rise",
+      "slideLeft": "Slide ←",
+      "slideRight": "Slide →",
+      "zoom": "Zoom",
+      "blur": "Blur"
+    },
+    "marquee": {
+      "label": "Moving strip",
+      "desc": "Scrolling text or client names"
+    },
+    "bento": {
+      "label": "Bento grid",
+      "desc": "Mixed-size cards in a tight grid"
+    },
+    "timeline": {
+      "label": "Timeline",
+      "desc": "Milestones or history on a time axis"
+    },
+    "comparison": {
+      "label": "Comparison",
+      "desc": "Us vs. others, row by row"
+    },
+    "banner": {
+      "label": "Promo banner",
+      "desc": "Short full-width message with a button"
     }
+  },
+  "invoice": {
+    "back": "Back to account",
+    "print": "Print / Save as PDF",
+    "loadError": "Couldn't load the invoice.",
+    "docTitle": "Tax invoice",
+    "issuedOn": "Issued on",
+    "issuer": "Issuer",
+    "buyer": "Bill to",
+    "taxId": "Tax ID",
+    "regCom": "Reg. no.",
+    "kindIndividual": "Individual",
+    "kindCompany": "Company",
+    "colDescription": "Description",
+    "colQty": "Qty",
+    "colUnitPrice": "Unit price",
+    "colVat": "VAT",
+    "colLineTotal": "Total",
+    "subtotal": "Subtotal",
+    "vat": "VAT",
+    "vatExempt": "exempt",
+    "total": "Total due",
+    "paidVia": "Paid via Totalvizibil wallet — {eur} EUR converted at {rate} RON/EUR.",
+    "generatedNote": "Electronically generated by Totalvizibil."
+  },
+  "invoices": {
+    "eyebrow": "Billing",
+    "title": "Invoices",
+    "incompleteTitle": "Billing details required",
+    "incompleteText": "Complete your billing details (Individual / Company) to see invoices here — without them no invoice can be issued.",
+    "incompleteCta": "Complete billing details",
+    "unbilledTitle": "Missing invoices",
+    "unbilledText": "You have {n} past deposits with no invoice issued.",
+    "issueMissing": "Issue missing invoices",
+    "empty": "You don't have any invoices yet.",
+    "colNumber": "Number",
+    "colDate": "Date",
+    "colTotal": "Total",
+    "view": "View invoice",
+    "profileNote": "Invoices are issued to: {name}.",
+    "editProfile": "Edit billing details"
+  },
+  "transactions": {
+    "eyebrow": "Wallet",
+    "title": "Transactions",
+    "back": "Back to wallet"
   }
 }

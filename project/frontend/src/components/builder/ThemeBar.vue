@@ -19,6 +19,7 @@ const RADII: ThemeRadius[] = ['none', 'subtle', 'rounded', 'large', 'pill']
 const BACKGROUNDS = ['light', 'tinted', 'dark'] as const
 const BTN_STYLES = ['solid', 'outline', 'soft', 'pill'] as const
 const SHADOWS = ['none', 'soft', 'bold'] as const
+const MOTIONS = ['off', 'subtle', 'lively'] as const
 const DENSITIES = ['compact', 'comfortable', 'spacious'] as const
 
 const DEFAULT: WebsiteTheme = {
@@ -191,6 +192,21 @@ function tl(key: string, raw: string): string {
             @click="patch({ density: d })"
           >
             {{ t(`builder.density.${d}`) }}
+          </button>
+        </div>
+      </div>
+
+      <div class="tb__grp">
+        <span class="tb__k">{{ t('builder.motionLabel') }}</span>
+        <div class="tb__seg">
+          <button
+            v-for="m in MOTIONS"
+            :key="m"
+            type="button"
+            :class="{ 'is-on': (theme.motion || 'subtle') === m }"
+            @click="patch({ motion: m })"
+          >
+            {{ tl(`builder.motion.${m}`, m) }}
           </button>
         </div>
       </div>

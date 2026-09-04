@@ -63,4 +63,8 @@ export class PatchThemeDto {
   @IsOptional()
   @IsIn(['none', 'soft', 'bold'])
   shadow?: 'none' | 'soft' | 'bold';
+
+  @IsOptional()
+  @IsIn(['off', 'subtle', 'lively'])
+  motion?: 'off' | 'subtle' | 'lively';
 }

@@ -11,6 +11,8 @@ import { useSeo } from '@/composables/useSeo'
 import { feedCategoryRoute } from '@/services/routes'
 import type { LocalizedName } from '@/stores/companies'
 
+const props = defineProps<{ group?: string | null; niche?: string | null }>()
+
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
@@ -22,9 +24,9 @@ let debounce: ReturnType<typeof setTimeout> | undefined
 
 const catName = (n: LocalizedName): string => n[locale.value as keyof LocalizedName] ?? n.en
 
-/** Route params → the effective category slug (niche wins over group). */
-const routeGroup = computed(() => (route.params.group as string | undefined) ?? null)
-const routeNiche = computed(() => (route.params.niche as string | undefined) ?? null)
+/** `BrowseView` resolved these (or neither, for the bare "pick a category" home). */
+const routeGroup = computed(() => props.group ?? null)
+const routeNiche = computed(() => props.niche ?? null)
 const routeCategory = computed(() => routeNiche.value ?? routeGroup.value ?? null)
 
 /** Display names for the current category, resolved from the facet tree. */
@@ -57,7 +59,7 @@ const breadcrumbLd = computed(() => {
       '@type': 'ListItem',
       position: 2,
       name: group,
-      item: `${origin}/feed/${routeGroup.value}`,
+      item: `${origin}/${routeGroup.value}`,
     },
   ]
   if (niche) {
@@ -65,7 +67,7 @@ const breadcrumbLd = computed(() => {
       '@type': 'ListItem',
       position: 3,
       name: niche,
-      item: `${origin}/feed/${routeGroup.value}/${routeNiche.value}`,
+      item: `${origin}/${routeGroup.value}/${routeNiche.value}`,
     })
   }
   return { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: el }
@@ -75,7 +77,7 @@ useSeo(() => ({
   title: seoTitle.value || undefined,
   description: seoDescription.value || undefined,
   canonicalPath: routeGroup.value
-    ? `/feed/${routeGroup.value}${routeNiche.value ? `/${routeNiche.value}` : ''}`
+    ? `/${routeGroup.value}${routeNiche.value ? `/${routeNiche.value}` : ''}`
     : '/',
   jsonLd: breadcrumbLd.value,
   // The bare "pick a category" home is thin — let the category pages be the

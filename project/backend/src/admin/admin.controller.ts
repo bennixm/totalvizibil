@@ -16,11 +16,14 @@ import { PlatformRoles, PlatformRolesGuard } from '../auth/platform-roles.guard'
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { BillingService } from '../billing/billing.service';
 import { AdminStatsService } from './admin-stats.service';
 import { AdminUsersService } from './admin-users.service';
 import { AdminCompaniesService } from './admin-companies.service';
 import { AdminCategoriesService } from './admin-categories.service';
 import { ListUsersQuery } from './dto/list-users.query';
+import { ListInvoicesQuery } from './dto/list-invoices.query';
+import { VoidInvoiceDto } from './dto/void-invoice.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SetUserPasswordDto } from './dto/set-user-password.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
@@ -46,6 +49,7 @@ export class AdminController {
     private readonly companies: AdminCompaniesService,
     private readonly categories: AdminCategoriesService,
     private readonly settings: PlatformSettingsService,
+    private readonly billing: BillingService,
   ) {}
 
   @Get('stats')
@@ -55,13 +59,31 @@ export class AdminController {
 
   @Get('settings')
   async getSettings() {
-    const [eurRonRate, advancedBuilderPriceCredits, additionalBusinessPriceCredits] =
-      await Promise.all([
-        this.settings.eurRonRate(),
-        this.settings.advancedBuilderPriceCredits(),
-        this.settings.additionalBusinessPriceCredits(),
-      ]);
-    return { eurRonRate, advancedBuilderPriceCredits, additionalBusinessPriceCredits };
+    const [
+      eurRonRate,
+      advancedBuilderPriceCredits,
+      additionalBusinessPriceCredits,
+      invoiceVatRatePct,
+      invoiceIssuer,
+    ] = await Promise.all([
+      this.settings.eurRonRate(),
+      this.settings.advancedBuilderPriceCredits(),
+      this.settings.additionalBusinessPriceCredits(),
+      this.settings.invoiceVatRatePct(),
+      this.settings.invoiceIssuer(),
+    ]);
+    return {
+      eurRonRate,
+      advancedBuilderPriceCredits,
+      additionalBusinessPriceCredits,
+      invoiceVatRatePct,
+      invoiceIssuerName: invoiceIssuer.name,
+      invoiceIssuerTaxId: invoiceIssuer.taxId,
+      invoiceIssuerRegCom: invoiceIssuer.regCom,
+      invoiceIssuerAddress: invoiceIssuer.address,
+      invoiceIssuerIban: invoiceIssuer.iban,
+      invoiceIssuerBank: invoiceIssuer.bank,
+    };
   }
 
   @Patch('settings')
@@ -72,6 +94,20 @@ export class AdminController {
     }
     if (dto.additionalBusinessPriceCredits !== undefined) {
       await this.settings.setAdditionalBusinessPriceCredits(dto.additionalBusinessPriceCredits);
+    }
+    if (dto.invoiceVatRatePct !== undefined) {
+      await this.settings.setInvoiceVatRatePct(dto.invoiceVatRatePct);
+    }
+    const {
+      invoiceIssuerName: name,
+      invoiceIssuerTaxId: taxId,
+      invoiceIssuerRegCom: regCom,
+      invoiceIssuerAddress: address,
+      invoiceIssuerIban: iban,
+      invoiceIssuerBank: bank,
+    } = dto;
+    if ([name, taxId, regCom, address, iban, bank].some((v) => v !== undefined)) {
+      await this.settings.setInvoiceIssuer({ name, taxId, regCom, address, iban, bank });
     }
     return this.getSettings();
   }
@@ -169,5 +205,27 @@ export class AdminController {
   @Delete('categories/:id')
   deleteCategory(@Param('id', ParseUUIDPipe) id: string) {
     return this.categories.remove(id);
+  }
+
+  // --- invoices -----------------------------------------------------
+
+  @Get('invoices')
+  listInvoices(@Query() query: ListInvoicesQuery) {
+    return this.billing.adminList(query);
+  }
+
+  @Get('invoices/:id')
+  invoiceDetail(@Param('id', ParseUUIDPipe) id: string) {
+    return this.billing.adminGetInvoice(id);
+  }
+
+  @Post('invoices/:id/void')
+  voidInvoice(@Param('id', ParseUUIDPipe) id: string, @Body() dto: VoidInvoiceDto) {
+    return this.billing.voidInvoice(id, dto.reason);
+  }
+
+  @Post('invoices/:id/unvoid')
+  unvoidInvoice(@Param('id', ParseUUIDPipe) id: string) {
+    return this.billing.unvoidInvoice(id);
   }
 }

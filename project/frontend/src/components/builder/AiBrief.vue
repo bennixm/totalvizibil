@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
@@ -15,11 +15,18 @@ const { working, view } = storeToRefs(store)
 const brief = ref('')
 const confirmed = ref(false)
 
-async function generate(): Promise<void> {
+// AI is metered per site (manual editing stays unlimited).
+const planLeft = computed(() => view.value?.aiLimits?.planLeft ?? null)
+const planLimit = computed(() => view.value?.aiLimits?.plan ?? 6)
+const outOfQuota = computed(() => planLeft.value !== null && planLeft.value <= 0)
+
+function generate(): void {
   const b = brief.value.trim()
-  if (b.length < 4 || working.value) return
-  const ok = await store.aiPlan(props.companyId, b)
-  if (ok) emit('close')
+  if (b.length < 4 || working.value || outOfQuota.value) return
+  // Fire and close straight away — the full-screen AiLoader takes over and
+  // any error surfaces in the builder view once it resolves.
+  void store.aiPlan(props.companyId, b)
+  emit('close')
 }
 </script>
 
@@ -45,6 +52,14 @@ async function generate(): Promise<void> {
         <p v-if="view && !view.aiConfigured" class="ab__note">
           <v-icon icon="mdi-information-outline" size="14" /> {{ t('builder.aiNoKey') }}
         </p>
+        <p v-if="planLeft !== null" class="ab__note" :class="{ 'ab__note--warn': outOfQuota }">
+          <v-icon icon="mdi-creation" size="14" />
+          {{
+            outOfQuota
+              ? t('builder.aiQuotaOut')
+              : t('builder.aiQuota', { left: planLeft, limit: planLimit })
+          }}
+        </p>
         <label class="ab__chk">
           <input v-model="confirmed" type="checkbox" />
           {{ t('builder.aiConfirm') }}
@@ -56,7 +71,7 @@ async function generate(): Promise<void> {
         <button
           type="button"
           class="ab__go"
-          :disabled="!confirmed || brief.trim().length < 4 || working"
+          :disabled="!confirmed || brief.trim().length < 4 || working || outOfQuota"
           @click="generate"
         >
           <v-progress-circular v-if="working" indeterminate size="15" width="2" />
@@ -137,6 +152,10 @@ async function generate(): Promise<void> {
   margin: 0.5rem 0 0;
   font-size: 0.76rem;
   color: rgb(var(--v-theme-on-surface) / 0.55);
+}
+.ab__note--warn {
+  color: rgb(var(--v-theme-warning, 217 119 6));
+  font-weight: 600;
 }
 .ab__chk {
   display: flex;

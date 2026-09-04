@@ -5,6 +5,11 @@ export class PatchSectionDto {
   @IsString()
   variant?: string;
 
+  /** Entrance-animation preset id (`''` clears it). Snapped in the service. */
+  @IsOptional()
+  @IsString()
+  animation?: string;
+
   @IsOptional()
   @IsBoolean()
   visible?: boolean;

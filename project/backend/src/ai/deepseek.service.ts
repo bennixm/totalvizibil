@@ -44,6 +44,83 @@ const ENDPOINT = 'https://api.deepseek.com/chat/completions';
 const TIMEOUT_MS = 20_000;
 const PLAN_TIMEOUT_MS = 45_000;
 
+/**
+ * Parse a JSON object that an LLM produced, tolerating the two things they get
+ * wrong under an output-token cap: a ```json fence wrapper, and a response that
+ * was cut off mid-value. On a truncation we walk the text tracking string/quote
+ * state and a `{`/`[` stack, drop the incomplete tail, and append the closers
+ * needed to make it valid — so a clipped 6-page plan still yields the pages that
+ * did come through instead of nothing.
+ */
+function parseLooseJson(raw: string): Record<string, unknown> | null {
+  let s = raw.trim();
+  const fence = s.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fence) s = fence[1].trim();
+  const start = s.indexOf('{');
+  if (start > 0) s = s.slice(start);
+
+  const tryParse = (t: string): Record<string, unknown> | null => {
+    try {
+      const v = JSON.parse(t) as unknown;
+      return v && typeof v === 'object' && !Array.isArray(v)
+        ? (v as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const direct = tryParse(s);
+  if (direct) return direct;
+
+  // Repair a truncated tail.
+  const stack: string[] = [];
+  let inStr = false;
+  let esc = false;
+  let lastSafe = -1; // index just after a top-of-value boundary we can cut at
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '{' || c === '[') stack.push(c === '{' ? '}' : ']');
+    else if (c === '}' || c === ']') {
+      stack.pop();
+      if (stack.length >= 1) lastSafe = i + 1; // a nested value just closed cleanly
+    } else if (c === ',' && stack.length >= 1) {
+      lastSafe = i; // safe to cut just before this separator
+    }
+  }
+  if (lastSafe > 0) {
+    const head = s.slice(0, lastSafe).replace(/,\s*$/, '');
+    // close whatever containers are still open (root first was pushed first)
+    const openStack: string[] = [];
+    let str = false;
+    let e = false;
+    for (let i = 0; i < head.length; i++) {
+      const c = head[i];
+      if (str) {
+        if (e) e = false;
+        else if (c === '\\') e = true;
+        else if (c === '"') str = false;
+        continue;
+      }
+      if (c === '"') str = true;
+      else if (c === '{') openStack.push('}');
+      else if (c === '[') openStack.push(']');
+      else if (c === '}' || c === ']') openStack.pop();
+    }
+    const closed = head + openStack.reverse().join('');
+    const repaired = tryParse(closed);
+    if (repaired) return repaired;
+  }
+  return null;
+}
+
 const LOCALE_NAME: Record<AiLocale, string> = {
   ro: 'Romanian',
   en: 'English',
@@ -239,11 +316,22 @@ export class DeepseekService {
         this.logger.warn(`DeepSeek responded ${res.status}`);
         return null;
       }
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const data = (await res.json()) as {
+        choices?: { message?: { content?: string }; finish_reason?: string }[];
+      };
       const raw = data.choices?.[0]?.message?.content;
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      return parsed && typeof parsed === 'object' ? parsed : null;
+      if (data.choices?.[0]?.finish_reason === 'length') {
+        this.logger.warn(
+          `DeepSeek hit max_tokens (${opts.maxTokens}) — attempting to repair truncated JSON`,
+        );
+      }
+      const parsed = parseLooseJson(raw);
+      if (!parsed) {
+        this.logger.warn('DeepSeek returned unparseable JSON (even after repair)');
+        return null;
+      }
+      return parsed;
     } catch (err) {
       this.logger.warn(`DeepSeek call failed: ${err instanceof Error ? err.message : String(err)}`);
       return null;
@@ -277,8 +365,11 @@ export class DeepseekService {
       `(no body text yet). Decide the scope FROM THE BRIEF: a short or vague brief → 1–2 focused pages; ` +
       `a detailed brief that names pages, audiences or many services → 4–6 pages.\n` +
       `Rules:\n` +
-      `- Output: { "theme": {...}, "pages": [{ "title": string, "purpose": string, "nav": boolean, ` +
-      `"sections": [{ "type": string, "variant": string }] }] }.\n` +
+      `- Output COMPACT JSON (no line breaks inside it, no markdown fence): ` +
+      `{ "theme": {...}, "pages": [{ "title": string, "purpose": string (max 8 words), "nav": boolean, ` +
+      `"sections": [{ "type": string, "variant": string, "animation": string }] }] }.\n` +
+      `- Keep it lean: 3–6 sections per page. "animation" is optional: ` +
+      `none|fade|rise|slideLeft|slideRight|zoom|blur — vary the entrances; a hero is usually "none"/"fade".\n` +
       `- First page is the home page (the caller marks isHome). Home starts with a "hero". ` +
       `The last page has a "contact" section.\n` +
       `- Use ONLY these section types + variants:\n${input.catalogText}\n` +
@@ -287,11 +378,12 @@ export class DeepseekService {
       `"background": "light|tinted|dark", "headingFont": "grotesk|inter|fraunces|jetbrains", ` +
       `"bodyFont": "grotesk|inter", "radius": "none|subtle|rounded|large|pill", ` +
       `"buttonStyle": "solid|outline|soft|pill", "shadow": "none|soft|bold", ` +
+      `"motion": "off|subtle|lively", ` +
       `"density": "compact|comfortable|spacious" } — choose values that fit the business's character ` +
       `(e.g. a tech product → dark + cyan; a studio → tinted + editorial serif).\n` +
       `Reply with JSON only.`;
     const outline = (await this.chatJson(outlineSys, `Brief: ${input.brief}\n${facts}`, {
-      maxTokens: 1400,
+      maxTokens: 3200,
       temperature: 0.5,
       timeoutMs: PLAN_TIMEOUT_MS,
     })) as { theme?: Record<string, unknown>; pages?: unknown[] } | null;
@@ -304,7 +396,11 @@ export class DeepseekService {
         ? pp.sections
             .map((s) => {
               const ss = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>;
-              return { type: String(ss.type ?? ''), variant: String(ss.variant ?? '') };
+              return {
+                type: String(ss.type ?? ''),
+                variant: String(ss.variant ?? ''),
+                animation: ss.animation ? String(ss.animation) : undefined,
+              };
             })
             .filter((s) => s.type)
         : [];
@@ -326,9 +422,17 @@ export class DeepseekService {
       `arrays of objects with the listed sub-keys; "list" fields are arrays of strings.\n` +
       `Catalog:\n${input.catalogText}\n` +
       `Write ALL text in ${lang}, concrete and specific, no lorem ipsum, no empty clichés.\n` +
-      `For "image" fields, give a relevant royalty-free photo URL from https://images.unsplash.com/ ` +
-      `(a real photo id, sized "&w=1400&q=80"), or leave it "" if unsure. Do NOT use other image hosts.\n` +
-      `Reply with JSON only: { "sections": [{ "type": string, "variant": string, "content": {...} }] }.`;
+      `IMAGES: for every "image" / "imageUrl" / "backgroundImage" field on a hero, about, gallery, ` +
+      `featureSplit or bento section, ALWAYS provide a real Unsplash photo URL that fits the business ` +
+      `and the section — format exactly ` +
+      `"https://images.unsplash.com/photo-<id>?auto=format&fit=crop&w=1400&q=80" using a genuine ` +
+      `Unsplash photo id. Only leave it "" if you truly cannot think of a fitting subject. Never use ` +
+      `any other image host.\n` +
+      `NEVER invent facts you cannot know: in a "logos" section leave every item "imageUrl" empty; ` +
+      `in a "contact" section leave "phone" and "email" empty; in a "team" section do NOT invent real ` +
+      `people — leave "name" as a short placeholder and "bio" empty.\n` +
+      `Reply with COMPACT JSON only (no markdown fence): ` +
+      `{ "sections": [{ "type": string, "variant": string, "content": {...} }] }.`;
 
     const results = await Promise.allSettled(
       pages.map((pg) =>
@@ -337,7 +441,7 @@ export class DeepseekService {
           `Brief: ${input.brief}\n${facts}Consistency facts: ${priorFacts}\n\n` +
             `Page: "${pg.title}" — ${pg.purpose || 'a page of the site'}\n` +
             `Sections (write content for each, in order):\n${JSON.stringify(pg.sections)}`,
-          { maxTokens: 2000, temperature: 0.7 },
+          { maxTokens: 3200, temperature: 0.7 },
         ),
       ),
     );
@@ -354,7 +458,7 @@ export class DeepseekService {
           f && typeof f.content === 'object' && f.content
             ? (f.content as Record<string, unknown>)
             : {};
-        return { type: s.type, variant: s.variant, content };
+        return { type: s.type, variant: s.variant, animation: s.animation, content };
       });
       return { title: pg.title, nav: pg.nav, sections };
     });

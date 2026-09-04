@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PasswordService } from '../auth/password.service';
 import { SessionService } from '../auth/session.service';
 import { WalletService } from '../wallet/wallet.service';
+import { BillingService } from '../billing/billing.service';
 import { money } from '../wallet/money';
 import { effectiveActiveSeconds } from '../analytics/visibility';
 import { ListUsersQuery } from './dto/list-users.query';
@@ -23,6 +24,7 @@ export class AdminUsersService {
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
     private readonly wallet: WalletService,
+    private readonly billing: BillingService,
   ) {}
 
   async list(query: ListUsersQuery) {
@@ -107,7 +109,7 @@ export class AdminUsersService {
     const now = new Date();
     const companyIds = u.companyMembers.map((m) => m.company.id);
 
-    const [sessions, walletSummary, transactions, spendByCompany] = await Promise.all([
+    const [sessions, walletSummary, transactions, invoices, spendByCompany] = await Promise.all([
       this.sessions.listActiveForUser(id),
       this.wallet.getSummary(id),
       this.prisma.walletTransaction.findMany({
@@ -116,6 +118,7 @@ export class AdminUsersService {
         take: 20,
         include: { company: { select: { displayName: true } } },
       }),
+      this.billing.listForUser(id),
       companyIds.length
         ? this.prisma.walletTransaction.groupBy({
             by: ['companyId'],
@@ -195,8 +198,16 @@ export class AdminUsersService {
         balanceAfter: t.balanceAfterMinor != null ? money(t.balanceAfterMinor) : null,
         description: t.description,
         companyName: t.company?.displayName ?? null,
-        clicks: t.provider === 'cpc' && t.providerRef ? Number(t.providerRef) : null,
+        clicks: t.provider === 'cpc' ? (t.clickCount ?? null) : null,
         createdAt: t.createdAt,
+      })),
+      invoices: invoices.map((inv) => ({
+        id: inv.id,
+        number: inv.number,
+        totalMinor: inv.totalMinor,
+        currency: inv.currency,
+        voided: !!inv.voidedAt,
+        issuedAt: inv.issuedAt,
       })),
       sessions: sessions.map((s) => ({
         id: s.id,

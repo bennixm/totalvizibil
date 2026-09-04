@@ -33,7 +33,8 @@
     "supportQueue": "Support-Warteschlange",
     "staff": "Team",
     "manage": "Navigation",
-    "bizDeleting": "wird gelöscht"
+    "bizDeleting": "wird gelöscht",
+    "invoices": "Rechnungen"
   },
   "theme": {
     "label": "Design",
@@ -222,7 +223,9 @@
     "processStep": "Titel des Schritts",
     "processText": "Details (optional)",
     "addStep": "Schritt hinzufügen",
-    "hoursPlaceholder": "z. B. Mo–Fr 9–18 Uhr"
+    "hoursPlaceholder": "z. B. Mo–Fr 9–18 Uhr",
+    "rateLimited": "Zu viele Versuche in kurzer Zeit. Warte ein paar Minuten und versuche es erneut.",
+    "retry": "Erneut versuchen"
   },
   "location": {
     "eyebrow": "Schritt 2 · Standort",
@@ -287,7 +290,6 @@
     "taskBudgetText": "Ihre Website ist als Entwurf gespeichert. Um im Feed zu erscheinen, braucht sie ein Kampagnenbudget.",
     "taskCta": "Budget festlegen",
     "taskSoon": "Budget & Wallet folgen bald",
-    "taskBudgetDone": "Ihre Kampagne ist aktiv — Ihr Unternehmen erscheint im Feed.",
     "taskManage": "Kampagne verwalten",
     "websiteTitle": "Website",
     "websiteStatusLabel": "Status",
@@ -310,12 +312,9 @@
     "createCta": "Unternehmen erstellen",
     "taskAdvancedTitle": "Erweiterten Website-Builder aktivieren",
     "taskAdvancedText": "Zahlen Sie den erweiterten Plan aus dem Wallet, um den vollen Builder freizuschalten.",
-    "taskAdvancedDone": "Der erweiterte Builder ist aktiv.",
     "taskLocationTitle": "Legen Sie den Bereich fest, in dem Sie im Feed erscheinen",
     "taskLocationText": "Wählen Sie Stadt und Radius auf der Karte — das bestimmt, wo Ihr Unternehmen erscheinen kann.",
-    "taskLocationDone": "Ihr Abdeckungsbereich ist festgelegt.",
     "taskAdvancedCta": "Aktivieren",
-    "taskAdvancedManage": "Builder öffnen",
     "taskLocationCta": "Standort festlegen",
     "taskEdit": "Bearbeiten",
     "addBusiness": "Unternehmen hinzufügen",
@@ -382,7 +381,18 @@
       "responseText": "Deine Antwortzeit drückt den Score. Antworte schneller auf Anfragen.",
       "feedTitle": "Nicht im Feed",
       "feedText": "Die Kampagne ist aktiv, das Unternehmen erscheint aber noch nicht. Prüfe den Optimierer."
-    }
+    },
+    "websiteUnpublished": "Nicht veröffentlicht",
+    "invoicesTitle": "Rechnungen",
+    "invoicesIncompleteText": "Rechnungsdaten unvollständig",
+    "invoicesIncompleteCta": "Rechnungsdaten vervollständigen",
+    "invoicesUnbilledWord": "unbezahlt",
+    "invoicesUnbilledCta": "Rechnungen ausstellen",
+    "invoicesWord": "Rechnungen",
+    "invoicesNone": "Noch keine Rechnungen",
+    "invoicesLast": "Letzte: {number}",
+    "invoicesCta": "Rechnungen ansehen",
+    "editSite": "Website bearbeiten"
   },
   "campaign": {
     "eyebrow": "Feed-Werbung",
@@ -409,7 +419,8 @@
       "set_budget_first": "Legen Sie zuerst das Kampagnenbudget fest.",
       "wallet_blocked": "Das Inhaber-Wallet ist gesperrt. Entsperren Sie es, um die Kampagne zu aktivieren.",
       "company_suspended": "Das Unternehmen ist gesperrt und kann keine Kampagnen ausführen.",
-      "website_builder_incomplete": "Schließe den Advanced-Website-Builder ab, bevor du die Kampagne listest."
+      "website_builder_incomplete": "Schließe den Advanced-Website-Builder ab, bevor du die Kampagne listest.",
+      "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgesehen — es kann nicht mehr bearbeitet werden."
     },
     "builderRequiredTitle": "Zuerst die Website fertigstellen",
     "builderRequiredNote": "Dies ist ein Unternehmen im Advanced-Tarif. Baue die Website und stelle sie fertig, bevor die Kampagne live gehen kann.",
@@ -440,7 +451,10 @@
     "spendCta": "Verbrauch ansehen",
     "autoDepletedNote": "Das heutige Budget ist aufgebraucht. AUTO startet die Kampagne neu, sobald das Tagesbudget zurückgesetzt wird.",
     "autoBudgetLimited": "Dein Tagesbudget ist zu niedrig, damit AUTO den vollen CPC-Score erreicht — erhöhe es, damit AUTO den empfohlenen CPC bieten kann.",
-    "toOverview": "Zur Kampagnenübersicht"
+    "toOverview": "Zur Kampagnenübersicht",
+    "pauseConfirmTitle": "Kampagne pausieren?",
+    "pauseConfirmText": "Wenn sie länger als 24 Stunden pausiert bleibt, wird die angesammelte Laufzeit (Alters-Score) auf 0 zurückgesetzt.",
+    "pauseKeep": "Nein, weiterlaufen lassen"
   },
   "wallet": {
     "eyebrow": "Abrechnung",
@@ -489,10 +503,20 @@
     "err": {
       "wallet_blocked": "Ihr Wallet wurde von einem Administrator gesperrt. Sie können keine Credits aufladen oder ausgeben.",
       "wallet_blocked_reason": "Ihr Wallet wurde von einem Administrator gesperrt. Grund: {reason}. Sie können keine Credits aufladen oder ausgeben.",
-      "insufficient_credits": "Nicht genug Credits im Wallet."
+      "insufficient_credits": "Nicht genug Credits im Wallet.",
+      "billing_profile_incomplete": "Du musst deine Rechnungsdaten vervollständigen, bevor du Geld einzahlst."
     },
     "blockedReason": "Grund: {reason}",
-    "blockedHelp": "Wenden Sie sich an den Support, falls dies ein Fehler ist."
+    "blockedHelp": "Wenden Sie sich an den Support, falls dies ein Fehler ist.",
+    "billingRequiredTitle": "Rechnungsdaten erforderlich",
+    "billingRequiredText": "Du musst deine Rechnungsdaten (Privatperson / Firma) vervollständigen, bevor du Geld einzahlen kannst — jede Einzahlung erhält eine Rechnung.",
+    "billingRequiredCta": "Rechnungsdaten vervollständigen",
+    "unbilledTitle": "Fehlende Rechnungen",
+    "unbilledText": "Du hast {n} frühere Einzahlungen ohne ausgestellte Rechnung.",
+    "unbilledCta": "Fehlende Rechnungen ausstellen",
+    "invoiceIssued": "Rechnung {number} wurde ausgestellt.",
+    "invoiceView": "Rechnung ansehen",
+    "viewTransactionsCta": "Alle Transaktionen ansehen"
   },
   "auth": {
     "loginTitle": "Anmelden",
@@ -566,7 +590,29 @@
     "signOutOthers": "Andere Geräte abmelden",
     "thisDevice": "Dieses Gerät",
     "unknownDevice": "Unbekanntes Gerät",
-    "sessionsRevoked": "{n} andere Sitzung(en) abgemeldet"
+    "sessionsRevoked": "{n} andere Sitzung(en) abgemeldet",
+    "tabBilling": "Rechnungsdaten",
+    "billingIncompleteAlert": "Vervollständige deine Rechnungsdaten (Privatperson / Firma), bevor du Geld einzahlen kannst — ohne sie können wir keine Rechnung ausstellen.",
+    "billingTitle": "Rechnungsdaten",
+    "billingNote": "Diese Angaben erscheinen auf jeder Rechnung für eine Einzahlung. Wähle den Kontotyp und fülle die Felder aus.",
+    "billingKindIndividual": "Privatperson",
+    "billingKindCompany": "Firma",
+    "billingLegalName": "Firmenname",
+    "billingFullName": "Vollständiger Name",
+    "billingTaxId": "Steuernummer (CUI/CIF)",
+    "billingRegCom": "Handelsregisternummer",
+    "billingVatPayer": "Umsatzsteuerpflichtig",
+    "billingAddress": "Adresse",
+    "billingCity": "Stadt",
+    "billingCounty": "Kreis",
+    "billingPostalCode": "Postleitzahl",
+    "billingCountry": "Land",
+    "billingEmail": "Rechnungs-E-Mail",
+    "billingIban": "IBAN",
+    "billingBankName": "Bank",
+    "billingSaved": "Rechnungsdaten gespeichert.",
+    "billingSavedBackfilled": "Gespeichert — {n} Rechnungen rückwirkend ausgestellt.",
+    "billingSeeInvoices": "Deine Rechnungen ansehen"
   },
   "admin": {
     "title": "Admin-Panel",
@@ -704,7 +750,22 @@
     "legendConsumed": "Verbraucht",
     "groupAtAGlance": "Auf einen Blick",
     "showingRange": "{from}–{to} von {total}",
-    "usersNone": "Keine Nutzer"
+    "usersNone": "Keine Nutzer",
+    "navInvoices": "Rechnungen",
+    "searchInvoices": "Suche nach Nummer, Käufer oder E-Mail…",
+    "invoicesNone": "Keine Rechnungen gefunden.",
+    "invStatusIssued": "Ausgestellt",
+    "invStatusVoid": "Storniert",
+    "invVoided": "Die Rechnung wurde storniert.",
+    "invUnvoided": "Die Stornierung wurde rückgängig gemacht.",
+    "invVoid": "Stornieren",
+    "invUnvoid": "Stornierung aufheben",
+    "invVoidTitle": "Rechnung {number} stornieren",
+    "invVoidNote": "Die Rechnung bleibt sichtbar, als storniert markiert, mit dem unten genannten Grund. Sie wird nie gelöscht und beeinflusst nicht das Wallet-Guthaben.",
+    "invVoidReason": "Grund",
+    "invSeeAll": "Alle Rechnungen ansehen",
+    "colTotal": "Gesamt",
+    "colDate": "Datum"
   },
   "errors": {
     "notFoundTitle": "Seite nicht gefunden",
@@ -713,25 +774,26 @@
   },
   "footer": {
     "rights": "Alle Rechte vorbehalten.",
-    "docs": "Dokumentation",
     "contact": "Kontakt"
   },
   "advanced": {
     "eyebrow": "Erweiterter Plan",
     "title": "Eine komplexe, KI-gebaute Website",
-    "lead": "Mehr Seiten, ein Design nach Wahl, ein Portfolio und Abschnitte — Schritt für Schritt mit dem Assistenten.",
+    "lead": "Eine mehrseitige Website mit Dutzenden fertigen Abschnitten, Animationen und voller Designkontrolle — manuell oder mit KI erstellt.",
     "priceLabel": "Einmalige Kosten",
     "priceValue": "{credits} Credits",
     "priceNote": "Wird nach der Kontoerstellung aus dem Wallet bezahlt, bevor Sie den Builder nutzen.",
     "perk": {
-      "pages": "Mehrere Seiten (Start, Über uns, Leistungen, Portfolio…)",
-      "design": "Farbpalette und Typografie nach Wahl",
+      "pages": "Seitenbasierte Website — bis zu 6 Seiten, voll bearbeitbar",
+      "design": "Volle Designkontrolle: Themes, Farben, Schriften, Ecken, Bewegung",
       "portfolio": "Portfolio-/Arbeitsbereich",
-      "sections": "Konfigurierbare Abschnitte und CTAs"
+      "sections": "Dutzende vordesignte Abschnitte, mit Varianten und Animationen",
+      "unlimited": "Unbegrenzter Builder-Zugang — beliebig oft manuell bearbeiten",
+      "ai": "KI-Generierung inklusive (limitiert), plus Abschnitts-Anpassungen"
     },
     "fieldName": "Unternehmensname",
     "cta": "Weiter zum Konto",
-    "flowNote": "Weiter: Konto → Plan bezahlen → Builder → Standort → Kampagne.",
+    "flowNote": "Als Nächstes: Standort & Kategorie → Konto → Builder (Planzahlung) → Kampagne.",
     "error": "Start fehlgeschlagen. Bitte erneut versuchen.",
     "back": "Zurück"
   },
@@ -739,8 +801,8 @@
     "eyebrow": "Erweiterter Builder",
     "title": "Website-Builder",
     "back": "Zurück zum Dashboard",
-    "lockTitle": "Erweiterten Website-Builder aktivieren",
-    "lockText": "Einmal aus dem Wallet bezahlen, um den vollen Builder freizuschalten.",
+    "lockTitle": "Erweiterten Modus aktivieren",
+    "lockText": "Schalte den erweiterten Modus frei: ein seitenbasierter Builder mit Dutzenden fertigen Abschnitten, Varianten und Animationen sowie voller Designkontrolle. Manuelles Bearbeiten bleibt unbegrenzt; KI-Generierungen sind bis zum unten genannten Limit enthalten.",
     "priceValue": "{credits} Credits",
     "balance": "Wallet-Guthaben: {n} Credits",
     "addCredits": "Credits hinzufügen",
@@ -758,7 +820,8 @@
       "ai_section_limit": "Sie haben das Limit für KI-Anpassungen erreicht.",
       "ai_unavailable": "Die KI konnte gerade nichts erzeugen. Bitte erneut versuchen.",
       "nothing_to_undo": "Es gibt keine vorherige Version.",
-      "banned_content": "Der Text enthält unzulässige Wörter. Bitte umformulieren."
+      "banned_content": "Der Text enthält unzulässige Wörter. Bitte umformulieren.",
+      "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgesehen — es kann nicht mehr bearbeitet werden."
     },
     "msg": {
       "opening": "Hallo! Ich bin der Totalvizibil-Assistent und baue Ihnen eine komplexe Website. Beschreiben Sie, was Ihr Unternehmen macht.",
@@ -781,7 +844,7 @@
     "loadErrorTitle": "Der Builder konnte nicht geladen werden",
     "loadErrorText": "Versuchen Sie es erneut über das Dashboard.",
     "upgradeTitle": "Auf den Advanced-Plan upgraden",
-    "upgradeText": "Deine einfache Website bleibt genau so. Zusätzlich erhältst du den KI-Baukasten mit voller Kontrolle über Abschnitte, Ton, Branding und SEO.",
+    "upgradeText": "Deine einfache Website bleibt unverändert. Zusätzlich bekommst du den erweiterten Modus: seitenbasierter Builder, vordesignte Abschnitte mit Varianten und Animationen, volle Kontrolle über Theme, Branding und SEO sowie KI-Generierung.",
     "upgradeCta": "Upgraden · {credits} cr",
     "on": "An",
     "off": "Aus",
@@ -896,7 +959,22 @@
       "city": "Stadt",
       "addressLine": "Adresse",
       "hours": "Zeiten",
-      "buttonLabel": "Button-Text"
+      "buttonLabel": "Button-Text",
+      "phrases": "Phrasen",
+      "speed": "Geschwindigkeit",
+      "tiles": "Kacheln",
+      "tileTitle": "Kacheltitel",
+      "tileText": "Kacheltext",
+      "milestones": "Meilensteine",
+      "milestoneDate": "Datum",
+      "milestoneTitle": "Meilenstein-Titel",
+      "milestoneText": "Meilenstein-Text",
+      "usTitle": "„Wir“-Label",
+      "themTitle": "„Andere“-Label",
+      "rowLabel": "Kriterium",
+      "usValue": "Bei uns",
+      "themValue": "Anderswo",
+      "bannerText": "Botschaft"
     },
     "aiTitle": "Website mit KI erzeugen",
     "aiLead": "Beschreiben Sie das Unternehmen und was auf die Website soll. Die KI wählt Seiten, Abschnitte und Texte.",
@@ -940,7 +1018,35 @@
       "bold": "Stark"
     },
     "presetLabel": "Stil",
-    "autosaved": "Änderungen werden automatisch gespeichert."
+    "autosaved": "Änderungen werden automatisch gespeichert.",
+    "aiNoteTitle": "Vor Veröffentlichung prüfen",
+    "aiNote": {
+      "contact": "Fügen Sie echte Kontaktdaten (Telefon, E-Mail) hinzu — die KI hat sie leer gelassen.",
+      "team": "Tragen Sie echte Team-Namen ein — die KI hat nur Platzhalter gesetzt."
+    },
+    "motionLabel": "Bewegung",
+    "animation": "Animation",
+    "motion": {
+      "off": "Aus",
+      "subtle": "Dezent",
+      "lively": "Lebhaft"
+    },
+    "aiBuilding": "Website wird erstellt…",
+    "aiStage": {
+      "structure": "Struktur planen",
+      "copy": "Texte schreiben",
+      "design": "Design anwenden"
+    },
+    "feat": {
+      "pages": "Seitenbasierter Builder — bis zu 6 Seiten, voll bearbeitbar",
+      "sections": "Dutzende vordesignte Abschnitte, mit Varianten und Übergängen",
+      "design": "Volle Designkontrolle: Theme, Farben, Schriften, Ecken, Schatten, Bewegung",
+      "unlimited": "Unbegrenzter Builder-Zugang — beliebig oft manuell bearbeiten, ohne Limit",
+      "ai": "KI-Generierung inklusive — {plan} komplette Website-Generierungen + {section} Abschnitts-Anpassungen"
+    },
+    "aiQuota": "Verbleibende KI-Generierungen für diese Website: {left} von {limit}. Manuelles Bearbeiten ist unbegrenzt.",
+    "aiQuotaOut": "Du hast alle KI-Generierungen für diese Website verbraucht. Du kannst weiterhin unbegrenzt manuell bearbeiten.",
+    "continueBudget": "Weiter → Budget"
   },
   "site": {
     "phone": "Telefon",
@@ -955,7 +1061,11 @@
     "formSending": "Wird gesendet…",
     "formError": "Konnte nicht gesendet werden. Prüfe deine Angaben und versuche es erneut.",
     "formThanks": "Danke! Das Unternehmen meldet sich bald bei dir.",
-    "hours": "Zeiten"
+    "hours": "Zeiten",
+    "footExplore": "Entdecken",
+    "footContact": "Kontakt",
+    "madeWith": "Website von Totalvizibil",
+    "formPreview": "Das Formular wird nach der Veröffentlichung aktiv."
   },
   "leads": {
     "eyebrow": "Von deiner Website",
@@ -1154,7 +1264,17 @@
     "advancedPrice": "Preis Advanced-Builder",
     "advancedPriceHint": "Einmalige Freischaltung des Advanced-Website-Editors, in Credits.",
     "extraBizPrice": "Preis weiteres Unternehmen",
-    "extraBizPriceHint": "Kosten für ein Unternehmen über das erste hinaus, in Credits."
+    "extraBizPriceHint": "Kosten für ein Unternehmen über das erste hinaus, in Credits.",
+    "vatRate": "USt.-Satz für Rechnungen",
+    "vatRateHint": "0%, wenn das Unternehmen nicht umsatzsteuerpflichtig ist.",
+    "issuerTitle": "Rechnungsstellung — Ausstellerdaten",
+    "issuerNote": "Diese Angaben erscheinen als Aussteller auf jeder an Kunden ausgestellten Rechnung.",
+    "issuerName": "Firmenname",
+    "issuerTaxId": "Steuernummer",
+    "issuerRegCom": "Handelsregisternummer",
+    "issuerAddress": "Firmensitz",
+    "issuerIban": "IBAN",
+    "issuerBank": "Bank"
   },
   "spend": {
     "eyebrow": "Feed-Promotion",
@@ -1357,7 +1477,22 @@
       "accordion": "Akkordeon",
       "narrow": "Schmal",
       "gradient": "Verlauf",
-      "solid": "Einfarbig"
+      "solid": "Einfarbig",
+      "overlap": "Überlappt",
+      "stat": "Mit Zahlen",
+      "rows": "Zeilen",
+      "numbered": "Nummeriert",
+      "checklist": "Checkliste",
+      "inline": "In einer Zeile",
+      "carousel": "Karussell",
+      "single": "Einzelzitat",
+      "ticker": "Ticker",
+      "table": "Tabelle",
+      "row": "Zeile",
+      "boxed": "Umrahmt",
+      "even": "Gleich",
+      "mixed": "Gemischt",
+      "line": "Linie"
     },
     "hero": {
       "label": "Hero",
@@ -1422,6 +1557,82 @@
     "contact": {
       "label": "Kontakt",
       "desc": "Kontaktdaten und Öffnungszeiten"
+    },
+    "anim": {
+      "auto": "Auto",
+      "none": "Keine",
+      "fade": "Einblenden",
+      "rise": "Aufsteigen",
+      "slideLeft": "Schieben ←",
+      "slideRight": "Schieben →",
+      "zoom": "Zoom",
+      "blur": "Unschärfe"
+    },
+    "marquee": {
+      "label": "Laufband",
+      "desc": "Scrollender Text oder Kundennamen"
+    },
+    "bento": {
+      "label": "Bento-Raster",
+      "desc": "Karten unterschiedlicher Größe im engen Raster"
+    },
+    "timeline": {
+      "label": "Zeitleiste",
+      "desc": "Meilensteine oder Geschichte auf einer Zeitachse"
+    },
+    "comparison": {
+      "label": "Vergleich",
+      "desc": "Wir vs. andere, Zeile für Zeile"
+    },
+    "banner": {
+      "label": "Promo-Banner",
+      "desc": "Kurze Botschaft über die volle Breite mit Button"
     }
+  },
+  "invoice": {
+    "back": "Zurück zum Konto",
+    "print": "Drucken / Als PDF speichern",
+    "loadError": "Rechnung konnte nicht geladen werden.",
+    "docTitle": "Rechnung",
+    "issuedOn": "Ausgestellt am",
+    "issuer": "Aussteller",
+    "buyer": "Rechnungsempfänger",
+    "taxId": "Steuernummer",
+    "regCom": "Handelsreg.-Nr.",
+    "kindIndividual": "Privatperson",
+    "kindCompany": "Firma",
+    "colDescription": "Beschreibung",
+    "colQty": "Menge",
+    "colUnitPrice": "Einzelpreis",
+    "colVat": "USt.",
+    "colLineTotal": "Gesamt",
+    "subtotal": "Zwischensumme",
+    "vat": "USt.",
+    "vatExempt": "befreit",
+    "total": "Gesamtbetrag",
+    "paidVia": "Bezahlt über Totalvizibil-Wallet — {eur} EUR umgerechnet zu {rate} RON/EUR.",
+    "generatedNote": "Elektronisch erstellt von Totalvizibil."
+  },
+  "invoices": {
+    "eyebrow": "Rechnungsstellung",
+    "title": "Rechnungen",
+    "incompleteTitle": "Rechnungsdaten erforderlich",
+    "incompleteText": "Vervollständige deine Rechnungsdaten (Privatperson / Firma), um hier Rechnungen zu sehen — ohne sie kann keine Rechnung ausgestellt werden.",
+    "incompleteCta": "Rechnungsdaten vervollständigen",
+    "unbilledTitle": "Fehlende Rechnungen",
+    "unbilledText": "Du hast {n} frühere Einzahlungen ohne ausgestellte Rechnung.",
+    "issueMissing": "Fehlende Rechnungen ausstellen",
+    "empty": "Du hast noch keine Rechnungen.",
+    "colNumber": "Nummer",
+    "colDate": "Datum",
+    "colTotal": "Gesamt",
+    "view": "Rechnung ansehen",
+    "profileNote": "Rechnungen werden ausgestellt auf: {name}.",
+    "editProfile": "Rechnungsdaten bearbeiten"
+  },
+  "transactions": {
+    "eyebrow": "Wallet",
+    "title": "Transaktionen",
+    "back": "Zurück zum Wallet"
   }
 }

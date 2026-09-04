@@ -187,9 +187,44 @@ const sections = computed(() => (page.value?.sections ?? []).filter((s) => s.vis
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const f = (s: Section, key: string): any => (s as any)[key]
 
+/** Marquee needs its items twice for a seamless CSS loop. */
+function marqueeLoop(items: unknown): string[] {
+  const list = (Array.isArray(items) ? items : []).map((x) => String(x)).filter(Boolean)
+  return list.length ? [...list, ...list] : []
+}
+/** Comparison cell: ✓/✗ for yes/no/blank, otherwise the literal text. */
+function cmpCell(val: unknown, isUs: boolean): string {
+  const v = String(val ?? '')
+    .trim()
+    .toLowerCase()
+  if (v === '' || v === 'yes' || v === 'da' || v === 'ja' || v === 'true') {
+    return isUs ? '<span class="cmp__y">✓</span>' : '<span class="cmp__n">✗</span>'
+  }
+  if (v === 'no' || v === 'nu' || v === 'nein' || v === 'false' || v === '-') {
+    return '<span class="cmp__n">✗</span>'
+  }
+  const esc = String(val ?? '').replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string,
+  )
+  return esc
+}
+
 // --- one-page anchor navbar -------------------------------------------
 const singlePage = computed(() => pages.value.length <= 1)
-const brandName = computed(() => page.value?.title || props.content.seo.title || '')
+/**
+ * Stable site identity for the nav + footer. Never the active page's title
+ * (that turned the footer brand into "Contact" on the contact page). Uses the
+ * SEO title, trimmed to the business name it is built from ("Name — Type, City").
+ */
+const brandName = computed(() => {
+  const seo = (props.content.seo?.title || '').trim()
+  const short = seo.split(/\s[—–|]\s|,\s/)[0].trim()
+  if (short) return short
+  const home = pages.value.find((p) => p.isHome) ?? pages.value[0]
+  return seo || home?.title || ''
+})
 const year = new Date().getFullYear()
 const NAV_TYPES = [
   'about',
@@ -208,6 +243,34 @@ const anchors = computed(() =>
         .map((s) => ({ id: s.id, label: f(s, 'title') || s.type }))
     : [],
 )
+
+// --- footer --------------------------------------------------------
+const footBlurb = computed(() => (props.content.seo?.description || '').slice(0, 160))
+const footLinks = computed<{ key: string; label: string; go: () => void }[]>(() => {
+  if (singlePage.value) {
+    return anchors.value.map((a) => ({ key: a.id, label: a.label, go: () => navGo(a.id) }))
+  }
+  return navPages.value.map((p) => ({
+    key: p.slug,
+    label: p.title,
+    go: () => {
+      activeSlug.value = p.slug
+      scrollEl.value?.scrollTo({ top: 0, behavior: 'smooth' })
+    },
+  }))
+})
+const footContact = computed(() => {
+  for (const p of pages.value) {
+    const c = (p.sections ?? []).find((s) => s.visible && s.type === 'contact')
+    if (c) {
+      const phone = f(c, 'phone')
+      const email = f(c, 'email')
+      const city = f(c, 'city')
+      if (phone || email || city) return { phone, email, city }
+    }
+  }
+  return null
+})
 
 const scrollEl = ref<HTMLElement | null>(null)
 const navOpen = ref(false)
@@ -264,15 +327,53 @@ function navGo(id: string): void {
   scrollToId(id)
 }
 
+// --- CTA buttons: jump to a section anywhere in the site --------------
+function findSection(type: string): { slug: string; id: string } | null {
+  for (const p of pages.value) {
+    const sec = (p.sections ?? []).find((x) => x.visible && x.type === type)
+    if (sec) return { slug: p.slug, id: sec.id }
+  }
+  return null
+}
+function jumpTo(type: string): void {
+  const hit = findSection(type)
+  if (!hit) {
+    scrollEl.value?.scrollTo({ top: scrollEl.value.scrollHeight, behavior: 'smooth' })
+    return
+  }
+  if (hit.slug !== activeSlug.value) {
+    activeSlug.value = hit.slug
+    void nextTick(() => scrollToId(hit.id))
+  } else {
+    scrollToId(hit.id)
+  }
+}
+function goToContact(): void {
+  jumpTo('contact')
+}
+function goToWork(): void {
+  jumpTo(findSection('gallery') ? 'gallery' : 'contact')
+}
+/** In the builder preview a CTA click selects its section instead of navigating. */
+function ctaClick(s: Section, fn: () => void): void {
+  if (props.editable) emit('select', s.id)
+  else fn()
+}
+
 // --- reveal-on-scroll ----------------------------------------------------
 // Decided synchronously so sections render hidden from the first paint (no
 // flash of content that then hides). The observer just reveals them.
-const animate =
-  typeof window === 'undefined' ||
-  !(
-    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ||
-    typeof IntersectionObserver === 'undefined'
-  )
+/** Site-wide motion intensity; `off` disables every entrance. */
+const motion = computed<'off' | 'subtle' | 'lively'>(() => props.theme.motion ?? 'subtle')
+const animate = computed(
+  () =>
+    motion.value !== 'off' &&
+    (typeof window === 'undefined' ||
+      !(
+        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ||
+        typeof IntersectionObserver === 'undefined'
+      )),
+)
 let io: IntersectionObserver | null = null
 
 function teardownObserver(): void {
@@ -286,10 +387,22 @@ function revealAll(): void {
     .forEach((el) => el.classList.add('is-in'))
 }
 
+/** Mirror each section's picked animation onto its DOM node as `data-anim`. */
+function paintAnims(): void {
+  const root = scrollEl.value
+  if (!root) return
+  for (const s of sections.value) {
+    const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(s.id) : s.id
+    const el = root.querySelector<HTMLElement>(`[id="${esc}"]`)
+    if (el) el.dataset.anim = (s.animation as string) || ''
+  }
+}
+
 function setupObserver(): void {
   teardownObserver()
   const root = scrollEl.value
-  if (!animate || !root || typeof IntersectionObserver === 'undefined') {
+  paintAnims()
+  if (!animate.value || !root || typeof IntersectionObserver === 'undefined') {
     revealAll()
     return
   }
@@ -322,9 +435,13 @@ onBeforeUnmount(() => {
   if (typeof window !== 'undefined') window.removeEventListener('scroll', onScroll)
 })
 
-// Studio live-edits swap the section tree — re-arm the observer on the new nodes.
+// Studio live-edits swap the section tree / change an animation — re-arm the
+// observer on the new nodes so a freshly picked entrance previews once.
 watch(
-  () => sections.value.map((s) => s.id).join('|'),
+  () => [
+    sections.value.map((s) => `${s.id}:${s.animation ?? ''}`).join('|'),
+    animate.value,
+  ],
   () => void nextTick(setupObserver),
 )
 </script>
@@ -334,6 +451,7 @@ watch(
     class="site"
     :class="[
       `site--btn-${theme.buttonStyle || 'solid'}`,
+      `site--motion-${motion}`,
       { 'site--framed': framed, 'site--dark': theme.background === 'dark' },
     ]"
     :style="[styleVars, { '--site-prog': prog }]"
@@ -429,8 +547,17 @@ watch(
             <h1>{{ f(s, 'headline') }}</h1>
             <p v-if="f(s, 'subheadline')" class="s--hero__sub">{{ f(s, 'subheadline') }}</p>
             <div class="s--hero__cta">
-              <span class="btn btn--solid">{{ f(s, 'primaryCta') }}</span>
-              <span v-if="f(s, 'secondaryCta')" class="btn btn--ghost">{{ f(s, 'secondaryCta') }}</span>
+              <button type="button" class="btn btn--solid" @click="ctaClick(s, goToContact)">
+                {{ f(s, 'primaryCta') }}
+              </button>
+              <button
+                v-if="f(s, 'secondaryCta')"
+                type="button"
+                class="btn btn--ghost"
+                @click="ctaClick(s, goToWork)"
+              >
+                {{ f(s, 'secondaryCta') }}
+              </button>
             </div>
           </div>
           <span
@@ -455,7 +582,7 @@ watch(
         </section>
 
         <!-- STATS / NUMBERS BAND -->
-        <section v-else-if="s.type === 'stats'" :id="s.id" class="s s--stats">
+        <section v-else-if="s.type === 'stats'" :id="s.id" class="s s--stats" :class="vclass(s)">
           <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
           <div class="stats">
             <div v-for="(item, i) in f(s, 'items')" :key="i" class="stat">
@@ -507,7 +634,7 @@ watch(
         </section>
 
         <!-- FEATURES / WHY US -->
-        <section v-else-if="s.type === 'features'" :id="s.id" class="s s--feats">
+        <section v-else-if="s.type === 'features'" :id="s.id" class="s s--feats" :class="vclass(s)">
           <h2 class="s__h">{{ f(s, 'title') }}</h2>
           <div class="feats">
             <div v-for="(item, i) in f(s, 'items')" :key="i" class="feat">
@@ -523,7 +650,7 @@ watch(
         </section>
 
         <!-- GALLERY / PORTFOLIO -->
-        <section v-else-if="s.type === 'gallery'" :id="s.id" class="s s--gallery">
+        <section v-else-if="s.type === 'gallery'" :id="s.id" class="s s--gallery" :class="vclass(s)">
           <h2 class="s__h">{{ f(s, 'title') }}</h2>
           <div class="pfolio">
             <figure v-for="(item, i) in f(s, 'items')" :key="i" class="pcard">
@@ -537,7 +664,7 @@ watch(
         </section>
 
         <!-- TESTIMONIALS -->
-        <section v-else-if="s.type === 'testimonials'" :id="s.id" class="s s--quotes">
+        <section v-else-if="s.type === 'testimonials'" :id="s.id" class="s s--quotes" :class="vclass(s)">
           <h2 class="s__h">{{ f(s, 'title') }}</h2>
           <div class="quotes">
             <figure v-for="(item, i) in f(s, 'items')" :key="i" class="quote">
@@ -552,7 +679,7 @@ watch(
         </section>
 
         <!-- FAQ -->
-        <section v-else-if="s.type === 'faq'" :id="s.id" class="s s--faq">
+        <section v-else-if="s.type === 'faq'" :id="s.id" class="s s--faq" :class="vclass(s)">
           <h2 class="s__h">{{ f(s, 'title') }}</h2>
           <details v-for="(item, i) in f(s, 'items')" :key="i" class="qa">
             <summary>
@@ -599,25 +726,28 @@ watch(
             </div>
           </div>
 
-          <!-- Interactive request form (public site only) -->
+          <!-- Request form. Interactive on the live site; an inert preview in
+               the builder / before the site is claimed. -->
           <form
-            v-if="leadSlug && cState !== 'sent'"
+            v-if="cState !== 'sent'"
             class="cform"
-            @submit.prevent="sendContactForm"
+            :class="{ 'cform--preview': !leadSlug }"
+            @submit.prevent="leadSlug && sendContactForm()"
           >
             <p class="cform__lead">{{ t('site.formLead') }}</p>
             <div class="cform__row">
-              <input v-model="cf.name" type="text" :placeholder="t('site.fName')" autocomplete="name" />
-              <input v-model="cf.email" type="email" :placeholder="t('site.fEmail')" autocomplete="email" />
+              <input v-model="cf.name" type="text" :placeholder="t('site.fName')" autocomplete="name" :disabled="!leadSlug" />
+              <input v-model="cf.email" type="email" :placeholder="t('site.fEmail')" autocomplete="email" :disabled="!leadSlug" />
             </div>
-            <input v-model="cf.phone" type="tel" :placeholder="t('site.fPhone')" autocomplete="tel" />
-            <textarea v-model="cf.message" rows="3" :placeholder="t('site.fMessage')" required></textarea>
+            <input v-model="cf.phone" type="tel" :placeholder="t('site.fPhone')" autocomplete="tel" :disabled="!leadSlug" />
+            <textarea v-model="cf.message" rows="3" :placeholder="t('site.fMessage')" :required="!!leadSlug" :disabled="!leadSlug"></textarea>
             <p v-if="cState === 'error'" class="cform__err">{{ t('site.formError') }}</p>
-            <button type="submit" class="btn btn--solid" :disabled="!cValid || cState === 'busy'">
+            <button type="submit" class="btn btn--solid" :disabled="!leadSlug || !cValid || cState === 'busy'">
               {{ cState === 'busy' ? t('site.formSending') : t('site.formSend') }}
             </button>
+            <p v-if="!leadSlug" class="cform__note">{{ t('site.formPreview') }}</p>
           </form>
-          <p v-else-if="leadSlug" class="cform__ok">
+          <p v-else class="cform__ok">
             <span aria-hidden="true">✓</span> {{ t('site.formThanks') }}
           </p>
         </section>
@@ -693,7 +823,14 @@ watch(
                   <v-icon icon="mdi-check" size="15" /> {{ ft }}
                 </li>
               </ul>
-              <span v-if="p.cta" class="btn btn--solid tier__cta">{{ p.cta }}</span>
+              <button
+                v-if="p.cta"
+                type="button"
+                class="btn btn--solid tier__cta"
+                @click="ctaClick(s, goToContact)"
+              >
+                {{ p.cta }}
+              </button>
             </article>
           </div>
         </section>
@@ -710,20 +847,125 @@ watch(
         <section v-else-if="s.type === 'cta'" :id="s.id" class="s s--cta" :class="vclass(s)">
           <span class="s--cta__glow" aria-hidden="true" />
           <h2 class="s__h">{{ f(s, 'headline') }}</h2>
-          <button type="button" class="btn btn--solid s--cta__btn" @click="scrollToId('contact')">
+          <button type="button" class="btn btn--solid s--cta__btn" @click="ctaClick(s, goToContact)">
             {{ f(s, 'buttonLabel') }}
           </button>
         </section>
+
+        <!-- MARQUEE / scrolling strip -->
+        <section
+          v-else-if="s.type === 'marquee'"
+          :id="s.id"
+          class="s s--mrq"
+          :class="[vclass(s), `s--mrq--${f(s, 'speed') || 'normal'}`]"
+        >
+          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <div class="mrq" :class="{ 'mrq--static': editable }">
+            <div class="mrq__track">
+              <span v-for="(it, i) in marqueeLoop(f(s, 'items'))" :key="i" class="mrq__i">
+                {{ it }}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <!-- BENTO grid -->
+        <section v-else-if="s.type === 'bento'" :id="s.id" class="s s--bento" :class="vclass(s)">
+          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <div class="bento">
+            <article v-for="(it, i) in f(s, 'items')" :key="i" class="bento__c">
+              <div
+                v-if="it.imageUrl"
+                class="bento__img"
+                :style="{ backgroundImage: `url(${it.imageUrl})` }"
+              />
+              <div class="bento__t">
+                <h3>{{ it.title }}</h3>
+                <p v-if="it.text">{{ it.text }}</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- TIMELINE -->
+        <section v-else-if="s.type === 'timeline'" :id="s.id" class="s s--tl" :class="vclass(s)">
+          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <ol class="tl">
+            <li v-for="(it, i) in f(s, 'items')" :key="i" class="tl__i">
+              <span class="tl__dot" aria-hidden="true" />
+              <span class="tl__date">{{ it.date }}</span>
+              <div class="tl__t">
+                <h3>{{ it.title }}</h3>
+                <p v-if="it.text">{{ it.text }}</p>
+              </div>
+            </li>
+          </ol>
+        </section>
+
+        <!-- COMPARISON -->
+        <section v-else-if="s.type === 'comparison'" :id="s.id" class="s s--cmp" :class="vclass(s)">
+          <table class="cmp">
+            <thead>
+              <tr>
+                <th />
+                <th class="cmp__us">{{ f(s, 'usTitle') }}</th>
+                <th>{{ f(s, 'themTitle') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(it, i) in f(s, 'items')" :key="i">
+                <td class="cmp__lbl">{{ it.label }}</td>
+                <td class="cmp__us" v-html="cmpCell(it.us, true)" />
+                <td v-html="cmpCell(it.them, false)" />
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- BANNER strip -->
+        <section v-else-if="s.type === 'banner'" :id="s.id" class="s s--banner" :class="vclass(s)">
+          <div class="banner">
+            <p>{{ f(s, 'text') }}</p>
+            <button
+              v-if="f(s, 'buttonLabel')"
+              type="button"
+              class="btn btn--solid"
+              @click="ctaClick(s, goToContact)"
+            >
+              {{ f(s, 'buttonLabel') }}
+            </button>
+          </div>
+        </section>
       </template>
 
-      <footer v-if="singlePage" class="site__foot">
-        <span class="site__foot-brand">{{ brandName }}</span>
-        <nav v-if="anchors.length" class="site__foot-links">
-          <button v-for="a in anchors" :key="a.id" type="button" @click="navGo(a.id)">
-            {{ a.label }}
-          </button>
-        </nav>
-        <span class="site__foot-cp">© {{ year }} {{ brandName }}</span>
+      <footer class="site__foot">
+        <div class="site__foot-in">
+          <div class="site__foot-col site__foot-col--brand">
+            <span class="site__foot-brand">{{ brandName }}</span>
+            <p v-if="footBlurb" class="site__foot-blurb">{{ footBlurb }}</p>
+          </div>
+          <nav v-if="footLinks.length" class="site__foot-col">
+            <span class="site__foot-h">{{ t('site.footExplore') }}</span>
+            <button
+              v-for="l in footLinks"
+              :key="l.key"
+              type="button"
+              @click="l.go()"
+            >
+              {{ l.label }}
+            </button>
+          </nav>
+          <div v-if="footContact" class="site__foot-col">
+            <span class="site__foot-h">{{ t('site.footContact') }}</span>
+            <span v-if="footContact.phone">{{ footContact.phone }}</span>
+            <span v-if="footContact.email">{{ footContact.email }}</span>
+            <span v-if="footContact.city">{{ footContact.city }}</span>
+          </div>
+        </div>
+        <div class="site__foot-bar">
+          <span>© {{ year }} {{ brandName }}</span>
+          <span class="site__foot-made">{{ t('site.madeWith') }}</span>
+        </div>
       </footer>
     </div>
   </div>
@@ -1059,22 +1301,57 @@ watch(
   background: linear-gradient(90deg, var(--site-accent), transparent);
 }
 
-/* scroll-reveal — the hero stays visible (it is above the fold) */
+/* scroll-reveal — the hero stays visible (it is above the fold).
+   Distance/duration are tokens so `site--motion-lively` can scale them; each
+   section's `data-anim` (set from the builder / AI) picks the entrance shape. */
+.site__scroll--anim {
+  --rv-dist: 20px;
+  --rv-dur: 0.55s;
+  --rv-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.site--motion-lively .site__scroll--anim {
+  --rv-dist: 40px;
+  --rv-dur: 0.7s;
+}
 .site__scroll--anim .s:not(.s--hero) {
   opacity: 0;
-  transform: translateY(18px);
+  transform: translateY(var(--rv-dist));
   transition:
-    opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity var(--rv-dur) var(--rv-ease),
+    transform var(--rv-dur) var(--rv-ease),
+    filter var(--rv-dur) var(--rv-ease);
+}
+.site__scroll--anim .s:not(.s--hero)[data-anim='fade'] {
+  transform: none;
+}
+.site__scroll--anim .s:not(.s--hero)[data-anim='slideLeft'] {
+  transform: translateX(var(--rv-dist));
+}
+.site__scroll--anim .s:not(.s--hero)[data-anim='slideRight'] {
+  transform: translateX(calc(-1 * var(--rv-dist)));
+}
+.site__scroll--anim .s:not(.s--hero)[data-anim='zoom'] {
+  transform: scale(0.94);
+}
+.site__scroll--anim .s:not(.s--hero)[data-anim='blur'] {
+  transform: none;
+  filter: blur(10px);
+}
+.site__scroll--anim .s:not(.s--hero)[data-anim='none'] {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  transition: none;
 }
 .site__scroll--anim .s:not(.s--hero).is-in {
   opacity: 1;
   transform: none;
+  filter: none;
 }
 
 /* staggered reveal for repeating section children */
-.site__scroll--anim .s:not(.s--hero)
-  :is(.card, .feat, .stat, .proc__step, .quote, .pcard, .ccard, .srow, .qa) {
+.site__scroll--anim .s:not(.s--hero):not([data-anim='none'])
+  :is(.card, .feat, .stat, .proc__step, .quote, .pcard, .ccard, .srow, .qa, .bento__c, .tl__i) {
   opacity: 0;
   transform: translateY(14px);
   transition:
@@ -1082,7 +1359,7 @@ watch(
     transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .site__scroll--anim .s:not(.s--hero).is-in
-  :is(.card, .feat, .stat, .proc__step, .quote, .pcard, .ccard, .srow, .qa) {
+  :is(.card, .feat, .stat, .proc__step, .quote, .pcard, .ccard, .srow, .qa, .bento__c, .tl__i) {
   opacity: 1;
   transform: none;
 }
@@ -1823,6 +2100,25 @@ a.ccard:hover {
   font-weight: 600;
   color: var(--site-accent);
 }
+.cform--preview {
+  position: relative;
+}
+.cform--preview input,
+.cform--preview textarea {
+  opacity: 0.75;
+}
+.cform__note {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--site-ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.cform__note::before {
+  content: '👁';
+  font-size: 0.9rem;
+}
 
 /* CTA */
 .s--cta {
@@ -1864,44 +2160,80 @@ a.ccard:hover {
 }
 
 /* one-page footer */
+/* ============ site footer ============ */
 .site__foot {
+  background: color-mix(in srgb, var(--site-accent) 10%, #0b0c11);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.88rem;
+}
+.site__foot-in {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: clamp(1.5rem, 5vw, 3.5rem);
+  padding: clamp(2.5rem, 6vw, 4rem) var(--pad) clamp(1.8rem, 4vw, 2.6rem);
+}
+.site__foot-col {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.7rem 1.4rem;
-  padding: 2.4rem var(--pad);
-  background: color-mix(in srgb, var(--site-accent) 12%, #0c0d12);
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 0.85rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.site__foot-col--brand {
+  gap: 0.7rem;
 }
 .site__foot-brand {
   font-family: var(--site-display);
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
   color: #fff;
 }
-.site__foot-links {
+.site__foot-blurb {
+  margin: 0;
+  max-width: 42ch;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.6);
+}
+.site__foot-h {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 0.15rem;
+}
+.site__foot-col button {
+  align-self: flex-start;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.72);
+  transition: color 0.15s ease;
+}
+.site__foot-col button:hover {
+  color: #fff;
+}
+.site__foot-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.2rem 0.35rem;
-  flex: 1;
-  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding: 1.1rem var(--pad);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
 }
-.site__foot-links button {
-  padding: 0.3rem 0.6rem;
-  border-radius: 999px;
-  font: inherit;
-  color: rgba(255, 255, 255, 0.68);
-  transition:
-    color 0.15s ease,
-    background 0.15s ease;
+.site__foot-made {
+  opacity: 0.8;
 }
-.site__foot-links button:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-}
-.site__foot-cp {
-  opacity: 0.66;
+@container (max-width: 640px) {
+  .site__foot-in {
+    grid-template-columns: 1fr 1fr;
+  }
+  .site__foot-col--brand {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ============ Advanced builder: editable preview ============ */
@@ -2242,6 +2574,383 @@ a.ccard:hover {
   border-color: color-mix(in srgb, var(--site-accent) 45%, transparent);
   box-shadow: 0 26px 56px -24px color-mix(in srgb, var(--site-accent) 55%, transparent);
 }
+/* ============ MARQUEE ============ */
+.s--mrq {
+  overflow: hidden;
+}
+.mrq {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.mrq__track {
+  display: inline-flex;
+  gap: 2.4rem;
+  padding-right: 2.4rem;
+  white-space: nowrap;
+  animation: mrq-scroll 26s linear infinite;
+}
+.s--mrq--slow .mrq__track {
+  animation-duration: 42s;
+}
+.s--mrq--fast .mrq__track {
+  animation-duration: 15s;
+}
+.mrq--static .mrq__track {
+  animation: none;
+}
+.mrq__i {
+  font-family: var(--site-display);
+  font-weight: 600;
+  font-size: clamp(1.1rem, 2.4vw, 1.7rem);
+  color: var(--site-ink-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 2.4rem;
+}
+.mrq__i::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--site-accent);
+}
+.s--mrq--logos .mrq__i {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: clamp(0.9rem, 1.8vw, 1.15rem);
+}
+@keyframes mrq-scroll {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ============ BENTO ============ */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+.bento__c {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.4rem;
+  border-radius: var(--site-radius);
+  border: 1px solid var(--site-border);
+  background: var(--site-surface);
+  box-shadow: var(--site-shadow);
+  min-height: 180px;
+}
+.s--bento--mixed .bento__c:first-child {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+.s--bento--mixed .bento__c:nth-child(4) {
+  grid-column: span 2;
+}
+.bento__img {
+  flex: 1;
+  min-height: 90px;
+  border-radius: calc(var(--site-radius) * 0.6);
+  background: var(--site-wash) center / cover no-repeat;
+}
+.bento__t h3 {
+  font-family: var(--site-display);
+  font-size: 1.1rem;
+  margin: 0 0 0.3rem;
+}
+.bento__t p {
+  margin: 0;
+  color: var(--site-ink-soft);
+  font-size: 0.92rem;
+  white-space: normal;
+}
+@container (max-width: 720px) {
+  .bento {
+    grid-template-columns: 1fr 1fr;
+  }
+  .s--bento--mixed .bento__c:first-child,
+  .s--bento--mixed .bento__c:nth-child(4) {
+    grid-column: span 2;
+    grid-row: auto;
+  }
+}
+
+/* ============ TIMELINE ============ */
+.tl {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+.tl::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--site-border);
+}
+.tl__i {
+  position: relative;
+  padding: 0 0 1.6rem 2.4rem;
+}
+.tl__i:last-child {
+  padding-bottom: 0;
+}
+.tl__dot {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--site-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--site-accent) 20%, transparent);
+}
+.tl__date {
+  font-family: var(--site-display);
+  font-weight: 700;
+  color: var(--site-accent);
+  font-size: 0.9rem;
+}
+.tl__t h3 {
+  font-family: var(--site-display);
+  font-size: 1.15rem;
+  margin: 0.15rem 0 0.3rem;
+}
+.tl__t p {
+  margin: 0;
+  color: var(--site-ink-soft);
+}
+@container (min-width: 720px) {
+  .s--tl--alternating .tl::before {
+    left: 50%;
+  }
+  .s--tl--alternating .tl__i {
+    width: 50%;
+    padding-left: 0;
+    padding-right: 2.4rem;
+    text-align: right;
+  }
+  .s--tl--alternating .tl__dot {
+    left: auto;
+    right: -8px;
+  }
+  .s--tl--alternating .tl__i:nth-child(even) {
+    margin-left: 50%;
+    padding-left: 2.4rem;
+    padding-right: 0;
+    text-align: left;
+  }
+  .s--tl--alternating .tl__i:nth-child(even) .tl__dot {
+    left: -8px;
+    right: auto;
+  }
+}
+
+/* ============ COMPARISON ============ */
+.cmp {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+.cmp th,
+.cmp td {
+  padding: 0.85rem 1rem;
+  text-align: center;
+  border-bottom: 1px solid var(--site-border);
+}
+.cmp thead th {
+  font-family: var(--site-display);
+  font-size: 1rem;
+  color: var(--site-ink);
+}
+.cmp__lbl {
+  text-align: left;
+  color: var(--site-ink-soft);
+}
+.cmp .cmp__us {
+  background: var(--site-wash);
+  font-weight: 600;
+}
+.cmp__y {
+  color: var(--site-accent);
+  font-weight: 700;
+}
+.cmp__n {
+  color: color-mix(in srgb, var(--site-ink) 34%, var(--site-bg));
+}
+
+/* ============ BANNER ============ */
+.s--banner {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.15rem clamp(1.2rem, 4vw, 2.4rem);
+  border-radius: var(--site-radius);
+  background: var(--site-wash);
+  border: 1px solid var(--site-border);
+}
+.s--banner--gradient .banner {
+  background: linear-gradient(
+    100deg,
+    var(--site-accent),
+    color-mix(in srgb, var(--site-accent) 55%, #0b0b12)
+  );
+  border: 0;
+}
+.s--banner--gradient .banner p {
+  color: var(--site-accent-ink);
+}
+.banner p {
+  margin: 0;
+  font-family: var(--site-display);
+  font-weight: 600;
+  font-size: clamp(1rem, 2.2vw, 1.25rem);
+}
+
+/* ============ new variants on existing sections ============ */
+.s--hero--gradient {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--site-accent) 22%, var(--site-bg)),
+    var(--site-bg)
+  );
+}
+.s--stats--cards .stats,
+.s--stats--inline .stats {
+  gap: 1rem;
+}
+.s--stats--cards .stat {
+  padding: 1.4rem;
+  border-radius: var(--site-radius);
+  border: 1px solid var(--site-border);
+  background: var(--site-surface);
+  box-shadow: var(--site-shadow);
+}
+.s--stats--inline .stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2.5rem;
+}
+.s--services--numbered .card {
+  counter-increment: svc;
+  position: relative;
+}
+.s--services--numbered .card::before {
+  content: counter(svc, decimal-leading-zero);
+  font-family: var(--site-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--site-accent);
+}
+.s--services--rows .grid,
+.s--services--rows .cards {
+  display: flex;
+  flex-direction: column;
+}
+.s--feats--checklist .feats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.s--feats--checklist .feat {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  border: 0;
+  box-shadow: none;
+  padding: 0.4rem 0;
+}
+.s--feats--checklist .feat::before {
+  content: '✓';
+  color: var(--site-accent);
+  font-weight: 700;
+}
+.s--gallery--carousel .grid,
+.s--gallery--carousel .ggrid {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.s--gallery--carousel .gcell,
+.s--gallery--carousel .grid > * {
+  flex: 0 0 min(78%, 420px);
+  scroll-snap-align: center;
+}
+.s--quotes--single .quotes,
+.s--quotes--single .qgrid {
+  max-width: 760px;
+  margin-inline: auto;
+}
+.s--quotes--single .quote {
+  text-align: center;
+  font-size: 1.15rem;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.s--team--row .team,
+.s--team--row .tgrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4rem;
+}
+.s--team--row .tm {
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+}
+.s--cta--boxed {
+  padding-inline: var(--pad);
+}
+.s--cta--boxed .s__h,
+.s--cta--boxed .s--cta__btn {
+  position: relative;
+  z-index: 1;
+}
+.s--cta--boxed::after {
+  content: '';
+  position: absolute;
+  inset: var(--pad);
+  border-radius: var(--site-radius);
+  border: 1px solid var(--site-border);
+  background: var(--site-wash);
+}
+.s--faq--plain .qa {
+  border: 0;
+  border-bottom: 1px solid var(--site-border);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.s--pricing--table .tiers,
+.s--pricing--table .pgrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.s--pricing--table .tier {
+  flex-direction: row;
+  align-items: center;
+  gap: 1.2rem;
+  border-radius: 0;
+  border-bottom: 1px solid var(--site-border);
+}
+
 /* dark mode: lift image/gradient placeholders + soften scrims */
 .site--dark .pcard__ph,
 .site--dark .fsrow__ph {
@@ -2250,16 +2959,27 @@ a.ccard:hover {
 .site--dark .s--hero {
   background: linear-gradient(180deg, var(--site-wash), var(--site-bg));
 }
+.site--dark .s--hero--gradient {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--site-accent) 26%, var(--site-bg)),
+    var(--site-bg)
+  );
+}
+.site--dark .bento__c,
+.site--dark .s--stats--cards .stat {
+  background: color-mix(in srgb, var(--site-ink) 5%, var(--site-bg));
+}
 
 @media (prefers-reduced-motion: reduce) {
   .site__scroll {
     scroll-behavior: auto;
   }
-  .site__scroll--anim .s:not(.s--hero),
-  .site__scroll--anim .s:not(.s--hero)
-    :is(.card, .feat, .stat, .proc__step, .quote, .pcard, .ccard, .srow, .qa) {
+  .site__scroll--anim .s,
+  .site__scroll--anim .s * {
     opacity: 1 !important;
     transform: none !important;
+    filter: none !important;
     transition: none !important;
     transition-delay: 0s !important;
   }
@@ -2268,7 +2988,8 @@ a.ccard:hover {
   }
   .s--hero__aura,
   .s--hero__cue,
-  .s--stats::before {
+  .s--stats::before,
+  .mrq__track {
     animation: none !important;
   }
 }

@@ -40,14 +40,6 @@ const year = new Date().getFullYear()
       >
         <span>© {{ year }} {{ t('app.name') }}. {{ t('footer.rights') }}</span>
         <div class="d-flex ga-5">
-          <a
-            href="https://github.com/bennixm/totalvizibil"
-            target="_blank"
-            rel="noopener"
-            class="footer-link"
-          >
-            {{ t('footer.docs') }}
-          </a>
           <router-link :to="{ name: 'feed' }" class="footer-link">
             {{ t('footer.contact') }}
           </router-link>

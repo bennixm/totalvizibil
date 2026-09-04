@@ -57,15 +57,35 @@ function errText(code: string): string {
   return KNOWN_ERR.includes(code) ? t('claim.err.' + code) : t('claim.error')
 }
 
+/** The draft is ready to become a company only with a category AND a service area. */
+function draftMissingLocation(): boolean {
+  return !draft.value?.categorySlug || !draft.value?.location
+}
+
 async function finishClaim(): Promise<void> {
   const token = draftStore.token
   if (!token) {
     await router.replace({ name: 'create' })
     return
   }
+  // Guard again at submit time: a stale/raced draft must not skip the
+  // location + category step (it would create a company with no service area).
+  if (draftMissingLocation()) {
+    await router.replace({ name: 'create-location' })
+    return
+  }
+  const isAdvanced = draft.value?.mode === 'advanced'
   const company = await companies.createFromDraft(token)
   draftStore.clearAfterClaim()
-  await router.replace({ name: 'dashboard', query: { c: company.id } })
+  // Advanced-plan signups still need to pay for the builder before there's
+  // anything to manage — land there directly instead of making them hunt for
+  // the unlock button on the dashboard. Easy-plan sites are ready to go, so
+  // the dashboard is the right landing spot.
+  if (isAdvanced) {
+    await router.replace({ name: 'website-builder', query: { c: company.id } })
+  } else {
+    await router.replace({ name: 'dashboard', query: { c: company.id } })
+  }
 }
 
 async function run(fn: () => Promise<void>): Promise<void> {
@@ -104,12 +124,12 @@ onMounted(async () => {
     return
   }
   if (!draft.value?.ready) {
-    void router.replace({ name: 'create-easy' })
+    await router.replace({ name: 'create-easy' })
     return
   }
   // A business can't be created without its category + service area.
-  if (!draft.value.categorySlug || !draft.value.location) {
-    void router.replace({ name: 'create-location' })
+  if (draftMissingLocation()) {
+    await router.replace({ name: 'create-location' })
     return
   }
   if (auth.isAuthenticated) {

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
 import { apiFetch, ApiError } from '@/services/api'
 import { trackCall } from '@/services/leads'
 import { useSeo } from '@/composables/useSeo'
-import { companyCrumbs } from '@/services/routes'
+import { companyCrumbs, companyRoute } from '@/services/routes'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 import type { LocalizedName } from '@/stores/companies'
 
@@ -35,8 +35,9 @@ interface PublicCompany {
   website: { mode: string; theme: WebsiteTheme; content: WebsiteContent } | null
 }
 
+const props = defineProps<{ crumbs: string[] }>()
+
 const { t, locale } = useI18n()
-const route = useRoute()
 const router = useRouter()
 
 const company = ref<PublicCompany | null>(null)
@@ -44,12 +45,8 @@ const loading = ref(true)
 const notFound = ref(false)
 const leadSent = ref(false)
 
-/** The company slug is always the LAST path segment under /c/…. */
-const slug = computed(() => {
-  const c = route.params.crumbs
-  const arr = Array.isArray(c) ? c : c ? [c] : []
-  return arr[arr.length - 1] ?? ''
-})
+/** The company slug is always the LAST crumb (`BrowseView` resolved the rest). */
+const slug = computed(() => props.crumbs[props.crumbs.length - 1] ?? '')
 
 function onBarCall(): void {
   if (company.value) trackCall(company.value.slug)
@@ -62,9 +59,8 @@ async function load(s: string) {
     company.value = await apiFetch<PublicCompany>(`/public/companies/${s}`)
     // Redirect a bare or mis-prefixed URL to the canonical category path.
     const canonical = companyCrumbs(company.value)
-    const current = Array.isArray(route.params.crumbs) ? route.params.crumbs : [route.params.crumbs]
-    if (current.join('/') !== canonical.join('/')) {
-      void router.replace({ name: 'company', params: { crumbs: canonical } })
+    if (props.crumbs.join('/') !== canonical.join('/')) {
+      void router.replace(companyRoute(company.value))
     }
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) notFound.value = true
@@ -96,7 +92,7 @@ useSeo(() => {
       : { noindex: true }
   }
   const origin = window.location.origin
-  const path = `/c/${companyCrumbs(c).join('/')}`
+  const path = `/${companyCrumbs(c).join('/')}`
   const city = primaryLocation.value?.city
   const descParts = [
     c.description?.trim(),
@@ -112,7 +108,7 @@ useSeo(() => {
       '@type': 'ListItem',
       position: 2,
       name: parentName.value,
-      item: `${origin}/feed/${crumbs[0]}`,
+      item: `${origin}/${crumbs[0]}`,
     })
   }
   if (categoryName.value) {
@@ -120,7 +116,7 @@ useSeo(() => {
       '@type': 'ListItem',
       position: breadcrumb.length + 1,
       name: categoryName.value,
-      item: `${origin}/feed/${crumbs.slice(0, -1).join('/')}`,
+      item: `${origin}/${crumbs.slice(0, -1).join('/')}`,
     })
   }
   breadcrumb.push({ '@type': 'ListItem', position: breadcrumb.length + 1, name: c.displayName })

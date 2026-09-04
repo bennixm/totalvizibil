@@ -3,7 +3,9 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { CompanyRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,12 +20,15 @@ import { PlatformSettingsService } from '../platform-settings/platform-settings.
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { companyInclude, toCompanyView, CompanyView } from './company.view';
-import { COMPANY_DELETE_GRACE_MS } from './companies.constants';
+import { COMPANY_DELETE_GRACE_MS, STALE_DRAFT_AGE_MS } from './companies.constants';
 
 const ROLES_THAT_CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager];
+const SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
-export class CompaniesService {
+export class CompaniesService implements OnModuleInit {
+  private readonly logger = new Logger(CompaniesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly drafts: WebsiteDraftService,
@@ -33,6 +38,52 @@ export class CompaniesService {
     private readonly analytics: AnalyticsService,
     private readonly settings: PlatformSettingsService,
   ) {}
+
+  /**
+   * No cron dependency in this app — cleanup normally rides along with the
+   * reads that naturally happen anyway (see `purgeExpiredDeletions`). That
+   * doesn't work for abandoned drafts specifically: by definition, an owner
+   * who never comes back also never triggers a lazy check. A plain daily
+   * timer is the simplest thing that actually guarantees this runs. Skipped
+   * under Jest (`NODE_ENV=test`, set automatically) so test runs don't pick
+   * up a background interval.
+   */
+  onModuleInit(): void {
+    if (process.env.NODE_ENV === 'test') return;
+    setTimeout(() => void this.sweepStaleDrafts(), 60_000);
+    setInterval(() => void this.sweepStaleDrafts(), SWEEP_INTERVAL_MS);
+  }
+
+  /**
+   * Auto-schedules deletion (same reversible flow as `requestDeletion`, still
+   * cancellable within `COMPANY_DELETE_GRACE_MS`) for any draft business that
+   * never had an active campaign, never paid to unlock the advanced builder,
+   * and has sat untouched for `STALE_DRAFT_AGE_MS` — dead weight nobody is
+   * coming back to activate.
+   */
+  private async sweepStaleDrafts(): Promise<void> {
+    const cutoff = new Date(Date.now() - STALE_DRAFT_AGE_MS);
+    try {
+      const stale = await this.prisma.company.findMany({
+        where: {
+          status: 'draft',
+          deletionScheduledAt: null,
+          advancedUnlockedAt: null,
+          createdAt: { lte: cutoff },
+          OR: [{ campaign: null }, { campaign: { activatedAt: null } }],
+        },
+        select: { id: true },
+      });
+      for (const { id } of stale) {
+        await this.scheduleDeletion(id);
+      }
+      if (stale.length > 0) {
+        this.logger.log(`Scheduled ${stale.length} stale draft business(es) for deletion`);
+      }
+    } catch (err) {
+      this.logger.error('Stale-draft sweep failed', err instanceof Error ? err.stack : err);
+    }
+  }
 
   /** Membership role of a user in a company, or null if not a member. */
   private async membershipRole(companyId: string, userId: string): Promise<CompanyRole | null> {
@@ -400,6 +451,11 @@ export class CompaniesService {
     if (!ROLES_THAT_CAN_EDIT.includes(role)) {
       throw new ForbiddenException('Your role cannot edit this company');
     }
+    const target = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { deletionScheduledAt: true },
+    });
+    if (target?.deletionScheduledAt) throw new ForbiddenException('company_pending_deletion');
     const category = await this.drafts.assertCategory(input.categorySlug);
 
     const nationwide = !!input.nationwide;
@@ -477,6 +533,12 @@ export class CompaniesService {
     if (role !== CompanyRole.owner) {
       throw new ForbiddenException('only_the_owner_can_delete');
     }
+    await this.scheduleDeletion(companyId);
+  }
+
+  /** The actual takedown-and-arm-the-grace-window transaction, shared by an
+   *  owner's own `requestDeletion` and the automatic `sweepStaleDrafts`. */
+  private async scheduleDeletion(companyId: string): Promise<void> {
     const company = await this.prisma.company.findUniqueOrThrow({
       where: { id: companyId },
       select: { deletionScheduledAt: true },

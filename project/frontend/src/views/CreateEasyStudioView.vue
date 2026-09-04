@@ -9,7 +9,11 @@ import { useWebsiteDraftStore } from '@/stores/websiteDraft'
 
 const { t } = useI18n()
 const store = useWebsiteDraftStore()
-const { draft, loading } = storeToRefs(store)
+const { draft, loading, error } = storeToRefs(store)
+
+function retry(): void {
+  void store.resumeOrCreate()
+}
 
 // Mobile: toggle between the preview and the chat (the app-like split doesn't
 // fit a phone). Desktop shows both side by side.
@@ -74,6 +78,13 @@ onMounted(async () => {
         <EasyStudioAgent v-if="draft" />
         <div v-else-if="loading" class="studio__agentLoading">
           <v-progress-circular indeterminate color="primary" size="26" />
+        </div>
+        <div v-else-if="error" class="studio__agentError">
+          <v-icon icon="mdi-alert-circle-outline" size="28" />
+          <p>{{ error === 'rate_limited' ? t('studio.rateLimited') : t('studio.loadError') }}</p>
+          <v-btn color="primary" variant="tonal" size="small" @click="retry">
+            {{ t('studio.retry') }}
+          </v-btn>
         </div>
       </aside>
     </div>
@@ -201,6 +212,24 @@ onMounted(async () => {
   flex: 1;
   display: grid;
   place-items: center;
+}
+.studio__agentError {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: rgb(var(--v-theme-on-surface) / 0.6);
+}
+.studio__agentError .v-icon {
+  color: rgb(var(--v-theme-error));
+}
+.studio__agentError p {
+  margin: 0;
+  max-width: 32ch;
 }
 
 @media (max-width: 900px) {

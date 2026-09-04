@@ -18,6 +18,15 @@ export interface WalletSummary {
   blocked: boolean
   blockedReason: string | null
   updatedAt: string
+  /** A deposit can only ever be confirmed once this is true (see confirmPending). */
+  billingProfileComplete: boolean
+  /** Completed deposits made before the profile was complete — still need an invoice. */
+  unbilledPurchases: number
+}
+
+export interface IssuedInvoice {
+  id: string
+  number: string
 }
 
 export type WalletTxnType = 'purchase' | 'spend' | 'refund' | 'adjustment'
@@ -63,6 +72,8 @@ interface State {
   error: string
   /** Extra context for a structured error, e.g. the admin's block reason. */
   errorReason: string | null
+  /** The invoice issued by the most recent confirmed deposit, if any. */
+  lastInvoice: IssuedInvoice | null
 }
 
 /** The user's single wallet — funds every business they own. */
@@ -76,6 +87,7 @@ export const useWalletStore = defineStore('wallet', {
     working: false,
     error: '',
     errorReason: null,
+    lastInvoice: null,
   }),
 
   actions: {
@@ -150,10 +162,13 @@ export const useWalletStore = defineStore('wallet', {
       this.error = ''
       this.errorReason = null
       try {
-        this.summary = await apiFetch<WalletSummary>(
+        const res = await apiFetch<WalletSummary & { invoice: IssuedInvoice }>(
           `/wallet/purchases/${this.pending.transactionId}/confirm`,
           { method: 'POST' },
         )
+        const { invoice, ...summary } = res
+        this.summary = summary
+        this.lastInvoice = invoice
         useMoneyStore().applyFx(this.summary)
         this.pending = null
         await this.loadTransactions(false)

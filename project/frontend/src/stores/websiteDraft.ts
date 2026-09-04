@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 
-import { apiFetch } from '@/services/api'
+import { apiFetch, ApiError } from '@/services/api'
 import { i18n } from '@/plugins/i18n'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 
@@ -205,6 +205,12 @@ interface State {
   error: string
 }
 
+/** A 429 (the studio's create/restart and per-step throttles) gets one normalized code. */
+function draftErrorCode(err: unknown): string {
+  if (err instanceof ApiError && err.status === 429) return 'rate_limited'
+  return err instanceof Error ? err.message : 'error'
+}
+
 export const useWebsiteDraftStore = defineStore('websiteDraft', {
   state: (): State => ({
     draft: null,
@@ -272,7 +278,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
         saveRef({ id: created.id, token: created.token })
         this.draft = created.draft
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.error = draftErrorCode(err)
       } finally {
         this.loading = false
       }
@@ -291,7 +297,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
           body: { text: message },
         })
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.error = draftErrorCode(err)
       } finally {
         this.sending = false
       }
@@ -309,7 +315,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
           headers: { 'X-Draft-Token': ref.token },
         })
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.error = draftErrorCode(err)
       } finally {
         this.sending = false
       }
@@ -327,7 +333,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
           body: { ...patch, locale: i18n.global.locale.value },
         })
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.error = draftErrorCode(err)
       }
     },
 
@@ -348,7 +354,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
         )
         return res.url
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.error = draftErrorCode(err)
         return null
       }
     },
@@ -367,7 +373,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
           timeoutMs: 30_000,
         })
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.error = draftErrorCode(err)
       } finally {
         this.sending = false
       }
@@ -404,7 +410,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
         })
         return true
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.error = draftErrorCode(err)
         return false
       }
     },
@@ -430,7 +436,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
         this.draft = created.draft
         return true
       } catch (err) {
-        this.error = err instanceof Error ? err.message : 'error'
+        this.error = draftErrorCode(err)
         return false
       } finally {
         this.loading = false

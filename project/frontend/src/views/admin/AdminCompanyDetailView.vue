@@ -360,6 +360,12 @@ const chartSeries = computed(() => {
       ]
     : []
 })
+// An empty trend line (flat zero) reads as broken, not "no data yet" — hide
+// the chart until at least one of its two series has a real point.
+const hasChartData = computed(() => {
+  const a = data.value?.analytics
+  return !!a && (a.series.clicks.some((v) => v > 0) || a.series.messages.some((v) => v > 0))
+})
 
 const campColor: Record<string, string> = {
   active: 'success',
@@ -624,7 +630,7 @@ const leadStatusColor: Record<string, string> = { new: 'primary', seen: 'default
               <div class="stat"><span>{{ t('analytics.activeDays') }}</span><strong>{{ data.analytics.campaign.activeDays }}</strong><em>{{ t('dashboard.days') }}</em></div>
             </div>
           </div>
-          <div class="ac__chart">
+          <div v-if="hasChartData" class="ac__chart">
             <p class="ac__chartHead">{{ t('analytics.last14') }}</p>
             <TrendChart :labels="data.analytics.series.days" :series="chartSeries" />
           </div>

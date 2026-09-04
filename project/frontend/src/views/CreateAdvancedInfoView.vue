@@ -22,7 +22,7 @@ const ronApprox = computed(() =>
   priceCredits.value ? Math.round(priceCredits.value * eurRonRate.value) : null,
 )
 
-const perks = ['pages', 'design', 'portfolio', 'sections'] as const
+const perks = ['pages', 'sections', 'design', 'unlimited', 'ai'] as const
 
 async function start(): Promise<void> {
   if (!canStart.value || busy.value) return
@@ -33,7 +33,7 @@ async function start(): Promise<void> {
   })
   busy.value = false
   if (ok) void router.push({ name: 'create-account' })
-  else error.value = draftStore.error || t('advanced.error')
+  else error.value = draftStore.error === 'rate_limited' ? t('studio.rateLimited') : t('advanced.error')
 }
 
 onMounted(async () => {

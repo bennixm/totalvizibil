@@ -538,6 +538,38 @@ const txnColor: Record<string, string> = {
           </table>
         </section>
 
+        <!-- Invoices -->
+        <section class="card card--wide">
+          <div class="d-flex align-center justify-space-between flex-wrap ga-2 mb-1">
+            <h2 class="mb-0">{{ t('admin.navInvoices') }} ({{ user.invoices.length }})</h2>
+            <router-link :to="{ name: 'admin-invoices' }" class="ud__allInvoices">
+              {{ t('admin.invSeeAll') }}
+            </router-link>
+          </div>
+          <p v-if="!user.invoices.length" class="text-medium-emphasis text-body-2">
+            {{ t('invoices.empty') }}
+          </p>
+          <table v-else class="txn">
+            <tbody>
+              <tr v-for="inv in user.invoices" :key="inv.id">
+                <td>
+                  {{ inv.number }}
+                  <v-chip v-if="inv.voided" size="x-small" color="error" variant="tonal" class="ms-1">
+                    {{ t('admin.invStatusVoid') }}
+                  </v-chip>
+                </td>
+                <td class="txn__amt">{{ fmtCr(inv.totalMinor / 100) }} {{ inv.currency }}</td>
+                <td class="txn__date">{{ dt(inv.issuedAt) }}</td>
+                <td class="text-right">
+                  <a :href="`/account/invoices/${inv.id}`" target="_blank" rel="noopener" class="ud__invLink">
+                    {{ t('invoices.view') }}
+                  </a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
         <!-- Sessions -->
         <section class="card">
           <h2>{{ t('account.sessionsTitle') }} ({{ user.sessions.length }})</h2>
@@ -853,5 +885,16 @@ const txnColor: Record<string, string> = {
   white-space: nowrap;
   color: rgb(var(--v-theme-on-surface) / 0.45);
   font-size: 0.74rem;
+}
+.ud__allInvoices {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+}
+.ud__invLink {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  white-space: nowrap;
 }
 </style>

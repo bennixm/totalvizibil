@@ -18,6 +18,7 @@ const groups = [
     items: [
       { to: { name: 'admin-users' }, key: 'admin.navUsers', icon: 'mdi-account-multiple-outline' },
       { to: { name: 'admin-businesses' }, key: 'admin.navBusinesses', icon: 'mdi-domain' },
+      { to: { name: 'admin-invoices' }, key: 'admin.navInvoices', icon: 'mdi-receipt-text-outline' },
       { to: { name: 'admin-categories' }, key: 'admin.navCategories', icon: 'mdi-shape-outline' },
     ],
   },

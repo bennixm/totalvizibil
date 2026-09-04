@@ -13,12 +13,15 @@ const { t, n } = useI18n()
 const companies = useCompaniesStore()
 const wallet = useWalletStore()
 const money = useMoney()
-const { summary, transactions, nextCursor, pending, loading, working, error } = storeToRefs(wallet)
+const { summary, pending, loading, working, error, lastInvoice } = storeToRefs(wallet)
 const { overview } = storeToRefs(companies)
+
+const billingBlocked = computed(() => !!summary.value && !summary.value.billingProfileComplete)
+const unbilledCount = computed(() => summary.value?.unbilledPurchases ?? 0)
 
 const CURRENCIES = ['EUR', 'RON'] as const
 
-const KNOWN_ERRORS = ['wallet_blocked', 'insufficient_credits']
+const KNOWN_ERRORS = ['wallet_blocked', 'insufficient_credits', 'billing_profile_incomplete']
 const errorText = computed<string>(() => {
   const code = error.value
   if (!code) return ''
@@ -130,7 +133,49 @@ onMounted(async () => {
           <InfoHint :text="t('wallet.prepaidNote')" />
         </h2>
 
-        <div v-if="summary?.blocked" class="wal__blocked">
+        <div v-if="!billingBlocked && unbilledCount > 0" class="wal__unbilled">
+          <v-icon icon="mdi-receipt-text-remove-outline" size="18" />
+          <div>
+            <strong>{{ t('wallet.unbilledTitle') }}</strong>
+            <p>{{ t('wallet.unbilledText', { n: unbilledCount }) }}</p>
+            <v-btn
+              class="mt-2"
+              size="small"
+              variant="tonal"
+              :to="{ name: 'account', query: { tab: 'billing' } }"
+            >
+              {{ t('wallet.unbilledCta') }}
+            </v-btn>
+          </div>
+        </div>
+
+        <div v-if="lastInvoice" class="wal__invoiceNote">
+          <v-icon icon="mdi-file-check-outline" size="16" />
+          {{ t('wallet.invoiceIssued', { number: lastInvoice.number }) }}
+          <a :href="`/account/invoices/${lastInvoice.id}`" target="_blank" rel="noopener">
+            {{ t('wallet.invoiceView') }}
+          </a>
+        </div>
+
+        <div v-if="billingBlocked" class="wal__blocked wal__blocked--billing">
+          <v-icon icon="mdi-file-document-alert-outline" size="18" />
+          <div>
+            <strong>{{ t('wallet.billingRequiredTitle') }}</strong>
+            <p>{{ t('wallet.billingRequiredText') }}</p>
+            <v-btn
+              class="mt-2"
+              color="primary"
+              size="small"
+              variant="tonal"
+              append-icon="mdi-arrow-right"
+              :to="{ name: 'account', query: { tab: 'billing' } }"
+            >
+              {{ t('wallet.billingRequiredCta') }}
+            </v-btn>
+          </div>
+        </div>
+
+        <div v-else-if="summary?.blocked" class="wal__blocked">
           <v-icon icon="mdi-lock" size="18" />
           <div>
             <strong>{{ t('wallet.err.wallet_blocked') }}</strong>
@@ -217,45 +262,13 @@ onMounted(async () => {
       <!-- History -->
       <section class="wal__history">
         <h2>{{ t('wallet.historyTitle') }}</h2>
-        <p v-if="!transactions.length" class="wal__muted">{{ t('wallet.historyEmpty') }}</p>
-        <table v-else class="wal__table">
-          <thead>
-            <tr>
-              <th>{{ t('wallet.colType') }}</th>
-              <th>{{ t('wallet.colAmount') }}</th>
-              <th>{{ t('wallet.colStatus') }}</th>
-              <th>{{ t('wallet.colDate') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="txn in transactions" :key="txn.id">
-              <td>
-                {{ txn.clicks != null ? t('wallet.adClicks') : t('wallet.txnType.' + txn.type) }}
-                <span v-if="txn.clicks != null" class="wal__txnBiz">
-                  · {{ t('wallet.nClicks', { n: txn.clicks }) }}
-                </span>
-                <span v-if="txn.companyName" class="wal__txnBiz">· {{ txn.companyName }}</span>
-              </td>
-              <td :class="txn.amount.minor < 0 ? 'is-out' : 'is-in'">
-                <CreditsValue :credits="txn.amount.credits" signed stacked />
-              </td>
-              <td>
-                <span class="wal__badge" :class="'wal__badge--' + txn.status">
-                  {{ t('wallet.txnStatus.' + txn.status) }}
-                </span>
-              </td>
-              <td>{{ new Date(txn.createdAt).toLocaleDateString() }}</td>
-            </tr>
-          </tbody>
-        </table>
         <v-btn
-          v-if="nextCursor"
-          variant="text"
+          variant="tonal"
           size="small"
-          :loading="working"
-          @click="wallet.loadTransactions(true)"
+          append-icon="mdi-arrow-right"
+          :to="{ name: 'wallet-transactions' }"
         >
-          {{ t('wallet.loadMore') }}
+          {{ t('wallet.viewTransactionsCta') }}
         </v-btn>
       </section>
     </template>
@@ -404,10 +417,6 @@ onMounted(async () => {
   font-weight: 600;
   flex: none;
 }
-.wal__txnBiz {
-  color: rgb(var(--v-theme-on-surface) / 0.5);
-  font-size: 0.8rem;
-}
 
 .wal__stats {
   display: grid;
@@ -538,49 +547,43 @@ onMounted(async () => {
   margin: 0.1rem 0 0;
   color: rgb(var(--v-theme-on-surface) / 0.75);
 }
-
-.wal__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.88rem;
-}
-.wal__table th {
-  text-align: left;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
-  padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid var(--tvz-hairline);
-}
-.wal__table td {
-  padding: 0.6rem;
-  border-bottom: 1px solid var(--tvz-hairline);
-}
-.wal__table .is-in {
-  color: rgb(var(--v-theme-success));
-  font-weight: 600;
-}
-.wal__table .is-out {
-  color: rgb(var(--v-theme-error));
-  font-weight: 600;
-}
-.wal__badge {
-  font-size: 0.72rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  background: rgb(var(--v-theme-on-surface) / 0.08);
-}
-.wal__badge--completed {
-  background: rgb(var(--v-theme-success) / 0.16);
-  color: rgb(var(--v-theme-success));
-}
-.wal__badge--pending {
-  background: rgb(var(--v-theme-warning) / 0.16);
+.wal__blocked--billing {
+  background: rgb(var(--v-theme-warning) / 0.1);
+  border-color: rgb(var(--v-theme-warning) / 0.35);
   color: rgb(var(--v-theme-warning));
 }
-.wal__muted {
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+.wal__unbilled {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1rem;
+  border-radius: var(--tvz-radius-md);
+  background: rgb(var(--v-theme-warning) / 0.1);
+  border: 1px solid rgb(var(--v-theme-warning) / 0.35);
+  color: rgb(var(--v-theme-warning));
   font-size: 0.85rem;
+}
+.wal__unbilled strong {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+.wal__unbilled p {
+  margin: 0.1rem 0 0;
+  color: rgb(var(--v-theme-on-surface) / 0.75);
+}
+.wal__invoiceNote {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--tvz-radius-md);
+  background: rgb(var(--v-theme-success) / 0.1);
+  color: rgb(var(--v-theme-success));
+  font-size: 0.84rem;
+}
+.wal__invoiceNote a {
+  font-weight: 600;
+  text-decoration: underline;
 }
 </style>

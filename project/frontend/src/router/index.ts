@@ -6,19 +6,27 @@ import { useMoneyStore } from '@/stores/money'
 const routes: RouteRecordRaw[] = [
   // --- Discovery (public) ---
   { path: '/', name: 'feed', component: () => import('@/views/FeedView.vue') },
-  {
-    // SEO path: /feed/{group} or /feed/{group}/{niche}. Bare /feed → home.
-    path: '/feed/:group/:niche?',
-    name: 'feed-category',
-    component: () => import('@/views/FeedView.vue'),
-  },
+  // Legacy prefixed SEO paths — permanently redirect to the flat `browse` path
+  // (see its own route below) so any bookmarked/indexed link keeps working.
   { path: '/feed', redirect: { name: 'feed' } },
   {
-    // SEO path: /c/{group}/{niche}/{slug} (category crumbs before the slug).
-    // Legacy /c/{slug} still resolves — the page canonicalises to the full path.
+    path: '/feed/:group/:niche?',
+    redirect: (to) => {
+      const params: Record<string, string> = { seg1: to.params.group as string }
+      if (to.params.niche) params.seg2 = to.params.niche as string
+      return { name: 'browse', params }
+    },
+  },
+  {
     path: '/c/:crumbs+',
-    name: 'company',
-    component: () => import('@/views/CompanyPublicView.vue'),
+    redirect: (to) => {
+      const c = to.params.crumbs
+      const [seg1, seg2, seg3] = (Array.isArray(c) ? c : [c]) as string[]
+      const params: Record<string, string> = { seg1 }
+      if (seg2) params.seg2 = seg2
+      if (seg3) params.seg3 = seg3
+      return { name: 'browse', params }
+    },
   },
 
   // --- Create your business ---
@@ -58,6 +66,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/wallet/transactions',
+    name: 'wallet-transactions',
+    component: () => import('@/views/TransactionsView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     // The campaign hub — consumption stats + status + activate/stop, with links
     // out to the optimiser and the budget/CPC editor.
     path: '/campaign',
@@ -87,6 +101,12 @@ const routes: RouteRecordRaw[] = [
     path: '/leads',
     name: 'leads',
     component: () => import('@/views/LeadsView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/invoices',
+    name: 'invoices',
+    component: () => import('@/views/InvoicesView.vue'),
     meta: { requiresAuth: true },
   },
 
@@ -121,6 +141,12 @@ const routes: RouteRecordRaw[] = [
     path: '/account',
     name: 'account',
     component: () => import('@/views/AccountView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/account/invoices/:id',
+    name: 'invoice-print',
+    component: () => import('@/views/InvoicePrintView.vue'),
     meta: { requiresAuth: true },
   },
   { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { guestOnly: true } },
@@ -177,6 +203,11 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-company',
         component: () => import('@/views/admin/AdminCompanyDetailView.vue'),
       },
+      {
+        path: 'invoices',
+        name: 'admin-invoices',
+        component: () => import('@/views/admin/AdminInvoicesView.vue'),
+      },
     ],
   },
 
@@ -186,6 +217,18 @@ const routes: RouteRecordRaw[] = [
   { path: '/search', redirect: { name: 'feed' } },
   { path: '/companies/new', redirect: { name: 'create' } },
   { path: '/create/:rest(.*)', redirect: { name: 'create' } },
+
+  // Flat SEO path shared by the category feed and a company's public page —
+  // `/group`, `/group/niche`, `/group/niche/slug`, or `/group/slug` for a
+  // company filed directly under a top-level group. Every static route above
+  // scores higher per-segment than these all-dynamic params, so this only
+  // ever catches what nothing else claimed. See `BrowseView.vue` for how it
+  // tells a sub-category apart from a company slug.
+  {
+    path: '/:seg1/:seg2?/:seg3?',
+    name: 'browse',
+    component: () => import('@/views/BrowseView.vue'),
+  },
 
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundView.vue') },
 ]

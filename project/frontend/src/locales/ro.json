@@ -33,7 +33,8 @@
     "supportQueue": "Coadă suport",
     "staff": "Echipă",
     "manage": "Navigare",
-    "bizDeleting": "se șterge"
+    "bizDeleting": "se șterge",
+    "invoices": "Facturi"
   },
   "theme": {
     "label": "Temă",
@@ -222,7 +223,9 @@
     "processStep": "Titlul pasului",
     "processText": "Detalii (opțional)",
     "addStep": "Adaugă pas",
-    "hoursPlaceholder": "ex: Luni–Vineri 09:00–18:00"
+    "hoursPlaceholder": "ex: Luni–Vineri 09:00–18:00",
+    "rateLimited": "Prea multe încercări într-un timp scurt. Așteaptă câteva minute și încearcă din nou.",
+    "retry": "Încearcă din nou"
   },
   "location": {
     "eyebrow": "Pasul 2 · Locație",
@@ -287,7 +290,6 @@
     "taskBudgetText": "Site-ul tău e salvat ca ciornă. Ca să apară în feed, are nevoie de un buget de campanie.",
     "taskCta": "Setează bugetul",
     "taskSoon": "Buget & Wallet vin în curând",
-    "taskBudgetDone": "Campania este activă — afacerea ta apare în feed.",
     "taskManage": "Gestionează campania",
     "websiteTitle": "Website",
     "websiteStatusLabel": "Stare",
@@ -310,12 +312,9 @@
     "createCta": "Creează-ți afacerea",
     "taskAdvancedTitle": "Activează Website Builder-ul Avansat",
     "taskAdvancedText": "Plătește planul avansat din portofel ca să deblochezi builder-ul complet.",
-    "taskAdvancedDone": "Builder-ul avansat este activ.",
     "taskLocationTitle": "Setează zona în care apari în feed",
     "taskLocationText": "Alege orașul și raza pe hartă — asta decide unde poate apărea afacerea ta.",
-    "taskLocationDone": "Zona de acoperire este setată.",
     "taskAdvancedCta": "Activează",
-    "taskAdvancedManage": "Deschide builder-ul",
     "taskLocationCta": "Setează locația",
     "taskEdit": "Modifică",
     "addBusiness": "Adaugă o afacere",
@@ -382,7 +381,18 @@
       "responseText": "Timpul de răspuns îți trage scorul în jos. Răspunde mai repede la cereri.",
       "feedTitle": "Nu apari în feed",
       "feedText": "Campania e activă dar afacerea nu apare încă în feed. Verifică optimizarea."
-    }
+    },
+    "websiteUnpublished": "Nepublicat",
+    "invoicesTitle": "Facturi",
+    "invoicesIncompleteText": "Date de facturare incomplete",
+    "invoicesIncompleteCta": "Completează datele",
+    "invoicesUnbilledWord": "neemise",
+    "invoicesUnbilledCta": "Emite facturile",
+    "invoicesWord": "facturi",
+    "invoicesNone": "Nicio factură încă",
+    "invoicesLast": "Ultima: {number}",
+    "invoicesCta": "Vezi facturile",
+    "editSite": "Editează site-ul"
   },
   "campaign": {
     "eyebrow": "Promovare în feed",
@@ -409,7 +419,8 @@
       "set_budget_first": "Setează întâi bugetul campaniei.",
       "wallet_blocked": "Portofelul proprietarului este blocat. Deblochează-l ca să poți activa campania.",
       "company_suspended": "Afacerea este suspendată. Nu poate rula campanii.",
-      "website_builder_incomplete": "Finalizează builder-ul site-ului avansat înainte să listezi campania."
+      "website_builder_incomplete": "Finalizează builder-ul site-ului avansat înainte să listezi campania.",
+      "company_pending_deletion": "Afacerea este programată pentru ștergere — nu mai poate fi editată."
     },
     "builderRequiredTitle": "Întâi finalizează site-ul",
     "builderRequiredNote": "Este o afacere pe plan avansat. Construiește și finalizează site-ul înainte ca anunțul să poată fi listat.",
@@ -440,7 +451,10 @@
     "spendCta": "Vezi consumul",
     "autoDepletedNote": "Bugetul de azi s-a consumat. AUTO repornește campania când bugetul zilnic se resetează.",
     "autoBudgetLimited": "Bugetul zilnic e prea mic pentru ca AUTO să atingă scor maxim la CPC — mărește-l ca AUTO să poată licita CPC-ul recomandat.",
-    "toOverview": "Vezi campania"
+    "toOverview": "Vezi campania",
+    "pauseConfirmTitle": "Pui campania pe pauză?",
+    "pauseConfirmText": "Dacă rămâne pe pauză peste 24 de ore, timpul de rulaj acumulat (scorul de vechime) va reveni la 0.",
+    "pauseKeep": "Nu, las-o activă"
   },
   "wallet": {
     "eyebrow": "Facturare",
@@ -489,10 +503,20 @@
     "err": {
       "wallet_blocked": "Portofelul tău este blocat de administrator. Nu poți adăuga sau consuma credite.",
       "wallet_blocked_reason": "Portofelul tău este blocat de administrator. Motiv: {reason}. Nu poți adăuga sau consuma credite.",
-      "insufficient_credits": "Credite insuficiente în portofel."
+      "insufficient_credits": "Credite insuficiente în portofel.",
+      "billing_profile_incomplete": "Trebuie să completezi datele de facturare înainte de a depune bani."
     },
     "blockedReason": "Motiv: {reason}",
-    "blockedHelp": "Contactează suportul dacă crezi că este o greșeală."
+    "blockedHelp": "Contactează suportul dacă crezi că este o greșeală.",
+    "billingRequiredTitle": "Datele de facturare lipsesc",
+    "billingRequiredText": "Trebuie să completezi datele de facturare (Persoană fizică / Juridică) înainte să poți depune bani — fiecare depunere primește o factură.",
+    "billingRequiredCta": "Completează datele de facturare",
+    "unbilledTitle": "Facturi lipsă",
+    "unbilledText": "Ai {n} depuneri anterioare fără factură emisă.",
+    "unbilledCta": "Emite facturile lipsă",
+    "invoiceIssued": "Factura {number} a fost emisă.",
+    "invoiceView": "Vezi factura",
+    "viewTransactionsCta": "Vezi toate tranzacțiile"
   },
   "auth": {
     "loginTitle": "Autentificare",
@@ -566,7 +590,29 @@
     "signOutOthers": "Deconectează celelalte dispozitive",
     "thisDevice": "Acest dispozitiv",
     "unknownDevice": "Dispozitiv necunoscut",
-    "sessionsRevoked": "Am deconectat {n} altă/alte sesiuni"
+    "sessionsRevoked": "Am deconectat {n} altă/alte sesiuni",
+    "tabBilling": "Facturare",
+    "billingIncompleteAlert": "Completează datele de facturare (Persoană fizică / Juridică) ca să poți depune bani în portofel — fără ele nu putem emite factura.",
+    "billingTitle": "Date de facturare",
+    "billingNote": "Aceste date apar pe fiecare factură emisă la depunerea de bani. Alege tipul de cont și completează câmpurile.",
+    "billingKindIndividual": "Persoană fizică",
+    "billingKindCompany": "Persoană juridică",
+    "billingLegalName": "Denumire firmă",
+    "billingFullName": "Nume complet",
+    "billingTaxId": "CUI / CIF",
+    "billingRegCom": "Nr. Reg. Comerțului",
+    "billingVatPayer": "Plătitor de TVA",
+    "billingAddress": "Adresă",
+    "billingCity": "Oraș",
+    "billingCounty": "Județ",
+    "billingPostalCode": "Cod poștal",
+    "billingCountry": "Țară",
+    "billingEmail": "Email de facturare",
+    "billingIban": "IBAN",
+    "billingBankName": "Bancă",
+    "billingSaved": "Datele de facturare au fost salvate.",
+    "billingSavedBackfilled": "Datele au fost salvate — {n} facturi emise retroactiv.",
+    "billingSeeInvoices": "Vezi facturile tale"
   },
   "admin": {
     "title": "Panou admin",
@@ -704,7 +750,22 @@
     "legendConsumed": "Consumate",
     "groupAtAGlance": "La prima vedere",
     "showingRange": "{from}–{to} din {total}",
-    "usersNone": "Niciun utilizator"
+    "usersNone": "Niciun utilizator",
+    "navInvoices": "Facturi",
+    "searchInvoices": "Caută după număr, client sau email…",
+    "invoicesNone": "Nicio factură găsită.",
+    "invStatusIssued": "Emisă",
+    "invStatusVoid": "Anulată",
+    "invVoided": "Factura a fost anulată.",
+    "invUnvoided": "Anularea a fost revocată.",
+    "invVoid": "Anulează",
+    "invUnvoid": "Revocă anularea",
+    "invVoidTitle": "Anulează factura {number}",
+    "invVoidNote": "Factura rămâne vizibilă, marcată drept anulată, cu motivul de mai jos. Nu se șterge și nu afectează soldul din portofel.",
+    "invVoidReason": "Motiv",
+    "invSeeAll": "Vezi toate facturile",
+    "colTotal": "Total",
+    "colDate": "Dată"
   },
   "errors": {
     "notFoundTitle": "Pagina nu a fost găsită",
@@ -713,25 +774,26 @@
   },
   "footer": {
     "rights": "Toate drepturile rezervate.",
-    "docs": "Documentație",
     "contact": "Contact"
   },
   "advanced": {
     "eyebrow": "Plan avansat",
     "title": "Website complex, cu AI",
-    "lead": "Mai multe pagini, design la alegere, portofoliu și secțiuni — construite pas cu pas cu asistentul.",
+    "lead": "Site pe mai multe pagini, cu zeci de secțiuni gata făcute, animații și control total pe design — construit manual sau cu AI.",
     "priceLabel": "Cost unic",
     "priceValue": "{credits} credite",
     "priceNote": "Suma se plătește din portofel după crearea contului, înainte de a folosi builder-ul.",
     "perk": {
-      "pages": "Mai multe pagini (Acasă, Despre, Servicii, Portofoliu…)",
-      "design": "Paletă de culori și typography la alegere",
+      "pages": "Site pe pagini — până la 6 pagini, complet editabile",
+      "design": "Control total pe design: teme, culori, fonturi, colțuri, mișcare",
       "portfolio": "Secțiune de portofoliu / lucrări",
-      "sections": "Secțiuni și CTA-uri configurabile"
+      "sections": "Zeci de secțiuni predesignate, cu variante și animații",
+      "unlimited": "Acces nelimitat la builder — editezi manual oricât, fără limită",
+      "ai": "Generare cu AI inclusă (în limită), plus ajustări pe secțiuni"
     },
     "fieldName": "Numele afacerii",
     "cta": "Continuă spre cont",
-    "flowNote": "Urmează: cont → plata planului → builder → locație → campanie.",
+    "flowNote": "Urmează: locație și categorie → cont → builder (plata planului) → campanie.",
     "error": "Nu am putut începe. Încearcă din nou.",
     "back": "Înapoi"
   },
@@ -739,8 +801,8 @@
     "eyebrow": "Builder avansat",
     "title": "Website Builder",
     "back": "Înapoi la panou",
-    "lockTitle": "Activează Website Builder-ul Avansat",
-    "lockText": "Plătește o dată din portofel ca să deblochezi builder-ul complet.",
+    "lockTitle": "Activează modul Avansat",
+    "lockText": "Deblochează modul Avansat: builder pe pagini, cu zeci de secțiuni gata făcute, variante și animații, plus control total pe design. Editarea manuală rămâne nelimitată; generările cu AI sunt incluse în limita de mai jos.",
     "priceValue": "{credits} credite",
     "balance": "Sold portofel: {n} credite",
     "addCredits": "Adaugă credite",
@@ -758,7 +820,8 @@
       "ai_section_limit": "Ai atins limita de ajustări AI pe secțiuni.",
       "ai_unavailable": "AI-ul nu a putut genera acum. Încearcă din nou.",
       "nothing_to_undo": "Nu există o versiune anterioară.",
-      "banned_content": "Textul conține cuvinte care nu sunt permise. Reformulează."
+      "banned_content": "Textul conține cuvinte care nu sunt permise. Reformulează.",
+      "company_pending_deletion": "Afacerea este programată pentru ștergere — nu mai poate fi editată."
     },
     "msg": {
       "opening": "Salut! Sunt asistentul Totalvizibil și îți construiesc un website complex. Descrie-ne cu ce se ocupă afacerea ta.",
@@ -781,7 +844,7 @@
     "loadErrorTitle": "Nu am putut încărca builder-ul",
     "loadErrorText": "Încearcă din nou din panou.",
     "upgradeTitle": "Upgrade la planul Avansat",
-    "upgradeText": "Site-ul tău simplu rămâne așa cum e. În plus primești builder-ul AI cu control complet pe secțiuni, ton, branding și SEO.",
+    "upgradeText": "Site-ul tău simplu rămâne neschimbat. În plus primești modul Avansat: builder pe pagini, secțiuni predesignate cu variante și animații, control complet pe temă, branding și SEO, plus generare cu AI.",
     "upgradeCta": "Fă upgrade · {credits} cr",
     "on": "Pornit",
     "off": "Oprit",
@@ -896,7 +959,22 @@
       "city": "Oraș",
       "addressLine": "Adresă",
       "hours": "Program",
-      "buttonLabel": "Text buton"
+      "buttonLabel": "Text buton",
+      "phrases": "Fraze",
+      "speed": "Viteză",
+      "tiles": "Carduri",
+      "tileTitle": "Titlu card",
+      "tileText": "Text card",
+      "milestones": "Etape",
+      "milestoneDate": "Dată",
+      "milestoneTitle": "Titlu etapă",
+      "milestoneText": "Descriere etapă",
+      "usTitle": "Titlu „noi”",
+      "themTitle": "Titlu „alții”",
+      "rowLabel": "Criteriu",
+      "usValue": "La noi",
+      "themValue": "La alții",
+      "bannerText": "Mesaj"
     },
     "aiTitle": "Generează site-ul cu AI",
     "aiLead": "Descrie afacerea și ce vrei pe site. AI-ul alege paginile, secțiunile și textele.",
@@ -940,7 +1018,35 @@
       "bold": "Pronunțată"
     },
     "presetLabel": "Stil",
-    "autosaved": "Modificările se salvează automat."
+    "autosaved": "Modificările se salvează automat.",
+    "aiNoteTitle": "Verifică înainte de publicare",
+    "aiNote": {
+      "contact": "Adaugă datele de contact reale (telefon, email) — AI-ul le-a lăsat goale.",
+      "team": "Completează numele reale ale echipei — AI-ul a pus doar text de tip șablon."
+    },
+    "motionLabel": "Mișcare",
+    "animation": "Animație",
+    "motion": {
+      "off": "Oprită",
+      "subtle": "Discretă",
+      "lively": "Vioaie"
+    },
+    "aiBuilding": "Construiesc site-ul…",
+    "aiStage": {
+      "structure": "Planific structura",
+      "copy": "Scriu textele",
+      "design": "Aplic designul"
+    },
+    "feat": {
+      "pages": "Builder pe pagini — până la 6 pagini, complet editabile",
+      "sections": "Zeci de secțiuni predesignate, cu variante și tranziții",
+      "design": "Control total pe design: temă, culori, fonturi, colțuri, umbre, mișcare",
+      "unlimited": "Acces nelimitat la builder — editează manual oricât, fără limită",
+      "ai": "Generare cu AI inclusă — {plan} generări complete de site + {section} ajustări pe secțiuni"
+    },
+    "aiQuota": "Generări AI rămase pe acest site: {left} din {limit}. Editarea manuală e nelimitată.",
+    "aiQuotaOut": "Ai folosit toate generările AI pentru acest site. Poți edita în continuare manual, fără limită.",
+    "continueBudget": "Continuă → Buget"
   },
   "site": {
     "phone": "Telefon",
@@ -955,7 +1061,11 @@
     "formSending": "Se trimite…",
     "formError": "Nu am putut trimite. Verifică datele și încearcă din nou.",
     "formThanks": "Mulțumim! Firma te va contacta în curând.",
-    "hours": "Program"
+    "hours": "Program",
+    "footExplore": "Explorează",
+    "footContact": "Contact",
+    "madeWith": "Site creat cu Totalvizibil",
+    "formPreview": "Formularul devine activ după publicarea site-ului."
   },
   "leads": {
     "eyebrow": "Din site-ul tău",
@@ -1154,7 +1264,17 @@
     "advancedPrice": "Preț builder avansat",
     "advancedPriceHint": "Deblocarea unică a editorului avansat de site, în credite.",
     "extraBizPrice": "Preț afacere suplimentară",
-    "extraBizPriceHint": "Costul creării unei afaceri peste prima, în credite."
+    "extraBizPriceHint": "Costul creării unei afaceri peste prima, în credite.",
+    "vatRate": "Cotă TVA facturare",
+    "vatRateHint": "0% dacă firma nu este plătitoare de TVA.",
+    "issuerTitle": "Facturare — date emitent",
+    "issuerNote": "Aceste date apar ca furnizor pe fiecare factură emisă clienților.",
+    "issuerName": "Denumire firmă",
+    "issuerTaxId": "CUI",
+    "issuerRegCom": "Nr. Reg. Comerțului",
+    "issuerAddress": "Adresă sediu",
+    "issuerIban": "IBAN",
+    "issuerBank": "Bancă"
   },
   "spend": {
     "eyebrow": "Promovare în feed",
@@ -1357,7 +1477,22 @@
       "accordion": "Acordeon",
       "narrow": "Îngust",
       "gradient": "Degrade",
-      "solid": "Plin"
+      "solid": "Plin",
+      "overlap": "Suprapus",
+      "stat": "Cu cifre",
+      "rows": "Rânduri",
+      "numbered": "Numerotat",
+      "checklist": "Listă bifată",
+      "inline": "Pe un rând",
+      "carousel": "Carusel",
+      "single": "Un singur citat",
+      "ticker": "Derulare",
+      "table": "Tabel",
+      "row": "Rând",
+      "boxed": "În chenar",
+      "even": "Egal",
+      "mixed": "Mixt",
+      "line": "Linie"
     },
     "hero": {
       "label": "Hero",
@@ -1422,6 +1557,82 @@
     "contact": {
       "label": "Contact",
       "desc": "Date de contact și program"
+    },
+    "anim": {
+      "auto": "Auto",
+      "none": "Fără",
+      "fade": "Estompare",
+      "rise": "Ridicare",
+      "slideLeft": "Glisare ←",
+      "slideRight": "Glisare →",
+      "zoom": "Zoom",
+      "blur": "Blur"
+    },
+    "marquee": {
+      "label": "Bandă în mișcare",
+      "desc": "Text sau nume de clienți care se derulează"
+    },
+    "bento": {
+      "label": "Grilă bento",
+      "desc": "Carduri de dimensiuni diferite, aranjate compact"
+    },
+    "timeline": {
+      "label": "Cronologie",
+      "desc": "Etape sau istoric, pe o axă a timpului"
+    },
+    "comparison": {
+      "label": "Comparație",
+      "desc": "Noi vs. alții, pe rânduri"
+    },
+    "banner": {
+      "label": "Bandă promo",
+      "desc": "Mesaj scurt cu buton, pe toată lățimea"
     }
+  },
+  "invoice": {
+    "back": "Înapoi la cont",
+    "print": "Printează / Descarcă PDF",
+    "loadError": "Nu am putut încărca factura.",
+    "docTitle": "Factură fiscală",
+    "issuedOn": "Emisă la",
+    "issuer": "Furnizor",
+    "buyer": "Client",
+    "taxId": "CUI/CIF",
+    "regCom": "Reg. Com.",
+    "kindIndividual": "Persoană fizică",
+    "kindCompany": "Persoană juridică",
+    "colDescription": "Descriere",
+    "colQty": "Cant.",
+    "colUnitPrice": "Preț unitar",
+    "colVat": "TVA",
+    "colLineTotal": "Total",
+    "subtotal": "Subtotal",
+    "vat": "TVA",
+    "vatExempt": "neplătitor",
+    "total": "Total de plată",
+    "paidVia": "Plătit din portofel Totalvizibil — {eur} EUR convertiți la cursul {rate} RON/EUR.",
+    "generatedNote": "Document generat electronic de Totalvizibil."
+  },
+  "invoices": {
+    "eyebrow": "Facturare",
+    "title": "Facturi",
+    "incompleteTitle": "Datele de facturare lipsesc",
+    "incompleteText": "Completează datele de facturare (Persoană fizică / Juridică) ca să vezi facturi aici — fără ele nu se poate emite nicio factură.",
+    "incompleteCta": "Completează datele de facturare",
+    "unbilledTitle": "Facturi lipsă",
+    "unbilledText": "Ai {n} depuneri anterioare fără factură emisă.",
+    "issueMissing": "Emite facturile lipsă",
+    "empty": "Nu ai încă nicio factură.",
+    "colNumber": "Număr",
+    "colDate": "Dată",
+    "colTotal": "Total",
+    "view": "Vezi factura",
+    "profileNote": "Facturile sunt emise pe numele: {name}.",
+    "editProfile": "Editează datele de facturare"
+  },
+  "transactions": {
+    "eyebrow": "Portofel",
+    "title": "Tranzacții",
+    "back": "Înapoi la portofel"
   }
 }

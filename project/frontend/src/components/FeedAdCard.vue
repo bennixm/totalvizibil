@@ -70,9 +70,14 @@ const tagline = computed(() => {
       <img v-if="item.heroImage" :src="item.heroImage" alt="" loading="lazy" />
       <span v-else class="fc__grad" aria-hidden="true" />
       <span class="fc__scrim" aria-hidden="true" />
-      <span class="fc__badge">
-        <v-icon icon="mdi-web" size="13" /> {{ t('feed.ownSite') }}
-      </span>
+      <div class="fc__top">
+        <span class="fc__badge">
+          <v-icon icon="mdi-web" size="13" /> {{ t('feed.ownSite') }}
+        </span>
+        <span class="btnv btnv--onphoto">
+          {{ t('feed.viewSite') }} <v-icon icon="mdi-arrow-right" size="16" />
+        </span>
+      </div>
       <p class="fc__headline">{{ headline }}</p>
     </div>
 
@@ -99,10 +104,6 @@ const tagline = computed(() => {
         <span v-for="s in shownServices" :key="s" class="tag">{{ s }}</span>
         <span v-if="extraServices" class="tag tag--more">+{{ extraServices }}</span>
       </div>
-
-      <span class="btnv btnv--solid">
-        {{ t('feed.viewSite') }} <v-icon icon="mdi-arrow-right" size="17" />
-      </span>
     </div>
   </RouterLink>
 
@@ -184,16 +185,18 @@ const tagline = computed(() => {
     box-shadow var(--tvz-dur-med) var(--tvz-ease-out),
     background var(--tvz-dur-med) var(--tvz-ease-out);
 }
-.btnv--solid {
-  color: #fff;
-  background: var(--tvz-gradient-brand);
-  box-shadow: 0 12px 26px -14px rgb(var(--v-theme-primary) / 0.9);
-  align-self: flex-start;
-  margin-top: 0.9rem;
-}
 .btnv--ghost {
   color: rgb(var(--v-theme-primary));
   border: 1.5px solid rgb(var(--v-theme-primary) / 0.35);
+}
+/* pill sitting on top of the featured banner photo */
+.btnv--onphoto {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8rem;
+  color: #0b0d14;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 20px -8px rgba(0, 0, 0, 0.5);
 }
 .btnv__arrow {
   transition: transform var(--tvz-dur-med) var(--tvz-ease-out);
@@ -205,9 +208,9 @@ const tagline = computed(() => {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 1.6rem;
+  gap: 1.5rem;
   width: 100%;
-  padding: 1.7rem 1.8rem 1.7rem 2.1rem;
+  padding: 1.5rem 1.7rem 1.5rem 2rem;
   border-radius: var(--tvz-radius-lg);
   border: 1px solid var(--tvz-glass-border);
   background: rgb(var(--v-theme-surface));
@@ -220,10 +223,24 @@ const tagline = computed(() => {
     border-color var(--tvz-dur-med) var(--tvz-ease-out),
     box-shadow var(--tvz-dur-med) var(--tvz-ease-out);
 }
+.lst::after {
+  content: '';
+  position: absolute;
+  inset: -40% -30% auto auto;
+  width: 260px;
+  height: 200px;
+  background: radial-gradient(closest-side, rgb(var(--v-theme-primary) / 0.14), transparent);
+  opacity: 0;
+  transition: opacity var(--tvz-dur-med) var(--tvz-ease-out);
+  pointer-events: none;
+}
 .lst:hover {
-  transform: translateX(3px);
+  transform: translateY(-3px);
   border-color: rgb(var(--v-theme-primary) / 0.45);
   box-shadow: var(--tvz-shadow-lg);
+}
+.lst:hover::after {
+  opacity: 1;
 }
 .lst:hover .btnv--ghost {
   background: rgb(var(--v-theme-primary) / 0.08);
@@ -245,10 +262,10 @@ const tagline = computed(() => {
 .lst__media {
   display: grid;
   place-items: center;
-  width: 104px;
-  height: 104px;
-  border-radius: 22px;
-  font-size: 2.2rem;
+  width: 92px;
+  height: 92px;
+  border-radius: 18px;
+  font-size: 2rem;
   font-weight: 700;
   color: #fff;
   background: var(--tvz-gradient-brand);
@@ -343,24 +360,35 @@ const tagline = computed(() => {
 .fc:hover {
   transform: translateY(-4px);
   border-color: color-mix(in srgb, var(--card-accent) 55%, transparent);
-  box-shadow: 0 30px 60px -30px color-mix(in srgb, var(--card-accent) 60%, transparent);
+  box-shadow: 0 26px 54px -30px color-mix(in srgb, var(--card-accent) 60%, transparent);
 }
-.fc:hover .btnv--solid {
+.fc:hover .btnv--onphoto {
+  background: #fff;
   transform: translateY(-1px);
 }
 .fc__banner {
   position: relative;
-  aspect-ratio: 16 / 7;
+  aspect-ratio: 16 / 6;
   overflow: hidden;
 }
 .fc__banner--plain {
   aspect-ratio: auto;
-  height: 150px;
+  height: 128px;
 }
 .fc__banner img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.fc__top {
+  position: absolute;
+  top: 0.9rem;
+  left: 0.9rem;
+  right: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
 }
 .fc__grad {
   position: absolute;
@@ -377,31 +405,28 @@ const tagline = computed(() => {
   background: linear-gradient(180deg, rgba(10, 12, 22, 0.15) 0%, rgba(10, 12, 22, 0.78) 100%);
 }
 .fc__badge {
-  position: absolute;
-  top: 0.9rem;
-  left: 0.9rem;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   padding: 0.28rem 0.65rem;
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #fff;
-  background: color-mix(in srgb, var(--card-accent) 78%, rgba(0, 0, 0, 0.4));
+  background: color-mix(in srgb, var(--card-accent) 78%, rgba(0, 0, 0, 0.45));
   backdrop-filter: blur(4px);
 }
 .fc__headline {
   position: absolute;
   left: 1.3rem;
   right: 1.3rem;
-  bottom: 1.1rem;
+  bottom: 1rem;
   margin: 0;
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.25rem, 2.6vw, 1.7rem);
+  font-size: clamp(1.2rem, 2.4vw, 1.55rem);
   letter-spacing: -0.02em;
   line-height: 1.2;
   color: #fff;
@@ -413,15 +438,15 @@ const tagline = computed(() => {
   overflow: hidden;
 }
 .fc__body {
-  padding: 1.4rem 1.7rem 1.7rem;
+  padding: 1.2rem 1.6rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 .fc__name {
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: 1.35rem;
+  font-size: 1.3rem;
   letter-spacing: -0.02em;
   margin: 0.1rem 0 0;
 }

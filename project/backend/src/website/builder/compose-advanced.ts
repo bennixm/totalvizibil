@@ -21,6 +21,7 @@ import {
   SeedCtx,
   coerceContent,
   seedSectionContent,
+  snapAnimation,
   snapVariant,
 } from './section-catalog';
 
@@ -64,6 +65,7 @@ export const BUTTON_STYLES: NonNullable<WebsiteTheme['buttonStyle']>[] = [
   'pill',
 ];
 export const SHADOWS: NonNullable<WebsiteTheme['shadow']>[] = ['none', 'soft', 'bold'];
+export const MOTIONS: NonNullable<WebsiteTheme['motion']>[] = ['off', 'subtle', 'lively'];
 export const PRESET_IDS = ['studio', 'bold', 'editorial', 'soft', 'tech', 'warm', 'mono'];
 const DENSITIES: WebsiteTheme['density'][] = ['compact', 'comfortable', 'spacious'];
 
@@ -79,6 +81,8 @@ export interface DocSection {
   type: SectionType;
   variant: string;
   visible: boolean;
+  /** Entrance animation preset id; absent = inherit the theme's motion default. */
+  animation?: string;
   content: Record<string, unknown>;
 }
 
@@ -96,7 +100,7 @@ export interface BuilderDoc {
   mode: 'manual' | 'ai';
   theme: WebsiteTheme;
   pages: PageSpec[];
-  ai?: { brief?: string; planCount: number; sectionCount: number };
+  ai?: { brief?: string; planCount: number; sectionCount: number; notes?: string[] };
   /** Snapshots kept before an AI plan replace, newest last. Bounded. */
   history?: PageSpec[][];
 }
@@ -132,6 +136,7 @@ export function normalizeTheme(raw: unknown): WebsiteTheme {
       ? { buttonStyle: opt(t.buttonStyle, BUTTON_STYLES) }
       : {}),
     ...(opt(t.shadow, SHADOWS) ? { shadow: opt(t.shadow, SHADOWS) } : {}),
+    ...(opt(t.motion, MOTIONS) ? { motion: opt(t.motion, MOTIONS) } : {}),
   };
 }
 
@@ -252,11 +257,18 @@ export function keywordPlanDoc(brief: string, ctx: SeedCtx): BuilderDoc {
       preset === 'studio'
         ? { preset, palette: 'indigo', background: 'tinted', radius: 'rounded', shadow: 'soft' }
         : preset === 'bold'
-          ? { preset, palette: 'orange', radius: 'none', buttonStyle: 'pill', shadow: 'bold' }
+          ? {
+              preset,
+              palette: 'orange',
+              radius: 'none',
+              buttonStyle: 'pill',
+              shadow: 'bold',
+              motion: 'lively',
+            }
           : preset === 'warm'
             ? { preset, palette: 'amber', background: 'tinted', headingFont: 'fraunces' }
             : preset === 'tech'
-              ? { preset, palette: 'cyan', background: 'dark', radius: 'subtle' }
+              ? { preset, palette: 'cyan', background: 'dark', radius: 'subtle', motion: 'lively' }
               : {
                   preset,
                   palette: 'slate',
@@ -287,11 +299,13 @@ function normalizeSection(raw: unknown): DocSection | null {
           void _c;
           return rest;
         })();
+  const animation = snapAnimation(s.animation);
   return {
     id: typeof s.id === 'string' && s.id ? s.id : randomUUID(),
     type,
     variant: snapVariant(type, s.variant),
     visible: s.visible !== false,
+    ...(animation ? { animation } : {}),
     content: coerceContent(type, content),
   };
 }
@@ -336,6 +350,11 @@ export function normalizeDoc(raw: unknown, ctx: SeedCtx): BuilderDoc {
               : undefined,
           planCount: Number((d.ai as Record<string, unknown>).planCount) || 0,
           sectionCount: Number((d.ai as Record<string, unknown>).sectionCount) || 0,
+          notes: Array.isArray((d.ai as Record<string, unknown>).notes)
+            ? ((d.ai as Record<string, unknown>).notes as unknown[])
+                .filter((x): x is string => typeof x === 'string')
+                .slice(0, 5)
+            : undefined,
         }
       : undefined;
 
@@ -360,16 +379,17 @@ export function composeAdvancedDoc(doc: BuilderDoc, ctx: SeedCtx): GeneratedWebs
   const pages: WebsitePage[] = doc.pages.map((p) => {
     const sections = p.sections
       .filter((s) => s.visible !== false)
-      .map(
-        (s) =>
-          ({
-            id: s.id,
-            type: s.type,
-            visible: true,
-            variant: snapVariant(s.type, s.variant),
-            ...coerceContent(s.type, s.content ?? {}),
-          }) as Section,
-      );
+      .map((s) => {
+        const animation = snapAnimation(s.animation);
+        return {
+          id: s.id,
+          type: s.type,
+          visible: true,
+          variant: snapVariant(s.type, s.variant),
+          ...(animation ? { animation } : {}),
+          ...coerceContent(s.type, s.content ?? {}),
+        } as Section;
+      });
     return {
       slug: p.slug,
       title: p.title || cap(p.slug),

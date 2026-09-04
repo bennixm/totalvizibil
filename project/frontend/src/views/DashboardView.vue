@@ -12,12 +12,16 @@ import VisibilityMeter from '@/components/VisibilityMeter.vue'
 import { useMoney } from '@/composables/useMoney'
 import { fetchPricing } from '@/services/platform'
 import { useCompaniesStore, type DashboardPayload } from '@/stores/companies'
+import { useBillingStore } from '@/stores/billing'
 
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const companies = useCompaniesStore()
 const { overview } = storeToRefs(companies)
+const billing = useBillingStore()
+const { isComplete: billingComplete, unbilledCount, invoices, loading: billingLoading } =
+  storeToRefs(billing)
 
 const loading = ref(true)
 const error = ref('')
@@ -55,10 +59,32 @@ const website = computed(() => dash.value?.website ?? null)
 const websiteReady = computed(
   (): boolean => !!website.value && website.value.status !== 'none' && 'content' in website.value,
 )
+/** Live → "in feed"; built but not published → "unpublished" (not "draft"). */
+const websiteBadge = computed<{ key: string; cls: string }>(() => {
+  const w = website.value
+  if (w && 'isLive' in w && w.isLive) return { key: 'dashboard.websiteLive', cls: 'is-live' }
+  const built = w && 'content' in w && (w.content?.pages?.length ?? 0) > 0
+  return { key: built ? 'dashboard.websiteUnpublished' : 'dashboard.websiteIdle', cls: 'is-idle' }
+})
 const location = computed(() => dash.value?.company.primaryLocation ?? null)
 const wallet = computed(() => dash.value?.wallet ?? null)
 const a = computed(() => dash.value?.analytics ?? null)
 const money = useMoney()
+
+// An easy-plan (or not-yet-built) site keeps the Website/Cereri cards exactly
+// as before. Only an advanced-plan business that hasn't unlocked/configured
+// its builder yet (the `unlock_advanced_builder` task isn't done) has nothing
+// real to show there, so those two cards hide until that's done.
+const advancedBuilderPending = computed(() => {
+  const task = tasks.value.find((tk) => tk.key === 'unlock_advanced_builder')
+  return !!task && task.status !== 'done'
+})
+
+// An empty trend line (flat zero) reads as broken, not "no data yet" — hide
+// the chart until at least one of its two series has a real point.
+const hasChartData = computed(
+  () => !!a.value && (a.value.series.clicks.some((v) => v > 0) || a.value.series.messages.some((v) => v > 0)),
+)
 
 // A card turns red only when something is actually wrong: the campaign is
 // stopped or has burned through today's budget, or the wallet can no longer
@@ -74,6 +100,9 @@ const walletProblem = computed(() => {
   return !!(c && wallet.value && wallet.value.balance.credits < c.dailyBudget.credits)
 })
 const tasks = computed(() => dash.value?.tasks ?? [])
+// Once a task is done it disappears from the top checklist entirely — its
+// action moves into the matching status card below instead.
+const pendingTasks = computed(() => tasks.value.filter((tk) => tk.status !== 'done'))
 const chartSeries = computed(() =>
   a.value
     ? [
@@ -160,38 +189,34 @@ function fmtMinutes(m: number | null): string {
   return `${Math.round(m / 1440)} ${t('dashboard.days')}`
 }
 
+// Only ever renders pending tasks (see `pendingTasks`), so there's no "done"
+// copy here — once a task is finished it drops off this list entirely and
+// its action lives in the matching status card instead (Location's own
+// "Edit", Campaign's own "Manage", the Website card's "Edit site").
 interface TaskDef {
   title: string
   text: string
   route: string
-  done: string
   cta: string
-  manage: string
 }
 const TASK_COPY: Record<string, TaskDef> = {
   unlock_advanced_builder: {
     title: 'dashboard.taskAdvancedTitle',
     text: 'dashboard.taskAdvancedText',
     route: 'website-builder',
-    done: 'dashboard.taskAdvancedDone',
     cta: 'dashboard.taskAdvancedCta',
-    manage: 'dashboard.taskAdvancedManage',
   },
   set_location: {
     title: 'dashboard.taskLocationTitle',
     text: 'dashboard.taskLocationText',
     route: 'create-location',
-    done: 'dashboard.taskLocationDone',
     cta: 'dashboard.taskLocationCta',
-    manage: 'dashboard.taskEdit',
   },
   set_campaign_budget: {
     title: 'dashboard.taskBudgetTitle',
     text: 'dashboard.taskBudgetText',
     route: 'campaign',
-    done: 'dashboard.taskBudgetDone',
     cta: 'dashboard.taskCta',
-    manage: 'dashboard.taskManage',
   },
 }
 function taskTitle(key: string): string {
@@ -203,13 +228,8 @@ function taskText(key: string): string {
 function taskRoute(key: string): string {
   return TASK_COPY[key]?.route ?? 'dashboard'
 }
-function taskDoneText(key: string): string {
-  return TASK_COPY[key] ? t(TASK_COPY[key].done) : ''
-}
-function taskButton(key: string, done: boolean): string {
-  const d = TASK_COPY[key]
-  if (!d) return t('dashboard.taskCta')
-  return t(done ? d.manage : d.cta)
+function taskButton(key: string): string {
+  return TASK_COPY[key] ? t(TASK_COPY[key].cta) : t('dashboard.taskCta')
 }
 
 function campBadge(s: string): string {
@@ -271,6 +291,7 @@ onMounted(async () => {
   fetchPricing()
     .then((p) => (advancedPrice.value = p.advancedBuilderPriceCredits))
     .catch(() => {})
+  void billing.load()
   try {
     await companies.fetchOverview()
   } catch {
@@ -376,33 +397,24 @@ watch(
         </v-btn>
       </div>
 
-      <!-- Configurare -->
-      <div v-if="tasks.length" class="dtasks">
-        <div
-          v-for="task in tasks"
-          :key="task.key"
-          class="dash__task"
-          :class="{ 'dash__task--done': task.status === 'done' }"
-        >
-          <v-icon
-            :icon="task.status === 'done' ? 'mdi-check-circle' : 'mdi-rocket-launch-outline'"
-            size="22"
-          />
+      <!-- Configurare (only unfinished setup steps — a done one drops off here) -->
+      <div v-if="pendingTasks.length" class="dtasks">
+        <div v-for="task in pendingTasks" :key="task.key" class="dash__task">
+          <v-icon icon="mdi-rocket-launch-outline" size="22" />
           <div class="dash__taskBody">
             <strong>
               {{ taskTitle(task.key) }}
-              <InfoHint v-if="task.status !== 'done'" :text="taskText(task.key)" />
+              <InfoHint :text="taskText(task.key)" />
             </strong>
-            <span v-if="task.status === 'done'">{{ taskDoneText(task.key) }}</span>
           </div>
           <div class="dash__taskAction">
             <v-btn
               color="primary"
               size="small"
-              :variant="task.status === 'done' ? 'tonal' : 'flat'"
+              variant="flat"
               :to="{ name: taskRoute(task.key), query: { c: company.id } }"
             >
-              {{ taskButton(task.key, task.status === 'done') }}
+              {{ taskButton(task.key) }}
             </v-btn>
           </div>
         </div>
@@ -460,21 +472,33 @@ watch(
 
       <!-- Status cards -->
       <div class="dgrid">
-        <!-- Website -->
-        <article class="dcard">          <p class="dcard__k">{{ t('dashboard.websiteTitle') }}</p>
+        <!-- Website (hidden only while an advanced-plan builder is unconfigured) -->
+        <article v-if="!advancedBuilderPending" class="dcard">          <p class="dcard__k">{{ t('dashboard.websiteTitle') }}</p>
           <div class="dcard__body">
             <template v-if="websiteReady && website && website.status !== 'none'">
               <div class="dcard__badges">
-                <span class="dcard__badge" :class="website.isLive ? 'is-live' : 'is-idle'">
-                  {{ website.isLive ? t('dashboard.websiteLive') : t('dashboard.websiteIdle') }}
+                <span class="dcard__badge" :class="websiteBadge.cls">
+                  {{ t(websiteBadge.key) }}
                 </span>
                 <span class="dcard__tag">
                   {{ website.mode === 'advanced' ? t('dashboard.modeAdvanced') : t('dashboard.modeEasy') }}
                 </span>
               </div>
-              <button type="button" class="dcard__go" @click="showSite = true">
-                {{ t('dashboard.viewSite') }} <v-icon icon="mdi-arrow-right" size="15" />
-              </button>
+              <div class="dcard__links">
+                <button type="button" class="dcard__go" @click="showSite = true">
+                  {{ t('dashboard.viewSite') }} <v-icon icon="mdi-arrow-right" size="15" />
+                </button>
+                <router-link
+                  v-if="website.mode === 'advanced' && !pendingDeletion"
+                  class="dcard__go"
+                  :to="{ name: 'website-builder', query: { c: companyId } }"
+                >
+                  {{ t('dashboard.editSite') }} <v-icon icon="mdi-arrow-right" size="15" />
+                </router-link>
+                <span v-else-if="website.mode === 'advanced'" class="dcard__go dcard__go--disabled">
+                  {{ t('dashboard.editSite') }}
+                </span>
+              </div>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.websiteNone') }}</p>
           </div>
@@ -499,11 +523,13 @@ watch(
                 }}
               </p>
               <router-link
+                v-if="!pendingDeletion"
                 class="dcard__go"
                 :to="{ name: 'create-location', query: { c: companyId } }"
               >
                 {{ t('dashboard.taskEdit') }} <v-icon icon="mdi-arrow-right" size="15" />
               </router-link>
+              <span v-else class="dcard__go dcard__go--disabled">{{ t('dashboard.taskEdit') }}</span>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.locationNone') }}</p>
           </div>
@@ -551,8 +577,43 @@ watch(
           </div>
         </article>
 
-        <!-- Leads / Cereri -->
-        <article v-if="dash" class="dcard">          <p class="dcard__k">{{ t('dashboard.leadsTitle') }}</p>
+        <!-- Invoices / Facturi -->
+        <article
+          v-if="!billingLoading"
+          class="dcard"
+          :class="{ 'dcard--alert': !billingComplete || unbilledCount > 0 }"
+        >          <p class="dcard__k">{{ t('dashboard.invoicesTitle') }}</p>
+          <div class="dcard__body">
+            <template v-if="!billingComplete">
+              <p class="dcard__sub">{{ t('dashboard.invoicesIncompleteText') }}</p>
+              <router-link class="dcard__go" :to="{ name: 'account', query: { tab: 'billing' } }">
+                {{ t('dashboard.invoicesIncompleteCta') }} <v-icon icon="mdi-arrow-right" size="15" />
+              </router-link>
+            </template>
+            <template v-else-if="unbilledCount > 0">
+              <p class="dcard__hero">
+                {{ unbilledCount }} <small>{{ t('dashboard.invoicesUnbilledWord') }}</small>
+              </p>
+              <router-link class="dcard__go" :to="{ name: 'invoices' }">
+                {{ t('dashboard.invoicesUnbilledCta') }} <v-icon icon="mdi-arrow-right" size="15" />
+              </router-link>
+            </template>
+            <template v-else>
+              <p class="dcard__hero">
+                {{ invoices.length }} <small>{{ t('dashboard.invoicesWord') }}</small>
+              </p>
+              <p class="dcard__sub">
+                {{ invoices[0] ? t('dashboard.invoicesLast', { number: invoices[0].number }) : t('dashboard.invoicesNone') }}
+              </p>
+              <router-link class="dcard__go" :to="{ name: 'invoices' }">
+                {{ t('dashboard.invoicesCta') }} <v-icon icon="mdi-arrow-right" size="15" />
+              </router-link>
+            </template>
+          </div>
+        </article>
+
+        <!-- Leads / Cereri (hidden only while an advanced-plan builder is unconfigured) -->
+        <article v-if="dash && !advancedBuilderPending" class="dcard">          <p class="dcard__k">{{ t('dashboard.leadsTitle') }}</p>
           <div class="dcard__body">
             <p class="dcard__hero">
               {{ dash.leads.new }} <small>{{ t('dashboard.leadsNewWord') }}</small>
@@ -596,7 +657,7 @@ watch(
           </div>
         </div>
 
-        <div class="ana__chart">
+        <div v-if="hasChartData" class="ana__chart">
           <p class="ana__chartHead">{{ t('analytics.last14') }}</p>
           <TrendChart :labels="a.series.days" :series="chartSeries" />
         </div>
@@ -1002,6 +1063,11 @@ watch(
 .dcard__go--alt:hover {
   color: rgb(var(--acc));
 }
+.dcard__go--disabled {
+  color: rgb(var(--v-theme-on-surface) / 0.35);
+  cursor: not-allowed;
+  pointer-events: none;
+}
 
 /* --- Analiză --- */
 .ana {
@@ -1225,12 +1291,6 @@ watch(
 }
 .dash__task > .v-icon {
   color: var(--tvz-ai);
-}
-.dash__task--done {
-  background: rgb(var(--v-theme-success) / 0.1);
-}
-.dash__task--done > .v-icon {
-  color: rgb(var(--v-theme-success));
 }
 .dash__taskBody {
   flex: 1;

@@ -20,11 +20,17 @@ const router = useRouter()
 const companies = useCompaniesStore()
 const campaign = useCampaignStore()
 const money = useMoney()
+const { overview } = storeToRefs(companies)
 const { spend, loading, error } = storeToRefs(campaign)
 
 const companyId = ref<string | null>(null)
 const busy = ref(false)
 const s = computed(() => spend.value)
+// A business scheduled for deletion can't be (re)activated during its grace
+// window (see `campaign.service.ts` `activate()`'s `company_pending_deletion`).
+const pendingDeletion = computed(
+  () => !!overview.value.find((c) => c.id === companyId.value)?.deletionScheduledAt,
+)
 
 // Live clock so the "runs out in ~X" line ticks without a refetch.
 const clientNow = ref(Date.now())
@@ -70,6 +76,7 @@ const KNOWN_ERR = [
   'insufficient_credits',
   'website_builder_incomplete',
   'company_suspended',
+  'company_pending_deletion',
   'wallet_blocked',
   'set_budget_first',
 ]
@@ -158,9 +165,21 @@ async function activate(): Promise<void> {
   if (await campaign.activate(companyId.value)) await campaign.loadSpend(companyId.value)
   busy.value = false
 }
+// Pausing for over 24h drops the banked "run time" (Age Score) back to zero
+// (see `effectiveActiveSeconds`/`RUN_SCORE_GRACE_MS` server-side) — worth a
+// heads-up before stopping a campaign that's actually banked some run time.
+const showPauseDialog = ref(false)
+function askStop(): void {
+  if ((s.value?.lifetime.activeSeconds ?? 0) > 0) {
+    showPauseDialog.value = true
+  } else {
+    void stop()
+  }
+}
 async function stop(): Promise<void> {
   if (!companyId.value || busy.value) return
   busy.value = true
+  showPauseDialog.value = false
   if (await campaign.pause(companyId.value)) await campaign.loadSpend(companyId.value)
   busy.value = false
 }
@@ -252,7 +271,7 @@ watch(
             variant="tonal"
             :loading="busy"
             prepend-icon="mdi-pause"
-            @click="stop"
+            @click="askStop"
           >
             {{ t('campaign.pause') }}
           </v-btn>
@@ -260,7 +279,7 @@ watch(
             v-else
             color="primary"
             :loading="busy"
-            :disabled="!s.canActivate"
+            :disabled="!s.canActivate || pendingDeletion"
             append-icon="mdi-broadcast"
             @click="activate"
           >
@@ -509,6 +528,22 @@ watch(
           </v-btn>
           <v-btn color="error" variant="flat" :loading="busy" @click="removeCampaign">
             {{ t('spend.deleteConfirmCta') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showPauseDialog" max-width="420">
+      <v-card>
+        <v-card-title class="text-h6">{{ t('campaign.pauseConfirmTitle') }}</v-card-title>
+        <v-card-text>{{ t('campaign.pauseConfirmText') }}</v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" :disabled="busy" @click="showPauseDialog = false">
+            {{ t('campaign.pauseKeep') }}
+          </v-btn>
+          <v-btn color="warning" variant="flat" :loading="busy" @click="stop">
+            {{ t('campaign.pause') }}
           </v-btn>
         </v-card-actions>
       </v-card>

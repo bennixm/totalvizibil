@@ -34,6 +34,7 @@ const goLinks = [
   { to: { name: 'dashboard' }, key: 'nav.dashboard', icon: 'mdi-view-dashboard-outline' },
   { to: { name: 'leads' }, key: 'nav.leads', icon: 'mdi-inbox-arrow-down-outline' },
   { to: { name: 'wallet' }, key: 'nav.wallet', icon: 'mdi-wallet-outline' },
+  { to: { name: 'invoices' }, key: 'nav.invoices', icon: 'mdi-receipt-text-outline' },
   { to: { name: 'support' }, key: 'nav.support', icon: 'mdi-lifebuoy' },
 ]
 

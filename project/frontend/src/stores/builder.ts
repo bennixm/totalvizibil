@@ -45,6 +45,8 @@ export interface DocSection {
   type: string
   variant: string
   visible: boolean
+  /** Entrance-animation preset id; absent = inherit the theme's motion default. */
+  animation?: string
   content: Record<string, unknown>
 }
 export interface PageSpec {
@@ -60,7 +62,7 @@ export interface BuilderDoc {
   mode: 'manual' | 'ai'
   theme: WebsiteTheme
   pages: PageSpec[]
-  ai?: { brief?: string; planCount: number; sectionCount: number }
+  ai?: { brief?: string; planCount: number; sectionCount: number; notes?: string[] }
 }
 
 export interface BuilderView {
@@ -76,7 +78,20 @@ export interface BuilderView {
   doc: BuilderDoc | null
   aiCanUndo: boolean
   aiConfigured: boolean
+  /** AI is metered per site (manual editing is unlimited). */
+  aiLimits?: {
+    plan: number
+    section: number
+    planUsed: number
+    sectionUsed: number
+    planLeft: number
+    sectionLeft: number
+  }
   catalog: SectionSpec[] | null
+  /** Animation presets a section can pick (id + i18n label suffix). */
+  animations?: VariantSpec[]
+  /** Site-wide motion intensity options. */
+  motions?: Array<'off' | 'subtle' | 'lively'>
 }
 
 export interface PageInput {
@@ -93,6 +108,8 @@ interface State {
   catalogOpen: boolean
   loading: boolean
   working: boolean
+  /** True only while a full AI site generation is in flight (drives the loader). */
+  aiPlanning: boolean
   error: string
 }
 
@@ -106,6 +123,7 @@ export const useBuilderStore = defineStore('builder', {
     catalogOpen: false,
     loading: false,
     working: false,
+    aiPlanning: false,
     error: '',
   }),
 
@@ -272,7 +290,12 @@ export const useBuilderStore = defineStore('builder', {
     patchSection(
       companyId: string,
       sectionId: string,
-      patch: { variant?: string; visible?: boolean; content?: Record<string, unknown> },
+      patch: {
+        variant?: string
+        animation?: string
+        visible?: boolean
+        content?: Record<string, unknown>
+      },
       opts: { immediate?: boolean } = {},
     ): void {
       this.applyLocal(sectionId, patch)
@@ -285,14 +308,25 @@ export const useBuilderStore = defineStore('builder', {
         )
       }
       clearTimeout(patchTimer)
-      if (opts.immediate || patch.variant !== undefined || patch.visible !== undefined) send()
-      else patchTimer = setTimeout(send, 320)
+      if (
+        opts.immediate ||
+        patch.variant !== undefined ||
+        patch.animation !== undefined ||
+        patch.visible !== undefined
+      ) {
+        send()
+      } else patchTimer = setTimeout(send, 320)
     },
 
     /** Optimistic local write into both the doc and the composed content. */
     applyLocal(
       sectionId: string,
-      patch: { variant?: string; visible?: boolean; content?: Record<string, unknown> },
+      patch: {
+        variant?: string
+        animation?: string
+        visible?: boolean
+        content?: Record<string, unknown>
+      },
     ): void {
       const v = this.view
       if (!v) return
@@ -300,6 +334,7 @@ export const useBuilderStore = defineStore('builder', {
         const s = p.sections.find((x) => x.id === sectionId)
         if (s) {
           if (patch.variant !== undefined) s.variant = patch.variant
+          if (patch.animation !== undefined) s.animation = patch.animation || undefined
           if (patch.visible !== undefined) s.visible = patch.visible
           if (patch.content) s.content = { ...s.content, ...patch.content }
         }
@@ -308,6 +343,9 @@ export const useBuilderStore = defineStore('builder', {
         const s = p.sections.find((x) => x.id === sectionId)
         if (s) {
           if (patch.variant !== undefined) (s as Record<string, unknown>).variant = patch.variant
+          if (patch.animation !== undefined) {
+            ;(s as Record<string, unknown>).animation = patch.animation || undefined
+          }
           if (patch.visible !== undefined) (s as Record<string, unknown>).visible = patch.visible
           if (patch.content) Object.assign(s, patch.content)
         }
@@ -315,14 +353,19 @@ export const useBuilderStore = defineStore('builder', {
     },
 
     /** Generate the whole site from a free-text brief (AI, keeps an undo point). */
-    aiPlan(companyId: string, brief: string): Promise<boolean> {
-      return this.run(() =>
-        apiFetch<BuilderView>(`/companies/${companyId}/website-builder/ai/plan`, {
-          method: 'POST',
-          body: { brief },
-          timeoutMs: 60_000,
-        }),
-      )
+    async aiPlan(companyId: string, brief: string): Promise<boolean> {
+      this.aiPlanning = true
+      try {
+        return await this.run(() =>
+          apiFetch<BuilderView>(`/companies/${companyId}/website-builder/ai/plan`, {
+            method: 'POST',
+            body: { brief },
+            timeoutMs: 60_000,
+          }),
+        )
+      } finally {
+        this.aiPlanning = false
+      }
     },
 
     aiUndo(companyId: string): Promise<boolean> {

@@ -21,17 +21,31 @@ export function companyCrumbs(company: {
   return [cat.parent?.slug, cat.slug, company.slug].filter((s): s is string => !!s)
 }
 
+/**
+ * Both the category feed and a company's public page now share one flat,
+ * prefix-free path — `/group[/niche][/slug]` — resolved at runtime by
+ * `BrowseView` (see its docblock for why: the segment count alone can't tell
+ * a sub-category from a company slug, only the category tree can). Every
+ * link into either page goes through the single `browse` route so the
+ * generated `href` always matches what `BrowseView` will actually resolve.
+ */
+function browseRoute(seg1: string, seg2?: string | null, seg3?: string | null): RouteLocationRaw {
+  const params: Record<string, string> = { seg1 }
+  if (seg2) params.seg2 = seg2
+  if (seg3) params.seg3 = seg3
+  return { name: 'browse', params }
+}
+
 /** `router-link` target for a company's public page. */
 export function companyRoute(company: {
   slug: string
   category?: CrumbCategory | null
 }): RouteLocationRaw {
-  return { name: 'company', params: { crumbs: companyCrumbs(company) } }
+  const [seg1, seg2, seg3] = companyCrumbs(company)
+  return browseRoute(seg1, seg2, seg3)
 }
 
 /** `router-link` target for the category-filtered feed. */
 export function feedCategoryRoute(groupSlug: string, nicheSlug?: string | null): RouteLocationRaw {
-  return nicheSlug
-    ? { name: 'feed-category', params: { group: groupSlug, niche: nicheSlug } }
-    : { name: 'feed-category', params: { group: groupSlug } }
+  return browseRoute(groupSlug, nicheSlug)
 }
