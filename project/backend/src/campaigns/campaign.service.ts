@@ -8,6 +8,7 @@ import { Campaign, CampaignStatus, CompanyRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AffiliateService } from '../affiliate/affiliate.service';
 import { DEFAULT_REFS, RUN_SCORE_GRACE_MS, effectiveActiveSeconds } from '../analytics/visibility';
 import { creditsToMinor, minorToCredits, money } from '../wallet/money';
 import { CampaignSuggestions, CampaignTier, suggestCampaign } from './campaign-advisor';
@@ -31,6 +32,7 @@ export class CampaignService {
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly analytics: AnalyticsService,
+    private readonly affiliate: AffiliateService,
   ) {}
 
   // --- membership -------------------------------------------------------
@@ -43,11 +45,22 @@ export class CampaignService {
     return member.role;
   }
 
+  /**
+   * Shared entry gate for every campaign mutation (save/remove/activate/pause).
+   * A business pending deletion is fully frozen — the owner must cancel the
+   * deletion first before touching campaign/budget again, no partial actions
+   * (even pausing) allowed in that state.
+   */
   private async assertCanEdit(companyId: string, userId: string): Promise<void> {
     const role = await this.memberRole(companyId, userId);
     if (!CAN_EDIT.includes(role)) {
       throw new ForbiddenException('Your role cannot manage the campaign');
     }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { deletionScheduledAt: true },
+    });
+    if (company?.deletionScheduledAt) throw new ForbiddenException('company_pending_deletion');
   }
 
   /** The company owner whose single wallet funds this campaign. */
@@ -832,12 +845,11 @@ export class CampaignService {
       this.prisma.campaign.findUnique({ where: { companyId } }),
       this.prisma.company.findUnique({
         where: { id: companyId },
-        select: { status: true, deletionScheduledAt: true },
+        select: { status: true },
       }),
     ]);
     if (!campaign) throw new BadRequestException('set_budget_first');
     if (company?.status === 'suspended') throw new ForbiddenException('company_suspended');
-    if (company?.deletionScheduledAt) throw new ForbiddenException('company_pending_deletion');
     if (!(await this.isListingWebsiteReady(companyId))) {
       throw new BadRequestException('website_builder_incomplete');
     }
@@ -848,6 +860,12 @@ export class CampaignService {
     }
 
     await this.setLive(companyId, campaign, CampaignStatus.active);
+
+    // If this owner was brought in through the affiliate program and has funded
+    // their account, their referrer earns the reward now. Fire-and-forget — a
+    // reward failure must never block the activation.
+    void this.affiliate.maybeReward(owner);
+
     return this.get(userId, companyId);
   }
 

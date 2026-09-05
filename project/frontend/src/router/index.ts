@@ -242,8 +242,26 @@ export const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  // First-touch affiliate attribution: stash a `?ref=CODE` so it survives the
+  // sign-up flow. Never overwritten once set — the first link wins.
+  const ref = typeof to.query.ref === 'string' ? to.query.ref.trim().slice(0, 32).toUpperCase() : ''
+  if (ref) {
+    try {
+      if (!localStorage.getItem('tvz.ref')) localStorage.setItem('tvz.ref', ref)
+    } catch {
+      /* storage unavailable — ignore */
+    }
+  }
+
   const auth = useAuthStore()
   if (!auth.ready) await auth.bootstrap()
+
+  // An affiliate link is an invitation to start a business. A guest who lands on
+  // the homepage via `?ref=` goes straight into the create flow (the code is
+  // already stashed above and gets claimed after they register).
+  if (ref && !auth.isAuthenticated && to.name === 'feed') {
+    return { name: 'create', query: { ...to.query } }
+  }
 
   // Warm the FX context (display currency + EUR/RON rate) once signed in, so
   // credit amounts render with their equivalent from the first paint.

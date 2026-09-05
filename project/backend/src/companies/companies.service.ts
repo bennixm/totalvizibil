@@ -94,6 +94,29 @@ export class CompaniesService implements OnModuleInit {
     return member.role;
   }
 
+  /**
+   * Role check + "not pending deletion" gate, shared by every mutation that
+   * touches an existing company's profile/location/publish state (campaign
+   * mutations have their own equivalent in `CampaignService.assertCanEdit`).
+   * A business pending deletion is fully frozen — the owner must cancel the
+   * deletion first before any of campaign/site/budget/profile can change
+   * again; `requestDeletion`/`cancelDeletion` themselves don't go through
+   * this, since cancelling is exactly what must still work in that state.
+   */
+  private async assertCanEditCompany(companyId: string, userId: string): Promise<CompanyRole> {
+    const role = await this.membershipRole(companyId, userId);
+    if (!role) throw new NotFoundException('Company not found');
+    if (!ROLES_THAT_CAN_EDIT.includes(role)) {
+      throw new ForbiddenException('Your role cannot edit this company');
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { deletionScheduledAt: true },
+    });
+    if (company?.deletionScheduledAt) throw new ForbiddenException('company_pending_deletion');
+    return role;
+  }
+
   async create(userId: string, dto: CreateCompanyDto): Promise<CompanyView> {
     if (dto.categoryId) {
       const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
@@ -319,11 +342,7 @@ export class CompaniesService implements OnModuleInit {
   }
 
   async update(userId: string, companyId: string, dto: UpdateCompanyDto): Promise<CompanyView> {
-    const role = await this.membershipRole(companyId, userId);
-    if (!role) throw new NotFoundException('Company not found');
-    if (!ROLES_THAT_CAN_EDIT.includes(role)) {
-      throw new ForbiddenException('Your role cannot edit this company');
-    }
+    const role = await this.assertCanEditCompany(companyId, userId);
 
     if (dto.categoryId) {
       const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
@@ -446,16 +465,7 @@ export class CompaniesService implements OnModuleInit {
       nationwide?: boolean;
     },
   ): Promise<CompanyView> {
-    const role = await this.membershipRole(companyId, userId);
-    if (!role) throw new NotFoundException('Company not found');
-    if (!ROLES_THAT_CAN_EDIT.includes(role)) {
-      throw new ForbiddenException('Your role cannot edit this company');
-    }
-    const target = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { deletionScheduledAt: true },
-    });
-    if (target?.deletionScheduledAt) throw new ForbiddenException('company_pending_deletion');
+    const role = await this.assertCanEditCompany(companyId, userId);
     const category = await this.drafts.assertCategory(input.categorySlug);
 
     const nationwide = !!input.nationwide;
@@ -497,11 +507,7 @@ export class CompaniesService implements OnModuleInit {
 
   /** Make the company + its website publicly visible in the feed (PRD §11). */
   async setPublished(userId: string, companyId: string, live: boolean) {
-    const role = await this.membershipRole(companyId, userId);
-    if (!role) throw new NotFoundException('Company not found');
-    if (!ROLES_THAT_CAN_EDIT.includes(role)) {
-      throw new ForbiddenException('Your role cannot publish this company');
-    }
+    await this.assertCanEditCompany(companyId, userId);
 
     await this.prisma.$transaction([
       this.prisma.company.update({

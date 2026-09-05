@@ -454,7 +454,10 @@
     "toOverview": "Vezi campania",
     "pauseConfirmTitle": "Pui campania pe pauză?",
     "pauseConfirmText": "Dacă rămâne pe pauză peste 24 de ore, timpul de rulaj acumulat (scorul de vechime) va reveni la 0.",
-    "pauseKeep": "Nu, las-o activă"
+    "pauseKeep": "Nu, las-o activă",
+    "deletionPendingTitle": "Ștergere programată",
+    "deletionPendingNote": "Afacerea este programată pentru ștergere — anulează ștergerea din panou ca să poți edita campania din nou.",
+    "deletionPendingCta": "Mergi la panou"
   },
   "wallet": {
     "eyebrow": "Facturare",
@@ -612,7 +615,8 @@
     "billingBankName": "Bancă",
     "billingSaved": "Datele de facturare au fost salvate.",
     "billingSavedBackfilled": "Datele au fost salvate — {n} facturi emise retroactiv.",
-    "billingSeeInvoices": "Vezi facturile tale"
+    "billingSeeInvoices": "Vezi facturile tale",
+    "tabAffiliate": "Afiliere"
   },
   "admin": {
     "title": "Panou admin",
@@ -765,7 +769,16 @@
     "invVoidReason": "Motiv",
     "invSeeAll": "Vezi toate facturile",
     "colTotal": "Total",
-    "colDate": "Dată"
+    "colDate": "Dată",
+    "tabOverview": "Prezentare",
+    "tabWallet": "Portofel",
+    "tabBusinesses": "Afaceri",
+    "tabActivity": "Activitate",
+    "metaJoined": "Înregistrat",
+    "accountFactsTitle": "Detalii cont",
+    "factPasswordChanged": "Parolă schimbată",
+    "colType": "Tip",
+    "txnsRecentNote": "Se afișează cele mai recente 20 de tranzacții."
   },
   "errors": {
     "notFoundTitle": "Pagina nu a fost găsită",
@@ -1046,7 +1059,10 @@
     },
     "aiQuota": "Generări AI rămase pe acest site: {left} din {limit}. Editarea manuală e nelimitată.",
     "aiQuotaOut": "Ai folosit toate generările AI pentru acest site. Poți edita în continuare manual, fără limită.",
-    "continueBudget": "Continuă → Buget"
+    "continueBudget": "Continuă → Buget",
+    "deletionPendingTitle": "Ștergere programată",
+    "deletionPendingText": "Afacerea este programată pentru ștergere — anulează ștergerea din panou ca să poți edita site-ul din nou.",
+    "deletionPendingCta": "Mergi la panou"
   },
   "site": {
     "phone": "Telefon",
@@ -1274,7 +1290,18 @@
     "issuerRegCom": "Nr. Reg. Comerțului",
     "issuerAddress": "Adresă sediu",
     "issuerIban": "IBAN",
-    "issuerBank": "Bancă"
+    "issuerBank": "Bancă",
+    "affiliateTitle": "Program de afiliere",
+    "affiliateNote": "Recompensează utilizatorii care aduc clienți noi. Recompensa se acordă o singură dată per client, când clientul adus își pornește prima campanie și atinge pragul minim de depunere setat mai jos.",
+    "affiliateEnabled": "Program activ",
+    "affiliateEnabledHint": "Când e oprit, nu se mai acordă recompense și secțiunea dispare de pe pagina principală.",
+    "affiliateReward": "Recompensă per client",
+    "affiliateRewardHint": "Câte credite primește cel care a adus clientul.",
+    "affiliateTotalReferrals": "Clienți aduși",
+    "affiliateRewarded": "Recompensați",
+    "affiliateCreditsPaid": "Credite acordate",
+    "affiliateMinDeposit": "Depunere minimă / client adus",
+    "affiliateMinDepositHint": "Câte credite trebuie să depună în total clientul adus înainte ca recompensa să fie plătită. 0 = fără prag."
   },
   "spend": {
     "eyebrow": "Promovare în feed",
@@ -1611,7 +1638,9 @@
     "vatExempt": "neplătitor",
     "total": "Total de plată",
     "paidVia": "Plătit din portofel Totalvizibil — {eur} EUR convertiți la cursul {rate} RON/EUR.",
-    "generatedNote": "Document generat electronic de Totalvizibil."
+    "generatedNote": "Document generat electronic de Totalvizibil.",
+    "docTitleReward": "Document de recompensă — program de afiliere",
+    "rewardNote": "Recompensă acordată în credite platformă pentru programul de afiliere. Fără plată, scutit de TVA."
   },
   "invoices": {
     "eyebrow": "Facturare",
@@ -1628,11 +1657,36 @@
     "colTotal": "Total",
     "view": "Vezi factura",
     "profileNote": "Facturile sunt emise pe numele: {name}.",
-    "editProfile": "Editează datele de facturare"
+    "editProfile": "Editează datele de facturare",
+    "kindReward": "Recompensă"
   },
   "transactions": {
     "eyebrow": "Portofel",
     "title": "Tranzacții",
     "back": "Înapoi la portofel"
+  },
+  "affiliate": {
+    "badge": "Program de afiliere",
+    "adCta": "Vezi cum funcționează",
+    "pausedNotice": "Programul de afiliere este momentan oprit. Recompensele noi sunt în pauză, dar istoricul tău rămâne aici.",
+    "panelTitle": "Linkul tău de afiliere",
+    "panelIntro": "Trimite acest link. Când cineva nou își face un site, pornește o campanie și depune în total cel puțin {d} credite, primești {n} credite.",
+    "copy": "Copiază link",
+    "copied": "Copiat",
+    "statReferred": "Clienți aduși",
+    "statRewarded": "Recompensați",
+    "statEarned": "Credite câștigate",
+    "listTitle": "Clienți aduși",
+    "listEmpty": "Încă niciun client adus. Împarte linkul de mai sus ca să începi.",
+    "colClient": "Client",
+    "colDate": "Data",
+    "colStatus": "Stare",
+    "colReward": "Recompensă",
+    "statusPending": "În așteptare",
+    "statusRewarded": "Recompensat",
+    "viewInvoice": "Factură",
+    "adHeadline": "Adu un client, primești",
+    "adHeadlineTail": "credite",
+    "adSub": "Trimite linkul tău — când prietenul își face un site și pornește o campanie, creditele sunt ale tale."
   }
 }

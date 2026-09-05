@@ -17,12 +17,14 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { BillingService } from '../billing/billing.service';
+import { AffiliateService } from '../affiliate/affiliate.service';
 import { AdminStatsService } from './admin-stats.service';
 import { AdminUsersService } from './admin-users.service';
 import { AdminCompaniesService } from './admin-companies.service';
 import { AdminCategoriesService } from './admin-categories.service';
 import { ListUsersQuery } from './dto/list-users.query';
 import { ListInvoicesQuery } from './dto/list-invoices.query';
+import { ListReferralsQuery } from './dto/list-referrals.query';
 import { VoidInvoiceDto } from './dto/void-invoice.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SetUserPasswordDto } from './dto/set-user-password.dto';
@@ -50,6 +52,7 @@ export class AdminController {
     private readonly categories: AdminCategoriesService,
     private readonly settings: PlatformSettingsService,
     private readonly billing: BillingService,
+    private readonly affiliate: AffiliateService,
   ) {}
 
   @Get('stats')
@@ -65,18 +68,27 @@ export class AdminController {
       additionalBusinessPriceCredits,
       invoiceVatRatePct,
       invoiceIssuer,
+      affiliateEnabled,
+      affiliateRewardCredits,
+      affiliateMinDepositCredits,
     ] = await Promise.all([
       this.settings.eurRonRate(),
       this.settings.advancedBuilderPriceCredits(),
       this.settings.additionalBusinessPriceCredits(),
       this.settings.invoiceVatRatePct(),
       this.settings.invoiceIssuer(),
+      this.settings.affiliateEnabled(),
+      this.settings.affiliateRewardCredits(),
+      this.settings.affiliateMinDepositCredits(),
     ]);
     return {
       eurRonRate,
       advancedBuilderPriceCredits,
       additionalBusinessPriceCredits,
       invoiceVatRatePct,
+      affiliateEnabled,
+      affiliateRewardCredits,
+      affiliateMinDepositCredits,
       invoiceIssuerName: invoiceIssuer.name,
       invoiceIssuerTaxId: invoiceIssuer.taxId,
       invoiceIssuerRegCom: invoiceIssuer.regCom,
@@ -97,6 +109,15 @@ export class AdminController {
     }
     if (dto.invoiceVatRatePct !== undefined) {
       await this.settings.setInvoiceVatRatePct(dto.invoiceVatRatePct);
+    }
+    if (dto.affiliateEnabled !== undefined) {
+      await this.settings.setAffiliateEnabled(dto.affiliateEnabled);
+    }
+    if (dto.affiliateRewardCredits !== undefined) {
+      await this.settings.setAffiliateRewardCredits(dto.affiliateRewardCredits);
+    }
+    if (dto.affiliateMinDepositCredits !== undefined) {
+      await this.settings.setAffiliateMinDepositCredits(dto.affiliateMinDepositCredits);
     }
     const {
       invoiceIssuerName: name,
@@ -227,5 +248,16 @@ export class AdminController {
   @Post('invoices/:id/unvoid')
   unvoidInvoice(@Param('id', ParseUUIDPipe) id: string) {
     return this.billing.unvoidInvoice(id);
+  }
+
+  // --- affiliate program -----------------------------------------------
+
+  @Get('referrals')
+  listReferrals(@Query() query: ListReferralsQuery) {
+    return this.affiliate.adminList({
+      page: query.page,
+      pageSize: query.pageSize,
+      status: query.status,
+    });
   }
 }

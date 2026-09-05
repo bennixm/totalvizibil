@@ -37,9 +37,12 @@ export interface BillingProfileInput {
   bankName?: string
 }
 
+export type InvoiceKind = 'topup' | 'affiliate_reward'
+
 export interface Invoice {
   id: string
   number: string
+  kind: InvoiceKind
   issuedAt: string
   buyerKind: BillingKind
   buyerName: string

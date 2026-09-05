@@ -270,6 +270,7 @@ watch(
             v-if="isLive"
             variant="tonal"
             :loading="busy"
+            :disabled="pendingDeletion"
             prepend-icon="mdi-pause"
             @click="askStop"
           >
@@ -326,6 +327,23 @@ watch(
           :to="{ name: 'website-builder', query: { c: companyId } }"
         >
           {{ t('campaign.builderRequiredCta') }}
+        </v-btn>
+      </div>
+
+      <div v-if="pendingDeletion" class="ov__banner ov__banner--ai">
+        <v-icon icon="mdi-trash-clock-outline" size="18" />
+        <div>
+          <strong>{{ t('campaign.deletionPendingTitle') }}</strong>
+          <p>{{ t('campaign.deletionPendingNote') }}</p>
+        </div>
+        <v-btn
+          size="small"
+          variant="flat"
+          color="primary"
+          append-icon="mdi-arrow-right"
+          :to="{ name: 'dashboard', query: { c: companyId } }"
+        >
+          {{ t('campaign.deletionPendingCta') }}
         </v-btn>
       </div>
 
@@ -509,6 +527,7 @@ watch(
           variant="tonal"
           color="error"
           size="small"
+          :disabled="pendingDeletion"
           prepend-icon="mdi-trash-can-outline"
           @click="showDeleteDialog = true"
         >

@@ -8,12 +8,28 @@ export class PlatformController {
 
   @Get('pricing')
   async pricing() {
-    const [advancedBuilderPriceCredits, additionalBusinessPriceCredits, eurRonRate] =
-      await Promise.all([
-        this.settings.advancedBuilderPriceCredits(),
-        this.settings.additionalBusinessPriceCredits(),
-        this.settings.eurRonRate(),
-      ]);
-    return { advancedBuilderPriceCredits, additionalBusinessPriceCredits, eurRonRate };
+    const [
+      advancedBuilderPriceCredits,
+      additionalBusinessPriceCredits,
+      eurRonRate,
+      affiliateEnabled,
+      affiliateRewardCredits,
+      affiliateMinDepositCredits,
+    ] = await Promise.all([
+      this.settings.advancedBuilderPriceCredits(),
+      this.settings.additionalBusinessPriceCredits(),
+      this.settings.eurRonRate(),
+      this.settings.affiliateEnabled(),
+      this.settings.affiliateRewardCredits(),
+      this.settings.affiliateMinDepositCredits(),
+    ]);
+    return {
+      advancedBuilderPriceCredits,
+      additionalBusinessPriceCredits,
+      eurRonRate,
+      affiliateEnabled,
+      affiliateRewardCredits,
+      affiliateMinDepositCredits,
+    };
   }
 }

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import { useAdminStore } from '@/stores/admin'
+import type { AdminReferralsPage } from '@/stores/admin'
 import { ApiError } from '@/services/api'
 
 const { t } = useI18n()
@@ -23,6 +24,12 @@ const form = reactive({
   additionalBusinessPriceCredits: 0,
   invoiceVatRatePct: 0,
 })
+const affiliate = reactive({ enabled: false, rewardCredits: 20, minDeposit: 50 })
+const REWARD_MIN = 1
+const REWARD_MAX = 10000
+const MIN_DEPOSIT_MIN = 0
+const MIN_DEPOSIT_MAX = 100000
+const referralStats = ref<AdminReferralsPage | null>(null)
 const issuer = reactive({
   invoiceIssuerName: '',
   invoiceIssuerTaxId: '',
@@ -89,8 +96,24 @@ function hydrate() {
   form.advancedBuilderPriceCredits = admin.settings.advancedBuilderPriceCredits
   form.additionalBusinessPriceCredits = admin.settings.additionalBusinessPriceCredits
   form.invoiceVatRatePct = admin.settings.invoiceVatRatePct
+  affiliate.enabled = admin.settings.affiliateEnabled
+  affiliate.rewardCredits = admin.settings.affiliateRewardCredits
+  affiliate.minDeposit = admin.settings.affiliateMinDepositCredits
   for (const f of issuerFields) issuer[f.key] = admin.settings[f.key]
 }
+
+const rewardValid = computed(
+  () =>
+    Number.isFinite(affiliate.rewardCredits) &&
+    affiliate.rewardCredits >= REWARD_MIN &&
+    affiliate.rewardCredits <= REWARD_MAX,
+)
+const minDepositValid = computed(
+  () =>
+    Number.isFinite(affiliate.minDeposit) &&
+    affiliate.minDeposit >= MIN_DEPOSIT_MIN &&
+    affiliate.minDeposit <= MIN_DEPOSIT_MAX,
+)
 
 const dirty = computed(
   () =>
@@ -99,13 +122,19 @@ const dirty = computed(
       form.advancedBuilderPriceCredits !== admin.settings.advancedBuilderPriceCredits ||
       form.additionalBusinessPriceCredits !== admin.settings.additionalBusinessPriceCredits ||
       form.invoiceVatRatePct !== admin.settings.invoiceVatRatePct ||
+      affiliate.enabled !== admin.settings.affiliateEnabled ||
+      affiliate.rewardCredits !== admin.settings.affiliateRewardCredits ||
+      affiliate.minDeposit !== admin.settings.affiliateMinDepositCredits ||
       issuerFields.some((f) => issuer[f.key] !== admin.settings![f.key])),
 )
-const valid = computed(() =>
-  fields.every((f) => {
-    const v = form[f.key]
-    return typeof v === 'number' && Number.isFinite(v) && v >= f.min && v <= f.max
-  }),
+const valid = computed(
+  () =>
+    rewardValid.value &&
+    minDepositValid.value &&
+    fields.every((f) => {
+      const v = form[f.key]
+      return typeof v === 'number' && Number.isFinite(v) && v >= f.min && v <= f.max
+    }),
 )
 
 async function load() {
@@ -116,6 +145,10 @@ async function load() {
   } finally {
     loading.value = false
   }
+  admin
+    .fetchReferrals({ pageSize: 5 })
+    .then((r) => (referralStats.value = r))
+    .catch(() => {})
 }
 onMounted(load)
 
@@ -123,7 +156,13 @@ async function save() {
   if (!dirty.value || !valid.value) return
   saving.value = true
   try {
-    await admin.updateSettings({ ...form, ...issuer })
+    await admin.updateSettings({
+      ...form,
+      ...issuer,
+      affiliateEnabled: affiliate.enabled,
+      affiliateRewardCredits: affiliate.rewardCredits,
+      affiliateMinDepositCredits: affiliate.minDeposit,
+    })
     hydrate()
     flash(t('adminSettings.saved'))
   } catch (e) {
@@ -189,6 +228,89 @@ async function save() {
           density="compact"
           hide-details
         />
+      </div>
+    </AdminSection>
+
+    <AdminSection
+      v-if="!loading"
+      :title="t('adminSettings.affiliateTitle')"
+      icon="mdi-account-multiple-plus-outline"
+      class="mt-4"
+    >
+      <p class="as__sectionNote">{{ t('adminSettings.affiliateNote') }}</p>
+
+      <div class="as__field">
+        <span class="as__ic"><v-icon icon="mdi-power" size="18" /></span>
+        <div class="as__body">
+          <label class="as__label">{{ t('adminSettings.affiliateEnabled') }}</label>
+          <p class="as__hint">{{ t('adminSettings.affiliateEnabledHint') }}</p>
+        </div>
+        <v-switch
+          v-model="affiliate.enabled"
+          color="primary"
+          density="compact"
+          hide-details
+          inset
+        />
+      </div>
+
+      <div class="as__field">
+        <span class="as__ic"><v-icon icon="mdi-gift-outline" size="18" /></span>
+        <div class="as__body">
+          <label for="affReward" class="as__label">{{ t('adminSettings.affiliateReward') }}</label>
+          <p class="as__hint">{{ t('adminSettings.affiliateRewardHint') }}</p>
+        </div>
+        <v-text-field
+          id="affReward"
+          v-model.number="affiliate.rewardCredits"
+          type="number"
+          :min="REWARD_MIN"
+          :max="REWARD_MAX"
+          step="1"
+          suffix="cr"
+          variant="outlined"
+          density="compact"
+          hide-details
+          class="as__input"
+          :error="!rewardValid"
+        />
+      </div>
+
+      <div class="as__field">
+        <span class="as__ic"><v-icon icon="mdi-cash-multiple" size="18" /></span>
+        <div class="as__body">
+          <label for="affMinDep" class="as__label">{{ t('adminSettings.affiliateMinDeposit') }}</label>
+          <p class="as__hint">{{ t('adminSettings.affiliateMinDepositHint') }}</p>
+        </div>
+        <v-text-field
+          id="affMinDep"
+          v-model.number="affiliate.minDeposit"
+          type="number"
+          :min="MIN_DEPOSIT_MIN"
+          :max="MIN_DEPOSIT_MAX"
+          step="1"
+          suffix="cr"
+          variant="outlined"
+          density="compact"
+          hide-details
+          class="as__input"
+          :error="!minDepositValid"
+        />
+      </div>
+
+      <div v-if="referralStats" class="as__affStats">
+        <div class="as__affStat">
+          <span class="as__affNum">{{ referralStats.total }}</span>
+          <span class="as__affLbl">{{ t('adminSettings.affiliateTotalReferrals') }}</span>
+        </div>
+        <div class="as__affStat">
+          <span class="as__affNum">{{ referralStats.totalRewarded }}</span>
+          <span class="as__affLbl">{{ t('adminSettings.affiliateRewarded') }}</span>
+        </div>
+        <div class="as__affStat">
+          <span class="as__affNum">{{ referralStats.creditsPaid }}</span>
+          <span class="as__affLbl">{{ t('adminSettings.affiliateCreditsPaid') }}</span>
+        </div>
       </div>
     </AdminSection>
 
@@ -272,5 +394,24 @@ async function save() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.9rem;
+}
+.as__affStats {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--tvz-hairline);
+}
+.as__affStat {
+  display: flex;
+  flex-direction: column;
+}
+.as__affNum {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.as__affLbl {
+  font-size: 0.75rem;
+  color: rgb(var(--v-theme-on-surface) / 0.55);
 }
 </style>

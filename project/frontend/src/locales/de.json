@@ -454,7 +454,10 @@
     "toOverview": "Zur Kampagnenübersicht",
     "pauseConfirmTitle": "Kampagne pausieren?",
     "pauseConfirmText": "Wenn sie länger als 24 Stunden pausiert bleibt, wird die angesammelte Laufzeit (Alters-Score) auf 0 zurückgesetzt.",
-    "pauseKeep": "Nein, weiterlaufen lassen"
+    "pauseKeep": "Nein, weiterlaufen lassen",
+    "deletionPendingTitle": "Löschung geplant",
+    "deletionPendingNote": "Dieses Unternehmen ist zur Löschung vorgesehen — brich die Löschung im Dashboard ab, um die Kampagne wieder zu bearbeiten.",
+    "deletionPendingCta": "Zum Dashboard"
   },
   "wallet": {
     "eyebrow": "Abrechnung",
@@ -612,7 +615,8 @@
     "billingBankName": "Bank",
     "billingSaved": "Rechnungsdaten gespeichert.",
     "billingSavedBackfilled": "Gespeichert — {n} Rechnungen rückwirkend ausgestellt.",
-    "billingSeeInvoices": "Deine Rechnungen ansehen"
+    "billingSeeInvoices": "Deine Rechnungen ansehen",
+    "tabAffiliate": "Partner"
   },
   "admin": {
     "title": "Admin-Panel",
@@ -765,7 +769,16 @@
     "invVoidReason": "Grund",
     "invSeeAll": "Alle Rechnungen ansehen",
     "colTotal": "Gesamt",
-    "colDate": "Datum"
+    "colDate": "Datum",
+    "tabOverview": "Übersicht",
+    "tabWallet": "Wallet",
+    "tabBusinesses": "Unternehmen",
+    "tabActivity": "Aktivität",
+    "metaJoined": "Registriert",
+    "accountFactsTitle": "Kontodetails",
+    "factPasswordChanged": "Passwort geändert",
+    "colType": "Typ",
+    "txnsRecentNote": "Die 20 neuesten Transaktionen werden angezeigt."
   },
   "errors": {
     "notFoundTitle": "Seite nicht gefunden",
@@ -1046,7 +1059,10 @@
     },
     "aiQuota": "Verbleibende KI-Generierungen für diese Website: {left} von {limit}. Manuelles Bearbeiten ist unbegrenzt.",
     "aiQuotaOut": "Du hast alle KI-Generierungen für diese Website verbraucht. Du kannst weiterhin unbegrenzt manuell bearbeiten.",
-    "continueBudget": "Weiter → Budget"
+    "continueBudget": "Weiter → Budget",
+    "deletionPendingTitle": "Löschung geplant",
+    "deletionPendingText": "Dieses Unternehmen ist zur Löschung vorgesehen — brich die Löschung im Dashboard ab, um die Website wieder zu bearbeiten.",
+    "deletionPendingCta": "Zum Dashboard"
   },
   "site": {
     "phone": "Telefon",
@@ -1274,7 +1290,18 @@
     "issuerRegCom": "Handelsregisternummer",
     "issuerAddress": "Firmensitz",
     "issuerIban": "IBAN",
-    "issuerBank": "Bank"
+    "issuerBank": "Bank",
+    "affiliateTitle": "Partnerprogramm",
+    "affiliateNote": "Belohne Nutzer, die neue Kunden bringen. Die Belohnung wird einmal pro Kunde gezahlt, wenn der geworbene Kunde seine erste Kampagne startet und die unten festgelegte Mindesteinzahlung erreicht.",
+    "affiliateEnabled": "Programm aktiv",
+    "affiliateEnabledHint": "Wenn deaktiviert, werden keine Belohnungen gezahlt und der Abschnitt wird auf der Startseite ausgeblendet.",
+    "affiliateReward": "Belohnung pro Kunde",
+    "affiliateRewardHint": "Wie viele Guthaben der Werber erhält.",
+    "affiliateTotalReferrals": "Geworbene Kunden",
+    "affiliateRewarded": "Belohnt",
+    "affiliateCreditsPaid": "Gezahlte Guthaben",
+    "affiliateMinDeposit": "Mindesteinzahlung pro geworbenem Kunden",
+    "affiliateMinDepositHint": "Wie viele Guthaben der geworbene Kunde insgesamt einzahlen muss, bevor die Belohnung gezahlt wird. 0 = keine Schwelle."
   },
   "spend": {
     "eyebrow": "Feed-Promotion",
@@ -1611,7 +1638,9 @@
     "vatExempt": "befreit",
     "total": "Gesamtbetrag",
     "paidVia": "Bezahlt über Totalvizibil-Wallet — {eur} EUR umgerechnet zu {rate} RON/EUR.",
-    "generatedNote": "Elektronisch erstellt von Totalvizibil."
+    "generatedNote": "Elektronisch erstellt von Totalvizibil.",
+    "docTitleReward": "Belohnungsbeleg — Partnerprogramm",
+    "rewardNote": "Belohnung in Plattform-Guthaben für das Partnerprogramm. Keine Zahlung fällig, umsatzsteuerfrei."
   },
   "invoices": {
     "eyebrow": "Rechnungsstellung",
@@ -1628,11 +1657,36 @@
     "colTotal": "Gesamt",
     "view": "Rechnung ansehen",
     "profileNote": "Rechnungen werden ausgestellt auf: {name}.",
-    "editProfile": "Rechnungsdaten bearbeiten"
+    "editProfile": "Rechnungsdaten bearbeiten",
+    "kindReward": "Belohnung"
   },
   "transactions": {
     "eyebrow": "Wallet",
     "title": "Transaktionen",
     "back": "Zurück zum Wallet"
+  },
+  "affiliate": {
+    "badge": "Partnerprogramm",
+    "adCta": "So funktioniert's",
+    "pausedNotice": "Das Partnerprogramm ist derzeit deaktiviert. Neue Belohnungen pausieren, dein Verlauf bleibt hier.",
+    "panelTitle": "Dein Partnerlink",
+    "panelIntro": "Teile diesen Link. Wenn jemand Neues eine Website erstellt, eine Kampagne startet und insgesamt mindestens {d} Guthaben einzahlt, erhältst du {n} Guthaben.",
+    "copy": "Link kopieren",
+    "copied": "Kopiert",
+    "statReferred": "Geworbene Kunden",
+    "statRewarded": "Belohnt",
+    "statEarned": "Verdiente Guthaben",
+    "listTitle": "Geworbene Kunden",
+    "listEmpty": "Noch keine Empfehlungen. Teile den Link oben, um zu starten.",
+    "colClient": "Kunde",
+    "colDate": "Datum",
+    "colStatus": "Status",
+    "colReward": "Belohnung",
+    "statusPending": "Ausstehend",
+    "statusRewarded": "Belohnt",
+    "viewInvoice": "Rechnung",
+    "adHeadline": "Wirb einen Kunden, erhalte",
+    "adHeadlineTail": "Guthaben",
+    "adSub": "Teile deinen Link — wenn dein Freund eine Website erstellt und eine Kampagne startet, gehört das Guthaben dir."
   }
 }

@@ -3,6 +3,11 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
+import AdminDetailHeader from '@/components/admin/AdminDetailHeader.vue'
+import AdminMetaItem from '@/components/admin/AdminMetaItem.vue'
+import AdminSection from '@/components/admin/AdminSection.vue'
+import AdminStatCard from '@/components/admin/AdminStatCard.vue'
+import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import CreditsValue from '@/components/CreditsValue.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useAuthStore, type PlatformRole } from '@/stores/auth'
@@ -18,6 +23,9 @@ const money = useMoney()
 const id = computed(() => String(route.params.id))
 const user = ref<AdminUserDetail | null>(null)
 const loading = ref(true)
+
+const tab = ref<'overview' | 'wallet' | 'businesses' | 'activity'>('overview')
+
 const toast = reactive({ show: false, text: '', color: 'success' })
 function flash(text: string, color: 'success' | 'error' = 'success') {
   Object.assign(toast, { show: true, text, color })
@@ -36,8 +44,19 @@ function ownerEq(v: number): string {
 function dt(s: string | null) {
   return s ? new Date(s).toLocaleString() : '—'
 }
+function d(s: string | null) {
+  return s ? new Date(s).toLocaleDateString() : t('admin.never')
+}
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p.charAt(0).toUpperCase())
+    .join('')
+}
 
 const isSelf = computed(() => user.value?.id === auth.user?.id)
+const walletCur = computed(() => (user.value?.wallet.currency === 'RON' ? 'RON' : 'EUR'))
 
 const ALL_ROLES: PlatformRole[] = ['admin', 'support', 'finance', 'moderator']
 const form = reactive({
@@ -53,7 +72,6 @@ const savingDetails = ref(false)
 const savingPassword = ref(false)
 const busy = ref<string | null>(null)
 
-// Confirm dialog
 const confirmState = reactive({
   show: false,
   title: '',
@@ -133,11 +151,8 @@ function setBan(suspend: boolean) {
       () => admin.updateUser(id.value, { status: suspend ? 'suspended' : 'active' }),
       t(suspend ? 'admin.userBanned' : 'admin.userUnbanned'),
     )
-  if (suspend) {
-    askConfirm(t('admin.banUser'), t('admin.banUserConfirm'), doIt)
-  } else {
-    void doIt()
-  }
+  if (suspend) askConfirm(t('admin.banUser'), t('admin.banUserConfirm'), doIt)
+  else void doIt()
 }
 
 function runUserAction(key: 'disableTotp' | 'revokeSessions') {
@@ -180,7 +195,6 @@ function submitAdjust() {
   })
 }
 
-
 function companyStatus(c: AdminUserCompany, status: 'active' | 'suspended') {
   const go = () =>
     run(
@@ -199,7 +213,7 @@ const campColor: Record<string, string> = {
   active: 'success',
   paused: 'warning',
   depleted: 'error',
-  draft: 'default',
+  draft: 'grey',
 }
 const txnColor: Record<string, string> = {
   purchase: 'success',
@@ -211,377 +225,517 @@ const txnColor: Record<string, string> = {
 
 <template>
   <div class="ud">
-    <v-btn :to="{ name: 'admin-users' }" variant="text" size="small" prepend-icon="mdi-arrow-left">
-      {{ t('admin.backToUsers') }}
-    </v-btn>
-
-    <div v-if="loading" class="d-flex justify-center py-16">
+    <div v-if="loading" class="ud__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
 
     <template v-else-if="user">
-      <header class="ud__head">
-        <div>
-          <h1>{{ user.name }}</h1>
-          <span class="ud__mail">{{ user.email }}</span>
-          <code class="ud__id">{{ user.id }}</code>
-        </div>
-        <div class="ud__headActions">
-          <div class="ud__badges">
-            <v-chip size="small" :color="user.status === 'active' ? 'success' : 'error'" variant="tonal">
-              {{ t(`dashboard.status${user.status.charAt(0).toUpperCase()}${user.status.slice(1)}`) }}
-            </v-chip>
-            <v-chip v-if="user.wallet.blocked" size="small" color="error" variant="flat" prepend-icon="mdi-lock">
-              {{ t('admin.walletFrozen') }}
-            </v-chip>
-            <v-chip v-if="isSelf" size="small" color="primary" variant="outlined">{{ t('admin.thisIsYou') }}</v-chip>
-          </div>
+      <AdminDetailHeader
+        :back-to="{ name: 'admin-users' }"
+        :back-label="t('admin.backToUsers')"
+        :avatar="initials(user.name)"
+        :title="user.name"
+        :subtitle="user.email"
+        :id="user.id"
+      >
+        <template #pills>
+          <v-chip
+            size="small"
+            :color="user.status === 'active' ? 'success' : 'error'"
+            variant="tonal"
+          >
+            {{ user.status === 'active' ? t('dashboard.statusActive') : t('dashboard.statusSuspended') }}
+          </v-chip>
+          <v-chip
+            v-for="r in user.platformRoles"
+            :key="r"
+            size="small"
+            color="primary"
+            variant="tonal"
+          >
+            {{ r }}
+          </v-chip>
+          <v-chip
+            v-if="user.wallet.blocked"
+            size="small"
+            color="error"
+            variant="flat"
+            prepend-icon="mdi-lock"
+          >
+            {{ t('admin.walletFrozen') }}
+          </v-chip>
+          <v-chip
+            size="small"
+            variant="outlined"
+            :prepend-icon="user.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'"
+            :color="user.twoFactorEnabled ? 'success' : undefined"
+          >
+            {{ user.twoFactorEnabled ? t('account.twoFaOn') : t('account.twoFaOff') }}
+          </v-chip>
+          <v-chip v-if="isSelf" size="small" color="primary" variant="text">
+            {{ t('admin.thisIsYou') }}
+          </v-chip>
+        </template>
+
+        <template #actions>
           <v-btn
             v-if="!isSelf"
             :color="user.status === 'active' ? 'error' : 'success'"
-            :variant="user.status === 'active' ? 'flat' : 'tonal'"
+            :variant="user.status === 'active' ? 'tonal' : 'flat'"
             size="small"
+            rounded="pill"
             :loading="busy === 'ban'"
-            :prepend-icon="user.status === 'active' ? 'mdi-account-cancel' : 'mdi-account-check'"
+            :prepend-icon="user.status === 'active' ? 'mdi-account-cancel-outline' : 'mdi-account-check-outline'"
             @click="setBan(user.status === 'active')"
           >
             {{ user.status === 'active' ? t('admin.banUser') : t('admin.unbanUser') }}
           </v-btn>
-        </div>
-      </header>
+        </template>
 
-      <div class="ud__grid">
-        <!-- Details -->
-        <section class="card">
-          <h2>{{ t('admin.detailsTitle') }}</h2>
-          <v-text-field v-model="form.name" :label="t('auth.name')" density="comfortable" />
-          <v-text-field v-model="form.email" :label="t('auth.email')" type="email" density="comfortable" />
-          <v-select
-            v-model="form.status"
-            :items="[
-              { value: 'active', title: t('dashboard.statusActive') },
-              { value: 'suspended', title: t('dashboard.statusSuspended') },
-            ]"
-            :label="t('admin.colStatus')"
-            :disabled="isSelf"
-            :hint="isSelf ? t('admin.selfStatusHint') : ''"
-            persistent-hint
-            density="comfortable"
+        <template #meta>
+          <AdminMetaItem :label="t('admin.metaJoined')" :value="d(user.createdAt)" />
+          <AdminMetaItem :label="t('admin.colLastLogin')" :value="d(user.lastLoginAt)" />
+          <AdminMetaItem :label="t('admin.navBusinesses')" :value="user.companies.length" />
+          <AdminMetaItem
+            :label="t('admin.walletTitle')"
+            :value="`${fmtCr(user.wallet.balance.credits)} ${t('wallet.credits')}`"
           />
-          <div class="ud__roles">
-            <span class="ud__roles-label">{{ t('admin.rolesLabel') }}</span>
-            <v-checkbox
-              v-for="r in ALL_ROLES"
-              :key="r"
-              :model-value="form.roles.includes(r)"
-              :label="r"
-              :disabled="isSelf && r === 'admin'"
-              color="primary"
-              density="compact"
-              hide-details
-              @update:model-value="toggleRole(r)"
-            />
-          </div>
-          <v-btn
-            color="primary"
-            variant="flat"
-            rounded="pill"
-            class="mt-2"
-            :loading="savingDetails"
-            @click="saveDetails"
-          >
-            {{ t('common.save') }}
-          </v-btn>
-        </section>
+        </template>
+      </AdminDetailHeader>
 
-        <!-- Wallet -->
-        <section class="card">
-          <h2>{{ t('admin.walletTitle') }}</h2>
-          <div class="ud__wallet">
-            <div class="ud__balance">
-              <strong>{{ fmtCr(user.wallet.balance.credits) }}</strong>
-              <span>{{ t('wallet.credits') }}</span>
-              <em class="ud__eq">{{ ownerEq(user.wallet.balance.credits) }}</em>
-            </div>
-            <div class="ud__wstat">
-              <span>{{ t('admin.walletPurchased') }}</span>
-              <b>{{ fmtCr(user.wallet.purchased.credits) }}</b>
-              <em class="ud__eq">{{ ownerEq(user.wallet.purchased.credits) }}</em>
-            </div>
-            <div class="ud__wstat">
-              <span>{{ t('admin.walletSpent') }}</span>
-              <b>{{ fmtCr(user.wallet.spent.credits) }}</b>
-              <em class="ud__eq">{{ ownerEq(user.wallet.spent.credits) }}</em>
-            </div>
-          </div>
+      <v-tabs v-model="tab" color="primary" class="ud__tabs" show-arrows>
+        <v-tab value="overview" prepend-icon="mdi-account-outline">{{ t('admin.tabOverview') }}</v-tab>
+        <v-tab value="wallet" prepend-icon="mdi-wallet-outline">{{ t('admin.tabWallet') }}</v-tab>
+        <v-tab value="businesses" prepend-icon="mdi-domain">
+          {{ t('admin.tabBusinesses') }} ({{ user.companies.length }})
+        </v-tab>
+        <v-tab value="activity" prepend-icon="mdi-history">{{ t('admin.tabActivity') }}</v-tab>
+      </v-tabs>
 
-          <div v-if="user.wallet.blocked" class="ud__frozen">
-            <v-icon icon="mdi-lock" size="16" />
-            {{ t('admin.walletFrozenNote') }}
-            <em v-if="user.wallet.blockedReason">“{{ user.wallet.blockedReason }}”</em>
-          </div>
-          <v-text-field
-            v-if="!user.wallet.blocked"
-            v-model="blockReason"
-            :label="t('admin.walletBlockReason')"
-            density="compact"
-            hide-details
-            class="mt-2"
-          />
-          <v-btn
-            :color="user.wallet.blocked ? 'success' : 'error'"
-            variant="tonal"
-            size="small"
-            rounded="pill"
-            class="mt-2"
-            :loading="busy === 'walletBlock'"
-            :prepend-icon="user.wallet.blocked ? 'mdi-lock-open-variant' : 'mdi-lock'"
-            @click="toggleWalletBlock"
-          >
-            {{ user.wallet.blocked ? t('admin.unblockWallet') : t('admin.blockWallet') }}
-          </v-btn>
-
-          <v-divider class="my-4" />
-          <span class="ud__roles-label">{{ t('admin.adjustTitle') }}</span>
-          <div class="ud__adjust">
-            <v-text-field
-              v-model.number="adjust.credits"
-              type="number"
-              :label="t('admin.adjustCredits')"
-              :hint="t('admin.adjustHint')"
-              persistent-hint
-              density="compact"
-              style="max-width: 150px"
-            />
-            <v-text-field
-              v-model="adjust.reason"
-              :label="t('admin.adjustReason')"
-              density="compact"
-              hide-details
-            />
-            <v-btn
-              variant="flat"
-              color="primary"
-              :loading="busy === 'adjust'"
-              :disabled="!adjust.credits || adjust.reason.trim().length < 3"
-              @click="submitAdjust"
-            >
-              {{ t('admin.apply') }}
-            </v-btn>
-          </div>
-        </section>
-
-        <!-- Security -->
-        <section class="card">
-          <h2>{{ t('admin.securityTitle') }}</h2>
-          <div class="ud__line">
-            <span>{{ t('account.twoFaTitle') }}</span>
-            <v-chip
-              size="x-small"
-              :color="user.twoFactorEnabled ? 'success' : undefined"
-              variant="tonal"
-            >
-              {{ user.twoFactorEnabled ? t('account.twoFaOn') : t('account.twoFaOff') }}
-            </v-chip>
-          </div>
-          <div class="d-flex ga-2 flex-wrap mt-2">
-            <v-btn
-              variant="tonal"
-              size="small"
-              rounded="pill"
-              :disabled="!user.twoFactorEnabled"
-              :loading="busy === 'disableTotp'"
-              prepend-icon="mdi-shield-off-outline"
-              @click="runUserAction('disableTotp')"
-            >
-              {{ t('admin.disableTotp') }}
-            </v-btn>
-            <v-btn
-              variant="tonal"
-              size="small"
-              rounded="pill"
-              :disabled="!user.sessions.length"
-              :loading="busy === 'revokeSessions'"
-              prepend-icon="mdi-logout-variant"
-              @click="runUserAction('revokeSessions')"
-            >
-              {{ t('admin.revokeSessions') }} ({{ user.sessions.length }})
-            </v-btn>
-          </div>
-
-          <v-divider class="my-4" />
-          <span class="ud__roles-label">{{ t('admin.setPasswordTitle') }}</span>
-          <div class="d-flex ga-2 align-start mt-2">
-            <v-text-field
-              v-model="newPassword"
-              :label="t('account.newPassword')"
-              :hint="t('auth.passwordHint')"
-              type="password"
-              density="comfortable"
-              autocomplete="new-password"
-            />
-            <v-btn
-              variant="flat"
-              color="primary"
-              class="mt-1"
-              :loading="savingPassword"
-              :disabled="newPassword.length < 8"
-              @click="savePassword"
-            >
-              {{ t('admin.setPassword') }}
-            </v-btn>
-          </div>
-          <p class="ud__note">{{ t('admin.setPasswordNote') }}</p>
-        </section>
-
-        <!-- Businesses & campaigns -->
-        <section class="card card--wide">
-          <h2>{{ t('admin.bizTitle') }} ({{ user.companies.length }})</h2>
-          <p v-if="!user.companies.length" class="text-medium-emphasis text-body-2">
-            {{ t('admin.noCompanies') }}
-          </p>
-          <div class="bizgrid">
-            <article v-for="c in user.companies" :key="c.id" class="bizcard">
-              <div class="bizcard__top">
-                <div class="bizcard__id">
-                  <strong>{{ c.displayName }}</strong>
-                  <span class="bizcard__slug">/{{ c.slug }}</span>
-                </div>
-                <v-chip
-                  size="x-small"
-                  :color="c.status === 'active' ? 'success' : c.status === 'suspended' ? 'error' : undefined"
-                  variant="tonal"
-                >
-                  {{ t(`dashboard.status${c.status.charAt(0).toUpperCase()}${c.status.slice(1)}`) }}
-                </v-chip>
-                <v-chip v-if="c.isOwner" size="x-small" variant="outlined">{{ t('admin.owner') }}</v-chip>
-                <span v-else class="bizcard__role">{{ c.role }}</span>
-              </div>
-
-              <div class="bizcard__camp">
-                <template v-if="c.campaign">
-                  <v-chip size="x-small" :color="campColor[c.campaign.status]" variant="flat">
-                    {{ t('admin.camp_' + c.campaign.status) }}
-                  </v-chip>
-                  <span>{{ t('admin.campBudget', { b: fmtCr(c.campaign.dailyBudget.credits), c: fmtCr(c.campaign.cpc.credits) }) }}</span>
-                </template>
-                <span v-else class="ac__muted">{{ t('admin.noCampaign') }}</span>
-              </div>
-
-              <div class="bizcard__stats">
-                <div><span>{{ t('admin.bizLeads') }}</span><b>{{ c.leadCount }}</b></div>
-                <div><span>{{ t('admin.bizClicks') }}</span><b>{{ c.clickCount }}</b></div>
-                <div>
-                  <span>{{ t('admin.bizConsumed') }}</span>
-                  <b>{{ fmtCr(c.consumed.credits) }}</b>
-                  <em class="ud__eq">{{ ownerEq(c.consumed.credits) }}</em>
-                </div>
-                <div v-if="c.campaign">
-                  <span>{{ t('admin.campSpentTodayShort') }}</span>
-                  <b>{{ fmtCr(c.campaign.spentToday.credits) }}</b>
-                </div>
-              </div>
-
-              <div class="bizcard__actions">
-                <v-btn
-                  :to="{ name: 'admin-company', params: { id: c.id } }"
-                  size="small"
-                  color="primary"
-                  variant="flat"
-                  append-icon="mdi-arrow-right"
-                >
-                  {{ t('admin.manageBiz') }}
-                </v-btn>
-                <v-btn
-                  v-if="c.isOwner"
-                  size="small"
-                  variant="text"
-                  :color="c.status === 'suspended' ? 'success' : 'error'"
-                  :loading="busy === 'co-' + c.id"
-                  @click="companyStatus(c, c.status === 'suspended' ? 'active' : 'suspended')"
-                >
-                  {{ c.status === 'suspended' ? t('admin.unsuspendBiz') : t('admin.suspendBiz') }}
-                </v-btn>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <!-- Transactions -->
-        <section class="card card--wide">
-          <h2>{{ t('admin.txnsTitle') }} ({{ user.transactions.length }})</h2>
-          <p v-if="!user.transactions.length" class="text-medium-emphasis text-body-2">
-            {{ t('admin.noTxns') }}
-          </p>
-          <table v-else class="txn">
-            <tbody>
-              <tr v-for="tx in user.transactions" :key="tx.id">
-                <td>
-                  <v-chip size="x-small" :color="txnColor[tx.type]" variant="tonal">{{ t('wallet.txnType.' + tx.type) }}</v-chip>
-                </td>
-                <td class="txn__desc">
-                  {{ tx.description || '—' }}
-                  <span v-if="tx.companyName" class="txn__co">· {{ tx.companyName }}</span>
-                  <span v-if="tx.clicks != null" class="txn__co">· {{ t('wallet.nClicks', { n: tx.clicks }) }}</span>
-                </td>
-                <td class="txn__amt" :class="{ 'txn__amt--neg': tx.amount.credits < 0 }">
-                  <CreditsValue
-                    :credits="tx.amount.credits"
-                    :currency="user.wallet.currency === 'RON' ? 'RON' : 'EUR'"
-                    signed
-                    stacked
+      <v-window v-model="tab" class="ud__window">
+        <!-- ============ OVERVIEW ============ -->
+        <v-window-item value="overview">
+          <div class="ud__stack ud__stack--narrow">
+            <AdminSection :title="t('admin.detailsTitle')" icon="mdi-card-account-details-outline">
+              <div class="ud__form">
+                <v-text-field
+                  v-model="form.name"
+                  :label="t('auth.name')"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details
+                />
+                <v-text-field
+                  v-model="form.email"
+                  :label="t('auth.email')"
+                  type="email"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details
+                />
+                <v-select
+                  v-model="form.status"
+                  :items="[
+                    { value: 'active', title: t('dashboard.statusActive') },
+                    { value: 'suspended', title: t('dashboard.statusSuspended') },
+                  ]"
+                  :label="t('admin.colStatus')"
+                  :disabled="isSelf"
+                  :hint="isSelf ? t('admin.selfStatusHint') : ''"
+                  persistent-hint
+                  variant="outlined"
+                  density="comfortable"
+                />
+                <div class="ud__roles">
+                  <span class="ud__roles-label">{{ t('admin.rolesLabel') }}</span>
+                  <v-checkbox
+                    v-for="r in ALL_ROLES"
+                    :key="r"
+                    :model-value="form.roles.includes(r)"
+                    :label="r"
+                    :disabled="isSelf && r === 'admin'"
+                    color="primary"
+                    density="compact"
+                    hide-details
+                    @update:model-value="toggleRole(r)"
                   />
-                </td>
-                <td class="txn__date">{{ dt(tx.createdAt) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
+                </div>
+                <div>
+                  <v-btn
+                    color="primary"
+                    variant="flat"
+                    rounded="pill"
+                    :loading="savingDetails"
+                    prepend-icon="mdi-content-save-outline"
+                    @click="saveDetails"
+                  >
+                    {{ t('common.save') }}
+                  </v-btn>
+                </div>
+              </div>
+            </AdminSection>
 
-        <!-- Invoices -->
-        <section class="card card--wide">
-          <div class="d-flex align-center justify-space-between flex-wrap ga-2 mb-1">
-            <h2 class="mb-0">{{ t('admin.navInvoices') }} ({{ user.invoices.length }})</h2>
-            <router-link :to="{ name: 'admin-invoices' }" class="ud__allInvoices">
-              {{ t('admin.invSeeAll') }}
-            </router-link>
+            <AdminSection :title="t('admin.accountFactsTitle')" icon="mdi-information-outline">
+              <div class="ud__facts">
+                <AdminMetaItem :label="t('admin.metaJoined')" :value="dt(user.createdAt)" />
+                <AdminMetaItem :label="t('admin.updated')" :value="dt(user.updatedAt)" />
+                <AdminMetaItem
+                  :label="t('admin.factPasswordChanged')"
+                  :value="dt(user.passwordChangedAt)"
+                />
+              </div>
+            </AdminSection>
+
+            <AdminSection :title="t('admin.securityTitle')" icon="mdi-shield-key-outline">
+              <div class="ud__secRow">
+                <div>
+                  <p class="ud__secLabel">{{ t('account.twoFaTitle') }}</p>
+                  <p class="ud__secVal">
+                    {{ user.twoFactorEnabled ? t('account.twoFaOn') : t('account.twoFaOff') }}
+                  </p>
+                </div>
+                <v-btn
+                  variant="tonal"
+                  size="small"
+                  rounded="pill"
+                  :disabled="!user.twoFactorEnabled"
+                  :loading="busy === 'disableTotp'"
+                  prepend-icon="mdi-shield-off-outline"
+                  @click="runUserAction('disableTotp')"
+                >
+                  {{ t('admin.disableTotp') }}
+                </v-btn>
+              </div>
+              <v-divider class="my-3" />
+              <div class="ud__secRow">
+                <div>
+                  <p class="ud__secLabel">{{ t('account.sessionsTitle') }}</p>
+                  <p class="ud__secVal">{{ user.sessions.length }}</p>
+                </div>
+                <v-btn
+                  variant="tonal"
+                  size="small"
+                  rounded="pill"
+                  :disabled="!user.sessions.length"
+                  :loading="busy === 'revokeSessions'"
+                  prepend-icon="mdi-logout-variant"
+                  @click="runUserAction('revokeSessions')"
+                >
+                  {{ t('admin.revokeSessions') }}
+                </v-btn>
+              </div>
+              <v-divider class="my-3" />
+              <p class="ud__secLabel mb-2">{{ t('admin.setPasswordTitle') }}</p>
+              <div class="ud__pwRow">
+                <v-text-field
+                  v-model="newPassword"
+                  :label="t('account.newPassword')"
+                  type="password"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  autocomplete="new-password"
+                />
+                <v-btn
+                  variant="flat"
+                  color="primary"
+                  :loading="savingPassword"
+                  :disabled="newPassword.length < 8"
+                  @click="savePassword"
+                >
+                  {{ t('admin.setPassword') }}
+                </v-btn>
+              </div>
+              <p class="ud__note">{{ t('admin.setPasswordNote') }}</p>
+            </AdminSection>
           </div>
-          <p v-if="!user.invoices.length" class="text-medium-emphasis text-body-2">
-            {{ t('invoices.empty') }}
-          </p>
-          <table v-else class="txn">
-            <tbody>
-              <tr v-for="inv in user.invoices" :key="inv.id">
-                <td>
-                  {{ inv.number }}
-                  <v-chip v-if="inv.voided" size="x-small" color="error" variant="tonal" class="ms-1">
-                    {{ t('admin.invStatusVoid') }}
-                  </v-chip>
-                </td>
-                <td class="txn__amt">{{ fmtCr(inv.totalMinor / 100) }} {{ inv.currency }}</td>
-                <td class="txn__date">{{ dt(inv.issuedAt) }}</td>
-                <td class="text-right">
-                  <a :href="`/account/invoices/${inv.id}`" target="_blank" rel="noopener" class="ud__invLink">
-                    {{ t('invoices.view') }}
-                  </a>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
+        </v-window-item>
 
-        <!-- Sessions -->
-        <section class="card">
-          <h2>{{ t('account.sessionsTitle') }} ({{ user.sessions.length }})</h2>
-          <ul v-if="user.sessions.length" class="ud__list">
-            <li v-for="s in user.sessions" :key="s.id">
-              <span>{{ (s.userAgent || t('account.unknownDevice')).slice(0, 46) }}</span>
-              <span class="ud__list-meta">{{ s.ip || '—' }} · {{ dt(s.createdAt) }}</span>
-            </li>
-          </ul>
-          <p v-else class="text-medium-emphasis text-body-2">{{ t('admin.noSessions') }}</p>
-        </section>
-      </div>
+        <!-- ============ WALLET ============ -->
+        <v-window-item value="wallet">
+          <div class="ud__stack ud__stack--narrow">
+            <AdminSection :title="t('admin.walletTitle')" icon="mdi-wallet-outline">
+              <template #actions>
+                <v-btn
+                  :color="user.wallet.blocked ? 'success' : 'error'"
+                  variant="tonal"
+                  size="small"
+                  rounded="pill"
+                  :loading="busy === 'walletBlock'"
+                  :prepend-icon="user.wallet.blocked ? 'mdi-lock-open-variant' : 'mdi-lock'"
+                  @click="toggleWalletBlock"
+                >
+                  {{ user.wallet.blocked ? t('admin.unblockWallet') : t('admin.blockWallet') }}
+                </v-btn>
+              </template>
+
+              <div class="ud__balance">
+                <strong>{{ fmtCr(user.wallet.balance.credits) }}</strong>
+                <span>{{ t('wallet.credits') }} · {{ ownerEq(user.wallet.balance.credits) }}</span>
+              </div>
+
+              <div class="ud__wstats">
+                <AdminStatCard
+                  :label="t('admin.walletPurchased')"
+                  :value="fmtCr(user.wallet.purchased.credits)"
+                  :sub="ownerEq(user.wallet.purchased.credits)"
+                  icon="mdi-arrow-down-circle-outline"
+                  tone="success"
+                />
+                <AdminStatCard
+                  :label="t('admin.walletSpent')"
+                  :value="fmtCr(user.wallet.spent.credits)"
+                  :sub="ownerEq(user.wallet.spent.credits)"
+                  icon="mdi-arrow-up-circle-outline"
+                  tone="error"
+                />
+              </div>
+
+              <div v-if="user.wallet.blocked" class="ud__frozen">
+                <v-icon icon="mdi-lock" size="15" />
+                {{ t('admin.walletFrozenNote') }}
+                <em v-if="user.wallet.blockedReason">“{{ user.wallet.blockedReason }}”</em>
+              </div>
+              <v-text-field
+                v-else
+                v-model="blockReason"
+                :label="t('admin.walletBlockReason')"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="mt-3"
+              />
+            </AdminSection>
+
+            <AdminSection :title="t('admin.adjustTitle')" icon="mdi-tune-vertical">
+              <p class="ud__note mt-0 mb-3">{{ t('admin.adjustHint') }}</p>
+              <div class="ud__adjust">
+                <v-text-field
+                  v-model.number="adjust.credits"
+                  type="number"
+                  :label="t('admin.adjustCredits')"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="ud__adjustCredits"
+                />
+                <v-text-field
+                  v-model="adjust.reason"
+                  :label="t('admin.adjustReason')"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                />
+                <v-btn
+                  variant="flat"
+                  color="primary"
+                  :loading="busy === 'adjust'"
+                  :disabled="!adjust.credits || adjust.reason.trim().length < 3"
+                  @click="submitAdjust"
+                >
+                  {{ t('admin.apply') }}
+                </v-btn>
+              </div>
+            </AdminSection>
+          </div>
+        </v-window-item>
+
+        <!-- ============ BUSINESSES ============ -->
+        <v-window-item value="businesses">
+          <AdminSection :title="t('admin.bizTitle')" icon="mdi-domain">
+            <AdminEmptyState
+              v-if="!user.companies.length"
+              :text="t('admin.noCompanies')"
+              icon="mdi-domain-off"
+            />
+            <div v-else class="ud__biz">
+              <article v-for="c in user.companies" :key="c.id" class="bizrow">
+                <div class="bizrow__main">
+                  <div class="bizrow__id">
+                    <strong>{{ c.displayName }}</strong>
+                    <span class="bizrow__slug">/{{ c.slug }}</span>
+                  </div>
+                  <div class="bizrow__tags">
+                    <v-chip
+                      size="x-small"
+                      :color="c.status === 'active' ? 'success' : c.status === 'suspended' ? 'error' : 'grey'"
+                      variant="tonal"
+                    >
+                      {{ c.status === 'active' ? t('dashboard.statusActive') : c.status === 'suspended' ? t('dashboard.statusSuspended') : t('dashboard.statusDraft') }}
+                    </v-chip>
+                    <v-chip v-if="c.isOwner" size="x-small" variant="outlined">
+                      {{ t('admin.owner') }}
+                    </v-chip>
+                    <span v-else class="bizrow__role">{{ c.role }}</span>
+                  </div>
+                  <div class="bizrow__camp">
+                    <template v-if="c.campaign">
+                      <v-chip size="x-small" :color="campColor[c.campaign.status]" variant="flat">
+                        {{ t('admin.camp_' + c.campaign.status) }}
+                      </v-chip>
+                      <span>{{
+                        t('admin.campBudget', {
+                          b: fmtCr(c.campaign.dailyBudget.credits),
+                          c: fmtCr(c.campaign.cpc.credits),
+                        })
+                      }}</span>
+                    </template>
+                    <span v-else class="bizrow__muted">{{ t('admin.noCampaign') }}</span>
+                  </div>
+                </div>
+
+                <div class="bizrow__stats">
+                  <span><em>{{ t('admin.bizLeads') }}</em><b>{{ c.leadCount }}</b></span>
+                  <span><em>{{ t('admin.bizClicks') }}</em><b>{{ c.clickCount }}</b></span>
+                  <span><em>{{ t('admin.bizConsumed') }}</em><b>{{ fmtCr(c.consumed.credits) }}</b></span>
+                </div>
+
+                <div class="bizrow__actions">
+                  <v-btn
+                    :to="{ name: 'admin-company', params: { id: c.id } }"
+                    size="small"
+                    color="primary"
+                    variant="flat"
+                    append-icon="mdi-arrow-right"
+                  >
+                    {{ t('admin.manageBiz') }}
+                  </v-btn>
+                  <v-btn
+                    v-if="c.isOwner"
+                    size="small"
+                    variant="tonal"
+                    :color="c.status === 'suspended' ? 'success' : 'error'"
+                    :loading="busy === 'co-' + c.id"
+                    @click="companyStatus(c, c.status === 'suspended' ? 'active' : 'suspended')"
+                  >
+                    {{ c.status === 'suspended' ? t('admin.unsuspendBiz') : t('admin.suspendBiz') }}
+                  </v-btn>
+                </div>
+              </article>
+            </div>
+          </AdminSection>
+        </v-window-item>
+
+        <!-- ============ ACTIVITY ============ -->
+        <v-window-item value="activity">
+          <div class="ud__stack">
+            <AdminSection :title="t('admin.txnsTitle')" icon="mdi-swap-vertical">
+              <AdminEmptyState
+                v-if="!user.transactions.length"
+                :text="t('admin.noTxns')"
+                icon="mdi-swap-vertical"
+              />
+              <div v-else class="ud__tableWrap">
+                <table class="ud__table">
+                  <thead>
+                    <tr>
+                      <th>{{ t('admin.colType') }}</th>
+                      <th>{{ t('invoice.colDescription') }}</th>
+                      <th class="num">{{ t('admin.colTotal') }}</th>
+                      <th class="num">{{ t('admin.colDate') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="tx in user.transactions" :key="tx.id">
+                      <td>
+                        <v-chip size="x-small" :color="txnColor[tx.type]" variant="tonal">
+                          {{ t('wallet.txnType.' + tx.type) }}
+                        </v-chip>
+                      </td>
+                      <td class="ud__desc">
+                        {{ tx.description || '—' }}
+                        <span v-if="tx.companyName" class="ud__muted">· {{ tx.companyName }}</span>
+                        <span v-if="tx.clicks != null" class="ud__muted">
+                          · {{ t('wallet.nClicks', { n: tx.clicks }) }}
+                        </span>
+                      </td>
+                      <td class="num">
+                        <CreditsValue
+                          :credits="tx.amount.credits"
+                          :currency="walletCur"
+                          signed
+                          stacked
+                        />
+                      </td>
+                      <td class="num ud__date">{{ dt(tx.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p v-if="user.transactions.length >= 20" class="ud__note">
+                {{ t('admin.txnsRecentNote') }}
+              </p>
+            </AdminSection>
+
+            <AdminSection :title="t('admin.navInvoices')" icon="mdi-receipt-text-outline">
+              <template #actions>
+                <RouterLink :to="{ name: 'admin-invoices' }" class="ud__link">
+                  {{ t('admin.invSeeAll') }}
+                </RouterLink>
+              </template>
+              <AdminEmptyState
+                v-if="!user.invoices.length"
+                :text="t('admin.invoicesNone')"
+                icon="mdi-receipt-text-outline"
+              />
+              <div v-else class="ud__tableWrap">
+                <table class="ud__table">
+                  <thead>
+                    <tr>
+                      <th>{{ t('invoices.colNumber') }}</th>
+                      <th class="num">{{ t('admin.colTotal') }}</th>
+                      <th class="num">{{ t('admin.colDate') }}</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="inv in user.invoices" :key="inv.id">
+                      <td>
+                        {{ inv.number }}
+                        <v-chip
+                          v-if="inv.voided"
+                          size="x-small"
+                          color="error"
+                          variant="tonal"
+                          class="ms-1"
+                        >
+                          {{ t('admin.invStatusVoid') }}
+                        </v-chip>
+                      </td>
+                      <td class="num">{{ fmtCr(inv.totalMinor / 100) }} {{ inv.currency }}</td>
+                      <td class="num ud__date">{{ d(inv.issuedAt) }}</td>
+                      <td class="num">
+                        <a
+                          :href="`/account/invoices/${inv.id}`"
+                          target="_blank"
+                          rel="noopener"
+                          class="ud__link"
+                        >
+                          {{ t('invoices.view') }}
+                        </a>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </AdminSection>
+
+            <AdminSection :title="t('account.sessionsTitle')" icon="mdi-devices">
+              <AdminEmptyState
+                v-if="!user.sessions.length"
+                :text="t('admin.noSessions')"
+                icon="mdi-devices"
+              />
+              <ul v-else class="ud__sessions">
+                <li v-for="s in user.sessions" :key="s.id">
+                  <span>{{ (s.userAgent || t('account.unknownDevice')).slice(0, 60) }}</span>
+                  <span class="ud__muted">{{ s.ip || '—' }} · {{ dt(s.createdAt) }}</span>
+                </li>
+              </ul>
+            </AdminSection>
+          </div>
+        </v-window-item>
+      </v-window>
     </template>
 
     <v-dialog v-model="confirmState.show" max-width="420">
@@ -591,7 +745,11 @@ const txnColor: Record<string, string> = {
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="confirmState.show = false">{{ t('common.cancel') }}</v-btn>
-          <v-btn :color="confirmState.danger ? 'error' : 'primary'" variant="flat" @click="doConfirm">
+          <v-btn
+            :color="confirmState.danger ? 'error' : 'primary'"
+            variant="flat"
+            @click="doConfirm"
+          >
             {{ t('admin.confirm') }}
           </v-btn>
         </v-card-actions>
@@ -603,216 +761,180 @@ const txnColor: Record<string, string> = {
 </template>
 
 <style scoped>
-.ud__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin: 0.6rem 0 1.5rem;
+.ud {
+  max-width: 1000px;
 }
-.ud__head h1 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  font-size: clamp(1.3rem, 3vw, 1.7rem);
-  letter-spacing: -0.02em;
-  margin: 0;
+.ud__center {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
 }
-.ud__mail {
-  color: rgb(var(--v-theme-on-surface) / 0.6);
-  font-size: 0.9rem;
+.ud__tabs {
+  border-bottom: 1px solid var(--tvz-hairline);
+  margin-bottom: 1.4rem;
 }
-.ud__id {
-  display: block;
-  font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.4);
-  margin-top: 0.2rem;
-}
-.ud__headActions {
+/* keep Vuetify's default `overflow: hidden` on .v-window so the outgoing
+   tab pane is never briefly visible sliding out to the side. */
+.ud__stack {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 0.6rem;
-}
-.ud__badges {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.ud__grid {
-  display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
-.card {
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-surface));
-  padding: 1.3rem;
+/* form-heavy tabs read better at a narrower measure */
+.ud__stack--narrow {
+  max-width: 720px;
 }
-.card--wide {
-  grid-column: 1 / -1;
-}
-.card h2 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.95rem;
-  font-weight: 600;
-  margin: 0 0 1rem;
+
+/* forms */
+.ud__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
 }
 .ud__roles {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem 1rem;
+  gap: 0.3rem 1.1rem;
   align-items: center;
-  margin: 0.4rem 0 0.6rem;
 }
 .ud__roles-label {
-  font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
   width: 100%;
+  font-size: 0.76rem;
+  color: rgb(var(--v-theme-on-surface) / 0.55);
 }
-.ud__line {
+.ud__facts {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.9rem;
+  gap: 2rem;
+  flex-wrap: wrap;
 }
 .ud__note {
   font-size: 0.75rem;
   color: rgb(var(--v-theme-on-surface) / 0.5);
-  margin: 0.6rem 0 0;
-}
-.ud__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  font-size: 0.86rem;
-}
-.ud__list li {
-  display: flex;
-  flex-direction: column;
-}
-.ud__list-meta {
-  font-size: 0.74rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  margin: 0.7rem 0 0;
 }
 
-/* Wallet */
-.ud__wallet {
+/* security */
+.ud__secRow {
   display: flex;
-  align-items: flex-end;
-  gap: 1.4rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.4rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
+.ud__secLabel {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.ud__secVal {
+  margin: 0.1rem 0 0;
+  font-size: 0.78rem;
+  color: rgb(var(--v-theme-on-surface) / 0.55);
+}
+.ud__pwRow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+.ud__pwRow .v-btn {
+  flex: none;
+}
+
+/* wallet */
 .ud__balance {
   display: flex;
   flex-direction: column;
-  line-height: 1;
+  line-height: 1.1;
+  margin-bottom: 1.1rem;
 }
 .ud__balance strong {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.9rem;
+  font-size: clamp(1.8rem, 5vw, 2.4rem);
   font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 .ud__balance span {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.76rem;
   color: rgb(var(--v-theme-on-surface) / 0.5);
-  margin-top: 0.25rem;
+  margin-top: 0.3rem;
 }
-.ud__wstat {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
-}
-.ud__wstat b {
-  font-size: 0.95rem;
-  color: rgb(var(--v-theme-on-surface));
-}
-.ud__eq {
-  display: block;
-  margin-top: 0.15rem;
-  font-size: 0.72rem;
-  font-style: normal;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+.ud__wstats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
 }
 .ud__frozen {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
   flex-wrap: wrap;
-  margin-top: 0.6rem;
-  padding: 0.5rem 0.7rem;
-  border-radius: 8px;
+  margin-top: 0.9rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 10px;
   background: rgb(var(--v-theme-error) / 0.12);
   color: rgb(var(--v-theme-error));
-  font-size: 0.78rem;
+  font-size: 0.8rem;
 }
 .ud__adjust {
   display: flex;
   gap: 0.6rem;
   align-items: flex-start;
   flex-wrap: wrap;
-  margin-top: 0.5rem;
+}
+.ud__adjustCredits {
+  max-width: 160px;
+}
+.ud__adjust .v-btn {
+  margin-top: 0.15rem;
 }
 
-/* Businesses */
-.ac__muted {
-  color: rgb(var(--v-theme-on-surface) / 0.5);
-  font-size: 0.8rem;
-}
-.bizgrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 0.9rem;
-}
-.bizcard {
+/* businesses */
+.ud__biz {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 1rem 1.1rem 1.1rem;
-  border-radius: 16px;
-  border: 1px solid color-mix(in srgb, rgb(var(--v-theme-primary)) 20%, transparent);
-  background: linear-gradient(
-    155deg,
-    rgb(var(--v-theme-primary) / 0.14) 0%,
-    rgb(var(--v-theme-primary) / 0.04) 45%,
-    rgb(var(--v-theme-surface)) 100%
-  );
+  gap: 0.7rem;
 }
-.bizcard__top {
+.bizrow {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: 12px;
+  background: rgb(var(--v-theme-on-surface) / 0.015);
+}
+.bizrow__main {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.bizrow__id {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.bizrow__id strong {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 0.95rem;
+}
+.bizrow__slug {
+  font-size: 0.72rem;
+  color: rgb(var(--v-theme-on-surface) / 0.45);
+}
+.bizrow__tags {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   flex-wrap: wrap;
 }
-.bizcard__id {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-  margin-right: auto;
-  min-width: 0;
-}
-.bizcard__id strong {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.95rem;
-}
-.bizcard__slug {
-  font-size: 0.68rem;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
-}
-.bizcard__role {
-  font-size: 0.7rem;
+.bizrow__role {
+  font-size: 0.72rem;
   color: rgb(var(--v-theme-on-surface) / 0.5);
 }
-.bizcard__camp {
+.bizrow__camp {
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -820,81 +942,97 @@ const txnColor: Record<string, string> = {
   font-size: 0.78rem;
   color: rgb(var(--v-theme-on-surface) / 0.7);
 }
-.bizcard__stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
-  gap: 0.4rem;
+.bizrow__muted,
+.ud__muted {
+  color: rgb(var(--v-theme-on-surface) / 0.45);
 }
-.bizcard__stats > div {
-  padding: 0.4rem 0.5rem;
-  border-radius: 9px;
-  background: rgb(var(--v-theme-surface) / 0.6);
-  border: 1px solid var(--tvz-hairline);
+.bizrow__stats {
+  display: flex;
+  gap: 1.3rem;
 }
-.bizcard__stats span {
-  display: block;
+.bizrow__stats span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.bizrow__stats em {
+  font-style: normal;
   font-size: 0.6rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  letter-spacing: 0.05em;
+  color: rgb(var(--v-theme-on-surface) / 0.45);
 }
-.bizcard__stats b {
-  font-size: 0.9rem;
+.bizrow__stats b {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
 }
-.bizcard__actions {
+.bizrow__actions {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.4rem;
   flex-wrap: wrap;
-  margin-top: auto;
-  padding-top: 0.3rem;
 }
 
-/* Transactions */
-.txn {
+/* tables */
+.ud__tableWrap {
+  overflow-x: auto;
+}
+.ud__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
 }
-.txn td {
-  padding: 0.45rem 0.5rem;
+.ud__table th {
+  text-align: left;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: rgb(var(--v-theme-on-surface) / 0.45);
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+  white-space: nowrap;
+}
+.ud__table td {
+  padding: 0.55rem 0.6rem;
   border-bottom: 1px solid var(--tvz-hairline);
   vertical-align: middle;
 }
-.txn tr:last-child td {
+.ud__table tr:last-child td {
   border-bottom: none;
 }
-.txn__desc {
+.ud__table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.ud__desc {
   color: rgb(var(--v-theme-on-surface) / 0.8);
 }
-.txn__co {
-  color: rgb(var(--v-theme-on-surface) / 0.45);
-}
-.txn__amt {
-  text-align: right;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: rgb(var(--v-theme-success));
-  white-space: nowrap;
-}
-.txn__amt--neg {
-  color: rgb(var(--v-theme-error));
-}
-.txn__date {
-  text-align: right;
-  white-space: nowrap;
+.ud__date {
   color: rgb(var(--v-theme-on-surface) / 0.45);
   font-size: 0.74rem;
 }
-.ud__allInvoices {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: rgb(var(--v-theme-primary));
-}
-.ud__invLink {
-  font-size: 0.78rem;
+.ud__link {
+  font-size: 0.8rem;
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
   white-space: nowrap;
+}
+.ud__sessions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-size: 0.84rem;
+}
+.ud__sessions li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.ud__sessions .ud__muted {
+  font-size: 0.74rem;
 }
 </style>

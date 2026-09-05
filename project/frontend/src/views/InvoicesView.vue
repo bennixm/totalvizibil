@@ -76,7 +76,18 @@ async function issueMissing(): Promise<void> {
           </thead>
           <tbody>
             <tr v-for="inv in invoices" :key="inv.id">
-              <td>{{ inv.number }}</td>
+              <td>
+                {{ inv.number }}
+                <v-chip
+                  v-if="inv.kind === 'affiliate_reward'"
+                  size="x-small"
+                  variant="tonal"
+                  color="primary"
+                  class="ms-1"
+                >
+                  {{ t('invoices.kindReward') }}
+                </v-chip>
+              </td>
               <td>{{ new Date(inv.issuedAt).toLocaleDateString() }}</td>
               <td>{{ total(inv.totalMinor) }}</td>
               <td class="text-right">

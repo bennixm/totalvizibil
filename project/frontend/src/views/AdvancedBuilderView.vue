@@ -34,11 +34,17 @@ const balance = computed(() => view.value?.wallet.balance.credits ?? 0)
 const price = computed(() => view.value?.priceCredits ?? 0)
 const funded = computed(() => balance.value >= price.value)
 const isUpgrade = computed(() => view.value?.mode === 'easy')
-// No campaign row yet at all → this is the first pass through the builder
-// (unlock → build → set location → set budget), not a later edit visit.
-const isFirstTimeSetup = computed(
-  () => overview.value.find((c) => c.id === companyId.value)?.campaignStatus == null,
-)
+// No campaign row yet, or one that's sitting in 'draft' (configured but never
+// actually gone live — `paused`/`depleted` are only ever reached *from*
+// `active`, per `campaign.service.ts`) → this business has never gone live,
+// so this is still the first pass through the builder → budget flow, whether
+// it's a brand-new advanced signup or an easy-plan upgrade that never
+// finished setting up a campaign. Once it's been live at least once, later
+// builder visits are edits and get the quiet "autosaved" note instead.
+const isFirstTimeSetup = computed(() => {
+  const status = overview.value.find((c) => c.id === companyId.value)?.campaignStatus
+  return status == null || status === 'draft'
+})
 // A business scheduled for deletion can't unlock/edit the builder during its
 // grace window (see `website-builder.service.ts` `load()`'s `needEdit` gate).
 const pendingDeletion = computed(
@@ -159,6 +165,21 @@ onMounted(async () => {
           {{ isUpgrade ? t('builder.upgradeCta', { credits: price }) : t('builder.payCta', { credits: price }) }}
         </v-btn>
       </div>
+    </div>
+
+    <!-- FROZEN: pending deletion — cancel it from the dashboard before editing again -->
+    <div v-else-if="pendingDeletion" class="wb__lock">
+      <v-icon icon="mdi-trash-clock-outline" size="34" />
+      <h2>{{ t('builder.deletionPendingTitle') }}</h2>
+      <p class="wb__lockText">{{ t('builder.deletionPendingText') }}</p>
+      <v-btn
+        color="primary"
+        variant="flat"
+        append-icon="mdi-arrow-right"
+        :to="{ name: 'dashboard', query: { c: companyId } }"
+      >
+        {{ t('builder.deletionPendingCta') }}
+      </v-btn>
     </div>
 
     <!-- UNLOCKED: the component builder -->

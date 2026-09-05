@@ -29,6 +29,7 @@ function ron(minor: number): string {
 const issuedDate = computed(() =>
   invoice.value ? new Date(invoice.value.issuedAt).toLocaleDateString() : '',
 )
+const isReward = computed(() => invoice.value?.kind === 'affiliate_reward')
 const buyerKindLabel = computed(() =>
   invoice.value?.buyerKind === 'company' ? t('invoice.kindCompany') : t('invoice.kindIndividual'),
 )
@@ -81,7 +82,7 @@ function doPrint(): void {
       <header class="doc__head">
         <div>
           <h1>{{ invoice.issuerName }}</h1>
-          <p class="doc__sub">{{ t('invoice.docTitle') }}</p>
+          <p class="doc__sub">{{ isReward ? t('invoice.docTitleReward') : t('invoice.docTitle') }}</p>
         </div>
         <div class="doc__meta">
           <p><strong>{{ invoice.number }}</strong></p>
@@ -142,7 +143,8 @@ function doPrint(): void {
       </section>
 
       <footer class="doc__foot">
-        <p v-if="invoice.eurCents != null && invoice.fxRate != null">
+        <p v-if="isReward">{{ t('invoice.rewardNote') }}</p>
+        <p v-else-if="invoice.eurCents != null && invoice.fxRate != null">
           {{ t('invoice.paidVia', { eur: (invoice.eurCents / 100).toFixed(2), rate: invoice.fxRate }) }}
         </p>
         <p>{{ t('invoice.generatedNote') }}</p>

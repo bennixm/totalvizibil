@@ -7,6 +7,7 @@ import QRCode from 'qrcode'
 import { useAuthStore } from '@/stores/auth'
 import { useAccountStore } from '@/stores/account'
 import { useBillingStore, type BillingKind } from '@/stores/billing'
+import { useAffiliateStore } from '@/stores/affiliate'
 import { ApiError } from '@/services/api'
 
 const { t } = useI18n()
@@ -14,8 +15,9 @@ const route = useRoute()
 const auth = useAuthStore()
 const account = useAccountStore()
 const billing = useBillingStore()
+const affiliate = useAffiliateStore()
 
-const TABS = ['profile', 'security', 'sessions', 'billing'] as const
+const TABS = ['profile', 'security', 'sessions', 'billing', 'affiliate'] as const
 const tab = ref<(typeof TABS)[number]>(
   TABS.includes(route.query.tab as (typeof TABS)[number]) ? (route.query.tab as (typeof TABS)[number]) : 'profile',
 )
@@ -32,7 +34,12 @@ function errText(e: unknown, fallback: string) {
 
 onMounted(async () => {
   try {
-    await Promise.all([account.loadSecurity(), account.loadSessions(), billing.load()])
+    await Promise.all([
+      account.loadSecurity(),
+      account.loadSessions(),
+      billing.load(),
+      affiliate.load(),
+    ])
   } finally {
     loading.value = false
   }
@@ -233,6 +240,21 @@ async function saveBilling() {
     flash(errText(new Error(billing.error), t('account.genericError')), 'error')
   }
 }
+
+// --- Affiliate (link + referred users + rewards) ---------------------
+const refCopied = ref(false)
+async function copyRefLink() {
+  try {
+    await navigator.clipboard.writeText(affiliate.link)
+    refCopied.value = true
+    setTimeout(() => (refCopied.value = false), 1800)
+  } catch {
+    /* clipboard blocked — the field stays selectable */
+  }
+}
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString()
+}
 </script>
 
 <template>
@@ -254,13 +276,19 @@ async function saveBilling() {
           {{ t('account.tabBilling') }}
           <v-icon v-if="!billing.isComplete" icon="mdi-alert-circle" size="14" color="warning" class="ms-1" />
         </v-tab>
+        <v-tab value="affiliate" prepend-icon="mdi-gift-outline">{{ t('account.tabAffiliate') }}</v-tab>
       </v-tabs>
 
       <div v-if="loading" class="d-flex justify-center py-16">
         <v-progress-circular indeterminate color="primary" />
       </div>
 
-      <v-window v-else v-model="tab" class="acc__window" :class="{ 'acc__window--wide': tab === 'billing' }">
+      <v-window
+        v-else
+        v-model="tab"
+        class="acc__window"
+        :class="{ 'acc__window--wide': tab === 'billing' || tab === 'affiliate' }"
+      >
         <!-- PROFILE -->
         <v-window-item value="profile">
           <v-card border flat class="tvz-card pa-5">
@@ -535,6 +563,115 @@ async function saveBilling() {
             </v-card>
           </div>
         </v-window-item>
+
+        <!-- AFFILIATE -->
+        <v-window-item value="affiliate">
+          <div class="d-flex flex-column ga-4">
+            <v-alert
+              v-if="affiliate.stats && !affiliate.stats.enabled"
+              type="info"
+              variant="tonal"
+              density="compact"
+              icon="mdi-pause-circle-outline"
+            >
+              {{ t('affiliate.pausedNotice') }}
+            </v-alert>
+
+            <v-card border flat class="tvz-card pa-5">
+              <h2 class="acc__h2">{{ t('affiliate.panelTitle') }}</h2>
+              <p class="acc__note">
+                {{
+                  t('affiliate.panelIntro', {
+                    n: affiliate.stats?.rewardCredits ?? 0,
+                    d: affiliate.stats?.minDepositCredits ?? 0,
+                  })
+                }}
+              </p>
+
+              <div class="acc__refLink">
+                <v-text-field
+                  :model-value="affiliate.link"
+                  readonly
+                  hide-details
+                  density="compact"
+                  variant="outlined"
+                  prepend-inner-icon="mdi-link-variant"
+                  @focus="($event.target as HTMLInputElement).select()"
+                />
+                <v-btn
+                  color="primary"
+                  variant="flat"
+                  :prepend-icon="refCopied ? 'mdi-check' : 'mdi-content-copy'"
+                  @click="copyRefLink"
+                >
+                  {{ refCopied ? t('affiliate.copied') : t('affiliate.copy') }}
+                </v-btn>
+              </div>
+
+              <div class="acc__refStats">
+                <div>
+                  <span class="acc__refNum">{{ affiliate.stats?.referred ?? 0 }}</span>
+                  <span class="acc__refLbl">{{ t('affiliate.statReferred') }}</span>
+                </div>
+                <div>
+                  <span class="acc__refNum">{{ affiliate.stats?.rewarded ?? 0 }}</span>
+                  <span class="acc__refLbl">{{ t('affiliate.statRewarded') }}</span>
+                </div>
+                <div>
+                  <span class="acc__refNum">{{ affiliate.stats?.creditsEarned ?? 0 }}</span>
+                  <span class="acc__refLbl">{{ t('affiliate.statEarned') }}</span>
+                </div>
+              </div>
+            </v-card>
+
+            <v-card border flat class="tvz-card pa-5">
+              <h2 class="acc__h2 mb-3">{{ t('affiliate.listTitle') }}</h2>
+              <p v-if="!affiliate.stats?.items.length" class="acc__refEmpty">
+                {{ t('affiliate.listEmpty') }}
+              </p>
+              <table v-else class="acc__refTable">
+                <thead>
+                  <tr>
+                    <th>{{ t('affiliate.colClient') }}</th>
+                    <th>{{ t('affiliate.colDate') }}</th>
+                    <th>{{ t('affiliate.colStatus') }}</th>
+                    <th class="num">{{ t('affiliate.colReward') }}</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in affiliate.stats.items" :key="r.id">
+                    <td>
+                      <div class="acc__refClient">{{ r.name }}</div>
+                      <div class="acc__refMail">{{ r.emailMasked }}</div>
+                    </td>
+                    <td>{{ shortDate(r.createdAt) }}</td>
+                    <td>
+                      <v-chip
+                        size="x-small"
+                        :color="r.status === 'rewarded' ? 'success' : undefined"
+                        :variant="r.status === 'rewarded' ? 'tonal' : 'outlined'"
+                      >
+                        {{ r.status === 'rewarded' ? t('affiliate.statusRewarded') : t('affiliate.statusPending') }}
+                      </v-chip>
+                    </td>
+                    <td class="num">{{ r.rewardCredits != null ? `${r.rewardCredits} cr` : '—' }}</td>
+                    <td class="num">
+                      <router-link
+                        v-if="r.invoiceId"
+                        :to="{ name: 'invoice-print', params: { id: r.invoiceId } }"
+                        class="acc__refInv"
+                      >
+                        <v-icon icon="mdi-receipt-text-outline" size="14" />
+                        {{ t('affiliate.viewInvoice') }}
+                      </router-link>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </v-card>
+          </div>
+        </v-window-item>
       </v-window>
     </div>
 
@@ -636,5 +773,90 @@ async function saveBilling() {
 }
 .acc__sessions {
   background: transparent;
+}
+
+/* --- affiliate panel --- */
+.acc__refLink {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin-bottom: 1.3rem;
+}
+.acc__refLink .v-btn {
+  flex: none;
+}
+.acc__refStats {
+  display: flex;
+  gap: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--tvz-hairline);
+}
+.acc__refStats > div {
+  display: flex;
+  flex-direction: column;
+}
+.acc__refNum {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-family: 'Space Grotesk Variable', sans-serif;
+}
+.acc__refLbl {
+  font-size: 0.74rem;
+  color: rgb(var(--v-theme-on-surface) / 0.55);
+}
+.acc__refEmpty {
+  padding: 1.5rem 0.25rem;
+  font-size: 0.86rem;
+  color: rgb(var(--v-theme-on-surface) / 0.55);
+}
+.acc__refTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.acc__refTable th {
+  text-align: left;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(var(--v-theme-on-surface) / 0.5);
+  padding: 0.4rem 0.55rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.acc__refTable td {
+  padding: 0.65rem 0.55rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+  vertical-align: top;
+}
+.acc__refTable .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.acc__refClient {
+  font-weight: 600;
+}
+.acc__refMail {
+  font-size: 0.76rem;
+  color: rgb(var(--v-theme-on-surface) / 0.5);
+}
+.acc__refInv {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .acc__refLink {
+    flex-direction: column;
+  }
+  .acc__refLink .v-btn {
+    align-self: flex-start;
+  }
+  .acc__refStats {
+    gap: 1.25rem;
+  }
 }
 </style>

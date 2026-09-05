@@ -12,6 +12,9 @@ export const SETTING_KEYS = {
   invoiceIssuerAddress: 'invoice_issuer_address',
   invoiceIssuerIban: 'invoice_issuer_iban',
   invoiceIssuerBank: 'invoice_issuer_bank',
+  affiliateEnabled: 'affiliate_enabled',
+  affiliateRewardCredits: 'affiliate_reward_credits',
+  affiliateMinDepositCredits: 'affiliate_min_deposit_credits',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -30,6 +33,19 @@ const MAX_PRICE = 100_000;
 const DEFAULT_VAT_RATE_PCT = 0;
 const MIN_VAT_RATE_PCT = 0;
 const MAX_VAT_RATE_PCT = 30;
+
+/** Affiliate program: off by default; reward (credits) per qualified referral. */
+const DEFAULT_AFFILIATE_REWARD = 20;
+const MIN_AFFILIATE_REWARD = 1;
+const MAX_AFFILIATE_REWARD = 10_000;
+
+/**
+ * Minimum total credits a referred user must deposit before the reward is paid
+ * to their referrer. 0 = no deposit threshold (any funded campaign qualifies).
+ */
+const DEFAULT_AFFILIATE_MIN_DEPOSIT = 50;
+const MIN_AFFILIATE_MIN_DEPOSIT = 0;
+const MAX_AFFILIATE_MIN_DEPOSIT = 100_000;
 
 export interface InvoiceIssuer {
   name: string;
@@ -148,6 +164,73 @@ export class PlatformSettingsService {
     }
     const rounded = Math.round(pct);
     await this.set(SETTING_KEYS.invoiceVatRatePct, String(rounded));
+    return rounded;
+  }
+
+  // --- affiliate program -------------------------------------------------
+
+  /** Whether the affiliate/referral program is currently running. */
+  async affiliateEnabled(): Promise<boolean> {
+    return (await this.get(SETTING_KEYS.affiliateEnabled)) === 'true';
+  }
+  async setAffiliateEnabled(on: boolean): Promise<boolean> {
+    await this.set(SETTING_KEYS.affiliateEnabled, on ? 'true' : 'false');
+    return on;
+  }
+
+  /** Credits awarded to the referrer for each qualified referral. */
+  async affiliateRewardCredits(): Promise<number> {
+    const raw = await this.get(SETTING_KEYS.affiliateRewardCredits);
+    const parsed = raw != null ? Number(raw) : NaN;
+    if (
+      !Number.isFinite(parsed) ||
+      parsed < MIN_AFFILIATE_REWARD ||
+      parsed > MAX_AFFILIATE_REWARD
+    ) {
+      if (raw != null)
+        this.logger.warn(`Ignoring invalid ${SETTING_KEYS.affiliateRewardCredits}=${raw}`);
+      return DEFAULT_AFFILIATE_REWARD;
+    }
+    return Math.round(parsed);
+  }
+  async setAffiliateRewardCredits(credits: number): Promise<number> {
+    if (
+      !Number.isFinite(credits) ||
+      credits < MIN_AFFILIATE_REWARD ||
+      credits > MAX_AFFILIATE_REWARD
+    ) {
+      throw new BadRequestException('affiliate_reward_credits out of range');
+    }
+    const rounded = Math.round(credits);
+    await this.set(SETTING_KEYS.affiliateRewardCredits, String(rounded));
+    return rounded;
+  }
+
+  /** Minimum total deposit (credits) a referred user must reach to trigger the reward. */
+  async affiliateMinDepositCredits(): Promise<number> {
+    const raw = await this.get(SETTING_KEYS.affiliateMinDepositCredits);
+    const parsed = raw != null ? Number(raw) : NaN;
+    if (
+      !Number.isFinite(parsed) ||
+      parsed < MIN_AFFILIATE_MIN_DEPOSIT ||
+      parsed > MAX_AFFILIATE_MIN_DEPOSIT
+    ) {
+      if (raw != null)
+        this.logger.warn(`Ignoring invalid ${SETTING_KEYS.affiliateMinDepositCredits}=${raw}`);
+      return DEFAULT_AFFILIATE_MIN_DEPOSIT;
+    }
+    return Math.round(parsed);
+  }
+  async setAffiliateMinDepositCredits(credits: number): Promise<number> {
+    if (
+      !Number.isFinite(credits) ||
+      credits < MIN_AFFILIATE_MIN_DEPOSIT ||
+      credits > MAX_AFFILIATE_MIN_DEPOSIT
+    ) {
+      throw new BadRequestException('affiliate_min_deposit_credits out of range');
+    }
+    const rounded = Math.round(credits);
+    await this.set(SETTING_KEYS.affiliateMinDepositCredits, String(rounded));
     return rounded;
   }
 

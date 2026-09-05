@@ -34,6 +34,10 @@ model User {
   totpSecret    String?   @map("totp_secret")
   totpEnabledAt DateTime? @map("totp_enabled_at")
 
+  // Affiliate program: a short public code this user shares as `?ref=CODE`.
+  // Generated lazily the first time the user opens their affiliate panel.
+  referralCode String? @unique @map("referral_code")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -48,8 +52,46 @@ model User {
   supportTicketsRequested SupportTicket[]          @relation("SupportRequester")
   supportTicketsAssigned  SupportTicket[]          @relation("SupportAssignee")
   supportMessages         SupportMessage[]
+  referralsMade           Referral[]               @relation("ReferralsMade")
+  referralReceived        Referral?                @relation("ReferralReceived")
 
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Affiliate program
+// ---------------------------------------------------------------------------
+
+enum ReferralStatus {
+  pending
+  rewarded
+}
+
+/**
+ * One row per referred user (a user can be referred at most once, ever). Created
+ * when a new account claims a `?ref=` code; flips to `rewarded` the first time
+ * the referred user starts a funded campaign — the referrer's wallet is then
+ * credited `rewardCredits` (a snapshot of the platform setting at that moment).
+ */
+model Referral {
+  id             String         @id @default(uuid()) @db.Uuid
+  referrerId     String         @map("referrer_id") @db.Uuid
+  referredUserId String         @unique @map("referred_user_id") @db.Uuid
+  status         ReferralStatus @default(pending)
+  rewardCredits  Int?           @map("reward_credits")
+  rewardedAt     DateTime?      @map("rewarded_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  // The `affiliate_reward` invoice issued to the referrer for this reward, if any.
+  rewardInvoiceId String? @unique @map("reward_invoice_id") @db.Uuid
+
+  referrer      User     @relation("ReferralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUser  User     @relation("ReferralReceived", fields: [referredUserId], references: [id], onDelete: Cascade)
+  rewardInvoice Invoice? @relation("ReferralRewardInvoice", fields: [rewardInvoiceId], references: [id], onDelete: SetNull)
+
+  @@index([referrerId])
+  @@index([status])
+  @@map("referrals")
 }
 
 model PasswordResetToken {
@@ -530,12 +572,20 @@ model InvoiceCounter {
   @@map("invoice_counters")
 }
 
+enum InvoiceKind {
+  /** A wallet top-up the user paid for. */
+  topup
+  /** A payout document for an affiliate-program reward (no money due, VAT-exempt). */
+  affiliate_reward
+}
+
 model Invoice {
-  id                  String   @id @default(uuid()) @db.Uuid
-  number              String   @unique
-  userId              String   @map("user_id") @db.Uuid
-  walletTransactionId String   @unique @map("wallet_transaction_id") @db.Uuid
-  issuedAt            DateTime @default(now()) @map("issued_at")
+  id                  String      @id @default(uuid()) @db.Uuid
+  number              String      @unique
+  userId              String      @map("user_id") @db.Uuid
+  walletTransactionId String      @unique @map("wallet_transaction_id") @db.Uuid
+  kind                InvoiceKind @default(topup)
+  issuedAt            DateTime    @default(now()) @map("issued_at")
 
   // Buyer snapshot at issue time.
   buyerKind       BillingProfileKind @map("buyer_kind")
@@ -575,6 +625,7 @@ model Invoice {
 
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   walletTransaction WalletTransaction @relation(fields: [walletTransactionId], references: [id])
+  affiliateReferral Referral?         @relation("ReferralRewardInvoice")
 
   @@index([userId, issuedAt])
   @@map("invoices")

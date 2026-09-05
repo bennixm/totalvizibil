@@ -61,6 +61,9 @@ export interface AdminSettings {
   advancedBuilderPriceCredits: number
   additionalBusinessPriceCredits: number
   invoiceVatRatePct: number
+  affiliateEnabled: boolean
+  affiliateRewardCredits: number
+  affiliateMinDepositCredits: number
   invoiceIssuerName: string
   invoiceIssuerTaxId: string
   invoiceIssuerRegCom: string
@@ -365,6 +368,27 @@ export interface UpdateCompanyInput {
   description?: string
 }
 
+// --- affiliate program ------------------------------------------------
+
+export interface AdminReferralRow {
+  id: string
+  status: 'pending' | 'rewarded'
+  rewardCredits: number | null
+  rewardedAt: string | null
+  createdAt: string
+  referrer: { id: string; name: string; email: string }
+  referred: { id: string; name: string; email: string }
+}
+
+export interface AdminReferralsPage {
+  items: AdminReferralRow[]
+  page: number
+  pageSize: number
+  total: number
+  totalRewarded: number
+  creditsPaid: number
+}
+
 export const useAdminStore = defineStore('admin', {
   state: (): AdminState => ({
     stats: null,
@@ -485,6 +509,17 @@ export const useAdminStore = defineStore('admin', {
         method: 'PATCH',
         body: input,
       })
+    },
+
+    fetchReferrals(
+      params: { status?: 'pending' | 'rewarded'; page?: number; pageSize?: number } = {},
+    ): Promise<AdminReferralsPage> {
+      const p = new URLSearchParams()
+      if (params.status) p.set('status', params.status)
+      if (params.page) p.set('page', String(params.page))
+      if (params.pageSize) p.set('pageSize', String(params.pageSize))
+      const qs = p.toString()
+      return apiFetch<AdminReferralsPage>(`/admin/referrals${qs ? `?${qs}` : ''}`)
     },
 
     fetchUser(id: string): Promise<AdminUserDetail> {

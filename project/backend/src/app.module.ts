@@ -16,6 +16,7 @@ import { GeoModule } from './geo/geo.module';
 import { WalletModule } from './wallet/wallet.module';
 import { BillingModule } from './billing/billing.module';
 import { CampaignModule } from './campaigns/campaign.module';
+import { AffiliateModule } from './affiliate/affiliate.module';
 import { LeadsModule } from './leads/leads.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AdminModule } from './admin/admin.module';
@@ -39,6 +40,7 @@ import { HealthModule } from './health/health.module';
     BillingModule,
     WalletModule,
     CampaignModule,
+    AffiliateModule,
     LeadsModule,
     AnalyticsModule,
     AdminModule,

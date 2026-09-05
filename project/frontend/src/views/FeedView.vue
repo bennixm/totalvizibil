@@ -6,6 +6,7 @@ import { storeToRefs } from 'pinia'
 
 import FeedControls from '@/components/FeedControls.vue'
 import FeedAdCard from '@/components/FeedAdCard.vue'
+import AffiliateBanner from '@/components/AffiliateBanner.vue'
 import { useFeedStore } from '@/stores/feed'
 import { useSeo } from '@/composables/useSeo'
 import { feedCategoryRoute } from '@/services/routes'
@@ -162,6 +163,8 @@ async function go(n: number): Promise<void> {
       </v-btn>
     </header>
 
+    <AffiliateBanner v-if="!routeCategory" class="feed__affiliate" />
+
     <div class="feed__body">
       <FeedControls class="feed__controls" />
 
@@ -263,6 +266,11 @@ async function go(n: number): Promise<void> {
   max-width: 52ch;
 }
 
+.feed__affiliate {
+  width: var(--feed-w);
+  margin-inline: auto;
+  margin-bottom: 2rem;
+}
 .feed__body {
   width: var(--feed-w);
   margin-inline: auto;

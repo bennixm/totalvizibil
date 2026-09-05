@@ -173,6 +173,74 @@ export class BillingService {
     });
   }
 
+  /**
+   * Issue a payout document for an affiliate-program reward. Unlike a top-up
+   * invoice this needs no billing profile (many affiliates are individuals with
+   * none): the buyer block falls back to the user's account name/email. No money
+   * is due and it is always VAT-exempt; the credit value is converted to RON at
+   * the current rate purely so it sits in the same currency column as the rest.
+   * Runs inside the reward transaction so the number is allocated atomically.
+   */
+  async issueAffiliateRewardInvoice(
+    tx: Prisma.TransactionClient,
+    params: {
+      userId: string;
+      walletTransactionId: string;
+      credits: number;
+      referredName?: string | null;
+    },
+  ): Promise<{ id: string; number: string }> {
+    const [issuer, eurRonRate, profile, user] = await Promise.all([
+      this.settings.invoiceIssuer(),
+      this.settings.eurRonRate(),
+      tx.billingProfile.findUnique({ where: { userId: params.userId } }),
+      tx.user.findUnique({
+        where: { id: params.userId },
+        select: { name: true, email: true },
+      }),
+    ]);
+
+    const eurCents = Math.round(params.credits * 100);
+    const ronBani = Math.round(eurCents * eurRonRate);
+    const number = await this.nextInvoiceNumber(tx);
+    const suffix = params.referredName ? ` (client: ${params.referredName})` : '';
+
+    return tx.invoice.create({
+      data: {
+        number,
+        kind: 'affiliate_reward',
+        userId: params.userId,
+        walletTransactionId: params.walletTransactionId,
+        buyerKind: profile?.kind ?? 'individual',
+        buyerName: profile?.name ?? user?.name ?? 'Client',
+        buyerTaxId: profile?.taxId ?? null,
+        buyerRegCom: profile?.regCom ?? null,
+        buyerVatPayer: profile?.vatPayer ?? false,
+        buyerAddress: profile?.address ?? '',
+        buyerCity: profile?.city ?? '',
+        buyerCounty: profile?.county ?? null,
+        buyerPostalCode: profile?.postalCode ?? null,
+        buyerCountry: profile?.country ?? 'RO',
+        buyerEmail: profile?.billingEmail ?? user?.email ?? null,
+        issuerName: issuer.name || 'Totalvizibil',
+        issuerTaxId: issuer.taxId || null,
+        issuerRegCom: issuer.regCom || null,
+        issuerAddress: issuer.address,
+        issuerIban: issuer.iban || null,
+        issuerBank: issuer.bank || null,
+        currency: 'RON',
+        description: `Recompensă program de afiliere — ${params.credits} credite${suffix}`,
+        subtotalMinor: ronBani,
+        vatRatePct: 0,
+        vatMinor: 0,
+        totalMinor: ronBani,
+        eurCents,
+        fxRate: new Prisma.Decimal(eurRonRate),
+      },
+      select: { id: true, number: true },
+    });
+  }
+
   // --- reads -------------------------------------------------------------
 
   listInvoices(userId: string) {

@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { BillingService, isProfileComplete } from '../billing/billing.service';
+import { AffiliateService } from '../affiliate/affiliate.service';
 import { CREDIT_MINOR, eurCentsToRonBani, minorToCredits, money } from './money';
 import { WALLET_CURRENCIES, WalletCurrency } from './dto/set-currency.dto';
 
@@ -27,6 +28,7 @@ export class WalletService {
     private readonly prisma: PrismaService,
     private readonly settings: PlatformSettingsService,
     private readonly billing: BillingService,
+    private readonly affiliate: AffiliateService,
   ) {}
 
   // --- helpers ---------------------------------------------------------
@@ -340,6 +342,10 @@ export class WalletService {
         credits: minorToCredits(txn.amountMinor),
       });
     });
+
+    // A top-up may be the event that lifts a referred user over the affiliate
+    // minimum-deposit threshold — re-evaluate their referral. Fire-and-forget.
+    void this.affiliate.maybeReward(userId).catch(() => undefined);
 
     return { ...(await this.getSummary(userId)), invoice };
   }

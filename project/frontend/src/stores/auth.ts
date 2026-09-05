@@ -65,6 +65,27 @@ export const useAuthStore = defineStore('auth', {
       })
       this.user = user
       this.ready = true
+
+      // If the visitor arrived on an affiliate link, attribute this new account
+      // to it now. Best-effort — a bad/expired code just no-ops server-side.
+      let ref: string | null = null
+      try {
+        ref = localStorage.getItem('tvz.ref')
+      } catch {
+        /* ignore */
+      }
+      if (ref) {
+        try {
+          await apiFetch('/affiliate/claim', { method: 'POST', body: { code: ref } })
+        } catch {
+          /* ignore */
+        }
+        try {
+          localStorage.removeItem('tvz.ref')
+        } catch {
+          /* ignore */
+        }
+      }
     },
 
     async login(input: {

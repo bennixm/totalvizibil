@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class UpdateSettingsDto {
   @IsOptional()
@@ -31,6 +31,26 @@ export class UpdateSettingsDto {
   @Min(0)
   @Max(30)
   invoiceVatRatePct?: number;
+
+  // --- affiliate program (see AffiliateModule) ---
+
+  @IsOptional()
+  @IsBoolean()
+  affiliateEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(10_000)
+  affiliateRewardCredits?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100_000)
+  affiliateMinDepositCredits?: number;
 
   @IsOptional()
   @IsString()

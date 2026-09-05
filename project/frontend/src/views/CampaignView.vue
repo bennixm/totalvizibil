@@ -16,6 +16,7 @@ const companies = useCompaniesStore()
 const campaign = useCampaignStore()
 const money = useMoney()
 const { data, loading, working, error } = storeToRefs(campaign)
+const { overview } = storeToRefs(companies)
 
 const companyId = ref<string | null>(null)
 const dailyBudget = ref(20)
@@ -46,6 +47,11 @@ const marketCpc = computed(() => data.value?.marketCpc.credits ?? 0)
 // Advanced-plan business whose website builder isn't finished — activation is
 // blocked (server-side too) until it is.
 const builderPending = computed(() => !!data.value?.requiresWebsiteBuilder)
+// A business pending deletion is fully frozen server-side — cancel the
+// deletion first (from the dashboard) before campaign/budget can change again.
+const pendingDeletion = computed(
+  () => !!overview.value.find((c) => c.id === companyId.value)?.deletionScheduledAt,
+)
 
 // Credit-comparison epsilon — two credit amounts within this are "the same".
 const CR_EPS = 0.005
@@ -138,6 +144,7 @@ const KNOWN_ERRORS = [
   'wallet_blocked',
   'company_suspended',
   'website_builder_incomplete',
+  'company_pending_deletion',
 ]
 
 function errText(code: string): string {
@@ -293,6 +300,23 @@ watch(
         </v-btn>
       </div>
 
+      <div v-if="pendingDeletion" class="camp__builder">
+        <v-icon icon="mdi-trash-clock-outline" size="18" />
+        <div>
+          <strong>{{ t('campaign.deletionPendingTitle') }}</strong>
+          <p>{{ t('campaign.deletionPendingNote') }}</p>
+        </div>
+        <v-btn
+          size="small"
+          variant="flat"
+          color="primary"
+          append-icon="mdi-arrow-right"
+          :to="{ name: 'dashboard', query: { c: companyId } }"
+        >
+          {{ t('campaign.deletionPendingCta') }}
+        </v-btn>
+      </div>
+
       <div v-if="cpcBelowMarket" class="camp__market">
         <v-icon icon="mdi-trending-up" size="18" />
         <div>
@@ -326,6 +350,7 @@ watch(
             hide-details
             density="compact"
             inset
+            :disabled="pendingDeletion"
             @update:model-value="setAuto"
           />
         </div>
@@ -361,6 +386,7 @@ watch(
             role="radio"
             :aria-checked="activeTier === 'standard'"
             :class="{ 'tier--active': activeTier === 'standard' }"
+            :disabled="pendingDeletion"
             @click="applyTier(data.suggestions.standard, false)"
           >
             <span class="tier__dot" />
@@ -376,6 +402,7 @@ watch(
             role="radio"
             :aria-checked="activeTier === 'first'"
             :class="{ 'tier--active': activeTier === 'first' }"
+            :disabled="pendingDeletion"
             @click="applyTier(data.suggestions.appearFirst, true)"
           >
             <span class="tier__dot" />
@@ -405,6 +432,7 @@ watch(
             variant="outlined"
             density="comfortable"
             hide-details
+            :disabled="pendingDeletion"
           />
           <v-text-field
             v-model.number="cpc"
@@ -416,7 +444,7 @@ watch(
             suffix="cr"
             variant="outlined"
             density="comfortable"
-            :disabled="auto"
+            :disabled="auto || pendingDeletion"
             :error="!cpcValid"
             :hint="cpcHint"
             persistent-hint
@@ -427,6 +455,7 @@ watch(
             :model-value="appearFirst"
             :label="t('campaign.appearFirst')"
             color="primary"
+            :disabled="pendingDeletion"
             @update:model-value="toggleFirst"
           />
           <InfoHint :text="t('campaign.appearFirstHint')" />
@@ -472,7 +501,7 @@ watch(
             v-if="dirty"
             color="primary"
             :loading="working"
-            :disabled="!cpcValid || working"
+            :disabled="!cpcValid || working || pendingDeletion"
             prepend-icon="mdi-content-save-outline"
             @click="save"
           >
