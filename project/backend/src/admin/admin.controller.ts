@@ -33,6 +33,7 @@ import { AdjustWalletDto } from './dto/adjust-wallet.dto';
 import { BlockWalletDto } from './dto/block-wallet.dto';
 import { CampaignActionDto } from './dto/campaign-action.dto';
 import { SetCompanyStatusDto } from './dto/set-company-status.dto';
+import { SetLeadStatusDto } from './dto/set-lead-status.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { LeadsQueryDto } from './dto/leads-query.dto';
 import { ListCompaniesQuery } from './dto/list-companies.query';
@@ -204,6 +205,21 @@ export class AdminController {
   @Post('companies/:id/campaign')
   campaignAction(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CampaignActionDto) {
     return this.companies.campaignAction(id, dto);
+  }
+
+  /** Grant the advanced website builder to this business, no charge. */
+  @Post('companies/:id/website/upgrade-advanced')
+  upgradeAdvanced(@Param('id', ParseUUIDPipe) id: string) {
+    return this.companies.upgradeToAdvanced(id);
+  }
+
+  @Patch('companies/:id/leads/:leadId')
+  setLeadStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('leadId', ParseUUIDPipe) leadId: string,
+    @Body() dto: SetLeadStatusDto,
+  ) {
+    return this.companies.setLeadStatus(id, leadId, dto.status);
   }
 
   // --- categories -------------------------------------------------

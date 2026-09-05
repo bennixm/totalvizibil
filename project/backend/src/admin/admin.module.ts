@@ -6,6 +6,7 @@ import { CampaignModule } from '../campaigns/campaign.module';
 import { AffiliateModule } from '../affiliate/affiliate.module';
 import { LeadsModule } from '../leads/leads.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { WebsiteModule } from '../website/website.module';
 import { AdminController } from './admin.controller';
 import { AdminStatsService } from './admin-stats.service';
 import { AdminUsersService } from './admin-users.service';
@@ -21,6 +22,7 @@ import { AdminCategoriesService } from './admin-categories.service';
     AffiliateModule,
     LeadsModule,
     AnalyticsModule,
+    WebsiteModule,
   ],
   controllers: [AdminController],
   providers: [AdminStatsService, AdminUsersService, AdminCompaniesService, AdminCategoriesService],

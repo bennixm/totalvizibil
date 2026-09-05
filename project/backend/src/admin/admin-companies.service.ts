@@ -5,6 +5,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { CampaignService } from '../campaigns/campaign.service';
 import { LeadsService } from '../leads/leads.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { WebsiteBuilderService } from '../website/builder/website-builder.service';
 import { RUN_SCORE_GRACE_MS } from '../analytics/visibility';
 import { money } from '../wallet/money';
 import { SaveCampaignDto } from '../campaigns/dto/save-campaign.dto';
@@ -28,6 +29,7 @@ export class AdminCompaniesService {
     private readonly campaigns: CampaignService,
     private readonly leads: LeadsService,
     private readonly analytics: AnalyticsService,
+    private readonly builder: WebsiteBuilderService,
   ) {}
 
   private async loadCompany(companyId: string) {
@@ -191,6 +193,26 @@ export class AdminCompaniesService {
       cursor: query.cursor,
       limit: query.limit,
     });
+  }
+
+  /** Admin: move a request through new → seen → resolved. */
+  async setLeadStatus(companyId: string, leadId: string, status: 'new' | 'seen' | 'resolved') {
+    await this.loadCompany(companyId);
+    await this.leads.updateFor(companyId, leadId, { status });
+    return this.detail(companyId);
+  }
+
+  // --- website builder ---------------------------------------------
+
+  /**
+   * Give a business the advanced website builder for free — a platform admin
+   * doing it for the owner. Idempotent (re-running on an already-advanced site
+   * just returns the current detail).
+   */
+  async upgradeToAdvanced(companyId: string) {
+    await this.loadCompany(companyId);
+    await this.builder.unlockForAdmin(companyId);
+    return this.detail(companyId);
   }
 
   // --- profile edit ---------------------------------------------

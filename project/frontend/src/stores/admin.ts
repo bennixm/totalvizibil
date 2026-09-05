@@ -580,6 +580,24 @@ export const useAdminStore = defineStore('admin', {
       })
     },
 
+    /** Grant the advanced website builder to a business, no charge. */
+    upgradeCompanyAdvanced(id: string): Promise<AdminCompanyDetail> {
+      return apiFetch<AdminCompanyDetail>(`/admin/companies/${id}/website/upgrade-advanced`, {
+        method: 'POST',
+      })
+    },
+
+    setCompanyLeadStatus(
+      id: string,
+      leadId: string,
+      status: 'new' | 'seen' | 'resolved',
+    ): Promise<AdminCompanyDetail> {
+      return apiFetch<AdminCompanyDetail>(`/admin/companies/${id}/leads/${leadId}`, {
+        method: 'PATCH',
+        body: { status },
+      })
+    },
+
     companyLeads(
       id: string,
       params: { status?: string; channel?: string; cursor?: string; limit?: number } = {},

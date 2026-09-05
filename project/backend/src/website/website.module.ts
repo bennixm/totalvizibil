@@ -18,6 +18,6 @@ import { RuleBasedWebsiteGenerator } from './website-generator';
     WebsiteAssetService,
     RuleBasedWebsiteGenerator,
   ],
-  exports: [RuleBasedWebsiteGenerator, WebsiteDraftService],
+  exports: [RuleBasedWebsiteGenerator, WebsiteDraftService, WebsiteBuilderService],
 })
 export class WebsiteModule {}

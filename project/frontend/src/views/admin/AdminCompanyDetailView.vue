@@ -5,6 +5,11 @@ import { useRoute } from 'vue-router'
 
 import VisibilityMeter from '@/components/VisibilityMeter.vue'
 import TrendChart from '@/components/TrendChart.vue'
+import AdminDetailHeader from '@/components/admin/AdminDetailHeader.vue'
+import AdminMetaItem from '@/components/admin/AdminMetaItem.vue'
+import AdminSection from '@/components/admin/AdminSection.vue'
+import AdminStatCard from '@/components/admin/AdminStatCard.vue'
+import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useAdminStore, type AdminCompanyDetail, type AdminCompanyLead } from '@/stores/admin'
 import type { CampaignTier, CampaignStatus } from '@/stores/campaign'
@@ -20,6 +25,17 @@ const id = computed(() => String(route.params.id))
 const data = ref<AdminCompanyDetail | null>(null)
 const loading = ref(true)
 const busy = ref<string | null>(null)
+
+const tab = ref<'overview' | 'website' | 'campaign' | 'requests' | 'stats'>('overview')
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p.charAt(0).toUpperCase())
+    .join('')
+}
+const isEasy = computed(() => data.value?.company.website?.mode !== 'advanced')
 
 const toast = reactive({ show: false, text: '', color: 'success' })
 function flash(text: string, color: 'success' | 'error' = 'success') {
@@ -46,6 +62,30 @@ function nm(x: LocalizedName) {
 function dt(s: string | null) {
   return s ? new Date(s).toLocaleString() : '—'
 }
+function dOnly(s: string | null) {
+  return s ? new Date(s).toLocaleDateString() : '—'
+}
+const statusLabel = computed(() => {
+  const s = data.value?.company.status ?? 'draft'
+  return s === 'active'
+    ? t('dashboard.statusActive')
+    : s === 'suspended'
+      ? t('dashboard.statusSuspended')
+      : t('dashboard.statusDraft')
+})
+const categoryLabel = computed(() => {
+  const c = data.value?.company.category
+  if (!c) return '—'
+  return c.parent ? `${nm(c.parent.name)} › ${nm(c.name)}` : nm(c.name)
+})
+const locationLabel = computed(() => {
+  const l = data.value?.company.location
+  if (!l) return '—'
+  if (l.nationwide) return t('feed.coverageCountry')
+  return l.radiusKm
+    ? `${l.city ?? '—'} · ${t('feed.coverageKm', { n: l.radiusKm })}`
+    : l.city ?? '—'
+})
 function fmtMinutes(m: number | null): string {
   if (m == null) return '—'
   if (m < 60) return `${m} min`
@@ -154,18 +194,6 @@ const activeTier = computed<'standard' | 'first' | 'custom'>(() => {
   }
   return 'custom'
 })
-const meterParts = computed(() => {
-  const base = data.value?.analytics.visibility.parts ?? { cpc: 0, response: 0, plan: 0, age: 0 }
-  return dirty.value ? { ...base, cpc: projectedCpcPart.value } : base
-})
-const meterScore = computed(() => {
-  const v = data.value?.analytics.visibility
-  if (!v) return 0
-  if (!dirty.value) return v.score
-  // Swap the projected CPC part in at its fixed 0.35 weight.
-  return Math.max(0, Math.min(100, Math.round(v.score + 0.35 * (projectedCpcPart.value - v.parts.cpc))))
-})
-
 function hydrate() {
   const d = data.value
   if (!d) return
@@ -247,6 +275,34 @@ async function saveProfile() {
     flash(errText(e, t('admin.genericError')), 'error')
   } finally {
     savingProfile.value = false
+  }
+}
+
+function upgradeAdvanced() {
+  void act(
+    'upgrade',
+    async () => {
+      data.value = await admin.upgradeCompanyAdvanced(id.value)
+      hydrate()
+    },
+    t('adminCo.webUpgraded'),
+  )
+}
+
+async function setLeadStatus(leadId: string, status: 'new' | 'seen' | 'resolved') {
+  busy.value = 'lead-' + leadId
+  try {
+    const fresh = await admin.setCompanyLeadStatus(id.value, leadId, status)
+    // patch the row in place so the current filter view is preserved
+    const i = leadRows.value.findIndex((l) => l.id === leadId)
+    const updated = fresh.leads.items.find((l) => l.id === leadId)
+    if (i !== -1 && updated) leadRows.value[i] = updated
+    if (data.value) data.value.leads.summary = fresh.leads.summary
+    flash(t('adminCo.leadStatusSet'))
+  } catch (e) {
+    flash(errText(e, t('admin.genericError')), 'error')
+  } finally {
+    busy.value = null
   }
 }
 
@@ -371,131 +427,189 @@ const campColor: Record<string, string> = {
   active: 'success',
   paused: 'warning',
   depleted: 'error',
-  draft: 'default',
+  draft: 'grey',
 }
-const bizColor: Record<string, string> = { active: 'success', suspended: 'error', draft: 'default' }
-const leadStatusColor: Record<string, string> = { new: 'primary', seen: 'default', resolved: 'success' }
+const bizColor: Record<string, string> = { active: 'success', suspended: 'error', draft: 'grey' }
+const leadStatusItems = computed(() => [
+  { value: 'new', title: t('adminCo.leadStatusNew') },
+  { value: 'seen', title: t('adminCo.leadStatusSeen') },
+  { value: 'resolved', title: t('adminCo.leadStatusResolved') },
+])
 </script>
 
 <template>
   <div class="ac">
-    <v-btn
-      v-if="data"
-      :to="{ name: 'admin-user', params: { id: data.company.owner.id } }"
-      variant="text"
-      size="small"
-      prepend-icon="mdi-arrow-left"
-    >
-      {{ t('adminCo.backToOwner', { name: data.company.owner.name }) }}
-    </v-btn>
-
-    <div v-if="loading" class="d-flex justify-center py-16">
+    <div v-if="loading" class="ac__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
 
     <template v-else-if="data">
-      <header class="ac__head">
-        <div>
-          <h1>{{ data.company.displayName }}</h1>
-          <div class="ac__chips">
-            <v-chip size="small" :color="bizColor[data.company.status]" variant="tonal">
-              {{ t(`dashboard.status${data.company.status.charAt(0).toUpperCase()}${data.company.status.slice(1)}`) }}
-            </v-chip>
-            <v-chip v-if="camp" size="small" :color="campColor[camp.status]" variant="flat">
-              {{ t('admin.camp_' + camp.status) }}
-            </v-chip>
-            <v-chip v-if="camp?.autoOptimize" size="small" color="primary" variant="tonal" prepend-icon="mdi-robot-outline">
-              {{ t('dashboard.campaignAuto') }}
-            </v-chip>
-          </div>
-        </div>
-        <div class="ac__headActions">
+      <AdminDetailHeader
+        :back-to="{ name: 'admin-user', params: { id: data.company.owner.id } }"
+        :back-label="t('adminCo.backToOwner', { name: data.company.owner.name })"
+        :avatar="initials(data.company.displayName)"
+        :title="data.company.displayName"
+        :subtitle="`/${data.company.slug}`"
+        :id="data.company.id"
+      >
+        <template #pills>
+          <v-chip size="small" :color="bizColor[data.company.status]" variant="tonal">{{ statusLabel }}</v-chip>
+          <v-chip v-if="camp" size="small" :color="campColor[camp.status]" variant="flat">
+            {{ t('admin.camp_' + camp.status) }}
+          </v-chip>
+          <v-chip v-if="camp?.autoOptimize" size="small" color="primary" variant="tonal" prepend-icon="mdi-robot-outline">
+            {{ t('dashboard.campaignAuto') }}
+          </v-chip>
+          <v-chip size="small" variant="outlined" :prepend-icon="isEasy ? 'mdi-flash-outline' : 'mdi-tune-vertical'">
+            {{ isEasy ? t('dashboard.modeEasy') : t('dashboard.modeAdvanced') }}
+          </v-chip>
+        </template>
+
+        <template #actions>
           <v-btn
             :to="companyRoute({ slug: data.company.slug, category: data.company.category })"
             target="_blank"
             variant="tonal"
             size="small"
+            rounded="pill"
             prepend-icon="mdi-open-in-new"
           >
             {{ t('adminCo.viewSite') }}
           </v-btn>
           <v-btn
             :color="data.company.status === 'suspended' ? 'success' : 'error'"
-            :variant="data.company.status === 'suspended' ? 'tonal' : 'flat'"
+            :variant="data.company.status === 'suspended' ? 'flat' : 'tonal'"
             size="small"
+            rounded="pill"
             :loading="busy === 'suspend'"
             :prepend-icon="data.company.status === 'suspended' ? 'mdi-store-check-outline' : 'mdi-store-off-outline'"
             @click="toggleSuspend"
           >
             {{ data.company.status === 'suspended' ? t('admin.unsuspendBiz') : t('admin.suspendBiz') }}
           </v-btn>
-        </div>
-      </header>
+        </template>
 
-      <div class="ac__grid">
-        <!-- Profile -->
-        <section class="card">
-          <h2>{{ t('adminCo.profileTitle') }}</h2>
-          <v-text-field v-model="profile.displayName" :label="t('adminCo.displayName')" density="comfortable" />
-          <v-text-field v-model="profile.legalName" :label="t('adminCo.legalName')" density="comfortable" />
-          <v-textarea v-model="profile.description" :label="t('adminCo.description')" rows="3" auto-grow density="comfortable" />
-          <dl class="ac__meta">
-            <div>
-              <dt>{{ t('adminCo.category') }}</dt>
-              <dd>
-                <template v-if="data.company.category">
-                  <span v-if="data.company.category.parent">{{ nm(data.company.category.parent.name) }} › </span>
-                  {{ nm(data.company.category.name) }}
-                </template>
-                <template v-else>—</template>
-              </dd>
-            </div>
-            <div>
-              <dt>{{ t('adminCo.location') }}</dt>
-              <dd>
-                <template v-if="data.company.location">
-                  <template v-if="data.company.location.nationwide">{{ t('feed.coverageCountry') }}</template>
-                  <template v-else>
-                    {{ data.company.location.city }}
-                    <template v-if="data.company.location.radiusKm"> · {{ t('feed.coverageKm', { n: data.company.location.radiusKm }) }}</template>
-                  </template>
-                </template>
-                <template v-else>—</template>
-              </dd>
-            </div>
-            <div>
-              <dt>{{ t('adminCo.website') }}</dt>
-              <dd>
-                <template v-if="data.company.website">
-                  {{ data.company.website.mode === 'advanced' ? t('dashboard.modeAdvanced') : t('dashboard.modeEasy') }}
-                  · {{ data.company.website.status }}
-                </template>
-                <template v-else>—</template>
-              </dd>
-            </div>
-            <div>
-              <dt>{{ t('adminCo.owner') }}</dt>
-              <dd>
-                <router-link :to="{ name: 'admin-user', params: { id: data.company.owner.id } }">
-                  {{ data.company.owner.name }}
-                </router-link>
-                <span class="ac__muted"> · {{ data.company.owner.email }}</span>
-              </dd>
-            </div>
-            <div>
-              <dt>{{ t('adminCo.created') }}</dt>
-              <dd>{{ dt(data.company.createdAt) }}</dd>
-            </div>
-          </dl>
-          <v-btn color="primary" variant="flat" class="mt-2" :loading="savingProfile" @click="saveProfile">
-            {{ t('common.save') }}
-          </v-btn>
-        </section>
+        <template #meta>
+          <AdminMetaItem :label="t('adminCo.owner')" :value="data.company.owner.name" />
+          <AdminMetaItem :label="t('adminCo.category')" :value="categoryLabel" />
+          <AdminMetaItem :label="t('adminCo.location')" :value="locationLabel" />
+          <AdminMetaItem :label="t('adminCo.created')" :value="dOnly(data.company.createdAt)" />
+        </template>
+      </AdminDetailHeader>
 
-        <!-- Campaign -->
-        <section class="card">
-          <h2>{{ t('adminCo.campaignTitle') }}</h2>
+      <v-tabs v-model="tab" color="primary" class="ac__tabs" show-arrows>
+        <v-tab value="overview" prepend-icon="mdi-store-cog-outline">{{ t('adminCo.tabOverview') }}</v-tab>
+        <v-tab value="website" prepend-icon="mdi-web">{{ t('adminCo.tabWebsite') }}</v-tab>
+        <v-tab value="campaign" prepend-icon="mdi-bullhorn-outline">{{ t('adminCo.tabCampaign') }}</v-tab>
+        <v-tab value="requests" prepend-icon="mdi-inbox-outline">
+          {{ t('adminCo.tabRequests') }} ({{ data.leads.summary.total }})
+        </v-tab>
+        <v-tab value="stats" prepend-icon="mdi-chart-box-outline">{{ t('adminCo.tabStats') }}</v-tab>
+      </v-tabs>
 
+      <v-window v-model="tab" class="ac__window">
+        <!-- ============ OVERVIEW ============ -->
+        <v-window-item value="overview">
+          <div class="ac__stack ac__stack--narrow">
+            <AdminSection :title="t('adminCo.profileTitle')" icon="mdi-card-account-details-outline">
+              <div class="ac__form">
+                <v-text-field v-model="profile.displayName" :label="t('adminCo.displayName')" variant="outlined" density="comfortable" hide-details />
+                <v-text-field v-model="profile.legalName" :label="t('adminCo.legalName')" variant="outlined" density="comfortable" hide-details />
+                <v-textarea v-model="profile.description" :label="t('adminCo.description')" rows="3" auto-grow variant="outlined" density="comfortable" hide-details />
+                <div>
+                  <v-btn color="primary" variant="flat" rounded="pill" :loading="savingProfile" prepend-icon="mdi-content-save-outline" @click="saveProfile">
+                    {{ t('common.save') }}
+                  </v-btn>
+                </div>
+              </div>
+            </AdminSection>
+
+            <AdminSection :title="t('adminCo.factsTitle')" icon="mdi-information-outline">
+              <div class="ac__facts">
+                <div class="ac__fact">
+                  <span class="ac__factLabel">{{ t('adminCo.owner') }}</span>
+                  <router-link :to="{ name: 'admin-user', params: { id: data.company.owner.id } }" class="ac__link">
+                    {{ data.company.owner.name }}
+                  </router-link>
+                  <span class="ac__muted">{{ data.company.owner.email }}</span>
+                </div>
+                <AdminMetaItem :label="t('adminCo.category')" :value="categoryLabel" />
+                <AdminMetaItem :label="t('adminCo.location')" :value="locationLabel" />
+                <AdminMetaItem :label="t('adminCo.country')" :value="data.company.country" />
+                <AdminMetaItem :label="t('adminCo.created')" :value="dt(data.company.createdAt)" />
+              </div>
+              <div class="ac__counts">
+                <AdminStatCard :label="t('adminCo.cServices')" :value="data.company.counts.services" />
+                <AdminStatCard :label="t('adminCo.cContacts')" :value="data.company.counts.contacts" />
+                <AdminStatCard :label="t('adminCo.cLeads')" :value="data.company.counts.leads" />
+                <AdminStatCard :label="t('adminCo.cClicks')" :value="data.company.counts.clicks" />
+              </div>
+            </AdminSection>
+          </div>
+        </v-window-item>
+
+        <!-- ============ WEBSITE ============ -->
+        <v-window-item value="website">
+          <div class="ac__stack ac__stack--narrow">
+            <AdminSection :title="t('adminCo.webTitle')" icon="mdi-web">
+              <div class="ac__webMode">
+                <span class="ac__webPlan" :class="{ 'is-adv': !isEasy }">
+                  <v-icon :icon="isEasy ? 'mdi-flash-outline' : 'mdi-tune-vertical'" size="15" />
+                  {{ isEasy ? t('dashboard.modeEasy') : t('dashboard.modeAdvanced') }}
+                </span>
+                <span v-if="data.company.website" class="ac__muted">
+                  {{ t('adminCo.webStatus_' + data.company.website.status) }} ·
+                  {{ t('adminCo.webUpdated', { d: dOnly(data.company.website.updatedAt) }) }}
+                </span>
+                <span v-else class="ac__muted">{{ t('adminCo.webNone') }}</span>
+              </div>
+
+              <p v-if="!isEasy && data.company.advancedUnlockedAt" class="ac__webUnlocked">
+                <v-icon icon="mdi-check-decagram-outline" size="14" />
+                {{ t('adminCo.webUnlockedOn', { d: dOnly(data.company.advancedUnlockedAt) }) }}
+              </p>
+
+              <div v-if="builderPending" class="ac__webWarn">
+                <v-icon icon="mdi-alert-outline" size="15" />
+                {{ t('adminCo.builderRequired') }}
+              </div>
+
+              <div v-if="isEasy" class="ac__webUpgrade">
+                <v-btn
+                  color="primary"
+                  variant="flat"
+                  rounded="pill"
+                  :loading="busy === 'upgrade'"
+                  prepend-icon="mdi-rocket-launch-outline"
+                  @click="upgradeAdvanced"
+                >
+                  {{ t('adminCo.webUpgradeFree') }}
+                </v-btn>
+                <p class="ac__muted ac__webHint">{{ t('adminCo.webUpgradeHint') }}</p>
+              </div>
+            </AdminSection>
+
+            <AdminSection :title="t('adminCo.webEditTitle')" icon="mdi-pencil-ruler-outline">
+              <p class="ac__muted ac__mt0">{{ t('adminCo.webEditNote') }}</p>
+              <v-btn
+                :to="companyRoute({ slug: data.company.slug, category: data.company.category })"
+                target="_blank"
+                variant="tonal"
+                size="small"
+                rounded="pill"
+                prepend-icon="mdi-open-in-new"
+                class="mt-3"
+              >
+                {{ t('adminCo.viewSite') }}
+              </v-btn>
+            </AdminSection>
+          </div>
+        </v-window-item>
+
+        <!-- ============ CAMPAIGN ============ -->
+        <v-window-item value="campaign">
+          <div class="ac__stack ac__stack--narrow">
+            <AdminSection :title="t('adminCo.campaignTitle')" icon="mdi-bullhorn-outline">
           <div class="ac__auto" :class="{ 'is-on': auto }">
             <div class="ac__autoRow">
               <v-icon icon="mdi-robot-outline" size="20" />
@@ -593,93 +707,138 @@ const leadStatusColor: Record<string, string> = { new: 'primary', seen: 'default
               }}
             </p>
           </div>
-        </section>
-
-        <!-- Analytics -->
-        <section class="card card--wide">
-          <h2>{{ t('adminCo.analyticsTitle') }}</h2>
-          <div class="ac__ana">
-            <div class="ac__anaMeter">
-              <VisibilityMeter :score="meterScore" :parts="meterParts" />
-              <p v-if="dirty" class="ac__projected">
-                <v-icon icon="mdi-eye-outline" size="13" /> {{ t('adminCo.projectedTag') }}
-              </p>
-              <p class="ac__rank">
-                {{ data.analytics.feedRank
-                  ? t('analytics.feedRank', { n: data.analytics.feedRank.position, total: data.analytics.feedRank.total })
-                  : t('analytics.feedRankNone') }}
-              </p>
-            </div>
-            <div class="ac__stats">
-              <div class="stat"><span>{{ t('analytics.clicks') }}</span><strong>{{ fmtInt(data.analytics.clicks.total) }}</strong><em>{{ t('analytics.today', { n: fmtInt(data.analytics.clicks.today) }) }}</em></div>
-              <div class="stat"><span>{{ t('analytics.calls') }}</span><strong>{{ fmtInt(data.analytics.calls.total) }}</strong><em>{{ t('analytics.fromSite') }}</em></div>
-              <div class="stat"><span>{{ t('analytics.messages') }}</span><strong>{{ fmtInt(data.analytics.messages.total) }}</strong><em>{{ t('analytics.newN', { n: data.analytics.messages.new }) }}</em></div>
-              <div class="stat">
-                <span>{{ t('analytics.responseTime') }}</span>
-                <strong>{{ fmtMinutes(data.analytics.response.avgMinutes) }}</strong>
-                <em>{{ data.analytics.response.ratePct != null ? t('analytics.rate', { p: data.analytics.response.ratePct }) : t('analytics.noData') }}</em>
-              </div>
-              <div class="stat">
-                <span>{{ t('analytics.spend') }}</span>
-                <strong>{{ fmt(data.analytics.campaign.consumedTotal.credits) }} cr</strong>
-                <em>
-                  {{ ownerEq(data.analytics.campaign.consumedTotal.credits) }} ·
-                  {{ t('analytics.today', { n: fmt(data.analytics.campaign.consumedToday.credits) + ' cr' }) }}
-                </em>
-              </div>
-              <div class="stat"><span>{{ t('analytics.activeDays') }}</span><strong>{{ data.analytics.campaign.activeDays }}</strong><em>{{ t('dashboard.days') }}</em></div>
-            </div>
+            </AdminSection>
           </div>
-          <div v-if="hasChartData" class="ac__chart">
-            <p class="ac__chartHead">{{ t('analytics.last14') }}</p>
-            <TrendChart :labels="data.analytics.series.days" :series="chartSeries" />
-          </div>
-        </section>
+        </v-window-item>
 
-        <!-- Leads -->
-        <section class="card card--wide">
-          <div class="ac__leadHead">
-            <h2>{{ t('adminCo.leadsTitle') }} ({{ data.leads.summary.total }})</h2>
-            <div class="ac__leadFilters">
+        <!-- ============ REQUESTS ============ -->
+        <v-window-item value="requests">
+          <AdminSection :title="t('adminCo.leadsTitle')" icon="mdi-inbox-outline">
+            <template #actions>
               <v-btn-toggle v-model="leadFilter.channel" density="compact" variant="outlined" divided>
                 <v-btn value="">{{ t('adminCo.leadAll') }}</v-btn>
                 <v-btn value="form">{{ t('adminCo.leadForm') }}</v-btn>
                 <v-btn value="call">{{ t('adminCo.leadCall') }}</v-btn>
               </v-btn-toggle>
-            </div>
-          </div>
-          <div class="ac__leadSummary">
-            <span>{{ t('adminCo.leadNew', { n: data.leads.summary.new }) }}</span>
-            <span>{{ t('adminCo.leadResolved', { n: data.leads.summary.resolved }) }}</span>
-            <span>{{ t('adminCo.leadResponded', { n: data.leads.summary.responded }) }}</span>
-            <span>{{ t('adminCo.leadAvg', { v: fmtMinutes(data.leads.summary.avgResponseMinutes) }) }}</span>
-          </div>
+            </template>
 
-          <p v-if="!leadRows.length" class="ac__muted">{{ t('adminCo.noLeads') }}</p>
-          <table v-else class="lead">
-            <tbody>
-              <tr v-for="l in leadRows" :key="l.id">
-                <td>
-                  <v-icon :icon="l.channel === 'call' ? 'mdi-phone' : 'mdi-email-outline'" size="15" />
-                </td>
-                <td>
-                  <v-chip size="x-small" :color="leadStatusColor[l.status]" variant="tonal">{{ l.status }}</v-chip>
-                </td>
-                <td class="lead__who">
-                  <strong>{{ l.name || t('adminCo.leadAnon') }}</strong>
-                  <span v-if="l.email || l.phone" class="ac__muted">{{ l.email || l.phone }}</span>
-                </td>
-                <td class="lead__msg">{{ l.message || '—' }}</td>
-                <td class="lead__resp">{{ l.responseMinutes != null ? fmtMinutes(l.responseMinutes) : t('adminCo.leadNoResp') }}</td>
-                <td class="lead__date">{{ dt(l.createdAt) }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <v-btn v-if="leadCursor" variant="text" size="small" :loading="loadingLeads" class="mt-2" @click="moreLeads">
-            {{ t('adminCo.loadMore') }}
-          </v-btn>
-        </section>
-      </div>
+            <div class="ac__leadStats">
+              <AdminStatCard :label="t('adminCo.leadTotalLbl')" :value="data.leads.summary.total" />
+              <AdminStatCard :label="t('adminCo.leadNewLbl')" :value="data.leads.summary.new" tone="primary" />
+              <AdminStatCard :label="t('adminCo.leadResolvedLbl')" :value="data.leads.summary.resolved" tone="success" />
+              <AdminStatCard :label="t('adminCo.leadAvgLbl')" :value="fmtMinutes(data.leads.summary.avgResponseMinutes)" />
+            </div>
+
+            <AdminEmptyState v-if="!leadRows.length" :text="t('adminCo.noLeads')" icon="mdi-inbox-outline" />
+            <div v-else class="ac__tableWrap">
+              <table class="ac__table">
+                <thead>
+                  <tr>
+                    <th>{{ t('adminCo.leadCol') }}</th>
+                    <th>{{ t('invoice.colDescription') }}</th>
+                    <th>{{ t('adminCo.leadRespCol') }}</th>
+                    <th class="num">{{ t('admin.colDate') }}</th>
+                    <th>{{ t('admin.colStatus') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="l in leadRows" :key="l.id">
+                    <td class="ac__leadWho">
+                      <v-icon :icon="l.channel === 'call' ? 'mdi-phone' : 'mdi-email-outline'" size="14" />
+                      <span>
+                        <strong>{{ l.name || t('adminCo.leadAnon') }}</strong>
+                        <span v-if="l.email || l.phone" class="ac__muted">{{ l.email || l.phone }}</span>
+                      </span>
+                    </td>
+                    <td class="ac__leadMsg">{{ l.message || '—' }}</td>
+                    <td class="ac__muted">
+                      {{ l.responseMinutes != null ? fmtMinutes(l.responseMinutes) : t('adminCo.leadNoResp') }}
+                    </td>
+                    <td class="num ac__date">{{ dOnly(l.createdAt) }}</td>
+                    <td>
+                      <v-select
+                        :model-value="l.status"
+                        :items="leadStatusItems"
+                        density="compact"
+                        variant="outlined"
+                        hide-details
+                        class="ac__leadSel"
+                        :loading="busy === 'lead-' + l.id"
+                        @update:model-value="(v) => setLeadStatus(l.id, v)"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <v-btn v-if="leadCursor" variant="text" size="small" :loading="loadingLeads" class="mt-2" @click="moreLeads">
+              {{ t('adminCo.loadMore') }}
+            </v-btn>
+          </AdminSection>
+        </v-window-item>
+
+        <!-- ============ STATISTICS ============ -->
+        <v-window-item value="stats">
+          <div class="ac__stack">
+            <AdminSection :title="t('adminCo.visibilityTitle')" icon="mdi-eye-outline">
+              <div class="ac__ana">
+                <div class="ac__anaMeter">
+                  <VisibilityMeter
+                    :score="data.analytics.visibility.score"
+                    :parts="data.analytics.visibility.parts"
+                  />
+                  <p class="ac__rank">
+                    {{
+                      data.analytics.feedRank
+                        ? t('analytics.feedRank', {
+                            n: data.analytics.feedRank.position,
+                            total: data.analytics.feedRank.total,
+                          })
+                        : t('analytics.feedRankNone')
+                    }}
+                  </p>
+                </div>
+                <div class="ac__statGrid">
+                  <AdminStatCard
+                    :label="t('analytics.clicks')"
+                    :value="fmtInt(data.analytics.clicks.total)"
+                    :sub="t('analytics.today', { n: fmtInt(data.analytics.clicks.today) })"
+                  />
+                  <AdminStatCard
+                    :label="t('analytics.calls')"
+                    :value="fmtInt(data.analytics.calls.total)"
+                    :sub="t('analytics.fromSite')"
+                  />
+                  <AdminStatCard
+                    :label="t('analytics.messages')"
+                    :value="fmtInt(data.analytics.messages.total)"
+                    :sub="t('analytics.newN', { n: data.analytics.messages.new })"
+                  />
+                  <AdminStatCard
+                    :label="t('analytics.responseTime')"
+                    :value="fmtMinutes(data.analytics.response.avgMinutes)"
+                    :sub="data.analytics.response.ratePct != null ? t('analytics.rate', { p: data.analytics.response.ratePct }) : t('analytics.noData')"
+                  />
+                  <AdminStatCard
+                    :label="t('analytics.spend')"
+                    :value="`${fmt(data.analytics.campaign.consumedTotal.credits)} cr`"
+                    :sub="ownerEq(data.analytics.campaign.consumedTotal.credits)"
+                  />
+                  <AdminStatCard
+                    :label="t('analytics.activeDays')"
+                    :value="data.analytics.campaign.activeDays"
+                    :sub="t('dashboard.days')"
+                  />
+                </div>
+              </div>
+            </AdminSection>
+
+            <AdminSection v-if="hasChartData" :title="t('analytics.last14')" icon="mdi-chart-line">
+              <TrendChart :labels="data.analytics.series.days" :series="chartSeries" />
+            </AdminSection>
+          </div>
+        </v-window-item>
+      </v-window>
     </template>
 
     <v-dialog v-model="confirmState.show" max-width="420">
@@ -699,77 +858,202 @@ const leadStatusColor: Record<string, string> = { new: 'primary', seen: 'default
 </template>
 
 <style scoped>
-.ac__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin: 0.6rem 0 1.5rem;
+.ac {
+  max-width: 1000px;
 }
-.ac__head h1 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  font-size: clamp(1.3rem, 3vw, 1.75rem);
-  letter-spacing: -0.02em;
-  margin: 0 0 0.5rem;
-}
-.ac__chips {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-.ac__headActions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.ac__grid {
+.ac__center {
   display: grid;
+  place-items: center;
+  min-height: 320px;
+}
+.ac__tabs {
+  border-bottom: 1px solid var(--tvz-hairline);
+  margin-bottom: 1.4rem;
+}
+.ac__stack {
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
 }
-.card {
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-surface));
-  padding: 1.3rem;
-}
-.card--wide {
-  grid-column: 1 / -1;
-}
-.card h2 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.98rem;
-  font-weight: 600;
-  margin: 0 0 1rem;
+.ac__stack--narrow {
+  max-width: 720px;
 }
 .ac__muted {
   color: rgb(var(--v-theme-on-surface) / 0.5);
   font-size: 0.82rem;
 }
+.ac__mt0 {
+  margin-top: 0;
+}
+.ac__link {
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+}
 
-.ac__meta {
-  margin: 0.8rem 0 0;
-  display: grid;
-  gap: 0.5rem;
+/* overview */
+.ac__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
 }
-.ac__meta > div {
-  display: grid;
-  grid-template-columns: 5.5rem 1fr;
-  gap: 0.6rem;
-  font-size: 0.84rem;
+.ac__facts {
+  display: flex;
+  gap: 1.75rem;
+  flex-wrap: wrap;
 }
-.ac__meta dt {
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+.ac__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.ac__factLabel {
+  font-size: 0.62rem;
+  font-weight: 700;
   text-transform: uppercase;
-  font-size: 0.68rem;
-  letter-spacing: 0.05em;
-  padding-top: 0.15rem;
+  letter-spacing: 0.08em;
+  color: rgb(var(--v-theme-on-surface) / 0.4);
 }
-.ac__meta dd {
-  margin: 0;
+.ac__fact .ac__muted {
+  font-size: 0.76rem;
+}
+.ac__counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.7rem;
+  margin-top: 1.1rem;
+}
+
+/* website */
+.ac__webMode {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+.ac__webPlan {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--tvz-hairline);
+}
+.ac__webPlan.is-adv {
+  color: rgb(var(--v-theme-primary));
+  border-color: rgb(var(--v-theme-primary) / 0.4);
+  background: rgb(var(--v-theme-primary) / 0.08);
+}
+.ac__webUnlocked {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.9rem 0 0;
+  font-size: 0.8rem;
+  color: rgb(var(--v-theme-success));
+}
+.ac__webWarn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 10px;
+  background: rgb(var(--v-theme-warning) / 0.13);
+  color: rgb(var(--v-theme-warning));
+  font-size: 0.8rem;
+}
+.ac__webUpgrade {
+  margin-top: 1.1rem;
+}
+.ac__webHint {
+  margin: 0.5rem 0 0;
+  max-width: 46ch;
+}
+
+/* requests */
+.ac__leadStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 1.1rem;
+}
+.ac__tableWrap {
+  overflow-x: auto;
+}
+.ac__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.ac__table th {
+  text-align: left;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: rgb(var(--v-theme-on-surface) / 0.45);
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+  white-space: nowrap;
+}
+.ac__table td {
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+  vertical-align: middle;
+}
+.ac__table tr:last-child td {
+  border-bottom: none;
+}
+.ac__table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.ac__leadWho {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  min-width: 150px;
+}
+.ac__leadWho strong {
+  display: block;
+}
+.ac__leadWho .ac__muted {
+  font-size: 0.74rem;
+}
+.ac__leadMsg {
+  color: rgb(var(--v-theme-on-surface) / 0.78);
+  max-width: 320px;
+}
+.ac__date {
+  color: rgb(var(--v-theme-on-surface) / 0.45);
+  font-size: 0.74rem;
+}
+.ac__leadSel {
+  width: 142px;
+}
+
+/* stats */
+.ac__ana {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+.ac__anaMeter {
+  display: flex;
+  flex-direction: column;
+}
+.ac__rank {
+  margin: 0.7rem 0 0;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.ac__statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.7rem;
 }
 
 /* campaign editor */
@@ -891,32 +1175,6 @@ const leadStatusColor: Record<string, string> = { new: 'primary', seen: 'default
   align-items: center;
 }
 
-/* analytics */
-.ac__ana {
-  display: grid;
-  grid-template-columns: minmax(260px, 340px) 1fr;
-  gap: 1.5rem;
-  align-items: start;
-}
-.ac__rank {
-  margin: 0.7rem 0 0;
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-.ac__projected {
-  margin: 0.6rem 0 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.66rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.1);
-}
 .ac__cpcLive {
   display: flex;
   align-items: center;
@@ -936,95 +1194,6 @@ const leadStatusColor: Record<string, string> = { new: 'primary', seen: 'default
   font-size: 0.74rem;
   color: rgb(var(--v-theme-on-surface) / 0.55);
 }
-.ac__stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 0.6rem;
-}
-.stat {
-  padding: 0.7rem 0.85rem;
-  border-radius: 12px;
-  border: 1px solid var(--tvz-hairline);
-}
-.stat span {
-  display: block;
-  font-size: 0.64rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
-}
-.stat strong {
-  font-size: 1.15rem;
-  font-family: 'Space Grotesk Variable', sans-serif;
-}
-.stat em {
-  display: block;
-  font-style: normal;
-  font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
-}
-.ac__chart {
-  margin-top: 1.4rem;
-}
-.ac__chartHead {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
-  margin: 0 0 0.6rem;
-}
-
-/* leads */
-.ac__leadHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.6rem;
-}
-.ac__leadHead h2 {
-  margin: 0;
-}
-.ac__leadSummary {
-  display: flex;
-  gap: 1.1rem;
-  flex-wrap: wrap;
-  font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
-  margin-bottom: 0.8rem;
-}
-.lead {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.82rem;
-}
-.lead td {
-  padding: 0.5rem 0.55rem;
-  border-bottom: 1px solid var(--tvz-hairline);
-  vertical-align: top;
-}
-.lead tr:last-child td {
-  border-bottom: none;
-}
-.lead__who {
-  min-width: 120px;
-}
-.lead__who strong {
-  display: block;
-}
-.lead__msg {
-  color: rgb(var(--v-theme-on-surface) / 0.78);
-  max-width: 340px;
-}
-.lead__resp,
-.lead__date {
-  white-space: nowrap;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
-  text-align: right;
-}
-
 @media (max-width: 760px) {
   .ac__ana {
     grid-template-columns: 1fr;

@@ -309,25 +309,46 @@ export class WebsiteBuilderService {
 
   async unlock(userId: string, companyId: string) {
     const company = await this.load(companyId, userId, true, false);
+    await this.applyUnlock(company, { chargeOwner: true });
+    return this.view(companyId, userId);
+  }
+
+  /**
+   * Grant the advanced builder to a business with no charge — a platform admin
+   * doing it on the owner's behalf. Bypasses the owner-membership check (the
+   * admin guard is the gate). Returns nothing; the admin panel re-reads the
+   * company detail afterwards.
+   */
+  async unlockForAdmin(companyId: string): Promise<void> {
+    const company = await this.prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      include: { website: true, locations: true, services: true, contacts: true },
+    });
+    if (!company.website) throw new NotFoundException('No website');
+    await this.applyUnlock(company, { chargeOwner: false });
+  }
+
+  /** Shared body of both unlock paths — optionally charges the owner's wallet. */
+  private async applyUnlock(company: LoadedCompany, opts: { chargeOwner: boolean }): Promise<void> {
     const w = company.website!;
     if (
       company.advancedUnlockedAt &&
       w.mode === 'advanced' &&
       (w.builderSpec as { v?: number })?.v === 2
     ) {
-      return this.view(companyId, userId);
+      return;
     }
 
-    if (!company.advancedUnlockedAt) {
+    if (opts.chargeOwner && !company.advancedUnlockedAt) {
       const price = await this.settings.advancedBuilderPriceCredits();
       await this.wallet.spend(company.ownerUserId, price * CREDIT_MINOR, {
         description: 'Advanced website builder',
-        companyId,
+        companyId: company.id,
       });
     }
 
     await this.prisma.company.update({
-      where: { id: companyId },
+      where: { id: company.id },
       data: { advancedUnlockedAt: company.advancedUnlockedAt ?? new Date() },
     });
 
@@ -337,7 +358,7 @@ export class WebsiteBuilderService {
       (w.builderSpec as { v?: number })?.v === 2 ? this.loadDoc(w, ctx) : starterAdvancedDoc(ctx);
     const g = composeAdvancedDoc(doc, ctx);
     await this.prisma.website.update({
-      where: { companyId },
+      where: { companyId: company.id },
       data: {
         mode: 'advanced',
         builderSpec: doc as unknown as Prisma.InputJsonValue,
@@ -346,8 +367,6 @@ export class WebsiteBuilderService {
         generator: g.generator,
       },
     });
-
-    return this.view(companyId, userId);
   }
 
   // --- editing ------------------------------------------------------

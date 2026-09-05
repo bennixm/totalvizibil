@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LeadChannel, LeadStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -245,6 +239,15 @@ export class LeadsService {
     dto: { status?: string; responded?: boolean; via?: 'email' | 'phone' | 'manual' },
   ) {
     await this.assertMember(companyId, userId);
+    return this.updateFor(companyId, leadId, dto);
+  }
+
+  /** The body of `update` without the owner-membership check — for the admin panel. */
+  async updateFor(
+    companyId: string,
+    leadId: string,
+    dto: { status?: string; responded?: boolean; via?: 'email' | 'phone' | 'manual' },
+  ) {
     const lead = await this.prisma.lead.findFirst({ where: { id: leadId, companyId } });
     if (!lead) throw new NotFoundException('Lead not found');
 
