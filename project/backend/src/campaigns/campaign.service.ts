@@ -828,7 +828,9 @@ export class CampaignService {
       where: { companyId },
       select: { mode: true, builderSpec: true, content: true },
     });
-    if (!website || website.mode !== 'advanced') return true;
+    // No website at all → not ready (a company must have a site to be listed).
+    if (!website) return false;
+    if (website.mode !== 'advanced') return true;
 
     const spec = website.builderSpec as { v?: number; step?: string; pages?: unknown[] } | null;
     if (spec?.v === 2) return Array.isArray(spec.pages) && spec.pages.length > 0;

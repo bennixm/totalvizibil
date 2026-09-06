@@ -1018,6 +1018,404 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
     }),
   },
 
+  bigStatement: {
+    type: 'bigStatement',
+    category: 'story',
+    label: 'bigStatement',
+    icon: 'mdi-format-quote-open',
+    variants: v('plain', 'boxed'),
+    fields: [F.area('statement', 'statement', 320), F.list('items', 'supporting', 3, 140)],
+    seed: (ctx) => ({
+      statement: L(ctx.locale, {
+        ro: `Credem că ${ctx.businessType ? ctx.businessType.toLowerCase() : 'munca'} bine făcută înseamnă termene respectate, comunicare clară și un rezultat care ține.`,
+        en: `We believe ${ctx.businessType ? ctx.businessType.toLowerCase() : 'work'} done well means deadlines kept, clear communication and a result that lasts.`,
+        de: `Gute ${ctx.businessType || 'Arbeit'} heißt für uns: Termine halten, klar kommunizieren und ein Ergebnis, das bleibt.`,
+      }),
+      items: [
+        L(ctx.locale, {
+          ro: 'Fără costuri ascunse',
+          en: 'No hidden costs',
+          de: 'Keine versteckten Kosten',
+        }),
+        L(ctx.locale, {
+          ro: 'Garanție la fiecare lucrare',
+          en: 'Every job guaranteed',
+          de: 'Garantie auf jede Arbeit',
+        }),
+      ],
+    }),
+  },
+
+  highlightsRow: {
+    type: 'highlightsRow',
+    category: 'proof',
+    label: 'highlightsRow',
+    icon: 'mdi-shield-check-outline',
+    variants: v('plain', 'divided'),
+    fields: [
+      F.text('title', 'title', 80),
+      F.items('items', 'highlights', 6, [F.text('icon', 'icon', 40), F.text('label', 'label', 60)]),
+    ],
+    seed: (ctx) => ({
+      title: '',
+      items: [
+        {
+          icon: 'mdi-check-decagram',
+          label: L(ctx.locale, { ro: 'Autorizați', en: 'Licensed', de: 'Zugelassen' }),
+        },
+        {
+          icon: 'mdi-shield-check',
+          label: L(ctx.locale, { ro: 'Asigurați', en: 'Insured', de: 'Versichert' }),
+        },
+        {
+          icon: 'mdi-clock-fast',
+          label: L(ctx.locale, {
+            ro: 'Răspuns rapid',
+            en: 'Fast response',
+            de: 'Schnelle Antwort',
+          }),
+        },
+        {
+          icon: 'mdi-map-marker-outline',
+          label: ctx.city
+            ? L(ctx.locale, {
+                ro: `Local în ${ctx.city}`,
+                en: `Local in ${ctx.city}`,
+                de: `Lokal in ${ctx.city}`,
+              })
+            : L(ctx.locale, { ro: 'Echipă locală', en: 'Local team', de: 'Lokales Team' }),
+        },
+      ],
+    }),
+  },
+
+  ratingBand: {
+    type: 'ratingBand',
+    category: 'proof',
+    label: 'ratingBand',
+    icon: 'mdi-star-outline',
+    variants: v('center', 'split'),
+    fields: [
+      F.text('rating', 'rating', 8),
+      F.text('count', 'count', 16),
+      F.text('source', 'source', 40),
+      F.area('text', 'text', 200),
+    ],
+    seed: (ctx) => ({
+      rating: '4.9',
+      count: '200+',
+      source: 'Google',
+      text: L(ctx.locale, {
+        ro: `Clienții din ${ctx.city || 'zona ta'} ne recomandă pentru seriozitate și lucrări curate.`,
+        en: `Customers in ${ctx.city || 'your area'} recommend us for reliability and clean work.`,
+        de: `Kunden in ${ctx.city || 'Ihrer Region'} empfehlen uns für Zuverlässigkeit und saubere Arbeit.`,
+      }),
+    }),
+  },
+
+  video: {
+    type: 'video',
+    category: 'content',
+    label: 'video',
+    icon: 'mdi-play-circle-outline',
+    variants: v('wide', 'boxed'),
+    fields: [
+      F.text('title', 'title', 120),
+      F.text('videoUrl', 'videoUrl', 300),
+      F.image('posterImage', 'poster'),
+      F.text('caption', 'caption', 160),
+    ],
+    seed: (ctx) => ({
+      title: L(ctx.locale, { ro: 'Vezi cum lucrăm', en: 'See how we work', de: 'So arbeiten wir' }),
+      videoUrl: '',
+      posterImage: '',
+      caption: '',
+    }),
+  },
+
+  showcase: {
+    type: 'showcase',
+    category: 'story',
+    label: 'showcase',
+    icon: 'mdi-image-text',
+    variants: v('left', 'center'),
+    fields: [
+      F.image('backgroundImage', 'image'),
+      F.text('headline', 'headline', 120),
+      F.area('text', 'text', 240),
+      F.text('buttonLabel', 'buttonLabel', 40),
+    ],
+    seed: (ctx) => ({
+      backgroundImage: '',
+      headline: L(ctx.locale, {
+        ro: `${ctx.businessName || 'Echipa noastră'}, la treabă de peste 10 ani`,
+        en: `${ctx.businessName || 'Our team'}, at work for over 10 years`,
+        de: `${ctx.businessName || 'Unser Team'}, seit über 10 Jahren im Einsatz`,
+      }),
+      text: L(ctx.locale, {
+        ro: 'O scurtă frază despre ce te face să ai încredere în noi.',
+        en: 'A short line about why you can trust us.',
+        de: 'Ein kurzer Satz, warum Sie uns vertrauen können.',
+      }),
+      buttonLabel: L(ctx.locale, {
+        ro: 'Contactează-ne',
+        en: 'Get in touch',
+        de: 'Kontakt aufnehmen',
+      }),
+    }),
+  },
+
+  beforeAfter: {
+    type: 'beforeAfter',
+    category: 'proof',
+    label: 'beforeAfter',
+    icon: 'mdi-compare',
+    variants: v('side', 'stacked'),
+    fields: [
+      F.text('title', 'title', 120),
+      F.image('beforeImage', 'beforeImage'),
+      F.image('afterImage', 'afterImage'),
+      F.text('beforeLabel', 'beforeLabel', 30),
+      F.text('afterLabel', 'afterLabel', 30),
+    ],
+    seed: (ctx) => ({
+      title: L(ctx.locale, { ro: 'Înainte și după', en: 'Before & after', de: 'Vorher & nachher' }),
+      beforeImage: '',
+      afterImage: '',
+      beforeLabel: L(ctx.locale, { ro: 'Înainte', en: 'Before', de: 'Vorher' }),
+      afterLabel: L(ctx.locale, { ro: 'După', en: 'After', de: 'Nachher' }),
+    }),
+  },
+
+  tabs: {
+    type: 'tabs',
+    category: 'content',
+    label: 'tabs',
+    icon: 'mdi-tab',
+    variants: v('line', 'pill'),
+    fields: [
+      F.text('title', 'title', 120),
+      F.items('items', 'tabs', 5, [
+        F.text('label', 'tabLabel', 40),
+        F.area('body', 'body', 500),
+        F.image('imageUrl', 'image'),
+      ]),
+    ],
+    seed: (ctx) => ({
+      title: L(ctx.locale, { ro: 'Ce oferim', en: 'What we offer', de: 'Was wir bieten' }),
+      items: seedServiceNames(ctx)
+        .slice(0, 3)
+        .map((n) => ({
+          label: cap(n),
+          body: L(ctx.locale, {
+            ro: `Detalii despre ${n.toLowerCase()} — ce include, cum decurge și la ce să te aștepți.`,
+            en: `Details about ${n.toLowerCase()} — what's included, how it works and what to expect.`,
+            de: `Details zu ${n.toLowerCase()} — was enthalten ist, wie es abläuft und was Sie erwartet.`,
+          }),
+          imageUrl: '',
+        })),
+    }),
+  },
+
+  hours: {
+    type: 'hours',
+    category: 'content',
+    label: 'hours',
+    icon: 'mdi-clock-time-four-outline',
+    variants: v('list', 'card'),
+    fields: [
+      F.text('title', 'title', 120),
+      F.text('note', 'note', 160),
+      F.items('items', 'hoursRows', 7, [
+        F.text('day', 'day', 24),
+        F.text('value', 'hoursValue', 40),
+      ]),
+    ],
+    seed: (ctx) => {
+      const closed = L(ctx.locale, { ro: 'Închis', en: 'Closed', de: 'Geschlossen' });
+      const days =
+        ctx.locale === 'de'
+          ? ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+          : ctx.locale === 'en'
+            ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+            : ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
+      return {
+        title: L(ctx.locale, { ro: 'Program', en: 'Opening hours', de: 'Öffnungszeiten' }),
+        note: L(ctx.locale, {
+          ro: 'Sunați oricând pentru urgențe.',
+          en: 'Call any time for emergencies.',
+          de: 'Bei Notfällen jederzeit anrufen.',
+        }),
+        items: days.map((d, i) => ({
+          day: d,
+          value: i < 5 ? '09:00 – 18:00' : i === 5 ? '09:00 – 14:00' : closed,
+        })),
+      };
+    },
+  },
+
+  caseStudy: {
+    type: 'caseStudy',
+    category: 'proof',
+    label: 'caseStudy',
+    icon: 'mdi-briefcase-check-outline',
+    variants: v('imageLeft', 'imageRight'),
+    fields: [
+      F.text('title', 'title', 120),
+      F.text('client', 'client', 60),
+      F.image('imageUrl', 'image'),
+      F.area('challenge', 'challenge', 300),
+      F.area('solution', 'solution', 300),
+      F.area('result', 'result', 300),
+      F.text('metric', 'metric', 16),
+      F.text('metricLabel', 'metricLabel', 40),
+    ],
+    seed: (ctx) => ({
+      title: L(ctx.locale, { ro: 'Studiu de caz', en: 'Case study', de: 'Fallstudie' }),
+      client: L(ctx.locale, {
+        ro: 'Client din zonă',
+        en: 'A local client',
+        de: 'Ein lokaler Kunde',
+      }),
+      imageUrl: '',
+      challenge: L(ctx.locale, {
+        ro: 'Descrie pe scurt problema cu care a venit clientul.',
+        en: 'Briefly describe the problem the client came with.',
+        de: 'Beschreiben Sie kurz das Problem des Kunden.',
+      }),
+      solution: L(ctx.locale, {
+        ro: 'Ce ați făcut, pas cu pas, ca să o rezolvați.',
+        en: 'What you did, step by step, to solve it.',
+        de: 'Was Sie Schritt für Schritt getan haben, um es zu lösen.',
+      }),
+      result: L(ctx.locale, {
+        ro: 'Rezultatul final și feedbackul clientului.',
+        en: 'The end result and the client feedback.',
+        de: 'Das Endergebnis und das Feedback des Kunden.',
+      }),
+      metric: '2x',
+      metricLabel: L(ctx.locale, {
+        ro: 'mai rapid decât estimarea',
+        en: 'faster than estimated',
+        de: 'schneller als geschätzt',
+      }),
+    }),
+  },
+
+  splitCta: {
+    type: 'splitCta',
+    category: 'conversion',
+    label: 'splitCta',
+    icon: 'mdi-call-split',
+    variants: v('cards', 'stacked'),
+    fields: [
+      F.text('title', 'title', 120),
+      F.items('items', 'ctaCards', 3, [
+        F.text('title', 'cardTitle', 60),
+        F.area('text', 'text', 200),
+        F.text('buttonLabel', 'buttonLabel', 30),
+        F.text('target', 'target', 60),
+      ]),
+    ],
+    seed: (ctx) => ({
+      title: '',
+      items: [
+        {
+          title: L(ctx.locale, { ro: 'Pentru locuințe', en: 'For homes', de: 'Für Privatkunden' }),
+          text: L(ctx.locale, {
+            ro: 'Servicii pentru apartamente și case.',
+            en: 'Services for flats and houses.',
+            de: 'Leistungen für Wohnungen und Häuser.',
+          }),
+          buttonLabel: L(ctx.locale, { ro: 'Cere o ofertă', en: 'Get a quote', de: 'Angebot' }),
+          target: 'contact',
+        },
+        {
+          title: L(ctx.locale, { ro: 'Pentru firme', en: 'For business', de: 'Für Unternehmen' }),
+          text: L(ctx.locale, {
+            ro: 'Contracte pentru birouri și spații comerciale.',
+            en: 'Contracts for offices and commercial spaces.',
+            de: 'Verträge für Büros und Gewerbeflächen.',
+          }),
+          buttonLabel: L(ctx.locale, {
+            ro: 'Discută cu noi',
+            en: 'Talk to us',
+            de: 'Sprechen Sie uns an',
+          }),
+          target: 'contact',
+        },
+      ],
+    }),
+  },
+
+  newsletter: {
+    type: 'newsletter',
+    category: 'conversion',
+    label: 'newsletter',
+    icon: 'mdi-email-fast-outline',
+    variants: v('band', 'card'),
+    fields: [
+      F.text('title', 'title', 120),
+      F.area('text', 'text', 200),
+      F.text('buttonLabel', 'buttonLabel', 30),
+      F.text('placeholder', 'placeholder', 40),
+      F.text('note', 'note', 120),
+    ],
+    seed: (ctx) => ({
+      title: L(ctx.locale, {
+        ro: 'Rămâi la curent',
+        en: 'Stay in the loop',
+        de: 'Bleiben Sie informiert',
+      }),
+      text: L(ctx.locale, {
+        ro: 'Oferte și noutăți, o dată pe lună. Fără spam.',
+        en: 'Offers and news, once a month. No spam.',
+        de: 'Angebote und Neuigkeiten, einmal im Monat. Kein Spam.',
+      }),
+      buttonLabel: L(ctx.locale, { ro: 'Abonează-te', en: 'Subscribe', de: 'Abonnieren' }),
+      placeholder: L(ctx.locale, {
+        ro: 'Adresa ta de email',
+        en: 'Your email address',
+        de: 'Ihre E-Mail-Adresse',
+      }),
+      note: L(ctx.locale, {
+        ro: 'Te poți dezabona oricând.',
+        en: 'Unsubscribe any time.',
+        de: 'Jederzeit abbestellbar.',
+      }),
+    }),
+  },
+
+  quoteBig: {
+    type: 'quoteBig',
+    category: 'proof',
+    label: 'quoteBig',
+    icon: 'mdi-comment-quote-outline',
+    variants: v('plain', 'card'),
+    fields: [
+      F.area('quote', 'quote', 400),
+      F.text('author', 'author', 80),
+      F.text('role', 'authorRole', 80),
+      F.image('imageUrl', 'image'),
+    ],
+    seed: (ctx) => ({
+      quote: L(ctx.locale, {
+        ro: 'Am lucrat cu multe firme, dar aici am simțit prima dată că cineva chiar își asumă rezultatul.',
+        en: 'I have worked with many firms, but this was the first time someone truly owned the result.',
+        de: 'Ich habe mit vielen Firmen gearbeitet, aber hier hat zum ersten Mal jemand wirklich Verantwortung übernommen.',
+      }),
+      author: L(ctx.locale, { ro: 'Client recent', en: 'Recent client', de: 'Aktueller Kunde' }),
+      role: ctx.city
+        ? L(ctx.locale, {
+            ro: `Proprietar, ${ctx.city}`,
+            en: `Homeowner, ${ctx.city}`,
+            de: `Eigentümer, ${ctx.city}`,
+          })
+        : '',
+      imageUrl: '',
+    }),
+  },
+
   custom: {
     type: 'custom',
     category: 'content',
@@ -1106,6 +1504,10 @@ function pickEnum(raw: unknown, opts: readonly string[], dflt: string): string {
 }
 
 /** Validate + clamp one block of a `custom` section (see `CUSTOM_BLOCK_KINDS`). */
+const BLOCK_HEX_RE = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const coerceBlockColor = (raw: unknown): string =>
+  typeof raw === 'string' && BLOCK_HEX_RE.test(raw.trim()) ? raw.trim().toLowerCase() : '';
+
 function coerceBlock(raw: unknown): Record<string, unknown> {
   const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const kind = pickEnum(s.kind, CUSTOM_BLOCK_KINDS, 'text') as CustomBlockKind;
@@ -1115,6 +1517,7 @@ function coerceBlock(raw: unknown): Record<string, unknown> {
         kind,
         text: clampStr(s.text, 160, true),
         size: pickEnum(s.size, ['lg', 'md', 'sm'], 'lg'),
+        color: coerceBlockColor(s.color),
       };
     case 'image':
       return { kind, url: coerceImage(s.url), caption: clampStr(s.caption, 160, true) };
@@ -1133,7 +1536,11 @@ function coerceBlock(raw: unknown): Record<string, unknown> {
       return { kind };
     case 'text':
     default:
-      return { kind: 'text', text: clampStr(s.text, 1500, false) };
+      return {
+        kind: 'text',
+        text: clampStr(s.text, 1500, false),
+        color: coerceBlockColor(s.color),
+      };
   }
 }
 

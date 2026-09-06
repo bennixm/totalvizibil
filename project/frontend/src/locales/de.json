@@ -842,7 +842,10 @@
       "ai_unavailable": "Die KI konnte gerade nichts erzeugen. Bitte erneut versuchen.",
       "nothing_to_undo": "Es gibt keine vorherige Version.",
       "banned_content": "Der Text enthält unzulässige Wörter. Bitte umformulieren.",
-      "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgesehen — es kann nicht mehr bearbeitet werden."
+      "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgesehen — es kann nicht mehr bearbeitet werden.",
+      "section_limit": "Eine Seite darf höchstens 10 Abschnitte haben.",
+      "system_page_locked": "Rechtliche Seiten sind ein einzelner Textblock und lassen sich nicht umbauen.",
+      "last_section": "Eine Seite muss mindestens einen Abschnitt behalten."
     },
     "msg": {
       "opening": "Hallo! Ich bin der Totalvizibil-Assistent und baue Ihnen eine komplexe Website. Beschreiben Sie, was Ihr Unternehmen macht.",
@@ -1014,7 +1017,37 @@
       "blockWidth": "Breite",
       "blockBg": "Hintergrund",
       "blockAlign": "Ausrichtung",
-      "blocks": "Blöcke"
+      "blocks": "Blöcke",
+      "statement": "Aussage",
+      "supporting": "Zusätzliche Punkte",
+      "highlights": "Highlights",
+      "icon": "Symbol (mdi-…)",
+      "label": "Bezeichnung",
+      "rating": "Bewertung",
+      "count": "Anzahl Bewertungen",
+      "source": "Quelle",
+      "videoUrl": "Video-Link (YouTube, Vimeo…)",
+      "poster": "Vorschaubild",
+      "caption": "Bildunterschrift",
+      "beforeImage": "Vorher-Bild",
+      "afterImage": "Nachher-Bild",
+      "beforeLabel": "Vorher-Label",
+      "afterLabel": "Nachher-Label",
+      "tabs": "Tabs",
+      "tabLabel": "Tab-Titel",
+      "note": "Hinweis",
+      "hoursRows": "Tage",
+      "day": "Tag",
+      "hoursValue": "Uhrzeit",
+      "client": "Kunde",
+      "challenge": "Die Herausforderung",
+      "solution": "Die Lösung",
+      "result": "Das Ergebnis",
+      "metric": "Kennzahl",
+      "metricLabel": "Kennzahl-Text",
+      "ctaCards": "Karten",
+      "cardTitle": "Kartentitel",
+      "placeholder": "Platzhalter"
     },
     "customBlock": {
       "add": "Block hinzufügen",
@@ -1031,7 +1064,8 @@
       "captionPh": "Bildunterschrift (optional)",
       "btnLabelPh": "Buttontext",
       "btnTargetPh": "Ziel: Seite, Abschnitt oder Link",
-      "btnTargetHint": "Seiten-Slug (z. B. contact), Abschnittstyp (z. B. pricing) oder ein https://-Link."
+      "btnTargetHint": "Seiten-Slug (z. B. contact), Abschnittstyp (z. B. pricing) oder ein https://-Link.",
+      "color": "Farbe"
     },
     "aiTitle": "Website mit KI erzeugen",
     "aiLead": "Beschreiben Sie das Unternehmen und was auf die Website soll. Die KI wählt Seiten, Abschnitte und Texte.",
@@ -1122,6 +1156,7 @@
     "legal": "Rechtliche Seiten",
     "legalPrivacy": "Datenschutzerklärung",
     "legalTerms": "AGB",
+    "legalPageHint": "Rechtstext — Inhalt bearbeiten; die Struktur ist fest.",
     "legalCookies": "Cookie-Richtlinie",
     "aiModeImprove": "Verbessern",
     "aiModeImproveHint": "Bestehende Website behalten und Änderungen anwenden",
@@ -1151,6 +1186,18 @@
       "socLabel": "Bezeichnung",
       "socAdd": "Link hinzufügen",
       "saving": "Wird gespeichert…"
+    },
+    "saveNow": "Speichern",
+    "unsaved": "Nicht gespeicherte Änderungen",
+    "allSaved": "Alle Änderungen gespeichert",
+    "leaveWarn": "Sie haben nicht gespeicherte Änderungen. Editor trotzdem verlassen?",
+    "sectionColors": "Abschnittsfarben",
+    "color": {
+      "bg": "Hintergrund",
+      "text": "Text",
+      "heading": "Überschriften",
+      "accent": "Akzent",
+      "clear": "Entfernen"
     }
   },
   "site": {
@@ -1669,7 +1716,14 @@
       "mixed": "Gemischt",
       "line": "Linie",
       "card": "Karte",
-      "bordered": "Mit Rahmen"
+      "bordered": "Mit Rahmen",
+      "divided": "Getrennt",
+      "center": "Zentriert",
+      "left": "Linksbündig",
+      "side": "Nebeneinander",
+      "pill": "Pillen",
+      "two": "Zwei",
+      "three": "Drei"
     },
     "hero": {
       "label": "Hero",
@@ -1768,6 +1822,54 @@
     "banner": {
       "label": "Promo-Banner",
       "desc": "Kurze Botschaft über die volle Breite mit Button"
+    },
+    "bigStatement": {
+      "label": "Große Aussage",
+      "desc": "Ein großer, redaktioneller Satz mit einigen Stützpunkten"
+    },
+    "highlightsRow": {
+      "label": "Vorteilsleiste",
+      "desc": "Eine Reihe kurzer Symbol-Elemente: zugelassen, versichert, schnell…"
+    },
+    "ratingBand": {
+      "label": "Bewertungsleiste",
+      "desc": "Durchschnittsnote und Anzahl Bewertungen, mit einem Kontextsatz"
+    },
+    "video": {
+      "label": "Video",
+      "desc": "Ein eingebettetes Video über einen externen Link, mit Vorschaubild"
+    },
+    "showcase": {
+      "label": "Showcase",
+      "desc": "Ein vollflächiges Bild mit Überschrift und Button darüber"
+    },
+    "beforeAfter": {
+      "label": "Vorher / nachher",
+      "desc": "Zwei Bilder im Vergleich, mit Labels"
+    },
+    "tabs": {
+      "label": "Tabs",
+      "desc": "Inhalt in Tabs, zwischen denen Besucher wechseln"
+    },
+    "hours": {
+      "label": "Öffnungszeiten",
+      "desc": "Eine Tabelle der Öffnungszeiten nach Tag"
+    },
+    "caseStudy": {
+      "label": "Fallstudie",
+      "desc": "Ein Projekt im Detail: Herausforderung, Lösung, Ergebnis, Kennzahl"
+    },
+    "splitCta": {
+      "label": "Doppel-CTA",
+      "desc": "Zwei bis drei Karten mit Button, für verschiedene Zielgruppen"
+    },
+    "newsletter": {
+      "label": "Newsletter",
+      "desc": "Ein E-Mail-Anmeldeband"
+    },
+    "quoteBig": {
+      "label": "Großes Zitat",
+      "desc": "Ein einzelnes Testimonial, groß dargestellt, mit Autor"
     }
   },
   "invoice": {

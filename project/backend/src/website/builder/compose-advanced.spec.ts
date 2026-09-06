@@ -2,6 +2,7 @@ import { SeedCtx } from './section-catalog';
 import {
   ADVANCED_GENERATOR,
   MAX_PAGES,
+  coerceStyle,
   composeAdvancedDoc,
   docFromLegacy,
   keywordPlanDoc,
@@ -180,5 +181,107 @@ describe('advanced composer', () => {
       ctx,
     );
     expect(withHist.history).toHaveLength(3);
+  });
+
+  it('coerceStyle keeps only valid hex colours', () => {
+    expect(
+      coerceStyle({ bg: '#FFF', text: '#0b0c11', heading: 'red', accent: '#12345678' }),
+    ).toEqual({ bg: '#fff', text: '#0b0c11', accent: '#12345678' });
+    expect(coerceStyle({ bg: '' })).toBeUndefined();
+    expect(coerceStyle('nope')).toBeUndefined();
+    expect(coerceStyle({ bg: 'javascript:alert(1)' })).toBeUndefined();
+  });
+
+  it('normalizeDoc preserves a section colour override', () => {
+    const base = starterAdvancedDoc(ctx);
+    base.pages[0].sections[0].style = { bg: '#101820', heading: '#ffffff', bogus: 'x' } as never;
+    const out = normalizeDoc(base, ctx);
+    expect(out.pages[0].sections[0].style).toEqual({ bg: '#101820', heading: '#ffffff' });
+    const g = composeAdvancedDoc(out, ctx);
+    expect((g.content.pages[0].sections[0] as { style?: unknown }).style).toEqual({
+      bg: '#101820',
+      heading: '#ffffff',
+    });
+  });
+
+  it('the 12 new section types survive a normalize round-trip', () => {
+    const types = [
+      'bigStatement',
+      'highlightsRow',
+      'ratingBand',
+      'video',
+      'showcase',
+      'beforeAfter',
+      'tabs',
+      'hours',
+      'caseStudy',
+      'splitCta',
+      'newsletter',
+      'quoteBig',
+    ];
+    const doc = normalizeDoc(
+      {
+        v: 2,
+        mode: 'manual',
+        pages: [
+          {
+            title: 'Home',
+            slug: 'home',
+            isHome: true,
+            sections: types.slice(0, 6).map((type) => ({ type, variant: '' })),
+          },
+          {
+            title: 'More',
+            slug: 'more',
+            isHome: false,
+            sections: types.slice(6).map((type) => ({ type, variant: '' })),
+          },
+        ],
+      },
+      ctx,
+    );
+    const g = composeAdvancedDoc(doc, ctx);
+    const seen: string[] = g.content.pages.flatMap((p) => p.sections.map((s) => s.type));
+    expect(types.every((t) => seen.includes(t))).toBe(true);
+    expect(g.content.pages.flatMap((p) => p.sections).every((s) => !!s.type && !!s.variant)).toBe(
+      true,
+    );
+  });
+
+  it('normalizeDoc clamps a page to MAX_SECTIONS', () => {
+    const doc = normalizeDoc(
+      {
+        v: 2,
+        mode: 'manual',
+        pages: [
+          {
+            title: 'Home',
+            slug: 'home',
+            isHome: true,
+            sections: Array.from({ length: 18 }, () => ({ type: 'about', variant: '' })),
+          },
+        ],
+      },
+      ctx,
+    );
+    expect(doc.pages[0].sections.length).toBe(10);
+  });
+
+  it('a legal page is always exactly one non-empty richText (self-heals)', () => {
+    const base = starterAdvancedDoc(ctx);
+    const legal = base.pages.filter((p) => p.system);
+    // (a) emptied legal page → boilerplate restored
+    legal[0].sections = [];
+    // (b) legal page with an injected non-text section → stripped, text kept
+    legal[1].sections = [
+      { id: 'x', type: 'gallery', variant: 'grid', visible: true, content: {} },
+      legal[1].sections[0],
+    ];
+    const out = normalizeDoc(base, ctx);
+    for (const p of out.pages.filter((x) => x.system)) {
+      expect(p.sections).toHaveLength(1);
+      expect(p.sections[0].type).toBe('richText');
+      expect(String(p.sections[0].content.body ?? '').length).toBeGreaterThan(80);
+    }
   });
 });

@@ -18,4 +18,9 @@ export class PatchSectionDto {
   @IsOptional()
   @IsObject()
   content?: Record<string, unknown>;
+
+  /** Colour overrides (`{ bg, text, heading, accent }` hex; `''`/junk cleared). */
+  @IsOptional()
+  @IsObject()
+  style?: Record<string, unknown>;
 }

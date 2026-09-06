@@ -40,7 +40,7 @@ function optLabel(o: string): string {
 function make(kind: Kind): Block {
   switch (kind) {
     case 'heading':
-      return { kind, text: '', size: 'lg' }
+      return { kind, text: '', size: 'lg', color: '' }
     case 'image':
       return { kind, url: '', caption: '' }
     case 'button':
@@ -51,7 +51,7 @@ function make(kind: Kind): Block {
       return { kind }
     case 'text':
     default:
-      return { kind: 'text', text: '' }
+      return { kind: 'text', text: '', color: '' }
   }
 }
 
@@ -139,19 +139,46 @@ async function onImage(i: number, e: Event): Promise<void> {
           >
             {{ optLabel(o) }}
           </button>
+          <span class="cb__colorPick" :class="{ 'is-set': !!b.color }">
+            <span class="cb__colorSw" :style="{ background: (b.color as string) || 'transparent' }" />
+            {{ t('builder.customBlock.color') }}
+            <input
+              type="color"
+              :value="(b.color as string) || '#111111'"
+              @input="patch(i, 'color', ($event.target as HTMLInputElement).value)"
+            />
+          </span>
+          <button v-if="b.color" type="button" class="cb__colorX" @click="patch(i, 'color', '')">
+            <v-icon icon="mdi-close" size="12" />
+          </button>
         </div>
       </template>
 
       <!-- text -->
-      <textarea
-        v-else-if="b.kind === 'text'"
-        class="cb__in cb__area"
-        rows="4"
-        maxlength="1500"
-        :value="(b.text as string) || ''"
-        :placeholder="t('builder.customBlock.textPh')"
-        @input="patch(i, 'text', ($event.target as HTMLTextAreaElement).value)"
-      />
+      <template v-else-if="b.kind === 'text'">
+        <textarea
+          class="cb__in cb__area"
+          rows="4"
+          maxlength="1500"
+          :value="(b.text as string) || ''"
+          :placeholder="t('builder.customBlock.textPh')"
+          @input="patch(i, 'text', ($event.target as HTMLTextAreaElement).value)"
+        />
+        <div class="cb__chips">
+          <span class="cb__colorPick" :class="{ 'is-set': !!b.color }">
+            <span class="cb__colorSw" :style="{ background: (b.color as string) || 'transparent' }" />
+            {{ t('builder.customBlock.color') }}
+            <input
+              type="color"
+              :value="(b.color as string) || '#111111'"
+              @input="patch(i, 'color', ($event.target as HTMLInputElement).value)"
+            />
+          </span>
+          <button v-if="b.color" type="button" class="cb__colorX" @click="patch(i, 'color', '')">
+            <v-icon icon="mdi-close" size="12" />
+          </button>
+        </div>
+      </template>
 
       <!-- image -->
       <template v-else-if="b.kind === 'image'">
@@ -365,6 +392,43 @@ async function onImage(i: number, e: Event): Promise<void> {
   border-color: rgb(var(--v-theme-primary));
   color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.08);
+}
+.cb__colorPick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  border: 1px solid var(--tvz-glass-border);
+  cursor: pointer;
+}
+.cb__colorPick.is-set {
+  border-color: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-primary));
+}
+.cb__colorSw {
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-on-surface), 0.25);
+}
+.cb__colorPick input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.cb__colorX {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .cb__hint {
   margin: -0.15rem 0 0.4rem;

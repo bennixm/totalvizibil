@@ -30,8 +30,10 @@ import {
   BuilderDoc,
   DocSection,
   MAX_PAGES,
+  MAX_SECTIONS,
   MOTIONS,
   PageSpec,
+  coerceStyle,
   composeAdvancedDoc,
   docFromLegacy,
   keywordPlanDoc,
@@ -45,6 +47,7 @@ import {
 import { classifyArchetype, pickSkeleton, skeletonExampleJson } from './site-archetypes';
 import { fillDocImages, hashInt } from './stock-images';
 import { PutPagesDto } from './dto/put-pages.dto';
+import { SaveDocDto } from './dto/save-doc.dto';
 import { AddSectionDto } from './dto/add-section.dto';
 import { PatchSectionDto } from './dto/patch-section.dto';
 import { MoveSectionDto } from './dto/move-section.dto';
@@ -74,10 +77,12 @@ function variantHintText(): string {
   ].join('\n');
 }
 
-/** One line per section type for the AI planner's system prompt.
- *  `custom` is a manual assemble-it-yourself section — kept out of AI plans. */
+/** One line per section type for the AI planner's system prompt. A few types
+ *  need owner-only input the model can't supply (a free-form block stack, an
+ *  external video URL, a real before/after photo pair) — keep them out. */
+const AI_SKIP_TYPES = new Set<SectionType>(['custom', 'video', 'beforeAfter']);
 function catalogPromptText(): string {
-  return SECTION_TYPES.filter((t) => t !== 'custom')
+  return SECTION_TYPES.filter((t) => !AI_SKIP_TYPES.has(t))
     .map((t) => {
       const spec = SECTION_CATALOG[t];
       const variants = spec.variants.map((v) => v.id).join('|');
@@ -262,6 +267,12 @@ export class WebsiteBuilderService {
         generator: g.generator,
       },
     });
+    // Keep the feed-card logo (`company.logoUrl`) in step with the site logo.
+    const logo = (clean.theme as { logoUrl?: string }).logoUrl;
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { logoUrl: typeof logo === 'string' && logo.trim() ? logo : null },
+    });
   }
 
   // --- view ----------------------------------------------------------
@@ -350,6 +361,11 @@ export class WebsiteBuilderService {
         sectionLeft: Math.max(0, AI_SECTION_CAP - (doc?.ai?.sectionCount ?? 0)),
       },
       catalog: unlocked ? catalogForClient() : null,
+      // Deterministic seed copy per type so the studio can add a section fully
+      // client-side (it no longer round-trips the server per edit).
+      seeds: unlocked
+        ? Object.fromEntries(SECTION_TYPES.map((t) => [t, seedSectionContent(t, ctx)]))
+        : null,
       animations: ANIMATIONS,
       motions: MOTIONS,
     };
@@ -483,7 +499,10 @@ export class WebsiteBuilderService {
     const doc = this.loadDoc(company.website, ctx);
     const page = doc.pages.find((p) => p.id === pageId);
     if (!page) throw new NotFoundException('page_not_found');
+    // Legal pages are a single, non-editable-structure text page.
+    if (page.system) throw new BadRequestException('system_page_locked');
     if (!(dto.type in SECTION_CATALOG)) throw new BadRequestException('unknown_section_type');
+    if (page.sections.length >= MAX_SECTIONS) throw new BadRequestException('section_limit');
 
     const type = dto.type as SectionType;
     const section: DocSection = {
@@ -516,6 +535,9 @@ export class WebsiteBuilderService {
       else delete found.section.animation;
     }
     if (dto.visible !== undefined) found.section.visible = dto.visible;
+    if (dto.style !== undefined) {
+      found.section.style = coerceStyle({ ...found.section.style, ...dto.style });
+    }
     if (dto.content) {
       found.section.content = coerceContent(found.section.type, {
         ...found.section.content,
@@ -534,6 +556,15 @@ export class WebsiteBuilderService {
     const found = this.findSection(doc, sectionId);
     const target = doc.pages.find((p) => p.id === dto.toPageId);
     if (!found || !target) throw new NotFoundException('section_or_page_not_found');
+    // Never restructure a legal page (in or out).
+    if (found.page.system || target.system) throw new BadRequestException('system_page_locked');
+    const crossPage = found.page.id !== target.id;
+    if (crossPage && target.sections.length >= MAX_SECTIONS) {
+      throw new BadRequestException('section_limit');
+    }
+    if (crossPage && found.page.sections.length <= 1) {
+      throw new BadRequestException('last_section');
+    }
 
     found.page.sections.splice(found.index, 1);
     const at = Math.min(Math.max(0, dto.toIndex), target.sections.length);
@@ -549,6 +580,8 @@ export class WebsiteBuilderService {
     const doc = this.loadDoc(company.website, ctx);
     const found = this.findSection(doc, sectionId);
     if (!found) throw new NotFoundException('section_not_found');
+    if (found.page.system) throw new BadRequestException('system_page_locked');
+    if (found.page.sections.length <= 1) throw new BadRequestException('last_section');
     found.page.sections.splice(found.index, 1);
 
     await this.persist(companyId, doc, ctx);
@@ -572,13 +605,23 @@ export class WebsiteBuilderService {
     doc.theme = normalizeTheme(merged);
 
     await this.persist(companyId, doc, ctx);
-    // Keep the feed-card logo (`company.logoUrl`) in step with the site logo.
-    if ('logoUrl' in sent) {
-      await this.prisma.company.update({
-        where: { id: companyId },
-        data: { logoUrl: doc.theme.logoUrl ?? null },
-      });
-    }
+    return this.view(companyId, userId);
+  }
+
+  /**
+   * Save the whole working doc from the studio (the studio no longer autosaves).
+   * The body is untrusted — `normalizeDoc` + `assertDocClean` in `persist` clamp
+   * and moderate it. Server-authoritative fields (`ai` budget, undo `history`)
+   * are carried over from the stored doc, never taken from the client.
+   */
+  async saveDoc(userId: string, companyId: string, dto: SaveDocDto) {
+    const company = await this.loadEditable(companyId, userId);
+    const ctx = this.seedCtx(company);
+    const current = this.loadDoc(company.website, ctx);
+    const incoming = normalizeDoc(dto.doc, ctx);
+    incoming.ai = current.ai;
+    incoming.history = current.history;
+    await this.persist(companyId, incoming, ctx);
     return this.view(companyId, userId);
   }
 

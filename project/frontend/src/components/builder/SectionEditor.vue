@@ -63,6 +63,18 @@ function variantLabel(id: string): string {
   const s = t(k)
   return s === k ? id : s
 }
+
+// --- per-section colour overrides ---
+const COLOR_KEYS = ['bg', 'text', 'heading', 'accent'] as const
+type ColorKey = (typeof COLOR_KEYS)[number]
+function colorOf(key: ColorKey): string {
+  return (selectedSection.value?.style?.[key] as string) || ''
+}
+function setColor(key: ColorKey, value: string): void {
+  if (selectedSection.value) {
+    store.patchSection(props.companyId, selectedSection.value.id, { style: { [key]: value } })
+  }
+}
 </script>
 
 <template>
@@ -107,6 +119,35 @@ function variantLabel(id: string): string {
           >
             {{ animLabel(a) }}
           </button>
+        </div>
+      </div>
+
+      <div class="se__block">
+        <span class="se__k"><v-icon icon="mdi-palette-outline" size="13" /> {{ t('builder.sectionColors') }}</span>
+        <div class="se__colors">
+          <span
+            v-for="k in COLOR_KEYS"
+            :key="k"
+            class="se__color"
+            :class="{ 'is-set': !!colorOf(k) }"
+          >
+            <span class="se__colorSw" :style="{ background: colorOf(k) || 'transparent' }" />
+            <span class="se__colorK">{{ t(`builder.color.${k}`) }}</span>
+            <input
+              type="color"
+              :value="colorOf(k) || '#111111'"
+              @input="setColor(k, ($event.target as HTMLInputElement).value)"
+            />
+            <button
+              v-if="colorOf(k)"
+              type="button"
+              class="se__colorX"
+              :title="t('builder.color.clear')"
+              @click="setColor(k, '')"
+            >
+              <v-icon icon="mdi-close" size="11" />
+            </button>
+          </span>
         </div>
       </div>
 
@@ -182,6 +223,50 @@ function variantLabel(id: string): string {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+.se__colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.se__color {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+  border: 1px solid var(--tvz-glass-border);
+  background: rgb(var(--v-theme-surface));
+  cursor: pointer;
+}
+.se__color.is-set {
+  border-color: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-primary));
+}
+.se__colorSw {
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-on-surface), 0.25);
+}
+.se__color input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.se__colorX {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .chip {
   padding: 0.3rem 0.7rem;

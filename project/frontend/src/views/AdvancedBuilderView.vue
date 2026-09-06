@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
@@ -21,7 +21,30 @@ const router = useRouter()
 const companies = useCompaniesStore()
 const builder = useBuilderStore()
 const { overview } = storeToRefs(companies)
-const { view, activePage, selectedId, loading, working, aiPlanning, error } = storeToRefs(builder)
+const { view, activePage, selectedId, loading, working, dirty, saving, aiPlanning, error } =
+  storeToRefs(builder)
+
+async function doSave(): Promise<void> {
+  if (companyId.value && dirty.value && !saving.value) await builder.save(companyId.value)
+}
+function onKeydown(e: KeyboardEvent): void {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    void doSave()
+  }
+}
+function onBeforeUnload(e: BeforeUnloadEvent): void {
+  if (dirty.value) {
+    e.preventDefault()
+    e.returnValue = ''
+  }
+}
+
+// Leaving the studio with unsaved edits → confirm first.
+onBeforeRouteLeave(() => {
+  if (!dirty.value) return true
+  return window.confirm(t('builder.leaveWarn'))
+})
 
 const companyId = ref<string | null>(null)
 /** A platform admin editing a business's site — entered from the admin panel with
@@ -74,6 +97,9 @@ const KNOWN_ERR = [
   'ai_unavailable',
   'nothing_to_undo',
   'banned_content',
+  'section_limit',
+  'system_page_locked',
+  'last_section',
 ]
 function errText(code: string): string {
   return KNOWN_ERR.includes(code) ? t('builder.err.' + code) : code
@@ -106,6 +132,8 @@ function onSelect(id: string): void {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('beforeunload', onBeforeUnload)
   await companies.fetchOverview().catch(() => {})
   const id = adminMode.value
     ? String(route.query.companyId)
@@ -116,6 +144,10 @@ onMounted(async () => {
   }
   companyId.value = id
   await builder.load(id)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('beforeunload', onBeforeUnload)
 })
 </script>
 
@@ -221,6 +253,22 @@ onMounted(async () => {
     <template v-else>
       <ThemeBar v-if="companyId" :company-id="companyId" @open-ai="aiOpen = true" />
 
+      <div class="wb__save" :class="{ 'is-dirty': dirty }">
+        <span class="wb__saveState">
+          <v-icon :icon="dirty ? 'mdi-circle-medium' : 'mdi-check-circle-outline'" size="17" />
+          {{ dirty ? t('builder.unsaved') : t('builder.allSaved') }}
+        </span>
+        <button
+          type="button"
+          class="wb__saveBtn"
+          :disabled="!dirty || saving"
+          @click="doSave"
+        >
+          <v-progress-circular v-if="saving" indeterminate size="14" width="2" />
+          <template v-else><v-icon icon="mdi-content-save-outline" size="15" /> {{ t('builder.saveNow') }}</template>
+        </button>
+      </div>
+
       <div class="wb__tabs">
         <button :class="{ 'is-on': pane === 'pages' }" type="button" @click="pane = 'pages'">
           <v-icon icon="mdi-file-tree-outline" size="18" /> {{ t('builder.panePages') }}
@@ -308,11 +356,6 @@ onMounted(async () => {
           {{ t('builder.continueBudget') }}
         </v-btn>
       </div>
-      <div v-else class="wb__note wb__note--ok">
-        <v-icon icon="mdi-check-circle-outline" size="16" />
-        <span>{{ t('builder.autosaved') }}</span>
-      </div>
-
       <p v-if="view.aiConfigured" class="wb__aiquota">
         <v-icon icon="mdi-creation" size="13" />
         {{ t('builder.aiQuota', { left: aiPlanLeft, limit: aiPlanLimit }) }}
@@ -473,6 +516,46 @@ onMounted(async () => {
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-primary));
   box-shadow: var(--tvz-shadow-sm);
+}
+
+.wb__save {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--tvz-radius-md);
+  border: 1px solid var(--tvz-glass-border);
+  background: rgba(var(--v-theme-on-surface), 0.03);
+}
+.wb__save.is-dirty {
+  border-color: rgba(var(--v-theme-warning), 0.45);
+  background: rgba(var(--v-theme-warning), 0.08);
+}
+.wb__saveState {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.wb__save.is-dirty .wb__saveState {
+  color: rgb(var(--v-theme-warning, 217 119 6));
+}
+.wb__saveBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgb(var(--v-theme-primary));
+}
+.wb__saveBtn:disabled {
+  opacity: 0.45;
 }
 
 .wb__grid {

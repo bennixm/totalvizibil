@@ -2,13 +2,17 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { useBuilderStore, type SectionSpec } from '@/stores/builder'
+import { useBuilderStore, MAX_SECTIONS, type SectionSpec } from '@/stores/builder'
 
 const props = defineProps<{ companyId: string; pageId: string; index?: number }>()
 const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
 const store = useBuilderStore()
+
+const pageFull = computed(
+  () => (store.pages.find((p) => p.id === props.pageId)?.sections.length ?? 0) >= MAX_SECTIONS,
+)
 
 const CATEGORY_ORDER = ['header', 'story', 'proof', 'offer', 'content', 'conversion']
 
@@ -34,8 +38,9 @@ function catLabel(c: string): string {
   return s === k ? c : s
 }
 
-async function pick(spec: SectionSpec): Promise<void> {
-  await store.addSection(props.companyId, props.pageId, spec.type, undefined, props.index)
+function pick(spec: SectionSpec): void {
+  if (pageFull.value) return
+  store.addSection(props.companyId, props.pageId, spec.type, undefined, props.index)
   emit('close')
 }
 </script>
@@ -51,6 +56,9 @@ async function pick(spec: SectionSpec): Promise<void> {
       </header>
 
       <div class="cat__body">
+        <p v-if="pageFull" class="cat__full">
+          <v-icon icon="mdi-alert-circle-outline" size="16" /> {{ t('builder.err.section_limit') }}
+        </p>
         <section v-for="g in groups" :key="g.category" class="cat__group">
           <h3>{{ catLabel(g.category) }}</h3>
           <div class="cat__grid">
@@ -59,6 +67,7 @@ async function pick(spec: SectionSpec): Promise<void> {
               :key="spec.type"
               type="button"
               class="cat__card"
+              :disabled="pageFull"
               @click="pick(spec)"
             >
               <span class="cat__ic"><v-icon :icon="spec.icon" size="20" /></span>
@@ -116,6 +125,22 @@ async function pick(spec: SectionSpec): Promise<void> {
 .cat__body {
   overflow-y: auto;
   padding: 1rem 1.1rem 1.3rem;
+}
+.cat__full {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--tvz-radius-md);
+  background: rgba(var(--v-theme-warning), 0.12);
+  color: rgb(var(--v-theme-warning, 217 119 6));
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.cat__card:disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }
 .cat__group + .cat__group {
   margin-top: 1.2rem;

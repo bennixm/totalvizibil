@@ -842,7 +842,10 @@
       "ai_unavailable": "AI-ul nu a putut genera acum. Încearcă din nou.",
       "nothing_to_undo": "Nu există o versiune anterioară.",
       "banned_content": "Textul conține cuvinte care nu sunt permise. Reformulează.",
-      "company_pending_deletion": "Afacerea este programată pentru ștergere — nu mai poate fi editată."
+      "company_pending_deletion": "Afacerea este programată pentru ștergere — nu mai poate fi editată.",
+      "section_limit": "O pagină poate avea maximum 10 secțiuni.",
+      "system_page_locked": "Paginile legale au un singur text și nu pot fi restructurate.",
+      "last_section": "O pagină trebuie să aibă cel puțin o secțiune."
     },
     "msg": {
       "opening": "Salut! Sunt asistentul Totalvizibil și îți construiesc un website complex. Descrie-ne cu ce se ocupă afacerea ta.",
@@ -1014,7 +1017,37 @@
       "blockWidth": "Lățime",
       "blockBg": "Fundal",
       "blockAlign": "Aliniere",
-      "blocks": "Blocuri"
+      "blocks": "Blocuri",
+      "statement": "Declarație",
+      "supporting": "Puncte de sprijin",
+      "highlights": "Elemente",
+      "icon": "Iconiță (mdi-…)",
+      "label": "Etichetă",
+      "rating": "Notă",
+      "count": "Număr recenzii",
+      "source": "Sursă",
+      "videoUrl": "Link video (YouTube, Vimeo…)",
+      "poster": "Imagine de fundal",
+      "caption": "Descriere",
+      "beforeImage": "Imagine „înainte”",
+      "afterImage": "Imagine „după”",
+      "beforeLabel": "Etichetă „înainte”",
+      "afterLabel": "Etichetă „după”",
+      "tabs": "File",
+      "tabLabel": "Titlu filă",
+      "note": "Notă",
+      "hoursRows": "Zile",
+      "day": "Zi",
+      "hoursValue": "Interval",
+      "client": "Client",
+      "challenge": "Provocarea",
+      "solution": "Soluția",
+      "result": "Rezultatul",
+      "metric": "Cifră cheie",
+      "metricLabel": "Descriere cifră",
+      "ctaCards": "Carduri",
+      "cardTitle": "Titlu card",
+      "placeholder": "Text substituent"
     },
     "customBlock": {
       "add": "Adaugă bloc",
@@ -1031,7 +1064,8 @@
       "captionPh": "Descriere imagine (opțional)",
       "btnLabelPh": "Text buton",
       "btnTargetPh": "Țintă: pagină, secțiune sau link",
-      "btnTargetHint": "Slug de pagină (ex: contact), tip de secțiune (ex: pricing) sau un link https://."
+      "btnTargetHint": "Slug de pagină (ex: contact), tip de secțiune (ex: pricing) sau un link https://.",
+      "color": "Culoare"
     },
     "aiTitle": "Generează site-ul cu AI",
     "aiLead": "Descrie afacerea și ce vrei pe site. AI-ul alege paginile, secțiunile și textele.",
@@ -1122,6 +1156,7 @@
     "legal": "Pagini legale",
     "legalPrivacy": "Confidențialitate",
     "legalTerms": "Termeni și condiții",
+    "legalPageHint": "Text legal — editează conținutul; structura e fixă.",
     "legalCookies": "Politica de cookies",
     "aiModeImprove": "Îmbunătățește",
     "aiModeImproveHint": "Păstrează site-ul actual și aplică ce ceri",
@@ -1151,6 +1186,18 @@
       "socLabel": "Etichetă",
       "socAdd": "Adaugă rețea",
       "saving": "Se salvează…"
+    },
+    "saveNow": "Salvează",
+    "unsaved": "Modificări nesalvate",
+    "allSaved": "Toate modificările sunt salvate",
+    "leaveWarn": "Ai modificări nesalvate. Sigur vrei să părăsești editorul?",
+    "sectionColors": "Culori secțiune",
+    "color": {
+      "bg": "Fundal",
+      "text": "Text",
+      "heading": "Titluri",
+      "accent": "Accent",
+      "clear": "Șterge"
     }
   },
   "site": {
@@ -1669,7 +1716,14 @@
       "mixed": "Mixt",
       "line": "Linie",
       "card": "Card",
-      "bordered": "Cu chenar"
+      "bordered": "Cu chenar",
+      "divided": "Cu separatoare",
+      "center": "Centrat",
+      "left": "Aliniat stânga",
+      "side": "Alăturat",
+      "pill": "Pastile",
+      "two": "Două",
+      "three": "Trei"
     },
     "hero": {
       "label": "Hero",
@@ -1768,6 +1822,54 @@
     "banner": {
       "label": "Bandă promo",
       "desc": "Mesaj scurt cu buton, pe toată lățimea"
+    },
+    "bigStatement": {
+      "label": "Declarație",
+      "desc": "O frază mare, editorială, cu câteva puncte de sprijin"
+    },
+    "highlightsRow": {
+      "label": "Bandă de avantaje",
+      "desc": "Rând cu iconițe scurte: autorizat, asigurat, rapid…"
+    },
+    "ratingBand": {
+      "label": "Bandă de rating",
+      "desc": "Notă medie și număr de recenzii, cu o frază de context"
+    },
+    "video": {
+      "label": "Video",
+      "desc": "Un video încorporat printr-un link extern, cu imagine de fundal"
+    },
+    "showcase": {
+      "label": "Showcase",
+      "desc": "Imagine pe toată lățimea cu titlu și buton peste ea"
+    },
+    "beforeAfter": {
+      "label": "Înainte / după",
+      "desc": "Două imagini comparate, cu etichete"
+    },
+    "tabs": {
+      "label": "File",
+      "desc": "Conținut împărțit pe file pe care vizitatorul le schimbă"
+    },
+    "hours": {
+      "label": "Program",
+      "desc": "Tabel cu orele de deschidere pe zile"
+    },
+    "caseStudy": {
+      "label": "Studiu de caz",
+      "desc": "O lucrare în detaliu: provocare, soluție, rezultat, cifră cheie"
+    },
+    "splitCta": {
+      "label": "CTA dublu",
+      "desc": "Două-trei carduri cu buton, pentru publicuri diferite"
+    },
+    "newsletter": {
+      "label": "Newsletter",
+      "desc": "Bandă de abonare la email"
+    },
+    "quoteBig": {
+      "label": "Citat mare",
+      "desc": "Un singur testimonial, afișat mare, cu autor"
     }
   },
   "invoice": {

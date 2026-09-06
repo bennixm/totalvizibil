@@ -513,6 +513,24 @@ export class CompaniesService implements OnModuleInit {
   async setPublished(userId: string, companyId: string, live: boolean) {
     await this.assertCanEditCompany(companyId, userId);
 
+    if (live) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          categoryId: true,
+          website: { select: { id: true } },
+          locations: { select: { nationwide: true, lat: true, lng: true } },
+        },
+      });
+      if (!company?.website) throw new BadRequestException('website_missing');
+      if (!company.categoryId) throw new BadRequestException('category_required');
+      const loc = company.locations.find((l) => l.nationwide || (l.lat != null && l.lng != null));
+      if (!loc) throw new BadRequestException('location_required');
+      if (!(await this.campaigns.isListingWebsiteReady(companyId))) {
+        throw new BadRequestException('website_builder_incomplete');
+      }
+    }
+
     await this.prisma.$transaction([
       this.prisma.company.update({
         where: { id: companyId },

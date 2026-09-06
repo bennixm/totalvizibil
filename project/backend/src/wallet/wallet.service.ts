@@ -188,21 +188,36 @@ export class WalletService {
     return this.getSummary(userId);
   }
 
-  /** Lifetime credits consumed by one business (completed spend transactions). */
+  /**
+   * Lifetime ad spend for one business — only CPC click-billing rows.
+   * Excludes one-off charges tied to the company (Advanced-builder unlock,
+   * additional-business fee) so the campaign/dashboard "spent" figures match
+   * `billed clicks × CPC`.
+   */
   async consumedByCompany(companyId: string): Promise<number> {
     const agg = await this.prisma.walletTransaction.aggregate({
-      where: { companyId, type: 'spend', status: 'completed' },
+      where: {
+        companyId,
+        type: 'spend',
+        status: 'completed',
+        provider: CPC_PROVIDER,
+      },
       _sum: { amountMinor: true },
     });
     return Math.abs(agg._sum.amountMinor ?? 0);
   }
 
-  /** Consumed-per-business map for a set of companies (dashboard/overview). */
+  /** Ad-spend-per-business map for a set of companies (dashboard/overview). CPC rows only. */
   async consumedByCompanies(companyIds: string[]): Promise<Map<string, number>> {
     if (!companyIds.length) return new Map();
     const rows = await this.prisma.walletTransaction.groupBy({
       by: ['companyId'],
-      where: { companyId: { in: companyIds }, type: 'spend', status: 'completed' },
+      where: {
+        companyId: { in: companyIds },
+        type: 'spend',
+        status: 'completed',
+        provider: CPC_PROVIDER,
+      },
       _sum: { amountMinor: true },
     });
     return new Map(

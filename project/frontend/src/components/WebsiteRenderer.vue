@@ -244,6 +244,73 @@ const sections = computed(() => (page.value?.sections ?? []).filter((s) => s.vis
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const f = (s: Section, key: string): any => (s as any)[key]
 
+// --- per-section colour overrides -----------------------------------
+// Emitted as one <style> block keyed by section id: setting the theme CSS
+// custom properties on a section element re-tints its whole subtree.
+const HEX = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
+const sectionStyleCss = computed(() => {
+  const rules: string[] = []
+  for (const p of pages.value) {
+    for (const s of p.sections) {
+      const st = (s as { style?: Record<string, string> }).style
+      if (!st) continue
+      const d: string[] = []
+      if (st.bg && HEX.test(st.bg)) d.push(`--s-bg:${st.bg}`, `--site-bg:${st.bg}`)
+      if (st.text && HEX.test(st.text)) d.push(`--site-ink:${st.text}`)
+      if (st.heading && HEX.test(st.heading)) d.push(`--s-h:${st.heading}`)
+      if (st.accent && HEX.test(st.accent)) {
+        d.push(`--site-accent:${st.accent}`, `--site-accent-ink:${inkOn(st.accent)}`)
+      }
+      if (d.length) rules.push(`.site [id="${s.id}"]{${d.join(';')}}`)
+    }
+  }
+  return rules.join('\n')
+})
+
+/** Interactive tab index per `tabs` section (keyed by section id). */
+const tabState = reactive<Record<string, number>>({})
+function tabIdx(id: string): number {
+  return tabState[id] ?? 0
+}
+function setTab(s: Section, i: number): void {
+  if (props.editable) {
+    emit('select', s.id)
+    return
+  }
+  tabState[s.id] = i
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function activeTab(s: Section): any {
+  const items = (f(s, 'items') || []) as unknown[]
+  if (!items.length) return null
+  return items[Math.min(tabIdx(s.id), items.length - 1)] ?? null
+}
+
+// --- newsletter section: a real email capture (live site only) -----
+const nlState = reactive<Record<string, { email: string; state: string }>>({})
+function nlEmail(id: string): string {
+  return nlState[id]?.email ?? ''
+}
+function nlSetEmail(id: string, v: string): void {
+  ;(nlState[id] ??= { email: '', state: 'idle' }).email = v
+}
+function nlStatus(id: string): string {
+  return nlState[id]?.state ?? 'idle'
+}
+async function nlSubmit(s: Section): Promise<void> {
+  const st = (nlState[s.id] ??= { email: '', state: 'idle' })
+  const email = st.email.trim()
+  if (!props.leadSlug || !/^\S+@\S+\.\S+$/.test(email) || st.state === 'busy') return
+  st.state = 'busy'
+  try {
+    await submitLead(props.leadSlug, { email, message: 'Newsletter signup' })
+    st.state = 'sent'
+    emit('lead-sent')
+  } catch {
+    st.state = 'error'
+  }
+}
+
 /** Marquee needs its items twice for a seamless CSS loop. */
 function marqueeLoop(items: unknown): string[] {
   const list = (Array.isArray(items) ? items : []).map((x) => String(x)).filter(Boolean)
@@ -518,6 +585,8 @@ watch(
     ]"
     :style="[styleVars, { '--site-prog': prog }]"
   >
+    <component :is="'style'" v-if="sectionStyleCss">{{ sectionStyleCss }}</component>
+
     <div v-if="framed" class="site__chrome">
       <span /><span /><span />
       <div class="site__url">{{ content.seo.title }}</div>
@@ -1044,10 +1113,15 @@ watch(
                 v-if="b.kind === 'heading' && b.text"
                 class="s--custom__h"
                 :class="`s--custom__h--${b.size || 'lg'}`"
+                :style="b.color ? { color: b.color } : undefined"
               >
                 {{ b.text }}
               </component>
-              <div v-else-if="b.kind === 'text' && b.text" class="s--custom__tx">
+              <div
+                v-else-if="b.kind === 'text' && b.text"
+                class="s--custom__tx"
+                :style="b.color ? { color: b.color } : undefined"
+              >
                 <p v-for="(para, pj) in String(b.text).split(/\n{2,}/)" :key="pj">{{ para }}</p>
               </div>
               <figure v-else-if="b.kind === 'image' && b.url" class="s--custom__fig">
@@ -1073,6 +1147,286 @@ watch(
               <hr v-else-if="b.kind === 'divider'" class="s--custom__hr" />
             </template>
           </div>
+        </section>
+
+        <!-- BIG STATEMENT -->
+        <section
+          v-else-if="s.type === 'bigStatement'"
+          :id="s.id"
+          class="s s--bigStatement"
+          :class="vclass(s)"
+        >
+          <div class="stmt">
+            <p class="stmt__t">{{ f(s, 'statement') }}</p>
+            <ul v-if="(f(s, 'items') || []).length" class="stmt__l">
+              <li v-for="(it, i) in f(s, 'items')" :key="i">{{ it }}</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- HIGHLIGHTS ROW -->
+        <section
+          v-else-if="s.type === 'highlightsRow'"
+          :id="s.id"
+          class="s s--highlightsRow"
+          :class="vclass(s)"
+        >
+          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <div class="hl">
+            <div v-for="(it, i) in f(s, 'items')" :key="i" class="hl__i">
+              <v-icon :icon="it.icon || 'mdi-check-circle-outline'" size="24" />
+              <span>{{ it.label }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- RATING BAND -->
+        <section
+          v-else-if="s.type === 'ratingBand'"
+          :id="s.id"
+          class="s s--ratingBand"
+          :class="vclass(s)"
+        >
+          <div class="rate">
+            <div class="rate__score">
+              <span class="rate__n">{{ f(s, 'rating') }}</span>
+              <span class="rate__stars" aria-hidden="true">★★★★★</span>
+              <span class="rate__meta">
+                {{ f(s, 'count') }}<template v-if="f(s, 'source')"> · {{ f(s, 'source') }}</template>
+              </span>
+            </div>
+            <p v-if="f(s, 'text')" class="rate__t">{{ f(s, 'text') }}</p>
+          </div>
+        </section>
+
+        <!-- VIDEO -->
+        <section v-else-if="s.type === 'video'" :id="s.id" class="s s--video" :class="vclass(s)">
+          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <div
+            class="vid"
+            :class="{ 'vid--photo': !!f(s, 'posterImage'), 'vid--live': !!f(s, 'videoUrl') || editable }"
+            :style="
+              f(s, 'posterImage')
+                ? {
+                    backgroundImage: `linear-gradient(rgba(8,10,20,0.3), rgba(8,10,20,0.5)), url(${f(s, 'posterImage')})`,
+                  }
+                : undefined
+            "
+            @click="
+              editable
+                ? emit('select', s.id)
+                : f(s, 'videoUrl') && customBlockGo(f(s, 'videoUrl'))
+            "
+          >
+            <span v-if="f(s, 'videoUrl') || editable" class="vid__play" aria-hidden="true">
+              <v-icon icon="mdi-play" size="32" />
+            </span>
+          </div>
+          <p v-if="f(s, 'caption')" class="vid__cap">{{ f(s, 'caption') }}</p>
+        </section>
+
+        <!-- SHOWCASE (full-bleed image + overlay) -->
+        <section
+          v-else-if="s.type === 'showcase'"
+          :id="s.id"
+          class="s s--showcase"
+          :class="[
+            vclass(s),
+            { 's--showcase--photo': !!f(s, 'backgroundImage'), 's--showcase--center': f(s, 'variant') === 'center' },
+          ]"
+          :style="
+            f(s, 'backgroundImage')
+              ? {
+                  backgroundImage: `linear-gradient(180deg, rgba(8,10,20,0.45), rgba(8,10,20,0.75)), url(${f(s, 'backgroundImage')})`,
+                }
+              : undefined
+          "
+        >
+          <div class="show__in">
+            <h2>{{ f(s, 'headline') }}</h2>
+            <p v-if="f(s, 'text')">{{ f(s, 'text') }}</p>
+            <button
+              v-if="f(s, 'buttonLabel')"
+              type="button"
+              class="btn btn--solid"
+              @click="ctaClick(s, goToContact)"
+            >
+              {{ f(s, 'buttonLabel') }}
+            </button>
+          </div>
+        </section>
+
+        <!-- BEFORE / AFTER -->
+        <section
+          v-else-if="s.type === 'beforeAfter'"
+          :id="s.id"
+          class="s s--beforeAfter"
+          :class="vclass(s)"
+        >
+          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <div class="ba">
+            <figure class="ba__c">
+              <img v-if="f(s, 'beforeImage')" :src="f(s, 'beforeImage')" alt="" loading="lazy" />
+              <span v-else class="ba__ph" aria-hidden="true" />
+              <figcaption>{{ f(s, 'beforeLabel') || 'Before' }}</figcaption>
+            </figure>
+            <figure class="ba__c ba__c--after">
+              <img v-if="f(s, 'afterImage')" :src="f(s, 'afterImage')" alt="" loading="lazy" />
+              <span v-else class="ba__ph" aria-hidden="true" />
+              <figcaption>{{ f(s, 'afterLabel') || 'After' }}</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <!-- TABS -->
+        <section v-else-if="s.type === 'tabs'" :id="s.id" class="s s--tabs" :class="vclass(s)">
+          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <div class="tabx">
+            <div class="tabx__bar" role="tablist">
+              <button
+                v-for="(it, i) in f(s, 'items')"
+                :key="i"
+                type="button"
+                class="tabx__b"
+                :class="{ 'is-on': Math.min(tabIdx(s.id), (f(s, 'items') || []).length - 1) === i }"
+                @click.stop="setTab(s, i)"
+              >
+                {{ it.label || `Tab ${i + 1}` }}
+              </button>
+            </div>
+            <div v-if="activeTab(s)" class="tabx__panel">
+              <div class="tabx__txt">
+                <p
+                  v-for="(para, pj) in String(activeTab(s).body || '').split(/\n{2,}/)"
+                  :key="pj"
+                >
+                  {{ para }}
+                </p>
+              </div>
+              <img
+                v-if="activeTab(s).imageUrl"
+                :src="activeTab(s).imageUrl"
+                alt=""
+                loading="lazy"
+                class="tabx__img"
+              />
+            </div>
+          </div>
+        </section>
+
+        <!-- OPENING HOURS -->
+        <section v-else-if="s.type === 'hours'" :id="s.id" class="s s--hours" :class="vclass(s)">
+          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <table class="hrs">
+            <tbody>
+              <tr v-for="(it, i) in f(s, 'items')" :key="i">
+                <th>{{ it.day }}</th>
+                <td>{{ it.value }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-if="f(s, 'note')" class="hrs__note">{{ f(s, 'note') }}</p>
+        </section>
+
+        <!-- CASE STUDY -->
+        <section
+          v-else-if="s.type === 'caseStudy'"
+          :id="s.id"
+          class="s s--caseStudy"
+          :class="[vclass(s), { 's--caseStudy--rev': f(s, 'variant') === 'imageRight' }]"
+        >
+          <div class="cse__media">
+            <img v-if="f(s, 'imageUrl')" :src="f(s, 'imageUrl')" alt="" loading="lazy" />
+            <span v-else class="cse__ph" aria-hidden="true" />
+            <div v-if="f(s, 'metric')" class="cse__metric">
+              <strong>{{ f(s, 'metric') }}</strong>
+              <span v-if="f(s, 'metricLabel')">{{ f(s, 'metricLabel') }}</span>
+            </div>
+          </div>
+          <div class="cse__body">
+            <p v-if="f(s, 'client')" class="cse__client">{{ f(s, 'client') }}</p>
+            <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+            <div v-if="f(s, 'challenge')" class="cse__row"><span>01</span><p>{{ f(s, 'challenge') }}</p></div>
+            <div v-if="f(s, 'solution')" class="cse__row"><span>02</span><p>{{ f(s, 'solution') }}</p></div>
+            <div v-if="f(s, 'result')" class="cse__row"><span>03</span><p>{{ f(s, 'result') }}</p></div>
+          </div>
+        </section>
+
+        <!-- SPLIT CTA -->
+        <section
+          v-else-if="s.type === 'splitCta'"
+          :id="s.id"
+          class="s s--splitCta"
+          :class="vclass(s)"
+        >
+          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <div class="scta">
+            <article v-for="(it, i) in f(s, 'items')" :key="i" class="scta__c">
+              <h3>{{ it.title }}</h3>
+              <p v-if="it.text">{{ it.text }}</p>
+              <button
+                v-if="it.buttonLabel"
+                type="button"
+                class="btn btn--solid"
+                @click="ctaClick(s, () => customBlockGo(it.target || 'contact'))"
+              >
+                {{ it.buttonLabel }}
+              </button>
+            </article>
+          </div>
+        </section>
+
+        <!-- NEWSLETTER -->
+        <section
+          v-else-if="s.type === 'newsletter'"
+          :id="s.id"
+          class="s s--newsletter"
+          :class="vclass(s)"
+        >
+          <div class="news">
+            <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+            <p v-if="f(s, 'text')" class="news__t">{{ f(s, 'text') }}</p>
+            <form
+              v-if="nlStatus(s.id) !== 'sent'"
+              class="news__form"
+              :class="{ 'news__form--preview': !leadSlug }"
+              @submit.prevent="nlSubmit(s)"
+            >
+              <input
+                type="email"
+                :value="nlEmail(s.id)"
+                :placeholder="f(s, 'placeholder') || 'you@email.com'"
+                :disabled="!leadSlug || nlStatus(s.id) === 'busy'"
+                @input="nlSetEmail(s.id, ($event.target as HTMLInputElement).value)"
+              />
+              <button
+                type="submit"
+                class="btn btn--solid"
+                :disabled="!leadSlug || nlStatus(s.id) === 'busy'"
+              >
+                {{ f(s, 'buttonLabel') || t('site.formSend') }}
+              </button>
+            </form>
+            <p v-else class="news__ok"><span aria-hidden="true">✓</span> {{ t('site.formThanks') }}</p>
+            <p v-if="nlStatus(s.id) === 'error'" class="news__err">{{ t('site.formError') }}</p>
+            <p v-if="!leadSlug" class="news__n">{{ t('site.formPreview') }}</p>
+            <p v-else-if="f(s, 'note')" class="news__n">{{ f(s, 'note') }}</p>
+          </div>
+        </section>
+
+        <!-- BIG QUOTE -->
+        <section v-else-if="s.type === 'quoteBig'" :id="s.id" class="s s--quoteBig" :class="vclass(s)">
+          <figure class="qb">
+            <span class="qb__mark" aria-hidden="true">”</span>
+            <blockquote>{{ f(s, 'quote') }}</blockquote>
+            <figcaption v-if="f(s, 'author') || f(s, 'imageUrl')">
+              <img v-if="f(s, 'imageUrl')" :src="f(s, 'imageUrl')" alt="" loading="lazy" class="qb__av" />
+              <span>
+                <strong>{{ f(s, 'author') }}</strong>
+                <em v-if="f(s, 'role')">{{ f(s, 'role') }}</em>
+              </span>
+            </figcaption>
+          </figure>
         </section>
       </template>
 
@@ -1468,6 +1822,14 @@ watch(
   padding: calc(clamp(2.75rem, 8vw, 5.5rem) * var(--site-density, 1)) var(--pad);
   /* anchor jumps land clear of the floating one-page navbar */
   scroll-margin-top: 5.5rem;
+  /* owner per-section colour overrides (set via a keyed <style> block) — each
+     section re-resolves the tokens at its own level so a --site-ink/--s-bg
+     override actually re-tints this section's text + surface. */
+  background: var(--s-bg, transparent);
+  color: var(--site-ink);
+}
+.s :is(h1, h2, h3, h4) {
+  color: var(--s-h, inherit);
 }
 /* Number only the sections that show a "01/02/…" heading kicker (below).
    Hero, the About intro and the CTA don't carry one. */
@@ -2913,6 +3275,577 @@ a.ccard:hover {
 }
 .s--custom__sp--lg {
   height: 4.5rem;
+}
+
+/* ============ BIG STATEMENT ============ */
+.stmt {
+  max-width: 60ch;
+  margin-inline: auto;
+  text-align: center;
+}
+.stmt__t {
+  margin: 0;
+  font-family: var(--site-display);
+  font-weight: 600;
+  font-size: clamp(1.5rem, 4vw, 2.6rem);
+  line-height: 1.28;
+  letter-spacing: -0.02em;
+}
+.stmt__l {
+  list-style: none;
+  margin: 1.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.4rem;
+  justify-content: center;
+}
+.stmt__l li {
+  position: relative;
+  padding-left: 1.3rem;
+  font-size: 0.95rem;
+  color: var(--site-ink-soft);
+}
+.stmt__l li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--site-accent);
+  font-weight: 700;
+}
+.s--bigStatement--boxed .stmt {
+  max-width: 760px;
+  padding: clamp(2rem, 5vw, 3.5rem);
+  border-radius: var(--site-radius);
+  background: var(--site-surface);
+  box-shadow: var(--site-shadow);
+}
+
+/* ============ HIGHLIGHTS ROW ============ */
+.hl {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem 2rem;
+}
+.hl__i {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
+  font-size: 0.98rem;
+}
+.hl__i .v-icon {
+  color: var(--site-accent);
+}
+.s--highlightsRow--divided .hl {
+  gap: 0;
+}
+.s--highlightsRow--divided .hl__i {
+  padding: 0.2rem 1.6rem;
+}
+.s--highlightsRow--divided .hl__i + .hl__i {
+  border-left: 1px solid var(--site-border);
+}
+
+/* ============ RATING BAND ============ */
+.rate {
+  display: flex;
+  align-items: center;
+  gap: clamp(1rem, 4vw, 2.5rem);
+  max-width: 900px;
+  margin-inline: auto;
+}
+.s--ratingBand--center .rate {
+  flex-direction: column;
+  text-align: center;
+}
+.rate__score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+}
+.rate__n {
+  font-family: var(--site-display);
+  font-weight: 700;
+  font-size: clamp(2.4rem, 7vw, 3.6rem);
+  line-height: 1;
+}
+.rate__stars {
+  color: var(--site-accent);
+  letter-spacing: 0.14em;
+  font-size: 1rem;
+  margin: 0.35rem 0 0.2rem;
+}
+.rate__meta {
+  font-size: 0.82rem;
+  color: var(--site-ink-soft);
+}
+.rate__t {
+  margin: 0;
+  font-size: clamp(1.05rem, 2.4vw, 1.35rem);
+  line-height: 1.5;
+}
+
+/* ============ VIDEO ============ */
+.s--video .s__h {
+  text-align: center;
+}
+.vid {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  max-width: 960px;
+  margin: 1.4rem auto 0;
+  border-radius: var(--site-radius);
+  overflow: hidden;
+  background:
+    radial-gradient(60% 90% at 50% 50%, color-mix(in srgb, var(--site-accent) 24%, #0b0c11), #0b0c11);
+  background-size: cover;
+  background-position: center;
+}
+.vid--live {
+  cursor: pointer;
+}
+.s--video--boxed .vid {
+  max-width: 720px;
+}
+.vid__play {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  color: #0b0c11;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.6);
+  transition: transform 0.16s ease;
+}
+.vid:hover .vid__play {
+  transform: scale(1.08);
+}
+.vid__cap {
+  margin: 0.7rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--site-ink-soft);
+}
+
+/* ============ SHOWCASE ============ */
+.s--showcase {
+  background-color: #101119;
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+}
+.s--showcase:not(.s--showcase--photo) {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--site-accent) 60%, #0b0b12), #0b0b12);
+}
+.show__in {
+  max-width: 620px;
+}
+.s--showcase--center .show__in {
+  max-width: 720px;
+  margin-inline: auto;
+  text-align: center;
+}
+.show__in h2 {
+  color: #fff;
+  font-size: clamp(1.8rem, 4.5vw, 3rem);
+  margin: 0 0 0.8rem;
+}
+.show__in p {
+  margin: 0 0 1.4rem;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ============ BEFORE / AFTER ============ */
+.s--beforeAfter .s__h {
+  text-align: center;
+}
+.ba {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  max-width: 1000px;
+  margin: 1.4rem auto 0;
+}
+.s--beforeAfter--stacked .ba {
+  grid-template-columns: 1fr;
+  max-width: 640px;
+}
+.ba__c {
+  position: relative;
+  margin: 0;
+  border-radius: var(--site-radius);
+  overflow: hidden;
+  background: var(--site-wash);
+}
+.ba__c img,
+.ba__ph {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.ba__ph {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--site-border) 0 10px,
+    transparent 10px 20px
+  );
+}
+.ba__c figcaption {
+  position: absolute;
+  left: 0.7rem;
+  top: 0.7rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  background: rgba(11, 12, 20, 0.7);
+  backdrop-filter: blur(4px);
+}
+.ba__c--after figcaption {
+  background: color-mix(in srgb, var(--site-accent) 82%, rgba(0, 0, 0, 0.45));
+}
+
+/* ============ TABS ============ */
+.tabx {
+  max-width: 940px;
+  margin-inline: auto;
+}
+.tabx__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--site-border);
+}
+.tabx__b {
+  padding: 0.6rem 1rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--site-ink-soft);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.tabx__b.is-on {
+  color: var(--site-accent);
+  border-bottom-color: var(--site-accent);
+}
+.s--tabs--pill .tabx__bar {
+  border: 0;
+  gap: 0.5rem;
+}
+.s--tabs--pill .tabx__b {
+  border: 1px solid var(--site-border);
+  border-radius: 999px;
+}
+.s--tabs--pill .tabx__b.is-on {
+  color: var(--site-accent-ink);
+  background: var(--site-accent);
+  border-color: var(--site-accent);
+}
+.tabx__panel {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.4rem;
+  padding-top: 1.6rem;
+}
+.tabx__panel:has(.tabx__img) {
+  grid-template-columns: 1.3fr 1fr;
+}
+.tabx__txt p {
+  margin: 0 0 0.9rem;
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--site-ink) 84%, var(--site-bg));
+}
+.tabx__img {
+  width: 100%;
+  height: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: var(--site-radius);
+}
+
+/* ============ OPENING HOURS ============ */
+.s--hours .s__h {
+  text-align: center;
+}
+.hrs {
+  width: 100%;
+  max-width: 440px;
+  margin: 1.2rem auto 0;
+  border-collapse: collapse;
+}
+.s--hours--card .hrs {
+  padding: 0.5rem 1.2rem;
+  border-radius: var(--site-radius);
+  background: var(--site-surface);
+  box-shadow: var(--site-shadow);
+}
+.hrs th,
+.hrs td {
+  padding: 0.7rem 0.4rem;
+  border-bottom: 1px solid var(--site-border);
+  font-size: 0.95rem;
+}
+.hrs th {
+  text-align: left;
+  font-weight: 600;
+}
+.hrs td {
+  text-align: right;
+  color: var(--site-ink-soft);
+}
+.hrs tr:last-child th,
+.hrs tr:last-child td {
+  border-bottom: 0;
+}
+.hrs__note {
+  margin: 0.8rem 0 0;
+  text-align: center;
+  font-size: 0.83rem;
+  color: var(--site-ink-soft);
+}
+
+/* ============ CASE STUDY ============ */
+.s--caseStudy {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1.5rem, 5vw, 3.5rem);
+  align-items: center;
+}
+.s--caseStudy--rev .cse__media {
+  order: 2;
+}
+.cse__media {
+  position: relative;
+}
+.cse__media img,
+.cse__ph {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--site-radius);
+}
+.cse__ph {
+  background: var(--site-wash);
+}
+.cse__metric {
+  position: absolute;
+  right: -0.6rem;
+  bottom: -0.6rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--site-radius);
+  background: var(--site-accent);
+  color: var(--site-accent-ink);
+  box-shadow: var(--site-shadow);
+  display: flex;
+  flex-direction: column;
+  max-width: 60%;
+}
+.cse__metric strong {
+  font-family: var(--site-display);
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.cse__metric span {
+  font-size: 0.72rem;
+  opacity: 0.9;
+}
+.cse__client {
+  margin: 0 0 0.3rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: var(--site-accent);
+  font-weight: 700;
+}
+.cse__row {
+  display: flex;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+.cse__row span {
+  flex: none;
+  font-family: var(--site-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--site-ink-soft);
+  padding-top: 0.15rem;
+}
+.cse__row p {
+  margin: 0;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--site-ink) 84%, var(--site-bg));
+}
+
+/* ============ SPLIT CTA ============ */
+.s--splitCta .s__h {
+  text-align: center;
+}
+.scta {
+  display: grid;
+  gap: 1rem;
+  max-width: 980px;
+  margin: 1.4rem auto 0;
+  /* any item count wraps into an even grid; `stack` variant forces one column */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+.s--splitCta--stacked .scta {
+  grid-template-columns: 1fr;
+  max-width: 620px;
+}
+.scta__c {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: clamp(1.4rem, 3.5vw, 2.2rem);
+  border-radius: var(--site-radius);
+  background: var(--site-surface);
+  border: 1px solid var(--site-border);
+}
+.scta__c h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.scta__c p {
+  margin: 0;
+  flex: 1;
+  color: var(--site-ink-soft);
+  line-height: 1.55;
+}
+.scta__c .btn {
+  margin-top: 0.4rem;
+}
+
+/* ============ NEWSLETTER ============ */
+.news {
+  max-width: 640px;
+  margin-inline: auto;
+  text-align: center;
+}
+.s--newsletter--card .news {
+  padding: clamp(1.8rem, 5vw, 3rem);
+  border-radius: var(--site-radius);
+  background: var(--site-surface);
+  box-shadow: var(--site-shadow);
+}
+.news__t {
+  margin: 0.4rem 0 1.2rem;
+  color: var(--site-ink-soft);
+}
+.news__form {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.news__form input {
+  flex: 1;
+  min-width: 220px;
+  padding: 0.75rem 1rem;
+  border-radius: var(--site-btn-radius);
+  border: 1px solid var(--site-border);
+  background: var(--site-bg);
+  color: var(--site-ink);
+  font: inherit;
+}
+.news__form--preview {
+  opacity: 0.7;
+}
+.news__ok {
+  margin: 0.6rem 0 0;
+  font-weight: 600;
+  color: var(--site-accent);
+}
+.news__err {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  color: #e5484d;
+}
+.news__n {
+  margin: 0.8rem 0 0;
+  font-size: 0.78rem;
+  color: var(--site-ink-soft);
+}
+
+/* ============ BIG QUOTE ============ */
+.qb {
+  max-width: 820px;
+  margin-inline: auto;
+  text-align: center;
+}
+.s--quoteBig--card .qb {
+  padding: clamp(2rem, 5vw, 3.5rem);
+  border-radius: var(--site-radius);
+  background: var(--site-surface);
+  box-shadow: var(--site-shadow);
+}
+.qb__mark {
+  display: block;
+  font-family: var(--site-display);
+  font-size: 3.5rem;
+  line-height: 0.6;
+  color: var(--site-accent);
+}
+.qb blockquote {
+  margin: 0.6rem 0 1.4rem;
+  font-family: var(--site-display);
+  font-weight: 500;
+  font-size: clamp(1.4rem, 3.6vw, 2.1rem);
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.qb figcaption {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.qb__av {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.qb figcaption span {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.qb figcaption strong {
+  font-weight: 700;
+}
+.qb figcaption em {
+  font-style: normal;
+  font-size: 0.85rem;
+  color: var(--site-ink-soft);
+}
+
+@container (max-width: 700px) {
+  .s--caseStudy,
+  .ba,
+  .scta,
+  .tabx__panel:has(.tabx__img) {
+    grid-template-columns: 1fr;
+  }
+  .s--caseStudy--rev .cse__media {
+    order: 0;
+  }
+  .rate {
+    flex-direction: column;
+    text-align: center;
+  }
 }
 
 /* ============ modern refinements (token-driven; light + dark) ============ */

@@ -41,6 +41,14 @@ export interface SectionSpec {
   fields: FieldSpec[]
 }
 
+/** Per-section colour overrides (hex or absent = inherit the theme). */
+export interface SectionStyle {
+  bg?: string
+  text?: string
+  heading?: string
+  accent?: string
+}
+
 export interface DocSection {
   id: string
   type: string
@@ -48,6 +56,8 @@ export interface DocSection {
   visible: boolean
   /** Entrance-animation preset id; absent = inherit the theme's motion default. */
   animation?: string
+  /** Colour overrides for this section. */
+  style?: SectionStyle
   content: Record<string, unknown>
 }
 export interface PageSpec {
@@ -106,6 +116,8 @@ export interface BuilderView {
     sectionLeft: number
   }
   catalog: SectionSpec[] | null
+  /** Deterministic seed content per section type — lets "add section" work offline. */
+  seeds?: Record<string, Record<string, unknown>>
   /** Animation presets a section can pick (id + i18n label suffix). */
   animations?: VariantSpec[]
   /** Site-wide motion intensity options. */
@@ -126,12 +138,69 @@ interface State {
   catalogOpen: boolean
   loading: boolean
   working: boolean
+  /** Unsaved local edits — the studio no longer autosaves; the owner presses Save. */
+  dirty: boolean
+  /** A whole-doc save is in flight. */
+  saving: boolean
   /** True only while a full AI site generation is in flight (drives the loader). */
   aiPlanning: boolean
   error: string
 }
 
-let patchTimer: ReturnType<typeof setTimeout> | undefined
+/** Max sections one page can hold (mirrors backend `MAX_SECTIONS`). */
+export const MAX_SECTIONS = 10
+
+const uuid = (): string =>
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+      })
+
+/** Deep clone of plain JSON data. Used instead of `structuredClone`, which
+ *  throws `DataCloneError` when handed a Vue reactive Proxy (e.g. store state). */
+function jsonClone<T>(x: T): T {
+  return x == null ? x : (JSON.parse(JSON.stringify(x)) as T)
+}
+
+function slugify(s: string): string {
+  // Rough client slug for a brand-new page; the server re-slugifies on Save.
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+}
+
+/** Rebuild the renderable `content` tree from the working `doc` (client-side
+ *  mirror of the server's `composeAdvancedDoc` — enough for a faithful preview;
+ *  the server re-composes + clamps on Save). */
+function docToContent(doc: BuilderDoc, prev: WebsiteContent | null): WebsiteContent {
+  return {
+    pages: doc.pages.map((p) => ({
+      slug: p.slug,
+      title: p.title || p.slug,
+      isHome: p.isHome,
+      nav: p.system ? false : p.nav !== false,
+      ...(p.system ? { system: p.system } : {}),
+      sections: p.sections
+        .filter((s) => s.visible !== false)
+        .map((s) => ({
+          id: s.id,
+          type: s.type,
+          visible: true,
+          variant: s.variant,
+          ...(s.animation ? { animation: s.animation } : {}),
+          ...(s.style ? { style: s.style } : {}),
+          ...s.content,
+        })),
+    })) as unknown as WebsiteContent['pages'],
+    seo: prev?.seo ?? { title: '', description: '', schemaType: 'LocalBusiness' },
+    nav: doc.nav ?? prev?.nav,
+    footer: doc.footer ?? prev?.footer,
+  }
+}
 
 export const useBuilderStore = defineStore('builder', {
   state: (): State => ({
@@ -141,6 +210,8 @@ export const useBuilderStore = defineStore('builder', {
     catalogOpen: false,
     loading: false,
     working: false,
+    dirty: false,
+    saving: false,
     aiPlanning: false,
     error: '',
   }),
@@ -188,9 +259,27 @@ export const useBuilderStore = defineStore('builder', {
       this.catalogOpen = false
     },
 
-    /** Adopt a fresh server view while keeping the current selection/page focus. */
+    /** Snap a variant string to a valid id for the type (else the first). */
+    snapVariant(type: string, variant?: string): string {
+      const ids = this.catalogByType[type]?.variants.map((x) => x.id) ?? []
+      return variant && ids.includes(variant) ? variant : (ids[0] ?? '')
+    },
+
+    markDirty(): void {
+      this.dirty = true
+    },
+
+    /** Rebuild `view.content` from `view.doc` after a local edit. */
+    recompute(): void {
+      const v = this.view
+      if (v?.doc) v.content = docToContent(v.doc, v.content)
+    },
+
+    /** Adopt a fresh server view; clears the dirty flag + keeps selection/page. */
     adopt(v: BuilderView): void {
       this.view = v
+      this.dirty = false
+      this.saving = false
       const pages = v.doc?.pages ?? []
       if (!pages.some((p) => p.id === this.activePageId)) {
         this.activePageId = (pages.find((p) => p.isHome) ?? pages[0])?.id ?? null
@@ -231,169 +320,201 @@ export const useBuilderStore = defineStore('builder', {
       }
     },
 
+    /** Persist the whole working doc. The one and only save path. */
+    async save(companyId: string): Promise<boolean> {
+      if (!this.view?.doc || this.saving) return false
+      this.saving = true
+      this.error = ''
+      try {
+        const fresh = await apiFetch<BuilderView>(`/companies/${companyId}/website-builder`, {
+          method: 'PUT',
+          body: { doc: this.view.doc },
+          timeoutMs: 30_000,
+        })
+        this.adopt(fresh)
+        return true
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : 'error'
+        return false
+      } finally {
+        this.saving = false
+      }
+    },
+
     unlock(companyId: string): Promise<boolean> {
       return this.run(() =>
         apiFetch<BuilderView>(`/companies/${companyId}/website-builder/unlock`, { method: 'POST' }),
       )
     },
 
-    putPages(companyId: string, pages: PageInput[]): Promise<boolean> {
-      return this.run(() =>
-        apiFetch<BuilderView>(`/companies/${companyId}/website-builder/pages`, {
-          method: 'PUT',
-          body: { pages },
-        }),
+    // --- local editing (nothing hits the server until save()) ------------
+
+    putPages(_companyId: string, pages: PageInput[]): void {
+      const doc = this.view?.doc
+      if (!doc) return
+      const byId = new Map(doc.pages.map((p) => [p.id, p]))
+      const systemPages = doc.pages.filter((p) => p.system)
+      const real: PageSpec[] = pages
+        .slice(0, 6)
+        .map((p, i) => {
+          const existing = p.id ? byId.get(p.id) : undefined
+          if (existing?.system) return existing
+          const title = (p.title || '').trim().slice(0, 60) || `Page ${i + 1}`
+          return {
+            id: existing?.id ?? uuid(),
+            title,
+            slug: existing?.slug || slugify(title) || `page-${i + 1}`,
+            isHome: false,
+            nav: p.nav !== false,
+            sections: existing?.sections ?? [],
+          }
+        })
+        .filter((p) => !p.system)
+      if (!real.length) return
+      const homeIdx = pages.findIndex((p) => p.isHome)
+      real.forEach(
+        (p, i) => (p.isHome = i === (homeIdx >= 0 && homeIdx < real.length ? homeIdx : 0)),
       )
+      doc.pages = [...real, ...systemPages]
+      if (!doc.pages.some((p) => p.id === this.activePageId)) {
+        this.activePageId = (real.find((p) => p.isHome) ?? real[0])?.id ?? null
+      }
+      this.markDirty()
+      this.recompute()
     },
 
-    async addSection(
-      companyId: string,
+    /** Returns false (and does nothing) when the page is already at MAX_SECTIONS. */
+    addSection(
+      _companyId: string,
       pageId: string,
       type: string,
       variant?: string,
       index?: number,
-    ): Promise<void> {
-      const ok = await this.run(() =>
-        apiFetch<BuilderView>(
-          `/companies/${companyId}/website-builder/pages/${pageId}/sections`,
-          { method: 'POST', body: { type, variant, index } },
-        ),
-      )
-      if (ok) {
-        // select the freshly-added section (last of that page, or at index)
-        const page = this.pages.find((p) => p.id === pageId)
-        const at = index ?? (page ? page.sections.length - 1 : -1)
-        const added = page?.sections[at]
-        if (added) this.selectedId = added.id
+    ): boolean {
+      const v = this.view
+      const doc = v?.doc
+      if (!doc) return false
+      const page = doc.pages.find((p) => p.id === pageId)
+      if (!page || page.system || page.sections.length >= MAX_SECTIONS) return false
+      const section: DocSection = {
+        id: uuid(),
+        type,
+        variant: this.snapVariant(type, variant),
+        visible: true,
+        content: jsonClone(v?.seeds?.[type]) ?? {},
       }
+      const at = Math.min(Math.max(0, index ?? page.sections.length), page.sections.length)
+      page.sections.splice(at, 0, section)
+      this.selectedId = section.id
+      this.markDirty()
+      this.recompute()
+      return true
     },
 
-    moveSection(
-      companyId: string,
-      sectionId: string,
-      toPageId: string,
-      toIndex: number,
-    ): Promise<boolean> {
-      return this.run(() =>
-        apiFetch<BuilderView>(
-          `/companies/${companyId}/website-builder/sections/${sectionId}/move`,
-          { method: 'POST', body: { toPageId, toIndex } },
-        ),
-      )
+    moveSection(_companyId: string, sectionId: string, toPageId: string, toIndex: number): void {
+      const doc = this.view?.doc
+      if (!doc) return
+      const src = doc.pages.find((p) => p.sections.some((s) => s.id === sectionId))
+      const target = doc.pages.find((p) => p.id === toPageId)
+      if (!src || !target || src.system || target.system) return
+      const crossPage = src.id !== target.id
+      // Don't overfill another page, and don't empty a page by moving its last section out.
+      if (crossPage && (target.sections.length >= MAX_SECTIONS || src.sections.length <= 1)) return
+      const from = src.sections.findIndex((s) => s.id === sectionId)
+      const [moved] = src.sections.splice(from, 1)
+      const at = Math.min(Math.max(0, toIndex), target.sections.length)
+      target.sections.splice(at, 0, moved)
+      this.markDirty()
+      this.recompute()
     },
 
-    deleteSection(companyId: string, sectionId: string): Promise<boolean> {
+    /** Returns false when the section can't be removed (legal page / last on a page). */
+    deleteSection(_companyId: string, sectionId: string): boolean {
+      const doc = this.view?.doc
+      if (!doc) return false
+      const page = doc.pages.find((p) => p.sections.some((s) => s.id === sectionId))
+      if (!page || page.system || page.sections.length <= 1) return false
       if (this.selectedId === sectionId) this.selectedId = null
-      return this.run(() =>
-        apiFetch<BuilderView>(
-          `/companies/${companyId}/website-builder/sections/${sectionId}`,
-          { method: 'DELETE' },
-        ),
+      page.sections.splice(
+        page.sections.findIndex((s) => s.id === sectionId),
+        1,
       )
+      this.markDirty()
+      this.recompute()
+      return true
     },
 
-    patchTheme(companyId: string, patch: Partial<WebsiteTheme>): Promise<boolean> {
-      return this.run(() =>
-        apiFetch<BuilderView>(`/companies/${companyId}/website-builder/theme`, {
-          method: 'PATCH',
-          body: patch,
-        }),
-      )
+    patchTheme(_companyId: string, patch: Partial<WebsiteTheme>): void {
+      const v = this.view
+      if (!v?.doc) return
+      const merged: Record<string, unknown> = { ...v.doc.theme, ...patch }
+      // A granular tweak (no `preset` sent) detaches from the named bundle.
+      if (!('preset' in patch)) delete merged.preset
+      if ('logoUrl' in patch && !String(patch.logoUrl ?? '').trim()) delete merged.logoUrl
+      v.doc.theme = merged as unknown as WebsiteTheme
+      v.theme = merged as unknown as WebsiteTheme
+      this.markDirty()
+      this.recompute()
     },
 
     patchChrome(
-      companyId: string,
+      _companyId: string,
       patch: { nav?: Record<string, unknown>; footer?: Record<string, unknown> },
-    ): Promise<boolean> {
-      return this.run(() =>
-        apiFetch<BuilderView>(`/companies/${companyId}/website-builder/chrome`, {
-          method: 'PATCH',
-          body: patch,
-        }),
-      )
+    ): void {
+      const doc = this.view?.doc
+      if (!doc) return
+      if (patch.nav) doc.nav = { ...(doc.nav ?? {}), ...patch.nav } as NavConfig
+      if (patch.footer) doc.footer = { ...(doc.footer ?? {}), ...patch.footer } as FooterConfig
+      this.markDirty()
+      this.recompute()
     },
 
     /** Apply a one-click style bundle (writes the concrete theme fields). */
-    applyPreset(companyId: string, id: PresetId): Promise<boolean> {
-      return this.patchTheme(companyId, { ...STYLE_PRESETS[id], preset: id })
+    applyPreset(companyId: string, id: PresetId): void {
+      this.patchTheme(companyId, { ...STYLE_PRESETS[id], preset: id })
     },
 
-    /**
-     * Update a section. Text/content edits patch the local preview immediately
-     * and debounce the network call; a `variant`/`visible` change fires at once.
-     */
+    /** Update a section (variant / animation / visibility / content / colours). */
     patchSection(
-      companyId: string,
+      _companyId: string,
       sectionId: string,
       patch: {
         variant?: string
         animation?: string
         visible?: boolean
         content?: Record<string, unknown>
+        style?: Partial<SectionStyle>
       },
-      opts: { immediate?: boolean } = {},
+      _opts: { immediate?: boolean } = {},
     ): void {
-      this.applyLocal(sectionId, patch)
-      const send = (): void => {
-        void this.run(() =>
-          apiFetch<BuilderView>(
-            `/companies/${companyId}/website-builder/sections/${sectionId}`,
-            { method: 'PATCH', body: patch },
-          ),
-        )
-      }
-      clearTimeout(patchTimer)
-      if (
-        opts.immediate ||
-        patch.variant !== undefined ||
-        patch.animation !== undefined ||
-        patch.visible !== undefined
-      ) {
-        send()
-      } else patchTimer = setTimeout(send, 320)
-    },
-
-    /** Optimistic local write into both the doc and the composed content. */
-    applyLocal(
-      sectionId: string,
-      patch: {
-        variant?: string
-        animation?: string
-        visible?: boolean
-        content?: Record<string, unknown>
-      },
-    ): void {
-      const v = this.view
-      if (!v) return
-      for (const p of v.doc?.pages ?? []) {
+      const doc = this.view?.doc
+      if (!doc) return
+      for (const p of doc.pages) {
         const s = p.sections.find((x) => x.id === sectionId)
-        if (s) {
-          if (patch.variant !== undefined) s.variant = patch.variant
-          if (patch.animation !== undefined) s.animation = patch.animation || undefined
-          if (patch.visible !== undefined) s.visible = patch.visible
-          if (patch.content) s.content = { ...s.content, ...patch.content }
+        if (!s) continue
+        if (patch.variant !== undefined) s.variant = this.snapVariant(s.type, patch.variant)
+        if (patch.animation !== undefined) s.animation = patch.animation || undefined
+        if (patch.visible !== undefined) s.visible = patch.visible
+        if (patch.content) s.content = { ...s.content, ...patch.content }
+        if (patch.style !== undefined) {
+          const merged: Record<string, string | undefined> = { ...(s.style ?? {}), ...patch.style }
+          for (const k of Object.keys(merged)) if (!merged[k]) delete merged[k]
+          s.style = Object.keys(merged).length ? (merged as SectionStyle) : undefined
         }
+        break
       }
-      for (const p of v.content?.pages ?? []) {
-        const s = p.sections.find((x) => x.id === sectionId)
-        if (s) {
-          if (patch.variant !== undefined) (s as Record<string, unknown>).variant = patch.variant
-          if (patch.animation !== undefined) {
-            ;(s as Record<string, unknown>).animation = patch.animation || undefined
-          }
-          if (patch.visible !== undefined) (s as Record<string, unknown>).visible = patch.visible
-          if (patch.content) Object.assign(s, patch.content)
-        }
-      }
+      this.markDirty()
+      this.recompute()
     },
 
     /** Generate the whole site from a free-text brief (AI, keeps an undo point).
-     *  `mode`: 'improve' (default on a follow-up) evolves the site; 'replace' rebuilds. */
+     *  Any unsaved local edits are saved first so the planner works from them. */
     async aiPlan(
       companyId: string,
       brief: string,
       mode?: 'improve' | 'replace',
     ): Promise<boolean> {
+      if (this.dirty && !(await this.save(companyId))) return false
       this.aiPlanning = true
       try {
         return await this.run(() =>
@@ -414,7 +535,8 @@ export const useBuilderStore = defineStore('builder', {
       )
     },
 
-    aiSection(companyId: string, sectionId: string, instruction: string): Promise<boolean> {
+    async aiSection(companyId: string, sectionId: string, instruction: string): Promise<boolean> {
+      if (this.dirty && !(await this.save(companyId))) return false
       return this.run(() =>
         apiFetch<BuilderView>(
           `/companies/${companyId}/website-builder/ai/section/${sectionId}`,

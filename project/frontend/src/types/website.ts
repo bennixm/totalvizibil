@@ -24,6 +24,18 @@ export type SectionType =
   | 'comparison'
   | 'banner'
   | 'custom'
+  | 'bigStatement'
+  | 'highlightsRow'
+  | 'ratingBand'
+  | 'video'
+  | 'showcase'
+  | 'beforeAfter'
+  | 'tabs'
+  | 'hours'
+  | 'caseStudy'
+  | 'splitCta'
+  | 'newsletter'
+  | 'quoteBig'
 
 export type SectionAnimation =
   | 'none'
@@ -42,6 +54,8 @@ export interface Section {
   variant?: string
   /** Entrance animation; absent = inherit the theme's motion default. */
   animation?: string
+  /** Owner colour overrides for this section. */
+  style?: { bg?: string; text?: string; heading?: string; accent?: string }
   [key: string]: unknown
 }
 

@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
-import { useBuilderStore, type PageInput } from '@/stores/builder'
+import { useBuilderStore, MAX_SECTIONS, type PageInput } from '@/stores/builder'
 
 const props = defineProps<{ companyId: string }>()
 const emit = defineEmits<{ openCatalog: [payload: { pageId: string; index?: number }] }>()
@@ -64,7 +64,10 @@ function setHome(id: string): void {
   commit(payload().map((p) => ({ ...p, isHome: p.id === id })))
 }
 function toggleNav(id: string): void {
-  commit(payload().map((p) => (p.id === id ? { ...p, nav: !p.nav } : p)))
+  const next = payload().map((p) => (p.id === id ? { ...p, nav: !p.nav } : p))
+  // Keep at least one page reachable from the top nav.
+  if (!next.some((p) => p.nav !== false)) return
+  commit(next)
 }
 function deletePage(id: string): void {
   if (editablePages.value.length <= 1) return
@@ -73,6 +76,10 @@ function deletePage(id: string): void {
 
 // --- section list (active page) ---
 const sections = computed(() => activePage.value?.sections ?? [])
+const pageFull = computed(() => sections.value.length >= MAX_SECTIONS)
+const legalPage = computed(() => !!activePage.value?.system)
+/** Can this individual section be removed? (not a legal page, not the last one) */
+const canRemoveSection = computed(() => !legalPage.value && sections.value.length > 1)
 const dragIdx = ref<number | null>(null)
 
 function specFor(type: string) {
@@ -229,22 +236,41 @@ function moveToPage(id: string, pageId: string): void {
           >
             <option value="">↦</option>
             <option
-              v-for="p in editablePages.filter((x) => x.id !== activePage?.id)"
+              v-for="p in editablePages.filter(
+                (x) => x.id !== activePage?.id && x.sections.length < MAX_SECTIONS,
+              )"
               :key="p.id"
               :value="p.id"
             >
               {{ p.title }}
             </option>
           </select>
-          <button type="button" :title="t('builder.remove')" @click="store.deleteSection(companyId, s.id)">
+          <button
+            v-if="canRemoveSection"
+            type="button"
+            :title="t('builder.remove')"
+            @click="store.deleteSection(companyId, s.id)"
+          >
             <v-icon icon="mdi-close" size="14" />
           </button>
         </span>
       </div>
 
-      <button type="button" class="pp__add" @click="emit('openCatalog', { pageId: activePage!.id })">
+      <p v-if="legalPage" class="pp__addFull">
+        <v-icon icon="mdi-scale-balance" size="14" /> {{ t('builder.legalPageHint') }}
+      </p>
+      <button
+        v-else-if="!pageFull"
+        type="button"
+        class="pp__add"
+        @click="emit('openCatalog', { pageId: activePage!.id })"
+      >
         <v-icon icon="mdi-plus" size="16" /> {{ t('builder.addSection') }}
+        <span class="pp__count">{{ sections.length }}/{{ MAX_SECTIONS }}</span>
       </button>
+      <p v-else class="pp__addFull">
+        <v-icon icon="mdi-information-outline" size="14" /> {{ t('builder.err.section_limit') }}
+      </p>
     </div>
   </div>
 </template>
@@ -466,5 +492,22 @@ function moveToPage(id: string, pageId: string): void {
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
   border: 1px dashed rgba(var(--v-theme-primary), 0.4);
+}
+.pp__count {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.4);
+}
+.pp__addFull {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 9px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  background: rgba(var(--v-theme-on-surface), 0.05);
 }
 </style>

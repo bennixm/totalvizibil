@@ -25,7 +25,19 @@ export type SectionType =
   | 'timeline'
   | 'comparison'
   | 'banner'
-  | 'custom';
+  | 'custom'
+  | 'bigStatement'
+  | 'highlightsRow'
+  | 'ratingBand'
+  | 'video'
+  | 'showcase'
+  | 'beforeAfter'
+  | 'tabs'
+  | 'hours'
+  | 'caseStudy'
+  | 'splitCta'
+  | 'newsletter'
+  | 'quoteBig';
 
 /** Scroll-in animation preset for a section (Advanced builder). */
 export type SectionAnimation =
@@ -39,6 +51,8 @@ export interface BaseSection {
   variant?: string;
   /** Entrance animation; absent = inherit the theme's motion default. */
   animation?: string;
+  /** Owner colour overrides for this section (Advanced builder). */
+  style?: { bg?: string; text?: string; heading?: string; accent?: string };
 }
 
 export interface HeroSection extends BaseSection {
@@ -273,6 +287,8 @@ export interface CustomBlock {
   kind: 'heading' | 'text' | 'image' | 'button' | 'spacer' | 'divider';
   text?: string;
   size?: 'lg' | 'md' | 'sm';
+  /** Per-block text colour (heading / text blocks). */
+  color?: string;
   url?: string;
   caption?: string;
   label?: string;
@@ -287,6 +303,107 @@ export interface CustomSection extends BaseSection {
   background: 'transparent' | 'surface' | 'wash' | 'accent' | 'ink';
   align: 'left' | 'center';
   blocks: CustomBlock[];
+}
+
+export interface BigStatementSection extends BaseSection {
+  type: 'bigStatement';
+  statement: string;
+  items: string[];
+}
+export interface HighlightItem {
+  icon: string;
+  label: string;
+}
+export interface HighlightsRowSection extends BaseSection {
+  type: 'highlightsRow';
+  title: string;
+  items: HighlightItem[];
+}
+export interface RatingBandSection extends BaseSection {
+  type: 'ratingBand';
+  rating: string;
+  count: string;
+  source: string;
+  text: string;
+}
+export interface VideoSection extends BaseSection {
+  type: 'video';
+  title: string;
+  videoUrl: string;
+  posterImage: string;
+  caption: string;
+}
+export interface ShowcaseSection extends BaseSection {
+  type: 'showcase';
+  backgroundImage: string;
+  headline: string;
+  text: string;
+  buttonLabel: string;
+}
+export interface BeforeAfterSection extends BaseSection {
+  type: 'beforeAfter';
+  title: string;
+  beforeImage: string;
+  afterImage: string;
+  beforeLabel: string;
+  afterLabel: string;
+}
+export interface TabItem {
+  label: string;
+  body: string;
+  imageUrl: string;
+}
+export interface TabsSection extends BaseSection {
+  type: 'tabs';
+  title: string;
+  items: TabItem[];
+}
+export interface HoursItem {
+  day: string;
+  value: string;
+}
+export interface HoursSection extends BaseSection {
+  type: 'hours';
+  title: string;
+  note: string;
+  items: HoursItem[];
+}
+export interface CaseStudySection extends BaseSection {
+  type: 'caseStudy';
+  title: string;
+  client: string;
+  imageUrl: string;
+  challenge: string;
+  solution: string;
+  result: string;
+  metric: string;
+  metricLabel: string;
+}
+export interface SplitCtaItem {
+  title: string;
+  text: string;
+  buttonLabel: string;
+  target: string;
+}
+export interface SplitCtaSection extends BaseSection {
+  type: 'splitCta';
+  title: string;
+  items: SplitCtaItem[];
+}
+export interface NewsletterSection extends BaseSection {
+  type: 'newsletter';
+  title: string;
+  text: string;
+  buttonLabel: string;
+  placeholder: string;
+  note: string;
+}
+export interface QuoteBigSection extends BaseSection {
+  type: 'quoteBig';
+  quote: string;
+  author: string;
+  role: string;
+  imageUrl: string;
 }
 
 export type Section =
@@ -311,7 +428,19 @@ export type Section =
   | TimelineSection
   | ComparisonSection
   | BannerSection
-  | CustomSection;
+  | CustomSection
+  | BigStatementSection
+  | HighlightsRowSection
+  | RatingBandSection
+  | VideoSection
+  | ShowcaseSection
+  | BeforeAfterSection
+  | TabsSection
+  | HoursSection
+  | CaseStudySection
+  | SplitCtaSection
+  | NewsletterSection
+  | QuoteBigSection;
 
 export interface WebsitePage {
   slug: string;

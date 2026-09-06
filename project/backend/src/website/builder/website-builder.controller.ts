@@ -15,6 +15,7 @@ import { CurrentUser } from '../../auth/current-user.decorator';
 import { AuthPrincipal } from '../../auth/auth.types';
 import { WebsiteBuilderService } from './website-builder.service';
 import { PutPagesDto } from './dto/put-pages.dto';
+import { SaveDocDto } from './dto/save-doc.dto';
 import { AddSectionDto } from './dto/add-section.dto';
 import { PatchSectionDto } from './dto/patch-section.dto';
 import { MoveSectionDto } from './dto/move-section.dto';
@@ -38,6 +39,16 @@ export class WebsiteBuilderController {
   @Post('unlock')
   unlock(@CurrentUser() user: AuthPrincipal, @Param('companyId', ParseUUIDPipe) companyId: string) {
     return this.builder.unlock(user.id, companyId);
+  }
+
+  /** Persist the whole working doc (the studio no longer autosaves). */
+  @Put()
+  save(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+    @Body() dto: SaveDocDto,
+  ) {
+    return this.builder.saveDoc(user.id, companyId, dto);
   }
 
   /** Add / remove / rename / reorder pages, set home, toggle nav (max 6). */

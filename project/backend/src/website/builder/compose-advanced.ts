@@ -29,6 +29,8 @@ import { fillDocImages, hashInt } from './stock-images';
 import { POLICY_KINDS, POLICY_SLUG, PolicyKind, policyPageText } from './policy-pages';
 
 export const MAX_PAGES = 6;
+/** Max sections one page can hold (studio limit; also clamps AI plans + legacy). */
+export const MAX_SECTIONS = 10;
 export const ADVANCED_GENERATOR = 'advanced-builder-v2';
 
 const DEFAULT_THEME: WebsiteTheme = {
@@ -79,6 +81,14 @@ const RADIUS_MIGRATE: Record<string, WebsiteTheme['radius']> = {
   round: 'large',
 };
 
+/** Per-section colour overrides (hex or absent = inherit the theme tokens). */
+export interface SectionStyle {
+  bg?: string;
+  text?: string;
+  heading?: string;
+  accent?: string;
+}
+
 export interface DocSection {
   id: string;
   type: SectionType;
@@ -86,7 +96,22 @@ export interface DocSection {
   visible: boolean;
   /** Entrance animation preset id; absent = inherit the theme's motion default. */
   animation?: string;
+  /** Owner colour overrides for this section (bg / body text / headings / accent). */
+  style?: SectionStyle;
   content: Record<string, unknown>;
+}
+
+const HEX_RE = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
+/** Keep only well-formed hex colours; `undefined` when nothing survives. */
+export function coerceStyle(raw: unknown): SectionStyle | undefined {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const out: SectionStyle = {};
+  for (const k of ['bg', 'text', 'heading', 'accent'] as const) {
+    const v = s[k];
+    if (typeof v === 'string' && HEX_RE.test(v.trim())) out[k] = v.trim().toLowerCase();
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 export interface PageSpec {
@@ -273,7 +298,17 @@ function policyPage(kind: PolicyKind, ctx: SeedCtx): PageSpec {
  *  missing ones (keeps any the owner already edited). */
 export function ensurePolicyPages(doc: BuilderDoc, ctx: SeedCtx): void {
   for (const kind of POLICY_KINDS) {
-    if (!doc.pages.some((p) => p.system === kind)) doc.pages.push(policyPage(kind, ctx));
+    const existing = doc.pages.find((p) => p.system === kind);
+    if (!existing) {
+      doc.pages.push(policyPage(kind, ctx));
+      continue;
+    }
+    // A legal page is always exactly one richText. Keep the owner's edited copy
+    // if it still has text; otherwise (emptied / tampered) restore the boilerplate.
+    const rich = existing.sections.find(
+      (s) => s.type === 'richText' && String((s.content?.body as string) ?? '').trim(),
+    );
+    existing.sections = rich ? [rich] : policyPage(kind, ctx).sections;
   }
 }
 
@@ -485,12 +520,14 @@ function normalizeSection(raw: unknown): DocSection | null {
           return rest;
         })();
   const animation = snapAnimation(s.animation);
+  const style = coerceStyle(s.style);
   return {
     id: typeof s.id === 'string' && s.id ? s.id : randomUUID(),
     type,
     variant: snapVariant(type, s.variant),
     visible: s.visible !== false,
     ...(animation ? { animation } : {}),
+    ...(style ? { style } : {}),
     content: coerceContent(type, content),
   };
 }
@@ -548,7 +585,8 @@ export function normalizeDoc(raw: unknown, ctx: SeedCtx): BuilderDoc {
     usedSlugs.add(slug);
     const sections = (Array.isArray(pp.sections) ? pp.sections : [])
       .map(normalizeSection)
-      .filter((s): s is DocSection => s != null);
+      .filter((s): s is DocSection => s != null)
+      .slice(0, MAX_SECTIONS);
     const system = POLICY_KIND_SET.has(String(pp.system))
       ? (String(pp.system) as PageSpec['system'])
       : undefined;
@@ -642,12 +680,14 @@ export function composeAdvancedDoc(doc: BuilderDoc, ctx: SeedCtx): GeneratedWebs
       .filter((s) => s.visible !== false)
       .map((s) => {
         const animation = snapAnimation(s.animation);
+        const style = coerceStyle(s.style);
         return {
           id: s.id,
           type: s.type,
           visible: true,
           variant: snapVariant(s.type, s.variant),
           ...(animation ? { animation } : {}),
+          ...(style ? { style } : {}),
           ...coerceContent(s.type, s.content ?? {}),
         } as Section;
       });

@@ -842,7 +842,10 @@
       "ai_unavailable": "AI could not generate right now. Try again.",
       "nothing_to_undo": "There is no previous version.",
       "banned_content": "The text contains words that are not allowed. Please rephrase.",
-      "company_pending_deletion": "This business is scheduled for deletion — it can no longer be edited."
+      "company_pending_deletion": "This business is scheduled for deletion — it can no longer be edited.",
+      "section_limit": "A page can have at most 10 sections.",
+      "system_page_locked": "Legal pages are a single text block and can't be restructured.",
+      "last_section": "A page must keep at least one section."
     },
     "msg": {
       "opening": "Hi! I'm the Totalvizibil assistant and I'll build you a complex website. Tell us what your business does.",
@@ -1014,7 +1017,37 @@
       "blockWidth": "Width",
       "blockBg": "Background",
       "blockAlign": "Alignment",
-      "blocks": "Blocks"
+      "blocks": "Blocks",
+      "statement": "Statement",
+      "supporting": "Supporting points",
+      "highlights": "Highlights",
+      "icon": "Icon (mdi-…)",
+      "label": "Label",
+      "rating": "Rating",
+      "count": "Review count",
+      "source": "Source",
+      "videoUrl": "Video link (YouTube, Vimeo…)",
+      "poster": "Poster image",
+      "caption": "Caption",
+      "beforeImage": "Before image",
+      "afterImage": "After image",
+      "beforeLabel": "Before label",
+      "afterLabel": "After label",
+      "tabs": "Tabs",
+      "tabLabel": "Tab label",
+      "note": "Note",
+      "hoursRows": "Days",
+      "day": "Day",
+      "hoursValue": "Hours",
+      "client": "Client",
+      "challenge": "The challenge",
+      "solution": "The solution",
+      "result": "The result",
+      "metric": "Key figure",
+      "metricLabel": "Figure label",
+      "ctaCards": "Cards",
+      "cardTitle": "Card title",
+      "placeholder": "Input placeholder"
     },
     "customBlock": {
       "add": "Add block",
@@ -1031,7 +1064,8 @@
       "captionPh": "Image caption (optional)",
       "btnLabelPh": "Button text",
       "btnTargetPh": "Target: page, section or link",
-      "btnTargetHint": "Page slug (e.g. contact), section type (e.g. pricing), or an https:// link."
+      "btnTargetHint": "Page slug (e.g. contact), section type (e.g. pricing), or an https:// link.",
+      "color": "Colour"
     },
     "aiTitle": "Generate the site with AI",
     "aiLead": "Describe the business and what you want on the site. AI picks the pages, sections and copy.",
@@ -1122,6 +1156,7 @@
     "legal": "Legal pages",
     "legalPrivacy": "Privacy policy",
     "legalTerms": "Terms & conditions",
+    "legalPageHint": "Legal text — edit the content; the structure is fixed.",
     "legalCookies": "Cookie policy",
     "aiModeImprove": "Improve",
     "aiModeImproveHint": "Keep the current site and apply your changes",
@@ -1151,6 +1186,18 @@
       "socLabel": "Label",
       "socAdd": "Add link",
       "saving": "Saving…"
+    },
+    "saveNow": "Save",
+    "unsaved": "Unsaved changes",
+    "allSaved": "All changes saved",
+    "leaveWarn": "You have unsaved changes. Leave the editor anyway?",
+    "sectionColors": "Section colours",
+    "color": {
+      "bg": "Background",
+      "text": "Text",
+      "heading": "Headings",
+      "accent": "Accent",
+      "clear": "Clear"
     }
   },
   "site": {
@@ -1669,7 +1716,14 @@
       "mixed": "Mixed",
       "line": "Line",
       "card": "Card",
-      "bordered": "Bordered"
+      "bordered": "Bordered",
+      "divided": "Divided",
+      "center": "Centred",
+      "left": "Left-aligned",
+      "side": "Side by side",
+      "pill": "Pills",
+      "two": "Two",
+      "three": "Three"
     },
     "hero": {
       "label": "Hero",
@@ -1768,6 +1822,54 @@
     "banner": {
       "label": "Promo banner",
       "desc": "Short full-width message with a button"
+    },
+    "bigStatement": {
+      "label": "Big statement",
+      "desc": "One large editorial sentence with a few supporting points"
+    },
+    "highlightsRow": {
+      "label": "Highlights row",
+      "desc": "A row of short icon items: licensed, insured, fast…"
+    },
+    "ratingBand": {
+      "label": "Rating band",
+      "desc": "Average score and review count, with a line of context"
+    },
+    "video": {
+      "label": "Video",
+      "desc": "An embedded video via an external link, with a poster image"
+    },
+    "showcase": {
+      "label": "Showcase",
+      "desc": "A full-bleed image with a headline and button over it"
+    },
+    "beforeAfter": {
+      "label": "Before / after",
+      "desc": "Two images compared, with labels"
+    },
+    "tabs": {
+      "label": "Tabs",
+      "desc": "Content split into tabs the visitor switches between"
+    },
+    "hours": {
+      "label": "Opening hours",
+      "desc": "A table of opening hours by day"
+    },
+    "caseStudy": {
+      "label": "Case study",
+      "desc": "One project in depth: challenge, solution, result, key figure"
+    },
+    "splitCta": {
+      "label": "Split CTA",
+      "desc": "Two or three cards with a button, for different audiences"
+    },
+    "newsletter": {
+      "label": "Newsletter",
+      "desc": "An email sign-up band"
+    },
+    "quoteBig": {
+      "label": "Big quote",
+      "desc": "A single testimonial shown large, with an author"
     }
   },
   "invoice": {
