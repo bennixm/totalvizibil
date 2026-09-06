@@ -50,6 +50,8 @@ export interface EasyAnswers {
   accentColor?: string;
   /** Landing background image — a `/api/v1/website-assets/:id` URL. */
   landingImage?: string;
+  /** Brand logo — a `/api/v1/website-assets/:id` URL. Shown in the site nav/footer. */
+  logoUrl?: string;
   /** Raw service names the client typed (input to the AI copy call). */
   serviceNames?: string[];
   /** Final Services items (AI-written or deterministic fallback), reorderable. */
@@ -598,6 +600,7 @@ export function composeEasySite(a: EasyAnswers): GeneratedWebsite {
       fontPair: tpl.fontPair,
       radius: tpl.radius,
       density: tpl.density,
+      ...(a.logoUrl ? { logoUrl: a.logoUrl } : {}),
     },
     content: {
       pages: [{ slug: 'home', title: name, isHome: true, sections }],

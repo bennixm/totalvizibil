@@ -288,7 +288,7 @@ onMounted(async () => {
 .acc__lead {
   margin: 0.6rem auto 0;
   max-width: 34ch;
-  color: rgb(var(--v-theme-on-surface) / 0.66);
+  color: rgba(var(--v-theme-on-surface), 0.66);
   font-size: 0.95rem;
 }
 .acc__loading {
@@ -312,7 +312,7 @@ onMounted(async () => {
   gap: 0.5rem;
   margin: 0 0 0.5rem;
   font-size: 0.9rem;
-  color: rgb(var(--v-theme-on-surface) / 0.75);
+  color: rgba(var(--v-theme-on-surface), 0.75);
 }
 .acc__fee {
   display: flex;
@@ -326,7 +326,7 @@ onMounted(async () => {
 .acc__balance {
   margin: 0;
   font-size: 0.83rem;
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .acc__short {
   display: flex;
@@ -339,7 +339,7 @@ onMounted(async () => {
 .acc__fineprint {
   margin: 0;
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   text-align: center;
 }
 .acc__error {
@@ -349,7 +349,7 @@ onMounted(async () => {
   margin-top: 1rem;
   padding: 0.7rem 1rem;
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-error) / 0.1);
+  background: rgba(var(--v-theme-error), 0.1);
   color: rgb(var(--v-theme-error));
   font-size: 0.82rem;
 }

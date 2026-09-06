@@ -50,6 +50,7 @@ export interface EasyPatch {
   landingTitle?: string;
   landingSubtitle?: string;
   landingImage?: string;
+  logoUrl?: string;
   portfolio?: string[];
   services?: { name: string; description: string }[];
   phone?: string;
@@ -296,6 +297,8 @@ export class WebsiteDraftService {
     }
     if (patch.landingImage !== undefined)
       a.landingImage = WebsiteDraftService.assetUrl(patch.landingImage);
+    if (patch.logoUrl !== undefined)
+      a.logoUrl = patch.logoUrl.trim() ? WebsiteDraftService.assetUrl(patch.logoUrl) : undefined;
     if (patch.portfolio !== undefined) {
       a.portfolio = patch.portfolio
         .map((u) => WebsiteDraftService.assetUrl(u))
@@ -459,7 +462,7 @@ export class WebsiteDraftService {
     kind: string,
   ): Promise<{ id: string; url: string }> {
     const draft = await this.load(id, token);
-    if (kind !== 'landing' && kind !== 'portfolio') {
+    if (kind !== 'landing' && kind !== 'portfolio' && kind !== 'logo') {
       throw new BadRequestException('bad_kind');
     }
     const m = DATA_URI_RE.exec(dataUri.trim());

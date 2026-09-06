@@ -150,7 +150,7 @@ watch(
 }
 .agent__id span {
   font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 .agent__log {
@@ -175,12 +175,12 @@ watch(
 }
 .msg--agent {
   align-self: flex-start;
-  background: rgb(var(--v-theme-on-surface) / 0.06);
+  background: rgba(var(--v-theme-on-surface), 0.06);
   border-bottom-left-radius: 4px;
 }
 .msg--user {
   align-self: flex-end;
-  background: rgb(var(--v-theme-primary) / 0.14);
+  background: rgba(var(--v-theme-primary), 0.14);
   border-bottom-right-radius: 4px;
 }
 .msg--typing {
@@ -191,7 +191,7 @@ watch(
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgb(var(--v-theme-on-surface) / 0.4);
+  background: rgba(var(--v-theme-on-surface), 0.4);
   animation: typing 1s ease-in-out infinite;
 }
 .msg--typing span:nth-child(2) {
@@ -228,7 +228,7 @@ watch(
   line-height: 1.4;
 }
 .agent__input textarea:focus {
-  outline: 2px solid rgb(var(--v-theme-primary) / 0.4);
+  outline: 2px solid rgba(var(--v-theme-primary), 0.4);
   outline-offset: 1px;
 }
 .agent__input textarea:disabled {

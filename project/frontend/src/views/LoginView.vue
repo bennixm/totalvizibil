@@ -5,11 +5,14 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import { ApiError } from '@/services/api'
+import { useSeo } from '@/composables/useSeo'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
+useSeo(() => ({ title: t('auth.loginTitle'), noindex: true }))
 
 const email = ref('')
 const password = ref('')
@@ -48,6 +51,7 @@ async function submit() {
 
 <template>
   <v-container class="py-12">
+    <h1 class="sr-only">{{ t('auth.loginTitle') }}</h1>
     <v-row justify="center">
       <v-col cols="12" sm="8" md="5" lg="4">
         <v-card border flat class="pa-4 tvz-card">

@@ -348,6 +348,9 @@ export interface WebsiteTheme {
   shadow?: 'none' | 'soft' | 'bold';
   /** Scroll-animation intensity for the whole site (Advanced builder). */
   motion?: 'off' | 'subtle' | 'lively';
+  /** Brand logo shown in the site nav + footer (both builders). Also mirrored
+   *  to `company.logoUrl` so the feed card uses the same image. */
+  logoUrl?: string;
 }
 
 // --- Generator inputs -----------------------------------------------------

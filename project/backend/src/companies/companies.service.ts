@@ -219,6 +219,7 @@ export class CompaniesService implements OnModuleInit {
       description?: string;
       phone?: string;
       email?: string;
+      logoUrl?: string;
     };
     // The panel must show the FIRM name, never the trade/what-they-do.
     const displayName =
@@ -251,6 +252,9 @@ export class CompaniesService implements OnModuleInit {
           categoryId: category.id,
           ownerUserId: userId,
           slug,
+          ...(typeof answers.logoUrl === 'string' && answers.logoUrl.trim()
+            ? { logoUrl: answers.logoUrl.trim().slice(0, 500) }
+            : {}),
           members: { create: { userId, role: CompanyRole.owner, status: 'active' } },
           contacts: contacts.length ? { createMany: { data: contacts } } : undefined,
           locations: hasLocation

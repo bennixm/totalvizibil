@@ -53,7 +53,7 @@ const open = ref(false)
   place-items: center;
   padding: 2px;
   border-radius: 50%;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   cursor: pointer;
   vertical-align: middle;
   transition: color var(--tvz-dur-fast) var(--tvz-ease-out);
@@ -77,7 +77,7 @@ const open = ref(false)
   margin: 0;
   font-size: 0.82rem;
   line-height: 1.5;
-  color: rgb(var(--v-theme-on-surface) / 0.8);
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 </style>
 

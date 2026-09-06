@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
@@ -22,4 +22,8 @@ export class UpdateCompanyDto {
   @Transform(trim)
   @MaxLength(2000)
   description?: string;
+
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
 }

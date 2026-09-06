@@ -49,7 +49,7 @@ function go(p: number) {
 }
 .apg__range {
   font-size: 0.8rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .apg__ctrl {
   display: flex;
@@ -59,7 +59,7 @@ function go(p: number) {
 .apg__page {
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
   min-width: 3.5rem;
   text-align: center;
 }
@@ -70,11 +70,11 @@ function go(p: number) {
   height: 32px;
   border-radius: 8px;
   border: 1px solid var(--tvz-hairline);
-  color: rgb(var(--v-theme-on-surface) / 0.75);
+  color: rgba(var(--v-theme-on-surface), 0.75);
   transition: background 0.14s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .apg__btn:hover:not(:disabled) {
-  background: rgb(var(--v-theme-on-surface) / 0.06);
+  background: rgba(var(--v-theme-on-surface), 0.06);
 }
 .apg__btn:disabled {
   opacity: 0.35;

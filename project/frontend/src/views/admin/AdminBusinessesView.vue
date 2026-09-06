@@ -194,7 +194,7 @@ function open(id: string): void {
 .ab__empty {
   padding: 3rem 1rem;
   text-align: center;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .ab__list {
   list-style: none;
@@ -210,7 +210,7 @@ function open(id: string): void {
   gap: 1rem;
   padding: 0.9rem 1.1rem;
   border: 1px solid var(--tvz-hairline);
-  border-left: 3px solid rgb(var(--v-theme-on-surface) / 0.12);
+  border-left: 3px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 10px;
   background: rgb(var(--v-theme-surface));
   cursor: pointer;
@@ -227,8 +227,8 @@ function open(id: string): void {
 .brow:hover,
 .brow:focus-visible {
   outline: none;
-  border-color: rgb(var(--v-theme-primary) / 0.45);
-  background: rgb(var(--v-theme-primary) / 0.03);
+  border-color: rgba(var(--v-theme-primary), 0.45);
+  background: rgba(var(--v-theme-primary), 0.03);
 }
 .brow__ic {
   display: grid;
@@ -237,8 +237,8 @@ function open(id: string): void {
   height: 38px;
   flex: none;
   border-radius: 10px;
-  background: rgb(var(--v-theme-on-surface) / 0.06);
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .brow__id {
   flex: 1;
@@ -260,7 +260,7 @@ function open(id: string): void {
 .brow__meta,
 .brow__owner {
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -275,11 +275,11 @@ function open(id: string): void {
 }
 .brow__budget {
   font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .brow__nocamp {
   font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.4);
+  color: rgba(var(--v-theme-on-surface), 0.4);
 }
 .brow__stats {
   display: flex;
@@ -306,10 +306,10 @@ function open(id: string): void {
   font-size: 0.58rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .brow__chev {
-  color: rgb(var(--v-theme-on-surface) / 0.3);
+  color: rgba(var(--v-theme-on-surface), 0.3);
   flex: none;
 }
 
@@ -320,19 +320,19 @@ function open(id: string): void {
   letter-spacing: 0.04em;
   padding: 0.12rem 0.4rem;
   border-radius: 4px;
-  background: rgb(var(--v-theme-on-surface) / 0.08);
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .chip--ok {
-  background: rgb(var(--v-theme-success) / 0.16);
+  background: rgba(var(--v-theme-success), 0.16);
   color: rgb(var(--v-theme-success));
 }
 .chip--warn {
-  background: rgb(var(--v-theme-warning) / 0.16);
+  background: rgba(var(--v-theme-warning), 0.16);
   color: rgb(var(--v-theme-warning));
 }
 .chip--err {
-  background: rgb(var(--v-theme-error) / 0.16);
+  background: rgba(var(--v-theme-error), 0.16);
   color: rgb(var(--v-theme-error));
 }
 

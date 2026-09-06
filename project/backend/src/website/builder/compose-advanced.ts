@@ -121,6 +121,10 @@ export function normalizeTheme(raw: unknown): WebsiteTheme {
     typeof t.radius === 'string' ? (RADIUS_MIGRATE[t.radius] ?? t.radius) : t.radius;
   const preset =
     typeof t.preset === 'string' && PRESET_IDS.includes(t.preset) ? t.preset : undefined;
+  const logoUrl =
+    typeof t.logoUrl === 'string' && t.logoUrl.trim().length > 0 && t.logoUrl.length <= 500
+      ? t.logoUrl.trim()
+      : undefined;
 
   return {
     palette: pick(t.palette, PALETTES, DEFAULT_THEME.palette),
@@ -137,6 +141,7 @@ export function normalizeTheme(raw: unknown): WebsiteTheme {
       : {}),
     ...(opt(t.shadow, SHADOWS) ? { shadow: opt(t.shadow, SHADOWS) } : {}),
     ...(opt(t.motion, MOTIONS) ? { motion: opt(t.motion, MOTIONS) } : {}),
+    ...(logoUrl ? { logoUrl } : {}),
   };
 }
 

@@ -14,6 +14,7 @@ function easyBlock(d: WebsiteDraft) {
     landingSubtitle: a.landingSubtitle ?? '',
     accentColor: a.accentColor ?? null,
     landingImage: a.landingImage ?? null,
+    logoUrl: a.logoUrl ?? null,
     serviceNames: a.serviceNames ?? [],
     services: a.services ?? [],
     portfolio: a.portfolio ?? [],

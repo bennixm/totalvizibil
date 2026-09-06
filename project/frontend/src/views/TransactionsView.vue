@@ -98,7 +98,7 @@ onMounted(() => wallet.loadTransactions(false))
   letter-spacing: 0.16em;
   font-size: 10px;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
 }
 .txn__head h1 {
@@ -111,10 +111,10 @@ onMounted(() => wallet.loadTransactions(false))
 .txn__empty {
   padding: 2.5rem 1rem;
   text-align: center;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .txn__biz {
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   font-size: 0.8rem;
 }
 .txn__table {
@@ -127,7 +127,7 @@ onMounted(() => wallet.loadTransactions(false))
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   padding: 0.5rem 0.6rem;
   border-bottom: 1px solid var(--tvz-hairline);
 }
@@ -147,14 +147,14 @@ onMounted(() => wallet.loadTransactions(false))
   font-size: 0.72rem;
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  background: rgb(var(--v-theme-on-surface) / 0.08);
+  background: rgba(var(--v-theme-on-surface), 0.08);
 }
 .txn__badge--completed {
-  background: rgb(var(--v-theme-success) / 0.16);
+  background: rgba(var(--v-theme-success), 0.16);
   color: rgb(var(--v-theme-success));
 }
 .txn__badge--pending {
-  background: rgb(var(--v-theme-warning) / 0.16);
+  background: rgba(var(--v-theme-warning), 0.16);
   color: rgb(var(--v-theme-warning));
 }
 </style>

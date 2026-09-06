@@ -4,6 +4,7 @@ import { apiFetch } from '@/services/api'
 import type { PlatformRole } from '@/stores/auth'
 import type { CampaignPayload, SaveCampaignInput } from '@/stores/campaign'
 import type { DashboardAnalytics, LocalizedName } from '@/stores/companies'
+import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 
 export interface AdminStats {
   users: {
@@ -324,6 +325,8 @@ export interface AdminCompanyDetail {
     country: string
     createdAt: string
     advancedUnlockedAt: string | null
+    /** Standard advanced-builder fee (credits) — for the admin upgrade choice. */
+    advancedPriceCredits: number
     category: {
       slug: string
       name: LocalizedName
@@ -341,6 +344,8 @@ export interface AdminCompanyDetail {
       mode: 'easy' | 'advanced'
       status: 'draft' | 'published' | 'unpublished'
       updatedAt: string
+      theme: WebsiteTheme
+      content: WebsiteContent
     } | null
     owner: { id: string; name: string; email: string; status: UserStatus }
     counts: { services: number; contacts: number; leads: number; clicks: number }
@@ -366,6 +371,17 @@ export interface UpdateCompanyInput {
   displayName?: string
   legalName?: string
   description?: string
+  categoryId?: string
+}
+
+export interface AdminCompanyLocationInput {
+  nationwide?: boolean
+  city?: string
+  region?: string
+  country?: string
+  lat?: number
+  lng?: number
+  radiusKm?: number
 }
 
 // --- affiliate program ------------------------------------------------
@@ -580,10 +596,12 @@ export const useAdminStore = defineStore('admin', {
       })
     },
 
-    /** Grant the advanced website builder to a business, no charge. */
-    upgradeCompanyAdvanced(id: string): Promise<AdminCompanyDetail> {
+    /** Grant the advanced website builder — free, or charged to the owner's
+     *  wallet when `charge` is true (rejected if they can't afford it). */
+    upgradeCompanyAdvanced(id: string, charge = false): Promise<AdminCompanyDetail> {
       return apiFetch<AdminCompanyDetail>(`/admin/companies/${id}/website/upgrade-advanced`, {
         method: 'POST',
+        body: { charge },
       })
     },
 
@@ -595,6 +613,23 @@ export const useAdminStore = defineStore('admin', {
       return apiFetch<AdminCompanyDetail>(`/admin/companies/${id}/leads/${leadId}`, {
         method: 'PATCH',
         body: { status },
+      })
+    },
+
+    setCompanyLocation(
+      id: string,
+      input: AdminCompanyLocationInput,
+    ): Promise<AdminCompanyDetail> {
+      return apiFetch<AdminCompanyDetail>(`/admin/companies/${id}/location`, {
+        method: 'PATCH',
+        body: input,
+      })
+    },
+
+    setCompanyWebsitePublished(id: string, published: boolean): Promise<AdminCompanyDetail> {
+      return apiFetch<AdminCompanyDetail>(`/admin/companies/${id}/website`, {
+        method: 'PATCH',
+        body: { published },
       })
     },
 

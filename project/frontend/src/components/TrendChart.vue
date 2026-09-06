@@ -160,7 +160,7 @@ const xTicks = computed(() => {
   display: flex;
   gap: 1.25rem;
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .tc__key {
   display: inline-flex;
@@ -175,7 +175,7 @@ const xTicks = computed(() => {
 .tc__key b {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  color: rgb(var(--v-theme-on-surface) / 0.9);
+  color: rgba(var(--v-theme-on-surface), 0.9);
   font-variant-numeric: tabular-nums;
 }
 .tc__key--0 i {
@@ -210,15 +210,15 @@ const xTicks = computed(() => {
 }
 
 .tc__grid line {
-  stroke: rgb(var(--v-theme-on-surface) / 0.08);
+  stroke: rgba(var(--v-theme-on-surface), 0.08);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 .tc__grid .tc__axis {
-  stroke: rgb(var(--v-theme-on-surface) / 0.16);
+  stroke: rgba(var(--v-theme-on-surface), 0.16);
 }
 .tc__grid text {
-  fill: rgb(var(--v-theme-on-surface) / 0.38);
+  fill: rgba(var(--v-theme-on-surface), 0.38);
   font-size: 13px;
   text-anchor: start;
 }
@@ -248,7 +248,7 @@ const xTicks = computed(() => {
 }
 
 .tc__xticks text {
-  fill: rgb(var(--v-theme-on-surface) / 0.45);
+  fill: rgba(var(--v-theme-on-surface), 0.45);
   font-size: 14px;
   text-anchor: middle;
 }

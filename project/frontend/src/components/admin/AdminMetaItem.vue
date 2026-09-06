@@ -20,7 +20,7 @@ defineProps<{ label: string; value: string | number }>()
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--v-theme-on-surface) / 0.4);
+  color: rgba(var(--v-theme-on-surface), 0.4);
 }
 .ami__value {
   font-size: 0.86rem;

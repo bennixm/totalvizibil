@@ -4,10 +4,13 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import { apiFetch, ApiError } from '@/services/api'
+import { useSeo } from '@/composables/useSeo'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+
+useSeo(() => ({ title: t('reset.title'), noindex: true }))
 
 const token = computed(() => (typeof route.query.token === 'string' ? route.query.token : ''))
 const password = ref('')
@@ -42,6 +45,7 @@ async function submit() {
 
 <template>
   <v-container class="py-12">
+    <h1 class="sr-only">{{ t('reset.title') }}</h1>
     <v-row justify="center">
       <v-col cols="12" sm="8" md="5" lg="4">
         <v-card border flat class="pa-4 tvz-card">

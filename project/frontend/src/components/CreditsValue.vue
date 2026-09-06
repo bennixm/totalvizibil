@@ -72,7 +72,7 @@ const approxText = computed(() => money.approx(Math.abs(props.credits), props.cu
   font-weight: 400;
   text-transform: none;
   letter-spacing: normal;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .cv--stacked .cv__main,
 .cv--stacked .cv__x {

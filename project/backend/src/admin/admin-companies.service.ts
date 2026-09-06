@@ -6,6 +6,7 @@ import { CampaignService } from '../campaigns/campaign.service';
 import { LeadsService } from '../leads/leads.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { WebsiteBuilderService } from '../website/builder/website-builder.service';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { RUN_SCORE_GRACE_MS } from '../analytics/visibility';
 import { money } from '../wallet/money';
 import { SaveCampaignDto } from '../campaigns/dto/save-campaign.dto';
@@ -14,6 +15,7 @@ import { SetCompanyStatusDto } from './dto/set-company-status.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { LeadsQueryDto } from './dto/leads-query.dto';
 import { ListCompaniesQuery } from './dto/list-companies.query';
+import { SetCompanyLocationDto } from './dto/set-company-location.dto';
 
 /**
  * Admin-side controls over a single business: a full detail payload (profile,
@@ -30,6 +32,7 @@ export class AdminCompaniesService {
     private readonly leads: LeadsService,
     private readonly analytics: AnalyticsService,
     private readonly builder: WebsiteBuilderService,
+    private readonly settings: PlatformSettingsService,
   ) {}
 
   private async loadCompany(companyId: string) {
@@ -119,18 +122,21 @@ export class AdminCompaniesService {
       include: {
         category: { include: { parent: { select: { slug: true, nameI18n: true } } } },
         locations: { orderBy: { isPrimary: 'desc' }, take: 1 },
-        website: { select: { mode: true, status: true, updatedAt: true } },
+        website: {
+          select: { mode: true, status: true, updatedAt: true, content: true, theme: true },
+        },
         owner: { select: { id: true, name: true, email: true, status: true } },
         _count: { select: { services: true, contacts: true, leads: true, adClicks: true } },
       },
     });
     if (!company) throw new NotFoundException('Company not found');
 
-    const [campaign, analytics, leadItems, leadSummary] = await Promise.all([
+    const [campaign, analytics, leadItems, leadSummary, advancedPriceCredits] = await Promise.all([
       this.campaigns.getFor(companyId),
       this.analytics.companyAnalytics(companyId),
       this.leads.listFor(companyId, { limit: 30 }),
       this.leads.summaryFor(companyId),
+      this.settings.advancedBuilderPriceCredits(),
     ]);
 
     const loc = company.locations[0] ?? null;
@@ -145,6 +151,7 @@ export class AdminCompaniesService {
         country: company.country,
         createdAt: company.createdAt,
         advancedUnlockedAt: company.advancedUnlockedAt,
+        advancedPriceCredits,
         category: company.category
           ? {
               slug: company.category.slug,
@@ -169,6 +176,10 @@ export class AdminCompaniesService {
               mode: company.website.mode,
               status: company.website.status,
               updatedAt: company.website.updatedAt,
+              // Rendered site for the admin's in-app preview (the public page
+              // 404s for non-active businesses, so a link there is a dead end).
+              theme: company.website.theme,
+              content: company.website.content,
             }
           : null,
         owner: company.owner,
@@ -205,13 +216,14 @@ export class AdminCompaniesService {
   // --- website builder ---------------------------------------------
 
   /**
-   * Give a business the advanced website builder for free — a platform admin
-   * doing it for the owner. Idempotent (re-running on an already-advanced site
-   * just returns the current detail).
+   * Give a business the advanced website builder — a platform admin doing it for
+   * the owner. `charge: true` debits the owner's wallet the standard fee (fails
+   * if they can't afford it); otherwise it's free. Idempotent (re-running on an
+   * already-unlocked site just returns the current detail).
    */
-  async upgradeToAdvanced(companyId: string) {
+  async upgradeToAdvanced(companyId: string, charge = false) {
     await this.loadCompany(companyId);
-    await this.builder.unlockForAdmin(companyId);
+    await this.builder.unlockForAdmin(companyId, { charge });
     return this.detail(companyId);
   }
 
@@ -219,13 +231,56 @@ export class AdminCompaniesService {
 
   async updateCompany(companyId: string, dto: UpdateCompanyDto) {
     await this.loadCompany(companyId);
+    if (dto.categoryId) {
+      const cat = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
+      if (!cat || !cat.isActive || cat.parentId == null) {
+        throw new BadRequestException('Pick an active leaf category');
+      }
+    }
     await this.prisma.company.update({
       where: { id: companyId },
       data: {
         ...(dto.displayName !== undefined ? { displayName: dto.displayName } : {}),
         ...(dto.legalName !== undefined ? { legalName: dto.legalName || null } : {}),
         ...(dto.description !== undefined ? { description: dto.description || null } : {}),
+        ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
       },
+    });
+    return this.detail(companyId);
+  }
+
+  /** Admin: set the primary service-area location (city/radius or nationwide). */
+  async setLocation(companyId: string, dto: SetCompanyLocationDto) {
+    await this.loadCompany(companyId);
+    const nationwide = !!dto.nationwide;
+    const data = {
+      city: nationwide ? null : (dto.city?.trim() ?? null),
+      region: nationwide ? null : dto.region?.trim() || null,
+      country: (dto.country || 'RO').toUpperCase().slice(0, 2),
+      lat: nationwide ? null : (dto.lat ?? null),
+      lng: nationwide ? null : (dto.lng ?? null),
+      serviceRadiusKm: nationwide ? null : Math.round(dto.radiusKm ?? 15),
+      nationwide,
+      isPrimary: true,
+    };
+    const existing = await this.prisma.companyLocation.findFirst({
+      where: { companyId, isPrimary: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (existing) {
+      await this.prisma.companyLocation.update({ where: { id: existing.id }, data });
+    } else {
+      await this.prisma.companyLocation.create({ data: { ...data, companyId } });
+    }
+    return this.detail(companyId);
+  }
+
+  /** Admin: take the public website online / offline (does not touch business status). */
+  async setWebsitePublished(companyId: string, published: boolean) {
+    await this.loadCompany(companyId);
+    await this.prisma.website.updateMany({
+      where: { companyId },
+      data: { status: published ? 'published' : 'unpublished' },
     });
     return this.detail(companyId);
   }

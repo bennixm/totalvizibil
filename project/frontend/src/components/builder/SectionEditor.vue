@@ -156,7 +156,7 @@ function variantLabel(id: string): string {
   gap: 0.5rem;
   padding: 3rem 1rem;
   text-align: center;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   font-size: 0.85rem;
 }
 .se__head {
@@ -176,7 +176,7 @@ function variantLabel(id: string): string {
   margin-bottom: 0.35rem;
   font-size: 0.72rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .se__chips {
   display: flex;
@@ -189,13 +189,13 @@ function variantLabel(id: string): string {
   font-size: 0.78rem;
   font-weight: 600;
   border: 1px solid var(--tvz-glass-border);
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
   background: rgb(var(--v-theme-surface));
 }
 .chip.is-on {
   border-color: rgb(var(--v-theme-primary));
   color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.08);
+  background: rgba(var(--v-theme-primary), 0.08);
 }
 .se__ai {
   margin-top: 0.6rem;
@@ -236,6 +236,6 @@ function variantLabel(id: string): string {
 .se__aiNote {
   margin: 0.4rem 0 0;
   font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 </style>

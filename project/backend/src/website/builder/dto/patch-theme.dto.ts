@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 const PALETTES = [
   'indigo',
@@ -67,4 +67,10 @@ export class PatchThemeDto {
   @IsOptional()
   @IsIn(['off', 'subtle', 'lively'])
   motion?: 'off' | 'subtle' | 'lively';
+
+  /** '' clears the logo. Otherwise a website-asset path or absolute URL. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  logoUrl?: string;
 }

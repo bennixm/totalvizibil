@@ -127,7 +127,7 @@ const groups = [
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: rgb(var(--v-theme-on-surface) / 0.4);
+  color: rgba(var(--v-theme-on-surface), 0.4);
   padding: 0 0.7rem 0.35rem;
 }
 .admin__link {
@@ -136,18 +136,18 @@ const groups = [
   gap: 0.6rem;
   padding: 0.55rem 0.7rem;
   border-radius: 10px;
-  color: rgb(var(--v-theme-on-surface) / 0.66);
+  color: rgba(var(--v-theme-on-surface), 0.66);
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 500;
   transition: background var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
 }
 .admin__link:hover {
-  background: rgb(var(--v-theme-on-surface) / 0.05);
+  background: rgba(var(--v-theme-on-surface), 0.05);
   color: rgb(var(--v-theme-on-surface));
 }
 .admin__link.router-link-active {
-  background: rgb(var(--v-theme-primary) / 0.12);
+  background: rgba(var(--v-theme-primary), 0.12);
   color: rgb(var(--v-theme-primary));
   font-weight: 600;
 }
@@ -155,7 +155,7 @@ const groups = [
   margin-top: auto;
   padding: 0.7rem;
   border-radius: 10px;
-  background: rgb(var(--v-theme-on-surface) / 0.04);
+  background: rgba(var(--v-theme-on-surface), 0.04);
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -167,7 +167,7 @@ const groups = [
   flex-wrap: wrap;
 }
 .admin__me-email {
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   overflow: hidden;
   text-overflow: ellipsis;
 }

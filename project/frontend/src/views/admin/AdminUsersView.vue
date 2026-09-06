@@ -179,7 +179,7 @@ function open(id: string): void {
 .au__empty {
   padding: 3rem 1rem;
   text-align: center;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .au__list {
   list-style: none;
@@ -206,12 +206,12 @@ function open(id: string): void {
 .urow:hover,
 .urow:focus-visible {
   outline: none;
-  border-color: rgb(var(--v-theme-primary) / 0.45);
+  border-color: rgba(var(--v-theme-primary), 0.45);
   border-left-color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.03);
+  background: rgba(var(--v-theme-primary), 0.03);
 }
 .urow--suspended {
-  border-left-color: rgb(var(--v-theme-error) / 0.6);
+  border-left-color: rgba(var(--v-theme-error), 0.6);
 }
 .urow__av {
   display: grid;
@@ -244,7 +244,7 @@ function open(id: string): void {
 }
 .urow__mail {
   font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -279,14 +279,14 @@ function open(id: string): void {
   font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .urow__login {
   font-size: 0.8rem !important;
   font-weight: 500 !important;
 }
 .urow__chev {
-  color: rgb(var(--v-theme-on-surface) / 0.3);
+  color: rgba(var(--v-theme-on-surface), 0.3);
   flex: none;
 }
 
@@ -297,15 +297,15 @@ function open(id: string): void {
   letter-spacing: 0.04em;
   padding: 0.12rem 0.4rem;
   border-radius: 4px;
-  background: rgb(var(--v-theme-on-surface) / 0.08);
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .tag--err {
-  background: rgb(var(--v-theme-error) / 0.16);
+  background: rgba(var(--v-theme-error), 0.16);
   color: rgb(var(--v-theme-error));
 }
 .tag--role {
-  background: rgb(var(--v-theme-primary) / 0.14);
+  background: rgba(var(--v-theme-primary), 0.14);
   color: rgb(var(--v-theme-primary));
 }
 

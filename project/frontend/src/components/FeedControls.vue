@@ -201,7 +201,7 @@ function clearCategory(): void {
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .fc__grid {
   display: grid;
@@ -220,8 +220,8 @@ function clearCategory(): void {
   border: 1px solid color-mix(in srgb, rgb(var(--v-theme-primary)) 22%, transparent);
   background: linear-gradient(
     160deg,
-    rgb(var(--v-theme-primary) / 0.18) 0%,
-    rgb(var(--v-theme-primary) / 0.05) 44%,
+    rgba(var(--v-theme-primary), 0.18) 0%,
+    rgba(var(--v-theme-primary), 0.05) 44%,
     rgb(var(--v-theme-surface)) 100%
   );
   overflow: hidden;
@@ -237,15 +237,15 @@ function clearCategory(): void {
   position: absolute;
   inset: -45% 15% auto;
   height: 75%;
-  background: radial-gradient(closest-side, rgb(var(--v-theme-primary) / 0.28), transparent);
+  background: radial-gradient(closest-side, rgba(var(--v-theme-primary), 0.28), transparent);
   opacity: 0.55;
   pointer-events: none;
   transition: opacity 0.2s var(--tvz-ease-out);
 }
 .gcard:hover {
   transform: translateY(-5px);
-  border-color: rgb(var(--v-theme-primary) / 0.6);
-  box-shadow: 0 22px 48px rgb(var(--v-theme-primary) / 0.24);
+  border-color: rgba(var(--v-theme-primary), 0.6);
+  box-shadow: 0 22px 48px rgba(var(--v-theme-primary), 0.24);
 }
 .gcard:hover::after {
   opacity: 0.9;
@@ -259,7 +259,7 @@ function clearCategory(): void {
   border-radius: 18px;
   color: #fff;
   background: var(--tvz-gradient-brand, linear-gradient(150deg, rgb(var(--v-theme-primary)), rgb(var(--v-theme-secondary, var(--v-theme-primary)))));
-  box-shadow: 0 10px 24px rgb(var(--v-theme-primary) / 0.42);
+  box-shadow: 0 10px 24px rgba(var(--v-theme-primary), 0.42);
   animation: gcard-bob 3.6s ease-in-out infinite;
   animation-delay: var(--d, 0s);
   transition:
@@ -268,7 +268,7 @@ function clearCategory(): void {
 }
 .gcard:hover .gcard__ic {
   transform: scale(1.16) rotate(-7deg);
-  box-shadow: 0 16px 34px rgb(var(--v-theme-primary) / 0.5);
+  box-shadow: 0 16px 34px rgba(var(--v-theme-primary), 0.5);
   animation-play-state: paused;
 }
 @keyframes gcard-bob {
@@ -292,11 +292,11 @@ function clearCategory(): void {
 .focus {
   padding: 1.35rem 1.4rem 1.5rem;
   border-radius: 22px;
-  border: 1px solid rgb(var(--v-theme-primary) / 0.32);
+  border: 1px solid rgba(var(--v-theme-primary), 0.32);
   background: linear-gradient(
     150deg,
-    rgb(var(--v-theme-primary) / 0.16) 0%,
-    rgb(var(--v-theme-primary) / 0.04) 46%,
+    rgba(var(--v-theme-primary), 0.16) 0%,
+    rgba(var(--v-theme-primary), 0.04) 46%,
     rgb(var(--v-theme-surface)) 100%
   );
 }
@@ -310,12 +310,12 @@ function clearCategory(): void {
   background: rgb(var(--v-theme-surface));
   font-size: 0.78rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.75);
+  color: rgba(var(--v-theme-on-surface), 0.75);
   cursor: pointer;
 }
 .focus__back:hover {
   color: rgb(var(--v-theme-primary));
-  border-color: rgb(var(--v-theme-primary) / 0.5);
+  border-color: rgba(var(--v-theme-primary), 0.5);
 }
 .focus__head {
   display: flex;
@@ -332,7 +332,7 @@ function clearCategory(): void {
   border-radius: 20px;
   color: #fff;
   background: var(--tvz-gradient-brand, linear-gradient(150deg, rgb(var(--v-theme-primary)), rgb(var(--v-theme-secondary, var(--v-theme-primary)))));
-  box-shadow: 0 12px 28px rgb(var(--v-theme-primary) / 0.42);
+  box-shadow: 0 12px 28px rgba(var(--v-theme-primary), 0.42);
   animation: gcard-bob 3.6s ease-in-out infinite;
 }
 .focus__head h3 {
@@ -345,7 +345,7 @@ function clearCategory(): void {
 .focus__head p {
   margin: 0.15rem 0 0;
   font-size: 0.83rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .focus__subs {
   display: flex;
@@ -357,8 +357,8 @@ function clearCategory(): void {
   border-radius: 999px;
   font-size: 0.83rem;
   font-weight: 500;
-  color: rgb(var(--v-theme-on-surface) / 0.72);
-  background: rgb(var(--v-theme-on-surface) / 0.06);
+  color: rgba(var(--v-theme-on-surface), 0.72);
+  background: rgba(var(--v-theme-on-surface), 0.06);
   border: 1px solid transparent;
   cursor: pointer;
   transition:
@@ -368,7 +368,7 @@ function clearCategory(): void {
 }
 .niche:hover {
   color: rgb(var(--v-theme-on-surface));
-  border-color: rgb(var(--v-theme-primary) / 0.4);
+  border-color: rgba(var(--v-theme-primary), 0.4);
 }
 .niche--on {
   background: rgb(var(--v-theme-primary));

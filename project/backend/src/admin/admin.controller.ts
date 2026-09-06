@@ -34,6 +34,9 @@ import { BlockWalletDto } from './dto/block-wallet.dto';
 import { CampaignActionDto } from './dto/campaign-action.dto';
 import { SetCompanyStatusDto } from './dto/set-company-status.dto';
 import { SetLeadStatusDto } from './dto/set-lead-status.dto';
+import { SetCompanyLocationDto } from './dto/set-company-location.dto';
+import { SetWebsitePublishedDto } from './dto/set-website-published.dto';
+import { UpgradeAdvancedDto } from './dto/upgrade-advanced.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { LeadsQueryDto } from './dto/leads-query.dto';
 import { ListCompaniesQuery } from './dto/list-companies.query';
@@ -192,6 +195,16 @@ export class AdminController {
     return this.companies.updateCompany(id, dto);
   }
 
+  @Patch('companies/:id/location')
+  setCompanyLocation(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetCompanyLocationDto) {
+    return this.companies.setLocation(id, dto);
+  }
+
+  @Patch('companies/:id/website')
+  setWebsitePublished(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetWebsitePublishedDto) {
+    return this.companies.setWebsitePublished(id, dto.published);
+  }
+
   @Patch('companies/:id/status')
   setCompanyStatus(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetCompanyStatusDto) {
     return this.companies.setStatus(id, dto);
@@ -207,10 +220,11 @@ export class AdminController {
     return this.companies.campaignAction(id, dto);
   }
 
-  /** Grant the advanced website builder to this business, no charge. */
+  /** Grant the advanced website builder to this business (free, or charged to
+   *  the owner's wallet when `charge: true`). */
   @Post('companies/:id/website/upgrade-advanced')
-  upgradeAdvanced(@Param('id', ParseUUIDPipe) id: string) {
-    return this.companies.upgradeToAdvanced(id);
+  upgradeAdvanced(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpgradeAdvancedDto) {
+    return this.companies.upgradeToAdvanced(id, dto.charge ?? false);
   }
 
   @Patch('companies/:id/leads/:leadId')

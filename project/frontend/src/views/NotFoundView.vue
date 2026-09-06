@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
+import { useSeo } from '@/composables/useSeo'
+
 const { t } = useI18n()
+
+useSeo(() => ({ title: t('errors.notFoundTitle'), noindex: true }))
 </script>
 
 <template>

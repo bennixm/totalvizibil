@@ -37,7 +37,7 @@ defineProps<{
   letter-spacing: 0.16em;
   font-size: 10px;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.35rem;
 }
 .aph__title {
@@ -53,8 +53,8 @@ defineProps<{
 .aph__count {
   font-size: 0.9rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
-  background: rgb(var(--v-theme-on-surface) / 0.07);
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  background: rgba(var(--v-theme-on-surface), 0.07);
   padding: 0.1rem 0.55rem;
   border-radius: 999px;
   font-variant-numeric: tabular-nums;
@@ -62,7 +62,7 @@ defineProps<{
 .aph__sub {
   margin: 0.4rem 0 0;
   font-size: 0.86rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   max-width: 60ch;
 }
 .aph__actions {

@@ -4,6 +4,9 @@ const SITE_NAME = 'Totalvizibil'
 const DEFAULT_TITLE = 'Totalvizibil — afaceri locale, găsite rapid'
 const DEFAULT_DESCRIPTION =
   'Totalvizibil — descoperă afaceri locale pe categorii și zonă. Site web construit cu AI, listare în feed și campanii CPC.'
+/** Shipped in `public/` — swap for a per-page render later if wanted. */
+const DEFAULT_OG_IMAGE = '/og-image.svg'
+const OG_LOCALE: Record<string, string> = { ro: 'ro_RO', en: 'en_US', de: 'de_DE' }
 
 export interface SeoInput {
   /** Page title; the site name is appended unless it's already present. */
@@ -11,6 +14,8 @@ export interface SeoInput {
   description?: string
   /** Absolute path (e.g. `/c/instalatii/climatizare/acme`) → `<link rel="canonical">`. */
   canonicalPath?: string
+  /** Social preview image — absolute URL or root-relative path. */
+  image?: string
   /** One or more schema.org objects → a single `<script type="application/ld+json">`. */
   jsonLd?: Record<string, unknown> | Record<string, unknown>[]
   /** Keep this route out of the index (thin/utility pages). */
@@ -54,6 +59,25 @@ export function useSeo(input: MaybeRefOrGetter<SeoInput>): void {
       content: description,
     })
     upsertMeta('meta[property="og:type"]', { property: 'og:type', content: 'website' })
+
+    const lang = document.documentElement.lang || 'ro'
+    upsertMeta('meta[property="og:locale"]', {
+      property: 'og:locale',
+      content: OG_LOCALE[lang] ?? 'ro_RO',
+    })
+
+    const imageHref = new URL(s.image || DEFAULT_OG_IMAGE, window.location.origin).href
+    upsertMeta('meta[property="og:image"]', { property: 'og:image', content: imageHref })
+    upsertMeta('meta[name="twitter:card"]', {
+      name: 'twitter:card',
+      content: 'summary_large_image',
+    })
+    upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: title })
+    upsertMeta('meta[name="twitter:description"]', {
+      name: 'twitter:description',
+      content: description,
+    })
+    upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: imageHref })
 
     if (s.canonicalPath) {
       const href = new URL(s.canonicalPath, window.location.origin).href

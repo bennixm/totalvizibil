@@ -198,7 +198,7 @@ onMounted(() => {
 .new__lead {
   margin: 0.6rem 0 1.75rem;
   font-size: 0.92rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 .new__card {
@@ -218,7 +218,7 @@ onMounted(() => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 /* Category chips */
@@ -236,7 +236,7 @@ onMounted(() => {
   font-weight: 500;
   border-radius: 8px;
   border: 1px solid var(--tvz-hairline);
-  color: rgb(var(--v-theme-on-surface) / 0.72);
+  color: rgba(var(--v-theme-on-surface), 0.72);
   background: rgb(var(--v-theme-surface));
   transition:
     border-color var(--tvz-dur-fast) var(--tvz-ease-out),
@@ -244,11 +244,11 @@ onMounted(() => {
     color var(--tvz-dur-fast) var(--tvz-ease-out);
 }
 .chip:hover {
-  border-color: rgb(var(--v-theme-primary) / 0.4);
+  border-color: rgba(var(--v-theme-primary), 0.4);
 }
 .chip.is-on {
   border-color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.1);
+  background: rgba(var(--v-theme-primary), 0.1);
   color: rgb(var(--v-theme-primary));
   font-weight: 600;
 }
@@ -264,14 +264,14 @@ onMounted(() => {
   padding: 0.5rem 1rem;
   font-size: 0.83rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   transition: background var(--tvz-dur-fast) var(--tvz-ease-out);
 }
 .pseg button + button {
   border-left: 1px solid var(--tvz-hairline);
 }
 .pseg button.is-on {
-  background: rgb(var(--v-theme-primary) / 0.12);
+  background: rgba(var(--v-theme-primary), 0.12);
   color: rgb(var(--v-theme-primary));
 }
 

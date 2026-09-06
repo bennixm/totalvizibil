@@ -170,7 +170,7 @@ function doPrint(): void {
   align-items: center;
   gap: 0.6rem;
   padding: 3rem 1rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 .invoice-print {

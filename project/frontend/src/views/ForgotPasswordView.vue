@@ -3,8 +3,11 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { apiFetch, ApiError } from '@/services/api'
+import { useSeo } from '@/composables/useSeo'
 
 const { t } = useI18n()
+
+useSeo(() => ({ title: t('reset.forgotTitle'), noindex: true }))
 
 const email = ref('')
 const loading = ref(false)
@@ -32,6 +35,7 @@ async function submit() {
 
 <template>
   <v-container class="py-12">
+    <h1 class="sr-only">{{ t('reset.forgotTitle') }}</h1>
     <v-row justify="center">
       <v-col cols="12" sm="8" md="5" lg="4">
         <v-card border flat class="pa-4 tvz-card">

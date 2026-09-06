@@ -434,7 +434,7 @@ onBeforeUnmount(() => clearTimeout(debounce))
 }
 .loc__lead {
   margin: 0.6rem 0 0;
-  color: rgb(var(--v-theme-on-surface) / 0.66);
+  color: rgba(var(--v-theme-on-surface), 0.66);
 }
 
 .loc__loading {
@@ -452,7 +452,7 @@ onBeforeUnmount(() => clearTimeout(debounce))
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .loc__fieldhead:first-of-type {
   margin-top: 0;
@@ -508,13 +508,13 @@ onBeforeUnmount(() => clearTimeout(debounce))
   font-size: 0.9rem;
 }
 .loc__note span {
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .loc__note--error {
   flex-direction: row;
   align-items: center;
   gap: 0.4rem;
-  background: rgb(var(--v-theme-error) / 0.1);
+  background: rgba(var(--v-theme-error), 0.1);
   color: rgb(var(--v-theme-error));
 }
 

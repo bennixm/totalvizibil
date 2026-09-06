@@ -143,7 +143,7 @@ function readFile(file: File): Promise<string> {
     r.readAsDataURL(file)
   })
 }
-async function onFile(e: Event, kind: 'landing' | 'portfolio'): Promise<void> {
+async function onFile(e: Event, kind: 'landing' | 'portfolio' | 'logo'): Promise<void> {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
@@ -163,6 +163,7 @@ async function onFile(e: Event, kind: 'landing' | 'portfolio'): Promise<void> {
       return
     }
     if (kind === 'landing') await store.patchEasy({ landingImage: url })
+    else if (kind === 'logo') await store.patchEasy({ logoUrl: url })
     else {
       const next = [...(easy.value?.portfolio ?? []), url].slice(0, MAX_PORTFOLIO)
       await store.patchEasy({ portfolio: next })
@@ -172,6 +173,9 @@ async function onFile(e: Event, kind: 'landing' | 'portfolio'): Promise<void> {
   } finally {
     uploading.value = false
   }
+}
+function clearLogo(): void {
+  void store.patchEasy({ logoUrl: '' })
 }
 function removePortfolio(i: number): void {
   void store.patchEasy({ portfolio: (easy.value?.portfolio ?? []).filter((_, idx) => idx !== i) })
@@ -558,6 +562,30 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
             </label>
           </div>
           <code class="hex">{{ color }}</code>
+
+          <p class="tl">{{ t('studio.logoTitle') }}</p>
+          <div v-if="easy?.logoUrl" class="drop drop--f drop--logo">
+            <img :src="easy.logoUrl" alt="" />
+            <div class="drop__ov">
+              <label class="mini">
+                <v-icon icon="mdi-image-refresh-outline" size="15" /> {{ t('studio.logoChange') }}
+                <input type="file" accept="image/png,image/jpeg,image/webp" @change="onFile($event, 'logo')" />
+              </label>
+              <button class="mini" type="button" @click="clearLogo">
+                <v-icon icon="mdi-close" size="15" />
+              </button>
+            </div>
+          </div>
+          <label v-else class="drop drop--logo" :class="{ 'is-busy': uploading }">
+            <v-progress-circular v-if="uploading" indeterminate size="20" color="primary" />
+            <template v-else>
+              <v-icon icon="mdi-tray-arrow-up" size="20" />
+              <span>{{ t('studio.logoAdd') }}</span>
+            </template>
+            <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="uploading" @change="onFile($event, 'logo')" />
+          </label>
+          <p v-if="uploadErr" class="uerr">{{ uploadErr }}</p>
+
           <button class="cont" type="button" @click="store.advanceEasy()">
             {{ t('studio.continue') }} <v-icon icon="mdi-arrow-right" size="16" />
           </button>
@@ -710,6 +738,24 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
                 <input type="color" :value="color" @input="pickColor(($event.target as HTMLInputElement).value)" />
               </label>
             </div>
+          </div>
+
+          <div class="ed">
+            <span class="ed__k">{{ t('studio.logoTitle') }}</span>
+            <div v-if="easy?.logoUrl" class="drop drop--f drop--sm drop--logo">
+              <img :src="easy.logoUrl" alt="" />
+              <div class="drop__ov">
+                <label class="mini">
+                  <v-icon icon="mdi-image-refresh-outline" size="14" />
+                  <input type="file" accept="image/png,image/jpeg,image/webp" @change="onFile($event, 'logo')" />
+                </label>
+                <button class="mini" type="button" @click="clearLogo"><v-icon icon="mdi-close" size="14" /></button>
+              </div>
+            </div>
+            <label v-else class="drop drop--sm drop--logo">
+              <v-icon icon="mdi-tray-arrow-up" size="18" />
+              <input type="file" accept="image/png,image/jpeg,image/webp" @change="onFile($event, 'logo')" />
+            </label>
           </div>
 
           <div class="ed">
@@ -1194,11 +1240,11 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   white-space: pre-wrap;
 }
 .msg--a p {
-  background: rgb(var(--v-theme-on-surface) / 0.06);
+  background: rgba(var(--v-theme-on-surface), 0.06);
   border-bottom-left-radius: 5px;
 }
 .msg--u p {
-  background: rgb(var(--v-theme-primary) / 0.16);
+  background: rgba(var(--v-theme-primary), 0.16);
   border-bottom-right-radius: 5px;
 }
 .msg--new p {
@@ -1233,7 +1279,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgb(var(--v-theme-on-surface) / 0.4);
+  background: rgba(var(--v-theme-on-surface), 0.4);
   animation: dot 1s ease-in-out infinite;
 }
 .msg--typing .dots span:nth-child(2) {
@@ -1254,7 +1300,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   margin-top: 0.5rem;
   border-top: 1px solid var(--tvz-hairline);
   padding: 0.9rem 1rem 1.1rem;
-  background: rgb(var(--v-theme-background) / 0.45);
+  background: rgba(var(--v-theme-background), 0.45);
 }
 .tl {
   margin: 0 0 0.5rem;
@@ -1262,7 +1308,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -1282,7 +1328,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
 .hint {
   margin: 0;
   font-size: 0.82rem;
-  color: rgb(var(--v-theme-on-surface) / 0.65);
+  color: rgba(var(--v-theme-on-surface), 0.65);
   display: flex;
   gap: 0.4rem;
   align-items: center;
@@ -1301,7 +1347,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   border-radius: 9px;
   background: var(--sw);
   border: 2px solid rgb(var(--v-theme-surface));
-  box-shadow: 0 0 0 1px rgb(var(--v-theme-on-surface) / 0.15);
+  box-shadow: 0 0 0 1px rgba(var(--v-theme-on-surface), 0.15);
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -1335,7 +1381,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   display: block;
   margin: 0.55rem 0 0;
   font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   font-family: var(--tvz-mono, monospace);
 }
 
@@ -1348,15 +1394,15 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   gap: 0.4rem;
   width: 100%;
   min-height: 96px;
-  border: 1.5px dashed rgb(var(--v-theme-on-surface) / 0.22);
+  border: 1.5px dashed rgba(var(--v-theme-on-surface), 0.22);
   border-radius: 12px;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   font-size: 0.82rem;
   cursor: pointer;
   margin-bottom: 0.75rem;
 }
 .drop:hover {
-  border-color: rgb(var(--v-theme-primary) / 0.5);
+  border-color: rgba(var(--v-theme-primary), 0.5);
 }
 .drop input[type='file'] {
   position: absolute;
@@ -1379,6 +1425,21 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
 }
 .drop--sm.drop--f img {
   max-height: 90px;
+}
+/* A logo is a mark, not a banner — contain it on a neutral pad. */
+.drop--logo {
+  min-height: 64px;
+}
+.drop--logo.drop--f {
+  padding: 0.5rem;
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+.drop--logo.drop--f img {
+  object-fit: contain;
+  max-height: 56px;
+}
+.drop--sm.drop--logo.drop--f img {
+  max-height: 44px;
 }
 .drop__ov {
   position: absolute;
@@ -1425,7 +1486,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   margin-bottom: 0.5rem;
 }
 .fld:focus {
-  outline: 2px solid rgb(var(--v-theme-primary) / 0.4);
+  outline: 2px solid rgba(var(--v-theme-primary), 0.4);
   outline-offset: 1px;
 }
 textarea.fld {
@@ -1459,7 +1520,7 @@ textarea.fld {
   background: rgb(var(--v-theme-surface));
 }
 .svc__grip {
-  color: rgb(var(--v-theme-on-surface) / 0.35);
+  color: rgba(var(--v-theme-on-surface), 0.35);
   margin-top: 0.1rem;
   flex: none;
   cursor: grab;
@@ -1472,7 +1533,7 @@ textarea.fld {
   flex: none;
   border-radius: 8px;
   color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.12);
+  background: rgba(var(--v-theme-primary), 0.12);
 }
 .svc__txt {
   display: flex;
@@ -1486,7 +1547,7 @@ textarea.fld {
 }
 .svc__d {
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   line-height: 1.4;
   cursor: text;
 }
@@ -1533,15 +1594,15 @@ textarea.fld {
 .pf__add {
   position: relative;
   aspect-ratio: 1;
-  border: 1.5px dashed rgb(var(--v-theme-on-surface) / 0.25);
+  border: 1.5px dashed rgba(var(--v-theme-on-surface), 0.25);
   border-radius: 9px;
   display: grid;
   place-items: center;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   cursor: pointer;
 }
 .pf__add:hover {
-  border-color: rgb(var(--v-theme-primary) / 0.5);
+  border-color: rgba(var(--v-theme-primary), 0.5);
 }
 .pf__add input {
   position: absolute;
@@ -1565,8 +1626,8 @@ textarea.fld {
   display: grid;
   place-items: center;
   border-radius: 8px;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
-  background: rgb(var(--v-theme-on-surface) / 0.06);
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  background: rgba(var(--v-theme-on-surface), 0.06);
   cursor: pointer;
 }
 .del:hover {
@@ -1616,7 +1677,7 @@ textarea.fld {
   font-size: 0.8rem;
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
-  border: 1px solid rgb(var(--v-theme-primary) / 0.3);
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
   cursor: pointer;
 }
 .ghost:disabled {
@@ -1639,8 +1700,8 @@ textarea.fld {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
-  background: rgb(var(--v-theme-on-surface) / 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  background: rgba(var(--v-theme-on-surface), 0.08);
   cursor: pointer;
 }
 .tog.is-on {
@@ -1663,7 +1724,7 @@ textarea.fld {
   margin-bottom: 0.5rem;
   font-size: 0.72rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 /* ---- footer: grammar toggle + input ---- */
@@ -1679,13 +1740,13 @@ textarea.fld {
   padding: 0.5rem 1rem;
   font-size: 0.76rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   border-bottom: 1px solid var(--tvz-hairline);
   cursor: pointer;
 }
 .gram.is-on {
   color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.06);
+  background: rgba(var(--v-theme-primary), 0.06);
 }
 .gram__st {
   margin-left: auto;
@@ -1694,10 +1755,10 @@ textarea.fld {
   text-transform: uppercase;
   padding: 0.1rem 0.4rem;
   border-radius: 999px;
-  background: rgb(var(--v-theme-on-surface) / 0.08);
+  background: rgba(var(--v-theme-on-surface), 0.08);
 }
 .gram.is-on .gram__st {
-  background: rgb(var(--v-theme-primary) / 0.16);
+  background: rgba(var(--v-theme-primary), 0.16);
 }
 
 .inp {
@@ -1720,7 +1781,7 @@ textarea.fld {
   line-height: 1.4;
 }
 .inp textarea:focus {
-  outline: 2px solid rgb(var(--v-theme-primary) / 0.4);
+  outline: 2px solid rgba(var(--v-theme-primary), 0.4);
   outline-offset: 1px;
 }
 
@@ -1732,7 +1793,7 @@ textarea.fld {
   padding: 0.6rem 1rem;
   font-size: 0.8rem;
   color: rgb(var(--v-theme-error));
-  background: rgb(var(--v-theme-error) / 0.1);
+  background: rgba(var(--v-theme-error), 0.1);
 }
 .done {
   display: flex;
@@ -1765,11 +1826,11 @@ textarea.fld {
     background 0.14s ease;
 }
 .tpl:hover {
-  border-color: rgb(var(--v-theme-primary) / 0.4);
+  border-color: rgba(var(--v-theme-primary), 0.4);
 }
 .tpl.is-on {
   border-color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.06);
+  background: rgba(var(--v-theme-primary), 0.06);
 }
 .tpl strong {
   grid-column: 2;
@@ -1778,7 +1839,7 @@ textarea.fld {
 .tpl__d {
   grid-column: 2;
   font-size: 0.74rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   line-height: 1.35;
 }
 .tpl__mock {
@@ -1790,18 +1851,18 @@ textarea.fld {
   height: 46px;
   padding: 5px;
   border-radius: 7px;
-  background: rgb(var(--v-theme-on-surface) / 0.1);
-  border: 1px solid rgb(var(--v-theme-on-surface) / 0.12);
+  background: rgba(var(--v-theme-on-surface), 0.1);
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   overflow: hidden;
 }
 .tpl__mock i {
   display: block;
   border-radius: 2px;
-  background: rgb(var(--v-theme-on-surface) / 0.5);
+  background: rgba(var(--v-theme-on-surface), 0.5);
 }
 .tpl.is-on .tpl__mock {
-  background: rgb(var(--v-theme-primary) / 0.12);
-  border-color: rgb(var(--v-theme-primary) / 0.3);
+  background: rgba(var(--v-theme-primary), 0.12);
+  border-color: rgba(var(--v-theme-primary), 0.3);
 }
 .tpl.is-on .tpl__mock i {
   background: rgb(var(--v-theme-primary));
@@ -1848,11 +1909,11 @@ textarea.fld {
   align-items: center;
   gap: 0.3rem;
   font-size: 0.75rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   cursor: pointer;
 }
 .restart:hover {
-  color: rgb(var(--v-theme-on-surface) / 0.8);
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 
 /* ---- stacked (phone / narrow) ---- */

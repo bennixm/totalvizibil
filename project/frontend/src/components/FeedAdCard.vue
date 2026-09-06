@@ -88,7 +88,10 @@ const tagline = computed(() => {
         <span class="fc__niche">{{ catName }}</span>
       </p>
 
-      <h3 class="fc__name">{{ item.displayName }}</h3>
+      <div class="fc__ident">
+        <span v-if="item.logoUrl" class="fc__logo"><img :src="item.logoUrl" alt="" loading="lazy" /></span>
+        <h3 class="fc__name">{{ item.displayName }}</h3>
+      </div>
       <p v-if="blurb" class="fc__blurb">{{ blurb }}</p>
 
       <p v-if="item.location" class="fc__loc">
@@ -163,12 +166,12 @@ const tagline = computed(() => {
   font-size: 0.74rem;
   padding: 0.22rem 0.6rem;
   border-radius: 8px;
-  background: rgb(var(--v-theme-on-surface) / 0.06);
-  color: rgb(var(--v-theme-on-surface) / 0.72);
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  color: rgba(var(--v-theme-on-surface), 0.72);
   white-space: nowrap;
 }
 .tag--more {
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
 .btnv {
@@ -187,7 +190,7 @@ const tagline = computed(() => {
 }
 .btnv--ghost {
   color: rgb(var(--v-theme-primary));
-  border: 1.5px solid rgb(var(--v-theme-primary) / 0.35);
+  border: 1.5px solid rgba(var(--v-theme-primary), 0.35);
 }
 /* pill sitting on top of the featured banner photo */
 .btnv--onphoto {
@@ -229,21 +232,21 @@ const tagline = computed(() => {
   inset: -40% -30% auto auto;
   width: 260px;
   height: 200px;
-  background: radial-gradient(closest-side, rgb(var(--v-theme-primary) / 0.14), transparent);
+  background: radial-gradient(closest-side, rgba(var(--v-theme-primary), 0.14), transparent);
   opacity: 0;
   transition: opacity var(--tvz-dur-med) var(--tvz-ease-out);
   pointer-events: none;
 }
 .lst:hover {
   transform: translateY(-3px);
-  border-color: rgb(var(--v-theme-primary) / 0.45);
+  border-color: rgba(var(--v-theme-primary), 0.45);
   box-shadow: var(--tvz-shadow-lg);
 }
 .lst:hover::after {
   opacity: 1;
 }
 .lst:hover .btnv--ghost {
-  background: rgb(var(--v-theme-primary) / 0.08);
+  background: rgba(var(--v-theme-primary), 0.08);
 }
 .lst:hover .btnv__arrow {
   transform: translateX(4px);
@@ -252,7 +255,7 @@ const tagline = computed(() => {
   position: absolute;
   inset: 0 auto 0 0;
   width: 4px;
-  background: rgb(var(--v-theme-on-surface) / 0.12);
+  background: rgba(var(--v-theme-on-surface), 0.12);
   transition: width var(--tvz-dur-med) var(--tvz-ease-out);
 }
 .lst:hover .lst__spine {
@@ -269,7 +272,7 @@ const tagline = computed(() => {
   font-weight: 700;
   color: #fff;
   background: var(--tvz-gradient-brand);
-  box-shadow: 0 0 0 4px rgb(var(--v-theme-primary) / 0.08);
+  box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.08);
   overflow: hidden;
   flex: none;
 }
@@ -294,7 +297,7 @@ const tagline = computed(() => {
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.13em;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .lst__niche,
 .fc__niche {
@@ -312,7 +315,7 @@ const tagline = computed(() => {
   margin: 0;
   font-size: 0.9rem;
   font-weight: 500;
-  color: rgb(var(--v-theme-on-surface) / 0.78);
+  color: rgba(var(--v-theme-on-surface), 0.78);
 }
 .lst__loc,
 .fc__loc {
@@ -321,13 +324,13 @@ const tagline = computed(() => {
   gap: 0.3rem;
   margin: 0.1rem 0 0;
   font-size: 0.82rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .lst__desc {
   margin: 0.25rem 0 0;
   font-size: 0.92rem;
   line-height: 1.55;
-  color: rgb(var(--v-theme-on-surface) / 0.72);
+  color: rgba(var(--v-theme-on-surface), 0.72);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   line-clamp: 3;
@@ -443,18 +446,41 @@ const tagline = computed(() => {
   flex-direction: column;
   gap: 0.3rem;
 }
+.fc__ident {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.1rem 0 0;
+}
+.fc__logo {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid var(--tvz-glass-border);
+  display: grid;
+  place-items: center;
+}
+.fc__logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .fc__name {
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
   font-weight: 700;
   font-size: 1.3rem;
   letter-spacing: -0.02em;
-  margin: 0.1rem 0 0;
+  margin: 0;
+  min-width: 0;
 }
 .fc__blurb {
   margin: 0.2rem 0 0;
   font-size: 0.94rem;
   line-height: 1.55;
-  color: rgb(var(--v-theme-on-surface) / 0.74);
+  color: rgba(var(--v-theme-on-surface), 0.74);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;

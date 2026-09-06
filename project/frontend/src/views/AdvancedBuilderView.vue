@@ -23,6 +23,14 @@ const { overview } = storeToRefs(companies)
 const { view, activePage, selectedId, loading, working, aiPlanning, error } = storeToRefs(builder)
 
 const companyId = ref<string | null>(null)
+/** A platform admin editing a business's site — entered from the admin panel with
+ *  `?companyId=`. Skips the owner-onboarding nudges and returns to the admin page. */
+const adminMode = computed(() => typeof route.query.companyId === 'string')
+const backTarget = computed(() =>
+  adminMode.value && companyId.value
+    ? { name: 'admin-company', params: { id: companyId.value } }
+    : { name: 'dashboard' },
+)
 const pane = ref<'pages' | 'preview' | 'editor'>('pages')
 const catalogPayload = ref<{ pageId: string; index?: number } | null>(null)
 const aiOpen = ref(false)
@@ -42,6 +50,7 @@ const isUpgrade = computed(() => view.value?.mode === 'easy')
 // finished setting up a campaign. Once it's been live at least once, later
 // builder visits are edits and get the quiet "autosaved" note instead.
 const isFirstTimeSetup = computed(() => {
+  if (adminMode.value) return false
   const status = overview.value.find((c) => c.id === companyId.value)?.campaignStatus
   return status == null || status === 'draft'
 })
@@ -87,7 +96,9 @@ function onSelect(id: string): void {
 
 onMounted(async () => {
   await companies.fetchOverview().catch(() => {})
-  const id = companies.resolveId(route.query.c)
+  const id = adminMode.value
+    ? String(route.query.companyId)
+    : companies.resolveId(route.query.c)
   if (!id) {
     void router.replace({ name: 'dashboard' })
     return
@@ -104,8 +115,8 @@ onMounted(async () => {
         <p class="wb__eyebrow"><span class="wb__dot" /> {{ t('builder.eyebrow') }}</p>
         <h1>{{ t('builder.title') }}</h1>
       </div>
-      <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="{ name: 'dashboard' }">
-        {{ t('builder.back') }}
+      <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="backTarget">
+        {{ adminMode ? t('builder.backAdmin') : t('builder.back') }}
       </v-btn>
     </header>
 
@@ -117,7 +128,20 @@ onMounted(async () => {
       <v-icon icon="mdi-alert-circle-outline" size="34" />
       <h2>{{ t('builder.loadErrorTitle') }}</h2>
       <p class="wb__lockText">{{ error ? errText(error) : t('builder.loadErrorText') }}</p>
-      <v-btn color="primary" variant="tonal" :to="{ name: 'dashboard' }">{{ t('builder.back') }}</v-btn>
+      <v-btn color="primary" variant="tonal" :to="backTarget">
+        {{ adminMode ? t('builder.backAdmin') : t('builder.back') }}
+      </v-btn>
+    </div>
+
+    <!-- ADMIN, site still on the easy plan — the pay screen is the owner's, not
+         the admin's. Send them back to grant/charge the upgrade from the panel. -->
+    <div v-else-if="!view.unlocked && adminMode" class="wb__lock">
+      <v-icon icon="mdi-lock-open-variant-outline" size="34" />
+      <h2>{{ t('builder.adminLockedTitle') }}</h2>
+      <p class="wb__lockText">{{ t('builder.adminLockedText') }}</p>
+      <v-btn color="primary" variant="flat" append-icon="mdi-arrow-right" :to="backTarget">
+        {{ t('builder.backAdmin') }}
+      </v-btn>
     </div>
 
     <!-- LOCKED: pay to unlock / upgrade -->
@@ -245,7 +269,7 @@ onMounted(async () => {
         </button>
       </div>
 
-      <div v-if="!view.locationSet" class="wb__note">
+      <div v-if="!view.locationSet && !adminMode" class="wb__note">
         <strong>{{ t('builder.doneTitle') }}</strong>
         <span>{{ t('builder.doneText') }}</span>
         <v-btn
@@ -363,7 +387,7 @@ onMounted(async () => {
 }
 .wb__lockText {
   margin: 0;
-  color: rgb(var(--v-theme-on-surface) / 0.66);
+  color: rgba(var(--v-theme-on-surface), 0.66);
   font-size: 0.9rem;
 }
 .wb__feats {
@@ -376,10 +400,10 @@ onMounted(async () => {
   flex-direction: column;
   gap: 0.5rem;
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-on-surface) / 0.04);
+  background: rgba(var(--v-theme-on-surface), 0.04);
   border: 1px solid var(--tvz-hairline);
   font-size: 0.84rem;
-  color: rgb(var(--v-theme-on-surface) / 0.8);
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .wb__feats li {
   display: flex;
@@ -393,7 +417,7 @@ onMounted(async () => {
 }
 .wb__feats-hi {
   font-weight: 700;
-  color: rgb(var(--v-theme-on-surface) / 0.95);
+  color: rgba(var(--v-theme-on-surface), 0.95);
 }
 .wb__lockPrice {
   margin: 0.6rem 0;
@@ -405,7 +429,7 @@ onMounted(async () => {
 }
 .wb__lockPrice span {
   font-size: 0.82rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .wb__lockActions {
   display: flex;
@@ -419,7 +443,7 @@ onMounted(async () => {
   gap: 0.35rem;
   padding: 0.25rem;
   border-radius: 999px;
-  background: rgb(var(--v-theme-on-surface) / 0.06);
+  background: rgba(var(--v-theme-on-surface), 0.06);
   align-self: flex-start;
 }
 .wb__tabs button {
@@ -430,7 +454,7 @@ onMounted(async () => {
   border-radius: 999px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .wb__tabs button.is-on {
   background: rgb(var(--v-theme-surface));
@@ -445,6 +469,23 @@ onMounted(async () => {
   grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(280px, 340px);
   gap: 0.8rem;
 }
+
+/* Desktop: lock the studio to the viewport so the 3 panes — the page rail, the
+   preview and the editor on the right — are always visible. Nothing here drives
+   page scroll; every pane scrolls its own overflow internally. */
+@media (min-width: 1101px) {
+  .wb {
+    height: calc(100dvh - var(--tvz-topbar-h) - 2px);
+    overflow: hidden;
+  }
+  .wb__grid {
+    min-height: 0;
+  }
+  .wb__grid > * {
+    min-height: 0;
+    height: 100%;
+  }
+}
 .wb__rail,
 .wb__editor {
   min-height: 0;
@@ -453,6 +494,7 @@ onMounted(async () => {
   background: rgb(var(--v-theme-surface));
   overflow: hidden;
 }
+
 .wb__preview {
   min-height: 0;
   overflow: hidden;
@@ -473,7 +515,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   border: 1px dashed var(--tvz-glass-border);
   border-radius: var(--tvz-radius-lg);
 }
@@ -493,9 +535,11 @@ onMounted(async () => {
   gap: 0.6rem;
   padding: 0.8rem 1rem;
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-warning) / 0.12);
-  border: 1px solid rgb(var(--v-theme-warning) / 0.35);
+  background: rgba(var(--v-theme-warning), 0.12);
+  border: 1px solid rgba(var(--v-theme-warning), 0.35);
   font-size: 0.82rem;
+  max-height: 26vh;
+  overflow-y: auto;
 }
 .wb__ainote strong {
   font-size: 0.86rem;
@@ -506,7 +550,7 @@ onMounted(async () => {
 }
 .wb__ainote-x {
   margin-left: auto;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .wb__aiquota {
   display: flex;
@@ -514,7 +558,7 @@ onMounted(async () => {
   gap: 0.35rem;
   margin: 0.5rem 0 0;
   font-size: 0.75rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .wb__aiquota .v-icon {
   color: rgb(var(--v-theme-primary));
@@ -523,8 +567,8 @@ onMounted(async () => {
   flex-direction: row;
   align-items: center;
   gap: 0.4rem;
-  background: rgb(var(--v-theme-on-surface) / 0.04);
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  background: rgba(var(--v-theme-on-surface), 0.04);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .wb__note strong {
   font-size: 0.9rem;
@@ -535,7 +579,7 @@ onMounted(async () => {
   gap: 0.4rem;
   padding: 0.6rem 0.9rem;
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-error) / 0.1);
+  background: rgba(var(--v-theme-error), 0.1);
   color: rgb(var(--v-theme-error));
   font-size: 0.8rem;
 }

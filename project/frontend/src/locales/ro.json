@@ -85,7 +85,9 @@
     "subCount": "{n} subcategorii",
     "coverageKm": "{n} km",
     "coverageCountry": "Toată țara",
-    "ownSite": "Site propriu"
+    "ownSite": "Site propriu",
+    "seoHomeTitle": "Totalvizibil — afaceri locale pe categorii și zonă",
+    "seoHomeDesc": "Descoperă afaceri locale active, ordonate după scorul de vizibilitate. Filtrezi doar după categorie și oraș. Site construit cu AI, listare în feed și campanii pe clic."
   },
   "company": {
     "backToFeed": "Înapoi la descoperă",
@@ -94,12 +96,13 @@
     "services": "Servicii",
     "notFound": "Această afacere nu este disponibilă.",
     "leadSent": "Mesajul a fost trimis",
-    "seoDesc": "{category} în {city}"
+    "seoDesc": "{category} în {city}",
+    "notFoundHint": "Poate a fost redenumită, retrasă sau linkul e greșit. Caută în schimb după categorie și oraș."
   },
   "create": {
     "assistant": "Constructor AI",
     "headline": "Vii cu o idee. Pleci cu o afacere.",
-    "lead": "Alege cât de mult vrei să controlezi. Restul acestui flux se reproiectează.",
+    "lead": "Alege cât de mult vrei să controlezi procesul. Restul îl construiește asistentul.",
     "easyTitle": "Simplu",
     "easyText": "Câteva răspunsuri scurte și asistentul face restul. Rapid și simplu.",
     "easyTag": "Cel mai rapid",
@@ -108,7 +111,9 @@
     "advancedTag": "Control total",
     "nextTitle": "Pasul următor vine curând",
     "nextText": "Regândim ce se întâmplă după această alegere — încă nu e conectat.",
-    "registerLaterNote": "Nu e nevoie de cont ca să începi — te înregistrezi doar ca să salvezi și să publici."
+    "registerLaterNote": "Nu e nevoie de cont ca să începi — te înregistrezi doar ca să salvezi și să publici.",
+    "seoTitle": "Creează-ți afacerea online cu AI — Totalvizibil",
+    "seoDesc": "Răspunde la câteva întrebări și asistentul îți construiește site-ul afacerii. Varianta simplă sau control complet asupra design-ului, secțiunilor și SEO."
   },
   "studio": {
     "eyebrow": "Constructor AI · Plan gratuit",
@@ -225,7 +230,10 @@
     "addStep": "Adaugă pas",
     "hoursPlaceholder": "ex: Luni–Vineri 09:00–18:00",
     "rateLimited": "Prea multe încercări într-un timp scurt. Așteaptă câteva minute și încearcă din nou.",
-    "retry": "Încearcă din nou"
+    "retry": "Încearcă din nou",
+    "logoTitle": "Logo (opțional)",
+    "logoAdd": "Adaugă logo",
+    "logoChange": "Schimbă"
   },
   "location": {
     "eyebrow": "Pasul 2 · Locație",
@@ -1062,7 +1070,16 @@
     "continueBudget": "Continuă → Buget",
     "deletionPendingTitle": "Ștergere programată",
     "deletionPendingText": "Afacerea este programată pentru ștergere — anulează ștergerea din panou ca să poți edita site-ul din nou.",
-    "deletionPendingCta": "Mergi la panou"
+    "deletionPendingCta": "Mergi la panou",
+    "backAdmin": "Înapoi la afacere",
+    "adminLockedTitle": "Site-ul e pe planul simplu",
+    "adminLockedText": "Această afacere nu are încă builderul avansat. Acordă-l (gratuit sau pe cheltuiala proprietarului) din panoul de admin, apoi revino ca să editezi.",
+    "logoLabel": "Logo",
+    "logoUpload": "Încarcă logo",
+    "logoReplace": "Schimbă logo",
+    "logoRemove": "Elimină logo",
+    "logoTooLarge": "Imaginea e prea mare (max 3 MB).",
+    "logoFailed": "Încărcarea logo-ului a eșuat."
   },
   "site": {
     "phone": "Telefon",
@@ -1273,11 +1290,9 @@
     "webStatus_unpublished": "Nepublicat",
     "webUpdated": "actualizat {d}",
     "webUnlockedOn": "Avansat deblocat pe {d}",
-    "webUpgradeFree": "Upgrade la Avansat (gratuit)",
-    "webUpgradeHint": "Deblochează builderul avansat pentru acest client, fără să-i taxezi contul.",
+    "webUpgradeFree": "Acordă gratuit",
+    "webUpgradeHint": "Deblochează builderul avansat pentru această afacere. Alege gratuit sau pe cheltuiala portofelului proprietarului.",
     "webUpgraded": "Upgrade la avansat efectuat",
-    "webEditTitle": "Conținut website",
-    "webEditNote": "Conținutul se editează de proprietar din builderul lui. De aici poți doar deschide site-ul live.",
     "leadTotalLbl": "Total",
     "leadNewLbl": "Noi",
     "leadResolvedLbl": "Rezolvate",
@@ -1288,7 +1303,33 @@
     "leadStatusSeen": "Văzut",
     "leadStatusResolved": "Rezolvat",
     "leadStatusSet": "Stare actualizată",
-    "visibilityTitle": "Vizibilitate"
+    "visibilityTitle": "Vizibilitate",
+    "categoryLabel": "Categorie",
+    "locTitle": "Locație & acoperire",
+    "locNationwide": "Acoperire națională",
+    "locNationwideHint": "Fără oraș sau rază — afacerea apare pentru toată țara.",
+    "locCity": "Oraș",
+    "locCityPlaceholder": "Caută un oraș…",
+    "locRadius": "Rază de acoperire",
+    "locSaved": "Locație salvată",
+    "webPublish": "Publică site-ul",
+    "webUnpublish": "Retrage site-ul",
+    "webPublished": "Site publicat",
+    "webUnpublished": "Site retras",
+    "webEditBuilder": "Editează site-ul (builder)",
+    "webEditNoteAdv": "Deschide builderul avansat al acestei afaceri și modifică paginile, secțiunile și designul.",
+    "webEditNoteEasy": "Site simplu — nu are builder. Poți doar deschide site-ul live.",
+    "webEditTitle": "Conținut website",
+    "webUpgradedPaid": "Builder avansat deblocat — proprietar taxat",
+    "webUpgradeTitleEasy": "Upgrade la builderul avansat",
+    "webUpgradeTitlePending": "Plan avansat ales — încă neactivat",
+    "webUpgradeCharge": "Taxează proprietarul ({n} cr)",
+    "webUpgradeOwnerBalance": "Portofel proprietar: {n} cr",
+    "webUpgradeShort": "insuficient pentru un upgrade cu plată",
+    "upgradeUnaffordable": "Portofelul proprietarului nu acoperă acest upgrade.",
+    "webEditNotePending": "Builderul avansat nu e activ încă. Acordă-l mai sus ca să editezi pagini și secțiuni.",
+    "previewOf": "Previzualizare {name}",
+    "openPublic": "Deschide pagina publică"
   },
   "adminBiz": {
     "lead": "Toate afacerile de pe platformă. Apasă un rând pentru administrare.",

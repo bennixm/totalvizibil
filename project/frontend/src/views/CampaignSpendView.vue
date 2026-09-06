@@ -592,7 +592,7 @@ watch(
   letter-spacing: 0.16em;
   font-size: 10px;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
 }
 .ov__head h1 {
@@ -616,12 +616,12 @@ watch(
   text-align: center;
   gap: 0.4rem;
   padding: 3rem 1rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .ov__empty p {
   margin: 0.4rem 0 0;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.8);
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .ov__empty span {
   font-size: 0.85rem;
@@ -663,26 +663,26 @@ watch(
   letter-spacing: 0.05em;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  background: rgb(var(--v-theme-on-surface) / 0.08);
-  color: rgb(var(--v-theme-on-surface) / 0.65);
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .chip--success {
-  background: rgb(var(--v-theme-success) / 0.16);
+  background: rgba(var(--v-theme-success), 0.16);
   color: rgb(var(--v-theme-success));
 }
 .chip--warning {
-  background: rgb(var(--v-theme-warning) / 0.16);
+  background: rgba(var(--v-theme-warning), 0.16);
   color: rgb(var(--v-theme-warning));
 }
 .chip--error {
-  background: rgb(var(--v-theme-error) / 0.16);
+  background: rgba(var(--v-theme-error), 0.16);
   color: rgb(var(--v-theme-error));
 }
 .chip--auto {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  background: rgb(var(--v-theme-primary) / 0.14);
+  background: rgba(var(--v-theme-primary), 0.14);
   color: rgb(var(--v-theme-primary));
 }
 .ov__controlLinks {
@@ -725,25 +725,25 @@ watch(
 .ov__banner p {
   margin: 0.1rem 0 0;
   font-size: 0.8rem;
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .ov__banner--ai {
   background: var(--tvz-ai-soft);
-  border: 1px solid rgb(var(--v-theme-primary) / 0.35);
+  border: 1px solid rgba(var(--v-theme-primary), 0.35);
 }
 .ov__banner--ai > .v-icon {
   color: rgb(var(--v-theme-primary));
 }
 .ov__banner--warn {
-  background: rgb(var(--v-theme-warning) / 0.12);
-  border: 1px solid rgb(var(--v-theme-warning) / 0.4);
+  background: rgba(var(--v-theme-warning), 0.12);
+  border: 1px solid rgba(var(--v-theme-warning), 0.4);
 }
 .ov__banner--warn > .v-icon {
   color: rgb(var(--v-theme-warning));
 }
 .ov__banner--danger {
-  background: rgb(var(--v-theme-error) / 0.1);
-  border: 1px solid rgb(var(--v-theme-error) / 0.4);
+  background: rgba(var(--v-theme-error), 0.1);
+  border: 1px solid rgba(var(--v-theme-error), 0.4);
 }
 .ov__banner--danger > .v-icon {
   color: rgb(var(--v-theme-error));
@@ -758,9 +758,9 @@ watch(
   flex-wrap: wrap;
   margin-top: 1.25rem;
   padding: 0.9rem 1.1rem;
-  border: 1px solid rgb(var(--v-theme-error) / 0.3);
+  border: 1px solid rgba(var(--v-theme-error), 0.3);
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-error) / 0.04);
+  background: rgba(var(--v-theme-error), 0.04);
 }
 .ov__danger strong {
   font-size: 0.86rem;
@@ -768,7 +768,7 @@ watch(
 .ov__danger p {
   margin: 0.15rem 0 0;
   font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 /* Principal info ---------------------------------------------------- */
@@ -784,8 +784,8 @@ watch(
   justify-content: center;
   padding: 1rem 1.1rem;
   border-radius: 14px;
-  background: rgb(var(--v-theme-primary) / 0.1);
-  border: 1px solid rgb(var(--v-theme-primary) / 0.3);
+  background: rgba(var(--v-theme-primary), 0.1);
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
 }
 .khero__k {
   font-size: 0.64rem;
@@ -806,7 +806,7 @@ watch(
 }
 .khero__x {
   font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .ktiles {
   display: grid;
@@ -824,7 +824,7 @@ watch(
   font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .kt__v {
   display: block;
@@ -837,7 +837,7 @@ watch(
   display: block;
   margin-top: 0.1rem;
   font-size: 0.68rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
 /* Today ---------------------------------------------------------- */
@@ -849,7 +849,7 @@ watch(
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .today__big {
   margin: 0.3rem 0 0;
@@ -862,7 +862,7 @@ watch(
 .today__slash {
   font-size: 0.95rem;
   font-weight: 500;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .today__pct {
   font-size: 0.95rem;
@@ -876,7 +876,7 @@ watch(
 .today__eq {
   margin: 0.2rem 0 0;
   font-size: 0.8rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .today__eqSep {
   margin: 0 0.15rem;
@@ -885,7 +885,7 @@ watch(
 .today__track {
   height: 8px;
   border-radius: 999px;
-  background: rgb(var(--v-theme-on-surface) / 0.1);
+  background: rgba(var(--v-theme-on-surface), 0.1);
   overflow: hidden;
   margin: 0.8rem 0 0;
 }
@@ -919,7 +919,7 @@ watch(
 }
 .today__projIn {
   font-weight: 400;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .today__runway {
   display: flex;
@@ -931,7 +931,7 @@ watch(
   padding-top: 0.9rem;
   border-top: 1px solid var(--tvz-hairline);
   font-size: 0.82rem;
-  color: rgb(var(--v-theme-on-surface) / 0.75);
+  color: rgba(var(--v-theme-on-surface), 0.75);
 }
 .today__runway.is-low {
   color: rgb(var(--v-theme-warning));
@@ -962,13 +962,13 @@ watch(
   padding: 0.3rem 0.85rem;
   font-size: 0.76rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .seg button + button {
   border-left: 1px solid var(--tvz-glass-border);
 }
 .seg button.is-on {
-  background: rgb(var(--v-theme-primary) / 0.14);
+  background: rgba(var(--v-theme-primary), 0.14);
   color: rgb(var(--v-theme-primary));
 }
 
@@ -981,7 +981,7 @@ watch(
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .ov__lifeGrid {
   display: grid;
@@ -998,7 +998,7 @@ watch(
   font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .lf__v {
   display: block;
@@ -1009,7 +1009,7 @@ watch(
 .lf__x {
   display: block;
   font-size: 0.7rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
 /* Folds ------------------------------------------------------------- */
@@ -1034,7 +1034,7 @@ watch(
 }
 .ov__foldChevron {
   transition: transform var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .ov__fold[open] .ov__foldChevron {
   transform: rotate(90deg);
@@ -1056,7 +1056,7 @@ watch(
   font-size: 0.64rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   padding: 0 0.5rem 0.4rem;
 }
 .ov__table td {
@@ -1073,7 +1073,7 @@ watch(
   text-transform: uppercase;
   padding: 0.1rem 0.4rem;
   border-radius: 999px;
-  background: rgb(var(--v-theme-warning) / 0.16);
+  background: rgba(var(--v-theme-warning), 0.16);
   color: rgb(var(--v-theme-warning));
 }
 
@@ -1086,7 +1086,7 @@ watch(
   gap: 0.4rem;
   margin: 0 0 0.5rem;
   font-size: 0.86rem;
-  color: rgb(var(--v-theme-on-surface) / 0.82);
+  color: rgba(var(--v-theme-on-surface), 0.82);
 }
 .ov__insights .insight:last-child {
   margin-bottom: 0;

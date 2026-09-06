@@ -708,7 +708,7 @@ function shortDate(iso: string): string {
 }
 .acc__head p {
   margin: 0;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   font-size: 0.9rem;
 }
 .acc__tabs {
@@ -743,7 +743,7 @@ function shortDate(iso: string): string {
 }
 .acc__note {
   font-size: 0.83rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   margin: 0 0 1rem;
 }
 .totp-setup {
@@ -769,7 +769,7 @@ function shortDate(iso: string): string {
   letter-spacing: 0.12em;
   padding: 0.3rem 0.6rem;
   border-radius: 6px;
-  background: rgb(var(--v-theme-on-surface) / 0.06);
+  background: rgba(var(--v-theme-on-surface), 0.06);
 }
 .acc__sessions {
   background: transparent;
@@ -802,12 +802,12 @@ function shortDate(iso: string): string {
 }
 .acc__refLbl {
   font-size: 0.74rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .acc__refEmpty {
   padding: 1.5rem 0.25rem;
   font-size: 0.86rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .acc__refTable {
   width: 100%;
@@ -819,7 +819,7 @@ function shortDate(iso: string): string {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   padding: 0.4rem 0.55rem;
   border-bottom: 1px solid var(--tvz-hairline);
 }
@@ -837,7 +837,7 @@ function shortDate(iso: string): string {
 }
 .acc__refMail {
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .acc__refInv {
   display: inline-flex;

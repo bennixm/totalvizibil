@@ -7,6 +7,6 @@ export class AddAssetDto {
   @MaxLength(11_000_000)
   dataUri!: string;
 
-  @IsIn(['landing', 'portfolio'])
-  kind!: 'landing' | 'portfolio';
+  @IsIn(['landing', 'portfolio', 'logo'])
+  kind!: 'landing' | 'portfolio' | 'logo';
 }

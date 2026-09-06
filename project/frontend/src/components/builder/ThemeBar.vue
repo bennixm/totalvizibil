@@ -30,11 +30,44 @@ const DEFAULT: WebsiteTheme = {
 }
 const theme = computed<WebsiteTheme>(() => doc.value?.theme ?? DEFAULT)
 const accent = computed(() => theme.value.accent ?? '')
+const logoUrl = computed(() => theme.value.logoUrl ?? '')
 const open = ref(false)
+const logoBusy = ref(false)
+const logoErr = ref('')
 
 function patch(p: Partial<WebsiteTheme>): void {
   // any manual tweak detaches from the named preset
   void store.patchTheme(props.companyId, { ...p, preset: undefined })
+}
+
+async function onLogo(e: Event): Promise<void> {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  ;(e.target as HTMLInputElement).value = ''
+  if (!file) return
+  logoErr.value = ''
+  if (file.size > 3_000_000) {
+    logoErr.value = t('builder.logoTooLarge')
+    return
+  }
+  logoBusy.value = true
+  try {
+    const dataUri = await new Promise<string>((res, rej) => {
+      const r = new FileReader()
+      r.onload = () => res(String(r.result))
+      r.onerror = () => rej(new Error('read'))
+      r.readAsDataURL(file)
+    })
+    const url = await store.uploadAsset(props.companyId, 'logo', dataUri)
+    if (!url) {
+      logoErr.value = t('builder.logoFailed')
+      return
+    }
+    await store.patchTheme(props.companyId, { logoUrl: url, preset: undefined })
+  } catch {
+    logoErr.value = t('builder.logoFailed')
+  } finally {
+    logoBusy.value = false
+  }
 }
 function presetHex(id: string): string {
   const p = STYLE_PRESETS[id as keyof typeof STYLE_PRESETS]
@@ -87,6 +120,23 @@ function tl(key: string, raw: string): string {
     </div>
 
     <div v-if="open" class="tb__panel">
+      <div class="tb__grp tb__grp--logo">
+        <span class="tb__k">{{ t('builder.logoLabel') }}</span>
+        <img v-if="logoUrl" :src="logoUrl" alt="" class="tb__logo" />
+        <label class="tb__logoBtn" :class="{ 'is-busy': logoBusy }">
+          <v-progress-circular v-if="logoBusy" indeterminate size="14" width="2" />
+          <template v-else>
+            <v-icon icon="mdi-tray-arrow-up" size="14" />
+            {{ logoUrl ? t('builder.logoReplace') : t('builder.logoUpload') }}
+          </template>
+          <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="logoBusy" @change="onLogo" />
+        </label>
+        <button v-if="logoUrl" type="button" class="tb__clear" :title="t('builder.logoRemove')" @click="patch({ logoUrl: '' })">
+          <v-icon icon="mdi-close" size="13" />
+        </button>
+        <span v-if="logoErr" class="tb__logoErr">{{ logoErr }}</span>
+      </div>
+
       <div class="tb__grp">
         <span class="tb__k">{{ t('builder.background') }}</span>
         <div class="tb__seg">
@@ -232,7 +282,7 @@ function tl(key: string, raw: string): string {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .tb__presets {
   display: flex;
@@ -248,13 +298,13 @@ function tl(key: string, raw: string): string {
   font-size: 0.78rem;
   font-weight: 600;
   border: 1px solid var(--tvz-glass-border);
-  color: rgb(var(--v-theme-on-surface) / 0.75);
+  color: rgba(var(--v-theme-on-surface), 0.75);
   background: rgb(var(--v-theme-surface));
 }
 .tb__preset.is-on {
   border-color: rgb(var(--v-theme-primary));
   color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.08);
+  background: rgba(var(--v-theme-primary), 0.08);
 }
 .tb__presetDot {
   width: 12px;
@@ -286,7 +336,7 @@ function tl(key: string, raw: string): string {
   border-radius: 8px;
   font-size: 0.76rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
   border: 1px solid var(--tvz-glass-border);
 }
 .tb__ai:disabled,
@@ -301,12 +351,12 @@ function tl(key: string, raw: string): string {
   border-radius: 8px;
   font-size: 0.76rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.65);
+  color: rgba(var(--v-theme-on-surface), 0.65);
   border: 1px solid var(--tvz-glass-border);
 }
 .tb__more.is-on {
   color: rgb(var(--v-theme-primary));
-  border-color: rgb(var(--v-theme-primary) / 0.4);
+  border-color: rgba(var(--v-theme-primary), 0.4);
 }
 
 .tb__panel {
@@ -324,6 +374,39 @@ function tl(key: string, raw: string): string {
 .tb__grp--wide {
   flex-wrap: wrap;
 }
+.tb__grp--logo {
+  flex-wrap: wrap;
+}
+.tb__logo {
+  height: 22px;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.tb__logoBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  border: 1px solid var(--tvz-glass-border);
+  cursor: pointer;
+}
+.tb__logoBtn.is-busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.tb__logoBtn input {
+  display: none;
+}
+.tb__logoErr {
+  font-size: 0.72rem;
+  color: rgb(var(--v-theme-error));
+}
 .tb__seg {
   display: inline-flex;
   border: 1px solid var(--tvz-glass-border);
@@ -334,7 +417,7 @@ function tl(key: string, raw: string): string {
   padding: 0.3rem 0.6rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   background: rgb(var(--v-theme-surface));
 }
 .tb__seg button + button {
@@ -352,7 +435,7 @@ function tl(key: string, raw: string): string {
   border-radius: 7px;
   background: var(--sw);
   border: 2px solid rgb(var(--v-theme-surface));
-  box-shadow: 0 0 0 1px rgb(var(--v-theme-on-surface) / 0.15);
+  box-shadow: 0 0 0 1px rgba(var(--v-theme-on-surface), 0.15);
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -378,7 +461,7 @@ function tl(key: string, raw: string): string {
   width: 20px;
   height: 20px;
   border-radius: 6px;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .tb select {
   padding: 0.3rem 0.4rem;

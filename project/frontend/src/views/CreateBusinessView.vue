@@ -3,8 +3,16 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import { useSeo } from '@/composables/useSeo'
+
 const { t } = useI18n()
 const router = useRouter()
+
+useSeo(() => ({
+  title: t('create.seoTitle'),
+  description: t('create.seoDesc'),
+  canonicalPath: '/create',
+}))
 
 const modes = [
   { key: 'easy', icon: 'mdi-flash-outline', accent: 'primary' },
@@ -96,7 +104,7 @@ function pick(key: 'easy' | 'advanced'): void {
 .cb__lead {
   margin: 1rem auto 0;
   max-width: 46ch;
-  color: rgb(var(--v-theme-on-surface) / 0.66);
+  color: rgba(var(--v-theme-on-surface), 0.66);
   font-size: 1.05rem;
 }
 .cb__modes {
@@ -144,7 +152,7 @@ function pick(key: 'easy' | 'advanced'): void {
   margin: 0.4rem 0 0;
 }
 .mode p {
-  color: rgb(var(--v-theme-on-surface) / 0.66);
+  color: rgba(var(--v-theme-on-surface), 0.66);
   font-size: 0.92rem;
   margin: 0;
   flex: 1;
@@ -153,13 +161,13 @@ function pick(key: 'easy' | 'advanced'): void {
   align-self: flex-start;
   margin-top: 0.7rem;
   font-size: 0.7rem;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  background: rgb(var(--v-theme-on-surface) / 0.06);
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.72);
 }
 .cb__next {
   display: flex;
@@ -180,12 +188,12 @@ function pick(key: 'easy' | 'advanced'): void {
 }
 .cb__next span {
   font-size: 0.83rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.72);
 }
 .cb__foot {
   text-align: center;
   margin-top: 2rem;
   font-size: 0.82rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.66);
 }
 </style>

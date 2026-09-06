@@ -56,6 +56,7 @@ export interface EasyBlock {
   landingSubtitle: string
   accentColor: string | null
   landingImage: string | null
+  logoUrl: string | null
   serviceNames: string[]
   services: EasyServiceCopy[]
   portfolio: string[]
@@ -101,6 +102,7 @@ export interface EasyPatch {
   landingTitle?: string
   landingSubtitle?: string
   landingImage?: string
+  logoUrl?: string
   portfolio?: string[]
   services?: EasyServiceCopy[]
   phone?: string
@@ -337,8 +339,11 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       }
     },
 
-    /** Upload a landing / portfolio image (base64 data-URI). Returns its URL. */
-    async uploadAsset(kind: 'landing' | 'portfolio', dataUri: string): Promise<string | null> {
+    /** Upload a landing / portfolio / logo image (base64 data-URI). Returns its URL. */
+    async uploadAsset(
+      kind: 'landing' | 'portfolio' | 'logo',
+      dataUri: string,
+    ): Promise<string | null> {
       const ref = loadRef()
       if (!ref) return null
       this.error = ''

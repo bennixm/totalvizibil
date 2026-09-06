@@ -102,7 +102,7 @@ function isActive(tab: Tab): boolean {
   gap: 0.15rem;
   padding: 0.4rem 0.25rem;
   text-decoration: none;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   transition: color var(--tvz-dur-fast) var(--tvz-ease-out);
   -webkit-tap-highlight-color: transparent;
 }
@@ -120,7 +120,7 @@ function isActive(tab: Tab): boolean {
     transform var(--tvz-dur-med) var(--tvz-ease-spring);
 }
 .tab--active .tab__icon {
-  background: rgb(var(--v-theme-primary) / 0.14);
+  background: rgba(var(--v-theme-primary), 0.14);
 }
 .tab__label {
   font-size: 0.66rem;
@@ -151,7 +151,7 @@ function isActive(tab: Tab): boolean {
   transform: translateY(-1px) scale(1.03);
 }
 .tab--center .tab__label {
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
   margin-top: 0.1rem;
 }
 

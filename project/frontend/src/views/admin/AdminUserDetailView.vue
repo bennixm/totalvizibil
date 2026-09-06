@@ -800,7 +800,7 @@ const txnColor: Record<string, string> = {
 .ud__roles-label {
   width: 100%;
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .ud__facts {
   display: flex;
@@ -809,7 +809,7 @@ const txnColor: Record<string, string> = {
 }
 .ud__note {
   font-size: 0.75rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   margin: 0.7rem 0 0;
 }
 
@@ -828,7 +828,7 @@ const txnColor: Record<string, string> = {
 .ud__secVal {
   margin: 0.1rem 0 0;
   font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .ud__pwRow {
   display: flex;
@@ -855,7 +855,7 @@ const txnColor: Record<string, string> = {
 }
 .ud__balance span {
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   margin-top: 0.3rem;
 }
 .ud__wstats {
@@ -871,7 +871,7 @@ const txnColor: Record<string, string> = {
   margin-top: 0.9rem;
   padding: 0.55rem 0.8rem;
   border-radius: 10px;
-  background: rgb(var(--v-theme-error) / 0.12);
+  background: rgba(var(--v-theme-error), 0.12);
   color: rgb(var(--v-theme-error));
   font-size: 0.8rem;
 }
@@ -902,7 +902,7 @@ const txnColor: Record<string, string> = {
   padding: 0.9rem 1rem;
   border: 1px solid var(--tvz-hairline);
   border-radius: 12px;
-  background: rgb(var(--v-theme-on-surface) / 0.015);
+  background: rgba(var(--v-theme-on-surface), 0.015);
 }
 .bizrow__main {
   flex: 1;
@@ -922,7 +922,7 @@ const txnColor: Record<string, string> = {
 }
 .bizrow__slug {
   font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .bizrow__tags {
   display: flex;
@@ -932,7 +932,7 @@ const txnColor: Record<string, string> = {
 }
 .bizrow__role {
   font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .bizrow__camp {
   display: flex;
@@ -940,11 +940,11 @@ const txnColor: Record<string, string> = {
   gap: 0.45rem;
   flex-wrap: wrap;
   font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .bizrow__muted,
 .ud__muted {
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .bizrow__stats {
   display: flex;
@@ -960,7 +960,7 @@ const txnColor: Record<string, string> = {
   font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .bizrow__stats b {
   font-size: 0.95rem;
@@ -988,7 +988,7 @@ const txnColor: Record<string, string> = {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   padding: 0.35rem 0.6rem;
   border-bottom: 1px solid var(--tvz-hairline);
   white-space: nowrap;
@@ -1006,10 +1006,10 @@ const txnColor: Record<string, string> = {
   white-space: nowrap;
 }
 .ud__desc {
-  color: rgb(var(--v-theme-on-surface) / 0.8);
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .ud__date {
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   font-size: 0.74rem;
 }
 .ud__link {

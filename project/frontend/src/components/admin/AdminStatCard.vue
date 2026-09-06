@@ -79,7 +79,7 @@ function go() {
 }
 .asc__label {
   font-size: 0.74rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .asc__icon {
   color: rgb(var(--asc-acc) / 0.9);
@@ -95,6 +95,6 @@ function go() {
 }
 .asc__sub {
   font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 </style>

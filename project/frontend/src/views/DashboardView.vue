@@ -789,7 +789,7 @@ watch(
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .dalert {
   display: flex;
@@ -803,7 +803,7 @@ watch(
 }
 .dalert--high {
   border-left-color: rgb(var(--v-theme-error));
-  background: rgb(var(--v-theme-error) / 0.04);
+  background: rgba(var(--v-theme-error), 0.04);
 }
 .dalert__ic {
   display: grid;
@@ -812,11 +812,11 @@ watch(
   height: 32px;
   flex: none;
   border-radius: 9px;
-  background: rgb(var(--v-theme-warning) / 0.14);
+  background: rgba(var(--v-theme-warning), 0.14);
   color: rgb(var(--v-theme-warning));
 }
 .dalert--high .dalert__ic {
-  background: rgb(var(--v-theme-error) / 0.14);
+  background: rgba(var(--v-theme-error), 0.14);
   color: rgb(var(--v-theme-error));
 }
 .dalert__body {
@@ -829,7 +829,7 @@ watch(
 .dalert__body p {
   margin: 0.15rem 0 0;
   font-size: 0.8rem;
-  color: rgb(var(--v-theme-on-surface) / 0.65);
+  color: rgba(var(--v-theme-on-surface), 0.65);
 }
 
 /* --- Upgrade banner --- */
@@ -843,10 +843,10 @@ watch(
   margin-top: 1.5rem;
   padding: 1.1rem 1.3rem;
   border-radius: 12px;
-  border: 1px solid rgb(var(--v-theme-primary) / 0.4);
+  border: 1px solid rgba(var(--v-theme-primary), 0.4);
   background:
-    radial-gradient(120% 140% at 0% 0%, rgb(var(--v-theme-primary) / 0.16), transparent 55%),
-    linear-gradient(120deg, rgb(var(--v-theme-primary) / 0.08), rgb(var(--v-theme-secondary) / 0.06));
+    radial-gradient(120% 140% at 0% 0%, rgba(var(--v-theme-primary), 0.16), transparent 55%),
+    linear-gradient(120deg, rgba(var(--v-theme-primary), 0.08), rgba(var(--v-theme-secondary), 0.06));
 }
 .dupgrade__glow {
   position: absolute;
@@ -854,7 +854,7 @@ watch(
   width: 320px;
   height: 320px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgb(var(--v-theme-secondary) / 0.28), transparent 70%);
+  background: radial-gradient(circle, rgba(var(--v-theme-secondary), 0.28), transparent 70%);
   pointer-events: none;
 }
 .dupgrade__ic {
@@ -867,7 +867,7 @@ watch(
   border-radius: 12px;
   color: #fff;
   background: var(--tvz-gradient-brand, linear-gradient(115deg, #3f63e8, #6d5ef0));
-  box-shadow: 0 6px 18px rgb(var(--v-theme-primary) / 0.4);
+  box-shadow: 0 6px 18px rgba(var(--v-theme-primary), 0.4);
 }
 .dupgrade__body {
   position: relative;
@@ -881,7 +881,7 @@ watch(
 .dupgrade__body p {
   margin: 0.2rem 0 0;
   font-size: 0.85rem;
-  color: rgb(var(--v-theme-on-surface) / 0.72);
+  color: rgba(var(--v-theme-on-surface), 0.72);
 }
 .dupgrade__cta {
   position: relative;
@@ -976,12 +976,12 @@ watch(
 .dcard__hero small {
   font-size: 0.82rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .dcard__sub {
   margin: 0.35rem 0 0;
   font-size: 0.82rem;
-  color: rgb(var(--v-theme-on-surface) / 0.62);
+  color: rgba(var(--v-theme-on-surface), 0.62);
 }
 .dcard__badges {
   display: flex;
@@ -999,22 +999,22 @@ watch(
   color: var(--acc-c);
 }
 .dcard__badge.is-idle {
-  background: rgb(var(--v-theme-on-surface) / 0.08);
-  color: rgb(var(--v-theme-on-surface) / 0.65);
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .dcard__badge.is-live {
-  background: rgb(var(--v-theme-success) / 0.16);
+  background: rgba(var(--v-theme-success), 0.16);
   color: rgb(var(--v-theme-success));
 }
 .dcard__badge.is-warn {
-  background: rgb(var(--v-theme-warning) / 0.16);
+  background: rgba(var(--v-theme-warning), 0.16);
   color: rgb(var(--v-theme-warning));
 }
 .dcard__badge--auto {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  background: rgb(var(--v-theme-primary) / 0.16);
+  background: rgba(var(--v-theme-primary), 0.16);
   color: rgb(var(--v-theme-primary));
   letter-spacing: 0.03em;
 }
@@ -1024,7 +1024,7 @@ watch(
   padding: 0.24rem 0.58rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--acc-c) 32%, transparent);
-  color: rgb(var(--v-theme-on-surface) / 0.62);
+  color: rgba(var(--v-theme-on-surface), 0.62);
   text-transform: capitalize;
 }
 .dcard__go {
@@ -1057,14 +1057,14 @@ watch(
   margin-top: 0;
 }
 .dcard__go--alt {
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   font-weight: 500;
 }
 .dcard__go--alt:hover {
   color: rgb(var(--acc));
 }
 .dcard__go--disabled {
-  color: rgb(var(--v-theme-on-surface) / 0.35);
+  color: rgba(var(--v-theme-on-surface), 0.35);
   cursor: not-allowed;
   pointer-events: none;
 }
@@ -1080,7 +1080,7 @@ watch(
   border-radius: 20px;
   border: 1px solid var(--tvz-glass-border);
   background:
-    radial-gradient(150% 110% at 100% 0%, rgb(var(--v-theme-primary) / 0.08), transparent 55%),
+    radial-gradient(150% 110% at 100% 0%, rgba(var(--v-theme-primary), 0.08), transparent 55%),
     rgb(var(--v-theme-surface));
 }
 .ana__rank {
@@ -1109,7 +1109,7 @@ watch(
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .ana__chart {
   padding: 1.4rem 1.6rem 1.1rem;
@@ -1140,7 +1140,7 @@ watch(
   font-size: 0.64rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .astat__v {
   font-family: 'Space Grotesk Variable', sans-serif;
@@ -1151,7 +1151,7 @@ watch(
 }
 .astat__x {
   font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 .dash__danger {
@@ -1162,9 +1162,9 @@ watch(
   flex-wrap: wrap;
   margin-top: 1.75rem;
   padding: 1rem 1.25rem;
-  border: 1px solid rgb(var(--v-theme-error) / 0.3);
+  border: 1px solid rgba(var(--v-theme-error), 0.3);
   border-radius: var(--tvz-radius-lg);
-  background: rgb(var(--v-theme-error) / 0.04);
+  background: rgba(var(--v-theme-error), 0.04);
 }
 .dash__danger strong {
   display: block;
@@ -1172,7 +1172,7 @@ watch(
 }
 .dash__danger span {
   font-size: 0.8rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 .dash__deleteBanner {
@@ -1182,9 +1182,9 @@ watch(
   flex-wrap: wrap;
   margin-bottom: 1.25rem;
   padding: 0.9rem 1.15rem;
-  border: 1px solid rgb(var(--v-theme-error) / 0.45);
+  border: 1px solid rgba(var(--v-theme-error), 0.45);
   border-radius: var(--tvz-radius-lg);
-  background: rgb(var(--v-theme-error) / 0.08);
+  background: rgba(var(--v-theme-error), 0.08);
 }
 .dash__deleteBanner > .v-icon {
   flex: none;
@@ -1201,7 +1201,7 @@ watch(
 .dash__deleteBody p {
   margin: 0.15rem 0 0;
   font-size: 0.8rem;
-  color: rgb(var(--v-theme-on-surface) / 0.72);
+  color: rgba(var(--v-theme-on-surface), 0.72);
 }
 .dash__deleteDays {
   font-weight: 700;
@@ -1242,7 +1242,7 @@ watch(
   gap: 0.75rem;
   text-align: center;
   padding: 3rem 1rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .dash__empty h2 {
   font-family: 'Space Grotesk Variable', sans-serif;
@@ -1266,7 +1266,7 @@ watch(
   letter-spacing: 0.16em;
   font-size: 10px;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
 }
 .dash__head h1 {
@@ -1307,7 +1307,7 @@ watch(
 }
 .dash__taskBody span {
   font-size: 0.83rem;
-  color: rgb(var(--v-theme-on-surface) / 0.65);
+  color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .dash__taskAction {
   display: flex;
@@ -1318,7 +1318,7 @@ watch(
 }
 .dash__taskAction small {
   font-size: 0.7rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
 @media (max-width: 560px) {

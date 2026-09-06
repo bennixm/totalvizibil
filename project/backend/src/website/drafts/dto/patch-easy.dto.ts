@@ -85,6 +85,12 @@ export class PatchEasyDto {
   @MaxLength(200)
   landingImage?: string;
 
+  /** '' clears the brand logo. Otherwise a website-asset URL. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  logoUrl?: string;
+
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(10)

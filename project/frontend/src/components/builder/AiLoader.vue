@@ -124,15 +124,15 @@ onBeforeUnmount(() => timer && clearInterval(timer))
   align-items: center;
   gap: 0.55rem;
   font-size: 0.86rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   transition: color 0.25s ease;
 }
 .al__steps li.is-active {
-  color: rgb(var(--v-theme-on-surface) / 0.95);
+  color: rgba(var(--v-theme-on-surface), 0.95);
   font-weight: 600;
 }
 .al__steps li.is-done {
-  color: rgb(var(--v-theme-on-surface) / 0.8);
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .al__mark {
   display: grid;
@@ -141,7 +141,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
   height: 20px;
   border-radius: 50%;
   color: #fff;
-  background: rgb(var(--v-theme-primary) / 0.25);
+  background: rgba(var(--v-theme-primary), 0.25);
 }
 .is-done .al__mark {
   background: rgb(var(--v-theme-primary));
@@ -160,7 +160,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
 .al__bar {
   height: 6px;
   border-radius: 999px;
-  background: rgb(var(--v-theme-on-surface) / 0.1);
+  background: rgba(var(--v-theme-on-surface), 0.1);
   overflow: hidden;
 }
 .al__bar span {
@@ -189,7 +189,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
 }
 .sk {
   border-radius: 7px;
-  background: rgb(var(--v-theme-on-surface) / 0.14);
+  background: rgba(var(--v-theme-on-surface), 0.14);
   position: relative;
   overflow: hidden;
 }
@@ -201,7 +201,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
   background: linear-gradient(
     90deg,
     transparent,
-    rgb(var(--v-theme-primary) / 0.28),
+    rgba(var(--v-theme-primary), 0.28),
     transparent
   );
   animation: al-sheen 1.4s ease-in-out infinite;

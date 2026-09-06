@@ -214,7 +214,7 @@ function moveToPage(id: string, pageId: string): void {
 }
 .pp__tab.is-on {
   border-color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.08);
+  background: rgba(var(--v-theme-primary), 0.08);
   color: rgb(var(--v-theme-primary));
 }
 .pp__tabName {
@@ -239,7 +239,7 @@ function moveToPage(id: string, pageId: string): void {
   place-items: center;
   width: 30px;
   border-radius: 8px;
-  border: 1px dashed rgb(var(--v-theme-primary) / 0.4);
+  border: 1px dashed rgba(var(--v-theme-primary), 0.4);
   color: rgb(var(--v-theme-primary));
 }
 .pp__pageBar {
@@ -257,8 +257,8 @@ function moveToPage(id: string, pageId: string): void {
   border-radius: 7px;
   font-size: 0.72rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.65);
-  background: rgb(var(--v-theme-on-surface) / 0.05);
+  color: rgba(var(--v-theme-on-surface), 0.65);
+  background: rgba(var(--v-theme-on-surface), 0.05);
 }
 .pp__pageBar button:disabled {
   opacity: 0.4;
@@ -289,13 +289,13 @@ function moveToPage(id: string, pageId: string): void {
 }
 .pp__sec.is-sel {
   border-color: rgb(var(--v-theme-primary));
-  box-shadow: 0 0 0 1px rgb(var(--v-theme-primary) / 0.4);
+  box-shadow: 0 0 0 1px rgba(var(--v-theme-primary), 0.4);
 }
 .pp__sec.is-hidden {
   opacity: 0.5;
 }
 .pp__grip {
-  color: rgb(var(--v-theme-on-surface) / 0.35);
+  color: rgba(var(--v-theme-on-surface), 0.35);
   cursor: grab;
 }
 .pp__secIc {
@@ -312,7 +312,7 @@ function moveToPage(id: string, pageId: string): void {
 .pp__secName em {
   font-style: normal;
   font-size: 0.68rem;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   margin-left: 0.3rem;
 }
 .pp__secActs {
@@ -326,10 +326,10 @@ function moveToPage(id: string, pageId: string): void {
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .pp__secActs button:hover {
-  background: rgb(var(--v-theme-on-surface) / 0.08);
+  background: rgba(var(--v-theme-on-surface), 0.08);
 }
 .pp__move {
   width: 26px;
@@ -337,7 +337,7 @@ function moveToPage(id: string, pageId: string): void {
   border-radius: 6px;
   border: 0;
   background: transparent;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   font-size: 0.75rem;
 }
 .pp__add {
@@ -351,6 +351,6 @@ function moveToPage(id: string, pageId: string): void {
   font-size: 0.8rem;
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
-  border: 1px dashed rgb(var(--v-theme-primary) / 0.4);
+  border: 1px dashed rgba(var(--v-theme-primary), 0.4);
 }
 </style>

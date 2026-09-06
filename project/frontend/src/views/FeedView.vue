@@ -75,15 +75,15 @@ const breadcrumbLd = computed(() => {
 })
 
 useSeo(() => ({
-  title: seoTitle.value || undefined,
-  description: seoDescription.value || undefined,
+  // Category pages get their own keyword-rich title/description; the bare home
+  // falls back to a dedicated marketing title (never the empty string, which
+  // would leave the RO default on an EN/DE render).
+  title: seoTitle.value || t('feed.seoHomeTitle'),
+  description: seoDescription.value || t('feed.seoHomeDesc'),
   canonicalPath: routeGroup.value
     ? `/${routeGroup.value}${routeNiche.value ? `/${routeNiche.value}` : ''}`
     : '/',
   jsonLd: breadcrumbLd.value,
-  // The bare "pick a category" home is thin — let the category pages be the
-  // indexable surface.
-  noindex: !routeCategory.value,
 }))
 
 /** Push the route-derived category into the store and refetch. */
@@ -261,7 +261,7 @@ async function go(n: number): Promise<void> {
 }
 .feed__lead {
   margin: 0.8rem 0 0;
-  color: rgb(var(--v-theme-on-surface) / 0.66);
+  color: rgba(var(--v-theme-on-surface), 0.66);
   font-size: 1.02rem;
   max-width: 52ch;
 }
@@ -288,7 +288,7 @@ async function go(n: number): Promise<void> {
   gap: 1rem;
   flex-wrap: wrap;
   font-size: 0.8rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   scroll-margin-top: calc(var(--tvz-topbar-h) + 90px);
 }
 
@@ -304,9 +304,9 @@ async function go(n: number): Promise<void> {
   border: 1px solid var(--tvz-glass-border);
   background: linear-gradient(
     100deg,
-    rgb(var(--v-theme-on-surface) / 0.04) 30%,
-    rgb(var(--v-theme-on-surface) / 0.08) 50%,
-    rgb(var(--v-theme-on-surface) / 0.04) 70%
+    rgba(var(--v-theme-on-surface), 0.04) 30%,
+    rgba(var(--v-theme-on-surface), 0.08) 50%,
+    rgba(var(--v-theme-on-surface), 0.04) 70%
   );
   background-size: 200% 100%;
   animation: feed-shine 1.4s ease-in-out infinite;
@@ -326,7 +326,7 @@ async function go(n: number): Promise<void> {
 .feed__pick {
   text-align: center;
   padding: 3.5rem 1rem;
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
   border: 1px dashed var(--tvz-glass-border);
   border-radius: var(--tvz-radius-lg);
 }
@@ -352,7 +352,7 @@ async function go(n: number): Promise<void> {
   background: rgb(var(--v-theme-surface));
   font-size: 0.88rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.75);
+  color: rgba(var(--v-theme-on-surface), 0.75);
   cursor: pointer;
   transition:
     background var(--tvz-dur-fast) var(--tvz-ease-out),
@@ -360,7 +360,7 @@ async function go(n: number): Promise<void> {
     border-color var(--tvz-dur-fast) var(--tvz-ease-out);
 }
 .pg:hover:not(:disabled):not(.pg--gap) {
-  border-color: rgb(var(--v-theme-primary) / 0.5);
+  border-color: rgba(var(--v-theme-primary), 0.5);
   color: rgb(var(--v-theme-on-surface));
 }
 .pg--on {

@@ -128,6 +128,15 @@ export class WebsiteBuilderService {
 
   // --- loading / context ------------------------------------------------
 
+  /** Does this user hold the platform `admin` role? (admin panel entry-point). */
+  private async isPlatformAdmin(userId: string): Promise<boolean> {
+    const row = await this.prisma.platformRoleAssignment.findFirst({
+      where: { userId, role: 'admin' },
+      select: { userId: true },
+    });
+    return !!row;
+  }
+
   private async load(
     companyId: string,
     userId: string,
@@ -137,8 +146,13 @@ export class WebsiteBuilderService {
     const member = await this.prisma.companyUser.findUnique({
       where: { companyId_userId: { companyId, userId } },
     });
-    if (!member || member.status !== 'active') throw new NotFoundException('Company not found');
-    if (needEdit && !CAN_EDIT.includes(member.role)) {
+    if (!member || member.status !== 'active') {
+      // A platform admin editing a business on the owner's behalf gets the same
+      // rights an owner has here (the admin panel guards the entry point).
+      if (!(await this.isPlatformAdmin(userId))) {
+        throw new NotFoundException('Company not found');
+      }
+    } else if (needEdit && !CAN_EDIT.includes(member.role)) {
       throw new ForbiddenException('Your role cannot edit the website');
     }
     const company = await this.prisma.company.findUniqueOrThrow({
@@ -232,11 +246,27 @@ export class WebsiteBuilderService {
     const company = await this.load(companyId, userId, false, false);
     const w = company.website!;
     const ctx = this.seedCtx(company);
-    const [price, walletSummary] = await Promise.all([
+    const [price, walletSummary, isAdmin] = await Promise.all([
       this.settings.advancedBuilderPriceCredits(),
       this.wallet.getSummary(company.ownerUserId),
+      this.isPlatformAdmin(userId),
     ]);
-    const unlocked = company.advancedUnlockedAt != null && w.mode === 'advanced';
+    let unlocked = company.advancedUnlockedAt != null && w.mode === 'advanced';
+
+    // The site is already on the advanced plan but never paid the deferred
+    // unlock fee (e.g. picked "advanced" at signup, never opened the builder).
+    // For the owner that fee is still due — they see the pay screen. A platform
+    // admin opening it IS the grant: heal the flag for free so the studio opens
+    // and every edit endpoint (which re-checks `advancedUnlockedAt`) works.
+    if (!unlocked && isAdmin && w.mode === 'advanced') {
+      const now = new Date();
+      await this.prisma.company.update({
+        where: { id: companyId },
+        data: { advancedUnlockedAt: now },
+      });
+      company.advancedUnlockedAt = now;
+      unlocked = true;
+    }
 
     // Has the owner already done the post-builder location + category step?
     // (Same rule the dashboard uses for the `set_location` task.) Lets the
@@ -314,18 +344,25 @@ export class WebsiteBuilderService {
   }
 
   /**
-   * Grant the advanced builder to a business with no charge — a platform admin
-   * doing it on the owner's behalf. Bypasses the owner-membership check (the
-   * admin guard is the gate). Returns nothing; the admin panel re-reads the
-   * company detail afterwards.
+   * Grant the advanced builder to a business — a platform admin doing it on the
+   * owner's behalf. Bypasses the owner-membership check (the admin guard is the
+   * gate). `charge: true` debits the owner's wallet the standard fee (rejected
+   * up-front if they can't cover it); otherwise it's free. Returns nothing; the
+   * admin panel re-reads the company detail afterwards.
    */
-  async unlockForAdmin(companyId: string): Promise<void> {
+  async unlockForAdmin(companyId: string, opts: { charge?: boolean } = {}): Promise<void> {
     const company = await this.prisma.company.findUniqueOrThrow({
       where: { id: companyId },
       include: { website: true, locations: true, services: true, contacts: true },
     });
     if (!company.website) throw new NotFoundException('No website');
-    await this.applyUnlock(company, { chargeOwner: false });
+    if (opts.charge && !company.advancedUnlockedAt) {
+      const price = await this.settings.advancedBuilderPriceCredits();
+      if (!(await this.wallet.canAfford(company.ownerUserId, price * CREDIT_MINOR))) {
+        throw new BadRequestException('owner_wallet_cannot_afford_upgrade');
+      }
+    }
+    await this.applyUnlock(company, { chargeOwner: !!opts.charge });
   }
 
   /** Shared body of both unlock paths — optionally charges the owner's wallet. */
@@ -503,9 +540,17 @@ export class WebsiteBuilderService {
     // `applyPreset` always sends `preset` so it survives.
     const merged: Record<string, unknown> = { ...doc.theme, ...sent };
     if (!('preset' in sent)) delete merged.preset;
+    if ('logoUrl' in sent && !String(sent.logoUrl).trim()) delete merged.logoUrl;
     doc.theme = normalizeTheme(merged);
 
     await this.persist(companyId, doc, ctx);
+    // Keep the feed-card logo (`company.logoUrl`) in step with the site logo.
+    if ('logoUrl' in sent) {
+      await this.prisma.company.update({
+        where: { id: companyId },
+        data: { logoUrl: doc.theme.logoUrl ?? null },
+      });
+    }
     return this.view(companyId, userId);
   }
 

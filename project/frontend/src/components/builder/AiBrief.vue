@@ -119,7 +119,7 @@ function generate(): void {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .ab__body {
   padding: 1rem 1.1rem;
@@ -127,7 +127,7 @@ function generate(): void {
 .ab__lead {
   margin: 0 0 0.6rem;
   font-size: 0.86rem;
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .ab__ta {
   width: 100%;
@@ -142,7 +142,7 @@ function generate(): void {
   resize: vertical;
 }
 .ab__ta:focus {
-  outline: 2px solid rgb(var(--v-theme-primary) / 0.4);
+  outline: 2px solid rgba(var(--v-theme-primary), 0.4);
   outline-offset: 1px;
 }
 .ab__note {
@@ -151,7 +151,7 @@ function generate(): void {
   gap: 0.35rem;
   margin: 0.5rem 0 0;
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .ab__note--warn {
   color: rgb(var(--v-theme-warning, 217 119 6));
@@ -163,7 +163,7 @@ function generate(): void {
   gap: 0.5rem;
   margin-top: 0.9rem;
   font-size: 0.82rem;
-  color: rgb(var(--v-theme-on-surface) / 0.8);
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .ab__foot {
   display: flex;
@@ -177,7 +177,7 @@ function generate(): void {
   border-radius: 8px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .ab__go {
   display: inline-flex;

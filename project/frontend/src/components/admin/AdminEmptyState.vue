@@ -15,7 +15,7 @@ defineProps<{ text: string; icon?: string }>()
   align-items: center;
   gap: 0.55rem;
   padding: 1.4rem 0.25rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   font-size: 0.85rem;
 }
 </style>

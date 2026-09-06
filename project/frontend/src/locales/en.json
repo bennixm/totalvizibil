@@ -85,7 +85,9 @@
     "subCount": "{n} subcategories",
     "coverageKm": "{n} km",
     "coverageCountry": "Whole country",
-    "ownSite": "Own website"
+    "ownSite": "Own website",
+    "seoHomeTitle": "Totalvizibil — local businesses by category and area",
+    "seoHomeDesc": "Discover active local businesses, ranked by visibility score. You only filter by category and city. AI-built websites, feed listing and pay-per-click campaigns."
   },
   "company": {
     "backToFeed": "Back to discover",
@@ -94,12 +96,13 @@
     "services": "Services",
     "notFound": "This business isn't available.",
     "leadSent": "Message sent",
-    "seoDesc": "{category} in {city}"
+    "seoDesc": "{category} in {city}",
+    "notFoundHint": "It may have been renamed, taken down, or the link is wrong. Try searching by category and city instead."
   },
   "create": {
     "assistant": "AI builder",
     "headline": "Come with an idea. Leave with a business.",
-    "lead": "Choose how much you want to steer. The rest of this flow is being redesigned.",
+    "lead": "Choose how much of the process you want to steer. The assistant builds the rest.",
     "easyTitle": "Easy",
     "easyText": "A few quick answers and the assistant does the rest. Fast and simple.",
     "easyTag": "Fastest",
@@ -108,7 +111,9 @@
     "advancedTag": "Full control",
     "nextTitle": "Next step coming soon",
     "nextText": "We're rethinking what happens after this choice — it isn't wired up yet.",
-    "registerLaterNote": "No sign-up required to start — you'll register only to save and publish."
+    "registerLaterNote": "No sign-up required to start — you'll register only to save and publish.",
+    "seoTitle": "Build your business online with AI — Totalvizibil",
+    "seoDesc": "Answer a few questions and the assistant builds your business website. Go simple, or take full control of design, sections and SEO."
   },
   "studio": {
     "eyebrow": "AI builder · Free plan",
@@ -225,7 +230,10 @@
     "addStep": "Add step",
     "hoursPlaceholder": "e.g. Mon–Fri 9am–6pm",
     "rateLimited": "Too many attempts in a short time. Wait a few minutes and try again.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "logoTitle": "Logo (optional)",
+    "logoAdd": "Add a logo",
+    "logoChange": "Change"
   },
   "location": {
     "eyebrow": "Step 2 · Location",
@@ -1062,7 +1070,16 @@
     "continueBudget": "Continue → Budget",
     "deletionPendingTitle": "Deletion scheduled",
     "deletionPendingText": "This business is scheduled for deletion — cancel it from the dashboard to edit the site again.",
-    "deletionPendingCta": "Go to dashboard"
+    "deletionPendingCta": "Go to dashboard",
+    "backAdmin": "Back to business",
+    "adminLockedTitle": "Site is on the simple plan",
+    "adminLockedText": "This business doesn’t have the advanced builder yet. Grant it (free or charged to the owner) from the admin panel, then come back to edit.",
+    "logoLabel": "Logo",
+    "logoUpload": "Upload logo",
+    "logoReplace": "Replace logo",
+    "logoRemove": "Remove logo",
+    "logoTooLarge": "Image is too large (3 MB max).",
+    "logoFailed": "Logo upload failed."
   },
   "site": {
     "phone": "Phone",
@@ -1224,7 +1241,7 @@
   },
   "adminCo": {
     "backToOwner": "← {name}",
-    "viewSite": "View website",
+    "viewSite": "View site",
     "profileTitle": "Business profile",
     "displayName": "Display name",
     "legalName": "Legal name",
@@ -1273,11 +1290,9 @@
     "webStatus_unpublished": "Unpublished",
     "webUpdated": "updated {d}",
     "webUnlockedOn": "Advanced unlocked on {d}",
-    "webUpgradeFree": "Upgrade to Advanced (free)",
-    "webUpgradeHint": "Unlocks the advanced builder for this client without charging their wallet.",
+    "webUpgradeFree": "Grant free",
+    "webUpgradeHint": "Unlocks the advanced builder for this business. Choose free, or charge it to the owner’s wallet.",
     "webUpgraded": "Upgraded to advanced",
-    "webEditTitle": "Website content",
-    "webEditNote": "Content is edited by the owner in their builder. From here you can only open the live site.",
     "leadTotalLbl": "Total",
     "leadNewLbl": "New",
     "leadResolvedLbl": "Resolved",
@@ -1288,7 +1303,33 @@
     "leadStatusSeen": "Seen",
     "leadStatusResolved": "Resolved",
     "leadStatusSet": "Status updated",
-    "visibilityTitle": "Visibility"
+    "visibilityTitle": "Visibility",
+    "categoryLabel": "Category",
+    "locTitle": "Location & coverage",
+    "locNationwide": "Nationwide coverage",
+    "locNationwideHint": "No city or radius — the business is shown for the whole country.",
+    "locCity": "City",
+    "locCityPlaceholder": "Search a city…",
+    "locRadius": "Coverage radius",
+    "locSaved": "Location saved",
+    "webPublish": "Publish site",
+    "webUnpublish": "Unpublish site",
+    "webPublished": "Site published",
+    "webUnpublished": "Site unpublished",
+    "webEditBuilder": "Edit site (builder)",
+    "webEditNoteAdv": "Open this business's advanced builder to edit pages, sections and design.",
+    "webEditNoteEasy": "Simple site — no builder. You can only open the live site.",
+    "webEditTitle": "Website content",
+    "webUpgradedPaid": "Advanced builder unlocked — owner charged",
+    "webUpgradeTitleEasy": "Upgrade to the advanced builder",
+    "webUpgradeTitlePending": "Advanced plan selected — not activated yet",
+    "webUpgradeCharge": "Charge owner ({n} cr)",
+    "webUpgradeOwnerBalance": "Owner wallet: {n} cr",
+    "webUpgradeShort": "not enough for a paid upgrade",
+    "upgradeUnaffordable": "The owner’s wallet can’t cover this upgrade.",
+    "webEditNotePending": "The advanced builder isn’t active yet. Grant it above to edit pages and sections.",
+    "previewOf": "Preview of {name}",
+    "openPublic": "Open public page"
   },
   "adminBiz": {
     "lead": "Every business on the platform. Click a row to manage it.",

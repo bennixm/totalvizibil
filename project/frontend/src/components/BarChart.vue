@@ -107,7 +107,7 @@ const ticks = computed(() => {
   display: flex;
   gap: 1rem;
   font-size: 0.72rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .bc__key {
   display: inline-flex;
@@ -131,19 +131,19 @@ const ticks = computed(() => {
   display: block;
 }
 .bc__grid line {
-  stroke: rgb(var(--v-theme-on-surface) / 0.08);
+  stroke: rgba(var(--v-theme-on-surface), 0.08);
   stroke-width: 1;
 }
 .bc__grid text {
-  fill: rgb(var(--v-theme-on-surface) / 0.4);
+  fill: rgba(var(--v-theme-on-surface), 0.4);
   font-size: 9px;
   font-family: ui-monospace, monospace;
 }
 .bc__bar--0 {
-  fill: rgb(var(--v-theme-primary) / 0.55);
+  fill: rgba(var(--v-theme-primary), 0.55);
 }
 .bc__bar--1 {
-  fill: rgb(var(--v-theme-secondary) / 0.55);
+  fill: rgba(var(--v-theme-secondary), 0.55);
 }
 .bc__bar--0.is-last {
   fill: rgb(var(--v-theme-primary));
@@ -152,7 +152,7 @@ const ticks = computed(() => {
   fill: rgb(var(--v-theme-secondary));
 }
 .bc__ticks text {
-  fill: rgb(var(--v-theme-on-surface) / 0.45);
+  fill: rgba(var(--v-theme-on-surface), 0.45);
   font-size: 9px;
   font-family: ui-monospace, monospace;
   text-anchor: middle;

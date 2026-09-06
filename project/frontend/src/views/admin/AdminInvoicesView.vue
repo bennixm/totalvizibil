@@ -220,12 +220,12 @@ onMounted(() => admin.fetchInvoices())
 .ai__empty {
   padding: 3rem 1rem;
   text-align: center;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .ai__voidNote {
   margin: 0 0 0.8rem;
   font-size: 0.85rem;
-  color: rgb(var(--v-theme-on-surface) / 0.65);
+  color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .ai__list {
   list-style: none;
@@ -246,7 +246,7 @@ onMounted(() => admin.fetchInvoices())
   background: rgb(var(--v-theme-surface));
 }
 .irow--void {
-  border-left-color: rgb(var(--v-theme-error) / 0.6);
+  border-left-color: rgba(var(--v-theme-error), 0.6);
   opacity: 0.85;
 }
 .irow__id {
@@ -266,11 +266,11 @@ onMounted(() => admin.fetchInvoices())
 }
 .irow__buyer {
   font-size: 0.8rem;
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .irow__user {
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .irow__stats {
   display: flex;
@@ -297,7 +297,7 @@ onMounted(() => admin.fetchInvoices())
   font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .irow__actions {
   display: flex;
@@ -322,11 +322,11 @@ onMounted(() => admin.fetchInvoices())
   letter-spacing: 0.04em;
   padding: 0.12rem 0.4rem;
   border-radius: 4px;
-  background: rgb(var(--v-theme-on-surface) / 0.08);
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .tag--err {
-  background: rgb(var(--v-theme-error) / 0.16);
+  background: rgba(var(--v-theme-error), 0.16);
   color: rgb(var(--v-theme-error));
 }
 

@@ -111,7 +111,7 @@ async function pick(spec: SectionSpec): Promise<void> {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .cat__body {
   overflow-y: auto;
@@ -126,7 +126,7 @@ async function pick(spec: SectionSpec): Promise<void> {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .cat__grid {
   display: grid;
@@ -148,8 +148,8 @@ async function pick(spec: SectionSpec): Promise<void> {
     transform 0.14s ease;
 }
 .cat__card:hover {
-  border-color: rgb(var(--v-theme-primary) / 0.5);
-  background: rgb(var(--v-theme-primary) / 0.05);
+  border-color: rgba(var(--v-theme-primary), 0.5);
+  background: rgba(var(--v-theme-primary), 0.05);
   transform: translateY(-2px);
 }
 .cat__ic {
@@ -160,7 +160,7 @@ async function pick(spec: SectionSpec): Promise<void> {
   border-radius: 10px;
   margin-bottom: 0.35rem;
   color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.12);
+  background: rgba(var(--v-theme-primary), 0.12);
 }
 .cat__card strong {
   font-size: 0.9rem;
@@ -168,12 +168,12 @@ async function pick(spec: SectionSpec): Promise<void> {
 .cat__d {
   font-size: 0.75rem;
   line-height: 1.35;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .cat__v {
   margin-top: 0.3rem;
   font-size: 0.68rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 </style>

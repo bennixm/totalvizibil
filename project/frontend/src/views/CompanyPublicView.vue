@@ -201,7 +201,8 @@ useSeo(() => {
 
     <div v-else-if="notFound" class="cp__center cp__missing">
       <v-icon icon="mdi-store-off-outline" size="40" class="mb-3" />
-      <p class="text-body-1">{{ t('company.notFound') }}</p>
+      <h1 class="cp__missingTitle">{{ t('company.notFound') }}</h1>
+      <p class="text-body-2 cp__missingHint">{{ t('company.notFoundHint') }}</p>
       <v-btn :to="{ name: 'feed' }" variant="tonal" rounded="pill" class="mt-3">
         {{ t('company.backToFeed') }}
       </v-btn>
@@ -291,7 +292,20 @@ useSeo(() => {
   padding: 5rem 1rem;
 }
 .cp__missing {
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  text-align: center;
+}
+.cp__missingTitle {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0;
+  color: rgb(var(--v-theme-on-surface));
+}
+.cp__missingHint {
+  margin: 0.4rem 0 0;
+  max-width: 42ch;
+  color: rgba(var(--v-theme-on-surface), 0.66);
 }
 /* The generated site renders full width, no frame — a real full preview. */
 .cp__site :deep(.site) {
@@ -341,13 +355,13 @@ useSeo(() => {
 .cp__desc {
   max-width: 54ch;
   margin: 1rem auto 0.6rem;
-  color: rgb(var(--v-theme-on-surface) / 0.72);
+  color: rgba(var(--v-theme-on-surface), 0.72);
 }
 .cp__loc {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   font-size: 0.9rem;
 }
 .cp__services {
@@ -376,7 +390,7 @@ useSeo(() => {
 }
 .cp__service p {
   font-size: 0.88rem;
-  color: rgb(var(--v-theme-on-surface) / 0.66);
+  color: rgba(var(--v-theme-on-surface), 0.66);
   margin: 0;
 }
 </style>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Totalvizibil — local businesses, found fast">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0E1327"/>
+      <stop offset="1" stop-color="#06080F"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6F97FF"/>
+      <stop offset="1" stop-color="#A99BFF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.16" cy="-0.1" r="0.9">
+      <stop offset="0" stop-color="#6F97FF" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#6F97FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <g transform="translate(96,150)">
+    <rect x="0" y="0" width="88" height="88" rx="22" fill="url(#brand)"/>
+    <path d="M44 18a26 26 0 1 0 0 52 26 26 0 0 0 0-52Zm0 9a17 17 0 0 1 16 11H28a17 17 0 0 1 16-11Zm0 34a17 17 0 0 1-16-11h32a17 17 0 0 1-16 11Z" fill="#0E1327"/>
+    <circle cx="44" cy="44" r="7" fill="#0E1327"/>
+  </g>
+  <text x="212" y="212" font-family="'Space Grotesk','Segoe UI',Arial,sans-serif" font-size="52" font-weight="700" fill="#FFFFFF" letter-spacing="-1">Totalvizibil</text>
+  <text x="96" y="360" font-family="'Space Grotesk','Segoe UI',Arial,sans-serif" font-size="76" font-weight="700" fill="#FFFFFF" letter-spacing="-2">Local businesses,</text>
+  <text x="96" y="446" font-family="'Space Grotesk','Segoe UI',Arial,sans-serif" font-size="76" font-weight="700" fill="url(#brand)" letter-spacing="-2">found fast.</text>
+  <text x="96" y="520" font-family="'Segoe UI',Arial,sans-serif" font-size="30" fill="#AEB7CE">AI-built websites · category &amp; area search · pay-per-click ads</text>
+</svg>

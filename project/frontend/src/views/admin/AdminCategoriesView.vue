@@ -303,7 +303,7 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
 .ac__head p {
   margin: 0.3rem 0 0;
   font-size: 0.85rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .ac__tree {
   display: flex;
@@ -335,7 +335,7 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
 .grp__id code,
 .kid code {
   font-size: 0.7rem;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .kid {
   list-style: none;
@@ -362,6 +362,6 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
 .kid__empty {
   margin: 0.55rem 0 0 1.6rem;
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.4);
+  color: rgba(var(--v-theme-on-surface), 0.4);
 }
 </style>

@@ -239,7 +239,7 @@ function imageKind(key: string): string {
   margin-bottom: 0.3rem;
   font-size: 0.72rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .fld__in {
   width: 100%;
@@ -252,7 +252,7 @@ function imageKind(key: string): string {
   font-size: 0.85rem;
 }
 .fld__in:focus {
-  outline: 2px solid rgb(var(--v-theme-primary) / 0.4);
+  outline: 2px solid rgba(var(--v-theme-primary), 0.4);
   outline-offset: 1px;
 }
 .fld__area {
@@ -266,8 +266,8 @@ function imageKind(key: string): string {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
-  background: rgb(var(--v-theme-on-surface) / 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  background: rgba(var(--v-theme-on-surface), 0.08);
 }
 .fld__tog.is-on {
   color: #fff;
@@ -284,13 +284,13 @@ function imageKind(key: string): string {
   font-size: 0.78rem;
   font-weight: 600;
   border: 1px solid var(--tvz-glass-border);
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
   background: rgb(var(--v-theme-surface));
 }
 .chip.is-on {
   border-color: rgb(var(--v-theme-primary));
   color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.08);
+  background: rgba(var(--v-theme-primary), 0.08);
 }
 .fld__img img {
   display: block;
@@ -324,7 +324,7 @@ function imageKind(key: string): string {
   cursor: pointer;
 }
 .mini--x {
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .fld__lrow,
 .fld__imgRow {
@@ -344,14 +344,14 @@ function imageKind(key: string): string {
   font-size: 0.75rem;
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
-  border: 1px dashed rgb(var(--v-theme-primary) / 0.4);
+  border: 1px dashed rgba(var(--v-theme-primary), 0.4);
 }
 .fld__card {
   padding: 0.6rem;
   border: 1px solid var(--tvz-glass-border);
   border-radius: 9px;
   margin-bottom: 0.5rem;
-  background: rgb(var(--v-theme-on-surface) / 0.02);
+  background: rgba(var(--v-theme-on-surface), 0.02);
 }
 .fld__cardBar {
   display: flex;
@@ -362,7 +362,7 @@ function imageKind(key: string): string {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .fld__cardActs {
   display: flex;
@@ -374,12 +374,12 @@ function imageKind(key: string): string {
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .fld__cardActs button:disabled {
   opacity: 0.3;
 }
 .fld__cardActs button:hover:not(:disabled) {
-  background: rgb(var(--v-theme-on-surface) / 0.08);
+  background: rgba(var(--v-theme-on-surface), 0.08);
 }
 </style>

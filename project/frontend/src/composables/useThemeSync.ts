@@ -25,8 +25,22 @@ export function useThemeSync() {
     return prefs.themeMode === 'dark' ? DARK_THEME : LIGHT_THEME
   })
 
+  /** Keep the mobile browser-chrome colour in step with the active theme. */
+  const syncThemeColor = (name: string) => {
+    if (typeof document === 'undefined') return
+    const color = name === DARK_THEME ? '#06080F' : '#F5F7FE'
+    let el = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])')
+    if (!el) {
+      el = document.createElement('meta')
+      el.setAttribute('name', 'theme-color')
+      document.head.appendChild(el)
+    }
+    el.setAttribute('content', color)
+  }
+
   const apply = () => {
     theme.global.name.value = resolvedTheme.value
+    syncThemeColor(resolvedTheme.value)
   }
 
   watch(resolvedTheme, apply, { immediate: true })

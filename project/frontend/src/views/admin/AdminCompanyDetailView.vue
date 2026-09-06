@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import VisibilityMeter from '@/components/VisibilityMeter.vue'
 import TrendChart from '@/components/TrendChart.vue'
+import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
 import AdminDetailHeader from '@/components/admin/AdminDetailHeader.vue'
 import AdminMetaItem from '@/components/admin/AdminMetaItem.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
@@ -15,10 +16,11 @@ import { useAdminStore, type AdminCompanyDetail, type AdminCompanyLead } from '@
 import type { CampaignTier, CampaignStatus } from '@/stores/campaign'
 import type { LocalizedName } from '@/stores/companies'
 import { ApiError } from '@/services/api'
-import { companyRoute } from '@/services/routes'
+import { searchCities, type GeoCity } from '@/services/geo'
 
 const { t, n, locale } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const admin = useAdminStore()
 
 const id = computed(() => String(route.params.id))
@@ -36,13 +38,20 @@ function initials(name: string): string {
     .join('')
 }
 const isEasy = computed(() => data.value?.company.website?.mode !== 'advanced')
+/** The advanced builder is paid-for / granted and ready to edit — distinct from
+ *  the plan being merely *selected* (`mode === 'advanced'` with no unlock). */
+const advancedReady = computed(() => !!data.value?.company.advancedUnlockedAt)
 
 const toast = reactive({ show: false, text: '', color: 'success' })
 function flash(text: string, color: 'success' | 'error' = 'success') {
   Object.assign(toast, { show: true, text, color })
 }
 function errText(e: unknown, fb: string) {
-  return e instanceof ApiError ? e.message : fb
+  if (e instanceof ApiError) {
+    if (e.message === 'owner_wallet_cannot_afford_upgrade') return t('adminCo.upgradeUnaffordable')
+    return e.message
+  }
+  return fb
 }
 function fmt(v: number) {
   return n(v, { maximumFractionDigits: 2 })
@@ -94,8 +103,102 @@ function fmtMinutes(m: number | null): string {
 }
 
 // --- profile form ---
-const profile = reactive({ displayName: '', legalName: '', description: '' })
+const profile = reactive({ displayName: '', legalName: '', description: '', categoryId: '' })
 const savingProfile = ref(false)
+
+// leaf categories for the profile picker
+function catName(x: Record<string, string>): string {
+  return x[locale.value] ?? x.en ?? Object.values(x)[0] ?? ''
+}
+const categoryOptions = computed(() =>
+  admin.categories.flatMap((g) =>
+    g.children.map((c) => ({ value: c.id, title: `${catName(g.name)} › ${catName(c.name)}` })),
+  ),
+)
+
+// --- location editor ---
+const loc = reactive({
+  nationwide: false,
+  city: '' as string,
+  region: '' as string,
+  lat: null as number | null,
+  lng: null as number | null,
+  radiusKm: 15,
+})
+const savingLoc = ref(false)
+const citySearch = ref('')
+const cityResults = ref<GeoCity[]>([])
+const cityItems = computed(() =>
+  cityResults.value.map((c) => ({ title: `${c.name}, ${c.county}`, value: c })),
+)
+let cityDeb: ReturnType<typeof setTimeout> | undefined
+watch(citySearch, (q) => {
+  clearTimeout(cityDeb)
+  if (!q || q.trim().length < 2) {
+    cityResults.value = []
+    return
+  }
+  cityDeb = setTimeout(async () => {
+    cityResults.value = await searchCities(q).catch(() => [])
+  }, 250)
+})
+function pickCity(c: GeoCity | null) {
+  if (!c) return
+  loc.city = c.name
+  loc.region = c.county
+  loc.lat = c.lat
+  loc.lng = c.lng
+}
+const locValid = computed(
+  () =>
+    loc.nationwide ||
+    (!!loc.city.trim() &&
+      loc.lat != null &&
+      loc.lng != null &&
+      loc.radiusKm >= 1 &&
+      loc.radiusKm <= 200),
+)
+async function saveLocation() {
+  if (!locValid.value) return
+  savingLoc.value = true
+  try {
+    data.value = await admin.setCompanyLocation(id.value, {
+      nationwide: loc.nationwide,
+      city: loc.nationwide ? undefined : loc.city.trim(),
+      region: loc.nationwide ? undefined : loc.region.trim() || undefined,
+      country: data.value?.company.country || 'RO',
+      lat: loc.nationwide ? undefined : (loc.lat ?? undefined),
+      lng: loc.nationwide ? undefined : (loc.lng ?? undefined),
+      radiusKm: loc.nationwide ? undefined : loc.radiusKm,
+    })
+    flash(t('adminCo.locSaved'))
+  } catch (e) {
+    flash(errText(e, t('admin.genericError')), 'error')
+  } finally {
+    savingLoc.value = false
+  }
+}
+
+// --- website builder / publish / preview ---
+const showSite = ref(false)
+const siteIsPublic = computed(
+  () =>
+    data.value?.company.status === 'active' &&
+    data.value?.company.website?.status === 'published',
+)
+function openBuilder() {
+  void router.push({ name: 'website-builder', query: { companyId: id.value } })
+}
+function toggleWebsitePublished() {
+  const publish = data.value?.company.website?.status !== 'published'
+  void act(
+    'webpub',
+    async () => {
+      data.value = await admin.setCompanyWebsitePublished(id.value, publish)
+    },
+    t(publish ? 'adminCo.webPublished' : 'adminCo.webUnpublished'),
+  )
+}
 
 // --- campaign editor ---
 const budget = ref(20)
@@ -201,6 +304,18 @@ function hydrate() {
   profile.displayName = d.company.displayName
   profile.legalName = d.company.legalName ?? ''
   profile.description = d.company.description ?? ''
+  profile.categoryId = d.company.category
+    ? (admin.categories
+        .flatMap((g) => g.children)
+        .find((c) => c.slug === d.company.category?.slug)?.id ?? '')
+    : ''
+  const l = d.company.location
+  loc.nationwide = l?.nationwide ?? false
+  loc.city = l?.city ?? ''
+  loc.region = l?.region ?? ''
+  loc.lat = l?.lat ?? null
+  loc.lng = l?.lng ?? null
+  loc.radiusKm = l?.radiusKm ?? 15
   const c = d.campaign.campaign
   if (c) {
     budget.value = c.dailyBudget.credits
@@ -222,6 +337,7 @@ function hydrate() {
 async function load() {
   loading.value = true
   try {
+    if (!admin.categories.length) await admin.fetchCategories().catch(() => {})
     data.value = await admin.fetchCompany(id.value)
     hydrate()
   } catch (e) {
@@ -269,7 +385,9 @@ async function saveProfile() {
       displayName: profile.displayName.trim(),
       legalName: profile.legalName.trim(),
       description: profile.description.trim(),
+      categoryId: profile.categoryId || undefined,
     })
+    hydrate()
     flash(t('adminCo.profileSaved'))
   } catch (e) {
     flash(errText(e, t('admin.genericError')), 'error')
@@ -278,14 +396,17 @@ async function saveProfile() {
   }
 }
 
-function upgradeAdvanced() {
+const ownerCanAffordUpgrade = computed(
+  () => ownerBalance.value >= (data.value?.company.advancedPriceCredits ?? 0),
+)
+function upgradeAdvanced(charge = false) {
   void act(
-    'upgrade',
+    charge ? 'upgrade-paid' : 'upgrade',
     async () => {
-      data.value = await admin.upgradeCompanyAdvanced(id.value)
+      data.value = await admin.upgradeCompanyAdvanced(id.value, charge)
       hydrate()
     },
-    t('adminCo.webUpgraded'),
+    t(charge ? 'adminCo.webUpgradedPaid' : 'adminCo.webUpgraded'),
   )
 }
 
@@ -467,12 +588,12 @@ const leadStatusItems = computed(() => [
 
         <template #actions>
           <v-btn
-            :to="companyRoute({ slug: data.company.slug, category: data.company.category })"
-            target="_blank"
+            v-if="data.company.website"
             variant="tonal"
             size="small"
             rounded="pill"
-            prepend-icon="mdi-open-in-new"
+            prepend-icon="mdi-eye-outline"
+            @click="showSite = true"
           >
             {{ t('adminCo.viewSite') }}
           </v-btn>
@@ -516,8 +637,74 @@ const leadStatusItems = computed(() => [
                 <v-text-field v-model="profile.displayName" :label="t('adminCo.displayName')" variant="outlined" density="comfortable" hide-details />
                 <v-text-field v-model="profile.legalName" :label="t('adminCo.legalName')" variant="outlined" density="comfortable" hide-details />
                 <v-textarea v-model="profile.description" :label="t('adminCo.description')" rows="3" auto-grow variant="outlined" density="comfortable" hide-details />
+                <v-select
+                  v-model="profile.categoryId"
+                  :items="categoryOptions"
+                  :label="t('adminCo.categoryLabel')"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details
+                />
                 <div>
                   <v-btn color="primary" variant="flat" rounded="pill" :loading="savingProfile" prepend-icon="mdi-content-save-outline" @click="saveProfile">
+                    {{ t('common.save') }}
+                  </v-btn>
+                </div>
+              </div>
+            </AdminSection>
+
+            <AdminSection :title="t('adminCo.locTitle')" icon="mdi-map-marker-radius-outline">
+              <div class="ac__form">
+                <div class="ac__locRow">
+                  <div>
+                    <p class="ac__secLabel">{{ t('adminCo.locNationwide') }}</p>
+                    <p class="ac__muted ac__mt0">{{ t('adminCo.locNationwideHint') }}</p>
+                  </div>
+                  <v-switch v-model="loc.nationwide" color="primary" density="compact" hide-details inset />
+                </div>
+
+                <template v-if="!loc.nationwide">
+                  <v-autocomplete
+                    :model-value="null"
+                    :items="cityItems"
+                    :label="t('adminCo.locCity')"
+                    :placeholder="loc.city || t('adminCo.locCityPlaceholder')"
+                    persistent-placeholder
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details
+                    no-filter
+                    hide-no-data
+                    @update:search="citySearch = $event"
+                    @update:model-value="pickCity"
+                  />
+                  <p v-if="loc.city" class="ac__muted ac__mt0">
+                    {{ loc.city }}<template v-if="loc.region">, {{ loc.region }}</template>
+                    <template v-if="loc.lat != null"> · {{ loc.lat.toFixed(3) }}, {{ loc.lng?.toFixed(3) }}</template>
+                  </p>
+                  <v-text-field
+                    v-model.number="loc.radiusKm"
+                    type="number"
+                    :min="1"
+                    :max="200"
+                    :label="t('adminCo.locRadius')"
+                    suffix="km"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details
+                  />
+                </template>
+
+                <div>
+                  <v-btn
+                    color="primary"
+                    variant="flat"
+                    rounded="pill"
+                    :loading="savingLoc"
+                    :disabled="!locValid"
+                    prepend-icon="mdi-content-save-outline"
+                    @click="saveLocation"
+                  >
                     {{ t('common.save') }}
                   </v-btn>
                 </div>
@@ -552,6 +739,19 @@ const leadStatusItems = computed(() => [
         <v-window-item value="website">
           <div class="ac__stack ac__stack--narrow">
             <AdminSection :title="t('adminCo.webTitle')" icon="mdi-web">
+              <template v-if="data.company.website" #actions>
+                <v-btn
+                  :color="data.company.website.status === 'published' ? 'warning' : 'primary'"
+                  variant="tonal"
+                  size="small"
+                  rounded="pill"
+                  :loading="busy === 'webpub'"
+                  :prepend-icon="data.company.website.status === 'published' ? 'mdi-eye-off-outline' : 'mdi-earth'"
+                  @click="toggleWebsitePublished"
+                >
+                  {{ data.company.website.status === 'published' ? t('adminCo.webUnpublish') : t('adminCo.webPublish') }}
+                </v-btn>
+              </template>
               <div class="ac__webMode">
                 <span class="ac__webPlan" :class="{ 'is-adv': !isEasy }">
                   <v-icon :icon="isEasy ? 'mdi-flash-outline' : 'mdi-tune-vertical'" size="15" />
@@ -564,7 +764,7 @@ const leadStatusItems = computed(() => [
                 <span v-else class="ac__muted">{{ t('adminCo.webNone') }}</span>
               </div>
 
-              <p v-if="!isEasy && data.company.advancedUnlockedAt" class="ac__webUnlocked">
+              <p v-if="advancedReady" class="ac__webUnlocked">
                 <v-icon icon="mdi-check-decagram-outline" size="14" />
                 {{ t('adminCo.webUnlockedOn', { d: dOnly(data.company.advancedUnlockedAt) }) }}
               </p>
@@ -574,34 +774,85 @@ const leadStatusItems = computed(() => [
                 {{ t('adminCo.builderRequired') }}
               </div>
 
-              <div v-if="isEasy" class="ac__webUpgrade">
-                <v-btn
-                  color="primary"
-                  variant="flat"
-                  rounded="pill"
-                  :loading="busy === 'upgrade'"
-                  prepend-icon="mdi-rocket-launch-outline"
-                  @click="upgradeAdvanced"
-                >
-                  {{ t('adminCo.webUpgradeFree') }}
-                </v-btn>
-                <p class="ac__muted ac__webHint">{{ t('adminCo.webUpgradeHint') }}</p>
+              <!-- Not unlocked yet (easy plan, or advanced picked but the fee was
+                   never paid). Admin chooses: grant free, or bill the owner. -->
+              <div v-if="!advancedReady" class="ac__webUpgrade">
+                <p class="ac__secLabel">
+                  {{ isEasy ? t('adminCo.webUpgradeTitleEasy') : t('adminCo.webUpgradeTitlePending') }}
+                </p>
+                <p class="ac__muted ac__mt0 ac__webHint">{{ t('adminCo.webUpgradeHint') }}</p>
+                <div class="ac__webUpgradeBtns">
+                  <v-btn
+                    color="primary"
+                    variant="flat"
+                    rounded="pill"
+                    :loading="busy === 'upgrade'"
+                    prepend-icon="mdi-gift-outline"
+                    @click="upgradeAdvanced(false)"
+                  >
+                    {{ t('adminCo.webUpgradeFree') }}
+                  </v-btn>
+                  <v-btn
+                    color="primary"
+                    variant="tonal"
+                    rounded="pill"
+                    :loading="busy === 'upgrade-paid'"
+                    :disabled="!ownerCanAffordUpgrade"
+                    prepend-icon="mdi-wallet-outline"
+                    @click="upgradeAdvanced(true)"
+                  >
+                    {{ t('adminCo.webUpgradeCharge', { n: data.company.advancedPriceCredits }) }}
+                  </v-btn>
+                </div>
+                <p class="ac__muted ac__webHint">
+                  {{ t('adminCo.webUpgradeOwnerBalance', { n: fmt(ownerBalance) }) }}
+                  <template v-if="!ownerCanAffordUpgrade"> · {{ t('adminCo.webUpgradeShort') }}</template>
+                </p>
               </div>
             </AdminSection>
 
             <AdminSection :title="t('adminCo.webEditTitle')" icon="mdi-pencil-ruler-outline">
-              <p class="ac__muted ac__mt0">{{ t('adminCo.webEditNote') }}</p>
-              <v-btn
-                :to="companyRoute({ slug: data.company.slug, category: data.company.category })"
-                target="_blank"
-                variant="tonal"
-                size="small"
-                rounded="pill"
-                prepend-icon="mdi-open-in-new"
-                class="mt-3"
-              >
-                {{ t('adminCo.viewSite') }}
-              </v-btn>
+              <template v-if="advancedReady">
+                <p class="ac__muted ac__mt0">{{ t('adminCo.webEditNoteAdv') }}</p>
+                <div class="ac__webActions">
+                  <v-btn
+                    color="primary"
+                    variant="flat"
+                    size="small"
+                    rounded="pill"
+                    prepend-icon="mdi-pencil-ruler"
+                    @click="openBuilder"
+                  >
+                    {{ t('adminCo.webEditBuilder') }}
+                  </v-btn>
+                  <v-btn
+                    v-if="data.company.website"
+                    variant="tonal"
+                    size="small"
+                    rounded="pill"
+                    prepend-icon="mdi-eye-outline"
+                    @click="showSite = true"
+                  >
+                    {{ t('adminCo.viewSite') }}
+                  </v-btn>
+                </div>
+              </template>
+              <template v-else>
+                <p class="ac__muted ac__mt0">
+                  {{ isEasy ? t('adminCo.webEditNoteEasy') : t('adminCo.webEditNotePending') }}
+                </p>
+                <v-btn
+                  v-if="data.company.website"
+                  variant="tonal"
+                  size="small"
+                  rounded="pill"
+                  prepend-icon="mdi-eye-outline"
+                  class="mt-3"
+                  @click="showSite = true"
+                >
+                  {{ t('adminCo.viewSite') }}
+                </v-btn>
+              </template>
             </AdminSection>
           </div>
         </v-window-item>
@@ -853,6 +1104,39 @@ const leadStatusItems = computed(() => [
       </v-card>
     </v-dialog>
 
+    <!-- In-app site preview — the public URL 404s for non-active businesses,
+         so admins view the rendered site here regardless of publish state. -->
+    <v-dialog v-model="showSite" max-width="1040" scrollable>
+      <v-card rounded="lg">
+        <div class="ac__siteHead">
+          <span class="ac__muted">
+            {{ t('adminCo.previewOf', { name: data?.company.displayName ?? '' }) }} ·
+            {{ data?.company.website ? t('adminCo.webStatus_' + data.company.website.status) : '' }}
+          </span>
+          <v-spacer />
+          <v-btn
+            v-if="siteIsPublic && data"
+            :href="`/${[data.company.category?.parent?.slug, data.company.category?.slug, data.company.slug].filter(Boolean).join('/')}`"
+            target="_blank"
+            variant="text"
+            size="small"
+            prepend-icon="mdi-open-in-new"
+          >
+            {{ t('adminCo.openPublic') }}
+          </v-btn>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="showSite = false" />
+        </div>
+        <v-card-text class="pa-2">
+          <WebsiteRenderer
+            v-if="data?.company.website"
+            :content="data.company.website.content"
+            :theme="data.company.website.theme"
+            framed
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="toast.show" :color="toast.color" timeout="2600">{{ toast.text }}</v-snackbar>
   </div>
 </template>
@@ -879,7 +1163,7 @@ const leadStatusItems = computed(() => [
   max-width: 720px;
 }
 .ac__muted {
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   font-size: 0.82rem;
 }
 .ac__mt0 {
@@ -911,7 +1195,7 @@ const leadStatusItems = computed(() => [
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--v-theme-on-surface) / 0.4);
+  color: rgba(var(--v-theme-on-surface), 0.4);
 }
 .ac__fact .ac__muted {
   font-size: 0.76rem;
@@ -942,8 +1226,8 @@ const leadStatusItems = computed(() => [
 }
 .ac__webPlan.is-adv {
   color: rgb(var(--v-theme-primary));
-  border-color: rgb(var(--v-theme-primary) / 0.4);
-  background: rgb(var(--v-theme-primary) / 0.08);
+  border-color: rgba(var(--v-theme-primary), 0.4);
+  background: rgba(var(--v-theme-primary), 0.08);
 }
 .ac__webUnlocked {
   display: flex;
@@ -960,7 +1244,7 @@ const leadStatusItems = computed(() => [
   margin-top: 0.9rem;
   padding: 0.55rem 0.8rem;
   border-radius: 10px;
-  background: rgb(var(--v-theme-warning) / 0.13);
+  background: rgba(var(--v-theme-warning), 0.13);
   color: rgb(var(--v-theme-warning));
   font-size: 0.8rem;
 }
@@ -970,6 +1254,36 @@ const leadStatusItems = computed(() => [
 .ac__webHint {
   margin: 0.5rem 0 0;
   max-width: 46ch;
+}
+.ac__webActions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+}
+.ac__webUpgradeBtns {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.7rem 0 0.3rem;
+}
+.ac__siteHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.ac__locRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.ac__secLabel {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.88rem;
 }
 
 /* requests */
@@ -993,7 +1307,7 @@ const leadStatusItems = computed(() => [
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   padding: 0.35rem 0.6rem;
   border-bottom: 1px solid var(--tvz-hairline);
   white-space: nowrap;
@@ -1023,11 +1337,11 @@ const leadStatusItems = computed(() => [
   font-size: 0.74rem;
 }
 .ac__leadMsg {
-  color: rgb(var(--v-theme-on-surface) / 0.78);
+  color: rgba(var(--v-theme-on-surface), 0.78);
   max-width: 320px;
 }
 .ac__date {
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   font-size: 0.74rem;
 }
 .ac__leadSel {
@@ -1064,8 +1378,8 @@ const leadStatusItems = computed(() => [
   margin-bottom: 0.9rem;
 }
 .ac__auto.is-on {
-  border-color: rgb(var(--v-theme-primary) / 0.5);
-  background: rgb(var(--v-theme-primary) / 0.06);
+  border-color: rgba(var(--v-theme-primary), 0.5);
+  background: rgba(var(--v-theme-primary), 0.06);
 }
 .ac__autoRow {
   display: flex;
@@ -1117,7 +1431,7 @@ const leadStatusItems = computed(() => [
 }
 .tier--on {
   border-color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.08);
+  background: rgba(var(--v-theme-primary), 0.08);
 }
 .ac__row {
   display: grid;
@@ -1128,11 +1442,11 @@ const leadStatusItems = computed(() => [
   margin: 0.9rem 0 0;
   padding: 0.6rem 0.85rem;
   border-radius: 10px;
-  background: rgb(var(--v-theme-on-surface) / 0.05);
+  background: rgba(var(--v-theme-on-surface), 0.05);
   font-size: 0.82rem;
 }
 .ac__funding.is-short {
-  background: rgb(var(--v-theme-warning) / 0.14);
+  background: rgba(var(--v-theme-warning), 0.14);
   color: rgb(var(--v-theme-warning));
 }
 .ac__campStats {
@@ -1151,7 +1465,7 @@ const leadStatusItems = computed(() => [
   font-size: 0.64rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .ac__campStats strong {
   font-size: 0.95rem;
@@ -1161,10 +1475,10 @@ const leadStatusItems = computed(() => [
   margin-top: 0.1rem;
   font-size: 0.68rem;
   font-style: normal;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .ac__fundEq {
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   margin-left: 0.35rem;
 }
 .ac__campActions {
@@ -1192,7 +1506,7 @@ const leadStatusItems = computed(() => [
   flex-basis: 100%;
   font-weight: 400;
   font-size: 0.74rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 @media (max-width: 760px) {
   .ac__ana {

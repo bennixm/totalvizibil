@@ -225,6 +225,11 @@ const brandName = computed(() => {
   const home = pages.value.find((p) => p.isHome) ?? pages.value[0]
   return seo || home?.title || ''
 })
+/** Brand logo (nav + footer). Set in either builder; blank = wordmark only. */
+const logoUrl = computed(() => {
+  const u = (props.theme as { logoUrl?: string }).logoUrl
+  return typeof u === 'string' && u.trim() ? u.trim() : null
+})
 const year = new Date().getFullYear()
 const NAV_TYPES = [
   'about',
@@ -466,7 +471,10 @@ watch(
       class="site__nav"
       :class="{ 'site__nav--open': navOpen }"
     >
-      <span class="site__nav-brand">{{ brandName }}</span>
+      <span class="site__nav-brand">
+        <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="site__logo" />
+        <template v-else>{{ brandName }}</template>
+      </span>
       <button
         type="button"
         class="site__nav-burger"
@@ -501,7 +509,10 @@ watch(
         class="site__bar"
         :class="{ 'site__bar--open': navOpen }"
       >
-        <span class="site__brand">{{ brandName }}</span>
+        <span class="site__brand">
+          <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="site__logo" />
+          <template v-else>{{ brandName }}</template>
+        </span>
         <button
           v-if="anchors.length"
           type="button"
@@ -941,7 +952,10 @@ watch(
       <footer class="site__foot">
         <div class="site__foot-in">
           <div class="site__foot-col site__foot-col--brand">
-            <span class="site__foot-brand">{{ brandName }}</span>
+            <span class="site__foot-brand">
+              <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="site__logo site__logo--foot" />
+              <template v-else>{{ brandName }}</template>
+            </span>
             <p v-if="footBlurb" class="site__foot-blurb">{{ footBlurb }}</p>
           </div>
           <nav v-if="footLinks.length" class="site__foot-col">
@@ -1024,6 +1038,19 @@ watch(
   background: color-mix(in srgb, var(--site-bg) 82%, transparent);
   backdrop-filter: blur(14px) saturate(1.3);
   border-bottom: 1px solid var(--site-border);
+}
+/* Brand logo image (any brand slot). Height-capped, width auto — keeps a
+   wordmark or an icon-mark legible without dominating the bar. */
+.site__logo {
+  display: block;
+  height: 30px;
+  width: auto;
+  max-width: 190px;
+  object-fit: contain;
+}
+.site__logo--foot {
+  height: 34px;
+  max-width: 220px;
 }
 .site__nav-brand {
   display: none;
@@ -1163,6 +1190,8 @@ watch(
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
 }
 .site__links {
   display: flex;
@@ -2837,6 +2866,42 @@ a.ccard:hover {
   border: 1px solid var(--site-border);
   background: var(--site-surface);
   box-shadow: var(--site-shadow);
+  backdrop-filter: none;
+}
+/* `cards` / `plain` drop the dark numbers-band, so the value gradient + label
+   must read as ink-on-light (the band variants keep the white-on-dark set). */
+.s--stats--cards,
+.s--stats--plain {
+  color: var(--site-ink);
+  background: linear-gradient(180deg, var(--site-bg), var(--site-wash));
+}
+.s--stats--cards::before,
+.s--stats--plain::before {
+  display: none;
+}
+.s--stats--cards h2.s__h,
+.s--stats--plain h2.s__h {
+  color: var(--site-ink);
+}
+.s--stats--cards .stat__v,
+.s--stats--plain .stat__v {
+  background: linear-gradient(
+    180deg,
+    var(--site-ink),
+    color-mix(in srgb, var(--site-accent) 62%, var(--site-ink))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.s--stats--cards .stat__l,
+.s--stats--plain .stat__l {
+  color: color-mix(in srgb, var(--site-ink) 62%, var(--site-bg));
+}
+.s--stats--plain .stat {
+  background: transparent;
+  border-color: transparent;
+  backdrop-filter: none;
 }
 .s--stats--inline .stats {
   display: flex;
@@ -2914,8 +2979,25 @@ a.ccard:hover {
   align-items: center;
   gap: 1rem;
 }
+/* `boxed` swaps the full-bleed dark band for a light inset panel — so the
+   text has to flip from white to ink, and the glow has to go. */
 .s--cta--boxed {
   padding-inline: var(--pad);
+  color: var(--site-ink);
+  background: var(--site-bg);
+}
+.s--cta--boxed .s--cta__glow {
+  display: none;
+}
+.s--cta--boxed .s__h {
+  color: var(--site-ink);
+}
+.s--cta--boxed .s__h::after {
+  background: linear-gradient(90deg, transparent, var(--site-accent), transparent);
+}
+.s--cta--boxed .s--cta__btn {
+  background: var(--site-accent);
+  color: var(--site-accent-ink);
 }
 .s--cta--boxed .s__h,
 .s--cta--boxed .s--cta__btn {

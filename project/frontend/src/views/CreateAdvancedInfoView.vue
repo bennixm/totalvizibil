@@ -148,7 +148,7 @@ onMounted(async () => {
 .adv__lead {
   margin: 0.6rem auto 0;
   max-width: 40ch;
-  color: rgb(var(--v-theme-on-surface) / 0.66);
+  color: rgba(var(--v-theme-on-surface), 0.66);
   font-size: 0.95rem;
 }
 
@@ -162,7 +162,7 @@ onMounted(async () => {
 .adv__priceLabel {
   display: block;
   font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .adv__price strong {
   display: block;
@@ -173,12 +173,12 @@ onMounted(async () => {
 }
 .adv__priceEq {
   font-size: 0.85rem;
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .adv__priceNote {
   margin: 0.6rem 0 0;
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
 .adv__perks {
@@ -193,7 +193,7 @@ onMounted(async () => {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.88rem;
-  color: rgb(var(--v-theme-on-surface) / 0.8);
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .adv__perks .v-icon {
   color: rgb(var(--v-theme-success));
@@ -208,7 +208,7 @@ onMounted(async () => {
   margin: 0;
   text-align: center;
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .adv__error {
   display: flex;
@@ -217,7 +217,7 @@ onMounted(async () => {
   margin-top: 1rem;
   padding: 0.7rem 1rem;
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-error) / 0.1);
+  background: rgba(var(--v-theme-error), 0.1);
   color: rgb(var(--v-theme-error));
   font-size: 0.82rem;
 }

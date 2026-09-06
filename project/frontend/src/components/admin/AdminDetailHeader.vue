@@ -67,7 +67,7 @@ function short(v: string): string {
   gap: 0.35rem;
   font-size: 0.8rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   text-decoration: none;
   margin-bottom: 1rem;
 }
@@ -113,7 +113,7 @@ function short(v: string): string {
 }
 .adh__mail {
   font-size: 0.88rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .adh__idbtn {
   display: inline-flex;
@@ -121,7 +121,7 @@ function short(v: string): string {
   gap: 0.3rem;
   font-size: 0.72rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   padding: 0.1rem 0.4rem;
   border-radius: 6px;
   border: 1px solid var(--tvz-hairline);
@@ -129,7 +129,7 @@ function short(v: string): string {
 }
 .adh__idbtn:hover {
   color: rgb(var(--v-theme-primary));
-  border-color: rgb(var(--v-theme-primary) / 0.4);
+  border-color: rgba(var(--v-theme-primary), 0.4);
 }
 .adh__pills {
   display: flex;

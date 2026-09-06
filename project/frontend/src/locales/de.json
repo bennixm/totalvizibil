@@ -85,7 +85,9 @@
     "subCount": "{n} Unterkategorien",
     "coverageKm": "{n} km",
     "coverageCountry": "Ganzes Land",
-    "ownSite": "Eigene Website"
+    "ownSite": "Eigene Website",
+    "seoHomeTitle": "Totalvizibil — lokale Unternehmen nach Kategorie und Gebiet",
+    "seoHomeDesc": "Entdecke aktive lokale Unternehmen, sortiert nach Sichtbarkeits-Score. Gefiltert wird nur nach Kategorie und Stadt. KI-erstellte Websites, Feed-Eintrag und Pay-per-Click-Kampagnen."
   },
   "company": {
     "backToFeed": "Zurück zu Entdecken",
@@ -94,12 +96,13 @@
     "services": "Leistungen",
     "notFound": "Dieses Unternehmen ist nicht verfügbar.",
     "leadSent": "Nachricht gesendet",
-    "seoDesc": "{category} in {city}"
+    "seoDesc": "{category} in {city}",
+    "notFoundHint": "Vielleicht wurde es umbenannt, entfernt, oder der Link ist falsch. Suche stattdessen nach Kategorie und Stadt."
   },
   "create": {
     "assistant": "KI-Baukasten",
     "headline": "Mit einer Idee kommen. Mit einem Unternehmen gehen.",
-    "lead": "Wählen Sie, wie viel Sie steuern möchten. Der Rest dieses Ablaufs wird neu gestaltet.",
+    "lead": "Wähle, wie viel du am Ablauf steuern möchtest. Den Rest baut der Assistent.",
     "easyTitle": "Einfach",
     "easyText": "Ein paar kurze Antworten und der Assistent macht den Rest. Schnell und einfach.",
     "easyTag": "Am schnellsten",
@@ -108,7 +111,9 @@
     "advancedTag": "Volle Kontrolle",
     "nextTitle": "Nächster Schritt folgt bald",
     "nextText": "Wir überdenken, was nach dieser Wahl passiert — es ist noch nicht angebunden.",
-    "registerLaterNote": "Kein Konto nötig zum Start — Sie registrieren sich nur zum Speichern und Veröffentlichen."
+    "registerLaterNote": "Kein Konto nötig zum Start — Sie registrieren sich nur zum Speichern und Veröffentlichen.",
+    "seoTitle": "Baue dein Unternehmen online mit KI — Totalvizibil",
+    "seoDesc": "Beantworte ein paar Fragen und der Assistent baut deine Unternehmenswebsite. Einfach starten oder die volle Kontrolle über Design, Abschnitte und SEO."
   },
   "studio": {
     "eyebrow": "KI-Baukasten · Gratis-Plan",
@@ -225,7 +230,10 @@
     "addStep": "Schritt hinzufügen",
     "hoursPlaceholder": "z. B. Mo–Fr 9–18 Uhr",
     "rateLimited": "Zu viele Versuche in kurzer Zeit. Warte ein paar Minuten und versuche es erneut.",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "logoTitle": "Logo (optional)",
+    "logoAdd": "Logo hinzufügen",
+    "logoChange": "Ändern"
   },
   "location": {
     "eyebrow": "Schritt 2 · Standort",
@@ -1062,7 +1070,16 @@
     "continueBudget": "Weiter → Budget",
     "deletionPendingTitle": "Löschung geplant",
     "deletionPendingText": "Dieses Unternehmen ist zur Löschung vorgesehen — brich die Löschung im Dashboard ab, um die Website wieder zu bearbeiten.",
-    "deletionPendingCta": "Zum Dashboard"
+    "deletionPendingCta": "Zum Dashboard",
+    "backAdmin": "Zurück zum Unternehmen",
+    "adminLockedTitle": "Website nutzt den einfachen Plan",
+    "adminLockedText": "Dieses Unternehmen hat den erweiterten Builder noch nicht. Schalte ihn (kostenlos oder zulasten des Inhabers) im Admin-Bereich frei und komm dann zum Bearbeiten zurück.",
+    "logoLabel": "Logo",
+    "logoUpload": "Logo hochladen",
+    "logoReplace": "Logo ersetzen",
+    "logoRemove": "Logo entfernen",
+    "logoTooLarge": "Bild ist zu groß (max. 3 MB).",
+    "logoFailed": "Logo-Upload fehlgeschlagen."
   },
   "site": {
     "phone": "Telefon",
@@ -1224,7 +1241,7 @@
   },
   "adminCo": {
     "backToOwner": "← {name}",
-    "viewSite": "Website ansehen",
+    "viewSite": "Seite ansehen",
     "profileTitle": "Unternehmensprofil",
     "displayName": "Anzeigename",
     "legalName": "Rechtlicher Name",
@@ -1273,11 +1290,9 @@
     "webStatus_unpublished": "Unveröffentlicht",
     "webUpdated": "aktualisiert {d}",
     "webUnlockedOn": "Erweitert freigeschaltet am {d}",
-    "webUpgradeFree": "Auf Erweitert upgraden (kostenlos)",
-    "webUpgradeHint": "Schaltet den erweiterten Builder für diesen Kunden frei, ohne sein Guthaben zu belasten.",
+    "webUpgradeFree": "Kostenlos freischalten",
+    "webUpgradeHint": "Schaltet den erweiterten Builder für dieses Unternehmen frei. Wähle kostenlos oder zulasten des Guthabens des Inhabers.",
     "webUpgraded": "Auf Erweitert hochgestuft",
-    "webEditTitle": "Website-Inhalt",
-    "webEditNote": "Der Inhalt wird vom Eigentümer in seinem Builder bearbeitet. Hier kannst du nur die Live-Seite öffnen.",
     "leadTotalLbl": "Gesamt",
     "leadNewLbl": "Neu",
     "leadResolvedLbl": "Gelöst",
@@ -1288,7 +1303,33 @@
     "leadStatusSeen": "Gesehen",
     "leadStatusResolved": "Gelöst",
     "leadStatusSet": "Status aktualisiert",
-    "visibilityTitle": "Sichtbarkeit"
+    "visibilityTitle": "Sichtbarkeit",
+    "categoryLabel": "Kategorie",
+    "locTitle": "Standort & Abdeckung",
+    "locNationwide": "Landesweite Abdeckung",
+    "locNationwideHint": "Keine Stadt oder Radius — das Unternehmen wird landesweit angezeigt.",
+    "locCity": "Stadt",
+    "locCityPlaceholder": "Stadt suchen…",
+    "locRadius": "Abdeckungsradius",
+    "locSaved": "Standort gespeichert",
+    "webPublish": "Website veröffentlichen",
+    "webUnpublish": "Website zurückziehen",
+    "webPublished": "Website veröffentlicht",
+    "webUnpublished": "Website zurückgezogen",
+    "webEditBuilder": "Site bearbeiten (Builder)",
+    "webEditNoteAdv": "Öffne den erweiterten Builder dieses Unternehmens, um Seiten, Abschnitte und Design zu bearbeiten.",
+    "webEditNoteEasy": "Einfache Website — kein Builder. Du kannst nur die Live-Seite öffnen.",
+    "webEditTitle": "Website-Inhalt",
+    "webUpgradedPaid": "Erweiterter Builder freigeschaltet — Inhaber belastet",
+    "webUpgradeTitleEasy": "Upgrade auf den erweiterten Builder",
+    "webUpgradeTitlePending": "Erweiterter Plan gewählt — noch nicht aktiviert",
+    "webUpgradeCharge": "Inhaber belasten ({n} cr)",
+    "webUpgradeOwnerBalance": "Guthaben Inhaber: {n} cr",
+    "webUpgradeShort": "nicht genug für ein kostenpflichtiges Upgrade",
+    "upgradeUnaffordable": "Das Guthaben des Inhabers deckt dieses Upgrade nicht.",
+    "webEditNotePending": "Der erweiterte Builder ist noch nicht aktiv. Schalte ihn oben frei, um Seiten und Abschnitte zu bearbeiten.",
+    "previewOf": "Vorschau von {name}",
+    "openPublic": "Öffentliche Seite öffnen"
   },
   "adminBiz": {
     "lead": "Alle Unternehmen der Plattform. Zeile anklicken zum Verwalten.",

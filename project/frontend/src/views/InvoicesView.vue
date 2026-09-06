@@ -133,7 +133,7 @@ async function issueMissing(): Promise<void> {
   letter-spacing: 0.16em;
   font-size: 10px;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
 }
 .inv__head h1 {
@@ -151,8 +151,8 @@ async function issueMissing(): Promise<void> {
   border-radius: var(--tvz-radius-md);
 }
 .inv__notice--warn {
-  background: rgb(var(--v-theme-warning) / 0.1);
-  border: 1px solid rgb(var(--v-theme-warning) / 0.35);
+  background: rgba(var(--v-theme-warning), 0.1);
+  border: 1px solid rgba(var(--v-theme-warning), 0.35);
   color: rgb(var(--v-theme-warning));
 }
 .inv__notice strong {
@@ -161,12 +161,12 @@ async function issueMissing(): Promise<void> {
 }
 .inv__notice p {
   margin: 0.1rem 0 0;
-  color: rgb(var(--v-theme-on-surface) / 0.75);
+  color: rgba(var(--v-theme-on-surface), 0.75);
 }
 .inv__empty {
   padding: 2.5rem 1rem;
   text-align: center;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .inv__table {
   width: 100%;
@@ -178,7 +178,7 @@ async function issueMissing(): Promise<void> {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   padding: 0.5rem 0.6rem;
   border-bottom: 1px solid var(--tvz-hairline);
 }
@@ -198,6 +198,6 @@ async function issueMissing(): Promise<void> {
 .inv__foot {
   margin-top: 1.25rem;
   font-size: 0.8rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 </style>

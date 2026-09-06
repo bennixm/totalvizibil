@@ -297,7 +297,7 @@ const economyChart = computed(() => {
 }
 .kpi__label {
   font-size: 0.76rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .kpi__ic {
   display: grid;
@@ -322,7 +322,7 @@ const economyChart = computed(() => {
   align-items: center;
   gap: 0.25rem;
   font-size: 0.74rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .kpi__delta.is-up {
   color: rgb(var(--v-theme-success));
@@ -339,7 +339,7 @@ const economyChart = computed(() => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 1.8rem 0 0.85rem;
 }
 .adash__cols3 {
@@ -381,7 +381,7 @@ const economyChart = computed(() => {
   border-top: 1px solid var(--tvz-hairline);
 }
 .rows__k {
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .rows__v {
   font-family: 'Space Grotesk Variable', sans-serif;
@@ -404,7 +404,7 @@ const economyChart = computed(() => {
   height: 12px;
   border-radius: 5px;
   overflow: hidden;
-  background: rgb(var(--v-theme-on-surface) / 0.06);
+  background: rgba(var(--v-theme-on-surface), 0.06);
 }
 .seg__part {
   display: block;
@@ -420,7 +420,7 @@ const economyChart = computed(() => {
   background: rgb(var(--v-theme-error));
 }
 .seg__part--default {
-  background: rgb(var(--v-theme-on-surface) / 0.28);
+  background: rgba(var(--v-theme-on-surface), 0.28);
 }
 .seglegend {
   list-style: none;
@@ -443,7 +443,7 @@ const economyChart = computed(() => {
   flex: none;
 }
 .seglegend__k {
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .seglegend__v {
   margin-left: auto;
@@ -453,7 +453,7 @@ const economyChart = computed(() => {
 .seg__foot {
   margin: 1rem 0 0;
   font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
 /* Economy figures ----------------------------------------------------- */
@@ -471,7 +471,7 @@ const economyChart = computed(() => {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .fig__v {
   font-family: 'Space Grotesk Variable', sans-serif;
@@ -481,7 +481,7 @@ const economyChart = computed(() => {
 }
 .fig__s {
   font-size: 0.7rem;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 @media (max-width: 520px) {
   .figs {
@@ -508,7 +508,7 @@ const economyChart = computed(() => {
 .bars__track {
   height: 8px;
   border-radius: 4px;
-  background: rgb(var(--v-theme-on-surface) / 0.07);
+  background: rgba(var(--v-theme-on-surface), 0.07);
   overflow: hidden;
 }
 .bars__fill {
@@ -520,6 +520,6 @@ const economyChart = computed(() => {
 .bars__v {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 </style>

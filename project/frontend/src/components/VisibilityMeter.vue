@@ -56,12 +56,12 @@ const clamped = computed(() => Math.max(0, Math.min(100, Math.round(props.score)
   flex: none;
   text-align: center;
   padding-right: 1.6rem;
-  border-right: 1px solid rgb(var(--v-theme-on-surface) / 0.12);
+  border-right: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 @media (max-width: 560px) {
   .vm__score {
     border-right: 0;
-    border-bottom: 1px solid rgb(var(--v-theme-on-surface) / 0.12);
+    border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
     padding: 0 0 0.9rem;
   }
 }
@@ -81,7 +81,7 @@ const clamped = computed(() => Math.max(0, Math.min(100, Math.round(props.score)
 }
 .vm__score span {
   font-size: 0.82rem;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .vm__score p {
   margin: 0.35rem 0 0;
@@ -89,7 +89,7 @@ const clamped = computed(() => Math.max(0, Math.min(100, Math.round(props.score)
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .vm__bars {
   flex: 1;
@@ -104,16 +104,16 @@ const clamped = computed(() => Math.max(0, Math.min(100, Math.round(props.score)
   margin-bottom: 0.3rem;
 }
 .vm__label {
-  color: rgb(var(--v-theme-on-surface) / 0.72);
+  color: rgba(var(--v-theme-on-surface), 0.72);
 }
 .vm__val {
   font-variant-numeric: tabular-nums;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .vm__track {
   height: 8px;
   border-radius: 999px;
-  background: rgb(var(--v-theme-on-surface) / 0.08);
+  background: rgba(var(--v-theme-on-surface), 0.08);
   overflow: hidden;
 }
 .vm__fill {

@@ -354,7 +354,7 @@ async function save() {
   height: 36px;
   border-radius: 10px;
   flex: none;
-  background: rgb(var(--v-theme-primary) / 0.1);
+  background: rgba(var(--v-theme-primary), 0.1);
   color: rgb(var(--v-theme-primary));
 }
 .as__body {
@@ -368,7 +368,7 @@ async function save() {
 .as__hint {
   margin: 0.15rem 0 0;
   font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .as__input {
   flex: none;
@@ -388,7 +388,7 @@ async function save() {
 .as__sectionNote {
   margin: 0 0 1rem;
   font-size: 0.82rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .as__issuerGrid {
   display: grid;
@@ -412,6 +412,6 @@ async function save() {
 }
 .as__affLbl {
   font-size: 0.75rem;
-  color: rgb(var(--v-theme-on-surface) / 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 </style>

@@ -297,7 +297,7 @@ onMounted(async () => {
   letter-spacing: 0.16em;
   font-size: 10px;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
 }
 .wal__head h1 {
@@ -318,7 +318,7 @@ onMounted(async () => {
 .wal__balanceLabel {
   margin: 0;
   font-size: 0.8rem;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -333,11 +333,11 @@ onMounted(async () => {
 .wal__balanceValue span {
   font-size: 0.9rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .wal__balanceEq {
   margin: 0;
-  color: rgb(var(--v-theme-on-surface) / 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .wal__currency {
   display: flex;
@@ -351,7 +351,7 @@ onMounted(async () => {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .wal__currencyBtns {
   display: inline-flex;
@@ -364,7 +364,7 @@ onMounted(async () => {
   padding: 0.35rem 1rem;
   font-size: 0.8rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   transition:
     background var(--tvz-dur-fast) var(--tvz-ease-out),
     color var(--tvz-dur-fast) var(--tvz-ease-out);
@@ -373,7 +373,7 @@ onMounted(async () => {
   border-left: 1px solid var(--tvz-glass-border);
 }
 .wal__currencyBtns button.is-on {
-  background: rgb(var(--v-theme-primary) / 0.14);
+  background: rgba(var(--v-theme-primary), 0.14);
   color: rgb(var(--v-theme-primary));
 }
 .wal__currencyBtns button:disabled {
@@ -435,7 +435,7 @@ onMounted(async () => {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .wal__stats strong {
   font-size: 1.1rem;
@@ -447,7 +447,7 @@ onMounted(async () => {
   font-style: normal;
   text-transform: none;
   letter-spacing: 0;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
 .wal__buy,
@@ -479,7 +479,7 @@ onMounted(async () => {
 }
 .wal__presets button.is-on {
   border-color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary) / 0.12);
+  background: rgba(var(--v-theme-primary), 0.12);
   color: rgb(var(--v-theme-primary));
 }
 .wal__custom {
@@ -510,7 +510,7 @@ onMounted(async () => {
 .wal__devNote {
   margin: 0 0 0.8rem;
   font-size: 0.78rem;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .wal__confirmActions {
   display: flex;
@@ -525,7 +525,7 @@ onMounted(async () => {
   margin-top: 1rem;
   padding: 0.7rem 1rem;
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-error) / 0.1);
+  background: rgba(var(--v-theme-error), 0.1);
   color: rgb(var(--v-theme-error));
   font-size: 0.82rem;
 }
@@ -534,8 +534,8 @@ onMounted(async () => {
   gap: 0.6rem;
   padding: 0.9rem 1.1rem;
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-error) / 0.1);
-  border: 1px solid rgb(var(--v-theme-error) / 0.35);
+  background: rgba(var(--v-theme-error), 0.1);
+  border: 1px solid rgba(var(--v-theme-error), 0.35);
   color: rgb(var(--v-theme-error));
   font-size: 0.85rem;
 }
@@ -545,11 +545,11 @@ onMounted(async () => {
 }
 .wal__blocked p {
   margin: 0.1rem 0 0;
-  color: rgb(var(--v-theme-on-surface) / 0.75);
+  color: rgba(var(--v-theme-on-surface), 0.75);
 }
 .wal__blocked--billing {
-  background: rgb(var(--v-theme-warning) / 0.1);
-  border-color: rgb(var(--v-theme-warning) / 0.35);
+  background: rgba(var(--v-theme-warning), 0.1);
+  border-color: rgba(var(--v-theme-warning), 0.35);
   color: rgb(var(--v-theme-warning));
 }
 .wal__unbilled {
@@ -558,8 +558,8 @@ onMounted(async () => {
   padding: 0.9rem 1.1rem;
   margin-bottom: 1rem;
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-warning) / 0.1);
-  border: 1px solid rgb(var(--v-theme-warning) / 0.35);
+  background: rgba(var(--v-theme-warning), 0.1);
+  border: 1px solid rgba(var(--v-theme-warning), 0.35);
   color: rgb(var(--v-theme-warning));
   font-size: 0.85rem;
 }
@@ -569,7 +569,7 @@ onMounted(async () => {
 }
 .wal__unbilled p {
   margin: 0.1rem 0 0;
-  color: rgb(var(--v-theme-on-surface) / 0.75);
+  color: rgba(var(--v-theme-on-surface), 0.75);
 }
 .wal__invoiceNote {
   display: flex;
@@ -578,7 +578,7 @@ onMounted(async () => {
   margin-bottom: 1rem;
   padding: 0.6rem 0.9rem;
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-success) / 0.1);
+  background: rgba(var(--v-theme-success), 0.1);
   color: rgb(var(--v-theme-success));
   font-size: 0.84rem;
 }

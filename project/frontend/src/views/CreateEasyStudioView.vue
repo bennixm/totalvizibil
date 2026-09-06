@@ -139,7 +139,7 @@ onMounted(async () => {
   gap: 0.35rem;
   padding: 0.25rem;
   border-radius: 999px;
-  background: rgb(var(--v-theme-on-surface) / 0.06);
+  background: rgba(var(--v-theme-on-surface), 0.06);
 }
 .studio__tabs button {
   display: inline-flex;
@@ -149,7 +149,7 @@ onMounted(async () => {
   border-radius: 999px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .studio__tabs button.is-on {
   background: rgb(var(--v-theme-surface));
@@ -188,10 +188,10 @@ onMounted(async () => {
   justify-content: center;
   gap: 0.75rem;
   text-align: center;
-  color: rgb(var(--v-theme-on-surface) / 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   border: 1px dashed var(--tvz-glass-border);
   border-radius: var(--tvz-radius-lg);
-  background: rgb(var(--v-theme-surface) / 0.4);
+  background: rgba(var(--v-theme-surface), 0.4);
 }
 .studio__empty p {
   margin: 0;
@@ -222,7 +222,7 @@ onMounted(async () => {
   gap: 0.6rem;
   padding: 2rem 1.5rem;
   text-align: center;
-  color: rgb(var(--v-theme-on-surface) / 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .studio__agentError .v-icon {
   color: rgb(var(--v-theme-error));
