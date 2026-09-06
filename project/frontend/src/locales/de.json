@@ -929,7 +929,22 @@
     },
     "opt": {
       "right": "Rechts",
-      "left": "Links"
+      "left": "Links",
+      "center": "Zentriert",
+      "standard": "Standard",
+      "wide": "Breit",
+      "full": "Volle Breite",
+      "narrow": "Schmal",
+      "transparent": "Ohne Hintergrund",
+      "surface": "Karte",
+      "wash": "Getönt",
+      "accent": "Akzentfarbe",
+      "ink": "Dunkel",
+      "sm": "Klein",
+      "md": "Mittel",
+      "lg": "Groß",
+      "solid": "Gefüllt",
+      "ghost": "Umriss"
     },
     "field": {
       "headline": "Überschrift",
@@ -995,7 +1010,28 @@
       "rowLabel": "Kriterium",
       "usValue": "Bei uns",
       "themValue": "Anderswo",
-      "bannerText": "Botschaft"
+      "bannerText": "Botschaft",
+      "blockWidth": "Breite",
+      "blockBg": "Hintergrund",
+      "blockAlign": "Ausrichtung",
+      "blocks": "Blöcke"
+    },
+    "customBlock": {
+      "add": "Block hinzufügen",
+      "kind": {
+        "heading": "Überschrift",
+        "text": "Text",
+        "image": "Bild",
+        "button": "Button",
+        "spacer": "Abstand",
+        "divider": "Trennlinie"
+      },
+      "headingPh": "Überschriftstext",
+      "textPh": "Schreiben Sie hier Ihren Text. Lassen Sie eine Leerzeile zwischen Absätzen.",
+      "captionPh": "Bildunterschrift (optional)",
+      "btnLabelPh": "Buttontext",
+      "btnTargetPh": "Ziel: Seite, Abschnitt oder Link",
+      "btnTargetHint": "Seiten-Slug (z. B. contact), Abschnittstyp (z. B. pricing) oder ein https://-Link."
     },
     "aiTitle": "Website mit KI erzeugen",
     "aiLead": "Beschreiben Sie das Unternehmen und was auf die Website soll. Die KI wählt Seiten, Abschnitte und Texte.",
@@ -1043,7 +1079,8 @@
     "aiNoteTitle": "Vor Veröffentlichung prüfen",
     "aiNote": {
       "contact": "Fügen Sie echte Kontaktdaten (Telefon, E-Mail) hinzu — die KI hat sie leer gelassen.",
-      "team": "Tragen Sie echte Team-Namen ein — die KI hat nur Platzhalter gesetzt."
+      "team": "Tragen Sie echte Team-Namen ein — die KI hat nur Platzhalter gesetzt.",
+      "seeded": "Einige Abschnitte nutzen Starttext — prüfe und ersetze ihn."
     },
     "motionLabel": "Bewegung",
     "animation": "Animation",
@@ -1079,7 +1116,42 @@
     "logoReplace": "Logo ersetzen",
     "logoRemove": "Logo entfernen",
     "logoTooLarge": "Bild ist zu groß (max. 3 MB).",
-    "logoFailed": "Logo-Upload fehlgeschlagen."
+    "logoFailed": "Logo-Upload fehlgeschlagen.",
+    "navbar": "Navigationsleiste",
+    "footer": "Fußzeile",
+    "legal": "Rechtliche Seiten",
+    "legalPrivacy": "Datenschutzerklärung",
+    "legalTerms": "AGB",
+    "legalCookies": "Cookie-Richtlinie",
+    "aiModeImprove": "Verbessern",
+    "aiModeImproveHint": "Bestehende Website behalten und Änderungen anwenden",
+    "aiModeReplace": "Neu erstellen",
+    "aiModeReplaceHint": "Alles verwerfen und eine neue Website generieren",
+    "aiPlaceholderImprove": "z. B. einen Testimonials-Abschnitt auf Start hinzufügen und den Ton wärmer machen",
+    "chrome": {
+      "show": "Anzeigen",
+      "hide": "Ausblenden",
+      "logoShow": "Logo in der Leiste",
+      "noLogo": "Kein Logo",
+      "linkStyle": "Link-Stil",
+      "linkText": "Text",
+      "linkPill": "Pille",
+      "showPages": "Seiten-Links anzeigen",
+      "sticky": "Leiste beim Scrollen fixieren",
+      "ctaOn": "Aktionsbutton in der Leiste",
+      "ctaLabel": "Buttontext (z. B. Kontakt)",
+      "ctaTarget": "Ziel (Seite oder Abschnitt)",
+      "ctaHint": "Seiten-Slug (z. B. contact) oder Abschnittstyp (z. B. pricing).",
+      "ctaDefault": "Kontakt",
+      "tagline": "Fußzeilen-Slogan",
+      "taglinePh": "Ein kurzer Satz über das Unternehmen",
+      "showLegal": "Rechtliche Seiten in der Fußzeile anzeigen",
+      "showContact": "Kontaktdaten in der Fußzeile anzeigen",
+      "socials": "Social-Media-Links",
+      "socLabel": "Bezeichnung",
+      "socAdd": "Link hinzufügen",
+      "saving": "Wird gespeichert…"
+    }
   },
   "site": {
     "phone": "Telefon",
@@ -1097,6 +1169,7 @@
     "hours": "Zeiten",
     "footExplore": "Entdecken",
     "footContact": "Kontakt",
+    "footLegal": "Rechtliches",
     "madeWith": "Website von Totalvizibil",
     "formPreview": "Das Formular wird nach der Veröffentlichung aktiv."
   },
@@ -1594,11 +1667,17 @@
       "boxed": "Umrahmt",
       "even": "Gleich",
       "mixed": "Gemischt",
-      "line": "Linie"
+      "line": "Linie",
+      "card": "Karte",
+      "bordered": "Mit Rahmen"
     },
     "hero": {
       "label": "Hero",
       "desc": "Großer Kopfbereich mit Überschrift und Button"
+    },
+    "custom": {
+      "label": "Eigener Abschnitt",
+      "desc": "Selbst gebaut: Breite wählen und Blöcke hinzufügen — Überschriften, Text, Bilder, Buttons"
     },
     "logos": {
       "label": "Kundenlogos",

@@ -24,10 +24,31 @@ export interface PlanWebsiteInput {
   locale: AiLocale;
   /** Pre-rendered catalog description (one line per section type). */
   catalogText: string;
+  /** Classified site archetype (`local-trade`, `saas`, …) — steers structure. */
+  archetype?: string;
+  /** A compact worked-example outline for that archetype — few-shot, "adapt". */
+  skeletonExample?: string;
+  /** One line per section on WHEN to use each variant (fights homogenisation). */
+  variantHints?: string;
+  /**
+   * Present on a FOLLOW-UP prompt: the site as it stands now. The planner then
+   * EVOLVES it (keeps sections it reuses by `id`, only adds/changes per the
+   * brief) instead of rebuilding from scratch.
+   */
+  current?: {
+    theme?: Record<string, unknown>;
+    pages: {
+      title: string;
+      slug: string;
+      sections: { id: string; type: string; variant: string }[];
+    }[];
+  };
 }
 export interface AiSitePlan {
   theme?: Record<string, unknown>;
   pages?: unknown[];
+  /** Fraction of sections the copy pass actually filled (0–1). */
+  filledRatio?: number;
 }
 
 /** Advanced builder — rewrite one section's content from an instruction. */
@@ -360,19 +381,51 @@ export class DeepseekService {
       (input.business.services.length ? `Services: ${input.business.services.join(', ')}\n` : '');
 
     // --- Phase A: structure + theme ---------------------------------
+    const improve = !!input.current && input.current.pages.length > 0;
+    const knownIds = new Set(
+      (input.current?.pages ?? []).flatMap((p) => p.sections.map((s) => s.id)),
+    );
+    const example =
+      !improve && input.skeletonExample
+        ? `\nHere is a solid ${input.archetype ?? ''} structure — ADAPT it to THIS brief ` +
+          `(reorder, swap variants, add or drop pages/sections as the brief warrants) ` +
+          `but do NOT copy it verbatim:\n${input.skeletonExample}\n`
+        : '';
+    const currentBlock = improve
+      ? `\nThe site ALREADY EXISTS. Here it is (structure only):\n` +
+        JSON.stringify({
+          theme: input.current!.theme ?? {},
+          pages: input.current!.pages.map((p) => ({
+            title: p.title,
+            sections: p.sections.map((s) => ({ id: s.id, type: s.type, variant: s.variant })),
+          })),
+        }) +
+        `\nThe owner now asks for CHANGES (see brief). Return the FULL updated structure. ` +
+        `KEEP every section that still fits and reuse its exact "id". Only ADD new sections/pages ` +
+        `(omit "id" for those) or change a variant/order where the brief needs it. Keep the theme ` +
+        `unless the brief asks otherwise. Do NOT rebuild the site.\n`
+      : '';
+    const hints = input.variantHints
+      ? `\nVariant guidance (pick with intent):\n${input.variantHints}\n`
+      : '';
     const outlineSys =
-      `You are a senior web designer. Design the STRUCTURE of a small-business marketing website ` +
-      `(no body text yet). Decide the scope FROM THE BRIEF: a short or vague brief → 1–2 focused pages; ` +
-      `a detailed brief that names pages, audiences or many services → 4–6 pages.\n` +
+      (improve
+        ? `You are a senior web designer editing an existing small-business website STRUCTURE (no body text). `
+        : `You are a senior web designer. Design the STRUCTURE of a small-business marketing website ` +
+          `(no body text yet). Decide the scope FROM THE BRIEF: a short or vague brief → 1–2 focused pages; ` +
+          `a detailed brief that names pages, audiences or many services → 4–6 pages.\n`) +
       `Rules:\n` +
       `- Output COMPACT JSON (no line breaks inside it, no markdown fence): ` +
       `{ "theme": {...}, "pages": [{ "title": string, "purpose": string (max 8 words), "nav": boolean, ` +
-      `"sections": [{ "type": string, "variant": string, "animation": string }] }] }.\n` +
+      `"sections": [{ "id"?: string, "type": string, "variant": string, "animation": string }] }] }.\n` +
       `- Keep it lean: 3–6 sections per page. "animation" is optional: ` +
       `none|fade|rise|slideLeft|slideRight|zoom|blur — vary the entrances; a hero is usually "none"/"fade".\n` +
       `- First page is the home page (the caller marks isHome). Home starts with a "hero". ` +
       `The last page has a "contact" section.\n` +
-      `- Use ONLY these section types + variants:\n${input.catalogText}\n` +
+      `- MAKE IT DISTINCTIVE. Do not default to hero→services→testimonials→cta for every site. ` +
+      `Use at least TWO of {featureSplit, bento, timeline, comparison, process, marquee, pricing, logos, stats, banner} ` +
+      `where the business makes them relevant, and choose variants that suit the brand — not just the first option.\n` +
+      `- Use ONLY these section types + variants:\n${input.catalogText}\n${hints}` +
       `- "theme": { "preset": "studio|bold|editorial|soft|tech|warm|mono", ` +
       `"palette": "indigo|violet|blue|cyan|teal|emerald|lime|amber|orange|rose|fuchsia|slate", ` +
       `"background": "light|tinted|dark", "headingFont": "grotesk|inter|fraunces|jetbrains", ` +
@@ -380,11 +433,11 @@ export class DeepseekService {
       `"buttonStyle": "solid|outline|soft|pill", "shadow": "none|soft|bold", ` +
       `"motion": "off|subtle|lively", ` +
       `"density": "compact|comfortable|spacious" } — choose values that fit the business's character ` +
-      `(e.g. a tech product → dark + cyan; a studio → tinted + editorial serif).\n` +
+      `(e.g. a tech product → dark + cyan; a studio → tinted + editorial serif).\n${example}${currentBlock}` +
       `Reply with JSON only.`;
     const outline = (await this.chatJson(outlineSys, `Brief: ${input.brief}\n${facts}`, {
       maxTokens: 3200,
-      temperature: 0.5,
+      temperature: improve ? 0.5 : 0.85,
       timeoutMs: PLAN_TIMEOUT_MS,
     })) as { theme?: Record<string, unknown>; pages?: unknown[] } | null;
 
@@ -396,10 +449,13 @@ export class DeepseekService {
         ? pp.sections
             .map((s) => {
               const ss = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>;
+              const id = typeof ss.id === 'string' && knownIds.has(ss.id) ? ss.id : undefined;
               return {
+                id,
                 type: String(ss.type ?? ''),
                 variant: String(ss.variant ?? ''),
                 animation: ss.animation ? String(ss.animation) : undefined,
+                keep: !!id, // reuse existing copy — Phase B won't rewrite it
               };
             })
             .filter((s) => s.type)
@@ -412,58 +468,128 @@ export class DeepseekService {
       };
     });
 
-    // --- Phase B: per-page copy, in parallel -----------------------
+    // Repair a degenerate outline instead of failing the whole plan.
+    if (pages[0] && !pages[0].sections.some((s) => s.type === 'hero')) {
+      pages[0].sections.unshift({
+        id: undefined,
+        type: 'hero',
+        variant: 'split',
+        animation: 'fade',
+        keep: false,
+      });
+    }
+    const totalSections = pages.reduce((n, p) => n + p.sections.length, 0);
+    if (totalSections < 2) return null;
+
+    // --- Phase B: per-page copy, batched with one retry pass ------
     const priorFacts =
       `Business: ${input.business.name || '(unnamed)'}` +
       (input.business.services.length ? `; services: ${input.business.services.join(', ')}` : '');
     const contentSys =
       `You write website copy. For the given page, fill each section's "content" object using its ` +
       `catalog fields. Keep the section order and the type/variant unchanged. "items" fields are ` +
-      `arrays of objects with the listed sub-keys; "list" fields are arrays of strings.\n` +
+      `arrays of objects with the listed sub-keys; "list" fields are arrays of strings. ` +
+      `Return EVERY section — never skip one.\n` +
       `Catalog:\n${input.catalogText}\n` +
       `Write ALL text in ${lang}, concrete and specific, no lorem ipsum, no empty clichés.\n` +
-      `IMAGES: for every "image" / "imageUrl" / "backgroundImage" field on a hero, about, gallery, ` +
-      `featureSplit or bento section, ALWAYS provide a real Unsplash photo URL that fits the business ` +
-      `and the section — format exactly ` +
-      `"https://images.unsplash.com/photo-<id>?auto=format&fit=crop&w=1400&q=80" using a genuine ` +
-      `Unsplash photo id. Only leave it "" if you truly cannot think of a fitting subject. Never use ` +
-      `any other image host.\n` +
-      `NEVER invent facts you cannot know: in a "logos" section leave every item "imageUrl" empty; ` +
-      `in a "contact" section leave "phone" and "email" empty; in a "team" section do NOT invent real ` +
-      `people — leave "name" as a short placeholder and "bio" empty.\n` +
+      `IMAGES: leave every "image" / "imageUrl" / "backgroundImage" field as an empty string "" — ` +
+      `photos are added automatically afterwards. Do not put any URL there.\n` +
+      `NEVER invent facts you cannot know: in a "contact" section leave "phone" and "email" empty; ` +
+      `in a "team" section do NOT invent real people — leave "name" as a short placeholder and "bio" empty.\n` +
       `Reply with COMPACT JSON only (no markdown fence): ` +
-      `{ "sections": [{ "type": string, "variant": string, "content": {...} }] }.`;
+      `{ "sections": [{ "type": string, "content": {...} }] }.`;
 
-    const results = await Promise.allSettled(
-      pages.map((pg) =>
-        this.chatJson(
-          contentSys,
-          `Brief: ${input.brief}\n${facts}Consistency facts: ${priorFacts}\n\n` +
-            `Page: "${pg.title}" — ${pg.purpose || 'a page of the site'}\n` +
-            `Sections (write content for each, in order):\n${JSON.stringify(pg.sections)}`,
-          { maxTokens: 3200, temperature: 0.7 },
-        ),
-      ),
+    const pageUser = (pg: (typeof pages)[number]): string =>
+      `Brief: ${input.brief}\n${facts}Consistency facts: ${priorFacts}\n\n` +
+      `Page: "${pg.title}" — ${pg.purpose || 'a page of the site'}\n` +
+      `Write content ONLY for these sections, in order:\n` +
+      JSON.stringify(
+        pg.sections.filter((s) => !s.keep).map((s) => ({ type: s.type, variant: s.variant })),
+      );
+
+    // In improve mode, skip the copy call for pages that gained nothing new.
+    const toFill = pages.map((pg) => pg.sections.some((s) => !s.keep));
+    const fillIdx = pages.map((_, i) => i).filter((i) => toFill[i]);
+    const filledSub = await this.copyPasses(
+      fillIdx.map((i) => pages[i]),
+      contentSys,
+      pageUser,
     );
+    const filledPages: Record<string, unknown>[][] = pages.map(() => []);
+    fillIdx.forEach((i, k) => (filledPages[i] = filledSub[k]));
 
+    let done = 0;
+    let newCount = 0;
     const outPages = pages.map((pg, i) => {
-      const r = results[i];
-      const filled =
-        r.status === 'fulfilled' && r.value && Array.isArray(r.value.sections)
-          ? (r.value.sections as Record<string, unknown>[])
-          : [];
-      const sections = pg.sections.map((s, j) => {
-        const f = filled[j];
+      const returned = filledPages[i];
+      // Align by type, not blind index: a short / reordered response still maps.
+      const pool = returned.map((x, k) => ({ x, k, used: false }));
+      const sections = pg.sections.map((s) => {
+        if (s.keep)
+          return {
+            id: s.id,
+            type: s.type,
+            variant: s.variant,
+            animation: s.animation,
+            content: {},
+          };
+        newCount++;
+        const hit = pool.find((e) => !e.used && String((e.x as { type?: string }).type) === s.type);
+        const slot = hit ?? pool.find((e) => !e.used);
+        if (slot) slot.used = true;
+        const raw = slot?.x as { content?: unknown } | undefined;
         const content =
-          f && typeof f.content === 'object' && f.content
-            ? (f.content as Record<string, unknown>)
+          raw && typeof raw.content === 'object' && raw.content
+            ? (raw.content as Record<string, unknown>)
             : {};
+        if (Object.keys(content).length) done++;
         return { type: s.type, variant: s.variant, animation: s.animation, content };
       });
       return { title: pg.title, nav: pg.nav, sections };
     });
 
-    return { theme: outline.theme, pages: outPages };
+    return {
+      theme: outline.theme,
+      pages: outPages,
+      filledRatio: newCount ? done / newCount : 1,
+    };
+  }
+
+  /**
+   * Run the per-page copy calls in parallel batches of 3, then one retry pass
+   * over pages that came back empty. Bounds total wall time to ~2 timeouts
+   * regardless of page count, and rides out a transient 429 / timeout.
+   */
+  private async copyPasses<P>(
+    pages: P[],
+    system: string,
+    user: (pg: P) => string,
+  ): Promise<Record<string, unknown>[][]> {
+    const out: Record<string, unknown>[][] = pages.map(() => []);
+    const call = (i: number) =>
+      this.chatJson(system, user(pages[i]), {
+        maxTokens: 3200,
+        temperature: 0.7,
+        timeoutMs: PLAN_TIMEOUT_MS,
+      });
+    const pass = async (idxs: number[]): Promise<void> => {
+      for (let i = 0; i < idxs.length; i += 3) {
+        const batch = idxs.slice(i, i + 3);
+        const res = await Promise.allSettled(batch.map((k) => call(k)));
+        res.forEach((r, j) => {
+          if (r.status === 'fulfilled' && r.value && Array.isArray(r.value.sections)) {
+            out[batch[j]] = r.value.sections as Record<string, unknown>[];
+          }
+        });
+      }
+    };
+    await pass(pages.map((_, i) => i));
+    const failed = out.map((v, i) => (v.length ? -1 : i)).filter((i) => i >= 0);
+    if (failed.length) {
+      this.logger.warn(`Phase-B: retrying ${failed.length} page(s) that returned no copy`);
+      await pass(failed);
+    }
+    return out;
   }
 
   /**

@@ -18,7 +18,28 @@ import { Section, SectionType } from '../website.types';
 export type StudioLocale = 'ro' | 'en' | 'de';
 
 export type FieldType =
-  'text' | 'textarea' | 'richtext' | 'url' | 'image' | 'boolean' | 'enum' | 'list' | 'items';
+  | 'text'
+  | 'textarea'
+  | 'richtext'
+  | 'url'
+  | 'image'
+  | 'boolean'
+  | 'enum'
+  | 'list'
+  | 'items'
+  /** Free-form stack of typed blocks — the `custom` section only. */
+  | 'blocks';
+
+/** The block kinds a `custom` section can hold (see `coerceBlock`). */
+export const CUSTOM_BLOCK_KINDS = [
+  'heading',
+  'text',
+  'image',
+  'button',
+  'spacer',
+  'divider',
+] as const;
+export type CustomBlockKind = (typeof CUSTOM_BLOCK_KINDS)[number];
 
 export interface FieldSpec {
   key: string;
@@ -123,6 +144,12 @@ const F = {
     label,
     itemMax,
     itemFields,
+  }),
+  blocks: (key: string, label: string, itemMax = 24): FieldSpec => ({
+    key,
+    type: 'blocks',
+    label,
+    itemMax,
   }),
 };
 
@@ -990,6 +1017,54 @@ export const SECTION_CATALOG: Record<SectionType, SectionSpec> = {
       buttonLabel: L(ctx.locale, { ro: 'Programează', en: 'Book now', de: 'Termin buchen' }),
     }),
   },
+
+  custom: {
+    type: 'custom',
+    category: 'content',
+    label: 'custom',
+    icon: 'mdi-shape-plus-outline',
+    variants: v('plain', 'card', 'bordered'),
+    fields: [
+      F.enumf('width', 'blockWidth', ['standard', 'wide', 'full', 'narrow']),
+      F.enumf('background', 'blockBg', ['transparent', 'surface', 'wash', 'accent', 'ink']),
+      F.enumf('align', 'blockAlign', ['left', 'center']),
+      F.blocks('blocks', 'blocks', 24),
+    ],
+    seed: (ctx) => ({
+      width: 'standard',
+      background: 'transparent',
+      align: 'left',
+      blocks: [
+        {
+          kind: 'heading',
+          size: 'lg',
+          text: L(ctx.locale, {
+            ro: 'Titlul secțiunii',
+            en: 'Section title',
+            de: 'Abschnittstitel',
+          }),
+        },
+        {
+          kind: 'text',
+          text: L(ctx.locale, {
+            ro: 'Scrie aici ce vrei. Adaugă blocuri — titluri, text, imagini, butoane, spații — și aranjează-le cum ai nevoie.',
+            en: 'Write whatever you need here. Add blocks — headings, text, images, buttons, spacers — and arrange them your way.',
+            de: 'Schreiben Sie hier, was Sie brauchen. Fügen Sie Blöcke hinzu — Überschriften, Text, Bilder, Buttons, Abstände — und ordnen Sie sie nach Ihren Wünschen an.',
+          }),
+        },
+        {
+          kind: 'button',
+          variant: 'solid',
+          target: 'contact',
+          label: L(ctx.locale, {
+            ro: 'Contactează-ne',
+            en: 'Contact us',
+            de: 'Kontakt aufnehmen',
+          }),
+        },
+      ],
+    }),
+  },
 };
 
 export const SECTION_TYPES = Object.keys(SECTION_CATALOG) as SectionType[];
@@ -1026,10 +1101,48 @@ function coerceImage(raw: unknown): string {
   return s === '' || IMG_ALLOW.test(s) ? s : '';
 }
 
+function pickEnum(raw: unknown, opts: readonly string[], dflt: string): string {
+  return typeof raw === 'string' && opts.includes(raw) ? raw : dflt;
+}
+
+/** Validate + clamp one block of a `custom` section (see `CUSTOM_BLOCK_KINDS`). */
+function coerceBlock(raw: unknown): Record<string, unknown> {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const kind = pickEnum(s.kind, CUSTOM_BLOCK_KINDS, 'text') as CustomBlockKind;
+  switch (kind) {
+    case 'heading':
+      return {
+        kind,
+        text: clampStr(s.text, 160, true),
+        size: pickEnum(s.size, ['lg', 'md', 'sm'], 'lg'),
+      };
+    case 'image':
+      return { kind, url: coerceImage(s.url), caption: clampStr(s.caption, 160, true) };
+    case 'button':
+      return {
+        kind,
+        label: clampStr(s.label, 40, true),
+        // internal target (page slug / section type) or an http(s)/tel/mailto URL —
+        // rendered via a click handler, never interpolated into markup.
+        target: clampStr(s.target, 200, true),
+        variant: pickEnum(s.variant, ['solid', 'ghost'], 'solid'),
+      };
+    case 'spacer':
+      return { kind, size: pickEnum(s.size, ['sm', 'md', 'lg'], 'md') };
+    case 'divider':
+      return { kind };
+    case 'text':
+    default:
+      return { kind: 'text', text: clampStr(s.text, 1500, false) };
+  }
+}
+
 function coerceField(field: FieldSpec, raw: unknown): unknown {
   switch (field.type) {
     case 'image':
       return coerceImage(raw);
+    case 'blocks':
+      return Array.isArray(raw) ? raw.slice(0, field.itemMax ?? 24).map(coerceBlock) : [];
     case 'text':
     case 'url':
       return clampStr(raw, field.maxLength ?? 200, true);

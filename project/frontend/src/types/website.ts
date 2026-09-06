@@ -23,6 +23,7 @@ export type SectionType =
   | 'timeline'
   | 'comparison'
   | 'banner'
+  | 'custom'
 
 export type SectionAnimation =
   | 'none'
@@ -50,12 +51,30 @@ export interface WebsitePage {
   isHome: boolean
   /** Show this page in the site's top nav (Advanced builder). Default true. */
   nav?: boolean
+  /** Reserved legal page — editable text, not deletable/reorderable. */
+  system?: 'privacy' | 'terms' | 'cookies'
   sections: Section[]
+}
+
+export interface SiteNavConfig {
+  logo?: 'show' | 'hide'
+  sticky?: boolean
+  linkStyle?: 'text' | 'pill'
+  showPages?: boolean
+  cta?: { label: string; target: string } | null
+}
+export interface SiteFooterConfig {
+  tagline?: string
+  showLegal?: boolean
+  showContact?: boolean
+  socials?: { label: string; url: string }[]
 }
 
 export interface WebsiteContent {
   pages: WebsitePage[]
   seo: { title: string; description: string; schemaType: string }
+  nav?: SiteNavConfig
+  footer?: SiteFooterConfig
 }
 
 export type ThemePalette =

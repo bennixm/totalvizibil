@@ -17,6 +17,7 @@ export type FieldType =
   | 'enum'
   | 'list'
   | 'items'
+  | 'blocks'
 
 export interface FieldSpec {
   key: string
@@ -55,13 +56,30 @@ export interface PageSpec {
   slug: string
   isHome: boolean
   nav: boolean
+  /** Reserved legal page (privacy/terms/cookies) — editable text, not removable. */
+  system?: 'privacy' | 'terms' | 'cookies'
   sections: DocSection[]
+}
+export interface NavConfig {
+  logo: 'show' | 'hide'
+  sticky: boolean
+  linkStyle: 'text' | 'pill'
+  showPages: boolean
+  cta: { label: string; target: string } | null
+}
+export interface FooterConfig {
+  tagline: string
+  showLegal: boolean
+  showContact: boolean
+  socials: { label: string; url: string }[]
 }
 export interface BuilderDoc {
   v: 2
   mode: 'manual' | 'ai'
   theme: WebsiteTheme
   pages: PageSpec[]
+  nav?: NavConfig
+  footer?: FooterConfig
   ai?: { brief?: string; planCount: number; sectionCount: number; notes?: string[] }
 }
 
@@ -177,7 +195,12 @@ export const useBuilderStore = defineStore('builder', {
       if (!pages.some((p) => p.id === this.activePageId)) {
         this.activePageId = (pages.find((p) => p.isHome) ?? pages[0])?.id ?? null
       }
-      if (this.selectedId && !pages.some((p) => p.sections.some((x) => x.id === this.selectedId))) {
+      const chrome = this.selectedId === '__nav__' || this.selectedId === '__footer__'
+      if (
+        this.selectedId &&
+        !chrome &&
+        !pages.some((p) => p.sections.some((x) => x.id === this.selectedId))
+      ) {
         this.selectedId = null
       }
     },
@@ -278,6 +301,18 @@ export const useBuilderStore = defineStore('builder', {
       )
     },
 
+    patchChrome(
+      companyId: string,
+      patch: { nav?: Record<string, unknown>; footer?: Record<string, unknown> },
+    ): Promise<boolean> {
+      return this.run(() =>
+        apiFetch<BuilderView>(`/companies/${companyId}/website-builder/chrome`, {
+          method: 'PATCH',
+          body: patch,
+        }),
+      )
+    },
+
     /** Apply a one-click style bundle (writes the concrete theme fields). */
     applyPreset(companyId: string, id: PresetId): Promise<boolean> {
       return this.patchTheme(companyId, { ...STYLE_PRESETS[id], preset: id })
@@ -352,15 +387,20 @@ export const useBuilderStore = defineStore('builder', {
       }
     },
 
-    /** Generate the whole site from a free-text brief (AI, keeps an undo point). */
-    async aiPlan(companyId: string, brief: string): Promise<boolean> {
+    /** Generate the whole site from a free-text brief (AI, keeps an undo point).
+     *  `mode`: 'improve' (default on a follow-up) evolves the site; 'replace' rebuilds. */
+    async aiPlan(
+      companyId: string,
+      brief: string,
+      mode?: 'improve' | 'replace',
+    ): Promise<boolean> {
       this.aiPlanning = true
       try {
         return await this.run(() =>
           apiFetch<BuilderView>(`/companies/${companyId}/website-builder/ai/plan`, {
             method: 'POST',
-            body: { brief },
-            timeoutMs: 60_000,
+            body: mode ? { brief, mode } : { brief },
+            timeoutMs: 120_000,
           }),
         )
       } finally {

@@ -929,7 +929,22 @@
     },
     "opt": {
       "right": "Dreapta",
-      "left": "Stânga"
+      "left": "Stânga",
+      "center": "Centrat",
+      "standard": "Standard",
+      "wide": "Lată",
+      "full": "Toată lățimea",
+      "narrow": "Îngustă",
+      "transparent": "Fără fundal",
+      "surface": "Card",
+      "wash": "Nuanțat",
+      "accent": "Culoare accent",
+      "ink": "Închis",
+      "sm": "Mic",
+      "md": "Mediu",
+      "lg": "Mare",
+      "solid": "Plin",
+      "ghost": "Contur"
     },
     "field": {
       "headline": "Titlu",
@@ -995,7 +1010,28 @@
       "rowLabel": "Criteriu",
       "usValue": "La noi",
       "themValue": "La alții",
-      "bannerText": "Mesaj"
+      "bannerText": "Mesaj",
+      "blockWidth": "Lățime",
+      "blockBg": "Fundal",
+      "blockAlign": "Aliniere",
+      "blocks": "Blocuri"
+    },
+    "customBlock": {
+      "add": "Adaugă bloc",
+      "kind": {
+        "heading": "Titlu",
+        "text": "Text",
+        "image": "Imagine",
+        "button": "Buton",
+        "spacer": "Spațiu",
+        "divider": "Linie"
+      },
+      "headingPh": "Textul titlului",
+      "textPh": "Scrie textul aici. Lasă un rând gol între paragrafe.",
+      "captionPh": "Descriere imagine (opțional)",
+      "btnLabelPh": "Text buton",
+      "btnTargetPh": "Țintă: pagină, secțiune sau link",
+      "btnTargetHint": "Slug de pagină (ex: contact), tip de secțiune (ex: pricing) sau un link https://."
     },
     "aiTitle": "Generează site-ul cu AI",
     "aiLead": "Descrie afacerea și ce vrei pe site. AI-ul alege paginile, secțiunile și textele.",
@@ -1043,7 +1079,8 @@
     "aiNoteTitle": "Verifică înainte de publicare",
     "aiNote": {
       "contact": "Adaugă datele de contact reale (telefon, email) — AI-ul le-a lăsat goale.",
-      "team": "Completează numele reale ale echipei — AI-ul a pus doar text de tip șablon."
+      "team": "Completează numele reale ale echipei — AI-ul a pus doar text de tip șablon.",
+      "seeded": "Unele secțiuni folosesc text de start — verifică-le și înlocuiește-l."
     },
     "motionLabel": "Mișcare",
     "animation": "Animație",
@@ -1079,7 +1116,42 @@
     "logoReplace": "Schimbă logo",
     "logoRemove": "Elimină logo",
     "logoTooLarge": "Imaginea e prea mare (max 3 MB).",
-    "logoFailed": "Încărcarea logo-ului a eșuat."
+    "logoFailed": "Încărcarea logo-ului a eșuat.",
+    "navbar": "Bară de navigare",
+    "footer": "Subsol",
+    "legal": "Pagini legale",
+    "legalPrivacy": "Confidențialitate",
+    "legalTerms": "Termeni și condiții",
+    "legalCookies": "Politica de cookies",
+    "aiModeImprove": "Îmbunătățește",
+    "aiModeImproveHint": "Păstrează site-ul actual și aplică ce ceri",
+    "aiModeReplace": "Reconstruiește",
+    "aiModeReplaceHint": "Șterge tot și generează un site nou",
+    "aiPlaceholderImprove": "ex: adaugă testimoniale pe Acasă și fă tonul mai cald",
+    "chrome": {
+      "show": "Arată",
+      "hide": "Ascunde",
+      "logoShow": "Logo în bară",
+      "noLogo": "Fără logo",
+      "linkStyle": "Stil linkuri",
+      "linkText": "Text",
+      "linkPill": "Pastilă",
+      "showPages": "Arată linkurile către pagini",
+      "sticky": "Bară fixată la scroll",
+      "ctaOn": "Buton de acțiune în bară",
+      "ctaLabel": "Text buton (ex: Contactează-ne)",
+      "ctaTarget": "Țintă (pagină sau secțiune)",
+      "ctaHint": "Slug de pagină (ex: contact) sau tip de secțiune (ex: pricing).",
+      "ctaDefault": "Contact",
+      "tagline": "Slogan subsol",
+      "taglinePh": "O frază scurtă despre afacere",
+      "showLegal": "Arată paginile legale în subsol",
+      "showContact": "Arată datele de contact în subsol",
+      "socials": "Rețele sociale",
+      "socLabel": "Etichetă",
+      "socAdd": "Adaugă rețea",
+      "saving": "Se salvează…"
+    }
   },
   "site": {
     "phone": "Telefon",
@@ -1097,6 +1169,7 @@
     "hours": "Program",
     "footExplore": "Explorează",
     "footContact": "Contact",
+    "footLegal": "Legal",
     "madeWith": "Site creat cu Totalvizibil",
     "formPreview": "Formularul devine activ după publicarea site-ului."
   },
@@ -1594,11 +1667,17 @@
       "boxed": "În chenar",
       "even": "Egal",
       "mixed": "Mixt",
-      "line": "Linie"
+      "line": "Linie",
+      "card": "Card",
+      "bordered": "Cu chenar"
     },
     "hero": {
       "label": "Hero",
       "desc": "Antet mare cu titlu și buton"
+    },
+    "custom": {
+      "label": "Secțiune custom",
+      "desc": "Construiește-o singur: alege lățimea și adaugă blocuri — titluri, text, imagini, butoane"
     },
     "logos": {
       "label": "Logo-uri clienți",

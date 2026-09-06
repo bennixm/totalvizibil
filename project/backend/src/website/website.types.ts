@@ -24,7 +24,8 @@ export type SectionType =
   | 'bento'
   | 'timeline'
   | 'comparison'
-  | 'banner';
+  | 'banner'
+  | 'custom';
 
 /** Scroll-in animation preset for a section (Advanced builder). */
 export type SectionAnimation =
@@ -267,6 +268,27 @@ export interface BannerSection extends BaseSection {
   buttonLabel?: string;
 }
 
+/** One typed block inside a `custom` section. */
+export interface CustomBlock {
+  kind: 'heading' | 'text' | 'image' | 'button' | 'spacer' | 'divider';
+  text?: string;
+  size?: 'lg' | 'md' | 'sm';
+  url?: string;
+  caption?: string;
+  label?: string;
+  target?: string;
+  variant?: 'solid' | 'ghost';
+}
+
+/** Owner-assembled free-form section: pick a width + background, stack blocks. */
+export interface CustomSection extends BaseSection {
+  type: 'custom';
+  width: 'standard' | 'wide' | 'full' | 'narrow';
+  background: 'transparent' | 'surface' | 'wash' | 'accent' | 'ink';
+  align: 'left' | 'center';
+  blocks: CustomBlock[];
+}
+
 export type Section =
   | HeroSection
   | LogosSection
@@ -288,7 +310,8 @@ export type Section =
   | BentoSection
   | TimelineSection
   | ComparisonSection
-  | BannerSection;
+  | BannerSection
+  | CustomSection;
 
 export interface WebsitePage {
   slug: string;
@@ -296,6 +319,8 @@ export interface WebsitePage {
   isHome: boolean;
   /** Show this page in the site's top navigation (Advanced builder). Default true. */
   nav?: boolean;
+  /** Reserved legal page — editable text, but the owner can't delete/reorder it. */
+  system?: 'privacy' | 'terms' | 'cookies';
   sections: Section[];
 }
 
@@ -305,9 +330,37 @@ export interface WebsiteSeo {
   schemaType: 'LocalBusiness';
 }
 
+/** Owner-editable navbar settings (Advanced builder). */
+export interface SiteNavConfig {
+  /** Show the brand logo/name on the left. Default 'show'. */
+  logo?: 'show' | 'hide';
+  /** Sticky navbar on scroll. Default true. */
+  sticky?: boolean;
+  /** Render page links as plain text or pill buttons. Default 'text'. */
+  linkStyle?: 'text' | 'pill';
+  /** List the site's nav pages automatically. Default true. */
+  showPages?: boolean;
+  /** Optional call-to-action button; `target` is a page slug or 'contact'. */
+  cta?: { label: string; target: string } | null;
+}
+
+/** Owner-editable footer settings (Advanced builder). */
+export interface SiteFooterConfig {
+  /** Overrides the auto blurb (SEO description) under the brand. */
+  tagline?: string;
+  /** Show the "Legal" column (privacy / terms / cookies). Default true. */
+  showLegal?: boolean;
+  /** Show the phone/email/city block. Default true. */
+  showContact?: boolean;
+  /** Social links rendered in the footer. */
+  socials?: { label: string; url: string }[];
+}
+
 export interface WebsiteContent {
   pages: WebsitePage[];
   seo: WebsiteSeo;
+  nav?: SiteNavConfig;
+  footer?: SiteFooterConfig;
 }
 
 export type ThemePalette =

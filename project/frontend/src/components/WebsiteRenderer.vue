@@ -18,8 +18,14 @@ const props = defineProps<{
   leadSlug?: string
   /** Advanced builder: clicking a section selects it (emits `select`). */
   editable?: boolean
-  /** Advanced builder: id of the section drawn with a selection outline. */
+  /** Advanced builder: id of the section drawn with a selection outline.
+   *  `__nav__` / `__footer__` select the site chrome. */
   selectedId?: string | null
+  /**
+   * Advanced builder previews render one page at a time. Pass the real page
+   * list so the navbar shows every page (not just the previewed one).
+   */
+  navPreview?: { slug: string; title: string }[]
 }>()
 
 const emit = defineEmits<{
@@ -169,8 +175,59 @@ const styleVars = computed(() => {
 })
 
 const pages = computed(() => props.content.pages ?? [])
-/** Pages shown in the multi-page top nav (Advanced builder honours `nav`). */
-const navPages = computed(() => pages.value.filter((p) => (p as { nav?: boolean }).nav !== false))
+/** Legal pages — linked from the footer, never the top nav. */
+const legalPages = computed(() => pages.value.filter((p) => !!(p as { system?: string }).system))
+/** Pages shown in the multi-page top nav. In the builder preview `navPreview`
+ *  carries the real list (the preview itself renders one page at a time). */
+const navPages = computed<{ slug: string; title: string }[]>(() => {
+  if (props.editable && props.navPreview?.length) return props.navPreview
+  return pages.value
+    .filter((p) => (p as { nav?: boolean }).nav !== false && !(p as { system?: string }).system)
+    .map((p) => ({ slug: p.slug, title: p.title }))
+})
+
+// --- site chrome (owner-editable navbar + footer) --------------------
+const navCfg = computed(() => ({
+  logo: props.content.nav?.logo ?? 'show',
+  sticky: props.content.nav?.sticky !== false,
+  linkStyle: props.content.nav?.linkStyle ?? 'text',
+  showPages: props.content.nav?.showPages !== false,
+  cta: props.content.nav?.cta ?? null,
+}))
+const footerCfg = computed(() => ({
+  tagline: props.content.footer?.tagline ?? '',
+  showLegal: props.content.footer?.showLegal !== false,
+  showContact: props.content.footer?.showContact !== false,
+  socials: props.content.footer?.socials ?? [],
+}))
+function selectChrome(id: '__nav__' | '__footer__'): void {
+  if (props.editable) emit('select', id)
+}
+function chromeCtaGo(): void {
+  goToTarget(navCfg.value.cta?.target || 'contact')
+}
+/**
+ * Resolve a free-text link target: an external `http(s)/tel/mailto` URL opens in
+ * a new tab; otherwise it's an internal page slug or a section type to jump to.
+ * `javascript:` and other schemes fall through to the (harmless) section jump.
+ */
+function goToTarget(raw: unknown): void {
+  const target = String(raw ?? '').trim()
+  if (/^(https?:|tel:|mailto:)/i.test(target)) {
+    window.open(target, '_blank', 'noopener,noreferrer')
+    return
+  }
+  const pageHit = pages.value.find((p) => p.slug === target)
+  if (pageHit) {
+    activeSlug.value = pageHit.slug
+    scrollEl.value?.scrollTo({ top: 0, behavior: 'smooth' })
+  } else {
+    jumpTo(target || 'contact')
+  }
+}
+function customBlockGo(target: unknown): void {
+  goToTarget(target)
+}
 const homeSlug = computed(
   () => (pages.value.find((p) => p.isHome) ?? pages.value[0])?.slug ?? 'home',
 )
@@ -467,11 +524,21 @@ watch(
     </div>
 
     <nav
-      v-if="navPages.length > 1"
+      v-if="navPages.length > 1 || editable"
+      :id="editable ? '__nav__' : undefined"
       class="site__nav"
-      :class="{ 'site__nav--open': navOpen }"
+      :class="[
+        `site__nav--links-${navCfg.linkStyle}`,
+        {
+          'site__nav--open': navOpen,
+          'site__nav--sticky': navCfg.sticky && !editable,
+          'site__nav--sel': editable && selectedId === '__nav__',
+          'site__nav--pick': editable,
+        },
+      ]"
+      @click.stop="selectChrome('__nav__')"
     >
-      <span class="site__nav-brand">
+      <span v-if="navCfg.logo !== 'hide'" class="site__nav-brand">
         <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="site__logo" />
         <template v-else>{{ brandName }}</template>
       </span>
@@ -480,19 +547,29 @@ watch(
         class="site__nav-burger"
         :aria-expanded="navOpen"
         aria-label="Menu"
-        @click="navOpen = !navOpen"
+        @click.stop="navOpen = !navOpen"
       >
         <v-icon :icon="navOpen ? 'mdi-close' : 'mdi-menu'" size="20" />
       </button>
       <div class="site__nav-links">
+        <template v-if="navCfg.showPages">
+          <button
+            v-for="p in navPages"
+            :key="p.slug"
+            type="button"
+            :class="{ 'is-on': p.slug === activeSlug }"
+            @click.stop="activeSlug = p.slug; navOpen = false"
+          >
+            {{ p.title }}
+          </button>
+        </template>
         <button
-          v-for="p in navPages"
-          :key="p.slug"
+          v-if="navCfg.cta"
           type="button"
-          :class="{ 'is-on': p.slug === activeSlug }"
-          @click="activeSlug = p.slug; navOpen = false"
+          class="site__nav-cta btn btn--solid"
+          @click.stop="chromeCtaGo()"
         >
-          {{ p.title }}
+          {{ navCfg.cta.label }}
         </button>
       </div>
     </nav>
@@ -503,9 +580,9 @@ watch(
       :class="{ 'site__scroll--anim': animate, 'site__scroll--edit': editable }"
       @click="onScrollClick"
     >
-      <!-- one-page anchor navbar -->
+      <!-- one-page anchor navbar (real single-page sites only, not the builder preview) -->
       <header
-        v-if="singlePage"
+        v-if="singlePage && !editable"
         class="site__bar"
         :class="{ 'site__bar--open': navOpen }"
       >
@@ -547,7 +624,7 @@ watch(
           :style="
             f(s, 'backgroundImage')
               ? {
-                  backgroundImage: `linear-gradient(180deg, rgba(8,10,20,0.34), rgba(8,10,20,0.66)), url(${f(s, 'backgroundImage')})`,
+                  backgroundImage: `linear-gradient(180deg, rgba(8,10,20,0.5) 0%, rgba(8,10,20,0.42) 40%, rgba(8,10,20,0.82) 100%), url(${f(s, 'backgroundImage')})`,
                 }
               : undefined
           "
@@ -947,16 +1024,85 @@ watch(
             </button>
           </div>
         </section>
+
+        <!-- CUSTOM — owner-assembled block stack -->
+        <section
+          v-else-if="s.type === 'custom'"
+          :id="s.id"
+          class="s s--custom"
+          :class="[
+            vclass(s),
+            `s--custom--w-${f(s, 'width') || 'standard'}`,
+            `s--custom--bg-${f(s, 'background') || 'transparent'}`,
+            { 's--custom--center': f(s, 'align') === 'center' },
+          ]"
+        >
+          <div class="s--custom__in">
+            <template v-for="(b, bi) in (Array.isArray(f(s, 'blocks')) ? f(s, 'blocks') : [])" :key="bi">
+              <component
+                :is="b.size === 'md' ? 'h3' : b.size === 'sm' ? 'h4' : 'h2'"
+                v-if="b.kind === 'heading' && b.text"
+                class="s--custom__h"
+                :class="`s--custom__h--${b.size || 'lg'}`"
+              >
+                {{ b.text }}
+              </component>
+              <div v-else-if="b.kind === 'text' && b.text" class="s--custom__tx">
+                <p v-for="(para, pj) in String(b.text).split(/\n{2,}/)" :key="pj">{{ para }}</p>
+              </div>
+              <figure v-else-if="b.kind === 'image' && b.url" class="s--custom__fig">
+                <img :src="b.url" :alt="b.caption || ''" loading="lazy" />
+                <figcaption v-if="b.caption">{{ b.caption }}</figcaption>
+              </figure>
+              <div v-else-if="b.kind === 'button' && b.label" class="s--custom__btnw">
+                <button
+                  type="button"
+                  class="btn"
+                  :class="b.variant === 'ghost' ? 'btn--ghost' : 'btn--solid'"
+                  @click="ctaClick(s, () => customBlockGo(b.target))"
+                >
+                  {{ b.label }}
+                </button>
+              </div>
+              <div
+                v-else-if="b.kind === 'spacer'"
+                class="s--custom__sp"
+                :class="`s--custom__sp--${b.size || 'md'}`"
+                aria-hidden="true"
+              />
+              <hr v-else-if="b.kind === 'divider'" class="s--custom__hr" />
+            </template>
+          </div>
+        </section>
       </template>
 
-      <footer class="site__foot">
+      <footer
+        :id="editable ? '__footer__' : undefined"
+        class="site__foot"
+        :class="{ 'site__foot--sel': editable && selectedId === '__footer__', 'site__foot--pick': editable }"
+        @click.stop="selectChrome('__footer__')"
+      >
         <div class="site__foot-in">
           <div class="site__foot-col site__foot-col--brand">
             <span class="site__foot-brand">
               <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="site__logo site__logo--foot" />
               <template v-else>{{ brandName }}</template>
             </span>
-            <p v-if="footBlurb" class="site__foot-blurb">{{ footBlurb }}</p>
+            <p v-if="footerCfg.tagline || footBlurb" class="site__foot-blurb">
+              {{ footerCfg.tagline || footBlurb }}
+            </p>
+            <div v-if="footerCfg.socials.length" class="site__foot-social">
+              <a
+                v-for="soc in footerCfg.socials"
+                :key="soc.url"
+                :href="soc.url"
+                target="_blank"
+                rel="noopener nofollow"
+                @click.stop
+              >
+                {{ soc.label }}
+              </a>
+            </div>
           </div>
           <nav v-if="footLinks.length" class="site__foot-col">
             <span class="site__foot-h">{{ t('site.footExplore') }}</span>
@@ -964,17 +1110,28 @@ watch(
               v-for="l in footLinks"
               :key="l.key"
               type="button"
-              @click="l.go()"
+              @click.stop="l.go()"
             >
               {{ l.label }}
             </button>
           </nav>
-          <div v-if="footContact" class="site__foot-col">
+          <div v-if="footerCfg.showContact && footContact" class="site__foot-col">
             <span class="site__foot-h">{{ t('site.footContact') }}</span>
             <span v-if="footContact.phone">{{ footContact.phone }}</span>
             <span v-if="footContact.email">{{ footContact.email }}</span>
             <span v-if="footContact.city">{{ footContact.city }}</span>
           </div>
+          <nav v-if="footerCfg.showLegal && legalPages.length" class="site__foot-col">
+            <span class="site__foot-h">{{ t('site.footLegal') }}</span>
+            <button
+              v-for="p in legalPages"
+              :key="p.slug"
+              type="button"
+              @click.stop="activeSlug = p.slug; scrollEl?.scrollTo({ top: 0 })"
+            >
+              {{ p.title }}
+            </button>
+          </nav>
         </div>
         <div class="site__foot-bar">
           <span>© {{ year }} {{ brandName }}</span>
@@ -1028,16 +1185,31 @@ watch(
 
 /* multi-page top nav (advanced sites) */
 .site__nav {
-  position: sticky;
+  position: relative;
   top: 0;
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   padding: 0.6rem clamp(1rem, 4vw, 2.4rem);
   background: color-mix(in srgb, var(--site-bg) 82%, transparent);
   backdrop-filter: blur(14px) saturate(1.3);
   border-bottom: 1px solid var(--site-border);
+}
+.site__nav--sticky {
+  position: sticky;
+}
+.site__nav--pick {
+  cursor: pointer;
+  outline-offset: -2px;
+  transition: outline-color 0.12s ease;
+  outline: 2px solid transparent;
+}
+.site__nav--pick:hover {
+  outline-color: color-mix(in srgb, var(--site-accent) 55%, transparent);
+}
+.site__nav--sel {
+  outline-color: var(--site-accent) !important;
 }
 /* Brand logo image (any brand slot). Height-capped, width auto — keeps a
    wordmark or an icon-mark legible without dominating the bar. */
@@ -1053,13 +1225,15 @@ watch(
   max-width: 220px;
 }
 .site__nav-brand {
-  display: none;
+  display: inline-flex;
+  align-items: center;
+  margin-right: auto;
   font-family: var(--site-display);
   font-weight: 700;
   font-size: 1rem;
   color: var(--site-ink);
-  flex: 1;
   min-width: 0;
+  max-width: 45%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1077,8 +1251,17 @@ watch(
 .site__nav-links {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
-  overflow-x: auto;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.site__nav--links-pill .site__nav-links button {
+  background: color-mix(in srgb, var(--site-ink) 5%, transparent);
+}
+.site__nav-cta {
+  margin-left: 0.4rem;
+  padding: 0.4rem 0.95rem !important;
+  font-size: 0.82rem !important;
 }
 .site__nav-links button {
   flex: 0 0 auto;
@@ -1107,7 +1290,8 @@ watch(
     flex-wrap: wrap;
   }
   .site__nav-brand {
-    display: block;
+    display: inline-flex;
+    flex: 1;
     order: 1;
   }
   .site__nav-burger {
@@ -1119,10 +1303,14 @@ watch(
     flex-basis: 100%;
     flex-direction: column;
     align-items: stretch;
+    justify-content: flex-start;
     gap: 0;
     overflow: hidden;
     max-height: 0;
     transition: max-height 0.28s ease;
+  }
+  .site__nav-cta {
+    margin: 0.4rem 0 0;
   }
   .site__nav--open .site__nav-links {
     max-height: 70vh;
@@ -1437,8 +1625,16 @@ watch(
 .s--hero--photo {
   background-size: cover;
   background-position: center;
+  /* dark base behind the photo — a bright or broken image still reads white */
+  background-color: #101119;
   color: #fff;
   padding-block: clamp(4.5rem, 13vw, 9rem);
+}
+.s--hero--photo .s--hero__in {
+  text-shadow: 0 2px 22px rgba(0, 0, 0, 0.55);
+}
+.s--hero--photo h1 {
+  color: #fff;
 }
 .s--hero--photo .s--hero__eyebrow {
   color: rgba(255, 255, 255, 0.85);
@@ -2191,14 +2387,41 @@ a.ccard:hover {
 /* one-page footer */
 /* ============ site footer ============ */
 .site__foot {
+  position: relative;
   background: color-mix(in srgb, var(--site-accent) 10%, #0b0c11);
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.88rem;
 }
+.site__foot--pick {
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition: outline-color 0.12s ease;
+}
+.site__foot--pick:hover {
+  outline-color: color-mix(in srgb, var(--site-accent) 55%, transparent);
+}
+.site__foot--sel {
+  outline-color: var(--site-accent) !important;
+}
+.site__foot-social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 0.3rem;
+}
+.site__foot-social a {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+.site__foot-social a:hover {
+  color: #fff;
+}
 .site__foot-in {
   display: grid;
-  grid-template-columns: 1.6fr 1fr 1fr;
-  gap: clamp(1.5rem, 5vw, 3.5rem);
+  grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  gap: clamp(1.4rem, 4vw, 3rem);
   padding: clamp(2.5rem, 6vw, 4rem) var(--pad) clamp(1.8rem, 4vw, 2.6rem);
 }
 .site__foot-col {
@@ -2556,6 +2779,142 @@ a.ccard:hover {
   color: color-mix(in srgb, var(--site-ink) 82%, var(--site-bg));
 }
 
+/* ============ CUSTOM (owner-assembled block stack) ============ */
+.s--custom__in {
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.s--custom--w-narrow .s--custom__in {
+  max-width: 620px;
+}
+.s--custom--w-standard .s--custom__in {
+  max-width: 820px;
+}
+.s--custom--w-wide .s--custom__in {
+  max-width: 1120px;
+}
+.s--custom--w-full .s--custom__in {
+  max-width: none;
+}
+.s--custom--center .s--custom__in {
+  text-align: center;
+  align-items: center;
+}
+/* background treatments */
+.s--custom--bg-surface {
+  background: var(--site-surface);
+}
+.s--custom--bg-wash {
+  background: var(--site-wash);
+}
+.s--custom--bg-accent {
+  background: var(--site-accent);
+  color: var(--site-accent-ink);
+}
+.s--custom--bg-ink {
+  background: var(--site-ink);
+  color: var(--site-bg);
+}
+.s--custom--bg-accent .s--custom__h,
+.s--custom--bg-ink .s--custom__h {
+  color: inherit;
+}
+.s--custom--bg-accent .s--custom__tx p,
+.s--custom--bg-ink .s--custom__tx p {
+  color: inherit;
+  opacity: 0.92;
+}
+.s--custom--bg-accent .btn--solid,
+.s--custom--bg-ink .btn--solid {
+  background: var(--site-bg);
+  color: var(--site-ink);
+}
+.s--custom--bg-accent .btn--ghost,
+.s--custom--bg-ink .btn--ghost {
+  border-color: currentColor;
+  color: currentColor;
+}
+/* card / bordered variants wrap the inner stack */
+.s--custom--card .s--custom__in,
+.s--custom--bordered .s--custom__in {
+  padding: clamp(1.5rem, 4vw, 2.75rem);
+  border-radius: var(--site-radius);
+}
+.s--custom--card .s--custom__in {
+  background: var(--site-surface);
+  box-shadow: var(--site-shadow);
+}
+.s--custom--bordered .s--custom__in {
+  border: 1px solid var(--site-border);
+}
+/* blocks */
+.s--custom__h {
+  font-family: var(--site-display);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0.2rem 0 0.6rem;
+}
+.s--custom__h--lg {
+  font-size: clamp(1.7rem, 3.8vw, 2.5rem);
+}
+.s--custom__h--md {
+  font-size: clamp(1.3rem, 2.6vw, 1.7rem);
+}
+.s--custom__h--sm {
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--site-ink-soft);
+}
+.s--custom__tx p {
+  margin: 0 0 1rem;
+  font-size: 1.02rem;
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--site-ink) 82%, var(--site-bg));
+}
+.s--custom__tx p:last-child {
+  margin-bottom: 0;
+}
+.s--custom__fig {
+  margin: 0.5rem 0;
+}
+.s--custom__fig img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--site-radius);
+}
+.s--custom__fig figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--site-ink-soft);
+}
+.s--custom__btnw {
+  margin: 0.7rem 0;
+}
+.s--custom--center .s--custom__btnw {
+  display: flex;
+  justify-content: center;
+}
+.s--custom__hr {
+  width: 100%;
+  height: 0;
+  border: 0;
+  border-top: 1px solid var(--site-border);
+  margin: 1.2rem 0;
+}
+.s--custom__sp--sm {
+  height: 1rem;
+}
+.s--custom__sp--md {
+  height: 2.5rem;
+}
+.s--custom__sp--lg {
+  height: 4.5rem;
+}
+
 /* ============ modern refinements (token-driven; light + dark) ============ */
 .s h2.s__h {
   font-size: clamp(1.7rem, 3.8vw, 2.5rem);
@@ -2829,6 +3188,10 @@ a.ccard:hover {
   border-radius: var(--site-radius);
   background: var(--site-wash);
   border: 1px solid var(--site-border);
+  color: var(--site-ink);
+}
+.banner p {
+  color: var(--site-ink);
 }
 .s--banner--gradient .banner {
   background: linear-gradient(

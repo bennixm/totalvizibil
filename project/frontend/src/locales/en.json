@@ -929,7 +929,22 @@
     },
     "opt": {
       "right": "Right",
-      "left": "Left"
+      "left": "Left",
+      "center": "Centered",
+      "standard": "Standard",
+      "wide": "Wide",
+      "full": "Full width",
+      "narrow": "Narrow",
+      "transparent": "No background",
+      "surface": "Card",
+      "wash": "Tinted",
+      "accent": "Accent colour",
+      "ink": "Dark",
+      "sm": "Small",
+      "md": "Medium",
+      "lg": "Large",
+      "solid": "Solid",
+      "ghost": "Outline"
     },
     "field": {
       "headline": "Headline",
@@ -995,7 +1010,28 @@
       "rowLabel": "Criterion",
       "usValue": "With us",
       "themValue": "Elsewhere",
-      "bannerText": "Message"
+      "bannerText": "Message",
+      "blockWidth": "Width",
+      "blockBg": "Background",
+      "blockAlign": "Alignment",
+      "blocks": "Blocks"
+    },
+    "customBlock": {
+      "add": "Add block",
+      "kind": {
+        "heading": "Heading",
+        "text": "Text",
+        "image": "Image",
+        "button": "Button",
+        "spacer": "Spacer",
+        "divider": "Divider"
+      },
+      "headingPh": "Heading text",
+      "textPh": "Write your text here. Leave a blank line between paragraphs.",
+      "captionPh": "Image caption (optional)",
+      "btnLabelPh": "Button text",
+      "btnTargetPh": "Target: page, section or link",
+      "btnTargetHint": "Page slug (e.g. contact), section type (e.g. pricing), or an https:// link."
     },
     "aiTitle": "Generate the site with AI",
     "aiLead": "Describe the business and what you want on the site. AI picks the pages, sections and copy.",
@@ -1043,7 +1079,8 @@
     "aiNoteTitle": "Check before publishing",
     "aiNote": {
       "contact": "Add your real contact details (phone, email) — AI left them blank.",
-      "team": "Fill in your real team names — AI only left placeholder text."
+      "team": "Fill in your real team names — AI only left placeholder text.",
+      "seeded": "Some sections use starter text — review and replace it."
     },
     "motionLabel": "Motion",
     "animation": "Animation",
@@ -1079,7 +1116,42 @@
     "logoReplace": "Replace logo",
     "logoRemove": "Remove logo",
     "logoTooLarge": "Image is too large (3 MB max).",
-    "logoFailed": "Logo upload failed."
+    "logoFailed": "Logo upload failed.",
+    "navbar": "Navigation bar",
+    "footer": "Footer",
+    "legal": "Legal pages",
+    "legalPrivacy": "Privacy policy",
+    "legalTerms": "Terms & conditions",
+    "legalCookies": "Cookie policy",
+    "aiModeImprove": "Improve",
+    "aiModeImproveHint": "Keep the current site and apply your changes",
+    "aiModeReplace": "Rebuild",
+    "aiModeReplaceHint": "Discard everything and generate a new site",
+    "aiPlaceholderImprove": "e.g. add a testimonials section on Home and make the tone warmer",
+    "chrome": {
+      "show": "Show",
+      "hide": "Hide",
+      "logoShow": "Logo in bar",
+      "noLogo": "No logo",
+      "linkStyle": "Link style",
+      "linkText": "Text",
+      "linkPill": "Pill",
+      "showPages": "Show page links",
+      "sticky": "Stick bar on scroll",
+      "ctaOn": "Call-to-action button in bar",
+      "ctaLabel": "Button text (e.g. Contact us)",
+      "ctaTarget": "Target (page or section)",
+      "ctaHint": "Page slug (e.g. contact) or section type (e.g. pricing).",
+      "ctaDefault": "Contact",
+      "tagline": "Footer tagline",
+      "taglinePh": "A short line about the business",
+      "showLegal": "Show legal pages in the footer",
+      "showContact": "Show contact details in the footer",
+      "socials": "Social links",
+      "socLabel": "Label",
+      "socAdd": "Add link",
+      "saving": "Saving…"
+    }
   },
   "site": {
     "phone": "Phone",
@@ -1097,6 +1169,7 @@
     "hours": "Hours",
     "footExplore": "Explore",
     "footContact": "Contact",
+    "footLegal": "Legal",
     "madeWith": "Website by Totalvizibil",
     "formPreview": "The form goes live once the site is published."
   },
@@ -1594,11 +1667,17 @@
       "boxed": "Boxed",
       "even": "Even",
       "mixed": "Mixed",
-      "line": "Line"
+      "line": "Line",
+      "card": "Card",
+      "bordered": "Bordered"
     },
     "hero": {
       "label": "Hero",
       "desc": "Big header with headline and button"
+    },
+    "custom": {
+      "label": "Custom section",
+      "desc": "Build it yourself: choose the width and add blocks — headings, text, images, buttons"
     },
     "logos": {
       "label": "Client logos",

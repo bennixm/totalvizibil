@@ -16,18 +16,37 @@ const MAX_PAGES = 6
 const renaming = ref<string | null>(null)
 const renameText = ref('')
 
+const editablePages = computed(() => pages.value.filter((p) => !p.system))
+const legalPages = computed(() => pages.value.filter((p) => p.system))
+
 function payload(): PageInput[] {
-  return pages.value.map((p) => ({ id: p.id, title: p.title, isHome: p.isHome, nav: p.nav }))
+  return editablePages.value.map((p) => ({
+    id: p.id,
+    title: p.title,
+    isHome: p.isHome,
+    nav: p.nav,
+  }))
+}
+function legalLabel(kind: string): string {
+  return { privacy: 'builder.legalPrivacy', terms: 'builder.legalTerms', cookies: 'builder.legalCookies' }[
+    kind
+  ]
+    ? t(
+        { privacy: 'builder.legalPrivacy', terms: 'builder.legalTerms', cookies: 'builder.legalCookies' }[
+          kind
+        ] as string,
+      )
+    : kind
 }
 function commit(list: PageInput[]): void {
   void store.putPages(props.companyId, list)
 }
 
 function addPage(): void {
-  if (pages.value.length >= MAX_PAGES) return
+  if (editablePages.value.length >= MAX_PAGES) return
   commit([
     ...payload(),
-    { title: t('builder.pageN', { n: pages.value.length + 1 }), isHome: false, nav: true },
+    { title: t('builder.pageN', { n: editablePages.value.length + 1 }), isHome: false, nav: true },
   ])
 }
 function startRename(id: string, title: string): void {
@@ -48,7 +67,7 @@ function toggleNav(id: string): void {
   commit(payload().map((p) => (p.id === id ? { ...p, nav: !p.nav } : p)))
 }
 function deletePage(id: string): void {
-  if (pages.value.length <= 1) return
+  if (editablePages.value.length <= 1) return
   commit(payload().filter((p) => p.id !== id))
 }
 
@@ -86,10 +105,30 @@ function moveToPage(id: string, pageId: string): void {
 
 <template>
   <div class="pp">
+    <!-- site chrome -->
+    <div class="pp__chrome">
+      <button
+        type="button"
+        class="pp__chromeBtn"
+        :class="{ 'is-on': selectedId === '__nav__' }"
+        @click="store.select('__nav__')"
+      >
+        <v-icon icon="mdi-dock-top" size="14" /> {{ t('builder.navbar') }}
+      </button>
+      <button
+        type="button"
+        class="pp__chromeBtn"
+        :class="{ 'is-on': selectedId === '__footer__' }"
+        @click="store.select('__footer__')"
+      >
+        <v-icon icon="mdi-dock-bottom" size="14" /> {{ t('builder.footer') }}
+      </button>
+    </div>
+
     <!-- page tabs -->
     <div class="pp__pages">
       <div
-        v-for="p in pages"
+        v-for="p in editablePages"
         :key="p.id"
         class="pp__tab"
         :class="{ 'is-on': activePage?.id === p.id }"
@@ -112,7 +151,7 @@ function moveToPage(id: string, pageId: string): void {
         </button>
       </div>
       <button
-        v-if="pages.length < MAX_PAGES"
+        v-if="editablePages.length < MAX_PAGES"
         type="button"
         class="pp__addPage"
         :disabled="working"
@@ -122,8 +161,23 @@ function moveToPage(id: string, pageId: string): void {
       </button>
     </div>
 
+    <!-- legal pages (auto-generated, editable text, not removable) -->
+    <div v-if="legalPages.length" class="pp__legal">
+      <span class="pp__legalH"><v-icon icon="mdi-scale-balance" size="12" /> {{ t('builder.legal') }}</span>
+      <button
+        v-for="p in legalPages"
+        :key="p.id"
+        type="button"
+        class="pp__legalBtn"
+        :class="{ 'is-on': activePage?.id === p.id }"
+        @click="store.setActivePage(p.id)"
+      >
+        {{ legalLabel(p.system as string) }}
+      </button>
+    </div>
+
     <!-- active page controls -->
-    <div v-if="activePage" class="pp__pageBar">
+    <div v-if="activePage && !activePage.system" class="pp__pageBar">
       <button type="button" @click="startRename(activePage.id, activePage.title)">
         <v-icon icon="mdi-pencil-outline" size="14" /> {{ t('builder.rename') }}
       </button>
@@ -137,7 +191,7 @@ function moveToPage(id: string, pageId: string): void {
       <button
         type="button"
         class="pp__del"
-        :disabled="pages.length <= 1"
+        :disabled="editablePages.length <= 1"
         @click="deletePage(activePage.id)"
       >
         <v-icon icon="mdi-trash-can-outline" size="14" />
@@ -168,13 +222,17 @@ function moveToPage(id: string, pageId: string): void {
             <v-icon :icon="s.visible ? 'mdi-eye-outline' : 'mdi-eye-off-outline'" size="14" />
           </button>
           <select
-            v-if="pages.length > 1"
+            v-if="editablePages.length > 1"
             class="pp__move"
             :title="t('builder.moveToPage')"
             @change="moveToPage(s.id, ($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).selectedIndex = 0"
           >
             <option value="">↦</option>
-            <option v-for="p in pages.filter((x) => x.id !== activePage?.id)" :key="p.id" :value="p.id">
+            <option
+              v-for="p in editablePages.filter((x) => x.id !== activePage?.id)"
+              :key="p.id"
+              :value="p.id"
+            >
               {{ p.title }}
             </option>
           </select>
@@ -197,6 +255,62 @@ function moveToPage(id: string, pageId: string): void {
   flex-direction: column;
   height: 100%;
   min-height: 0;
+}
+.pp__chrome {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.pp__chromeBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  border: 1px solid var(--tvz-glass-border);
+  background: rgb(var(--v-theme-surface));
+}
+.pp__chromeBtn.is-on {
+  border-color: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+.pp__legal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.pp__legalH {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+  margin-right: 0.2rem;
+}
+.pp__legalBtn {
+  padding: 0.28rem 0.55rem;
+  border-radius: 7px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  background: rgba(var(--v-theme-on-surface), 0.05);
+}
+.pp__legalBtn.is-on {
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.1);
 }
 .pp__pages {
   display: flex;

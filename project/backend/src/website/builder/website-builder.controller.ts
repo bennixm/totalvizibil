@@ -19,6 +19,7 @@ import { AddSectionDto } from './dto/add-section.dto';
 import { PatchSectionDto } from './dto/patch-section.dto';
 import { MoveSectionDto } from './dto/move-section.dto';
 import { PatchThemeDto } from './dto/patch-theme.dto';
+import { PatchChromeDto } from './dto/patch-chrome.dto';
 import { BuilderAddAssetDto } from './dto/add-asset.dto';
 import { AiPlanDto } from './dto/ai-plan.dto';
 import { AiSectionDto } from './dto/ai-section.dto';
@@ -95,6 +96,16 @@ export class WebsiteBuilderController {
     @Body() dto: PatchThemeDto,
   ) {
     return this.builder.patchTheme(user.id, companyId, dto);
+  }
+
+  /** Update the site navbar / footer settings. */
+  @Patch('chrome')
+  patchChrome(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+    @Body() dto: PatchChromeDto,
+  ) {
+    return this.builder.patchChrome(user.id, companyId, dto);
   }
 
   @Post('assets')

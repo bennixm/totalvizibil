@@ -7,6 +7,7 @@ import { storeToRefs } from 'pinia'
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
 import PagePanel from '@/components/builder/PagePanel.vue'
 import SectionEditor from '@/components/builder/SectionEditor.vue'
+import ChromeEditor from '@/components/builder/ChromeEditor.vue'
 import SectionCatalog from '@/components/builder/SectionCatalog.vue'
 import ThemeBar from '@/components/builder/ThemeBar.vue'
 import AiBrief from '@/components/builder/AiBrief.vue'
@@ -78,13 +79,23 @@ function errText(code: string): string {
   return KNOWN_ERR.includes(code) ? t('builder.err.' + code) : code
 }
 
-/** The renderer wants a single page's content; feed it the active page only. */
+/** The renderer wants a single page's content; feed it the active page only,
+ *  but keep the nav/footer config so the chrome previews correctly. */
 const previewContent = computed(() => {
   const c = view.value?.content
   if (!c) return null
   const p = c.pages.find((x) => x.slug === activePage.value?.slug) ?? c.pages[0]
-  return { pages: p ? [p] : c.pages, seo: c.seo }
+  return { pages: p ? [p] : c.pages, seo: c.seo, nav: c.nav, footer: c.footer }
 })
+/** Real page list for the previewed navbar (the preview renders one page). */
+const navPreview = computed(() =>
+  (view.value?.content?.pages ?? [])
+    .filter((p) => (p as { nav?: boolean }).nav !== false && !(p as { system?: string }).system)
+    .map((p) => ({ slug: p.slug, title: p.title })),
+)
+const chromeSelected = computed(
+  () => selectedId.value === '__nav__' || selectedId.value === '__footer__',
+)
 
 async function unlock(): Promise<void> {
   if (companyId.value) await builder.unlock(companyId.value)
@@ -237,6 +248,7 @@ onMounted(async () => {
             :content="previewContent"
             :theme="view.theme"
             :selected-id="selectedId"
+            :nav-preview="navPreview"
             editable
             framed
             @select="onSelect"
@@ -248,7 +260,8 @@ onMounted(async () => {
         </section>
 
         <aside class="wb__editor" :class="{ 'is-hidden-mobile': pane !== 'editor' }">
-          <SectionEditor v-if="companyId" :company-id="companyId" />
+          <ChromeEditor v-if="companyId && chromeSelected" :company-id="companyId" />
+          <SectionEditor v-else-if="companyId" :company-id="companyId" />
         </aside>
       </div>
 

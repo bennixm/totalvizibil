@@ -35,7 +35,6 @@ const shownServices = computed(() => props.item.services.slice(0, 6))
 const extraServices = computed(() =>
   Math.max(0, props.item.servicesTotal - shownServices.value.length),
 )
-const initial = computed(() => props.item.displayName.charAt(0).toUpperCase())
 
 // Advanced-builder sites get the media-forward "own website" card.
 const featured = computed(() => props.item.builtWithBuilder)
@@ -89,7 +88,10 @@ const tagline = computed(() => {
       </p>
 
       <div class="fc__ident">
-        <span v-if="item.logoUrl" class="fc__logo"><img :src="item.logoUrl" alt="" loading="lazy" /></span>
+        <span class="fc__logo" :class="{ 'fc__logo--ph': !item.logoUrl }">
+          <img v-if="item.logoUrl" :src="item.logoUrl" alt="" loading="lazy" />
+          <v-icon v-else icon="mdi-storefront-outline" size="20" />
+        </span>
         <h3 class="fc__name">{{ item.displayName }}</h3>
       </div>
       <p v-if="blurb" class="fc__blurb">{{ blurb }}</p>
@@ -114,9 +116,9 @@ const tagline = computed(() => {
   <RouterLink v-else class="lst" :to="to" @click="onOpen">
     <span class="lst__spine" aria-hidden="true" />
 
-    <div class="lst__media">
+    <div class="lst__media" :class="{ 'lst__media--ph': !item.logoUrl }">
       <img v-if="item.logoUrl" :src="item.logoUrl" alt="" />
-      <span v-else>{{ initial }}</span>
+      <v-icon v-else icon="mdi-storefront-outline" size="34" />
     </div>
 
     <div class="lst__main">
@@ -280,6 +282,12 @@ const tagline = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+/* no logo → a neutral default mark, identical for every logo-less business */
+.lst__media--ph {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  color: rgba(var(--v-theme-on-surface), 0.42);
+  box-shadow: none;
 }
 .lst__main {
   min-width: 0;
@@ -467,6 +475,9 @@ const tagline = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+.fc__logo--ph {
+  color: rgba(var(--v-theme-on-surface), 0.42);
 }
 .fc__name {
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;

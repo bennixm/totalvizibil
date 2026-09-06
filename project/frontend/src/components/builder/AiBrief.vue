@@ -20,12 +20,18 @@ const planLeft = computed(() => view.value?.aiLimits?.planLeft ?? null)
 const planLimit = computed(() => view.value?.aiLimits?.plan ?? 6)
 const outOfQuota = computed(() => planLeft.value !== null && planLeft.value <= 0)
 
+// A site that's already been generated once: a follow-up brief should refine
+// the existing site, not bulldoze it. Offer the choice; default to "improve".
+const planCount = computed(() => view.value?.doc?.ai?.planCount ?? 0)
+const canImprove = computed(() => planCount.value > 0)
+const mode = ref<'improve' | 'replace'>('improve')
+
 function generate(): void {
   const b = brief.value.trim()
   if (b.length < 4 || working.value || outOfQuota.value) return
   // Fire and close straight away — the full-screen AiLoader takes over and
   // any error surfaces in the builder view once it resolves.
-  void store.aiPlan(props.companyId, b)
+  void store.aiPlan(props.companyId, b, canImprove.value ? mode.value : undefined)
   emit('close')
 }
 </script>
@@ -42,11 +48,37 @@ function generate(): void {
 
       <div class="ab__body">
         <p class="ab__lead">{{ t('builder.aiLead') }}</p>
+
+        <div v-if="canImprove" class="ab__mode">
+          <button
+            type="button"
+            :class="{ 'is-on': mode === 'improve' }"
+            @click="mode = 'improve'"
+          >
+            <v-icon icon="mdi-auto-fix" size="15" />
+            <span>
+              <strong>{{ t('builder.aiModeImprove') }}</strong>
+              <em>{{ t('builder.aiModeImproveHint') }}</em>
+            </span>
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-on': mode === 'replace' }"
+            @click="mode = 'replace'"
+          >
+            <v-icon icon="mdi-refresh" size="15" />
+            <span>
+              <strong>{{ t('builder.aiModeReplace') }}</strong>
+              <em>{{ t('builder.aiModeReplaceHint') }}</em>
+            </span>
+          </button>
+        </div>
+
         <textarea
           v-model="brief"
           class="ab__ta"
           rows="6"
-          :placeholder="t('builder.aiPlaceholder')"
+          :placeholder="canImprove && mode === 'improve' ? t('builder.aiPlaceholderImprove') : t('builder.aiPlaceholder')"
           maxlength="2000"
         />
         <p v-if="view && !view.aiConfigured" class="ab__note">
@@ -144,6 +176,48 @@ function generate(): void {
 .ab__ta:focus {
   outline: 2px solid rgba(var(--v-theme-primary), 0.4);
   outline-offset: 1px;
+}
+.ab__mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+.ab__mode button {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  text-align: left;
+  border: 1px solid var(--tvz-glass-border);
+  background: rgb(var(--v-theme-surface));
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.ab__mode button.is-on {
+  border-color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.07);
+  color: rgb(var(--v-theme-primary));
+}
+.ab__mode button .v-icon {
+  margin-top: 0.1rem;
+  flex: none;
+}
+.ab__mode button span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.ab__mode button strong {
+  font-size: 0.8rem;
+}
+.ab__mode button em {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.ab__mode button.is-on em {
+  color: rgba(var(--v-theme-primary), 0.75);
 }
 .ab__note {
   display: flex;

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useBuilderStore, type FieldSpec } from '@/stores/builder'
+import CustomBlocks from '@/components/builder/CustomBlocks.vue'
 
 const props = defineProps<{
   spec: FieldSpec
@@ -190,6 +191,15 @@ function imageKind(key: string): string {
         <v-icon icon="mdi-plus" size="14" /> {{ t('builder.addRow') }}
       </button>
     </div>
+
+    <!-- blocks (free-form stack — the `custom` section) -->
+    <CustomBlocks
+      v-else-if="spec.type === 'blocks'"
+      :model-value="asArray"
+      :company-id="companyId"
+      :max="spec.itemMax"
+      @update:model-value="set"
+    />
 
     <!-- items (object[]) -->
     <div v-else-if="spec.type === 'items'" class="fld__items">

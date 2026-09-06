@@ -36,14 +36,20 @@ import {
   docFromLegacy,
   keywordPlanDoc,
   normalizeDoc,
+  normalizeFooter,
+  normalizeNav,
   normalizeTheme,
+  seedFillEmptySections,
   starterAdvancedDoc,
 } from './compose-advanced';
+import { classifyArchetype, pickSkeleton, skeletonExampleJson } from './site-archetypes';
+import { fillDocImages, hashInt } from './stock-images';
 import { PutPagesDto } from './dto/put-pages.dto';
 import { AddSectionDto } from './dto/add-section.dto';
 import { PatchSectionDto } from './dto/patch-section.dto';
 import { MoveSectionDto } from './dto/move-section.dto';
 import { PatchThemeDto } from './dto/patch-theme.dto';
+import { PatchChromeDto } from './dto/patch-chrome.dto';
 import { BuilderAddAssetDto } from './dto/add-asset.dto';
 import { AiPlanDto } from './dto/ai-plan.dto';
 import { AiSectionDto } from './dto/ai-section.dto';
@@ -54,22 +60,39 @@ const CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager];
 const AI_PLAN_CAP = 6;
 const AI_SECTION_CAP = 40;
 
-/** One line per section type for the AI planner's system prompt. */
+/** When to reach for a non-default variant — fights "always variants[0]". */
+function variantHintText(): string {
+  return [
+    'hero: imageBg/overlap when a strong photo carries the page; minimal/centered for text-first brands; gradient for products.',
+    'services: iconGrid for many short services; rows/list for a menu-like list; numbered when order matters.',
+    'about: stat when milestones matter; twoCol for a longer story; imageLeft/imageRight to break up text.',
+    'testimonials: single/ticker for one strong quote or a stream; columns/cards for volume.',
+    'gallery: masonry/carousel for portfolios; wide for hero-scale shots; grid for tidy proof.',
+    'cta: boxed on a light page; gradient/solid for a full-bleed break.',
+    'features vs featureSplit vs bento: features for a scannable grid; featureSplit for 2–3 story rows with imagery; bento for an asymmetric highlight wall.',
+    'use timeline for history/roadmap, comparison for us-vs-them, marquee for logos or a moving statement, pricing for plans.',
+  ].join('\n');
+}
+
+/** One line per section type for the AI planner's system prompt.
+ *  `custom` is a manual assemble-it-yourself section — kept out of AI plans. */
 function catalogPromptText(): string {
-  return SECTION_TYPES.map((t) => {
-    const spec = SECTION_CATALOG[t];
-    const variants = spec.variants.map((v) => v.id).join('|');
-    const fields = spec.fields
-      .map((f) => {
-        if (f.type === 'items') {
-          return `${f.key}:items[${(f.itemFields ?? []).map((x) => x.key).join(',')}]`;
-        }
-        if (f.type === 'enum') return `${f.key}:${(f.enumValues ?? []).join('/')}`;
-        return `${f.key}:${f.type}`;
-      })
-      .join(', ');
-    return `  ${t} (variants: ${variants}; fields: ${fields})`;
-  }).join('\n');
+  return SECTION_TYPES.filter((t) => t !== 'custom')
+    .map((t) => {
+      const spec = SECTION_CATALOG[t];
+      const variants = spec.variants.map((v) => v.id).join('|');
+      const fields = spec.fields
+        .map((f) => {
+          if (f.type === 'items') {
+            return `${f.key}:items[${(f.itemFields ?? []).map((x) => x.key).join(',')}]`;
+          }
+          if (f.type === 'enum') return `${f.key}:${(f.enumValues ?? []).join('/')}`;
+          return `${f.key}:${f.type}`;
+        })
+        .join(', ');
+      return `  ${t} (variants: ${variants}; fields: ${fields})`;
+    })
+    .join('\n');
 }
 
 /**
@@ -104,6 +127,7 @@ function sanitizeAiPlan(doc: BuilderDoc, ctx: SeedCtx): string[] {
         for (const m of s.content.items as Record<string, unknown>[]) {
           m.name = placeholder;
           m.bio = '';
+          m.imageUrl = localAsset(m.imageUrl); // never a stock face for a real hire
         }
         notes.add('team');
       }
@@ -424,9 +448,12 @@ export class WebsiteBuilderService {
     const ctx = this.seedCtx(company);
     const doc = this.loadDoc(company.website, ctx);
     const byId = new Map(doc.pages.map((p) => [p.id, p]));
+    // Legal pages are managed separately — the owner can't reorder or drop them.
+    const systemPages = doc.pages.filter((p) => p.system);
 
     let pages: PageSpec[] = dto.pages.slice(0, MAX_PAGES).map((p, i) => {
       const existing = p.id ? byId.get(p.id) : undefined;
+      if (existing?.system) return existing; // ignore any attempt to touch a legal page
       const title = p.title.trim().slice(0, 60) || `Page ${i + 1}`;
       return {
         id: existing?.id ?? randomUUID(),
@@ -437,14 +464,15 @@ export class WebsiteBuilderService {
         sections: existing?.sections ?? [],
       };
     });
-    if (!pages.length) pages = starterAdvancedDoc(ctx).pages;
+    pages = pages.filter((p) => !p.system);
+    if (!pages.length) pages = starterAdvancedDoc(ctx).pages.filter((p) => !p.system);
 
     const homeIdx = dto.pages.findIndex((p) => p.isHome);
     pages.forEach(
       (p, i) => (p.isHome = i === (homeIdx >= 0 && homeIdx < pages.length ? homeIdx : 0)),
     );
 
-    doc.pages = pages;
+    doc.pages = [...pages, ...systemPages];
     await this.persist(companyId, doc, ctx);
     return this.view(companyId, userId);
   }
@@ -559,6 +587,17 @@ export class WebsiteBuilderService {
     return this.assets.addCompanyAsset(companyId, dto.dataUri, dto.kind);
   }
 
+  /** Update the site navbar / footer settings. */
+  async patchChrome(userId: string, companyId: string, dto: PatchChromeDto) {
+    const company = await this.loadEditable(companyId, userId);
+    const ctx = this.seedCtx(company);
+    const doc = this.loadDoc(company.website, ctx);
+    if (dto.nav !== undefined) doc.nav = normalizeNav({ ...doc.nav, ...dto.nav });
+    if (dto.footer !== undefined) doc.footer = normalizeFooter({ ...doc.footer, ...dto.footer });
+    await this.persist(companyId, doc, ctx);
+    return this.view(companyId, userId);
+  }
+
   // --- AI: generate from a prompt --------------------------------------
 
   /** Replace the whole site from a free-text brief. Keeps an undo snapshot. */
@@ -572,6 +611,29 @@ export class WebsiteBuilderService {
     const brief = dto.brief.trim();
     assertClean(brief);
 
+    // A follow-up prompt EVOLVES the current site (keeps what works, applies the
+    // request on top) instead of rebuilding it. First prompt → build from scratch.
+    const improve = dto.mode === 'replace' ? false : spent > 0 && doc.pages.some((p) => !p.system);
+    const current = improve
+      ? {
+          theme: doc.theme as unknown as Record<string, unknown>,
+          pages: doc.pages
+            .filter((p) => !p.system)
+            .map((p) => ({
+              title: p.title,
+              slug: p.slug,
+              sections: p.sections.map((s) => ({ id: s.id, type: s.type, variant: s.variant })),
+            })),
+        }
+      : undefined;
+
+    // Classify the site up-front so the same archetype steers BOTH the model
+    // (few-shot example) and the deterministic fallback.
+    const archetype = classifyArchetype(brief, ctx.businessType, ctx.services);
+    const skeletonExample = skeletonExampleJson(
+      pickSkeleton(archetype, hashInt(`${companyId}|${brief}`)),
+    );
+
     const raw = await this.deepseek.planWebsite({
       brief,
       business: {
@@ -582,14 +644,58 @@ export class WebsiteBuilderService {
       },
       locale: ctx.locale,
       catalogText: catalogPromptText(),
+      archetype,
+      skeletonExample,
+      variantHints: variantHintText(),
+      current,
     });
 
-    const planned =
-      raw && Array.isArray(raw.pages) && raw.pages.length
-        ? normalizeDoc({ v: 2, mode: 'ai', theme: raw.theme ?? doc.theme, pages: raw.pages }, ctx)
-        : keywordPlanDoc(brief, ctx);
+    let planned: BuilderDoc;
+    let seededCount = 0;
+    if (raw && Array.isArray(raw.pages) && raw.pages.length) {
+      planned = normalizeDoc(
+        {
+          v: 2,
+          mode: 'ai',
+          theme: raw.theme ?? doc.theme,
+          pages: raw.pages,
+          nav: doc.nav,
+          footer: doc.footer,
+        },
+        ctx,
+      );
+      if (improve) {
+        // Restore the copy of every section the planner chose to keep (by id).
+        const oldById = new Map(doc.pages.flatMap((p) => p.sections).map((s) => [s.id, s.content]));
+        for (const p of planned.pages) {
+          for (const s of p.sections) {
+            const kept = oldById.get(s.id);
+            if (kept && Object.keys(s.content ?? {}).length === 0) s.content = kept;
+          }
+        }
+      }
+      // A page whose copy call failed/truncated comes back with empty sections —
+      // backfill them from the catalog seed so the site is always complete.
+      seededCount = seedFillEmptySections(planned, ctx);
+      // The model no longer supplies image URLs; fill every empty slot from the
+      // pool (on improve, kept sections' images are preserved).
+      fillDocImages(planned, ctx, brief, { keepExisting: improve });
+      // On a first plan, if the model barely filled anything the blueprint is
+      // better; on improve we never rebuild — keep what we merged.
+      const total = planned.pages.reduce((n, p) => n + p.sections.length, 0);
+      if (!improve && total > 0 && seededCount / total > 0.5) {
+        planned = keywordPlanDoc(brief, ctx);
+        seededCount = 0;
+      }
+    } else if (improve) {
+      // Never destroy an existing site because the model was unavailable.
+      throw new BadRequestException('ai_unavailable');
+    } else {
+      planned = keywordPlanDoc(brief, ctx);
+    }
 
     const notes = sanitizeAiPlan(planned, ctx);
+    if (seededCount > 0 && !notes.includes('seeded')) notes.push('seeded');
     planned.mode = 'ai';
     planned.ai = {
       brief,

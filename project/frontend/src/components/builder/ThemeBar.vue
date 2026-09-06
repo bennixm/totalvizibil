@@ -82,6 +82,41 @@ function tl(key: string, raw: string): string {
 <template>
   <div class="tb">
     <div class="tb__row">
+      <div class="tb__logo" :class="{ 'tb__logo--set': logoUrl }">
+        <span class="tb__logoThumb">
+          <img v-if="logoUrl" :src="logoUrl" alt="" />
+          <v-icon v-else icon="mdi-image-outline" size="17" />
+        </span>
+        <div class="tb__logoMain">
+          <span class="tb__logoLabel">{{ t('builder.logoLabel') }}</span>
+          <div class="tb__logoBtns">
+            <label class="tb__logoUp" :class="{ 'is-busy': logoBusy }">
+              <v-progress-circular v-if="logoBusy" indeterminate size="12" width="2" />
+              <template v-else>
+                <v-icon icon="mdi-tray-arrow-up" size="13" />
+                {{ logoUrl ? t('builder.logoReplace') : t('builder.logoUpload') }}
+              </template>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                :disabled="logoBusy"
+                @change="onLogo"
+              />
+            </label>
+            <button
+              v-if="logoUrl"
+              type="button"
+              class="tb__logoX"
+              :title="t('builder.logoRemove')"
+              @click="patch({ logoUrl: '' })"
+            >
+              <v-icon icon="mdi-close" size="13" />
+            </button>
+          </div>
+        </div>
+        <span v-if="logoErr" class="tb__logoErr">{{ logoErr }}</span>
+      </div>
+
       <span class="tb__k">{{ t('builder.presetLabel') }}</span>
       <div class="tb__presets">
         <button
@@ -120,23 +155,6 @@ function tl(key: string, raw: string): string {
     </div>
 
     <div v-if="open" class="tb__panel">
-      <div class="tb__grp tb__grp--logo">
-        <span class="tb__k">{{ t('builder.logoLabel') }}</span>
-        <img v-if="logoUrl" :src="logoUrl" alt="" class="tb__logo" />
-        <label class="tb__logoBtn" :class="{ 'is-busy': logoBusy }">
-          <v-progress-circular v-if="logoBusy" indeterminate size="14" width="2" />
-          <template v-else>
-            <v-icon icon="mdi-tray-arrow-up" size="14" />
-            {{ logoUrl ? t('builder.logoReplace') : t('builder.logoUpload') }}
-          </template>
-          <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="logoBusy" @change="onLogo" />
-        </label>
-        <button v-if="logoUrl" type="button" class="tb__clear" :title="t('builder.logoRemove')" @click="patch({ logoUrl: '' })">
-          <v-icon icon="mdi-close" size="13" />
-        </button>
-        <span v-if="logoErr" class="tb__logoErr">{{ logoErr }}</span>
-      </div>
-
       <div class="tb__grp">
         <span class="tb__k">{{ t('builder.background') }}</span>
         <div class="tb__seg">
@@ -374,34 +392,82 @@ function tl(key: string, raw: string): string {
 .tb__grp--wide {
   flex-wrap: wrap;
 }
-.tb__grp--logo {
-  flex-wrap: wrap;
-}
+
+/* prominent, always-visible logo control (sits before the presets) */
 .tb__logo {
-  height: 22px;
-  width: auto;
-  max-width: 120px;
-  object-fit: contain;
-  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.55rem 0.4rem 0.4rem;
+  border-radius: 10px;
+  border: 1px solid var(--tvz-glass-border);
+  background: rgba(var(--v-theme-on-surface), 0.03);
 }
-.tb__logoBtn {
+.tb__logo--set {
+  border-color: rgba(var(--v-theme-primary), 0.4);
+  background: rgba(var(--v-theme-primary), 0.06);
+}
+.tb__logoThumb {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  flex: none;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid var(--tvz-glass-border);
+  color: rgba(var(--v-theme-on-surface), 0.4);
+  overflow: hidden;
+}
+.tb__logoThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.tb__logoMain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.tb__logoLabel {
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.tb__logoBtns {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.tb__logoUp {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  border: 1px solid var(--tvz-glass-border);
+  padding: 0.28rem 0.6rem;
+  border-radius: 7px;
+  font-size: 0.76rem;
+  font-weight: 700;
   cursor: pointer;
+  color: #fff;
+  background: rgb(var(--v-theme-primary));
 }
-.tb__logoBtn.is-busy {
+.tb__logoUp.is-busy {
   opacity: 0.6;
   pointer-events: none;
 }
-.tb__logoBtn input {
+.tb__logoUp input {
   display: none;
+}
+.tb__logoX {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  border: 1px solid var(--tvz-glass-border);
 }
 .tb__logoErr {
   font-size: 0.72rem;
