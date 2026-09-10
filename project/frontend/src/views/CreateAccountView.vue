@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
+import OnboardingSteps from '@/components/OnboardingSteps.vue'
+import { useToastStore } from '@/stores/toast'
 import { fetchPricing } from '@/services/platform'
 import { apiFetch } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
@@ -23,6 +25,10 @@ const email = ref('')
 const password = ref('')
 const busy = ref(false)
 const error = ref('')
+const toasts = useToastStore()
+watch(error, (v) => {
+  if (v) toasts.error(v)
+})
 
 const price = ref(20)
 const walletCredits = ref(0)
@@ -77,14 +83,15 @@ async function finishClaim(): Promise<void> {
   const isAdvanced = draft.value?.mode === 'advanced'
   const company = await companies.createFromDraft(token)
   draftStore.clearAfterClaim()
-  // Advanced-plan signups still need to pay for the builder before there's
-  // anything to manage — land there directly instead of making them hunt for
-  // the unlock button on the dashboard. Easy-plan sites are ready to go, so
-  // the dashboard is the right landing spot.
+  // The account step isn't the end of onboarding — it hands off to the next
+  // flow step. Advanced plans go to the dedicated "unlock the builder" payment
+  // step; easy plans (site already built) go straight to the budget step.
+  // Both carry `flow=onboarding` so the remaining steps show the progress strip
+  // and route on to campaign activation.
   if (isAdvanced) {
-    await router.replace({ name: 'website-builder', query: { c: company.id } })
+    await router.replace({ name: 'create-unlock', query: { c: company.id, flow: 'onboarding' } })
   } else {
-    await router.replace({ name: 'dashboard', query: { c: company.id } })
+    await router.replace({ name: 'campaign-budget', query: { c: company.id, flow: 'onboarding' } })
   }
 }
 
@@ -150,6 +157,11 @@ onMounted(async () => {
 
 <template>
   <v-container class="acc">
+    <OnboardingSteps
+      :mode="draft?.mode === 'advanced' ? 'advanced' : 'easy'"
+      current="account"
+      class="acc__steps"
+    />
     <header class="acc__head">
       <p class="acc__eyebrow"><span class="acc__dot" /> {{ t('claim.eyebrow') }}</p>
       <h1>{{ t('claim.title') }}</h1>
@@ -239,10 +251,6 @@ onMounted(async () => {
       <p class="acc__fineprint">{{ t('claim.saveNote') }}</p>
     </form>
 
-    <div v-if="error" class="acc__error">
-      <v-icon icon="mdi-alert-circle-outline" size="18" /> {{ error }}
-    </div>
-
     <div class="acc__back">
       <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" @click="router.back()">
         {{ t('claim.back') }}
@@ -255,6 +263,9 @@ onMounted(async () => {
 .acc {
   max-width: 460px;
   padding-block: clamp(2rem, 6vw, 4rem);
+}
+.acc__steps {
+  margin-bottom: 1.5rem;
 }
 .acc__head {
   text-align: center;

@@ -15,3 +15,9 @@ export async function searchCities(q: string): Promise<GeoCity[]> {
   )
   return data
 }
+
+/** Closest known city to a map point — keeps the city input in sync when the
+ *  location pin is moved manually on the map. */
+export async function nearestCity(lat: number, lng: number): Promise<GeoCity> {
+  return apiFetch<GeoCity>(`/geo/nearest?lat=${lat}&lng=${lng}`)
+}

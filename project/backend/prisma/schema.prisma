@@ -256,6 +256,8 @@ model Website {
   builderSpec Json?         @map("builder_spec")
   // Scripted advanced-builder conversation transcript.
   builderChat Json?         @map("builder_chat")
+  // Simple-site guided answers (EasyAnswers), so the owner can re-open the studio editor after claiming.
+  easyConfig  Json?         @map("easy_config")
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 

@@ -49,6 +49,19 @@ export interface SectionStyle {
   accent?: string
 }
 
+export const EL_SIZES = ['sm', 'md', 'lg', 'xl'] as const
+export const EL_WEIGHTS = ['normal', 'medium', 'semibold', 'bold'] as const
+export const EL_ALIGNS = ['left', 'center', 'right'] as const
+
+/** Style for one individual element (a heading, a paragraph…) inside a section. */
+export interface ElementStyle {
+  color?: string
+  bg?: string
+  size?: (typeof EL_SIZES)[number]
+  weight?: (typeof EL_WEIGHTS)[number]
+  align?: (typeof EL_ALIGNS)[number]
+}
+
 export interface DocSection {
   id: string
   type: string
@@ -58,6 +71,8 @@ export interface DocSection {
   animation?: string
   /** Colour overrides for this section. */
   style?: SectionStyle
+  /** Per-element style, keyed by a prose field (`title`, `headline`, `body`…). */
+  overrides?: Record<string, ElementStyle>
   content: Record<string, unknown>
 }
 export interface PageSpec {
@@ -90,7 +105,17 @@ export interface BuilderDoc {
   pages: PageSpec[]
   nav?: NavConfig
   footer?: FooterConfig
-  ai?: { brief?: string; planCount: number; sectionCount: number; notes?: string[] }
+  ai?: {
+    brief?: string
+    planCount: number
+    sectionCount: number
+    notes?: string[]
+    /** Post-generation review — failed deterministic checks + the model's findings. */
+    review?: {
+      checks: string[]
+      findings: { ref: string; severity: 'warn' | 'block'; message: string }[]
+    }
+  }
 }
 
 export interface BuilderView {
@@ -193,6 +218,7 @@ function docToContent(doc: BuilderDoc, prev: WebsiteContent | null): WebsiteCont
           variant: s.variant,
           ...(s.animation ? { animation: s.animation } : {}),
           ...(s.style ? { style: s.style } : {}),
+          ...(s.overrides ? { overrides: s.overrides } : {}),
           ...s.content,
         })),
     })) as unknown as WebsiteContent['pages'],
@@ -484,6 +510,8 @@ export const useBuilderStore = defineStore('builder', {
         visible?: boolean
         content?: Record<string, unknown>
         style?: Partial<SectionStyle>
+        /** `{ [field]: ElementStyle | null }` — `null` / `{}` clears that element. */
+        overrides?: Record<string, Partial<ElementStyle> | null>
       },
       _opts: { immediate?: boolean } = {},
     ): void {
@@ -500,6 +528,20 @@ export const useBuilderStore = defineStore('builder', {
           const merged: Record<string, string | undefined> = { ...(s.style ?? {}), ...patch.style }
           for (const k of Object.keys(merged)) if (!merged[k]) delete merged[k]
           s.style = Object.keys(merged).length ? (merged as SectionStyle) : undefined
+        }
+        if (patch.overrides !== undefined) {
+          const map: Record<string, ElementStyle> = { ...(s.overrides ?? {}) }
+          for (const [field, el] of Object.entries(patch.overrides)) {
+            if (!el || !Object.keys(el).length) {
+              delete map[field]
+              continue
+            }
+            const next: Record<string, unknown> = { ...(map[field] ?? {}), ...el }
+            for (const k of Object.keys(next)) if (!next[k]) delete next[k]
+            if (Object.keys(next).length) map[field] = next as ElementStyle
+            else delete map[field]
+          }
+          s.overrides = Object.keys(map).length ? map : undefined
         }
         break
       }

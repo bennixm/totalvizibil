@@ -55,24 +55,43 @@ describe('site archetypes', () => {
     }
   });
 
-  it('the two blueprints of an archetype differ structurally', () => {
+  it('an archetype ships ≥ 3 blueprints and they differ structurally', () => {
+    const sig = (sk: (typeof ARCHETYPE_SKELETONS)[Archetype][number]): string =>
+      sk.pages.map((p) => p.sections.map((s) => `${s.type}:${s.variant}`).join(',')).join('|');
     for (const a of ARCHETYPES) {
-      const [x, y] = ARCHETYPE_SKELETONS[a];
-      const sig = (sk: (typeof ARCHETYPE_SKELETONS)[Archetype][number]): string =>
-        sk.pages.map((p) => p.sections.map((s) => `${s.type}:${s.variant}`).join(',')).join('|');
-      expect(sig(x)).not.toBe(sig(y));
+      const list = ARCHETYPE_SKELETONS[a];
+      expect(list.length).toBeGreaterThanOrEqual(3);
+      const sigs = list.map(sig);
+      expect(new Set(sigs).size).toBe(sigs.length); // every pair differs
     }
   });
 
-  it('pickSkeleton is stable for a seed and spans both blueprints', () => {
+  it('pickSkeleton is deterministic for a seed and spans every blueprint', () => {
     const seen = new Set<string>();
-    for (let seed = 0; seed < 20; seed++) {
+    for (let seed = 0; seed < 30; seed++) {
       const a = pickSkeleton('saas', seed);
       const b = pickSkeleton('saas', seed);
-      expect(a).toBe(b);
-      seen.add(JSON.stringify(a.pages.map((p) => p.title.en)));
+      expect(a).toEqual(b); // fresh object, same content
+      seen.add(a.pages.map((p) => p.sections.map((s) => s.type).join(',')).join('|'));
     }
-    expect(seen.size).toBe(2);
+    expect(seen.size).toBe(ARCHETYPE_SKELETONS.saas.length);
+  });
+
+  it('pickSkeleton merges a seed-rotated palette without overriding the blueprint', () => {
+    const n = ARCHETYPE_SKELETONS['local-trade'].length;
+    // seeds 0 and n both land on blueprint #0 (no pinned palette) — rotation varies it
+    const p0 = pickSkeleton('local-trade', 0).theme?.palette;
+    const pN = pickSkeleton('local-trade', n).theme?.palette;
+    expect(p0).toBeTruthy();
+    expect(p0).not.toBe(pN);
+    // blueprint #1 of local-trade pins palette 'orange' — the merge must keep it
+    const pinned = ARCHETYPE_SKELETONS['local-trade'].findIndex(
+      (sk) => sk.theme?.palette === 'orange',
+    );
+    expect(pinned).toBeGreaterThanOrEqual(0);
+    for (let seed = pinned; seed < 300; seed += n) {
+      expect(pickSkeleton('local-trade', seed).theme?.palette).toBe('orange');
+    }
   });
 
   it('skeletonExampleJson is compact valid JSON', () => {

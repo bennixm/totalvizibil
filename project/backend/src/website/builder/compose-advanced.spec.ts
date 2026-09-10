@@ -1,7 +1,8 @@
-import { SeedCtx } from './section-catalog';
+import { SeedCtx, textFieldKeys } from './section-catalog';
 import {
   ADVANCED_GENERATOR,
   MAX_PAGES,
+  coerceOverrides,
   coerceStyle,
   composeAdvancedDoc,
   docFromLegacy,
@@ -201,6 +202,42 @@ describe('advanced composer', () => {
     expect((g.content.pages[0].sections[0] as { style?: unknown }).style).toEqual({
       bg: '#101820',
       heading: '#ffffff',
+    });
+  });
+
+  it('textFieldKeys returns a section type’s prose fields', () => {
+    expect(textFieldKeys('hero')).toEqual(expect.arrayContaining(['headline', 'subheadline']));
+    expect(textFieldKeys('services')).toContain('title');
+    // no image / enum / items keys
+    expect(textFieldKeys('hero')).not.toContain('backgroundImage');
+  });
+
+  it('coerceOverrides keeps valid element keys + clamps the style', () => {
+    const ov = coerceOverrides('hero', {
+      headline: { color: '#FF0000', size: 'lg', weight: 'bold', align: 'center', junk: 1 },
+      subheadline: { color: 'red' }, // bad hex -> dropped -> element empty -> removed
+      backgroundImage: { color: '#000' }, // not a prose field -> dropped
+      bogusField: { color: '#000' },
+    });
+    expect(ov).toEqual({
+      headline: { color: '#ff0000', size: 'lg', weight: 'bold', align: 'center' },
+    });
+    expect(coerceOverrides('hero', { headline: { size: 'huge' } })).toBeUndefined();
+  });
+
+  it('normalizeDoc + composeAdvancedDoc carry a per-element override through', () => {
+    const base = starterAdvancedDoc(ctx);
+    base.pages[0].sections[0].overrides = {
+      headline: { color: '#112233', size: 'xl' },
+      nope: { color: '#000' },
+    } as never;
+    const out = normalizeDoc(base, ctx);
+    expect(out.pages[0].sections[0].overrides).toEqual({
+      headline: { color: '#112233', size: 'xl' },
+    });
+    const g = composeAdvancedDoc(out, ctx);
+    expect((g.content.pages[0].sections[0] as { overrides?: unknown }).overrides).toEqual({
+      headline: { color: '#112233', size: 'xl' },
     });
   });
 

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import { useAdminStore } from '@/stores/admin'
+import { useToastStore } from '@/stores/toast'
 import type { AdminReferralsPage } from '@/stores/admin'
 import { ApiError } from '@/services/api'
 
@@ -13,9 +14,9 @@ const admin = useAdminStore()
 
 const loading = ref(true)
 const saving = ref(false)
-const toast = reactive({ show: false, text: '', color: 'success' })
+const toasts = useToastStore()
 function flash(text: string, color: 'success' | 'error' = 'success') {
-  Object.assign(toast, { show: true, text, color })
+  toasts.push(color === 'error' ? 'error' : 'success', text)
 }
 
 const form = reactive({
@@ -328,7 +329,6 @@ async function save() {
       </v-btn>
     </div>
 
-    <v-snackbar v-model="toast.show" :color="toast.color" timeout="2600">{{ toast.text }}</v-snackbar>
   </div>
 </template>
 

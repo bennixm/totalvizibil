@@ -23,8 +23,10 @@ import {
   seedSectionContent,
   snapAnimation,
   snapVariant,
+  textFieldKeys,
 } from './section-catalog';
 import { SkeletonSpec, classifyArchetype, pickSkeleton } from './site-archetypes';
+import type { SiteFinding } from './site-audit';
 import { fillDocImages, hashInt } from './stock-images';
 import { POLICY_KINDS, POLICY_SLUG, PolicyKind, policyPageText } from './policy-pages';
 
@@ -89,6 +91,19 @@ export interface SectionStyle {
   accent?: string;
 }
 
+export const EL_SIZES = ['sm', 'md', 'lg', 'xl'] as const;
+export const EL_WEIGHTS = ['normal', 'medium', 'semibold', 'bold'] as const;
+export const EL_ALIGNS = ['left', 'center', 'right'] as const;
+
+/** Style for one individual element inside a section (a heading, a paragraph…). */
+export interface ElementStyle {
+  color?: string;
+  bg?: string;
+  size?: (typeof EL_SIZES)[number];
+  weight?: (typeof EL_WEIGHTS)[number];
+  align?: (typeof EL_ALIGNS)[number];
+}
+
 export interface DocSection {
   id: string;
   type: SectionType;
@@ -98,6 +113,12 @@ export interface DocSection {
   animation?: string;
   /** Owner colour overrides for this section (bg / body text / headings / accent). */
   style?: SectionStyle;
+  /**
+   * Per-element style, keyed by a top-level prose field of this section type
+   * (e.g. `title`, `headline`, `subheadline`, `body`). Lets the owner restyle
+   * one element without touching the rest of the section.
+   */
+  overrides?: Record<string, ElementStyle>;
   content: Record<string, unknown>;
 }
 
@@ -110,6 +131,41 @@ export function coerceStyle(raw: unknown): SectionStyle | undefined {
   for (const k of ['bg', 'text', 'heading', 'accent'] as const) {
     const v = s[k];
     if (typeof v === 'string' && HEX_RE.test(v.trim())) out[k] = v.trim().toLowerCase();
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function coerceElementStyle(raw: unknown): ElementStyle | undefined {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const out: ElementStyle = {};
+  for (const k of ['color', 'bg'] as const) {
+    const v = s[k];
+    if (typeof v === 'string' && HEX_RE.test(v.trim())) out[k] = v.trim().toLowerCase();
+  }
+  if (EL_SIZES.includes(s.size as (typeof EL_SIZES)[number])) {
+    out.size = s.size as ElementStyle['size'];
+  }
+  if (EL_WEIGHTS.includes(s.weight as (typeof EL_WEIGHTS)[number])) {
+    out.weight = s.weight as ElementStyle['weight'];
+  }
+  if (EL_ALIGNS.includes(s.align as (typeof EL_ALIGNS)[number])) {
+    out.align = s.align as ElementStyle['align'];
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Drop unknown element keys + junk style values for a section type. */
+export function coerceOverrides(
+  type: SectionType,
+  raw: unknown,
+): Record<string, ElementStyle> | undefined {
+  const src = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const valid = new Set(textFieldKeys(type));
+  const out: Record<string, ElementStyle> = {};
+  for (const [key, val] of Object.entries(src)) {
+    if (!valid.has(key)) continue;
+    const el = coerceElementStyle(val);
+    if (el) out[key] = el;
   }
   return Object.keys(out).length ? out : undefined;
 }
@@ -146,7 +202,14 @@ export interface BuilderDoc {
   pages: PageSpec[];
   nav?: NavConfig;
   footer?: FooterConfig;
-  ai?: { brief?: string; planCount: number; sectionCount: number; notes?: string[] };
+  ai?: {
+    brief?: string;
+    planCount: number;
+    sectionCount: number;
+    notes?: string[];
+    /** Post-generation review — failed deterministic checks + the model's findings. */
+    review?: { checks: string[]; findings: SiteFinding[] };
+  };
   /** Snapshots kept before an AI plan replace, newest last. Bounded. */
   history?: PageSpec[][];
 }
@@ -521,6 +584,7 @@ function normalizeSection(raw: unknown): DocSection | null {
         })();
   const animation = snapAnimation(s.animation);
   const style = coerceStyle(s.style);
+  const overrides = coerceOverrides(type, s.overrides);
   return {
     id: typeof s.id === 'string' && s.id ? s.id : randomUUID(),
     type,
@@ -528,6 +592,7 @@ function normalizeSection(raw: unknown): DocSection | null {
     visible: s.visible !== false,
     ...(animation ? { animation } : {}),
     ...(style ? { style } : {}),
+    ...(overrides ? { overrides } : {}),
     content: coerceContent(type, content),
   };
 }
@@ -638,22 +703,39 @@ export function normalizeDoc(raw: unknown, ctx: SeedCtx): BuilderDoc {
     ),
   ];
 
-  const ai =
-    d.ai && typeof d.ai === 'object'
-      ? {
-          brief:
-            typeof (d.ai as Record<string, unknown>).brief === 'string'
-              ? String((d.ai as Record<string, unknown>).brief).slice(0, 4000)
-              : undefined,
-          planCount: Number((d.ai as Record<string, unknown>).planCount) || 0,
-          sectionCount: Number((d.ai as Record<string, unknown>).sectionCount) || 0,
-          notes: Array.isArray((d.ai as Record<string, unknown>).notes)
-            ? ((d.ai as Record<string, unknown>).notes as unknown[])
-                .filter((x): x is string => typeof x === 'string')
-                .slice(0, 5)
-            : undefined,
-        }
-      : undefined;
+  const aiRaw = (d.ai && typeof d.ai === 'object' ? d.ai : null) as Record<string, unknown> | null;
+  let review: { checks: string[]; findings: SiteFinding[] } | undefined;
+  if (aiRaw?.review && typeof aiRaw.review === 'object') {
+    const r = aiRaw.review as Record<string, unknown>;
+    const checks = Array.isArray(r.checks)
+      ? (r.checks as unknown[]).filter((x): x is string => typeof x === 'string').slice(0, 20)
+      : [];
+    const findings = Array.isArray(r.findings)
+      ? (r.findings as unknown[])
+          .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+          .map((f) => ({
+            ref: String(f.ref ?? 'site').slice(0, 80),
+            severity: f.severity === 'block' ? ('block' as const) : ('warn' as const),
+            message: String(f.message ?? '')
+              .trim()
+              .slice(0, 240),
+          }))
+          .filter((f) => f.message)
+          .slice(0, 20)
+      : [];
+    if (checks.length || findings.length) review = { checks, findings };
+  }
+  const ai = aiRaw
+    ? {
+        brief: typeof aiRaw.brief === 'string' ? String(aiRaw.brief).slice(0, 4000) : undefined,
+        planCount: Number(aiRaw.planCount) || 0,
+        sectionCount: Number(aiRaw.sectionCount) || 0,
+        notes: Array.isArray(aiRaw.notes)
+          ? (aiRaw.notes as unknown[]).filter((x): x is string => typeof x === 'string').slice(0, 5)
+          : undefined,
+        ...(review ? { review } : {}),
+      }
+    : undefined;
 
   // Undo snapshots taken before an AI plan replace — bounded to the last 3.
   // Carried forward verbatim; a restore re-runs `normalizeDoc` over it.
@@ -681,6 +763,7 @@ export function composeAdvancedDoc(doc: BuilderDoc, ctx: SeedCtx): GeneratedWebs
       .map((s) => {
         const animation = snapAnimation(s.animation);
         const style = coerceStyle(s.style);
+        const overrides = coerceOverrides(s.type, s.overrides);
         return {
           id: s.id,
           type: s.type,
@@ -688,6 +771,7 @@ export function composeAdvancedDoc(doc: BuilderDoc, ctx: SeedCtx): GeneratedWebs
           variant: snapVariant(s.type, s.variant),
           ...(animation ? { animation } : {}),
           ...(style ? { style } : {}),
+          ...(overrides ? { overrides } : {}),
           ...coerceContent(s.type, s.content ?? {}),
         } as Section;
       });

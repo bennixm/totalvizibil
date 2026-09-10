@@ -42,6 +42,13 @@ export const EASY_STEPS: EasyStep[] = [
 ];
 
 /**
+ * Steps that are a pure choice / upload — the visitor picks from the widgets and
+ * the free-text chat is not used here (`advanceEasy` ignores `text` on these).
+ * The controller rejects a chat message on these steps.
+ */
+export const NO_CHAT_STEPS: EasyStep[] = ['template', 'color', 'portfolio', 'done'];
+
+/**
  * Guidance is cheap (no LLM), so the message budget is generous — it only
  * exists to stop a runaway client. The single billable action (DeepSeek) is
  * capped separately, per draft, in the service.

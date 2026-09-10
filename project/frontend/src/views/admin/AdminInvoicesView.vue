@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import { useAdminStore, type AdminInvoiceRow, type InvoiceStatusFilter } from '@/stores/admin'
+import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
 
 const { t, n } = useI18n()
@@ -30,9 +31,9 @@ function buyerKindLabel(kind: 'individual' | 'company'): string {
   return kind === 'company' ? t('account.billingKindCompany') : t('account.billingKindIndividual')
 }
 
-const toast = reactive({ show: false, text: '', color: 'success' })
+const toasts = useToastStore()
 function flash(text: string, color: 'success' | 'error' = 'success') {
-  Object.assign(toast, { show: true, text, color })
+  toasts.push(color === 'error' ? 'error' : 'success', text)
 }
 function errText(e: unknown, fb: string) {
   return e instanceof ApiError ? e.message : fb
@@ -195,7 +196,6 @@ onMounted(() => admin.fetchInvoices())
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="toast.show" :color="toast.color" timeout="2600">{{ toast.text }}</v-snackbar>
   </div>
 </template>
 

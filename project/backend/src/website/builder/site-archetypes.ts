@@ -119,6 +119,28 @@ export const ARCHETYPE_SKELETONS: Record<Archetype, SkeletonSpec[]> = {
         },
       ],
     },
+    {
+      theme: { preset: 'warm', background: 'tinted', shadow: 'soft' },
+      pages: [
+        {
+          title: HOME,
+          purpose: 'before/after proof and an easy quote',
+          sections: [
+            s('hero', 'overlap', 'fade'),
+            s('highlightsRow', 'plain', 'rise'),
+            s('services', 'rows', 'rise'),
+            s('beforeAfter', 'side', 'fade'),
+            s('ratingBand', 'center', 'zoom'),
+            s('cta', 'boxed', 'fade'),
+          ],
+        },
+        {
+          title: CONTACT,
+          purpose: 'reach us, working hours and questions',
+          sections: [s('contact', 'cards'), s('hours', 'card'), s('faq', 'plain', 'fade')],
+        },
+      ],
+    },
   ],
 
   agency: [
@@ -167,6 +189,28 @@ export const ARCHETYPE_SKELETONS: Record<Archetype, SkeletonSpec[]> = {
         { title: CONTACT, purpose: 'get in touch', sections: [s('contact', 'cards')] },
       ],
     },
+    {
+      theme: { preset: 'bold', background: 'dark', motion: 'lively' },
+      pages: [
+        {
+          title: HOME,
+          purpose: 'point of view, named results and clients',
+          sections: [
+            s('hero', 'centered', 'fade'),
+            s('marquee', 'text', 'none'),
+            s('bigStatement', 'plain', 'rise'),
+            s('caseStudy', 'imageRight', 'slideLeft'),
+            s('comparison', 'columns', 'fade'),
+            s('cta', 'split', 'zoom'),
+          ],
+        },
+        {
+          title: CONTACT,
+          purpose: 'start a project with us',
+          sections: [s('contact', 'split')],
+        },
+      ],
+    },
   ],
 
   portfolio: [
@@ -211,6 +255,27 @@ export const ARCHETYPE_SKELETONS: Record<Archetype, SkeletonSpec[]> = {
           ],
         },
         { title: CONTACT, purpose: 'say hello', sections: [s('contact', 'cards')] },
+      ],
+    },
+    {
+      theme: { preset: 'editorial', background: 'light', headingFont: 'fraunces' },
+      pages: [
+        {
+          title: HOME,
+          purpose: 'a signature piece, then the wider body of work',
+          sections: [
+            s('hero', 'minimal', 'none'),
+            s('showcase', 'center', 'fade'),
+            s('gallery', 'masonry', 'rise'),
+            s('quoteBig', 'plain', 'fade'),
+            s('cta', 'solid', 'fade'),
+          ],
+        },
+        {
+          title: CONTACT,
+          purpose: 'commission a project',
+          sections: [s('contact', 'cards')],
+        },
       ],
     },
   ],
@@ -277,6 +342,28 @@ export const ARCHETYPE_SKELETONS: Record<Archetype, SkeletonSpec[]> = {
         { title: CONTACT, purpose: 'book a demo', sections: [s('contact', 'cards')] },
       ],
     },
+    {
+      theme: { preset: 'tech', background: 'dark', palette: 'cyan', motion: 'lively' },
+      pages: [
+        {
+          title: HOME,
+          purpose: 'the product by use case, priced simply',
+          sections: [
+            s('hero', 'gradient', 'fade'),
+            s('logos', 'strip', 'fade'),
+            s('tabs', 'pill', 'rise'),
+            s('featureSplit', 'alternating', 'slideRight'),
+            s('pricing', 'table', 'fade'),
+            s('newsletter', 'band', 'fade'),
+          ],
+        },
+        {
+          title: CONTACT,
+          purpose: 'talk to us or see the docs',
+          sections: [s('contact', 'split'), s('faq', 'accordion', 'fade')],
+        },
+      ],
+    },
   ],
 
   hospitality: [
@@ -322,6 +409,27 @@ export const ARCHETYPE_SKELETONS: Record<Archetype, SkeletonSpec[]> = {
           title: CONTACT,
           purpose: 'hours, location, reservations',
           sections: [s('contact', 'cards'), s('faq', 'plain', 'fade')],
+        },
+      ],
+    },
+    {
+      theme: { preset: 'warm', background: 'tinted', shadow: 'soft' },
+      pages: [
+        {
+          title: HOME,
+          purpose: 'the room, the food and what guests say',
+          sections: [
+            s('hero', 'imageBg', 'fade'),
+            s('bigStatement', 'boxed', 'rise'),
+            s('gallery', 'wide', 'rise'),
+            s('ratingBand', 'split', 'zoom'),
+            s('cta', 'gradient', 'fade'),
+          ],
+        },
+        {
+          title: CONTACT,
+          purpose: 'find us, opening hours and booking',
+          sections: [s('contact', 'cards'), s('hours', 'list')],
         },
       ],
     },
@@ -375,6 +483,28 @@ export const ARCHETYPE_SKELETONS: Record<Archetype, SkeletonSpec[]> = {
           ],
         },
         { title: CONTACT, purpose: 'book a consultation', sections: [s('contact', 'cards')] },
+      ],
+    },
+    {
+      theme: { preset: 'soft', background: 'light', shadow: 'soft' },
+      pages: [
+        {
+          title: HOME,
+          purpose: 'reassurance, the care path and outcomes',
+          sections: [
+            s('hero', 'split', 'fade'),
+            s('highlightsRow', 'divided', 'rise'),
+            s('services', 'iconGrid', 'rise'),
+            s('timeline', 'line', 'slideLeft'),
+            s('testimonials', 'quote', 'fade'),
+            s('cta', 'boxed', 'fade'),
+          ],
+        },
+        {
+          title: CONTACT,
+          purpose: 'book an appointment and see hours',
+          sections: [s('contact', 'split'), s('hours', 'card'), s('faq', 'twoCol', 'fade')],
+        },
       ],
     },
   ],
@@ -431,6 +561,28 @@ export const ARCHETYPE_SKELETONS: Record<Archetype, SkeletonSpec[]> = {
         { title: CONTACT, purpose: 'get in touch', sections: [s('contact', 'split')] },
       ],
     },
+    {
+      theme: { preset: 'bold', background: 'light', radius: 'large' },
+      pages: [
+        {
+          title: HOME,
+          purpose: 'the range, why buy here and offers',
+          sections: [
+            s('hero', 'imageBg', 'fade'),
+            s('marquee', 'text', 'none'),
+            s('bento', 'mixed', 'rise'),
+            s('features', 'cards', 'rise'),
+            s('ratingBand', 'center', 'zoom'),
+            s('splitCta', 'cards', 'fade'),
+          ],
+        },
+        {
+          title: CONTACT,
+          purpose: 'store, delivery and support',
+          sections: [s('contact', 'cards')],
+        },
+      ],
+    },
   ],
 
   events: [
@@ -469,6 +621,28 @@ export const ARCHETYPE_SKELETONS: Record<Archetype, SkeletonSpec[]> = {
             s('process', 'vertical', 'slideLeft'),
             s('testimonials', 'columns', 'fade'),
             s('cta', 'boxed', 'zoom'),
+          ],
+        },
+        {
+          title: CONTACT,
+          purpose: 'tell us about your event',
+          sections: [s('contact', 'cards'), s('faq', 'plain', 'fade')],
+        },
+      ],
+    },
+    {
+      theme: { preset: 'editorial', background: 'tinted', motion: 'lively' },
+      pages: [
+        {
+          title: HOME,
+          purpose: 'a signature event, the plan and reactions',
+          sections: [
+            s('hero', 'overlap', 'fade'),
+            s('showcase', 'left', 'slideRight'),
+            s('timeline', 'alternating', 'rise'),
+            s('gallery', 'grid', 'rise'),
+            s('testimonials', 'ticker', 'fade'),
+            s('cta', 'gradient', 'zoom'),
           ],
         },
         {
@@ -533,6 +707,27 @@ export const ARCHETYPE_SKELETONS: Record<Archetype, SkeletonSpec[]> = {
         },
       ],
     },
+    {
+      theme: { preset: 'studio', background: 'light', shadow: 'soft' },
+      pages: [
+        {
+          title: HOME,
+          purpose: 'what you do, the difference and proof',
+          sections: [
+            s('hero', 'centered', 'fade'),
+            s('stats', 'cards', 'rise'),
+            s('featureSplit', 'stacked', 'slideLeft'),
+            s('highlightsRow', 'plain', 'rise'),
+            s('cta', 'solid', 'fade'),
+          ],
+        },
+        {
+          title: CONTACT,
+          purpose: 'get in touch',
+          sections: [s('contact', 'split')],
+        },
+      ],
+    },
   ],
 };
 
@@ -571,21 +766,69 @@ const ARCHETYPE_KEYWORDS: [Archetype, RegExp][] = [
   ],
 ];
 
-/** Cheap deterministic archetype pick from the brief + business facts. */
+function matchArchetype(hay: string): Archetype {
+  for (const [a, re] of ARCHETYPE_KEYWORDS) if (re.test(hay)) return a;
+  return 'generic';
+}
+
+/**
+ * Cheap deterministic archetype pick. The BRIEF is tried first and on its own —
+ * a concrete brief must never be overridden by stale stored facts (a leftover
+ * category/description from an earlier setup). Only a vague brief falls back to
+ * the stored business type + services.
+ */
 export function classifyArchetype(
   brief: string,
   businessType = '',
   services: string[] = [],
 ): Archetype {
-  const hay = `${brief} ${businessType} ${services.join(' ')}`.toLowerCase();
-  for (const [a, re] of ARCHETYPE_KEYWORDS) if (re.test(hay)) return a;
-  return 'generic';
+  const fromBrief = matchArchetype((brief ?? '').toLowerCase());
+  if (fromBrief !== 'generic') return fromBrief;
+  return matchArchetype(`${businessType} ${services.join(' ')}`.toLowerCase());
 }
 
-/** One of the archetype's blueprints, chosen by a stable seed. */
+/**
+ * Seed-rotated "look" knobs. Two businesses with the same archetype + blueprint
+ * still get a different palette / heading font / corner style, so same-trade
+ * sites don't come out looking identical. Structure-feel knobs (`preset`,
+ * `background`, `motion`, `shadow`) stay with the blueprint — a blueprint that
+ * explicitly pins any of these below wins the merge.
+ */
+const VAR_PALETTES: WebsiteTheme['palette'][] = [
+  'indigo',
+  'violet',
+  'blue',
+  'cyan',
+  'teal',
+  'emerald',
+  'lime',
+  'amber',
+  'orange',
+  'rose',
+  'fuchsia',
+  'slate',
+];
+const VAR_HEAD_FONTS: NonNullable<WebsiteTheme['headingFont']>[] = ['grotesk', 'inter', 'fraunces'];
+const VAR_RADII: WebsiteTheme['radius'][] = ['subtle', 'rounded', 'large'];
+
+export function themeVariant(seed: number): Partial<WebsiteTheme> {
+  const h = Math.abs(seed);
+  return {
+    palette: VAR_PALETTES[h % VAR_PALETTES.length],
+    headingFont: VAR_HEAD_FONTS[Math.floor(h / 7) % VAR_HEAD_FONTS.length],
+    radius: VAR_RADII[Math.floor(h / 53) % VAR_RADII.length],
+  };
+}
+
+/**
+ * One of the archetype's blueprints, chosen by a stable seed, with a seed-rotated
+ * palette/font/radius merged in (the blueprint's own theme values win). Returns
+ * a fresh object — never mutate `ARCHETYPE_SKELETONS`.
+ */
 export function pickSkeleton(archetype: Archetype, seed: number): SkeletonSpec {
   const list = ARCHETYPE_SKELETONS[archetype] ?? ARCHETYPE_SKELETONS.generic;
-  return list[Math.abs(seed) % list.length];
+  const base = list[Math.abs(seed) % list.length];
+  return { ...base, theme: { ...themeVariant(seed), ...(base.theme ?? {}) } };
 }
 
 /** Compact worked-example JSON for the Phase-A prompt (structure only). */

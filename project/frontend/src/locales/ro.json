@@ -11,7 +11,8 @@
     "back": "Înapoi",
     "search": "Caută",
     "learnMore": "Află mai multe",
-    "moreInfo": "Mai multe informații"
+    "moreInfo": "Mai multe informații",
+    "close": "Închide"
   },
   "nav": {
     "discover": "Descoperă",
@@ -146,6 +147,7 @@
     "portfolioTool": "Portofoliu",
     "portfolioCount": "{n}/10 imagini",
     "editTitle": "Ajustează site-ul",
+    "readySub": "Totul e generat. Rafinează textele și imaginile mai jos, apoi continuă.",
     "contactTool": "Date de contact",
     "contactPhone": "Telefon",
     "contactEmail": "Email",
@@ -187,8 +189,16 @@
     "agentPersona": "Andrei",
     "agentRole": "Ghid AI",
     "thinking": "scriu…",
-    "grammarToggle": "Corectează gramatica",
-    "grammarFixed": "corectat",
+    "pickToContinue": "Alege o opțiune de mai sus, apoi apasă „Continuă”.",
+    "reviewCta": "Verifică textele cu AI",
+    "reviewRunning": "Se verifică…",
+    "reviewClean": "Textele arată bine.",
+    "reviewKind": {
+      "meaning": "Sens",
+      "grammar": "Gramatică",
+      "profanity": "Limbaj vulgar",
+      "other": "Altă problemă"
+    },
     "on": "Pornit",
     "off": "Oprit",
     "aboutTool": "Despre noi",
@@ -229,6 +239,19 @@
     "processText": "Detalii (opțional)",
     "addStep": "Adaugă pas",
     "hoursPlaceholder": "ex: Luni–Vineri 09:00–18:00",
+    "navTool": "Bară de sus (navbar)",
+    "navLogoOn": "Nume/logo: vizibil",
+    "navLogoOff": "Nume/logo: ascuns",
+    "navCtaLabel": "Text buton (opțional), ex: Cere o ofertă",
+    "navCtaTarget": "Ținta butonului: contact, services sau un link",
+    "navCtaHint": "Lasă gol pentru a nu afișa butonul. „contact” duce la secțiunea de contact.",
+    "footerTool": "Subsol (footer)",
+    "footerContactOn": "Date de contact: vizibile",
+    "footerContactOff": "Date de contact: ascunse",
+    "footerTagline": "Text scurt sub nume (opțional)",
+    "socialLabel": "Rețea (ex: Facebook)",
+    "socialUrl": "https://…",
+    "addSocial": "Adaugă rețea socială",
     "rateLimited": "Prea multe încercări într-un timp scurt. Așteaptă câteva minute și încearcă din nou.",
     "retry": "Încearcă din nou",
     "logoTitle": "Logo (opțional)",
@@ -236,7 +259,7 @@
     "logoChange": "Schimbă"
   },
   "location": {
-    "eyebrow": "Pasul 2 · Locație",
+    "eyebrow": "Pasul 3 · Locație",
     "title": "Unde lucrezi?",
     "lead": "Alege orașul și raza pe care o acoperi. Zona asta decide unde poate apărea afacerea ta în feed.",
     "cityLabel": "Oraș",
@@ -262,10 +285,11 @@
     "categoryHint": "Alege nișa exactă a serviciilor tale — după ea te găsesc clienții în feed.",
     "categoryAll": "Toate serviciile din {group}",
     "categorySection": "Ce servicii oferi?",
-    "areaSection": "Zona de acoperire"
+    "areaSection": "Zona de acoperire",
+    "nationwideOptionHint": "toată țara"
   },
   "claim": {
-    "eyebrow": "Pasul 3 · Cont",
+    "eyebrow": "Pasul 4 · Cont",
     "title": "Creează-ți contul",
     "lead": "Salvează „{business}” și publică-l când ești gata.",
     "yourBusiness": "afacerea ta",
@@ -289,6 +313,21 @@
       "wallet_blocked": "Portofelul ales este blocat. Nu poți plăti din el."
     },
     "walletBalance": "Ai {credits} credite în portofel."
+  },
+  "easyEditor": {
+    "eyebrow": "Editor site simplu",
+    "title": "Editează-ți site-ul",
+    "back": "Înapoi la panou",
+    "paneEditor": "Editează",
+    "panePreview": "Previzualizare",
+    "loadErrorTitle": "Nu am putut deschide editorul",
+    "loadErrorText": "A apărut o problemă la încărcarea site-ului. Încearcă din nou.",
+    "err": {
+      "not_a_simple_site": "Această afacere folosește builderul avansat, nu editorul simplu.",
+      "forbidden": "Nu ai drept de editare pentru această afacere.",
+      "company_pending_deletion": "Afacerea este programată pentru ștergere — editarea este blocată.",
+      "rate_limited": "Prea multe modificări prea repede. Așteaptă câteva secunde."
+    }
   },
   "dashboard": {
     "eyebrow": "Panoul afacerii",
@@ -465,7 +504,13 @@
     "pauseKeep": "Nu, las-o activă",
     "deletionPendingTitle": "Ștergere programată",
     "deletionPendingNote": "Afacerea este programată pentru ștergere — anulează ștergerea din panou ca să poți edita campania din nou.",
-    "deletionPendingCta": "Mergi la panou"
+    "deletionPendingCta": "Mergi la panou",
+    "launched": {
+      "title": "Campania e activă 🎉",
+      "text": "Anunțul tău e acum vizibil pe prima pagină din categoria și zona ta. Cererile vin direct de la clienți.",
+      "viewSite": "Vezi site-ul",
+      "viewFeed": "Vezi în feed"
+    }
   },
   "wallet": {
     "eyebrow": "Facturare",
@@ -1116,6 +1161,17 @@
       "team": "Completează numele reale ale echipei — AI-ul a pus doar text de tip șablon.",
       "seeded": "Unele secțiuni folosesc text de start — verifică-le și înlocuiește-l."
     },
+    "reviewTitle": "Verificare site generat",
+    "reviewSeverity": { "warn": "de verificat", "block": "problemă" },
+    "reviewCheck": {
+      "home_hero": "Pagina principală ar trebui să înceapă cu o secțiune hero.",
+      "has_contact": "Site-ul nu are o secțiune de contact.",
+      "page_depth": "O pagină are prea puține secțiuni.",
+      "no_stacked_dups": "Secțiuni de același tip sunt puse una după alta.",
+      "no_placeholder_text": "S-a găsit text de tip șablon / lorem ipsum.",
+      "sections_have_copy": "O secțiune e aproape goală.",
+      "brief_reflected": "Textul nu pare să reflecte ce ai cerut în prompt."
+    },
     "motionLabel": "Mișcare",
     "animation": "Animație",
     "motion": {
@@ -1192,6 +1248,10 @@
     "allSaved": "Toate modificările sunt salvate",
     "leaveWarn": "Ai modificări nesalvate. Sigur vrei să părăsești editorul?",
     "sectionColors": "Culori secțiune",
+    "elementStyles": "Stil pe element",
+    "elBg": "Fundal",
+    "elSize": { "sm": "S", "md": "M", "lg": "L", "xl": "XL" },
+    "elWeight": { "normal": "Subțire", "medium": "Mediu", "semibold": "Semi", "bold": "Gros" },
     "color": {
       "bg": "Fundal",
       "text": "Text",
@@ -1502,6 +1562,7 @@
     "eyebrow": "Promovare în feed",
     "title": "Campanie",
     "back": "Înapoi la panou",
+    "finishSetup": "Finalizează",
     "lead": "Cum se cheltuie bugetul: click-uri, cost, ritm și cât mai ține portofelul.",
     "noCampaign": "Nu ai încă o campanie",
     "noCampaignHint": "Setează un buget zilnic și un CPC ca să apari în feed și să vezi consumul aici.",
@@ -1944,5 +2005,32 @@
     "adHeadline": "Adu un client, primești",
     "adHeadlineTail": "credite",
     "adSub": "Trimite linkul tău — când prietenul își face un site și pornește o campanie, creditele sunt ale tale."
+  },
+  "onboarding": {
+    "aria": "Progres creare afacere",
+    "step": {
+      "plan": "Plan",
+      "build": "Site",
+      "pitch": "Avansat",
+      "location": "Zonă",
+      "account": "Cont",
+      "unlock": "Plată",
+      "budget": "Buget",
+      "launch": "Activare"
+    }
+  },
+  "unlock": {
+    "title": "Deblochează builderul avansat",
+    "lead": "Un cost unic, plătit din portofel. După asta editezi manual cât vrei, iar generările cu AI sunt incluse.",
+    "pay": "Plătește {credits} credite și continuă",
+    "balance": "Ai {credits} credite în portofel",
+    "short": "Nu ai destule credite — îți lipsesc {credits}.",
+    "addCredits": "Adaugă credite",
+    "back": "Înapoi",
+    "error": "Ceva n-a mers. Încearcă din nou.",
+    "err": {
+      "insufficient_credits": "Nu ai destule credite pentru builderul avansat.",
+      "company_pending_deletion": "Afacerea e programată pentru ștergere. Anuleaz-o din panou mai întâi."
+    }
   }
 }

@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import LocationMap from '@/components/LocationMap.vue'
 import InfoHint from '@/components/InfoHint.vue'
-import { searchCities, type GeoCity } from '@/services/geo'
+import OnboardingSteps from '@/components/OnboardingSteps.vue'
+import { searchCities, nearestCity, type GeoCity } from '@/services/geo'
 import { fetchCategoryTree, type CategoryGroup } from '@/services/categories'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore, type LocalizedName } from '@/stores/companies'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
+import { useToastStore } from '@/stores/toast'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -25,11 +27,17 @@ const mode = ref<'draft' | 'company' | null>(null)
 const companyId = ref<string | null>(null)
 const ready = ref(false)
 const error = ref('')
+const toasts = useToastStore()
+watch(error, (v) => { if (v) toasts.error(v) })
 // True when we're editing the location of a business that already has a campaign
 // (i.e. not a step in onboarding — just a settings change).
 const editing = ref(false)
 
-const city = ref<GeoCity | null>(null)
+// The city input can also hold the synthetic "România" option → whole-country
+// coverage (and no km radius).
+type CityOption = GeoCity & { nationwide?: boolean }
+
+const city = ref<CityOption | null>(null)
 const region = ref<string>('')
 const lat = ref(DEFAULT.lat)
 const lng = ref(DEFAULT.lng)
@@ -38,6 +46,20 @@ const radiusKm = ref(DEFAULT.radiusKm)
 const nationwide = ref(false)
 
 const cityItems = ref<GeoCity[]>([])
+const cityQuery = ref('')
+// A picked "România" means whole-country coverage — no map, no radius.
+const nationwideOption = computed<CityOption>(() => ({
+  name: 'România',
+  county: t('location.nationwideOptionHint'),
+  lat: 45.9432,
+  lng: 24.9668,
+  nationwide: true,
+}))
+const cityOptions = computed<CityOption[]>(() => {
+  const q = cityQuery.value.trim().toLowerCase()
+  const showRo = !q || 'romania'.startsWith(q) || 'romania toata tara'.includes(q)
+  return showRo ? [nationwideOption.value, ...cityItems.value] : [...cityItems.value]
+})
 const searching = ref(false)
 const saving = ref(false)
 const saved = ref(false)
@@ -128,22 +150,45 @@ async function runSearch(q: string): Promise<void> {
 }
 
 function onSearch(q: string): void {
+  cityQuery.value = q
   clearTimeout(debounce)
   debounce = setTimeout(() => void runSearch(q), 220)
 }
 
-function onCityPick(picked: GeoCity | null): void {
-  if (!picked) return
+function onCityPick(picked: CityOption | null): void {
+  if (!picked) {
+    nationwide.value = false
+    return
+  }
+  if (picked.nationwide) {
+    nationwide.value = true
+    saved.value = false
+    return
+  }
+  nationwide.value = false
   region.value = picked.county
   lat.value = picked.lat
   lng.value = picked.lng
   saved.value = false
 }
 
+// Moving the pin on the map updates the coordinates AND the city input (to the
+// nearest known city) so the two never drift apart.
 function onMapPick(p: { lat: number; lng: number }): void {
   lat.value = Number(p.lat.toFixed(5))
   lng.value = Number(p.lng.toFixed(5))
   saved.value = false
+  void (async () => {
+    try {
+      const near = await nearestCity(lat.value, lng.value)
+      const opt: CityOption = { name: near.name, county: near.county, lat: lat.value, lng: lng.value }
+      cityItems.value = [opt, ...cityItems.value.filter((c) => c.name !== opt.name)]
+      city.value = opt
+      region.value = near.county
+    } catch {
+      /* keep the raw point — the input just won't get a city name */
+    }
+  })()
 }
 
 function prefill(loc: {
@@ -156,7 +201,11 @@ function prefill(loc: {
 }): void {
   nationwide.value = !!loc.nationwide
   radiusKm.value = loc.radiusKm ?? DEFAULT.radiusKm
-  // A whole-country location has no city / coordinates to restore.
+  // Whole-country coverage → show "România" in the input, nothing else to restore.
+  if (loc.nationwide) {
+    city.value = nationwideOption.value
+    return
+  }
   if (loc.city && loc.lat != null && loc.lng != null) {
     const p: GeoCity = { name: loc.city, county: loc.region ?? '', lat: loc.lat, lng: loc.lng }
     cityItems.value = [p]
@@ -272,6 +321,12 @@ onBeforeUnmount(() => clearTimeout(debounce))
 
 <template>
   <v-container class="loc">
+    <OnboardingSteps
+      v-if="mode === 'draft'"
+      :mode="draftStore.draft?.mode === 'advanced' ? 'advanced' : 'easy'"
+      current="location"
+      class="loc__steps"
+    />
     <header class="loc__head">
       <p class="loc__eyebrow"><span class="loc__dot" /> {{ eyebrowText }}</p>
       <h1>{{ titleText }}</h1>
@@ -311,47 +366,37 @@ onBeforeUnmount(() => clearTimeout(debounce))
         />
       </div>
 
-      <v-switch
-        v-model="nationwide"
-        :label="t('location.nationwideLabel')"
-        color="primary"
+      <div class="loc__fieldhead">
+        <span>{{ t('location.areaSection') }}</span>
+        <InfoHint :text="`${t('location.feedNote')} ${t('location.mapHint')}`" />
+      </div>
+      <v-autocomplete
+        v-model="city"
+        :items="cityOptions"
+        item-title="name"
+        return-object
+        no-filter
+        hide-no-data
+        auto-select-first
+        :loading="searching"
+        :label="t('location.cityLabel')"
+        :placeholder="t('location.cityPlaceholder')"
+        prepend-inner-icon="mdi-map-marker-outline"
+        variant="outlined"
         density="comfortable"
-        hide-details
-        class="loc__nationwide"
-        @update:model-value="saved = false"
-      />
+        @update:search="onSearch"
+        @update:model-value="onCityPick"
+      >
+        <template #item="{ props: itemProps, item }">
+          <v-list-item v-bind="itemProps" :title="item.raw.name" :subtitle="item.raw.county" />
+        </template>
+      </v-autocomplete>
 
       <div v-if="nationwide" class="loc__note">
         <span>{{ t('location.nationwideHint') }}</span>
       </div>
 
       <template v-else>
-        <div class="loc__fieldhead">
-          <span>{{ t('location.areaSection') }}</span>
-          <InfoHint :text="`${t('location.feedNote')} ${t('location.mapHint')}`" />
-        </div>
-        <v-autocomplete
-          v-model="city"
-          :items="cityItems"
-          item-title="name"
-          return-object
-          no-filter
-          hide-no-data
-          auto-select-first
-          :loading="searching"
-          :label="t('location.cityLabel')"
-          :placeholder="t('location.cityPlaceholder')"
-          prepend-inner-icon="mdi-map-marker-outline"
-          variant="outlined"
-          density="comfortable"
-          @update:search="onSearch"
-          @update:model-value="onCityPick"
-        >
-          <template #item="{ props: itemProps, item }">
-            <v-list-item v-bind="itemProps" :title="item.raw.name" :subtitle="item.raw.county" />
-          </template>
-        </v-autocomplete>
-
         <div class="loc__map">
           <LocationMap :lat="lat" :lng="lng" :radius-km="radiusKm" @pick="onMapPick" />
         </div>
@@ -374,10 +419,6 @@ onBeforeUnmount(() => clearTimeout(debounce))
           />
         </div>
       </template>
-
-      <div v-if="error" class="loc__note loc__note--error">
-        <v-icon icon="mdi-alert-circle-outline" size="18" /> {{ error }}
-      </div>
 
       <div class="loc__actions" :class="{ 'loc__actions--solo': editing }">
         <!-- No "back" when this is a settings edit — there is no previous
@@ -403,6 +444,9 @@ onBeforeUnmount(() => clearTimeout(debounce))
 .loc {
   max-width: 720px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
+}
+.loc__steps {
+  margin-bottom: 1.5rem;
 }
 .loc__head {
   margin-bottom: 1.75rem;

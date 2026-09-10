@@ -83,16 +83,31 @@ export interface EasyAnswers {
   /** Opening hours, free text (Contact section). */
   hours?: string;
 
+  // --- site chrome: navbar + footer ----------------------------------
+  /** Show the brand (logo / wordmark) in the one-pager bar. Default true. */
+  navShowLogo?: boolean;
+  /** Optional nav button — label + target (a section id, `contact`, or a URL). */
+  navCtaLabel?: string;
+  navCtaTarget?: string;
+  /** Footer blurb under the brand. Empty ⇒ the SEO description is used. */
+  footerTagline?: string;
+  /** Show the phone / email / city column in the footer. Default true. */
+  footerShowContact?: boolean;
+  /** Footer social links (`label` + `https://…` url). */
+  footerSocials?: { label: string; url: string }[];
+
   /** One-pager layout variant chosen at the start. */
   template?: 'classic' | 'bold' | 'minimal';
 
   locale?: StudioLocale;
-  /** Toggle: proofread manual prose fields with AI as they are edited. */
+  /** Deprecated — the manual grammar toggle was replaced by the end-of-setup review. */
   autoGrammar?: boolean;
-  /** How many real DeepSeek calls this draft has spent (guards abuse). */
+  /** How many real AI copy calls this draft has spent (guards abuse). */
   aiCalls?: number;
-  /** How many AI proofreading calls this draft has spent. */
+  /** Deprecated counter from the old manual proofread flow. */
   proofreadCount?: number;
+  /** How many end-of-setup AI review passes this draft has spent. */
+  reviewCount?: number;
 }
 
 interface Labels {
@@ -592,6 +607,20 @@ export function composeEasySite(a: EasyAnswers): GeneratedWebsite {
 
   const sections: Section[] = tpl.order.map((k) => byKind[k]).filter((s): s is Section => !!s);
 
+  // --- owner-editable chrome (navbar + footer) ------------------------
+  const navCtaLabel = (a.navCtaLabel ?? '').trim().slice(0, 40);
+  const navCta = navCtaLabel
+    ? { label: navCtaLabel, target: (a.navCtaTarget ?? '').trim().slice(0, 120) || 'contact' }
+    : null;
+  const footerTagline = (a.footerTagline ?? '').trim().slice(0, 200);
+  const footerSocials = (a.footerSocials ?? [])
+    .map((s) => ({
+      label: (s.label ?? '').trim().slice(0, 40),
+      url: (s.url ?? '').trim().slice(0, 200),
+    }))
+    .filter((s) => s.label && /^https?:\/\//i.test(s.url))
+    .slice(0, 6);
+
   return {
     generator: `easy-template-v3:${templateKey(a.template)}`,
     theme: {
@@ -604,6 +633,16 @@ export function composeEasySite(a: EasyAnswers): GeneratedWebsite {
     },
     content: {
       pages: [{ slug: 'home', title: name, isHome: true, sections }],
+      nav: {
+        logo: a.navShowLogo === false ? 'hide' : 'show',
+        ...(navCta ? { cta: navCta } : {}),
+      },
+      footer: {
+        showContact: a.footerShowContact !== false,
+        showLegal: false,
+        ...(footerTagline ? { tagline: footerTagline } : {}),
+        ...(footerSocials.length ? { socials: footerSocials } : {}),
+      },
       seo: {
         title: name,
         description: L.seoDesc(name, trade || (a.serviceNames ?? []).join(', ') || name).slice(
@@ -614,4 +653,161 @@ export function composeEasySite(a: EasyAnswers): GeneratedWebsite {
       },
     },
   };
+}
+
+// --- patch merge (shared: pre-account draft + post-account site editor) ---
+
+/** Fields the studio widgets can patch (draft or claimed simple site). */
+export interface EasyPatch {
+  accentColor?: string;
+  landingTitle?: string;
+  landingSubtitle?: string;
+  landingImage?: string;
+  logoUrl?: string;
+  portfolio?: string[];
+  services?: { name: string; description: string }[];
+  phone?: string;
+  email?: string;
+  city?: string;
+  about?: string;
+  showAbout?: boolean;
+  stats?: EasyStat[];
+  showStats?: boolean;
+  whyUs?: string[];
+  showWhyUs?: boolean;
+  process?: EasyProcessStep[];
+  showProcess?: boolean;
+  testimonials?: EasyTestimonial[];
+  faq?: EasyFaq[];
+  ctaHeadline?: string;
+  ctaButton?: string;
+  showCta?: boolean;
+  hours?: string;
+  navShowLogo?: boolean;
+  navCtaLabel?: string;
+  navCtaTarget?: string;
+  footerTagline?: string;
+  footerShowContact?: boolean;
+  footerSocials?: { label: string; url: string }[];
+  template?: 'classic' | 'bold' | 'minimal';
+  autoGrammar?: boolean;
+  locale?: StudioLocale;
+}
+
+export interface EasyPatchHelpers {
+  /** Validate an asset URL; `''` → undefined; throw on garbage. */
+  assetUrl: (u: string | undefined) => string | undefined;
+  /** Called when `accentColor` isn't `#rrggbb`. */
+  onBadColor: () => never;
+}
+
+/**
+ * Apply a studio patch onto the guided answers, in place. Pure field clamping;
+ * the caller runs `assertClean` first and re-composes after. Used by both the
+ * anonymous draft (`WebsiteDraftService`) and the claimed-site editor.
+ */
+export function mergeEasyPatch(a: EasyAnswers, patch: EasyPatch, h: EasyPatchHelpers): void {
+  if (patch.accentColor !== undefined) {
+    const c = patch.accentColor.trim();
+    if (c && !/^#[0-9a-fA-F]{6}$/.test(c)) h.onBadColor();
+    a.accentColor = c || undefined;
+  }
+  if (patch.landingTitle !== undefined)
+    a.landingTitle = patch.landingTitle.slice(0, 120) || undefined;
+  if (patch.landingSubtitle !== undefined) {
+    a.landingSubtitle = patch.landingSubtitle.slice(0, 160) || undefined;
+  }
+  if (patch.landingImage !== undefined) a.landingImage = h.assetUrl(patch.landingImage);
+  if (patch.logoUrl !== undefined) {
+    a.logoUrl = patch.logoUrl.trim() ? h.assetUrl(patch.logoUrl) : undefined;
+  }
+  if (patch.portfolio !== undefined) {
+    a.portfolio = patch.portfolio
+      .map((u) => h.assetUrl(u))
+      .filter((u): u is string => !!u)
+      .slice(0, 10);
+  }
+  if (patch.services !== undefined) {
+    a.services = patch.services.slice(0, 12).map((s) => ({
+      name: String(s.name ?? '').slice(0, 80),
+      description: String(s.description ?? '').slice(0, 300),
+    }));
+  }
+  if (patch.phone !== undefined) a.phone = patch.phone.slice(0, 40) || undefined;
+  if (patch.email !== undefined) a.email = patch.email.slice(0, 120) || undefined;
+  if (patch.city !== undefined) a.city = patch.city.slice(0, 80) || undefined;
+
+  if (patch.about !== undefined) a.about = patch.about.slice(0, 900) || undefined;
+  if (patch.showAbout !== undefined) a.showAbout = patch.showAbout;
+  if (patch.stats !== undefined) {
+    a.stats = patch.stats
+      .map((s) => ({
+        value: String(s.value ?? '').slice(0, 24),
+        label: String(s.label ?? '').slice(0, 60),
+      }))
+      .filter((s) => s.value.trim() && s.label.trim())
+      .slice(0, 4);
+  }
+  if (patch.showStats !== undefined) a.showStats = patch.showStats;
+  if (patch.whyUs !== undefined) {
+    a.whyUs = patch.whyUs
+      .map((s) => String(s ?? '').slice(0, 90))
+      .filter((s) => s.trim())
+      .slice(0, 6);
+  }
+  if (patch.showWhyUs !== undefined) a.showWhyUs = patch.showWhyUs;
+  if (patch.process !== undefined) {
+    a.process = patch.process
+      .map((s) => ({
+        title: String(s.title ?? '').slice(0, 80),
+        text: String(s.text ?? '').slice(0, 200) || undefined,
+      }))
+      .filter((s) => s.title.trim())
+      .slice(0, 6);
+  }
+  if (patch.showProcess !== undefined) a.showProcess = patch.showProcess;
+  if (patch.testimonials !== undefined) {
+    a.testimonials = patch.testimonials
+      .map((tt) => ({
+        quote: String(tt.quote ?? '').slice(0, 400),
+        author: String(tt.author ?? '').slice(0, 80),
+      }))
+      .filter((tt) => tt.quote.trim())
+      .slice(0, 8);
+  }
+  if (patch.faq !== undefined) {
+    a.faq = patch.faq
+      .map((q) => ({ q: String(q.q ?? '').slice(0, 160), a: String(q.a ?? '').slice(0, 600) }))
+      .filter((q) => q.q.trim() && q.a.trim())
+      .slice(0, 10);
+  }
+  if (patch.ctaHeadline !== undefined) a.ctaHeadline = patch.ctaHeadline.slice(0, 120) || undefined;
+  if (patch.ctaButton !== undefined) a.ctaButton = patch.ctaButton.slice(0, 40) || undefined;
+  if (patch.showCta !== undefined) a.showCta = patch.showCta;
+  if (patch.hours !== undefined) a.hours = patch.hours.slice(0, 120) || undefined;
+
+  // --- navbar + footer chrome --------------------------------------
+  if (patch.navShowLogo !== undefined) a.navShowLogo = patch.navShowLogo;
+  if (patch.navCtaLabel !== undefined) a.navCtaLabel = patch.navCtaLabel.slice(0, 40) || undefined;
+  if (patch.navCtaTarget !== undefined)
+    a.navCtaTarget = patch.navCtaTarget.slice(0, 120) || undefined;
+  if (patch.footerTagline !== undefined)
+    a.footerTagline = patch.footerTagline.slice(0, 200) || undefined;
+  if (patch.footerShowContact !== undefined) a.footerShowContact = patch.footerShowContact;
+  if (patch.footerSocials !== undefined) {
+    a.footerSocials = patch.footerSocials
+      .map((s) => ({
+        label: String(s.label ?? '').slice(0, 40),
+        url: String(s.url ?? '').slice(0, 200),
+      }))
+      .filter((s) => s.label.trim() && s.url.trim())
+      .slice(0, 6);
+  }
+  if (patch.template !== undefined) {
+    a.template = ['classic', 'bold', 'minimal'].includes(patch.template)
+      ? patch.template
+      : 'classic';
+  }
+  if (patch.autoGrammar !== undefined) a.autoGrammar = patch.autoGrammar;
+  if (patch.locale !== undefined) a.locale = patch.locale;
 }

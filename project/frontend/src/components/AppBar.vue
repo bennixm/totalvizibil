@@ -286,7 +286,7 @@ watch(() => auth.isAuthenticated, loadCompanies)
   border-radius: 10px;
   color: #fff;
   background: var(--tvz-gradient-brand);
-  box-shadow: 0 2px 10px rgba(var(--v-theme-primary), 0.35);
+  box-shadow: var(--tvz-shadow-sm);
 }
 .brand__word {
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
@@ -344,7 +344,7 @@ watch(() => auth.isAuthenticated, loadCompanies)
   gap: 0.35rem;
 }
 .create-btn {
-  box-shadow: 0 6px 18px rgba(var(--v-theme-primary), 0.28);
+  box-shadow: var(--tvz-shadow-sm);
   margin-right: 0.4rem;
 }
 
@@ -359,14 +359,14 @@ watch(() => auth.isAuthenticated, loadCompanies)
   margin-left: 0.4rem;
   cursor: pointer;
   border: 0;
-  box-shadow: 0 2px 10px rgba(var(--v-theme-primary), 0.35);
+  box-shadow: var(--tvz-shadow-sm);
   transition:
     transform var(--tvz-dur-fast) var(--tvz-ease-out),
     box-shadow var(--tvz-dur-fast) var(--tvz-ease-out);
 }
 .avatar-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(var(--v-theme-primary), 0.45);
+  box-shadow: var(--tvz-shadow-md);
 }
 .avatar-btn__ini {
   font-size: 0.78rem;
@@ -383,7 +383,7 @@ watch(() => auth.isAuthenticated, loadCompanies)
   border: 1px solid rgba(var(--v-theme-on-surface), 0.1);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 24px 60px rgb(0 0 0 / 0.22), 0 8px 20px rgb(0 0 0 / 0.14);
+  box-shadow: var(--tvz-shadow-lg);
 }
 
 /* Header --------------------------------------------------------------- */

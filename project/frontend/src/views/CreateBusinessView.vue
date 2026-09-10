@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { useSeo } from '@/composables/useSeo'
 
 const { t } = useI18n()
@@ -29,6 +30,12 @@ function pick(key: 'easy' | 'advanced'): void {
 
 <template>
   <v-container class="cb">
+    <OnboardingSteps
+      v-if="picked"
+      :mode="picked === 'advanced' ? 'advanced' : 'easy'"
+      current="plan"
+      class="cb__steps"
+    />
     <div class="cb__head">
       <p class="cb__eyebrow"><span class="cb__dot" /> {{ t('create.assistant') }}</p>
       <h1>{{ t('create.headline') }}</h1>
@@ -69,6 +76,9 @@ function pick(key: 'easy' | 'advanced'): void {
 .cb {
   max-width: 860px;
   padding-block: clamp(2.5rem, 7vw, 5rem);
+}
+.cb__steps {
+  margin-bottom: 2rem;
 }
 .cb__head {
   text-align: center;

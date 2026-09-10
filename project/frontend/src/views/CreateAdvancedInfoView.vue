@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { fetchPricing } from '@/services/platform'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
+import { useToastStore } from '@/stores/toast'
 
 const { t, n } = useI18n()
 const router = useRouter()
@@ -14,6 +16,8 @@ const priceCredits = ref<number | null>(null)
 const eurRonRate = ref(5.05)
 const busy = ref(false)
 const error = ref('')
+const toasts = useToastStore()
+watch(error, (v) => { if (v) toasts.error(v) })
 
 const businessName = ref('')
 
@@ -49,6 +53,7 @@ onMounted(async () => {
 
 <template>
   <v-container class="adv">
+    <OnboardingSteps mode="advanced" current="pitch" class="adv__steps" />
     <header class="adv__head">
       <p class="adv__eyebrow"><span class="adv__dot" /> {{ t('advanced.eyebrow') }}</p>
       <h1>{{ t('advanced.title') }}</h1>
@@ -99,10 +104,6 @@ onMounted(async () => {
       <p class="adv__fine">{{ t('advanced.flowNote') }}</p>
     </form>
 
-    <div v-if="error" class="adv__error">
-      <v-icon icon="mdi-alert-circle-outline" size="18" /> {{ error }}
-    </div>
-
     <div class="adv__back">
       <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="{ name: 'create' }">
         {{ t('advanced.back') }}
@@ -115,6 +116,9 @@ onMounted(async () => {
 .adv {
   max-width: 520px;
   padding-block: clamp(2rem, 6vw, 4rem);
+}
+.adv__steps {
+  margin-bottom: 1.5rem;
 }
 .adv__head {
   text-align: center;

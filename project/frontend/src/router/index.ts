@@ -51,6 +51,15 @@ const routes: RouteRecordRaw[] = [
     name: 'create-account',
     component: () => import('@/views/CreateAccountView.vue'),
   },
+  {
+    // Advanced-plan only: the one-time "unlock the advanced builder" payment
+    // step. A standalone flow step — deliberately NOT the pay screen inside
+    // AdvancedBuilderView, so the stepper's sequencing never leaks into the editor.
+    path: '/create/unlock',
+    name: 'create-unlock',
+    component: () => import('@/views/CreateUnlockView.vue'),
+    meta: { requiresAuth: true },
+  },
 
   // --- Business dashboard ---
   {
@@ -133,6 +142,14 @@ const routes: RouteRecordRaw[] = [
     path: '/website/builder',
     name: 'website-builder',
     component: () => import('@/views/AdvancedBuilderView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    // Simple-plan only: post-account editor for a claimed "Site Simplu" website.
+    // Same guided widgets as setup, editing the live site in place.
+    path: '/website/simple',
+    name: 'easy-site-editor',
+    component: () => import('@/views/EasySiteEditorView.vue'),
     meta: { requiresAuth: true },
   },
 

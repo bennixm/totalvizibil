@@ -242,11 +242,10 @@ async function go(n: number): Promise<void> {
   padding-bottom: 2rem;
 }
 .feed__eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--tvz-ai);
+  letter-spacing: 0.01em;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
   margin: 0 0 0.6rem;
 }
 .feed__intro h1 {

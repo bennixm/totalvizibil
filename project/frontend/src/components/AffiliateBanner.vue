@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
@@ -7,10 +7,10 @@ import { useAuthStore } from '@/stores/auth'
 import { fetchPricing } from '@/services/platform'
 
 /**
- * Homepage advertisement for the affiliate program. A designed, interactive
- * promo card — pointer parallax on the emblem, a count-up on the reward figure,
- * drifting aurora + shimmer. Copy only: the real link lives in Account → Afiliere
- * and on the create-business page.
+ * Homepage promo for the affiliate program — the "Firma" night panel:
+ * dark, calm, with one warm amber glow (a sign switching on). One earned
+ * motion moment: a single count-up on the reward figure. Copy only — the
+ * real link lives in Account → Afiliere and on the create-business page.
  */
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -19,7 +19,6 @@ const { isAuthenticated } = storeToRefs(auth)
 const enabled = ref(false)
 const reward = ref(0)
 const displayN = ref(0)
-const card = ref<HTMLElement | null>(null)
 
 let interactive = false
 
@@ -28,7 +27,7 @@ function countUp(target: number): void {
     displayN.value = target
     return
   }
-  const dur = 850
+  const dur = 700
   const t0 = performance.now()
   const step = (now: number): void => {
     const p = Math.min(1, (now - t0) / dur)
@@ -38,21 +37,9 @@ function countUp(target: number): void {
   requestAnimationFrame(step)
 }
 
-function onMove(e: PointerEvent): void {
-  if (!interactive || !card.value) return
-  const r = card.value.getBoundingClientRect()
-  card.value.style.setProperty('--mx', String((e.clientX - r.left) / r.width - 0.5))
-  card.value.style.setProperty('--my', String((e.clientY - r.top) / r.height - 0.5))
-}
-function onLeave(): void {
-  card.value?.style.setProperty('--mx', '0')
-  card.value?.style.setProperty('--my', '0')
-}
-
 onMounted(async () => {
   interactive =
     typeof window !== 'undefined' &&
-    window.matchMedia('(pointer: fine)').matches &&
     !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   try {
@@ -63,23 +50,12 @@ onMounted(async () => {
   } catch {
     /* leave hidden */
   }
-
-  if (interactive) window.addEventListener('pointermove', onMove, { passive: true })
 })
-
-onBeforeUnmount(() => window.removeEventListener('pointermove', onMove))
 </script>
 
 <template>
-  <section
-    v-if="enabled"
-    ref="card"
-    class="aff"
-    @pointerleave="onLeave"
-  >
-    <div class="aff__bg" aria-hidden="true" />
-    <div class="aff__grid" aria-hidden="true" />
-    <div class="aff__shine" aria-hidden="true" />
+  <section v-if="enabled" class="aff">
+    <span class="aff__glow" aria-hidden="true" />
 
     <div class="aff__content">
       <span class="aff__eyebrow">
@@ -101,269 +77,146 @@ onBeforeUnmount(() => window.removeEventListener('pointermove', onMove))
       </RouterLink>
     </div>
 
-    <div class="aff__visual" aria-hidden="true">
-      <span class="aff__coin aff__coin--1" />
-      <span class="aff__coin aff__coin--2" />
-      <span class="aff__coin aff__coin--3" />
-      <span class="aff__emblem"><v-icon icon="mdi-gift-outline" size="44" /></span>
-    </div>
+    <span class="aff__emblem" aria-hidden="true">
+      <v-icon icon="mdi-gift-outline" size="40" />
+    </span>
   </section>
 </template>
 
 <style scoped>
 .aff {
-  --mx: 0;
-  --my: 0;
   position: relative;
   overflow: hidden;
   display: flex;
   align-items: center;
   gap: 1.5rem;
-  min-height: 190px;
-  padding: clamp(1.4rem, 3.5vw, 2.1rem) clamp(1.4rem, 3.5vw, 2.4rem);
-  border-radius: var(--tvz-radius-xl);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background:
-    radial-gradient(120% 140% at 100% 0%, #4f3ad6 0%, transparent 55%),
-    linear-gradient(115deg, #2a2a80 0%, #5b4bd8 48%, #1c8fa6 120%);
-  box-shadow: var(--tvz-shadow-lg);
-  perspective: 900px;
+  min-height: 172px;
+  padding: clamp(1.4rem, 3.5vw, 2rem) clamp(1.4rem, 3.5vw, 2.2rem);
+  border-radius: var(--tvz-radius-lg);
+  border: 1px solid rgba(226, 232, 246, 0.12);
+  background: var(--tvz-night, #0c1424);
+  box-shadow: var(--tvz-shadow-md);
   isolation: isolate;
 }
 
-/* drifting aurora */
-.aff__bg {
+/* one cool glow, top-right */
+.aff__glow {
   position: absolute;
-  inset: -30%;
   z-index: 0;
-  background:
-    radial-gradient(28% 40% at 20% 30%, rgba(120, 220, 255, 0.5), transparent 60%),
-    radial-gradient(26% 38% at 78% 68%, rgba(180, 130, 255, 0.55), transparent 62%);
-  filter: blur(28px);
-  animation: aff-drift 16s ease-in-out infinite alternate;
-}
-@keyframes aff-drift {
-  0% {
-    transform: translate3d(-4%, -3%, 0) rotate(0deg);
-  }
-  100% {
-    transform: translate3d(5%, 4%, 0) rotate(12deg);
-  }
-}
-
-/* dotted texture, faded out toward the right */
-.aff__grid {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.4) 1px, transparent 1px);
-  background-size: 22px 22px;
-  opacity: 0.14;
-  -webkit-mask-image: linear-gradient(100deg, #000 0%, transparent 62%);
-  mask-image: linear-gradient(100deg, #000 0%, transparent 62%);
-}
-
-/* periodic shimmer sweep */
-.aff__shine {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 40%;
-  z-index: 1;
-  background: linear-gradient(
-    100deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.14) 45%,
-    rgba(255, 255, 255, 0.28) 50%,
-    rgba(255, 255, 255, 0.14) 55%,
-    transparent 100%
-  );
-  transform: skewX(-16deg) translateX(-160%);
-  animation: aff-sweep 7s ease-in-out infinite;
-}
-@keyframes aff-sweep {
-  0%,
-  62% {
-    transform: skewX(-16deg) translateX(-160%);
-  }
-  92%,
-  100% {
-    transform: skewX(-16deg) translateX(420%);
-  }
+  top: -55%;
+  right: -12%;
+  width: 340px;
+  height: 340px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(91, 141, 239, 0.28), transparent 68%);
+  pointer-events: none;
 }
 
 .aff__content {
   position: relative;
-  z-index: 2;
+  z-index: 1;
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
-  color: #fff;
+  gap: 0.5rem;
+  color: #eef1f7;
 }
 .aff__eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #8794ad;
 }
 .aff__dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #6bffb0;
-  box-shadow: 0 0 0 0 rgba(107, 255, 176, 0.6);
-  animation: aff-pulse 2.4s ease-out infinite;
-}
-@keyframes aff-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(107, 255, 176, 0.55);
-  }
-  70%,
-  100% {
-    box-shadow: 0 0 0 10px rgba(107, 255, 176, 0);
-  }
+  background: #5b8def;
+  box-shadow: 0 0 10px rgba(91, 141, 239, 0.6);
 }
 .aff__title {
   margin: 0.2rem 0 0;
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
-  font-weight: 700;
-  font-size: clamp(1.45rem, 3.4vw, 2.15rem);
-  line-height: 1.12;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  font-size: clamp(1.4rem, 3.2vw, 2rem);
+  line-height: 1.14;
+  letter-spacing: -0.01em;
   text-wrap: balance;
 }
 .aff__num {
   display: inline-block;
   min-width: 1.4ch;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(180deg, #ffffff, #bfe9ff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #5b8def;
 }
 .aff__sub {
-  margin: 0.15rem 0 0;
+  margin: 0.1rem 0 0;
   max-width: 46ch;
   font-size: 0.94rem;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(238, 241, 247, 0.78);
 }
 .aff__cta {
   align-self: flex-start;
   margin-top: 0.7rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.5rem 1rem;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
   border-radius: var(--tvz-radius-pill);
-  background: #fff;
-  color: #221a4d;
+  background: #5b8def;
+  color: #0c1220;
   font-size: 0.85rem;
-  font-weight: 650;
+  font-weight: 600;
   text-decoration: none;
-  box-shadow: 0 6px 20px -6px rgba(0, 0, 0, 0.4);
   transition:
     transform var(--tvz-dur-fast) var(--tvz-ease-out),
-    background var(--tvz-dur-fast) var(--tvz-ease-out);
+    box-shadow var(--tvz-dur-fast) var(--tvz-ease-out);
 }
 .aff__cta .v-icon {
   transition: transform var(--tvz-dur-fast) var(--tvz-ease-out);
 }
 .aff__cta:hover {
-  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 3px rgba(91, 141, 239, 0.28);
 }
 .aff__cta:hover .v-icon {
   transform: translateX(3px);
 }
 
-/* --- interactive emblem --- */
-.aff__visual {
-  position: relative;
-  z-index: 2;
-  flex: none;
-  width: 150px;
-  height: 150px;
-  transform-style: preserve-3d;
-}
 .aff__emblem {
-  position: absolute;
-  inset: 20px;
+  position: relative;
+  z-index: 1;
+  flex: none;
   display: grid;
   place-items: center;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
-  background: linear-gradient(150deg, #ffffff 0%, #d7ccff 100%);
-  box-shadow:
-    0 10px 30px -6px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 6px rgba(255, 255, 255, 0.35);
-  transform: rotateX(calc(var(--my) * -12deg)) rotateY(calc(var(--mx) * 16deg));
-  transition: transform var(--tvz-dur-med) var(--tvz-ease-out);
+  background: rgba(238, 241, 247, 0.06);
+  box-shadow: inset 0 0 0 1.5px rgba(91, 141, 239, 0.45);
 }
 .aff__emblem .v-icon {
-  color: #5b47d8;
-  filter: drop-shadow(0 3px 6px rgba(70, 40, 160, 0.35));
-}
-.aff__coin {
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff, #cfe6ff 70%);
-  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.35);
-  animation: aff-bob 3.4s ease-in-out infinite;
-}
-.aff__coin--1 {
-  top: 4px;
-  left: 12px;
-  animation-delay: 0s;
-}
-.aff__coin--2 {
-  top: 30px;
-  right: 0;
-  width: 11px;
-  height: 11px;
-  animation-delay: 0.7s;
-}
-.aff__coin--3 {
-  bottom: 6px;
-  left: 30px;
-  width: 13px;
-  height: 13px;
-  animation-delay: 1.4s;
-}
-@keyframes aff-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-9px);
-  }
+  color: #5b8def;
 }
 
 @media (max-width: 720px) {
   .aff {
     min-height: 0;
   }
-  .aff__visual {
-    width: 96px;
-    height: 96px;
-    align-self: flex-start;
-  }
   .aff__emblem {
-    inset: 8px;
+    width: 72px;
+    height: 72px;
+    align-self: flex-start;
   }
   .aff__emblem .v-icon {
     font-size: 30px !important;
   }
 }
 @media (max-width: 460px) {
-  .aff__visual {
+  .aff__emblem {
     display: none;
   }
 }

@@ -5,6 +5,7 @@ import { storeToRefs } from 'pinia'
 
 import EasyStudioAgent from '@/components/studio/EasyStudioAgent.vue'
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
+import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
 
 const { t } = useI18n()
@@ -33,6 +34,7 @@ onMounted(async () => {
         <p class="studio__eyebrow"><span class="studio__dot" /> {{ t('studio.eyebrow') }}</p>
         <h1>{{ t('studio.title') }}</h1>
       </div>
+      <OnboardingSteps mode="easy" current="build" class="studio__steps" />
       <div class="studio__tabs">
         <button :class="{ 'is-on': mobilePane === 'chat' }" type="button" @click="mobilePane = 'chat'">
           <v-icon icon="mdi-message-text-outline" size="18" /> {{ t('studio.paneChat') }}
@@ -105,8 +107,12 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem 1rem;
   flex-wrap: wrap;
+}
+.studio__steps {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .studio__eyebrow {
   display: inline-flex;

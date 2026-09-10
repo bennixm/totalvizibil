@@ -12,6 +12,7 @@ import CreditsValue from '@/components/CreditsValue.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useAuthStore, type PlatformRole } from '@/stores/auth'
 import { useAdminStore, type AdminUserDetail, type AdminUserCompany } from '@/stores/admin'
+import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
 
 const { t, n } = useI18n()
@@ -26,9 +27,9 @@ const loading = ref(true)
 
 const tab = ref<'overview' | 'wallet' | 'businesses' | 'activity'>('overview')
 
-const toast = reactive({ show: false, text: '', color: 'success' })
+const toasts = useToastStore()
 function flash(text: string, color: 'success' | 'error' = 'success') {
-  Object.assign(toast, { show: true, text, color })
+  toasts.push(color === 'error' ? 'error' : 'success', text)
 }
 function errText(e: unknown, fb: string) {
   return e instanceof ApiError ? e.message : fb
@@ -756,7 +757,6 @@ const txnColor: Record<string, string> = {
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="toast.show" :color="toast.color" timeout="2600">{{ toast.text }}</v-snackbar>
   </div>
 </template>
 

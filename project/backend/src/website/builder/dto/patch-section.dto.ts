@@ -23,4 +23,13 @@ export class PatchSectionDto {
   @IsOptional()
   @IsObject()
   style?: Record<string, unknown>;
+
+  /**
+   * Per-element style, keyed by a prose field of the section (`title`, `headline`,
+   * `subheadline`, `body`, …). Value `{ color?, bg?, size?, weight?, align? }`;
+   * `null` / `{}` clears that element. Validated against the catalog in the service.
+   */
+  @IsOptional()
+  @IsObject()
+  overrides?: Record<string, unknown>;
 }

@@ -189,6 +189,19 @@ export class CompaniesService implements OnModuleInit {
     const draft = await this.drafts.loadByToken(draftToken);
 
     if (draft.status === 'claimed' || draft.claimedCompanyId) {
+      // Idempotent retry: the create flow may re-send this request after an
+      // earlier attempt that actually succeeded server-side but whose response
+      // the client never saw (slow transaction hit the request timeout, a
+      // dropped connection, etc.). If the claimed company still belongs to the
+      // same user, return it so the flow continues instead of dead-ending on
+      // "draft_already_claimed".
+      if (draft.claimedCompanyId) {
+        const claimed = await this.prisma.company.findFirst({
+          where: { id: draft.claimedCompanyId, ownerUserId: userId },
+          include: companyInclude,
+        });
+        if (claimed) return toCompanyView(claimed, CompanyRole.owner);
+      }
       throw new ConflictException('draft_already_claimed');
     }
     if (draft.content == null || draft.theme == null) {
@@ -278,6 +291,11 @@ export class CompaniesService implements OnModuleInit {
               theme: draft.theme as Prisma.InputJsonValue,
               content: draft.content as Prisma.InputJsonValue,
               generator: draft.generator ?? 'rule-based-v1',
+              // Keep the guided answers so the owner can re-open the simple-site
+              // studio editor from the dashboard.
+              ...(draft.mode === 'advanced'
+                ? {}
+                : { easyConfig: (draft.answers ?? {}) as Prisma.InputJsonValue }),
             },
           },
         },

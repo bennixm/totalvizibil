@@ -9,6 +9,7 @@ import { useAccountStore } from '@/stores/account'
 import { useBillingStore, type BillingKind } from '@/stores/billing'
 import { useAffiliateStore } from '@/stores/affiliate'
 import { ApiError } from '@/services/api'
+import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -22,11 +23,9 @@ const tab = ref<(typeof TABS)[number]>(
   TABS.includes(route.query.tab as (typeof TABS)[number]) ? (route.query.tab as (typeof TABS)[number]) : 'profile',
 )
 const loading = ref(true)
-const toast = reactive({ show: false, text: '', color: 'success' })
+const toasts = useToastStore()
 function flash(text: string, color: 'success' | 'error' = 'success') {
-  toast.text = text
-  toast.color = color
-  toast.show = true
+  toasts.push(color === 'error' ? 'error' : 'success', text)
 }
 function errText(e: unknown, fallback: string) {
   return e instanceof ApiError ? e.message : fallback
@@ -675,9 +674,6 @@ function shortDate(iso: string): string {
       </v-window>
     </div>
 
-    <v-snackbar v-model="toast.show" :color="toast.color" timeout="2600" location="bottom">
-      {{ toast.text }}
-    </v-snackbar>
   </v-container>
 </template>
 

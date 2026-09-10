@@ -14,6 +14,7 @@ import AiBrief from '@/components/builder/AiBrief.vue'
 import AiLoader from '@/components/builder/AiLoader.vue'
 import { useCompaniesStore } from '@/stores/companies'
 import { useBuilderStore } from '@/stores/builder'
+import { useToastStore } from '@/stores/toast'
 
 const { t, n } = useI18n()
 const route = useRoute()
@@ -23,6 +24,7 @@ const builder = useBuilderStore()
 const { overview } = storeToRefs(companies)
 const { view, activePage, selectedId, loading, working, dirty, saving, aiPlanning, error } =
   storeToRefs(builder)
+const toasts = useToastStore()
 
 async function doSave(): Promise<void> {
   if (companyId.value && dirty.value && !saving.value) await builder.save(companyId.value)
@@ -61,6 +63,17 @@ const aiOpen = ref(false)
 const aiNotesDismissed = ref(false)
 const aiNotes = computed(() => view.value?.doc?.ai?.notes ?? [])
 watch(aiNotes, () => (aiNotesDismissed.value = false))
+
+// Post-generation review (deterministic checks + the model's findings).
+const reviewDismissed = ref(false)
+const aiReview = computed(() => view.value?.doc?.ai?.review ?? null)
+const reviewChecks = computed(() =>
+  (aiReview.value?.checks ?? []).map((raw) => {
+    const [id, ...rest] = raw.split(': ')
+    return { id, detail: rest.join(': ') }
+  }),
+)
+watch(aiReview, () => (reviewDismissed.value = false))
 
 const balance = computed(() => view.value?.wallet.balance.credits ?? 0)
 const price = computed(() => view.value?.priceCredits ?? 0)
@@ -104,6 +117,11 @@ const KNOWN_ERR = [
 function errText(code: string): string {
   return KNOWN_ERR.includes(code) ? t('builder.err.' + code) : code
 }
+// Every builder error surfaces as the shared pop-up toast (the locked-screen
+// fallback text stays inline — it's page content, not an action alert).
+watch(error, (v) => {
+  if (v) toasts.error(errText(v))
+})
 
 /** The renderer wants a single page's content; feed it the active page only,
  *  but keep the nav/footer config so the chrome previews correctly. */
@@ -210,9 +228,6 @@ onBeforeUnmount(() => {
         <strong>{{ t('builder.priceValue', { credits: price }) }}</strong>
         <span>{{ t('builder.balance', { n: n(balance, { maximumFractionDigits: 2 }) }) }}</span>
       </div>
-      <div v-if="error" class="wb__err">
-        <v-icon icon="mdi-alert-circle-outline" size="16" /> {{ errText(error) }}
-      </div>
       <div class="wb__lockActions">
         <v-btn
           v-if="!funded"
@@ -313,53 +328,76 @@ onBeforeUnmount(() => {
         </aside>
       </div>
 
-      <div v-if="error" class="wb__err">
-        <v-icon icon="mdi-alert-circle-outline" size="16" /> {{ errText(error) }}
-      </div>
-
-      <div v-if="aiNotes.length && !aiNotesDismissed" class="wb__ainote">
-        <v-icon icon="mdi-pencil-outline" size="16" />
-        <div>
-          <strong>{{ t('builder.aiNoteTitle') }}</strong>
-          <ul>
-            <li v-for="n in aiNotes" :key="n">{{ t(`builder.aiNote.${n}`) }}</li>
-          </ul>
+      <!-- Status region: capped + scrollable so stacked notes never starve the
+           preview grid above (this is what made the preview collapse). -->
+      <div class="wb__foot">
+        <div v-if="aiNotes.length && !aiNotesDismissed" class="wb__ainote">
+          <v-icon icon="mdi-pencil-outline" size="16" />
+          <div>
+            <strong>{{ t('builder.aiNoteTitle') }}</strong>
+            <ul>
+              <li v-for="n in aiNotes" :key="n">{{ t(`builder.aiNote.${n}`) }}</li>
+            </ul>
+          </div>
+          <button type="button" class="wb__ainote-x" @click="aiNotesDismissed = true">
+            <v-icon icon="mdi-close" size="16" />
+          </button>
         </div>
-        <button type="button" class="wb__ainote-x" @click="aiNotesDismissed = true">
-          <v-icon icon="mdi-close" size="16" />
-        </button>
-      </div>
 
-      <div v-if="!view.locationSet && !adminMode" class="wb__note">
-        <strong>{{ t('builder.doneTitle') }}</strong>
-        <span>{{ t('builder.doneText') }}</span>
-        <v-btn
-          class="mt-2"
-          color="primary"
-          size="small"
-          append-icon="mdi-arrow-right"
-          :to="{ name: 'create-location', query: { c: companyId } }"
+        <div
+          v-if="aiReview && (reviewChecks.length || aiReview.findings.length) && !reviewDismissed"
+          class="wb__ainote wb__ainote--review"
         >
-          {{ t('builder.continueLocation') }}
-        </v-btn>
+          <v-icon icon="mdi-clipboard-check-outline" size="16" />
+          <div>
+            <strong>{{ t('builder.reviewTitle') }}</strong>
+            <ul>
+              <li v-for="c in reviewChecks" :key="c.id">
+                {{ t(`builder.reviewCheck.${c.id}`) }}<span v-if="c.detail"> — {{ c.detail }}</span>
+              </li>
+              <li v-for="(f, i) in aiReview.findings" :key="`f${i}`">
+                <em>[{{ t(`builder.reviewSeverity.${f.severity}`) }}]</em> {{ f.ref }} — {{ f.message }}
+              </li>
+            </ul>
+          </div>
+          <button type="button" class="wb__ainote-x" @click="reviewDismissed = true">
+            <v-icon icon="mdi-close" size="16" />
+          </button>
+        </div>
+
+        <div v-if="!view.locationSet && !adminMode" class="wb__note">
+          <div class="wb__note-txt">
+            <strong>{{ t('builder.doneTitle') }}</strong>
+            <span>{{ t('builder.doneText') }}</span>
+          </div>
+          <v-btn
+            color="primary"
+            size="small"
+            append-icon="mdi-arrow-right"
+            :to="{ name: 'create-location', query: { c: companyId } }"
+          >
+            {{ t('builder.continueLocation') }}
+          </v-btn>
+        </div>
+        <div v-else-if="isFirstTimeSetup" class="wb__note">
+          <div class="wb__note-txt">
+            <strong>{{ t('builder.doneTitle') }}</strong>
+            <span>{{ t('builder.doneText') }}</span>
+          </div>
+          <v-btn
+            color="primary"
+            size="small"
+            append-icon="mdi-arrow-right"
+            :to="{ name: 'campaign-budget', query: { c: companyId, flow: 'onboarding' } }"
+          >
+            {{ t('builder.continueBudget') }}
+          </v-btn>
+        </div>
+        <p v-if="view.aiConfigured" class="wb__aiquota">
+          <v-icon icon="mdi-creation" size="13" />
+          {{ t('builder.aiQuota', { left: aiPlanLeft, limit: aiPlanLimit }) }}
+        </p>
       </div>
-      <div v-else-if="isFirstTimeSetup" class="wb__note">
-        <strong>{{ t('builder.doneTitle') }}</strong>
-        <span>{{ t('builder.doneText') }}</span>
-        <v-btn
-          class="mt-2"
-          color="primary"
-          size="small"
-          append-icon="mdi-arrow-right"
-          :to="{ name: 'campaign', query: { c: companyId } }"
-        >
-          {{ t('builder.continueBudget') }}
-        </v-btn>
-      </div>
-      <p v-if="view.aiConfigured" class="wb__aiquota">
-        <v-icon icon="mdi-creation" size="13" />
-        {{ t('builder.aiQuota', { left: aiPlanLeft, limit: aiPlanLimit }) }}
-      </p>
 
       <SectionCatalog
         v-if="catalogPayload && companyId"
@@ -559,11 +597,26 @@ onBeforeUnmount(() => {
 }
 
 .wb__grid {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(280px, 340px);
   gap: 0.8rem;
+}
+
+/* Below the grid: errors + AI notes + the "continue" nudge + AI quota. Capped
+   and scrollable as one block so a stack of notes can never squeeze the
+   preview grid above it (which is what made the preview far too short). */
+.wb__foot {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 32vh;
+  overflow-y: auto;
+}
+.wb__foot:empty {
+  display: none;
 }
 
 /* Desktop: lock the studio to the viewport so the 3 panes — the page rail, the
@@ -573,6 +626,7 @@ onBeforeUnmount(() => {
   .wb {
     height: calc(100dvh - var(--tvz-topbar-h) - 2px);
     overflow: hidden;
+    gap: 0.55rem;
   }
   .wb__grid {
     min-height: 0;
@@ -580,6 +634,17 @@ onBeforeUnmount(() => {
   .wb__grid > * {
     min-height: 0;
     height: 100%;
+  }
+}
+
+/* Tablet / phone: the panes stack under tabs — give the preview real height
+   so it isn't a tiny sliver. */
+@media (max-width: 1100px) {
+  .wb__preview {
+    min-height: 62vh;
+  }
+  .wb__foot {
+    max-height: none;
   }
 }
 .wb__rail,
@@ -617,13 +682,22 @@ onBeforeUnmount(() => {
 }
 .wb__note {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.8rem 1rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+  padding: 0.55rem 0.85rem;
   border-radius: var(--tvz-radius-md);
   background: var(--tvz-ai-soft);
   border: 1px solid var(--tvz-glass-border);
   font-size: 0.82rem;
+}
+.wb__note-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  flex: 1 1 260px;
+  min-width: 0;
 }
 .wb__ainote {
   display: flex;
@@ -634,8 +708,18 @@ onBeforeUnmount(() => {
   background: rgba(var(--v-theme-warning), 0.12);
   border: 1px solid rgba(var(--v-theme-warning), 0.35);
   font-size: 0.82rem;
-  max-height: 26vh;
+  max-height: 18vh;
   overflow-y: auto;
+}
+.wb__ainote--review {
+  background: rgba(var(--v-theme-info), 0.1);
+  border-color: rgba(var(--v-theme-info), 0.35);
+}
+.wb__ainote--review em {
+  font-style: normal;
+  font-weight: 600;
+  color: rgb(var(--v-theme-warning));
+  margin-right: 0.15rem;
 }
 .wb__ainote strong {
   font-size: 0.86rem;

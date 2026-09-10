@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
@@ -8,6 +8,7 @@ import InfoHint from '@/components/InfoHint.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
 import { useWalletStore } from '@/stores/wallet'
+import { useToastStore } from '@/stores/toast'
 
 const { t, n } = useI18n()
 const companies = useCompaniesStore()
@@ -31,6 +32,11 @@ const errorText = computed<string>(() => {
       : t('wallet.err.wallet_blocked')
   }
   return KNOWN_ERRORS.includes(code) ? t('wallet.err.' + code) : code
+})
+
+const toasts = useToastStore()
+watch(error, (v) => {
+  if (v) toasts.error(errorText.value)
 })
 
 const PRESETS = [10, 25, 50, 100]
@@ -243,10 +249,6 @@ onMounted(async () => {
           </div>
         </div>
       </section>
-
-      <div v-if="error" class="wal__error">
-        <v-icon icon="mdi-alert-circle-outline" size="18" /> {{ errorText }}
-      </div>
 
       <!-- Consumption per business -->
       <section v-if="consumers.length" class="wal__bybiz">

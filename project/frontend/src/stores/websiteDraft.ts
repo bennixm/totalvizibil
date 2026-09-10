@@ -47,6 +47,10 @@ export interface EasyProcessStep {
   title: string
   text?: string
 }
+export interface EasySocialLink {
+  label: string
+  url: string
+}
 
 /** Guided-answer snapshot the "Site Simplu" studio widgets prefill from. */
 export interface EasyBlock {
@@ -77,6 +81,12 @@ export interface EasyBlock {
   ctaButton: string
   showCta: boolean
   hours: string
+  navShowLogo: boolean
+  navCtaLabel: string
+  navCtaTarget: string
+  footerTagline: string
+  footerShowContact: boolean
+  footerSocials: EasySocialLink[]
   template: EasyTemplate
   autoGrammar: boolean
   locale: 'ro' | 'en' | 'de'
@@ -122,6 +132,12 @@ export interface EasyPatch {
   ctaButton?: string
   showCta?: boolean
   hours?: string
+  navShowLogo?: boolean
+  navCtaLabel?: string
+  navCtaTarget?: string
+  footerTagline?: string
+  footerShowContact?: boolean
+  footerSocials?: EasySocialLink[]
   template?: 'classic' | 'bold' | 'minimal'
   autoGrammar?: boolean
 }
@@ -157,6 +173,18 @@ export interface SetLocationInput {
   lng?: number
   radiusKm?: number
   nationwide?: boolean
+}
+
+/** One finding from the end-of-setup AI review of the owner's texts. */
+export interface DraftIssue {
+  key: string
+  label: string
+  kind: 'meaning' | 'grammar' | 'profanity' | 'other'
+  message: string
+}
+interface ReviewResponse {
+  issues: DraftIssue[]
+  draft: WebsiteDraftView
 }
 
 interface CreateResponse {
@@ -384,21 +412,24 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       }
     },
 
-    /** Fix spelling / grammar in a manual prose string (grammar toggle on). */
-    async proofread(text: string): Promise<string> {
+    /**
+     * End-of-setup AI review of the owner's texts (meaning / grammar / vulgar /
+     * other). Grammar fixes are applied server-side — the returned draft is
+     * adopted; the remaining findings are returned for the user to address.
+     */
+    async reviewDraft(): Promise<DraftIssue[]> {
       const ref = loadRef()
-      const src = text.trim()
-      if (!ref || !src) return text
+      if (!ref) return []
       try {
-        const res = await apiFetch<{ text: string }>(`/website-drafts/${ref.id}/proofread`, {
+        const res = await apiFetch<ReviewResponse>(`/website-drafts/${ref.id}/review`, {
           method: 'POST',
           headers: { 'X-Draft-Token': ref.token },
-          body: { text: src },
-          timeoutMs: 25_000,
+          timeoutMs: 45_000,
         })
-        return res.text || text
+        if (res.draft) this.draft = res.draft
+        return Array.isArray(res.issues) ? res.issues : []
       } catch {
-        return text
+        return []
       }
     },
 

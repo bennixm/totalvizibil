@@ -498,6 +498,16 @@ watch(
                 <span v-else-if="website.mode === 'advanced'" class="dcard__go dcard__go--disabled">
                   {{ t('dashboard.editSite') }}
                 </span>
+                <router-link
+                  v-if="website.mode === 'easy' && !pendingDeletion"
+                  class="dcard__go"
+                  :to="{ name: 'easy-site-editor', query: { c: companyId } }"
+                >
+                  {{ t('dashboard.editSite') }} <v-icon icon="mdi-arrow-right" size="15" />
+                </router-link>
+                <span v-else-if="website.mode === 'easy'" class="dcard__go dcard__go--disabled">
+                  {{ t('dashboard.editSite') }}
+                </span>
               </div>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.websiteNone') }}</p>
@@ -785,11 +795,10 @@ watch(
   align-items: center;
   gap: 0.35rem;
   margin: 0 0 0.15rem;
-  font-size: 0.66rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
 }
 .dalert {
   display: flex;
@@ -866,8 +875,8 @@ watch(
   flex: none;
   border-radius: 12px;
   color: #fff;
-  background: var(--tvz-gradient-brand, linear-gradient(115deg, #3f63e8, #6d5ef0));
-  box-shadow: 0 6px 18px rgba(var(--v-theme-primary), 0.4);
+  background: var(--tvz-gradient-brand);
+  box-shadow: var(--tvz-shadow-sm);
 }
 .dupgrade__body {
   position: relative;
@@ -947,10 +956,9 @@ watch(
   align-items: center;
   gap: 0.3rem;
   margin: 0 0 0.9rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: rgb(var(--acc));
 }
 .dcard__k :deep(.infohint) {
@@ -989,12 +997,11 @@ watch(
   gap: 0.4rem;
 }
 .dcard__badge {
-  font-size: 0.66rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 500;
   padding: 0.24rem 0.62rem;
-  border-radius: 999px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  border-radius: 8px;
+  letter-spacing: 0.01em;
   background: color-mix(in srgb, var(--acc-c) 15%, transparent);
   color: var(--acc-c);
 }
@@ -1104,12 +1111,10 @@ watch(
   align-items: center;
   gap: 0.3rem;
   margin: 0 0 1.1rem;
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
 }
 .ana__chart {
   padding: 1.4rem 1.6rem 1.1rem;
@@ -1137,10 +1142,10 @@ watch(
   gap: 0.12rem;
 }
 .astat__k {
-  font-size: 0.64rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
 }
 .astat__v {
   font-family: 'Space Grotesk Variable', sans-serif;
@@ -1262,11 +1267,10 @@ watch(
   margin-bottom: 1.5rem;
 }
 .dash__eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-size: 10px;
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.45);
+  letter-spacing: 0.01em;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
   margin: 0 0 0.3rem;
 }
 .dash__head h1 {

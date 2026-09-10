@@ -7,34 +7,36 @@ export const LIGHT_THEME = 'light'
 export const DARK_THEME = 'dark'
 
 /**
- * Palette notes — the "futuristic" system uses one cool triad:
- *   primary  = electric blue   (structure, primary actions)
- *   secondary = violet          (AI / intelligence surfaces)
- *   accent   = cyan            (highlights, live data, glow)
- * Keep raw gradient/glow values in src/styles/tokens.scss in sync with these.
+ * Palette notes — cool, sapphire-led. One strong colour; calm cool neutrals.
+ *   primary   = sapphire #0F52BA  (structure, links, primary actions, focus)
+ *   secondary = deep sapphire     (ranges / "AI" moments)
+ *   accent    = bright sapphire   (lit / active states — monochromatic, no amber)
+ * Cool off-white ground, cool near-black ink. Dark theme = the same product,
+ * lights down (cool night).
+ * Keep raw shadow/gradient values in src/styles/tokens.scss in sync.
  */
 const light: ThemeDefinition = {
   dark: false,
   colors: {
-    background: '#F5F7FE',
-    surface: '#FFFFFF',
+    background: '#F7F8FA', // cool paper
+    surface: '#FFFFFF', // raised card
     'surface-bright': '#FFFFFF',
-    'surface-light': '#EEF2FC',
-    'surface-variant': '#E4E9F7',
-    'on-surface-variant': '#3A4256',
-    primary: '#3F63E8',
-    'primary-darken-1': '#2E4CCB',
-    secondary: '#6D5EF0',
-    accent: '#1596A8',
-    error: '#DC2743',
-    info: '#0B7CC4',
-    success: '#0E8F63',
-    warning: '#C9720B',
+    'surface-light': '#EEF1F6',
+    'surface-variant': '#E8ECF3', // quiet "shelf"
+    'on-surface-variant': '#5B6472', // label
+    primary: '#0F52BA',
+    'primary-darken-1': '#0A3E93',
+    secondary: '#0A3E93',
+    accent: '#3B74D6',
+    error: '#CF3B3B',
+    info: '#0F52BA',
+    success: '#1E8E5A',
+    warning: '#C77A11',
   },
   variables: {
-    'border-color': '#0F1729',
+    'border-color': '#131722',
     'border-opacity': 0.1,
-    'high-emphasis-opacity': 0.92,
+    'high-emphasis-opacity': 0.94,
     'medium-emphasis-opacity': 0.66,
     'theme-surface-elevated': '#FFFFFF',
   },
@@ -43,27 +45,27 @@ const light: ThemeDefinition = {
 const dark: ThemeDefinition = {
   dark: true,
   colors: {
-    background: '#06080F',
-    surface: '#0E1327',
-    'surface-bright': '#1A2138',
-    'surface-light': '#161C33',
-    'surface-variant': '#232C46',
-    'on-surface-variant': '#AEB7CE',
-    primary: '#6F97FF',
-    'primary-darken-1': '#5580EC',
-    secondary: '#A99BFF',
-    accent: '#4FD0E0',
-    error: '#FB7185',
-    info: '#5AB6F0',
-    success: '#3DD68C',
-    warning: '#F5B840',
+    background: '#0C1220', // cool night
+    surface: '#141B2D',
+    'surface-bright': '#1D2740',
+    'surface-light': '#18213A',
+    'surface-variant': '#212C48',
+    'on-surface-variant': '#93A0B5',
+    primary: '#3D6FDB', // deep enough that white button text stays legible
+    'primary-darken-1': '#2E56B0',
+    secondary: '#9DB4D6',
+    accent: '#6E9BF0',
+    error: '#E58585',
+    info: '#9DB4D6',
+    success: '#5FC38C',
+    warning: '#E6B25C',
   },
   variables: {
-    'border-color': '#FFFFFF',
+    'border-color': '#EEF1F7',
     'border-opacity': 0.1,
     'high-emphasis-opacity': 0.96,
-    'medium-emphasis-opacity': 0.68,
-    'theme-surface-elevated': '#131A31',
+    'medium-emphasis-opacity': 0.7,
+    'theme-surface-elevated': '#19223A',
   },
 }
 

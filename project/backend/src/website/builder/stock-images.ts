@@ -300,18 +300,115 @@ export function fillDocImages(
   for (const page of doc.pages) {
     for (const s of page.sections) {
       const c = s.content ?? {};
-      if (s.type === 'hero') {
-        // Every hero gets a photo — the renderer's `s--hero--photo` styling kicks
-        // in automatically (a "forgotten" hero image was a common AI miss).
+      if (s.type === 'hero' || s.type === 'showcase') {
+        // Every hero / showcase gets a photo — the renderer's `--photo` styling
+        // kicks in automatically (a "forgotten" hero image was a common AI miss).
         slot(c, 'backgroundImage');
+      } else if (s.type === 'video') {
+        slot(c, 'posterImage');
+      } else if (s.type === 'caseStudy') {
+        slot(c, 'imageUrl');
+      } else if (s.type === 'beforeAfter') {
+        slot(c, 'beforeImage');
+        slot(c, 'afterImage');
       } else if (s.type === 'about') {
         if (['imageRight', 'imageLeft', 'twoCol'].includes(s.variant)) slot(c, 'imageUrl');
-      } else if (s.type === 'gallery' || s.type === 'featureSplit' || s.type === 'bento') {
+      } else if (
+        s.type === 'gallery' ||
+        s.type === 'featureSplit' ||
+        s.type === 'bento' ||
+        s.type === 'tabs'
+      ) {
         if (Array.isArray(c.items)) {
           for (const it of c.items as Record<string, unknown>[]) slot(it, 'imageUrl');
         }
       }
-      // team + logos images stay empty on purpose (real people / real client logos).
+      // team / logos / quoteBig images stay empty on purpose (real people, real
+      // client logos, a real quoted person).
     }
   }
+}
+
+const REMOTE_IMG_RE =
+  /^https:\/\/(?:images|plus)\.unsplash\.com\/|^https:\/\/images\.pexels\.com\//;
+
+/**
+ * HEAD-check every remote (unsplash / pexels) image URL in the doc and swap any
+ * that don't resolve for a working pool photo. A curated id can rot, and a model
+ * can slip a same-host-but-fake id past `coerceImage`. Local uploads are trusted
+ * and skipped. Best-effort: a network hiccup keeps the URL (never punishes a
+ * probably-fine link). Returns how many slots were repaired.
+ */
+export async function verifyDocImages(doc: BuilderDoc, ctx: SeedCtx, brief = ''): Promise<number> {
+  const pool = STOCK_POOLS[bucketFor(ctx, brief)] ?? STOCK_POOLS.generic;
+
+  type Slot = { get: () => string; set: (u: string) => void };
+  const slots: Slot[] = [];
+  const collect = (obj: Record<string, unknown>, key: string): void => {
+    const v = obj[key];
+    if (typeof v === 'string' && REMOTE_IMG_RE.test(v)) {
+      slots.push({ get: () => obj[key] as string, set: (u) => (obj[key] = u) });
+    }
+  };
+  for (const page of doc.pages) {
+    for (const s of page.sections) {
+      const c = (s.content ?? {}) as Record<string, unknown>;
+      for (const k of ['backgroundImage', 'posterImage', 'imageUrl', 'beforeImage', 'afterImage']) {
+        collect(c, k);
+      }
+      if (Array.isArray(c.items)) {
+        for (const it of c.items as Record<string, unknown>[]) collect(it, 'imageUrl');
+      }
+    }
+  }
+  if (!slots.length) return 0;
+
+  const verdict = new Map<string, boolean>();
+  const check = async (url: string): Promise<boolean> => {
+    const cached = verdict.get(url);
+    if (cached !== undefined) return cached;
+    let good = true; // default: assume fine unless we get a definite "not found"
+    try {
+      const r = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(4000) });
+      if (r.status === 405 || r.status === 403) {
+        const g = await fetch(url, {
+          method: 'GET',
+          headers: { range: 'bytes=0-0' },
+          signal: AbortSignal.timeout(4000),
+        });
+        good = g.ok || g.status === 206;
+      } else {
+        good = r.ok;
+      }
+    } catch {
+      good = true; // timeout / DNS blip — leave the URL alone
+    }
+    verdict.set(url, good);
+    return good;
+  };
+
+  await Promise.allSettled([...new Set(slots.map((s) => s.get()))].map(check));
+
+  const used = new Set(slots.map((s) => s.get()).filter((u) => verdict.get(u) !== false));
+  const nextGood = async (): Promise<string> => {
+    for (const src of [pool, STOCK_POOLS.generic]) {
+      for (const base of src) {
+        if (used.has(base)) continue;
+        if (await check(base)) {
+          used.add(base);
+          return base;
+        }
+      }
+    }
+    return ''; // renderer hides an empty image slot gracefully
+  };
+
+  let fixed = 0;
+  for (const slot of slots) {
+    if (verdict.get(slot.get()) === false) {
+      slot.set(await nextGood());
+      fixed++;
+    }
+  }
+  return fixed;
 }

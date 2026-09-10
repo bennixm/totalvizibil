@@ -150,11 +150,10 @@ function clearCategory(): void {
         <p class="fc__catsHead">{{ t('feed.browseCategories') }}</p>
         <div class="fc__grid">
           <button
-            v-for="(c, i) in feed.facets.categories"
+            v-for="c in feed.facets.categories"
             :key="c.slug"
             type="button"
             class="gcard"
-            :style="{ '--d': `${(i % 6) * 0.35}s` }"
             @click="openGroup(c)"
           >
             <span class="gcard__ic">
@@ -196,12 +195,10 @@ function clearCategory(): void {
 /* --- category grid --- */
 .fc__catsHead {
   margin: 0 0 0.9rem;
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.55));
 }
 .fc__grid {
   display: grid;
@@ -216,69 +213,35 @@ function clearCategory(): void {
   gap: 0.85rem;
   padding: 1.7rem 1rem 1.4rem;
   text-align: center;
-  border-radius: 20px;
-  border: 1px solid color-mix(in srgb, rgb(var(--v-theme-primary)) 22%, transparent);
-  background: linear-gradient(
-    160deg,
-    rgba(var(--v-theme-primary), 0.18) 0%,
-    rgba(var(--v-theme-primary), 0.05) 44%,
-    rgb(var(--v-theme-surface)) 100%
-  );
+  border-radius: var(--tvz-radius-lg);
+  border: 1px solid var(--tvz-glass-border);
+  background: rgb(var(--v-theme-surface));
+  box-shadow: var(--tvz-shadow-sm);
   overflow: hidden;
   cursor: pointer;
   transition:
-    transform 0.2s var(--tvz-ease-out),
-    border-color 0.2s var(--tvz-ease-out),
-    box-shadow 0.2s var(--tvz-ease-out);
-}
-/* soft glow bleeding from the top */
-.gcard::after {
-  content: '';
-  position: absolute;
-  inset: -45% 15% auto;
-  height: 75%;
-  background: radial-gradient(closest-side, rgba(var(--v-theme-primary), 0.28), transparent);
-  opacity: 0.55;
-  pointer-events: none;
-  transition: opacity 0.2s var(--tvz-ease-out);
+    transform 0.16s var(--tvz-ease-out),
+    border-color 0.16s var(--tvz-ease-out),
+    box-shadow 0.16s var(--tvz-ease-out);
 }
 .gcard:hover {
-  transform: translateY(-5px);
-  border-color: rgba(var(--v-theme-primary), 0.6);
-  box-shadow: 0 22px 48px rgba(var(--v-theme-primary), 0.24);
-}
-.gcard:hover::after {
-  opacity: 0.9;
+  transform: translateY(-3px);
+  border-color: rgba(var(--v-theme-primary), 0.45);
+  box-shadow: var(--tvz-shadow-md);
 }
 .gcard__ic {
   position: relative;
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
+  width: 60px;
+  height: 60px;
+  border-radius: var(--tvz-radius-md);
   color: #fff;
-  background: var(--tvz-gradient-brand, linear-gradient(150deg, rgb(var(--v-theme-primary)), rgb(var(--v-theme-secondary, var(--v-theme-primary)))));
-  box-shadow: 0 10px 24px rgba(var(--v-theme-primary), 0.42);
-  animation: gcard-bob 3.6s ease-in-out infinite;
-  animation-delay: var(--d, 0s);
-  transition:
-    transform 0.24s var(--tvz-ease-out),
-    box-shadow 0.24s var(--tvz-ease-out);
+  background: rgb(var(--v-theme-primary));
+  transition: transform 0.16s var(--tvz-ease-out);
 }
 .gcard:hover .gcard__ic {
-  transform: scale(1.16) rotate(-7deg);
-  box-shadow: 0 16px 34px rgba(var(--v-theme-primary), 0.5);
-  animation-play-state: paused;
-}
-@keyframes gcard-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
+  transform: scale(1.06);
 }
 .gcard__name {
   position: relative;
@@ -291,14 +254,10 @@ function clearCategory(): void {
 /* --- focused group --- */
 .focus {
   padding: 1.35rem 1.4rem 1.5rem;
-  border-radius: 22px;
-  border: 1px solid rgba(var(--v-theme-primary), 0.32);
-  background: linear-gradient(
-    150deg,
-    rgba(var(--v-theme-primary), 0.16) 0%,
-    rgba(var(--v-theme-primary), 0.04) 46%,
-    rgb(var(--v-theme-surface)) 100%
-  );
+  border-radius: var(--tvz-radius-lg);
+  border: 1px solid var(--tvz-glass-border);
+  background: rgb(var(--v-theme-surface));
+  box-shadow: var(--tvz-shadow-sm);
 }
 .focus__back {
   display: inline-flex;
@@ -326,14 +285,12 @@ function clearCategory(): void {
 .focus__ic {
   display: grid;
   place-items: center;
-  width: 72px;
-  height: 72px;
+  width: 68px;
+  height: 68px;
   flex: none;
-  border-radius: 20px;
+  border-radius: var(--tvz-radius-md);
   color: #fff;
-  background: var(--tvz-gradient-brand, linear-gradient(150deg, rgb(var(--v-theme-primary)), rgb(var(--v-theme-secondary, var(--v-theme-primary)))));
-  box-shadow: 0 12px 28px rgba(var(--v-theme-primary), 0.42);
-  animation: gcard-bob 3.6s ease-in-out infinite;
+  background: rgb(var(--v-theme-primary));
 }
 .focus__head h3 {
   font-family: 'Space Grotesk Variable', sans-serif;
@@ -376,11 +333,9 @@ function clearCategory(): void {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gcard__ic,
-  .focus__ic {
-    animation: none;
-  }
-  .gcard:hover {
+  .gcard,
+  .gcard:hover,
+  .gcard:hover .gcard__ic {
     transform: none;
   }
 }

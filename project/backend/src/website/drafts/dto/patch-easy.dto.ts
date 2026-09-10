@@ -63,6 +63,16 @@ export class EasyProcessDto {
   text?: string;
 }
 
+export class EasySocialDto {
+  @IsString()
+  @MaxLength(40)
+  label!: string;
+
+  @IsString()
+  @MaxLength(200)
+  url!: string;
+}
+
 /** Live config edits from the studio widgets — no chat turn is spent. */
 export class PatchEasyDto {
   @IsOptional()
@@ -195,6 +205,37 @@ export class PatchEasyDto {
   @IsString()
   @MaxLength(120)
   hours?: string;
+
+  // --- navbar + footer chrome -------------------------------------
+  @IsOptional()
+  @IsBoolean()
+  navShowLogo?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  navCtaLabel?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  navCtaTarget?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  footerTagline?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  footerShowContact?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(6)
+  @ValidateNested({ each: true })
+  @Type(() => EasySocialDto)
+  footerSocials?: EasySocialDto[];
 
   @IsOptional()
   @IsIn(['classic', 'bold', 'minimal'])

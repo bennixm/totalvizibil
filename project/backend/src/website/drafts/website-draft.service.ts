@@ -12,19 +12,18 @@ import { ServiceItem } from '../website.types';
 import {
   EasyStep,
   FREE_MAX_TURNS,
+  NO_CHAT_STEPS,
   TranscriptTurn,
   advanceEasy,
   openingTranscript,
 } from './website-draft.script';
 import {
   EasyAnswers,
-  EasyFaq,
-  EasyProcessStep,
-  EasyStat,
-  EasyTestimonial,
+  type EasyPatch,
   StudioLocale,
   composeEasySite,
   fallbackServiceItems,
+  mergeEasyPatch,
 } from './easy-compose';
 import { assertClean } from './content-filter';
 import { toDraftView, WebsiteDraftView } from './website-draft.view';
@@ -32,11 +31,71 @@ import { toDraftView, WebsiteDraftView } from './website-draft.view';
 /** Anonymous drafts live for a week before they are considered abandoned. */
 const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Real DeepSeek calls allowed per draft (initial write + a few regenerations). */
+/** Real AI copy calls allowed per draft (initial write + a few regenerations). */
 const AI_CALL_CAP = 4;
 
-/** AI grammar-fix calls allowed per draft. */
-const PROOFREAD_CAP = 40;
+/** End-of-setup AI text-review passes allowed per draft. */
+const REVIEW_CAP = 5;
+
+/** One finding from `reviewDraft`, with a human label for the field. */
+export interface DraftReviewIssue {
+  key: string;
+  label: string;
+  kind: 'meaning' | 'grammar' | 'profanity' | 'other';
+  message: string;
+}
+
+/** Field labels for the end-of-setup review, per locale. */
+const REVIEW_LABELS: Record<StudioLocale, Record<string, string>> = {
+  ro: {
+    companyName: 'Nume firmă',
+    businessType: 'Domeniu',
+    landingTitle: 'Titlu principal',
+    landingSubtitle: 'Subtitlu',
+    about: 'Despre noi',
+    ctaHeadline: 'Îndemn — titlu',
+    ctaButton: 'Îndemn — buton',
+    hours: 'Program',
+    whyUs: 'De ce noi',
+    process: 'Pas',
+    testimonial: 'Testimonial',
+    faq: 'Întrebare',
+    stat: 'Cifră',
+    service: 'Serviciu',
+  },
+  en: {
+    companyName: 'Business name',
+    businessType: 'Field',
+    landingTitle: 'Headline',
+    landingSubtitle: 'Subheadline',
+    about: 'About us',
+    ctaHeadline: 'Call to action — headline',
+    ctaButton: 'Call to action — button',
+    hours: 'Opening hours',
+    whyUs: 'Why us',
+    process: 'Step',
+    testimonial: 'Testimonial',
+    faq: 'FAQ',
+    stat: 'Stat',
+    service: 'Service',
+  },
+  de: {
+    companyName: 'Firmenname',
+    businessType: 'Branche',
+    landingTitle: 'Überschrift',
+    landingSubtitle: 'Unterüberschrift',
+    about: 'Über uns',
+    ctaHeadline: 'Call-to-Action — Titel',
+    ctaButton: 'Call-to-Action — Button',
+    hours: 'Öffnungszeiten',
+    whyUs: 'Warum wir',
+    process: 'Schritt',
+    testimonial: 'Testimonial',
+    faq: 'FAQ',
+    stat: 'Kennzahl',
+    service: 'Leistung',
+  },
+};
 
 /** Max decoded size for an uploaded Simple-site image. */
 const MAX_ASSET_BYTES = 4_500_000;
@@ -44,36 +103,7 @@ const MAX_ASSET_BYTES = 4_500_000;
 const ASSET_URL_RE = /^\/api\/v1\/website-assets\/[0-9a-fA-F-]{36}$/;
 const DATA_URI_RE = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/;
 
-/** Fields the studio widgets can patch without spending a chat turn. */
-export interface EasyPatch {
-  accentColor?: string;
-  landingTitle?: string;
-  landingSubtitle?: string;
-  landingImage?: string;
-  logoUrl?: string;
-  portfolio?: string[];
-  services?: { name: string; description: string }[];
-  phone?: string;
-  email?: string;
-  city?: string;
-  about?: string;
-  showAbout?: boolean;
-  stats?: EasyStat[];
-  showStats?: boolean;
-  whyUs?: string[];
-  showWhyUs?: boolean;
-  process?: EasyProcessStep[];
-  showProcess?: boolean;
-  testimonials?: EasyTestimonial[];
-  faq?: EasyFaq[];
-  ctaHeadline?: string;
-  ctaButton?: string;
-  showCta?: boolean;
-  hours?: string;
-  template?: 'classic' | 'bold' | 'minimal';
-  autoGrammar?: boolean;
-  locale?: StudioLocale;
-}
+export type { EasyPatch };
 
 @Injectable()
 export class WebsiteDraftService {
@@ -190,6 +220,11 @@ export class WebsiteDraftService {
 
     const text = rawText.trim();
     if (!text) throw new BadRequestException('Message is empty');
+    // Choice / upload steps have no free-text input — the visitor advances them
+    // from the widget's "Continue" button (`advanceStep`), not the chat.
+    if (NO_CHAT_STEPS.includes(draft.step as EasyStep)) {
+      throw new BadRequestException('choose_option');
+    }
     assertClean(text);
     if (draft.turnsUsed >= FREE_MAX_TURNS) {
       throw new ForbiddenException('free_plan_turn_limit');
@@ -275,103 +310,24 @@ export class WebsiteDraftService {
       patch.ctaHeadline,
       patch.ctaButton,
       patch.hours,
+      patch.navCtaLabel,
+      patch.footerTagline,
       ...(patch.whyUs ?? []),
       ...(patch.services ?? []).flatMap((s) => [s.name, s.description]),
       ...(patch.testimonials ?? []).flatMap((tt) => [tt.quote, tt.author ?? '']),
       ...(patch.faq ?? []).flatMap((q) => [q.q, q.a]),
       ...(patch.stats ?? []).flatMap((s) => [s.value, s.label]),
       ...(patch.process ?? []).flatMap((s) => [s.title, s.text ?? '']),
+      ...(patch.footerSocials ?? []).map((s) => s.label),
     );
 
     const a = this.answersOf(draft);
-
-    if (patch.accentColor !== undefined) {
-      const c = patch.accentColor.trim();
-      if (c && !/^#[0-9a-fA-F]{6}$/.test(c)) throw new BadRequestException('bad_color');
-      a.accentColor = c || undefined;
-    }
-    if (patch.landingTitle !== undefined)
-      a.landingTitle = patch.landingTitle.slice(0, 120) || undefined;
-    if (patch.landingSubtitle !== undefined) {
-      a.landingSubtitle = patch.landingSubtitle.slice(0, 160) || undefined;
-    }
-    if (patch.landingImage !== undefined)
-      a.landingImage = WebsiteDraftService.assetUrl(patch.landingImage);
-    if (patch.logoUrl !== undefined)
-      a.logoUrl = patch.logoUrl.trim() ? WebsiteDraftService.assetUrl(patch.logoUrl) : undefined;
-    if (patch.portfolio !== undefined) {
-      a.portfolio = patch.portfolio
-        .map((u) => WebsiteDraftService.assetUrl(u))
-        .filter((u): u is string => !!u)
-        .slice(0, 10);
-    }
-    if (patch.services !== undefined) {
-      a.services = patch.services.slice(0, 12).map((s) => ({
-        name: String(s.name ?? '').slice(0, 80),
-        description: String(s.description ?? '').slice(0, 300),
-      }));
-    }
-    if (patch.phone !== undefined) a.phone = patch.phone.slice(0, 40) || undefined;
-    if (patch.email !== undefined) a.email = patch.email.slice(0, 120) || undefined;
-    if (patch.city !== undefined) a.city = patch.city.slice(0, 80) || undefined;
-
-    if (patch.about !== undefined) a.about = patch.about.slice(0, 900) || undefined;
-    if (patch.showAbout !== undefined) a.showAbout = patch.showAbout;
-    if (patch.stats !== undefined) {
-      a.stats = patch.stats
-        .map((s) => ({
-          value: String(s.value ?? '').slice(0, 24),
-          label: String(s.label ?? '').slice(0, 60),
-        }))
-        .filter((s) => s.value.trim() && s.label.trim())
-        .slice(0, 4);
-    }
-    if (patch.showStats !== undefined) a.showStats = patch.showStats;
-    if (patch.whyUs !== undefined) {
-      a.whyUs = patch.whyUs
-        .map((s) => String(s ?? '').slice(0, 90))
-        .filter((s) => s.trim())
-        .slice(0, 6);
-    }
-    if (patch.showWhyUs !== undefined) a.showWhyUs = patch.showWhyUs;
-    if (patch.process !== undefined) {
-      a.process = patch.process
-        .map((s) => ({
-          title: String(s.title ?? '').slice(0, 80),
-          text: String(s.text ?? '').slice(0, 200) || undefined,
-        }))
-        .filter((s) => s.title.trim())
-        .slice(0, 6);
-    }
-    if (patch.showProcess !== undefined) a.showProcess = patch.showProcess;
-    if (patch.testimonials !== undefined) {
-      a.testimonials = patch.testimonials
-        .map((tt) => ({
-          quote: String(tt.quote ?? '').slice(0, 400),
-          author: String(tt.author ?? '').slice(0, 80),
-        }))
-        .filter((tt) => tt.quote.trim())
-        .slice(0, 8);
-    }
-    if (patch.faq !== undefined) {
-      a.faq = patch.faq
-        .map((q) => ({ q: String(q.q ?? '').slice(0, 160), a: String(q.a ?? '').slice(0, 600) }))
-        .filter((q) => q.q.trim() && q.a.trim())
-        .slice(0, 10);
-    }
-    if (patch.ctaHeadline !== undefined)
-      a.ctaHeadline = patch.ctaHeadline.slice(0, 120) || undefined;
-    if (patch.ctaButton !== undefined) a.ctaButton = patch.ctaButton.slice(0, 40) || undefined;
-    if (patch.showCta !== undefined) a.showCta = patch.showCta;
-    if (patch.hours !== undefined) a.hours = patch.hours.slice(0, 120) || undefined;
-    if (patch.template !== undefined) {
-      a.template = ['classic', 'bold', 'minimal'].includes(patch.template)
-        ? patch.template
-        : 'classic';
-    }
-    if (patch.autoGrammar !== undefined) a.autoGrammar = patch.autoGrammar;
-
-    if (patch.locale !== undefined) a.locale = patch.locale;
+    mergeEasyPatch(a, patch, {
+      assetUrl: WebsiteDraftService.assetUrl,
+      onBadColor: () => {
+        throw new BadRequestException('bad_color');
+      },
+    });
 
     const updated = await this.prisma.websiteDraft.update({
       where: { id: draft.id },
@@ -411,32 +367,149 @@ export class WebsiteDraftService {
   }
 
   /**
-   * Fix a manual prose string. Always applies a deterministic tidy (spacing,
-   * capitalisation, terminal punctuation); when a DeepSeek key is set and the
-   * per-draft budget allows, also runs an AI grammar pass. Never throws.
+   * End-of-setup review: one AI pass over every text the owner typed. Flags
+   * meaning / grammar / vulgar / other problems. `grammar` issues carry a fix
+   * that is applied to the draft automatically; the rest are returned for the
+   * owner to correct. Never throws — no AI provider ⇒ `{ issues: [] }`.
    */
-  async proofread(id: string, token: string, raw: string): Promise<{ text: string }> {
+  async reviewDraft(
+    id: string,
+    token: string,
+  ): Promise<{ issues: DraftReviewIssue[]; draft: WebsiteDraftView }> {
     const draft = await this.load(id, token);
     if (draft.mode !== 'easy') throw new BadRequestException('not_a_simple_site');
-    assertClean(raw);
 
     const a = this.answersOf(draft);
-    const tidy = WebsiteDraftService.tidyProse(raw);
-    if (!tidy) return { text: '' };
+    const locale = a.locale ?? 'ro';
+    const spent = a.reviewCount ?? 0;
+    const items = WebsiteDraftService.reviewItems(a, locale);
 
-    const spent = a.proofreadCount ?? 0;
-    if (spent >= PROOFREAD_CAP) return { text: tidy };
-
-    const fixed = await this.deepseek.proofread(tidy, a.locale ?? 'ro');
-    if (fixed) {
-      a.proofreadCount = spent + 1;
-      await this.prisma.websiteDraft.update({
-        where: { id: draft.id },
-        data: { answers: a as unknown as Prisma.InputJsonValue },
-      });
-      return { text: WebsiteDraftService.tidyProse(fixed) || tidy };
+    if (spent >= REVIEW_CAP || !items.length) {
+      return { issues: [], draft: toDraftView(draft) };
     }
-    return { text: tidy };
+
+    const found = await this.deepseek.reviewCopy({
+      items: items.map(({ key, label, text }) => ({ key, label, text })),
+      locale,
+    });
+    if (!found) return { issues: [], draft: toDraftView(draft) };
+
+    a.reviewCount = spent + 1;
+    const labelByKey = new Map(items.map((i) => [i.key, i.label]));
+
+    // Auto-apply grammar fixes; surface the rest.
+    let touched = false;
+    const issues: DraftReviewIssue[] = [];
+    for (const f of found) {
+      if (f.kind === 'grammar' && f.fix) {
+        if (WebsiteDraftService.applyReviewFix(a, f.key, f.fix)) touched = true;
+        continue;
+      }
+      issues.push({
+        key: f.key,
+        label: labelByKey.get(f.key) ?? f.key,
+        kind: f.kind,
+        message: f.message,
+      });
+    }
+
+    const updated = await this.prisma.websiteDraft.update({
+      where: { id: draft.id },
+      data: {
+        answers: a as unknown as Prisma.InputJsonValue,
+        status: 'ready',
+        ...(touched ? this.composeInto(a) : {}),
+      },
+    });
+    return { issues, draft: toDraftView(updated) };
+  }
+
+  /** Every owner-typed text field, as `{ key, label, text }` for the AI review. */
+  private static reviewItems(
+    a: EasyAnswers,
+    locale: StudioLocale,
+  ): { key: string; label: string; text: string }[] {
+    const L = REVIEW_LABELS[locale] ?? REVIEW_LABELS.ro;
+    const out: { key: string; label: string; text: string }[] = [];
+    const push = (key: string, label: string, text: unknown): void => {
+      const v = typeof text === 'string' ? text.trim() : '';
+      if (v.length >= 2) out.push({ key, label, text: v });
+    };
+    push('companyName', L.companyName, a.companyName);
+    push('businessType', L.businessType, a.businessType);
+    push('landingTitle', L.landingTitle, a.landingTitle);
+    push('landingSubtitle', L.landingSubtitle, a.landingSubtitle);
+    push('about', L.about, a.about);
+    push('ctaHeadline', L.ctaHeadline, a.ctaHeadline);
+    push('ctaButton', L.ctaButton, a.ctaButton);
+    push('hours', L.hours, a.hours);
+    (a.whyUs ?? []).forEach((v, i) => push(`whyUs.${i}`, `${L.whyUs} ${i + 1}`, v));
+    (a.process ?? []).forEach((s, i) => {
+      push(`process.${i}.title`, `${L.process} ${i + 1}`, s?.title);
+      push(`process.${i}.text`, `${L.process} ${i + 1}`, s?.text);
+    });
+    (a.testimonials ?? []).forEach((s, i) =>
+      push(`testimonials.${i}.quote`, `${L.testimonial} ${i + 1}`, s?.quote),
+    );
+    (a.faq ?? []).forEach((s, i) => {
+      push(`faq.${i}.q`, `${L.faq} ${i + 1}`, s?.q);
+      push(`faq.${i}.a`, `${L.faq} ${i + 1}`, s?.a);
+    });
+    (a.stats ?? []).forEach((s, i) => push(`stats.${i}.label`, `${L.stat} ${i + 1}`, s?.label));
+    (a.services ?? []).forEach((s, i) => {
+      push(`services.${i}.name`, `${L.service} ${i + 1}`, s?.name);
+      push(`services.${i}.description`, `${L.service} ${i + 1}`, s?.description);
+    });
+    return out;
+  }
+
+  /** Write one grammar-corrected string back into `answers` by its dotted key. */
+  private static applyReviewFix(a: EasyAnswers, key: string, fix: string): boolean {
+    const v = WebsiteDraftService.tidyProse(fix) || fix.trim();
+    if (!v) return false;
+    const parts = key.split('.');
+    const scalars: Record<string, keyof EasyAnswers> = {
+      companyName: 'companyName',
+      businessType: 'businessType',
+      landingTitle: 'landingTitle',
+      landingSubtitle: 'landingSubtitle',
+      about: 'about',
+      ctaHeadline: 'ctaHeadline',
+      ctaButton: 'ctaButton',
+      hours: 'hours',
+    };
+    if (parts.length === 1 && scalars[parts[0]]) {
+      (a as Record<string, unknown>)[scalars[parts[0]]] = v.slice(0, 900);
+      return true;
+    }
+    const [group, idxRaw, sub] = parts;
+    const idx = Number(idxRaw);
+    if (!Number.isInteger(idx) || idx < 0) return false;
+    if (group === 'whyUs' && a.whyUs?.[idx] !== undefined) {
+      a.whyUs[idx] = v.slice(0, 120);
+      return true;
+    }
+    if (group === 'process' && a.process?.[idx] && (sub === 'title' || sub === 'text')) {
+      a.process[idx][sub] = v.slice(0, 200);
+      return true;
+    }
+    if (group === 'testimonials' && a.testimonials?.[idx] && sub === 'quote') {
+      a.testimonials[idx].quote = v.slice(0, 400);
+      return true;
+    }
+    if (group === 'faq' && a.faq?.[idx] && (sub === 'q' || sub === 'a')) {
+      a.faq[idx][sub] = v.slice(0, 400);
+      return true;
+    }
+    if (group === 'stats' && a.stats?.[idx] && sub === 'label') {
+      a.stats[idx].label = v.slice(0, 60);
+      return true;
+    }
+    if (group === 'services' && a.services?.[idx] && (sub === 'name' || sub === 'description')) {
+      a.services[idx][sub] = v.slice(0, sub === 'name' ? 80 : 300);
+      return true;
+    }
+    return false;
   }
 
   private static tidyProse(v: string): string {

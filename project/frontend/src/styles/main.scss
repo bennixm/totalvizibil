@@ -40,7 +40,13 @@ body {
   background: var(--tvz-ambient), rgb(var(--v-theme-background));
 }
 
-// --- Typography ----------------------------------------------------------
+// --- Typography --------------------------------------------------------
+// Display = Space Grotesk (geometric grotesk — crisp, a little character).
+// UI / body = Inter (workhorse, legible at small sizes in a data-dense app).
+body {
+  font-family: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
 .text-h1,
 .text-h2,
 .text-h3,
@@ -58,20 +64,38 @@ h3 {
   letter-spacing: -0.02em;
 }
 
+// Big numerals (visibility score, money) read as headings.
+.font-numeral {
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
 .text-balance {
   text-wrap: balance;
 }
 
-// Gradient / glow text ----------------------------------------------------
+// Retire all-caps tracked micro-labels — the classic "generic dashboard" tell.
+// Kept as a hook so existing markup restyles instead of breaking.
+.text-overline,
+.tvz-eyebrow {
+  text-transform: none !important;
+  letter-spacing: 0.01em !important;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.66));
+}
+
+// Gradient / glow text — deliberately neutralised. Classes kept so templates
+// that reference them keep resolving to solid, legible ink.
 .text-gradient {
-  background: var(--tvz-gradient-text);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
+  background: none;
+  color: rgb(var(--v-theme-primary));
+  -webkit-text-fill-color: currentColor;
 }
 
 .text-glow {
-  text-shadow: 0 0 24px rgba(var(--v-theme-primary), 0.45);
+  text-shadow: none;
 }
 
 // --- Surfaces ----------------------------------------------------------
@@ -99,22 +123,12 @@ h3 {
     border-color var(--tvz-dur-med) var(--tvz-ease-out);
 }
 
-.tvz-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--tvz-gradient-sheen);
-  opacity: 0.6;
-  pointer-events: none;
-  mask: linear-gradient(#000, transparent 45%);
-  -webkit-mask: linear-gradient(#000, transparent 45%);
-}
+// Sheen removed — flat warm panel, depth comes from the shadow only.
 
 .tvz-card--interactive:hover {
-  transform: translateY(-4px);
-  border-color: rgba(var(--v-theme-primary), 0.4);
-  box-shadow: var(--tvz-shadow-lg);
+  transform: translateY(-3px);
+  border-color: rgba(var(--v-theme-primary), 0.35);
+  box-shadow: var(--tvz-shadow-md);
 }
 
 // --- Effects ---------------------------------------------------------

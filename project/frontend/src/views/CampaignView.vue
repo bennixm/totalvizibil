@@ -5,9 +5,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 import InfoHint from '@/components/InfoHint.vue'
+import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
 import { useCampaignStore, type CampaignTier } from '@/stores/campaign'
+import { useToastStore } from '@/stores/toast'
 
 const { t, n } = useI18n()
 const route = useRoute()
@@ -23,6 +25,14 @@ const dailyBudget = ref(20)
 const cpc = ref(1)
 const appearFirst = ref(false)
 const auto = ref(false)
+
+// Onboarding context: this page is being used as the flow's "budget" step.
+// Read only for the progress strip + the post-save redirect — it never changes
+// how the budget page itself behaves.
+const inFlow = computed(() => route.query.flow === 'onboarding')
+const flowMode = computed<'easy' | 'advanced'>(
+  () => overview.value.find((c) => c.id === companyId.value)?.website?.mode ?? 'advanced',
+)
 const dirty = ref(false)
 // True only while hydrate() writes the fields, so the field watcher doesn't
 // flag a fresh load as an edit.
@@ -151,6 +161,11 @@ function errText(code: string): string {
   return KNOWN_ERRORS.includes(code) ? t('campaign.err.' + code) : code
 }
 
+const toasts = useToastStore()
+watch(error, (v) => {
+  if (v) toasts.error(errText(v))
+})
+
 function applyTier(tier: CampaignTier, first: boolean): void {
   auto.value = false
   dailyBudget.value = tier.dailyBudget.credits
@@ -213,7 +228,12 @@ async function save(): Promise<void> {
     appearFirst: appearFirst.value,
     autoOptimize: auto.value,
   })
-  if (ok) dirty.value = false
+  if (!ok) return
+  dirty.value = false
+  // In onboarding, saving the budget advances to the campaign-activation step.
+  if (inFlow.value) {
+    void router.replace({ name: 'campaign', query: { c: companyId.value, flow: 'onboarding' } })
+  }
 }
 
 watch([dailyBudget, cpc, appearFirst, auto], () => {
@@ -250,12 +270,13 @@ watch(
 
 <template>
   <v-container class="camp">
+    <OnboardingSteps v-if="inFlow" :mode="flowMode" current="budget" class="camp__steps" />
     <header class="camp__head">
       <div>
         <p class="camp__eyebrow">{{ t('campaign.eyebrow') }}</p>
         <h1>{{ t('campaign.title') }}</h1>
       </div>
-      <div class="camp__headActions">
+      <div v-if="!inFlow" class="camp__headActions">
         <v-btn
           variant="text"
           size="small"
@@ -487,11 +508,6 @@ watch(
           </v-btn>
         </div>
 
-        <div v-if="error" class="camp__error">
-          <v-icon icon="mdi-alert-circle-outline" size="16" />
-          {{ errText(error) }}
-        </div>
-
         <p v-if="dirty && configured" class="camp__editnote">
           <v-icon icon="mdi-information-outline" size="15" /> {{ t('campaign.editStopsNote') }}
         </p>
@@ -526,6 +542,9 @@ watch(
 .camp {
   max-width: 640px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
+}
+.camp__steps {
+  margin-bottom: 1.5rem;
 }
 .camp__center {
   display: grid;

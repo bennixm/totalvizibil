@@ -267,6 +267,51 @@ const sectionStyleCss = computed(() => {
   return rules.join('\n')
 })
 
+// --- per-element style overrides -----------------------------------
+// Restyle one element (a heading, a paragraph) without touching the rest of
+// the section. Applied as an inline :style so it always wins over the theme.
+const EL_SIZE_EM: Record<string, string> = { sm: '0.85em', md: '1em', lg: '1.35em', xl: '1.8em' }
+const EL_WEIGHT_N: Record<string, string> = {
+  normal: '400',
+  medium: '500',
+  semibold: '600',
+  bold: '700',
+}
+interface ElOv {
+  color?: string
+  bg?: string
+  size?: string
+  weight?: string
+  align?: string
+}
+function ovStyle(el?: ElOv): Record<string, string> | undefined {
+  if (!el) return undefined
+  const o: Record<string, string> = {}
+  if (el.color && HEX.test(el.color)) o.color = el.color
+  if (el.bg && HEX.test(el.bg)) {
+    o.background = el.bg
+    o.padding = '0.1em 0.35em'
+    o.borderRadius = '0.2em'
+  }
+  if (el.size && EL_SIZE_EM[el.size]) o.fontSize = EL_SIZE_EM[el.size]
+  if (el.weight && EL_WEIGHT_N[el.weight]) o.fontWeight = EL_WEIGHT_N[el.weight]
+  if (el.align) o.textAlign = el.align
+  return Object.keys(o).length ? o : undefined
+}
+function secOv(s: Section): Record<string, ElOv> {
+  return (s as { overrides?: Record<string, ElOv> }).overrides ?? {}
+}
+/** Override for a section's heading element (`title` or `headline`). */
+function hOv(s: Section): Record<string, string> | undefined {
+  const ov = secOv(s)
+  return ovStyle(ov.title ?? ov.headline)
+}
+/** Override for a section's lead / body element. */
+function bOv(s: Section): Record<string, string> | undefined {
+  const ov = secOv(s)
+  return ovStyle(ov.subheadline ?? ov.body ?? ov.text ?? ov.lead ?? ov.intro)
+}
+
 /** Interactive tab index per `tabs` section (keyed by section id). */
 const tabState = reactive<Record<string, number>>({})
 function tabIdx(id: string): number {
@@ -655,7 +700,7 @@ watch(
         class="site__bar"
         :class="{ 'site__bar--open': navOpen }"
       >
-        <span class="site__brand">
+        <span v-if="navCfg.logo !== 'hide'" class="site__brand">
           <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="site__logo" />
           <template v-else>{{ brandName }}</template>
         </span>
@@ -674,6 +719,14 @@ watch(
             {{ a.label }}
           </button>
         </nav>
+        <button
+          v-if="navCfg.cta"
+          type="button"
+          class="site__bar-cta btn btn--solid"
+          @click="chromeCtaGo()"
+        >
+          {{ navCfg.cta.label }}
+        </button>
         <span class="site__prog" aria-hidden="true" />
       </header>
 
@@ -701,8 +754,8 @@ watch(
           <span v-if="!f(s, 'backgroundImage')" class="s--hero__aura" aria-hidden="true" />
           <div class="s--hero__in">
             <p class="s--hero__eyebrow">{{ page?.title }}</p>
-            <h1>{{ f(s, 'headline') }}</h1>
-            <p v-if="f(s, 'subheadline')" class="s--hero__sub">{{ f(s, 'subheadline') }}</p>
+            <h1 :style="hOv(s)">{{ f(s, 'headline') }}</h1>
+            <p v-if="f(s, 'subheadline')" class="s--hero__sub" :style="bOv(s)">{{ f(s, 'subheadline') }}</p>
             <div class="s--hero__cta">
               <button type="button" class="btn btn--solid" @click="ctaClick(s, goToContact)">
                 {{ f(s, 'primaryCta') }}
@@ -730,8 +783,8 @@ watch(
         <!-- ABOUT -->
         <section v-else-if="s.type === 'about'" :id="s.id" class="s s--about" :class="vclass(s)">
           <div class="s--about__in">
-            <p class="s--about__eyebrow">{{ f(s, 'title') }}</p>
-            <p class="s--about__body">{{ f(s, 'body') }}</p>
+            <p class="s--about__eyebrow" :style="hOv(s)">{{ f(s, 'title') }}</p>
+            <p class="s--about__body" :style="bOv(s)">{{ f(s, 'body') }}</p>
           </div>
           <div v-if="f(s, 'imageUrl')" class="s--about__img">
             <img :src="f(s, 'imageUrl')" alt="" loading="lazy" />
@@ -740,7 +793,7 @@ watch(
 
         <!-- STATS / NUMBERS BAND -->
         <section v-else-if="s.type === 'stats'" :id="s.id" class="s s--stats" :class="vclass(s)">
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="stats">
             <div v-for="(item, i) in f(s, 'items')" :key="i" class="stat">
               <span class="stat__v">{{ item.value }}</span>
@@ -751,7 +804,7 @@ watch(
 
         <!-- PROCESS / HOW WE WORK -->
         <section v-else-if="s.type === 'process'" :id="s.id" class="s s--process">
-          <h2 class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <ol class="proc">
             <li v-for="(item, i) in f(s, 'items')" :key="i" class="proc__step">
               <span class="proc__n">{{ String(i + 1).padStart(2, '0') }}</span>
@@ -765,7 +818,7 @@ watch(
 
         <!-- SERVICES -->
         <section v-else-if="s.type === 'services'" :id="s.id" class="s s--services" :class="vclass(s)">
-          <h2 class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div v-if="f(s, 'layout') === 'list' || f(s, 'variant') === 'list'" class="slist">
             <div v-for="(item, i) in f(s, 'items')" :key="i" class="srow">
               <span class="srow__ic">
@@ -792,7 +845,7 @@ watch(
 
         <!-- FEATURES / WHY US -->
         <section v-else-if="s.type === 'features'" :id="s.id" class="s s--feats" :class="vclass(s)">
-          <h2 class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="feats">
             <div v-for="(item, i) in f(s, 'items')" :key="i" class="feat">
               <span class="feat__ic">
@@ -808,7 +861,7 @@ watch(
 
         <!-- GALLERY / PORTFOLIO -->
         <section v-else-if="s.type === 'gallery'" :id="s.id" class="s s--gallery" :class="vclass(s)">
-          <h2 class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="pfolio">
             <figure v-for="(item, i) in f(s, 'items')" :key="i" class="pcard">
               <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.title || ''" loading="lazy" />
@@ -822,7 +875,7 @@ watch(
 
         <!-- TESTIMONIALS -->
         <section v-else-if="s.type === 'testimonials'" :id="s.id" class="s s--quotes" :class="vclass(s)">
-          <h2 class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="quotes">
             <figure v-for="(item, i) in f(s, 'items')" :key="i" class="quote">
               <span class="quote__mark" aria-hidden="true">”</span>
@@ -837,7 +890,7 @@ watch(
 
         <!-- FAQ -->
         <section v-else-if="s.type === 'faq'" :id="s.id" class="s s--faq" :class="vclass(s)">
-          <h2 class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <details v-for="(item, i) in f(s, 'items')" :key="i" class="qa">
             <summary>
               <span>{{ item.q }}</span>
@@ -849,7 +902,7 @@ watch(
 
         <!-- CONTACT -->
         <section v-else-if="s.type === 'contact'" :id="s.id" class="s s--contact">
-          <h2 class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
 
           <div class="ccards">
             <a
@@ -927,7 +980,7 @@ watch(
           class="s s--fsplit"
           :class="vclass(s)"
         >
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div
             v-for="(item, i) in f(s, 'items')"
             :key="i"
@@ -947,7 +1000,7 @@ watch(
 
         <!-- TEAM -->
         <section v-else-if="s.type === 'team'" :id="s.id" class="s s--team" :class="vclass(s)">
-          <h2 class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="team">
             <figure v-for="(m, i) in f(s, 'items')" :key="i" class="tm">
               <span class="tm__ph">
@@ -965,7 +1018,7 @@ watch(
 
         <!-- PRICING -->
         <section v-else-if="s.type === 'pricing'" :id="s.id" class="s s--pricing" :class="vclass(s)">
-          <h2 class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="price">
             <article
               v-for="(p, i) in f(s, 'items')"
@@ -994,7 +1047,7 @@ watch(
 
         <!-- RICH TEXT -->
         <section v-else-if="s.type === 'richText'" :id="s.id" class="s s--rich" :class="vclass(s)">
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="rich">
             <p v-for="(para, i) in String(f(s, 'body') || '').split(/\n{2,}/)" :key="i">{{ para }}</p>
           </div>
@@ -1003,7 +1056,7 @@ watch(
         <!-- CTA -->
         <section v-else-if="s.type === 'cta'" :id="s.id" class="s s--cta" :class="vclass(s)">
           <span class="s--cta__glow" aria-hidden="true" />
-          <h2 class="s__h">{{ f(s, 'headline') }}</h2>
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'headline') }}</h2>
           <button type="button" class="btn btn--solid s--cta__btn" @click="ctaClick(s, goToContact)">
             {{ f(s, 'buttonLabel') }}
           </button>
@@ -1016,7 +1069,7 @@ watch(
           class="s s--mrq"
           :class="[vclass(s), `s--mrq--${f(s, 'speed') || 'normal'}`]"
         >
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="mrq" :class="{ 'mrq--static': editable }">
             <div class="mrq__track">
               <span v-for="(it, i) in marqueeLoop(f(s, 'items'))" :key="i" class="mrq__i">
@@ -1028,7 +1081,7 @@ watch(
 
         <!-- BENTO grid -->
         <section v-else-if="s.type === 'bento'" :id="s.id" class="s s--bento" :class="vclass(s)">
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="bento">
             <article v-for="(it, i) in f(s, 'items')" :key="i" class="bento__c">
               <div
@@ -1046,7 +1099,7 @@ watch(
 
         <!-- TIMELINE -->
         <section v-else-if="s.type === 'timeline'" :id="s.id" class="s s--tl" :class="vclass(s)">
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <ol class="tl">
             <li v-for="(it, i) in f(s, 'items')" :key="i" class="tl__i">
               <span class="tl__dot" aria-hidden="true" />
@@ -1171,7 +1224,7 @@ watch(
           class="s s--highlightsRow"
           :class="vclass(s)"
         >
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="hl">
             <div v-for="(it, i) in f(s, 'items')" :key="i" class="hl__i">
               <v-icon :icon="it.icon || 'mdi-check-circle-outline'" size="24" />
@@ -1201,7 +1254,7 @@ watch(
 
         <!-- VIDEO -->
         <section v-else-if="s.type === 'video'" :id="s.id" class="s s--video" :class="vclass(s)">
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div
             class="vid"
             :class="{ 'vid--photo': !!f(s, 'posterImage'), 'vid--live': !!f(s, 'videoUrl') || editable }"
@@ -1263,7 +1316,7 @@ watch(
           class="s s--beforeAfter"
           :class="vclass(s)"
         >
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="ba">
             <figure class="ba__c">
               <img v-if="f(s, 'beforeImage')" :src="f(s, 'beforeImage')" alt="" loading="lazy" />
@@ -1280,7 +1333,7 @@ watch(
 
         <!-- TABS -->
         <section v-else-if="s.type === 'tabs'" :id="s.id" class="s s--tabs" :class="vclass(s)">
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="tabx">
             <div class="tabx__bar" role="tablist">
               <button
@@ -1316,7 +1369,7 @@ watch(
 
         <!-- OPENING HOURS -->
         <section v-else-if="s.type === 'hours'" :id="s.id" class="s s--hours" :class="vclass(s)">
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <table class="hrs">
             <tbody>
               <tr v-for="(it, i) in f(s, 'items')" :key="i">
@@ -1345,7 +1398,7 @@ watch(
           </div>
           <div class="cse__body">
             <p v-if="f(s, 'client')" class="cse__client">{{ f(s, 'client') }}</p>
-            <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+            <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
             <div v-if="f(s, 'challenge')" class="cse__row"><span>01</span><p>{{ f(s, 'challenge') }}</p></div>
             <div v-if="f(s, 'solution')" class="cse__row"><span>02</span><p>{{ f(s, 'solution') }}</p></div>
             <div v-if="f(s, 'result')" class="cse__row"><span>03</span><p>{{ f(s, 'result') }}</p></div>
@@ -1359,7 +1412,7 @@ watch(
           class="s s--splitCta"
           :class="vclass(s)"
         >
-          <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+          <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div class="scta">
             <article v-for="(it, i) in f(s, 'items')" :key="i" class="scta__c">
               <h3>{{ it.title }}</h3>
@@ -1384,7 +1437,7 @@ watch(
           :class="vclass(s)"
         >
           <div class="news">
-            <h2 v-if="f(s, 'title')" class="s__h">{{ f(s, 'title') }}</h2>
+            <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
             <p v-if="f(s, 'text')" class="news__t">{{ f(s, 'text') }}</p>
             <form
               v-if="nlStatus(s.id) !== 'sent'"
@@ -1766,6 +1819,17 @@ watch(
   color: var(--site-ink);
   background: color-mix(in srgb, var(--site-ink) 6%, transparent);
 }
+.site__bar-cta {
+  flex: 0 0 auto;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: var(--site-body);
+  color: var(--site-accent-ink);
+  background: var(--site-accent);
+  white-space: nowrap;
+}
 
 /* --- responsive one-page nav (collapses inside the site container) --- */
 @container (max-width: 600px) {
@@ -1788,6 +1852,11 @@ watch(
   .site__burger {
     order: 2;
     display: grid;
+  }
+  .site__bar-cta {
+    order: 4;
+    flex-basis: 100%;
+    margin-top: 0.5rem;
   }
   .site__links {
     order: 3;

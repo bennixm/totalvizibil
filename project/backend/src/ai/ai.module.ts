@@ -3,7 +3,9 @@ import { DeepseekService } from './deepseek.service';
 
 /**
  * AI integrations. Global so any feature can inject the client without wiring
- * an import; there is only one call site today (the Simple-site builder).
+ * an import. `DeepseekService` is the (historically named) AI client — it now
+ * talks to Claude with a DeepSeek fallback; call sites are the two website
+ * builders.
  */
 @Global()
 @Module({

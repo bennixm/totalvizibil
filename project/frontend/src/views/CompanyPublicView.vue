@@ -10,6 +10,7 @@ import { useSeo } from '@/composables/useSeo'
 import { companyCrumbs, companyRoute } from '@/services/routes'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 import type { LocalizedName } from '@/stores/companies'
+import { useToastStore } from '@/stores/toast'
 
 interface PublicCompany {
   id: string
@@ -39,11 +40,11 @@ const props = defineProps<{ crumbs: string[] }>()
 
 const { t, locale } = useI18n()
 const router = useRouter()
+const toasts = useToastStore()
 
 const company = ref<PublicCompany | null>(null)
 const loading = ref(true)
 const notFound = ref(false)
-const leadSent = ref(false)
 
 /** The company slug is always the LAST crumb (`BrowseView` resolved the rest). */
 const slug = computed(() => props.crumbs[props.crumbs.length - 1] ?? '')
@@ -216,7 +217,7 @@ useSeo(() => {
           :content="company.website.content"
           :theme="company.website.theme"
           :lead-slug="company.slug"
-          @lead-sent="leadSent = true"
+          @lead-sent="toasts.success(t('company.leadSent'))"
         />
       </div>
 
@@ -252,9 +253,6 @@ useSeo(() => {
       </div>
     </template>
 
-    <v-snackbar v-model="leadSent" :timeout="4000" color="success" location="bottom">
-      {{ t('company.leadSent') }}
-    </v-snackbar>
   </div>
 </template>
 

@@ -2,10 +2,11 @@ import { WebsiteDraft } from '@prisma/client';
 import { FREE_MAX_TURNS, TranscriptTurn } from './website-draft.script';
 import { EasyAnswers, effectiveToggles, templateKey } from './easy-compose';
 
-/** The subset of the guided answers the studio widgets prefill from. */
-function easyBlock(d: WebsiteDraft) {
-  if (d.mode !== 'easy') return null;
-  const a = ((d.answers as unknown as EasyAnswers) ?? {}) as EasyAnswers;
+/**
+ * The subset of the guided answers the studio widgets prefill from. Shared by
+ * the anonymous draft view and the post-claim simple-site editor.
+ */
+export function easyBlock(a: EasyAnswers) {
   const tog = effectiveToggles(a);
   return {
     companyName: a.companyName ?? '',
@@ -35,6 +36,12 @@ function easyBlock(d: WebsiteDraft) {
     ctaButton: a.ctaButton ?? '',
     showCta: tog.showCta,
     hours: a.hours ?? '',
+    navShowLogo: a.navShowLogo !== false,
+    navCtaLabel: a.navCtaLabel ?? '',
+    navCtaTarget: a.navCtaTarget ?? '',
+    footerTagline: a.footerTagline ?? '',
+    footerShowContact: a.footerShowContact !== false,
+    footerSocials: a.footerSocials ?? [],
     template: templateKey(a.template),
     autoGrammar: a.autoGrammar === true,
     locale: a.locale ?? 'ro',
@@ -61,7 +68,10 @@ export function toDraftView(d: WebsiteDraft) {
     content: (d.content as unknown) ?? null,
     generator: d.generator ?? null,
     ready: d.content != null,
-    easy: easyBlock(d),
+    easy:
+      d.mode === 'easy'
+        ? easyBlock(((d.answers as unknown as EasyAnswers) ?? {}) as EasyAnswers)
+        : null,
     categorySlug: d.categorySlug ?? null,
     location:
       d.locationNationwide || (d.locationCity && d.locationLat != null && d.locationLng != null)

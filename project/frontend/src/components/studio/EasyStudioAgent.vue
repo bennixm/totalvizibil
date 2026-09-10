@@ -5,7 +5,10 @@ import { storeToRefs } from 'pinia'
 
 import AiAvatar from '@/components/studio/AiAvatar.vue'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
+import { useEasySiteStore } from '@/stores/easySite'
+import { useToastStore } from '@/stores/toast'
 import type {
+  DraftIssue,
   DraftTurn,
   EasyFaq,
   EasyProcessStep,
@@ -18,7 +21,18 @@ import type {
 import { pickServiceIcon } from '@/utils/serviceIcon'
 
 const { t } = useI18n()
-const store = useWebsiteDraftStore()
+
+/**
+ * `standalone` swaps the anonymous-draft store for the claimed-site editor store
+ * (`useEasySiteStore`), which reports `step: 'done'` so only the full editor —
+ * the same widgets as setup — renders. The left agent stage, the chat log/input,
+ * the guided-step tools and the end-of-setup review are hidden.
+ */
+const props = withDefaults(defineProps<{ standalone?: boolean }>(), { standalone: false })
+
+const store = (
+  props.standalone ? useEasySiteStore() : useWebsiteDraftStore()
+) as unknown as ReturnType<typeof useWebsiteDraftStore>
 const { draft, sending, error } = storeToRefs(store)
 
 const STEPS: EasyStep[] = [
@@ -56,6 +70,11 @@ const errorText = computed(() => {
   return t('studio.loadError')
 })
 
+const toasts = useToastStore()
+watch(error, (v) => {
+  if (v) toasts.error(errorText.value)
+})
+
 // --- template picker -------------------------------------------------
 const template = computed<EasyTemplate>(() => easy.value?.template ?? 'classic')
 function pickTemplate(k: EasyTemplate): void {
@@ -72,33 +91,30 @@ function showAv(i: number): boolean {
   return turn?.role === 'assistant' && transcript.value[i - 1]?.role !== 'assistant'
 }
 
-// --- grammar proofreading -------------------------------------------------
-const grammarOn = computed(() => easy.value?.autoGrammar === true)
-const fixing = ref<string | null>(null)
-const fixed = ref<string | null>(null)
-async function proof(key: string, value: string): Promise<string> {
-  if (!grammarOn.value || !value.trim()) return value
-  fixing.value = key
+// --- end-of-setup AI text review ----------------------------------------
+// Replaces the old manual "grammar" toggle: one pass at the end that checks the
+// owner's texts for meaning, grammar, vulgar language and other problems. It
+// auto-applies grammar fixes on the server; the rest is shown here to fix.
+const reviewing = ref(false)
+const reviewIssues = ref<DraftIssue[] | null>(null)
+async function runReview(): Promise<void> {
+  if (reviewing.value) return
+  reviewing.value = true
   try {
-    const out = await store.proofread(value)
-    if (out.trim() && out !== value) {
-      fixed.value = key
-      window.setTimeout(() => {
-        if (fixed.value === key) fixed.value = null
-      }, 2200)
-    }
-    return out
+    reviewIssues.value = await store.reviewDraft()
   } finally {
-    if (fixing.value === key) fixing.value = null
+    reviewing.value = false
   }
-}
-function toggleGrammar(): void {
-  void store.patchEasy({ autoGrammar: !grammarOn.value })
 }
 
 // --- chat input --------------------------------------------------------
 const chatDraft = ref('')
-const showChat = computed(() => step.value !== 'done')
+// Pure choice / upload steps: the visitor picks from the widgets, no free-text
+// chat (typing there did nothing anyway).
+const NO_CHAT_STEPS: EasyStep[] = ['template', 'color', 'portfolio']
+const showChat = computed(
+  () => step.value !== 'done' && !NO_CHAT_STEPS.includes(step.value),
+)
 const chatPlaceholder = computed(() => {
   const k = `studio.ph.${step.value}`
   const s = t(k)
@@ -199,8 +215,7 @@ function onTitleInput(): void {
   clearTimeout(titleTimer)
   titleTimer = setTimeout(() => void store.patchEasy({ landingTitle: landingTitle.value }), 250)
 }
-async function onTitleBlur(): Promise<void> {
-  landingTitle.value = await proof('landingTitle', landingTitle.value)
+function onTitleBlur(): void {
   void store.patchEasy({ landingTitle: landingTitle.value })
 }
 
@@ -230,11 +245,9 @@ function onDrop(i: number): void {
   services.value = list
   void store.patchEasy({ services: list })
 }
-async function saveDesc(i: number): Promise<void> {
+function saveDesc(i: number): void {
   editDesc.value = null
-  const item = services.value[i]
-  if (!item) return
-  item.description = await proof(`svc${i}`, item.description)
+  if (!services.value[i]) return
   void store.patchEasy({ services: services.value })
 }
 function regenServices(): void {
@@ -268,8 +281,7 @@ watch(
     if (document.activeElement?.getAttribute('data-f') !== 'about') aboutText.value = v || ''
   },
 )
-async function saveAbout(): Promise<void> {
-  aboutText.value = await proof('about', aboutText.value)
+function saveAbout(): void {
   void store.patchEasy({ about: aboutText.value })
 }
 function resetAbout(): void {
@@ -328,9 +340,7 @@ function removeStep(i: number): void {
   processSteps.value.splice(i, 1)
   patchProcess()
 }
-async function blurStepText(i: number): Promise<void> {
-  const it = processSteps.value[i]
-  if (it) it.text = await proof(`ps${i}`, it.text ?? '')
+function blurStepText(): void {
   patchProcess()
 }
 
@@ -365,8 +375,7 @@ function removeWhy(i: number): void {
   whyUs.value.splice(i, 1)
   patchWhy()
 }
-async function blurWhy(i: number): Promise<void> {
-  whyUs.value[i] = await proof(`why${i}`, whyUs.value[i] ?? '')
+function blurWhy(): void {
   patchWhy()
 }
 
@@ -395,9 +404,7 @@ function removeTesti(i: number): void {
   testimonials.value.splice(i, 1)
   patchTesti()
 }
-async function blurTestiQuote(i: number): Promise<void> {
-  const it = testimonials.value[i]
-  if (it) it.quote = await proof(`tq${i}`, it.quote)
+function blurTestiQuote(): void {
   patchTesti()
 }
 
@@ -424,9 +431,7 @@ function removeFaq(i: number): void {
   faq.value.splice(i, 1)
   patchFaq()
 }
-async function blurFaqA(i: number): Promise<void> {
-  const it = faq.value[i]
-  if (it) it.a = await proof(`fa${i}`, it.a)
+function blurFaqA(): void {
   patchFaq()
 }
 
@@ -443,17 +448,77 @@ watch(
 function saveCta(): void {
   void store.patchEasy({ ctaHeadline: cta.headline.trim(), ctaButton: cta.button.trim() })
 }
-async function blurCtaH(): Promise<void> {
-  cta.headline = await proof('ctaH', cta.headline)
+function blurCtaH(): void {
   saveCta()
 }
 
 // section visibility toggles
 function toggleSection(
-  key: 'showAbout' | 'showStats' | 'showWhyUs' | 'showProcess' | 'showCta',
+  key:
+    | 'showAbout'
+    | 'showStats'
+    | 'showWhyUs'
+    | 'showProcess'
+    | 'showCta'
+    | 'navShowLogo'
+    | 'footerShowContact',
 ): void {
   const cur = easy.value?.[key] !== false
   void store.patchEasy({ [key]: !cur })
+}
+
+// --- navbar + footer chrome --------------------------------------
+const MAX_SOCIALS = 6
+const nav = reactive({ ctaLabel: '', ctaTarget: '' })
+watch(
+  () => [easy.value?.navCtaLabel, easy.value?.navCtaTarget] as const,
+  ([l, tg]) => {
+    if (document.activeElement?.getAttribute('data-f') !== 'navCtaL') nav.ctaLabel = l || ''
+    if (document.activeElement?.getAttribute('data-f') !== 'navCtaT') nav.ctaTarget = tg || ''
+  },
+  { immediate: true },
+)
+function saveNavCta(): void {
+  void store.patchEasy({
+    navCtaLabel: nav.ctaLabel.trim(),
+    navCtaTarget: nav.ctaTarget.trim(),
+  })
+}
+
+const footerTagline = ref(easy.value?.footerTagline || '')
+watch(
+  () => easy.value?.footerTagline,
+  (v) => {
+    if (document.activeElement?.getAttribute('data-f') !== 'footTag') footerTagline.value = v || ''
+  },
+)
+function saveFooterTagline(): void {
+  void store.patchEasy({ footerTagline: footerTagline.value.trim() })
+}
+
+const socials = ref<{ label: string; url: string }[]>([])
+watch(
+  () => easy.value?.footerSocials,
+  (v) => {
+    if (!document.activeElement?.getAttribute('data-grp')) {
+      socials.value = (v ?? []).map((s) => ({ ...s }))
+    }
+  },
+  { immediate: true, deep: true },
+)
+function patchSocials(): void {
+  void store.patchEasy({
+    footerSocials: socials.value
+      .map((s) => ({ label: s.label.trim(), url: s.url.trim() }))
+      .filter((s) => s.label && s.url),
+  })
+}
+function addSocial(): void {
+  if (socials.value.length < MAX_SOCIALS) socials.value.push({ label: '', url: '' })
+}
+function removeSocial(i: number): void {
+  socials.value.splice(i, 1)
+  patchSocials()
 }
 
 // --- log autoscroll -------------------------------------------------
@@ -471,9 +536,9 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
 </script>
 
 <template>
-  <div class="ag">
+  <div class="ag" :class="{ 'ag--solo': props.standalone }">
     <!-- LEFT: the agent, on a stage -->
-    <aside class="ag__stage">
+    <aside v-if="!props.standalone" class="ag__stage">
       <span class="ag__blob ag__blob--1" aria-hidden="true" />
       <span class="ag__blob ag__blob--2" aria-hidden="true" />
       <div class="ag__stageIn">
@@ -496,7 +561,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
     <!-- RIGHT: the conversation -->
     <div class="ag__chat">
       <div ref="log" class="ag__scroll">
-      <div class="ag__log">
+      <div v-if="!props.standalone" class="ag__log">
         <div
           v-for="(turn, i) in transcript"
           :key="i"
@@ -617,7 +682,6 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
 
           <p class="tl">
             {{ t('studio.landingTitleField') }}
-            <span v-if="fixed === 'landingTitle'" class="fx">✓ {{ t('studio.grammarFixed') }}</span>
           </p>
           <input
             v-model="landingTitle"
@@ -719,6 +783,13 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
 
         <!-- done: full editor -->
         <template v-else-if="step === 'done'">
+          <div v-if="!props.standalone" class="ready">
+            <span class="ready__ic"><v-icon icon="mdi-check-decagram" size="22" /></span>
+            <div class="ready__tx">
+              <strong>{{ t('studio.doneTitle') }}</strong>
+              <p>{{ t('studio.readySub') }}</p>
+            </div>
+          </div>
           <p class="tl">{{ t('studio.editTitle') }}</p>
 
           <div class="ed">
@@ -761,7 +832,6 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
           <div class="ed">
             <span class="ed__k">
               {{ t('studio.landingTitleField') }}
-              <span v-if="fixed === 'landingTitle'" class="fx">✓</span>
             </span>
             <input v-model="landingTitle" class="fld" type="text" data-f="landingTitle" maxlength="120" @input="onTitleInput" @blur="onTitleBlur" />
           </div>
@@ -791,7 +861,6 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
               <button class="tog" type="button" :class="{ 'is-on': easy?.showAbout }" @click="toggleSection('showAbout')">
                 {{ easy?.showAbout ? t('studio.on') : t('studio.off') }}
               </button>
-              <span v-if="fixed === 'about'" class="fx">✓</span>
             </span>
             <textarea
               v-model="aboutText"
@@ -902,7 +971,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
                   rows="2"
                   data-grp="proc"
                   :placeholder="t('studio.processText')"
-                  @blur="blurStepText(i)"
+                  @blur="blurStepText()"
                 />
                 <button class="del" type="button" @click="removeStep(i)"><v-icon icon="mdi-close" size="14" /></button>
               </div>
@@ -928,7 +997,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
                 data-grp="why"
                 maxlength="90"
                 :placeholder="t('studio.whyPlaceholder')"
-                @blur="blurWhy(i)"
+                @blur="blurWhy()"
               />
               <button class="del" type="button" @click="removeWhy(i)"><v-icon icon="mdi-close" size="14" /></button>
             </div>
@@ -966,7 +1035,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
                 rows="2"
                 data-grp="tes"
                 :placeholder="t('studio.testiQuote')"
-                @blur="blurTestiQuote(i)"
+                @blur="blurTestiQuote()"
               />
               <div class="lrow">
                 <input
@@ -1006,7 +1075,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
                   rows="2"
                   data-grp="faq"
                   :placeholder="t('studio.faqA')"
-                  @blur="blurFaqA(i)"
+                  @blur="blurFaqA()"
                 />
                 <button class="del" type="button" @click="removeFaq(i)"><v-icon icon="mdi-close" size="14" /></button>
               </div>
@@ -1023,7 +1092,6 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
               <button class="tog" type="button" :class="{ 'is-on': easy?.showCta }" @click="toggleSection('showCta')">
                 {{ easy?.showCta ? t('studio.on') : t('studio.off') }}
               </button>
-              <span v-if="fixed === 'ctaH'" class="fx">✓</span>
             </span>
             <input v-model="cta.headline" class="fld" type="text" data-f="ctaH" maxlength="120" :placeholder="t('studio.ctaHeadline')" @blur="blurCtaH" />
             <input v-model="cta.button" class="fld" type="text" data-f="ctaB" maxlength="40" :placeholder="t('studio.ctaButton')" @blur="saveCta" />
@@ -1037,19 +1105,100 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
             <input v-model="hours" class="fld" type="text" data-f="hours" maxlength="120" :placeholder="t('studio.hoursPlaceholder')" @blur="saveHours" />
           </div>
 
+          <!-- Navbar -->
+          <div class="ed">
+            <span class="ed__k">
+              {{ t('studio.navTool') }}
+              <button
+                class="tog"
+                type="button"
+                :class="{ 'is-on': easy?.navShowLogo !== false }"
+                @click="toggleSection('navShowLogo')"
+              >
+                {{ easy?.navShowLogo !== false ? t('studio.navLogoOn') : t('studio.navLogoOff') }}
+              </button>
+            </span>
+            <input
+              v-model="nav.ctaLabel"
+              class="fld"
+              type="text"
+              data-f="navCtaL"
+              maxlength="40"
+              :placeholder="t('studio.navCtaLabel')"
+              @blur="saveNavCta"
+            />
+            <input
+              v-model="nav.ctaTarget"
+              class="fld"
+              type="text"
+              data-f="navCtaT"
+              maxlength="120"
+              :placeholder="t('studio.navCtaTarget')"
+              @blur="saveNavCta"
+            />
+            <p class="minihint">{{ t('studio.navCtaHint') }}</p>
+          </div>
+
+          <!-- Footer -->
+          <div class="ed" data-grp="soc">
+            <span class="ed__k">
+              {{ t('studio.footerTool') }}
+              <button
+                class="tog"
+                type="button"
+                :class="{ 'is-on': easy?.footerShowContact !== false }"
+                @click="toggleSection('footerShowContact')"
+              >
+                {{ easy?.footerShowContact !== false ? t('studio.footerContactOn') : t('studio.footerContactOff') }}
+              </button>
+            </span>
+            <input
+              v-model="footerTagline"
+              class="fld"
+              type="text"
+              data-f="footTag"
+              maxlength="200"
+              :placeholder="t('studio.footerTagline')"
+              @blur="saveFooterTagline"
+            />
+            <div v-for="(_, i) in socials" :key="i" class="lrow">
+              <input
+                v-model="socials[i].label"
+                class="fld fld--stat"
+                type="text"
+                data-grp="soc"
+                maxlength="40"
+                :placeholder="t('studio.socialLabel')"
+                @blur="patchSocials"
+              />
+              <input
+                v-model="socials[i].url"
+                class="fld"
+                type="url"
+                data-grp="soc"
+                maxlength="200"
+                :placeholder="t('studio.socialUrl')"
+                @blur="patchSocials"
+              />
+              <button class="del" type="button" @click="removeSocial(i)">
+                <v-icon icon="mdi-close" size="14" />
+              </button>
+            </div>
+            <button v-if="socials.length < MAX_SOCIALS" class="ghost ghost--xs" type="button" @click="addSocial">
+              <v-icon icon="mdi-plus" size="13" /> {{ t('studio.addSocial') }}
+            </button>
+          </div>
+
           <p v-if="uploadErr" class="uerr">{{ uploadErr }}</p>
         </template>
       </div>
       </div>
 
-      <!-- grammar toggle + input -->
-      <div class="ag__foot">
-        <button class="gram" type="button" :class="{ 'is-on': grammarOn }" @click="toggleGrammar">
-          <v-icon :icon="grammarOn ? 'mdi-spellcheck' : 'mdi-format-letter-case'" size="15" />
-          {{ t('studio.grammarToggle') }}
-          <span class="gram__st">{{ grammarOn ? t('studio.on') : t('studio.off') }}</span>
-          <v-progress-circular v-if="fixing" indeterminate size="12" width="2" />
-        </button>
+      <!-- footer: chat input / pick hint / final review (setup flow only) -->
+      <div v-if="!props.standalone" class="ag__foot">
+        <p v-if="!showChat && step !== 'done'" class="pickhint">
+          <v-icon icon="mdi-gesture-tap" size="14" /> {{ t('studio.pickToContinue') }}
+        </p>
 
         <form v-if="showChat" class="inp" @submit.prevent="sendChat">
           <textarea v-model="chatDraft" rows="1" :placeholder="chatPlaceholder" :disabled="sending" @keydown="onChatKey" />
@@ -1064,6 +1213,31 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
           />
         </form>
 
+        <div v-if="step === 'done'" class="review">
+          <button class="rev" type="button" :disabled="reviewing" @click="runReview">
+            <v-progress-circular v-if="reviewing" indeterminate size="13" width="2" />
+            <v-icon v-else icon="mdi-shield-check-outline" size="15" />
+            {{ reviewing ? t('studio.reviewRunning') : t('studio.reviewCta') }}
+          </button>
+          <template v-if="reviewIssues">
+            <p v-if="!reviewIssues.length" class="rev__ok">
+              <v-icon icon="mdi-check-circle-outline" size="14" /> {{ t('studio.reviewClean') }}
+            </p>
+            <ul v-else class="rev__list">
+              <li
+                v-for="(iss, i) in reviewIssues"
+                :key="i"
+                class="rev__i"
+                :class="`rev__i--${iss.kind}`"
+              >
+                <strong>{{ t('studio.reviewKind.' + iss.kind) }}</strong>
+                <span class="rev__f">{{ iss.label }}</span>
+                <span class="rev__m">{{ iss.message }}</span>
+              </li>
+            </ul>
+          </template>
+        </div>
+
         <div v-if="step === 'done'" class="done">
           <v-btn color="primary" size="small" append-icon="mdi-arrow-right" :to="{ name: 'create-location' }">
             {{ t('studio.continueLocation') }}
@@ -1072,10 +1246,6 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
             <v-icon icon="mdi-restart" size="14" /> {{ t('studio.restart') }}
           </button>
         </div>
-      </div>
-
-      <div v-if="error" class="err">
-        <v-icon icon="mdi-alert-circle-outline" size="16" /> {{ errorText }}
       </div>
     </div>
   </div>
@@ -1096,6 +1266,16 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   background: rgb(var(--v-theme-surface));
   box-shadow: var(--tvz-shadow-sm);
   overflow: hidden;
+}
+
+/* Dashboard editor: no agent stage — the editor column is the whole panel. */
+.ag--solo {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ag--solo .ag__tool:not(:empty) {
+  margin-top: 0;
+  border-top: 0;
+  background: transparent;
 }
 
 /* ---- stage ---- */
@@ -1332,6 +1512,62 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   display: flex;
   gap: 0.4rem;
   align-items: center;
+}
+.minihint {
+  margin: 0.1rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+
+/* "your site is ready" moment at the top of the done editor */
+.ready {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--v-theme-primary), 0.22);
+  background: linear-gradient(
+    120deg,
+    rgba(var(--v-theme-primary), 0.1),
+    rgba(var(--v-theme-primary), 0.02)
+  );
+  animation: readyPop 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ready__ic {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, #6d5cff, #22d3ee);
+}
+.ready__tx strong {
+  display: block;
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 0.95rem;
+}
+.ready__tx p {
+  margin: 0.1rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+@keyframes readyPop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+.cont .v-icon {
+  transition: transform 0.16s ease;
+}
+.cont:hover .v-icon {
+  transform: translateX(3px);
 }
 
 .sws {
@@ -1727,38 +1963,85 @@ textarea.fld {
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
-/* ---- footer: grammar toggle + input ---- */
+/* ---- footer: input / pick hint / final review ---- */
 .ag__foot {
   flex: none;
   border-top: 1px solid var(--tvz-hairline);
 }
-.gram {
+.pickhint {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  width: 100%;
-  padding: 0.5rem 1rem;
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin: 0;
+  padding: 0.6rem 1rem;
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem;
   border-bottom: 1px solid var(--tvz-hairline);
+}
+.rev {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 9px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
   cursor: pointer;
 }
-.gram.is-on {
-  color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.06);
+.rev:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
-.gram__st {
-  margin-left: auto;
-  font-size: 0.64rem;
-  letter-spacing: 0.05em;
+.rev__ok {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgb(var(--v-theme-success));
+}
+.rev__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.rev__i {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-on-surface), 0.05);
+  border-left: 3px solid rgba(var(--v-theme-on-surface), 0.25);
+}
+.rev__i--profanity {
+  border-left-color: rgb(var(--v-theme-error));
+}
+.rev__i--meaning {
+  border-left-color: rgb(var(--v-theme-warning));
+}
+.rev__i strong {
   text-transform: uppercase;
-  padding: 0.1rem 0.4rem;
-  border-radius: 999px;
-  background: rgba(var(--v-theme-on-surface), 0.08);
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
 }
-.gram.is-on .gram__st {
-  background: rgba(var(--v-theme-primary), 0.16);
+.rev__f {
+  font-weight: 600;
+  margin: 0 0.35rem;
+}
+.rev__m {
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
 .inp {
@@ -1981,7 +2264,9 @@ textarea.fld {
   .ag__bar span,
   .msg--new p,
   .msg--typing .dots span,
-  .ag__blob {
+  .ag__blob,
+  .ready,
+  .cont .v-icon {
     transition: none;
     animation: none;
   }

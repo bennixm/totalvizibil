@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { apiFetch, ApiError } from '@/services/api'
 import { useSeo } from '@/composables/useSeo'
+import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
 
@@ -14,6 +15,10 @@ const loading = ref(false)
 const sent = ref(false)
 const devUrl = ref<string | null>(null)
 const error = ref<string | null>(null)
+const toasts = useToastStore()
+watch(error, (v) => {
+  if (v) toasts.error(v)
+})
 
 async function submit() {
   loading.value = true
@@ -48,14 +53,6 @@ async function submit() {
 
           <v-card-text>
             <template v-if="!sent">
-              <v-alert
-                v-if="error"
-                type="error"
-                variant="tonal"
-                density="compact"
-                class="mb-4"
-                :text="error"
-              />
               <v-form @submit.prevent="submit">
                 <v-text-field
                   v-model="email"

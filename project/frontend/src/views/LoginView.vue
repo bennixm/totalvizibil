@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import { ApiError } from '@/services/api'
 import { useSeo } from '@/composables/useSeo'
+import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -20,6 +21,10 @@ const totpCode = ref('')
 const needsTotp = ref(false)
 const loading = ref(false)
 const error = ref<string | null>(null)
+const toasts = useToastStore()
+watch(error, (v) => {
+  if (v) toasts.error(v)
+})
 
 async function submit() {
   loading.value = true
@@ -64,14 +69,6 @@ async function submit() {
             </v-card-subtitle>
           </v-card-item>
           <v-card-text>
-            <v-alert
-              v-if="error"
-              type="error"
-              variant="tonal"
-              density="compact"
-              class="mb-4"
-              :text="error"
-            />
             <v-form @submit.prevent="submit">
               <template v-if="!needsTotp">
                 <v-text-field

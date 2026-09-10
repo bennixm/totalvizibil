@@ -38,4 +38,26 @@ export class GeoService {
     if (!hit) throw new NotFoundException('Unknown city');
     return hit.city;
   }
+
+  /**
+   * The known city closest to a point — used when the location pin is dragged /
+   * clicked on the map so the city input reflects the new position.
+   */
+  nearestCity(lat: number, lng: number): RoCity {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new NotFoundException('Invalid coordinates');
+    }
+    let best = RO_CITIES[0] as RoCity;
+    let bestD = Number.POSITIVE_INFINITY;
+    for (const c of RO_CITIES) {
+      const dLat = c.lat - lat;
+      const dLng = (c.lng - lng) * Math.cos((lat * Math.PI) / 180);
+      const d = dLat * dLat + dLng * dLng; // squared, monotonic — no sqrt needed
+      if (d < bestD) {
+        bestD = d;
+        best = c as RoCity;
+      }
+    }
+    return best;
+  }
 }

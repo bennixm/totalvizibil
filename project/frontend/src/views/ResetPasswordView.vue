@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import { apiFetch, ApiError } from '@/services/api'
 import { useSeo } from '@/composables/useSeo'
+import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -18,6 +19,10 @@ const confirm = ref('')
 const loading = ref(false)
 const done = ref(false)
 const error = ref<string | null>(null)
+const toasts = useToastStore()
+watch(error, (v) => {
+  if (v) toasts.error(v)
+})
 
 const mismatch = computed(() => confirm.value.length > 0 && password.value !== confirm.value)
 const canSubmit = computed(
@@ -73,14 +78,6 @@ async function submit() {
               :text="t('reset.doneText')"
             />
             <template v-else>
-              <v-alert
-                v-if="error"
-                type="error"
-                variant="tonal"
-                density="compact"
-                class="mb-4"
-                :text="error"
-              />
               <v-form @submit.prevent="submit">
                 <v-text-field
                   v-model="password"

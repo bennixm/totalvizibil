@@ -7,15 +7,23 @@ import { WebsiteBuilderController } from './builder/website-builder.controller';
 import { WebsiteBuilderService } from './builder/website-builder.service';
 import { WebsiteAssetController } from './assets/website-asset.controller';
 import { WebsiteAssetService } from './assets/website-asset.service';
+import { EasySiteController } from './easy-site/easy-site.controller';
+import { EasySiteService } from './easy-site/easy-site.service';
 import { RuleBasedWebsiteGenerator } from './website-generator';
 
 @Module({
   imports: [AuthModule, WalletModule],
-  controllers: [WebsiteDraftController, WebsiteBuilderController, WebsiteAssetController],
+  controllers: [
+    WebsiteDraftController,
+    WebsiteBuilderController,
+    WebsiteAssetController,
+    EasySiteController,
+  ],
   providers: [
     WebsiteDraftService,
     WebsiteBuilderService,
     WebsiteAssetService,
+    EasySiteService,
     RuleBasedWebsiteGenerator,
   ],
   exports: [RuleBasedWebsiteGenerator, WebsiteDraftService, WebsiteBuilderService],

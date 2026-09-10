@@ -11,7 +11,8 @@
     "back": "Zurück",
     "search": "Suchen",
     "learnMore": "Mehr erfahren",
-    "moreInfo": "Mehr Infos"
+    "moreInfo": "Mehr Infos",
+    "close": "Schließen"
   },
   "nav": {
     "discover": "Entdecken",
@@ -146,6 +147,7 @@
     "portfolioTool": "Portfolio",
     "portfolioCount": "{n}/10 Bilder",
     "editTitle": "Feinschliff für deine Seite",
+    "readySub": "Alles ist generiert. Feile unten an Texten und Bildern, dann weiter.",
     "contactTool": "Kontaktdaten",
     "contactPhone": "Telefon",
     "contactEmail": "E-Mail",
@@ -187,8 +189,16 @@
     "agentPersona": "Andrei",
     "agentRole": "KI-Guide",
     "thinking": "schreibt…",
-    "grammarToggle": "Grammatik korrigieren",
-    "grammarFixed": "korrigiert",
+    "pickToContinue": "Wähle oben eine Option und klicke dann auf „Weiter“.",
+    "reviewCta": "Texte mit KI prüfen",
+    "reviewRunning": "Wird geprüft…",
+    "reviewClean": "Die Texte sehen gut aus.",
+    "reviewKind": {
+      "meaning": "Sinn",
+      "grammar": "Grammatik",
+      "profanity": "Vulgäre Sprache",
+      "other": "Anderes Problem"
+    },
     "on": "An",
     "off": "Aus",
     "aboutTool": "Über uns",
@@ -229,6 +239,19 @@
     "processText": "Details (optional)",
     "addStep": "Schritt hinzufügen",
     "hoursPlaceholder": "z. B. Mo–Fr 9–18 Uhr",
+    "navTool": "Obere Leiste (Navbar)",
+    "navLogoOn": "Name/Logo: sichtbar",
+    "navLogoOff": "Name/Logo: ausgeblendet",
+    "navCtaLabel": "Button-Text (optional), z. B. Angebot anfragen",
+    "navCtaTarget": "Button-Ziel: contact, services oder ein Link",
+    "navCtaHint": "Leer lassen, um den Button auszublenden. „contact“ springt zum Kontaktbereich.",
+    "footerTool": "Fußbereich (Footer)",
+    "footerContactOn": "Kontaktdaten: sichtbar",
+    "footerContactOff": "Kontaktdaten: ausgeblendet",
+    "footerTagline": "Kurzer Text unter dem Namen (optional)",
+    "socialLabel": "Netzwerk (z. B. Facebook)",
+    "socialUrl": "https://…",
+    "addSocial": "Social-Link hinzufügen",
     "rateLimited": "Zu viele Versuche in kurzer Zeit. Warte ein paar Minuten und versuche es erneut.",
     "retry": "Erneut versuchen",
     "logoTitle": "Logo (optional)",
@@ -236,7 +259,7 @@
     "logoChange": "Ändern"
   },
   "location": {
-    "eyebrow": "Schritt 2 · Standort",
+    "eyebrow": "Schritt 3 · Standort",
     "title": "Wo arbeiten Sie?",
     "lead": "Wählen Sie Ihre Stadt und den abgedeckten Radius. Dieser Bereich bestimmt, wo Ihr Unternehmen im Feed erscheinen kann.",
     "cityLabel": "Stadt",
@@ -262,10 +285,11 @@
     "categoryHint": "Wähle die genaue Nische deiner Leistungen — darüber finden dich Kunden im Feed.",
     "categoryAll": "Alle Leistungen in {group}",
     "categorySection": "Was bietest du an?",
-    "areaSection": "Einzugsgebiet"
+    "areaSection": "Einzugsgebiet",
+    "nationwideOptionHint": "landesweit"
   },
   "claim": {
-    "eyebrow": "Schritt 3 · Konto",
+    "eyebrow": "Schritt 4 · Konto",
     "title": "Konto erstellen",
     "lead": "Speichern Sie „{business}“ und veröffentlichen Sie es, wenn Sie bereit sind.",
     "yourBusiness": "Ihr Unternehmen",
@@ -289,6 +313,21 @@
       "wallet_blocked": "Das gewählte Wallet ist gesperrt. Sie können nicht daraus bezahlen."
     },
     "walletBalance": "Du hast {credits} Credits im Wallet."
+  },
+  "easyEditor": {
+    "eyebrow": "Editor für einfache Website",
+    "title": "Website bearbeiten",
+    "back": "Zurück zum Dashboard",
+    "paneEditor": "Bearbeiten",
+    "panePreview": "Vorschau",
+    "loadErrorTitle": "Editor konnte nicht geöffnet werden",
+    "loadErrorText": "Beim Laden der Website ist ein Fehler aufgetreten. Bitte erneut versuchen.",
+    "err": {
+      "not_a_simple_site": "Dieses Unternehmen nutzt den erweiterten Builder, nicht den einfachen Editor.",
+      "forbidden": "Du hast keine Bearbeitungsrechte für dieses Unternehmen.",
+      "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgemerkt — Bearbeiten ist gesperrt.",
+      "rate_limited": "Zu viele Änderungen in kurzer Zeit. Warte ein paar Sekunden."
+    }
   },
   "dashboard": {
     "eyebrow": "Unternehmens-Dashboard",
@@ -465,7 +504,13 @@
     "pauseKeep": "Nein, weiterlaufen lassen",
     "deletionPendingTitle": "Löschung geplant",
     "deletionPendingNote": "Dieses Unternehmen ist zur Löschung vorgesehen — brich die Löschung im Dashboard ab, um die Kampagne wieder zu bearbeiten.",
-    "deletionPendingCta": "Zum Dashboard"
+    "deletionPendingCta": "Zum Dashboard",
+    "launched": {
+      "title": "Deine Kampagne ist aktiv 🎉",
+      "text": "Dein Eintrag erscheint jetzt auf der Startseite deiner Kategorie und Region. Anfragen kommen direkt von Kund:innen.",
+      "viewSite": "Website ansehen",
+      "viewFeed": "Im Feed ansehen"
+    }
   },
   "wallet": {
     "eyebrow": "Abrechnung",
@@ -1116,6 +1161,17 @@
       "team": "Tragen Sie echte Team-Namen ein — die KI hat nur Platzhalter gesetzt.",
       "seeded": "Einige Abschnitte nutzen Starttext — prüfe und ersetze ihn."
     },
+    "reviewTitle": "Prüfung der generierten Seite",
+    "reviewSeverity": { "warn": "prüfen", "block": "Problem" },
+    "reviewCheck": {
+      "home_hero": "Die Startseite sollte mit einem Hero-Abschnitt beginnen.",
+      "has_contact": "Die Seite hat keinen Kontaktabschnitt.",
+      "page_depth": "Eine Seite hat zu wenige Abschnitte.",
+      "no_stacked_dups": "Abschnitte gleichen Typs stehen direkt hintereinander.",
+      "no_placeholder_text": "Platzhalter- / Lorem-Ipsum-Text gefunden.",
+      "sections_have_copy": "Ein Abschnitt ist fast leer.",
+      "brief_reflected": "Der Text spiegelt nicht wider, was du angefragt hast."
+    },
     "motionLabel": "Bewegung",
     "animation": "Animation",
     "motion": {
@@ -1192,6 +1248,10 @@
     "allSaved": "Alle Änderungen gespeichert",
     "leaveWarn": "Sie haben nicht gespeicherte Änderungen. Editor trotzdem verlassen?",
     "sectionColors": "Abschnittsfarben",
+    "elementStyles": "Stil pro Element",
+    "elBg": "Hintergrund",
+    "elSize": { "sm": "S", "md": "M", "lg": "L", "xl": "XL" },
+    "elWeight": { "normal": "Leicht", "medium": "Mittel", "semibold": "Halb", "bold": "Fett" },
     "color": {
       "bg": "Hintergrund",
       "text": "Text",
@@ -1502,6 +1562,7 @@
     "eyebrow": "Feed-Promotion",
     "title": "Kampagne",
     "back": "Zurück zum Dashboard",
+    "finishSetup": "Fertigstellen",
     "lead": "Wohin das Budget fließt: Klicks, Kosten, Tempo und wie lange dein Guthaben reicht.",
     "noCampaign": "Noch keine Kampagne",
     "noCampaignHint": "Lege ein Tagesbudget und einen CPC fest, um im Feed zu erscheinen und den Verbrauch hier zu sehen.",
@@ -1944,5 +2005,32 @@
     "adHeadline": "Wirb einen Kunden, erhalte",
     "adHeadlineTail": "Guthaben",
     "adSub": "Teile deinen Link — wenn dein Freund eine Website erstellt und eine Kampagne startet, gehört das Guthaben dir."
+  },
+  "onboarding": {
+    "aria": "Fortschritt der Einrichtung",
+    "step": {
+      "plan": "Plan",
+      "build": "Website",
+      "pitch": "Erweitert",
+      "location": "Gebiet",
+      "account": "Konto",
+      "unlock": "Zahlung",
+      "budget": "Budget",
+      "launch": "Start"
+    }
+  },
+  "unlock": {
+    "title": "Erweiterten Builder freischalten",
+    "lead": "Eine einmalige Gebühr, aus deinem Wallet bezahlt. Danach bearbeitest du manuell so viel du willst, KI-Generierungen sind inklusive.",
+    "pay": "{credits} Cr zahlen und fortfahren",
+    "balance": "Du hast {credits} Cr im Wallet",
+    "short": "Nicht genug Credits — dir fehlen {credits}.",
+    "addCredits": "Credits aufladen",
+    "back": "Zurück",
+    "error": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
+    "err": {
+      "insufficient_credits": "Du hast nicht genug Credits für den erweiterten Builder.",
+      "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgemerkt. Brich das zuerst im Dashboard ab."
+    }
   }
 }

@@ -10,9 +10,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 import TrendChart from '@/components/TrendChart.vue'
+import OnboardingSteps from '@/components/OnboardingSteps.vue'
+import { companyRoute } from '@/services/routes'
 import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
 import { useCampaignStore } from '@/stores/campaign'
+import { useToastStore } from '@/stores/toast'
 
 const { t, n, locale } = useI18n()
 const route = useRoute()
@@ -23,9 +26,22 @@ const money = useMoney()
 const { overview } = storeToRefs(companies)
 const { spend, loading, error } = storeToRefs(campaign)
 
+const toasts = useToastStore()
 const companyId = ref<string | null>(null)
 const busy = ref(false)
 const s = computed(() => spend.value)
+
+// Onboarding context: this page is the flow's final "activate" step. Read only
+// for the progress strip + the first-run success alert — campaign behaviour is
+// unchanged when `flow` is absent.
+const inFlow = computed(() => route.query.flow === 'onboarding')
+const flowMode = computed<'easy' | 'advanced'>(
+  () => overview.value.find((c) => c.id === companyId.value)?.website?.mode ?? 'advanced',
+)
+const siteRoute = computed(() => {
+  const slug = overview.value.find((c) => c.id === companyId.value)?.slug
+  return slug ? companyRoute({ slug }) : null
+})
 // A business scheduled for deletion can't be (re)activated during its grace
 // window (see `campaign.service.ts` `activate()`'s `company_pending_deletion`).
 const pendingDeletion = computed(
@@ -162,7 +178,22 @@ async function loadFor(id: string): Promise<void> {
 async function activate(): Promise<void> {
   if (!companyId.value || busy.value) return
   busy.value = true
-  if (await campaign.activate(companyId.value)) await campaign.loadSpend(companyId.value)
+  // Snapshot before the call: a campaign that's never gone live (no status /
+  // still 'draft', zero banked run time) is being activated for the first time.
+  const firstEver =
+    (s.value?.status == null || s.value?.status === 'draft') &&
+    (s.value?.lifetime?.activeSeconds ?? 0) === 0
+  if (await campaign.activate(companyId.value)) {
+    await campaign.loadSpend(companyId.value)
+    if (firstEver && s.value?.status === 'active') {
+      toasts.success(t('campaign.launched.text'), {
+        timeout: 9000,
+        action: siteRoute.value
+          ? { label: t('campaign.launched.viewSite'), to: siteRoute.value }
+          : undefined,
+      })
+    }
+  }
   busy.value = false
 }
 // Pausing for over 24h drops the banked "run time" (Age Score) back to zero
@@ -196,6 +227,11 @@ async function removeCampaign(): Promise<void> {
   if (ok) void router.push({ name: 'dashboard', query: { c: companyId.value } })
 }
 
+// Last onboarding step: close out the setup and land in the dashboard.
+function finishSetup(): void {
+  void router.push({ name: 'dashboard', query: { c: companyId.value } })
+}
+
 onMounted(async () => {
   await companies.fetchOverview().catch(() => {})
   const id = companies.resolveId(route.query.c)
@@ -217,6 +253,8 @@ watch(
 
 <template>
   <v-container class="ov">
+    <OnboardingSteps v-if="inFlow" :mode="flowMode" current="launch" class="ov__steps" />
+
     <header class="ov__head">
       <div>
         <p class="ov__eyebrow">{{ t('spend.eyebrow') }}</p>
@@ -534,6 +572,19 @@ watch(
           {{ t('spend.deleteBtn') }}
         </v-btn>
       </section>
+
+      <!-- Onboarding only: close the setup and go to the dashboard. -->
+      <div v-if="inFlow" class="ov__finish">
+        <v-btn
+          color="primary"
+          size="large"
+          block
+          append-icon="mdi-check"
+          @click="finishSetup"
+        >
+          {{ t('spend.finishSetup') }}
+        </v-btn>
+      </div>
     </template>
 
     <v-dialog v-model="showDeleteDialog" max-width="420">
@@ -574,6 +625,9 @@ watch(
 .ov {
   max-width: 680px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
+}
+.ov__steps {
+  margin-bottom: 1.5rem;
 }
 .ov__center {
   display: grid;
@@ -769,6 +823,11 @@ watch(
   margin: 0.15rem 0 0;
   font-size: 0.78rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.ov__finish {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--tvz-hairline);
 }
 
 /* Principal info ---------------------------------------------------- */

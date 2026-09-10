@@ -1,6 +1,8 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '../config/env';
+import type { SiteFinding } from '../website/builder/site-audit';
 
 export type AiLocale = 'ro' | 'en' | 'de';
 
@@ -61,9 +63,31 @@ export interface SectionContentInput {
   locale: AiLocale;
 }
 
-const ENDPOINT = 'https://api.deepseek.com/chat/completions';
+/** Simple builder — end-of-setup review of the texts the owner typed. */
+export interface ReviewCopyInput {
+  items: { key: string; label: string; text: string }[];
+  locale: AiLocale;
+}
+export type ReviewIssueKind = 'meaning' | 'grammar' | 'profanity' | 'other';
+export interface ReviewIssue {
+  key: string;
+  kind: ReviewIssueKind;
+  message: string;
+  /** A corrected version — only for `grammar`; the caller may apply it. */
+  fix?: string;
+}
+
+const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions';
 const TIMEOUT_MS = 20_000;
 const PLAN_TIMEOUT_MS = 45_000;
+
+/** Shared knobs for one AI call. `effort` steers Claude, `temperature` DeepSeek. */
+interface CallOpts {
+  maxTokens: number;
+  timeoutMs?: number;
+  effort?: 'low' | 'medium' | 'high';
+  temperature?: number;
+}
 
 /**
  * Parse a JSON object that an LLM produced, tolerating the two things they get
@@ -166,161 +190,156 @@ const PROOFREAD_SYSTEM: Record<AiLocale, string> = {
   de: 'Du korrigierst Rechtschreibung, Grammatik und Zeichensetzung im Deutschen. Behalte Sinn, Ton, Länge und Formatierung. Füge KEINE Inhalte hinzu und entferne keine. Antworte NUR mit dem korrigierten Text, ohne Anführungszeichen, ohne Erklärung.',
 };
 
+const REVIEW_SYSTEM: Record<AiLocale, string> = {
+  ro:
+    'Verifici textele scrise de proprietarul unui site de prezentare. Pentru fiecare intrare (identificată prin "key") semnalezi DOAR problemele reale: ' +
+    '"meaning" = textul nu are sens, e incomplet sau contradictoriu; "grammar" = greșeli de ortografie/gramatică/punctuație; ' +
+    '"profanity" = limbaj vulgar sau ofensator; "other" = altă problemă clară (ex. text de tip lorem ipsum, spam, informații evident false). ' +
+    'Pentru "grammar" dă și un câmp "fix" cu varianta corectată (același sens, aceeași lungime aproximativă). ' +
+    'Ignoră chestiuni de stil sau preferință. Dacă un text e în regulă, nu îl include. ' +
+    'Răspunzi DOAR cu JSON: {"issues":[{"key":"...","kind":"meaning|grammar|profanity|other","message":"explicație scurtă în română","fix":"...opțional..."}]}.',
+  en:
+    'You review the texts a small-business site owner typed. For each entry (identified by "key") flag ONLY real problems: ' +
+    '"meaning" = the text makes no sense, is incomplete or contradictory; "grammar" = spelling/grammar/punctuation errors; ' +
+    '"profanity" = vulgar or offensive language; "other" = another clear problem (e.g. lorem-ipsum placeholder, spam, obviously false claims). ' +
+    'For "grammar" also give a "fix" field with the corrected text (same meaning, roughly the same length). ' +
+    'Ignore matters of style or preference. If an entry is fine, do not include it. ' +
+    'Reply with JSON only: {"issues":[{"key":"...","kind":"meaning|grammar|profanity|other","message":"short explanation","fix":"...optional..."}]}.',
+  de:
+    'Du prüfst die Texte, die ein Inhaber einer Unternehmensseite eingegeben hat. Für jeden Eintrag (per "key" identifiziert) meldest du NUR echte Probleme: ' +
+    '"meaning" = der Text ergibt keinen Sinn, ist unvollständig oder widersprüchlich; "grammar" = Rechtschreib-/Grammatik-/Zeichensetzungsfehler; ' +
+    '"profanity" = vulgäre oder beleidigende Sprache; "other" = ein anderes klares Problem (z. B. Lorem-Ipsum-Platzhalter, Spam, offensichtlich falsche Angaben). ' +
+    'Für "grammar" gib zusätzlich ein Feld "fix" mit dem korrigierten Text (gleicher Sinn, etwa gleiche Länge). ' +
+    'Ignoriere Stil- oder Geschmacksfragen. Ist ein Eintrag in Ordnung, lasse ihn weg. ' +
+    'Antworte NUR mit JSON: {"issues":[{"key":"...","kind":"meaning|grammar|profanity|other","message":"kurze Erklärung","fix":"...optional..."}]}.',
+};
+
 /**
- * DeepSeek client — deliberately tiny. The "Site Simplu" builder makes exactly
- * ONE real AI call: turning a list of service names into `{ name, description }`
- * cards. Everything else in that builder is deterministic JSON guidance.
+ * AI client for the website builders.
  *
- * Modelled on `MailService`: it never throws. Any failure (no key, timeout,
- * non-200, unparseable body) resolves to `null` and the caller falls back to
- * deterministic copy, so the flow always completes.
+ * Provider: **Claude (Anthropic Messages API)** when `ANTHROPIC_API_KEY` is set,
+ * with the legacy **DeepSeek** call kept as a secondary fallback (`DEEPSEEK_API_KEY`).
+ * When neither key is set every method resolves to `null` and the callers fall
+ * back to deterministic copy/plans, so the flow always completes.
+ *
+ * The class name stays `DeepseekService` to keep this migration a swap-in-place —
+ * every call site, method signature, timeout and JSON-repair behaviour is
+ * unchanged. Only the transport moved from DeepSeek to Claude.
  */
 @Injectable()
 export class DeepseekService {
-  private readonly logger = new Logger('Deepseek');
-  private readonly apiKey: string;
+  private readonly logger = new Logger('AiService');
+  private readonly anthropic: Anthropic | null;
+  private readonly anthropicModel: string;
+  private readonly deepseekKey: string;
 
   constructor(config: ConfigService<AppConfig, true>) {
-    this.apiKey = config.get('deepseekApiKey', { infer: true }) ?? '';
+    const anthropicKey = config.get('anthropicApiKey', { infer: true }) ?? '';
+    this.anthropicModel = config.get('anthropicModel', { infer: true }) || 'claude-opus-5';
+    this.deepseekKey = config.get('deepseekApiKey', { infer: true }) ?? '';
+    this.anthropic = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : null;
+
+    if (!this.anthropic && this.deepseekKey) {
+      this.logger.log('ANTHROPIC_API_KEY not set — falling back to the DeepSeek key');
+    } else if (!this.anthropic && !this.deepseekKey) {
+      this.logger.log('No AI key set — builders run on deterministic copy/plans');
+    }
   }
 
+  /** True when any provider is configured (Claude preferred). */
   get configured(): boolean {
-    return this.apiKey.length > 0;
+    return !!this.anthropic || this.deepseekKey.length > 0;
   }
 
-  async serviceCopy(input: ServiceCopyInput): Promise<ServiceCopy[] | null> {
-    const names = input.services
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, 8);
-    if (!names.length) return null;
-    if (!this.configured) {
-      this.logger.log(
-        `[DEV] DEEPSEEK_API_KEY not set — service copy will use the deterministic fallback`,
-      );
-      return null;
-    }
+  // --- transports ------------------------------------------------------
 
-    const prompt = [
-      `${input.locale === 'en' ? 'Business' : input.locale === 'de' ? 'Unternehmen' : 'Firmă'}: ${input.companyName || (input.locale === 'en' ? 'a local business' : input.locale === 'de' ? 'ein lokales Unternehmen' : 'o firmă locală')}`,
-      input.businessType
-        ? `${input.locale === 'en' ? 'Field' : input.locale === 'de' ? 'Branche' : 'Domeniu'}: ${input.businessType}`
-        : '',
-      input.city
-        ? `${input.locale === 'en' ? 'City' : input.locale === 'de' ? 'Stadt' : 'Oraș'}: ${input.city}`
-        : '',
-      `${input.locale === 'en' ? 'Services' : input.locale === 'de' ? 'Leistungen' : 'Servicii'}: ${names.join(', ')}`,
-      '',
-      ASK[input.locale],
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    try {
-      const res = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: SYSTEM[input.locale] },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.7,
-          max_tokens: 900,
-          response_format: { type: 'json_object' },
-        }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-
-      if (!res.ok) {
-        this.logger.warn(`DeepSeek responded ${res.status} — using the deterministic fallback`);
-        return null;
-      }
-
-      const data = (await res.json()) as {
-        choices?: { message?: { content?: string } }[];
-      };
-      const raw = data.choices?.[0]?.message?.content;
-      if (!raw) return null;
-
-      const parsed = JSON.parse(raw) as {
-        services?: { name?: string; description?: string }[];
-      };
-      const out = (parsed.services ?? [])
-        .map((s) => ({
-          name: (s.name ?? '').trim().slice(0, 120),
-          description: (s.description ?? '').trim().slice(0, 280),
-        }))
-        .filter((s) => s.name && s.description);
-      return out.length ? out : null;
-    } catch (err) {
-      this.logger.warn(`DeepSeek call failed: ${err instanceof Error ? err.message : String(err)}`);
-      return null;
-    }
-  }
-
-  /**
-   * Fix spelling / grammar / punctuation in a short prose string, preserving
-   * meaning and length. Returns `null` when unavailable so the caller keeps the
-   * original (a deterministic tidy is applied by the caller regardless).
-   */
-  async proofread(text: string, locale: AiLocale): Promise<string | null> {
-    const src = text.trim();
-    if (src.length < 2 || src.length > 1200) return null;
-    if (!this.configured) return null;
-
-    try {
-      const res = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: PROOFREAD_SYSTEM[locale] ?? PROOFREAD_SYSTEM.ro },
-            { role: 'user', content: src },
-          ],
-          temperature: 0.1,
-          max_tokens: 600,
-        }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      if (!res.ok) {
-        this.logger.warn(`DeepSeek proofread responded ${res.status}`);
-        return null;
-      }
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      const out = data.choices?.[0]?.message?.content?.trim();
-      if (!out) return null;
-      // Strip a wrapping pair of quotes the model sometimes adds.
-      const unquoted = out.replace(/^["'“”](.*)["'“”]$/s, '$1').trim();
-      // Guardrail: reject a "correction" that changed length drastically.
-      if (unquoted.length > src.length * 2 + 40) return null;
-      return unquoted.slice(0, 1200);
-    } catch (err) {
-      this.logger.warn(
-        `DeepSeek proofread failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return null;
-    }
-  }
-
-  /** One OpenAI-compatible chat completion, JSON mode. Returns the parsed object or `null`. */
-  private async chatJson(
+  /** One Claude Messages call → parsed JSON object, or `null` on any failure. */
+  private async anthropicJson(
     system: string,
     user: string,
-    opts: { maxTokens: number; temperature?: number; timeoutMs?: number },
+    opts: CallOpts,
   ): Promise<Record<string, unknown> | null> {
+    if (!this.anthropic) return null;
     try {
-      const res = await fetch(ENDPOINT, {
+      const res = await this.anthropic.messages.create(
+        {
+          model: this.anthropicModel,
+          max_tokens: opts.maxTokens,
+          system,
+          messages: [{ role: 'user', content: user }],
+          ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
+        },
+        { timeout: opts.timeoutMs ?? TIMEOUT_MS },
+      );
+      if (res.stop_reason === 'max_tokens') {
+        this.logger.warn(
+          `Claude hit max_tokens (${opts.maxTokens}) — attempting to repair truncated JSON`,
+        );
+      }
+      const parsed = parseLooseJson(this.textOf(res));
+      if (!parsed) {
+        this.logger.warn('Claude returned unparseable JSON (even after repair)');
+        return null;
+      }
+      return parsed;
+    } catch (err) {
+      this.logger.warn(`Claude call failed: ${this.errMsg(err)}`);
+      return null;
+    }
+  }
+
+  /** One Claude Messages call → plain text, or `null` on any failure. */
+  private async anthropicText(
+    system: string,
+    user: string,
+    opts: CallOpts,
+  ): Promise<string | null> {
+    if (!this.anthropic) return null;
+    try {
+      const res = await this.anthropic.messages.create(
+        {
+          model: this.anthropicModel,
+          max_tokens: opts.maxTokens,
+          system,
+          messages: [{ role: 'user', content: user }],
+          ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
+        },
+        { timeout: opts.timeoutMs ?? TIMEOUT_MS },
+      );
+      const out = this.textOf(res).trim();
+      return out || null;
+    } catch (err) {
+      this.logger.warn(`Claude call failed: ${this.errMsg(err)}`);
+      return null;
+    }
+  }
+
+  private textOf(res: Anthropic.Message): string {
+    return res.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('');
+  }
+
+  private errMsg(err: unknown): string {
+    if (err instanceof Anthropic.APIError) return `${err.status ?? ''} ${err.message}`.trim();
+    return err instanceof Error ? err.message : String(err);
+  }
+
+  /** One DeepSeek chat completion in JSON mode → parsed object, or `null`. */
+  private async deepseekJson(
+    system: string,
+    user: string,
+    opts: CallOpts,
+  ): Promise<Record<string, unknown> | null> {
+    if (!this.deepseekKey) return null;
+    try {
+      const res = await fetch(DEEPSEEK_ENDPOINT, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}` },
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${this.deepseekKey}`,
+        },
         body: JSON.stringify({
           model: 'deepseek-chat',
           messages: [
@@ -354,9 +373,223 @@ export class DeepseekService {
       }
       return parsed;
     } catch (err) {
-      this.logger.warn(`DeepSeek call failed: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.warn(`DeepSeek call failed: ${this.errMsg(err)}`);
       return null;
     }
+  }
+
+  /** One DeepSeek chat completion → plain text, or `null`. */
+  private async deepseekText(system: string, user: string, opts: CallOpts): Promise<string | null> {
+    if (!this.deepseekKey) return null;
+    try {
+      const res = await fetch(DEEPSEEK_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${this.deepseekKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          temperature: opts.temperature ?? 0.2,
+          max_tokens: opts.maxTokens,
+        }),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        this.logger.warn(`DeepSeek responded ${res.status}`);
+        return null;
+      }
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const out = data.choices?.[0]?.message?.content?.trim();
+      return out || null;
+    } catch (err) {
+      this.logger.warn(`DeepSeek call failed: ${this.errMsg(err)}`);
+      return null;
+    }
+  }
+
+  /** Claude first, DeepSeek second. `null` only when both are unavailable/failed. */
+  private async json(
+    system: string,
+    user: string,
+    opts: CallOpts,
+  ): Promise<Record<string, unknown> | null> {
+    return (await this.anthropicJson(system, user, opts)) ?? this.deepseekJson(system, user, opts);
+  }
+
+  private async text(system: string, user: string, opts: CallOpts): Promise<string | null> {
+    return (await this.anthropicText(system, user, opts)) ?? this.deepseekText(system, user, opts);
+  }
+
+  // --- public API (unchanged signatures) -----------------------------
+
+  async serviceCopy(input: ServiceCopyInput): Promise<ServiceCopy[] | null> {
+    const names = input.services
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 8);
+    if (!names.length) return null;
+    if (!this.configured) {
+      this.logger.log('No AI key — service copy will use the deterministic fallback');
+      return null;
+    }
+
+    const prompt = [
+      `${input.locale === 'en' ? 'Business' : input.locale === 'de' ? 'Unternehmen' : 'Firmă'}: ${input.companyName || (input.locale === 'en' ? 'a local business' : input.locale === 'de' ? 'ein lokales Unternehmen' : 'o firmă locală')}`,
+      input.businessType
+        ? `${input.locale === 'en' ? 'Field' : input.locale === 'de' ? 'Branche' : 'Domeniu'}: ${input.businessType}`
+        : '',
+      input.city
+        ? `${input.locale === 'en' ? 'City' : input.locale === 'de' ? 'Stadt' : 'Oraș'}: ${input.city}`
+        : '',
+      `${input.locale === 'en' ? 'Services' : input.locale === 'de' ? 'Leistungen' : 'Servicii'}: ${names.join(', ')}`,
+      '',
+      ASK[input.locale],
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const parsed = (await this.json(SYSTEM[input.locale], prompt, {
+      maxTokens: 900,
+      temperature: 0.7,
+      effort: 'low',
+    })) as { services?: { name?: string; description?: string }[] } | null;
+    if (!parsed) return null;
+
+    const out = (parsed.services ?? [])
+      .map((s) => ({
+        name: (s.name ?? '').trim().slice(0, 120),
+        description: (s.description ?? '').trim().slice(0, 280),
+      }))
+      .filter((s) => s.name && s.description);
+    return out.length ? out : null;
+  }
+
+  /**
+   * Fix spelling / grammar / punctuation in a short prose string, preserving
+   * meaning and length. Returns `null` when unavailable so the caller keeps the
+   * original (a deterministic tidy is applied by the caller regardless).
+   */
+  async proofread(text: string, locale: AiLocale): Promise<string | null> {
+    const src = text.trim();
+    if (src.length < 2 || src.length > 1200) return null;
+    if (!this.configured) return null;
+
+    const out = await this.text(PROOFREAD_SYSTEM[locale] ?? PROOFREAD_SYSTEM.ro, src, {
+      maxTokens: 600,
+      temperature: 0.1,
+      effort: 'low',
+    });
+    if (!out) return null;
+    // Strip a wrapping pair of quotes the model sometimes adds.
+    const unquoted = out.replace(/^["'“”](.*)["'“”]$/s, '$1').trim();
+    // Guardrail: reject a "correction" that changed length drastically.
+    if (unquoted.length > src.length * 2 + 40) return null;
+    return unquoted.slice(0, 1200);
+  }
+
+  /**
+   * Simple builder — one end-of-setup pass over the texts the owner typed.
+   * Flags meaning / grammar / profanity / other problems; `grammar` issues
+   * carry a `fix`. `null` when no provider is configured.
+   */
+  async reviewCopy(input: ReviewCopyInput): Promise<ReviewIssue[] | null> {
+    const items = input.items
+      .map((i) => ({ key: i.key, label: i.label, text: (i.text ?? '').trim() }))
+      .filter((i) => i.key && i.text)
+      .slice(0, 60);
+    if (!items.length) return [];
+    if (!this.configured) return null;
+
+    const lang = LOCALE_NAME[input.locale] ?? 'Romanian';
+    const user =
+      `Language: ${lang}\nEntries to check:\n` +
+      JSON.stringify(
+        items.map((i) => ({ key: i.key, label: i.label, text: i.text.slice(0, 900) })),
+      );
+
+    const parsed = (await this.json(REVIEW_SYSTEM[input.locale] ?? REVIEW_SYSTEM.ro, user, {
+      maxTokens: 2000,
+      temperature: 0.2,
+      effort: 'low',
+    })) as { issues?: unknown[] } | null;
+    if (!parsed) return null;
+
+    const known = new Set(items.map((i) => i.key));
+    const kinds: ReviewIssueKind[] = ['meaning', 'grammar', 'profanity', 'other'];
+    const out: ReviewIssue[] = [];
+    for (const raw of Array.isArray(parsed.issues) ? parsed.issues : []) {
+      const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+      const key = String(o.key ?? '');
+      const kind = kinds.includes(o.kind as ReviewIssueKind)
+        ? (o.kind as ReviewIssueKind)
+        : 'other';
+      const message = String(o.message ?? '')
+        .trim()
+        .slice(0, 240);
+      if (!known.has(key) || !message) continue;
+      const fixRaw = typeof o.fix === 'string' ? o.fix.trim().slice(0, 900) : '';
+      out.push({ key, kind, message, ...(kind === 'grammar' && fixRaw ? { fix: fixRaw } : {}) });
+    }
+    return out.slice(0, 40);
+  }
+
+  /**
+   * Advanced builder — the model's own read of a site it just generated. Given
+   * the brief + a text digest (one line per section), it flags sections that
+   * don't match their type or the brief, contradictory / nonsensical info, and
+   * filler. Advisory only. `null` when no provider is configured.
+   */
+  async reviewSite(input: {
+    brief: string;
+    digest: string;
+    locale: AiLocale;
+  }): Promise<SiteFinding[] | null> {
+    const digest = input.digest.trim();
+    if (!digest) return [];
+    if (!this.configured) return null;
+
+    const lang = LOCALE_NAME[input.locale] ?? 'Romanian';
+    const system =
+      `You review a small-business website an AI just generated. You get the owner's BRIEF and a ` +
+      `text DIGEST of the finished site (one line per section: "type/variant: text"). Flag ONLY ` +
+      `real problems: a section whose content doesn't match its type or the brief; information that ` +
+      `is nonsensical, contradictory or obviously false; a section that is empty or pure filler; a ` +
+      `claim the business could not credibly make. Ignore matters of style, taste or layout. ` +
+      `For each finding give "ref" (page + section, e.g. "Home · pricing"), "severity" ` +
+      `("warn" = should fix, "block" = clearly broken) and a one-line "message" in ${lang}. ` +
+      `If the site is fine, return an empty list. Reply with JSON only: ` +
+      `{"findings":[{"ref":"...","severity":"warn|block","message":"..."}]}.`;
+    const user = `BRIEF: ${input.brief}\n\nDIGEST:\n${digest}`;
+
+    const parsed = (await this.json(system, user, {
+      maxTokens: 1500,
+      temperature: 0.2,
+      effort: 'low',
+    })) as { findings?: unknown[] } | null;
+    if (!parsed) return null;
+
+    const out: SiteFinding[] = [];
+    for (const raw of Array.isArray(parsed.findings) ? parsed.findings : []) {
+      const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+      const message = String(o.message ?? '')
+        .trim()
+        .slice(0, 240);
+      if (!message) continue;
+      out.push({
+        ref:
+          String(o.ref ?? '')
+            .trim()
+            .slice(0, 80) || 'site',
+        severity: o.severity === 'block' ? 'block' : 'warn',
+        message,
+      });
+    }
+    return out.slice(0, 20);
   }
 
   /**
@@ -368,9 +601,7 @@ export class DeepseekService {
    */
   async planWebsite(input: PlanWebsiteInput): Promise<AiSitePlan | null> {
     if (!this.configured) {
-      this.logger.log(
-        '[DEV] DEEPSEEK_API_KEY not set — AI site plan will use the keyword fallback',
-      );
+      this.logger.log('No AI key — AI site plan will use the keyword fallback');
       return null;
     }
     const lang = LOCALE_NAME[input.locale] ?? 'Romanian';
@@ -387,9 +618,12 @@ export class DeepseekService {
     );
     const example =
       !improve && input.skeletonExample
-        ? `\nHere is a solid ${input.archetype ?? ''} structure — ADAPT it to THIS brief ` +
-          `(reorder, swap variants, add or drop pages/sections as the brief warrants) ` +
-          `but do NOT copy it verbatim:\n${input.skeletonExample}\n`
+        ? `\nHere is ONE solid ${input.archetype ?? ''} structure — it is one valid option out of many, ` +
+          `not a template. ADAPT it to THIS brief: reorder sections, swap variants, add or drop ` +
+          `pages/sections, and change at least a third of the section mix so two businesses in the ` +
+          `same field don't get the same site. Do NOT copy it verbatim:\n${input.skeletonExample}\n` +
+          `The theme values in it are a starting point — keep a palette/font only if the brand ` +
+          `genuinely calls for it, otherwise pick your own.\n`
         : '';
     const currentBlock = improve
       ? `\nThe site ALREADY EXISTS. Here it is (structure only):\n` +
@@ -423,8 +657,10 @@ export class DeepseekService {
       `- First page is the home page (the caller marks isHome). Home starts with a "hero". ` +
       `The last page has a "contact" section.\n` +
       `- MAKE IT DISTINCTIVE. Do not default to hero→services→testimonials→cta for every site. ` +
-      `Use at least TWO of {featureSplit, bento, timeline, comparison, process, marquee, pricing, logos, stats, banner} ` +
-      `where the business makes them relevant, and choose variants that suit the brand — not just the first option.\n` +
+      `Use at least THREE of {featureSplit, bento, timeline, comparison, process, marquee, pricing, ` +
+      `logos, stats, banner, showcase, caseStudy, ratingBand, highlightsRow, splitCta, tabs, quoteBig, bigStatement} ` +
+      `where the business makes them relevant, and choose variants that suit the brand — not just the first option. ` +
+      `Two sites in the same field should not share a section order.\n` +
       `- Use ONLY these section types + variants:\n${input.catalogText}\n${hints}` +
       `- "theme": { "preset": "studio|bold|editorial|soft|tech|warm|mono", ` +
       `"palette": "indigo|violet|blue|cyan|teal|emerald|lime|amber|orange|rose|fuchsia|slate", ` +
@@ -435,9 +671,10 @@ export class DeepseekService {
       `"density": "compact|comfortable|spacious" } — choose values that fit the business's character ` +
       `(e.g. a tech product → dark + cyan; a studio → tinted + editorial serif).\n${example}${currentBlock}` +
       `Reply with JSON only.`;
-    const outline = (await this.chatJson(outlineSys, `Brief: ${input.brief}\n${facts}`, {
+    const outline = (await this.json(outlineSys, `Brief: ${input.brief}\n${facts}`, {
       maxTokens: 3200,
       temperature: improve ? 0.5 : 0.85,
+      effort: 'medium',
       timeoutMs: PLAN_TIMEOUT_MS,
     })) as { theme?: Record<string, unknown>; pages?: unknown[] } | null;
 
@@ -492,6 +729,9 @@ export class DeepseekService {
       `Return EVERY section — never skip one.\n` +
       `Catalog:\n${input.catalogText}\n` +
       `Write ALL text in ${lang}, concrete and specific, no lorem ipsum, no empty clichés.\n` +
+      `Vary how sections open — do NOT start several sections the same way ` +
+      `(e.g. "We are a team that…" / "Suntem o echipă care…"). Lead with a concrete detail, a ` +
+      `number, or a question, and keep sentence length varied.\n` +
       `IMAGES: leave every "image" / "imageUrl" / "backgroundImage" field as an empty string "" — ` +
       `photos are added automatically afterwards. Do not put any URL there.\n` +
       `NEVER invent facts you cannot know: in a "contact" section leave "phone" and "email" empty; ` +
@@ -567,9 +807,10 @@ export class DeepseekService {
   ): Promise<Record<string, unknown>[][]> {
     const out: Record<string, unknown>[][] = pages.map(() => []);
     const call = (i: number) =>
-      this.chatJson(system, user(pages[i]), {
+      this.json(system, user(pages[i]), {
         maxTokens: 3200,
         temperature: 0.7,
+        effort: 'low',
         timeoutMs: PLAN_TIMEOUT_MS,
       });
     const pass = async (idxs: number[]): Promise<void> => {
@@ -607,36 +848,11 @@ export class DeepseekService {
       `Section type: ${input.type} (variant: ${input.variant})\n` +
       `Instruction: ${input.instruction}\n` +
       `Current content:\n${JSON.stringify(input.current)}`;
-    try {
-      const res = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}` },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-          temperature: 0.6,
-          max_tokens: 1200,
-          response_format: { type: 'json_object' },
-        }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      if (!res.ok) {
-        this.logger.warn(`DeepSeek sectionContent responded ${res.status}`);
-        return null;
-      }
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      const raw = data.choices?.[0]?.message?.content;
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    } catch (err) {
-      this.logger.warn(
-        `DeepSeek sectionContent failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return null;
-    }
+    const parsed = await this.json(system, user, {
+      maxTokens: 1200,
+      temperature: 0.6,
+      effort: 'low',
+    });
+    return parsed && typeof parsed === 'object' ? parsed : null;
   }
 }

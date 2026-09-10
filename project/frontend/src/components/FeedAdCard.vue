@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { pingAdClick } from '@/services/ads'
@@ -40,6 +40,11 @@ const extraServices = computed(() =>
 const featured = computed(() => props.item.builtWithBuilder)
 const accentColor = computed(() => props.item.accent || 'rgb(var(--v-theme-primary))')
 
+// A hero photo only counts once it actually loads — a broken URL falls back
+// to the warm illustrated banner instead of a grey void.
+const heroOk = ref(true)
+const hasHero = computed(() => !!props.item.heroImage && heroOk.value)
+
 const headline = computed(() => {
   const h = props.item.heroTitle?.trim()
   return h && h.toLowerCase() !== props.item.displayName.trim().toLowerCase()
@@ -65,10 +70,17 @@ const tagline = computed(() => {
     :style="{ '--card-accent': accentColor }"
     @click="onOpen"
   >
-    <div class="fc__banner" :class="{ 'fc__banner--plain': !item.heroImage }">
-      <img v-if="item.heroImage" :src="item.heroImage" alt="" loading="lazy" />
-      <span v-else class="fc__grad" aria-hidden="true" />
-      <span class="fc__scrim" aria-hidden="true" />
+    <div class="fc__banner" :class="{ 'fc__banner--plain': !hasHero }">
+      <img
+        v-if="item.heroImage"
+        v-show="heroOk"
+        :src="item.heroImage"
+        alt=""
+        loading="lazy"
+        @error="heroOk = false"
+      />
+      <span v-if="!hasHero" class="fc__grad" aria-hidden="true" />
+      <span v-if="hasHero" class="fc__scrim" aria-hidden="true" />
       <div class="fc__top">
         <span class="fc__badge">
           <v-icon icon="mdi-web" size="13" /> {{ t('feed.ownSite') }}
@@ -77,7 +89,9 @@ const tagline = computed(() => {
           {{ t('feed.viewSite') }} <v-icon icon="mdi-arrow-right" size="16" />
         </span>
       </div>
-      <p class="fc__headline">{{ headline }}</p>
+      <!-- name shows on the media only over a real photo; otherwise it appears
+           once, in the body below (no duplication on the illustrated fallback) -->
+      <p v-if="hasHero" class="fc__headline">{{ headline }}</p>
     </div>
 
     <div class="fc__body">
@@ -194,14 +208,13 @@ const tagline = computed(() => {
   color: rgb(var(--v-theme-primary));
   border: 1.5px solid rgba(var(--v-theme-primary), 0.35);
 }
-/* pill sitting on top of the featured banner photo */
+/* pill sitting on top of the featured banner photo — the one primary CTA */
 .btnv--onphoto {
-  padding: 0.45rem 0.9rem;
+  padding: 0.5rem 1rem;
   font-size: 0.8rem;
-  color: #0b0d14;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 6px 20px -8px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  background: rgb(var(--v-theme-primary));
+  box-shadow: 0 6px 18px -8px rgba(15, 82, 186, 0.5);
 }
 .btnv__arrow {
   transition: transform var(--tvz-dur-med) var(--tvz-ease-out);
@@ -299,13 +312,12 @@ const tagline = computed(() => {
 .fc__crumb {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0.2rem;
   margin: 0;
-  font-family: var(--tvz-mono, ui-monospace, monospace);
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.13em;
-  color: rgba(var(--v-theme-on-surface), 0.45);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
 }
 .lst__niche,
 .fc__niche {
@@ -313,10 +325,10 @@ const tagline = computed(() => {
 }
 .lst__name {
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
-  font-weight: 700;
-  font-size: 1.5rem;
-  letter-spacing: -0.02em;
-  line-height: 1.14;
+  font-weight: 600;
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
+  line-height: 1.16;
   margin: 0;
 }
 .lst__tagline {
@@ -369,22 +381,39 @@ const tagline = computed(() => {
     box-shadow var(--tvz-dur-med) var(--tvz-ease-out);
 }
 .fc:hover {
-  transform: translateY(-4px);
-  border-color: color-mix(in srgb, var(--card-accent) 55%, transparent);
-  box-shadow: 0 26px 54px -30px color-mix(in srgb, var(--card-accent) 60%, transparent);
+  transform: translateY(-3px);
+  border-color: rgba(var(--v-theme-primary), 0.4);
+  box-shadow: var(--tvz-shadow-md);
 }
 .fc:hover .btnv--onphoto {
-  background: #fff;
+  background: rgb(var(--v-theme-primary-darken-1));
   transform: translateY(-1px);
 }
 .fc__banner {
   position: relative;
   aspect-ratio: 16 / 6;
   overflow: hidden;
+  /* theme-aware ground so a missing / slow hero image is never a void
+     (dark in dark mode, light in light mode) */
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-primary), 0.06), transparent 60%),
+    var(--tvz-shelf);
 }
 .fc__banner--plain {
   aspect-ratio: auto;
   height: 128px;
+}
+/* brand element: a scalloped "awning" edge under the illustrated fallback */
+.fc__banner--plain::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 12px;
+  background-image: radial-gradient(circle at 8px -4px, rgb(var(--v-theme-surface)) 8px, transparent 9px);
+  background-size: 16px 12px;
+  background-repeat: repeat-x;
 }
 .fc__banner img {
   width: 100%;
@@ -401,33 +430,31 @@ const tagline = computed(() => {
   justify-content: space-between;
   gap: 0.6rem;
 }
+/* logo-less fallback: a theme-aware "storefront" wash — follows light/dark */
 .fc__grad {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    135deg,
-    var(--card-accent),
-    color-mix(in srgb, var(--card-accent) 45%, #0b0b12)
-  );
+  background:
+    radial-gradient(120% 90% at 50% -20%, rgba(var(--v-theme-primary), 0.1), transparent 70%),
+    var(--tvz-shelf);
 }
+/* scrim renders only over a real, loaded photo (v-if="hasHero") */
 .fc__scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(10, 12, 22, 0.15) 0%, rgba(10, 12, 22, 0.78) 100%);
+  background: linear-gradient(180deg, rgba(12, 18, 32, 0) 55%, rgba(12, 18, 32, 0.5) 100%);
 }
 .fc__badge {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.28rem 0.65rem;
-  border-radius: 999px;
-  font-size: 0.66rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #fff;
-  background: color-mix(in srgb, var(--card-accent) 78%, rgba(0, 0, 0, 0.45));
-  backdrop-filter: blur(4px);
+  padding: 0.32rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: rgb(var(--v-theme-primary));
+  background: rgba(255, 255, 255, 0.92);
 }
 .fc__headline {
   position: absolute;
@@ -436,9 +463,9 @@ const tagline = computed(() => {
   bottom: 1rem;
   margin: 0;
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
-  font-weight: 700;
-  font-size: clamp(1.2rem, 2.4vw, 1.55rem);
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  font-size: clamp(1.2rem, 2.4vw, 1.5rem);
+  letter-spacing: -0.01em;
   line-height: 1.2;
   color: #fff;
   text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
@@ -447,6 +474,11 @@ const tagline = computed(() => {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+/* light illustrated fallback → dark headline, no scrim, no glow */
+.fc__banner--plain .fc__headline {
+  color: rgb(var(--v-theme-primary));
+  text-shadow: none;
 }
 .fc__body {
   padding: 1.2rem 1.6rem 1.5rem;

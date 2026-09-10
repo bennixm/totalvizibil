@@ -33,6 +33,7 @@ import {
   MAX_SECTIONS,
   MOTIONS,
   PageSpec,
+  coerceOverrides,
   coerceStyle,
   composeAdvancedDoc,
   docFromLegacy,
@@ -45,7 +46,8 @@ import {
   starterAdvancedDoc,
 } from './compose-advanced';
 import { classifyArchetype, pickSkeleton, skeletonExampleJson } from './site-archetypes';
-import { fillDocImages, hashInt } from './stock-images';
+import { siteDigest, structuralAudit } from './site-audit';
+import { fillDocImages, hashInt, verifyDocImages } from './stock-images';
 import { PutPagesDto } from './dto/put-pages.dto';
 import { SaveDocDto } from './dto/save-doc.dto';
 import { AddSectionDto } from './dto/add-section.dto';
@@ -538,6 +540,14 @@ export class WebsiteBuilderService {
     if (dto.style !== undefined) {
       found.section.style = coerceStyle({ ...found.section.style, ...dto.style });
     }
+    if (dto.overrides !== undefined) {
+      const merged: Record<string, unknown> = { ...found.section.overrides };
+      for (const [k, v] of Object.entries(dto.overrides)) {
+        if (v == null || (typeof v === 'object' && !Object.keys(v).length)) delete merged[k];
+        else merged[k] = { ...(merged[k] as object), ...(v as object) };
+      }
+      found.section.overrides = coerceOverrides(found.section.type, merged);
+    }
     if (dto.content) {
       found.section.content = coerceContent(found.section.type, {
         ...found.section.content,
@@ -657,6 +667,13 @@ export class WebsiteBuilderService {
     // A follow-up prompt EVOLVES the current site (keeps what works, applies the
     // request on top) instead of rebuilding it. First prompt → build from scratch.
     const improve = dto.mode === 'replace' ? false : spent > 0 && doc.pages.some((p) => !p.system);
+
+    // On a fresh (non-improve) plan the brief is the owner telling us exactly
+    // what to build. Stored category/description/services from an earlier easy
+    // setup — or from a different initial advanced category — must NOT override
+    // it, so drop them for this generation. (Follow-up prompts keep continuity.)
+    const genCtx: SeedCtx = improve ? ctx : { ...ctx, businessType: '', services: [] };
+
     const current = improve
       ? {
           theme: doc.theme as unknown as Record<string, unknown>,
@@ -672,7 +689,7 @@ export class WebsiteBuilderService {
 
     // Classify the site up-front so the same archetype steers BOTH the model
     // (few-shot example) and the deterministic fallback.
-    const archetype = classifyArchetype(brief, ctx.businessType, ctx.services);
+    const archetype = classifyArchetype(brief, genCtx.businessType, genCtx.services);
     const skeletonExample = skeletonExampleJson(
       pickSkeleton(archetype, hashInt(`${companyId}|${brief}`)),
     );
@@ -680,10 +697,10 @@ export class WebsiteBuilderService {
     const raw = await this.deepseek.planWebsite({
       brief,
       business: {
-        name: ctx.businessName,
-        type: ctx.businessType || undefined,
-        city: ctx.city || undefined,
-        services: ctx.services,
+        name: genCtx.businessName,
+        type: genCtx.businessType || undefined,
+        city: genCtx.city || undefined,
+        services: genCtx.services,
       },
       locale: ctx.locale,
       catalogText: catalogPromptText(),
@@ -705,7 +722,7 @@ export class WebsiteBuilderService {
           nav: doc.nav,
           footer: doc.footer,
         },
-        ctx,
+        genCtx,
       );
       if (improve) {
         // Restore the copy of every section the planner chose to keep (by id).
@@ -719,32 +736,52 @@ export class WebsiteBuilderService {
       }
       // A page whose copy call failed/truncated comes back with empty sections —
       // backfill them from the catalog seed so the site is always complete.
-      seededCount = seedFillEmptySections(planned, ctx);
+      seededCount = seedFillEmptySections(planned, genCtx);
       // The model no longer supplies image URLs; fill every empty slot from the
       // pool (on improve, kept sections' images are preserved).
-      fillDocImages(planned, ctx, brief, { keepExisting: improve });
+      fillDocImages(planned, genCtx, brief, { keepExisting: improve });
       // On a first plan, if the model barely filled anything the blueprint is
       // better; on improve we never rebuild — keep what we merged.
       const total = planned.pages.reduce((n, p) => n + p.sections.length, 0);
       if (!improve && total > 0 && seededCount / total > 0.5) {
-        planned = keywordPlanDoc(brief, ctx);
+        planned = keywordPlanDoc(brief, genCtx);
         seededCount = 0;
       }
     } else if (improve) {
       // Never destroy an existing site because the model was unavailable.
       throw new BadRequestException('ai_unavailable');
     } else {
-      planned = keywordPlanDoc(brief, ctx);
+      planned = keywordPlanDoc(brief, genCtx);
     }
+
+    // Drop any stock/model image URL that no longer resolves (a rotted curated
+    // id, or a same-host fake the model slipped through) — swap for a live one.
+    await verifyDocImages(planned, genCtx, brief);
 
     const notes = sanitizeAiPlan(planned, ctx);
     if (seededCount > 0 && !notes.includes('seeded')) notes.push('seeded');
+
+    // Post-generation review: deterministic structural checks + the model's own
+    // read of the result. Advisory — surfaced in the studio, nothing is blocked.
+    const failedChecks = structuralAudit(planned, brief)
+      .filter((c) => !c.ok)
+      .map((c) => (c.detail ? `${c.id}: ${c.detail}` : c.id));
+    const findings =
+      (await this.deepseek.reviewSite({
+        brief,
+        digest: siteDigest(planned),
+        locale: ctx.locale,
+      })) ?? [];
+    const review =
+      failedChecks.length || findings.length ? { checks: failedChecks, findings } : undefined;
+
     planned.mode = 'ai';
     planned.ai = {
       brief,
       planCount: spent + 1,
       sectionCount: doc.ai?.sectionCount ?? 0,
       ...(notes.length ? { notes } : {}),
+      ...(review ? { review } : {}),
     };
     planned.history = [...(doc.history ?? []).slice(-2), doc.pages];
 

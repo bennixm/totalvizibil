@@ -75,6 +75,37 @@ function setColor(key: ColorKey, value: string): void {
     store.patchSection(props.companyId, selectedSection.value.id, { style: { [key]: value } })
   }
 }
+
+// --- per-element style overrides ---
+const PROSE_TYPES = new Set(['text', 'textarea', 'richtext'])
+const elFields = computed(() =>
+  (selectedSpec.value?.fields ?? []).filter((f) => PROSE_TYPES.has(f.type)),
+)
+const EL_SIZES = ['sm', 'md', 'lg', 'xl'] as const
+const EL_WEIGHTS = ['normal', 'medium', 'semibold', 'bold'] as const
+const EL_ALIGNS = ['left', 'center', 'right'] as const
+type ElVal = { color?: string; bg?: string; size?: string; weight?: string; align?: string }
+function elOf(key: string): ElVal {
+  return (selectedSection.value?.overrides?.[key] as ElVal) ?? {}
+}
+function elHas(key: string): boolean {
+  return Object.keys(elOf(key)).length > 0
+}
+function setEl(key: string, patch: Record<string, string | undefined>): void {
+  if (selectedSection.value) {
+    store.patchSection(props.companyId, selectedSection.value.id, { overrides: { [key]: patch } })
+  }
+}
+function clearEl(key: string): void {
+  if (selectedSection.value) {
+    store.patchSection(props.companyId, selectedSection.value.id, { overrides: { [key]: null } })
+  }
+}
+function fieldLabel(label: string, key: string): string {
+  const k = `builder.field.${label}`
+  const s = t(k)
+  return s === k ? key : s
+}
 </script>
 
 <template>
@@ -149,6 +180,93 @@ function setColor(key: ColorKey, value: string): void {
             </button>
           </span>
         </div>
+      </div>
+
+      <div v-if="elFields.length" class="se__block">
+        <span class="se__k">
+          <v-icon icon="mdi-format-color-text" size="13" /> {{ t('builder.elementStyles') }}
+        </span>
+        <details
+          v-for="f in elFields"
+          :key="f.key"
+          class="se__el"
+          :class="{ 'is-set': elHas(f.key) }"
+        >
+          <summary>
+            {{ fieldLabel(f.label, f.key) }}
+            <span v-if="elHas(f.key)" class="se__elDot" />
+          </summary>
+          <div class="se__elBody">
+            <label class="se__elRow">
+              <span>{{ t('builder.color.text') }}</span>
+              <input
+                type="color"
+                :value="elOf(f.key).color || '#111111'"
+                @input="setEl(f.key, { color: ($event.target as HTMLInputElement).value })"
+              />
+              <button
+                v-if="elOf(f.key).color"
+                type="button"
+                class="se__colorX"
+                @click="setEl(f.key, { color: '' })"
+              >
+                <v-icon icon="mdi-close" size="11" />
+              </button>
+            </label>
+            <label class="se__elRow">
+              <span>{{ t('builder.elBg') }}</span>
+              <input
+                type="color"
+                :value="elOf(f.key).bg || '#ffffff'"
+                @input="setEl(f.key, { bg: ($event.target as HTMLInputElement).value })"
+              />
+              <button
+                v-if="elOf(f.key).bg"
+                type="button"
+                class="se__colorX"
+                @click="setEl(f.key, { bg: '' })"
+              >
+                <v-icon icon="mdi-close" size="11" />
+              </button>
+            </label>
+            <div class="se__elSeg">
+              <button
+                v-for="sz in EL_SIZES"
+                :key="sz"
+                type="button"
+                :class="{ 'is-on': elOf(f.key).size === sz }"
+                @click="setEl(f.key, { size: elOf(f.key).size === sz ? '' : sz })"
+              >
+                {{ t(`builder.elSize.${sz}`) }}
+              </button>
+            </div>
+            <div class="se__elSeg">
+              <button
+                v-for="w in EL_WEIGHTS"
+                :key="w"
+                type="button"
+                :class="{ 'is-on': elOf(f.key).weight === w }"
+                @click="setEl(f.key, { weight: elOf(f.key).weight === w ? '' : w })"
+              >
+                {{ t(`builder.elWeight.${w}`) }}
+              </button>
+            </div>
+            <div class="se__elSeg">
+              <button
+                v-for="a in EL_ALIGNS"
+                :key="a"
+                type="button"
+                :class="{ 'is-on': elOf(f.key).align === a }"
+                @click="setEl(f.key, { align: elOf(f.key).align === a ? '' : a })"
+              >
+                <v-icon :icon="`mdi-format-align-${a}`" size="14" />
+              </button>
+            </div>
+            <button v-if="elHas(f.key)" type="button" class="se__elClear" @click="clearEl(f.key)">
+              {{ t('builder.color.clear') }}
+            </button>
+          </div>
+        </details>
       </div>
 
       <div class="se__block">
@@ -267,6 +385,93 @@ function setColor(key: ColorKey, value: string): void {
   height: 16px;
   border-radius: 5px;
   color: rgba(var(--v-theme-on-surface), 0.5);
+}
+
+/* --- per-element style overrides --- */
+.se__el {
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 8px;
+  margin-bottom: 0.35rem;
+  background: rgb(var(--v-theme-surface));
+}
+.se__el > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  cursor: pointer;
+  list-style: none;
+}
+.se__el > summary::-webkit-details-marker {
+  display: none;
+}
+.se__el.is-set > summary {
+  color: rgb(var(--v-theme-primary));
+}
+.se__elDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--v-theme-primary));
+}
+.se__elBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0 0.6rem 0.55rem;
+}
+.se__elRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.se__elRow span {
+  flex: 1;
+}
+.se__elRow input[type='color'] {
+  width: 26px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+}
+.se__elSeg {
+  display: flex;
+  gap: 2px;
+}
+.se__elSeg button {
+  flex: 1;
+  padding: 0.28rem 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  border: 1px solid var(--tvz-glass-border);
+  background: rgb(var(--v-theme-surface));
+}
+.se__elSeg button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.se__elSeg button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+.se__elSeg button.is-on {
+  border-color: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+.se__elClear {
+  align-self: flex-start;
+  font-size: 0.7rem;
+  color: rgb(var(--v-theme-error));
+  text-decoration: underline;
 }
 .chip {
   padding: 0.3rem 0.7rem;

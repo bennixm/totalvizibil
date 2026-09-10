@@ -9,7 +9,11 @@ export interface AppConfig {
   sessionTtlDays: number;
   sessionCookieSecure: boolean;
   frontendOrigin: string;
-  /** DeepSeek API key — powers the one Simple-site AI call (Services copy). Empty = deterministic fallback. */
+  /** Anthropic (Claude) API key — the primary AI for both website builders. Empty = try DeepSeek, else deterministic. */
+  anthropicApiKey: string;
+  /** Claude model id for the builders (e.g. `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`). */
+  anthropicModel: string;
+  /** DeepSeek API key — legacy AI transport, kept as a secondary fallback. Empty = deterministic fallback. */
   deepseekApiKey: string;
 }
 
@@ -39,6 +43,8 @@ export function loadConfig(): AppConfig {
     sessionTtlDays: Number(process.env.SESSION_TTL_DAYS ?? 30),
     sessionCookieSecure: process.env.SESSION_COOKIE_SECURE === 'true',
     frontendOrigin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173',
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() ?? '',
+    anthropicModel: process.env.ANTHROPIC_MODEL?.trim() || 'claude-opus-5',
     deepseekApiKey: process.env.DEEPSEEK_API_KEY?.trim() ?? '',
   };
 }

@@ -11,7 +11,8 @@
     "back": "Back",
     "search": "Search",
     "learnMore": "Learn more",
-    "moreInfo": "More info"
+    "moreInfo": "More info",
+    "close": "Close"
   },
   "nav": {
     "discover": "Discover",
@@ -146,6 +147,7 @@
     "portfolioTool": "Portfolio",
     "portfolioCount": "{n}/10 images",
     "editTitle": "Fine-tune your site",
+    "readySub": "Everything's generated. Polish the text and images below, then continue.",
     "contactTool": "Contact details",
     "contactPhone": "Phone",
     "contactEmail": "Email",
@@ -187,8 +189,16 @@
     "agentPersona": "Andrei",
     "agentRole": "AI guide",
     "thinking": "typing…",
-    "grammarToggle": "Fix grammar",
-    "grammarFixed": "fixed",
+    "pickToContinue": "Pick an option above, then press “Continue”.",
+    "reviewCta": "Check the texts with AI",
+    "reviewRunning": "Checking…",
+    "reviewClean": "The texts look good.",
+    "reviewKind": {
+      "meaning": "Meaning",
+      "grammar": "Grammar",
+      "profanity": "Vulgar language",
+      "other": "Other issue"
+    },
     "on": "On",
     "off": "Off",
     "aboutTool": "About us",
@@ -229,6 +239,19 @@
     "processText": "Detail (optional)",
     "addStep": "Add step",
     "hoursPlaceholder": "e.g. Mon–Fri 9am–6pm",
+    "navTool": "Top bar (navbar)",
+    "navLogoOn": "Name/logo: visible",
+    "navLogoOff": "Name/logo: hidden",
+    "navCtaLabel": "Button text (optional), e.g. Get a quote",
+    "navCtaTarget": "Button target: contact, services, or a link",
+    "navCtaHint": "Leave empty to hide the button. \"contact\" jumps to the contact section.",
+    "footerTool": "Footer",
+    "footerContactOn": "Contact details: visible",
+    "footerContactOff": "Contact details: hidden",
+    "footerTagline": "Short line under the name (optional)",
+    "socialLabel": "Network (e.g. Facebook)",
+    "socialUrl": "https://…",
+    "addSocial": "Add social link",
     "rateLimited": "Too many attempts in a short time. Wait a few minutes and try again.",
     "retry": "Try again",
     "logoTitle": "Logo (optional)",
@@ -236,7 +259,7 @@
     "logoChange": "Change"
   },
   "location": {
-    "eyebrow": "Step 2 · Location",
+    "eyebrow": "Step 3 · Location",
     "title": "Where do you work?",
     "lead": "Pick your city and the radius you cover. This area decides where your business can appear in the feed.",
     "cityLabel": "City",
@@ -262,10 +285,11 @@
     "categoryHint": "Pick the exact niche of your services — it is how customers find you in the feed.",
     "categoryAll": "All services in {group}",
     "categorySection": "What do you offer?",
-    "areaSection": "Coverage area"
+    "areaSection": "Coverage area",
+    "nationwideOptionHint": "nationwide"
   },
   "claim": {
-    "eyebrow": "Step 3 · Account",
+    "eyebrow": "Step 4 · Account",
     "title": "Create your account",
     "lead": "Save “{business}” and publish it when you're ready.",
     "yourBusiness": "your business",
@@ -289,6 +313,21 @@
       "wallet_blocked": "The chosen wallet is frozen. You cannot pay from it."
     },
     "walletBalance": "You have {credits} credits in your wallet."
+  },
+  "easyEditor": {
+    "eyebrow": "Simple site editor",
+    "title": "Edit your site",
+    "back": "Back to dashboard",
+    "paneEditor": "Edit",
+    "panePreview": "Preview",
+    "loadErrorTitle": "Couldn't open the editor",
+    "loadErrorText": "Something went wrong loading the site. Try again.",
+    "err": {
+      "not_a_simple_site": "This business uses the advanced builder, not the simple editor.",
+      "forbidden": "You don't have edit access to this business.",
+      "company_pending_deletion": "This business is scheduled for deletion — editing is locked.",
+      "rate_limited": "Too many changes too fast. Wait a few seconds."
+    }
   },
   "dashboard": {
     "eyebrow": "Business dashboard",
@@ -465,7 +504,13 @@
     "pauseKeep": "No, keep it running",
     "deletionPendingTitle": "Deletion scheduled",
     "deletionPendingNote": "This business is scheduled for deletion — cancel it from the dashboard to edit the campaign again.",
-    "deletionPendingCta": "Go to dashboard"
+    "deletionPendingCta": "Go to dashboard",
+    "launched": {
+      "title": "Your campaign is live 🎉",
+      "text": "Your listing now shows on the front page of your category and area. Requests come straight from customers.",
+      "viewSite": "View your site",
+      "viewFeed": "See it in the feed"
+    }
   },
   "wallet": {
     "eyebrow": "Billing",
@@ -1116,6 +1161,17 @@
       "team": "Fill in your real team names — AI only left placeholder text.",
       "seeded": "Some sections use starter text — review and replace it."
     },
+    "reviewTitle": "Generated-site check",
+    "reviewSeverity": { "warn": "check", "block": "issue" },
+    "reviewCheck": {
+      "home_hero": "The home page should start with a hero section.",
+      "has_contact": "The site has no contact section.",
+      "page_depth": "A page has too few sections.",
+      "no_stacked_dups": "Sections of the same type are stacked back-to-back.",
+      "no_placeholder_text": "Placeholder / lorem-ipsum text was found.",
+      "sections_have_copy": "A section is almost empty.",
+      "brief_reflected": "The copy doesn't seem to reflect what you asked for."
+    },
     "motionLabel": "Motion",
     "animation": "Animation",
     "motion": {
@@ -1192,6 +1248,10 @@
     "allSaved": "All changes saved",
     "leaveWarn": "You have unsaved changes. Leave the editor anyway?",
     "sectionColors": "Section colours",
+    "elementStyles": "Per-element style",
+    "elBg": "Background",
+    "elSize": { "sm": "S", "md": "M", "lg": "L", "xl": "XL" },
+    "elWeight": { "normal": "Light", "medium": "Medium", "semibold": "Semi", "bold": "Bold" },
     "color": {
       "bg": "Background",
       "text": "Text",
@@ -1502,6 +1562,7 @@
     "eyebrow": "Feed promotion",
     "title": "Campaign",
     "back": "Back to dashboard",
+    "finishSetup": "Finish",
     "lead": "Where the budget goes: clicks, cost, pace, and how long your wallet lasts.",
     "noCampaign": "No campaign yet",
     "noCampaignHint": "Set a daily budget and CPC to appear in the feed and see spend here.",
@@ -1944,5 +2005,32 @@
     "adHeadline": "Refer a client, get",
     "adHeadlineTail": "credits",
     "adSub": "Share your link — when your friend builds a site and starts a campaign, the credits are yours."
+  },
+  "onboarding": {
+    "aria": "Business setup progress",
+    "step": {
+      "plan": "Plan",
+      "build": "Website",
+      "pitch": "Advanced",
+      "location": "Area",
+      "account": "Account",
+      "unlock": "Payment",
+      "budget": "Budget",
+      "launch": "Launch"
+    }
+  },
+  "unlock": {
+    "title": "Unlock the advanced builder",
+    "lead": "A one-time fee, paid from your wallet. After that you edit manually as much as you like, and AI generations are included.",
+    "pay": "Pay {credits} cr and continue",
+    "balance": "You have {credits} cr in your wallet",
+    "short": "Not enough credits — you're {credits} short.",
+    "addCredits": "Add credits",
+    "back": "Back",
+    "error": "Something went wrong. Try again.",
+    "err": {
+      "insufficient_credits": "You don't have enough credits for the advanced builder.",
+      "company_pending_deletion": "This business is scheduled for deletion. Cancel that from the dashboard first."
+    }
   }
 }

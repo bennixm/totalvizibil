@@ -297,6 +297,11 @@ export const useCompaniesStore = defineStore('companies', {
       const company = await apiFetch<Company>('/companies/from-draft', {
         method: 'POST',
         body: { draftToken },
+        // Building the company is a multi-write transaction; give it more room
+        // than the default so a slow commit can't abort client-side while it
+        // still succeeds on the server (which then dead-ends the create flow
+        // on "draft_already_claimed").
+        timeoutMs: 25_000,
       })
       this.list = [company, ...this.list]
       this.loaded = true

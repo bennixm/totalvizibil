@@ -13,6 +13,7 @@ import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useAdminStore, type AdminCompanyDetail, type AdminCompanyLead } from '@/stores/admin'
+import { useToastStore } from '@/stores/toast'
 import type { CampaignTier, CampaignStatus } from '@/stores/campaign'
 import type { LocalizedName } from '@/stores/companies'
 import { ApiError } from '@/services/api'
@@ -42,9 +43,9 @@ const isEasy = computed(() => data.value?.company.website?.mode !== 'advanced')
  *  the plan being merely *selected* (`mode === 'advanced'` with no unlock). */
 const advancedReady = computed(() => !!data.value?.company.advancedUnlockedAt)
 
-const toast = reactive({ show: false, text: '', color: 'success' })
+const toasts = useToastStore()
 function flash(text: string, color: 'success' | 'error' = 'success') {
-  Object.assign(toast, { show: true, text, color })
+  toasts.push(color === 'error' ? 'error' : 'success', text)
 }
 function errText(e: unknown, fb: string) {
   if (e instanceof ApiError) {
@@ -1137,7 +1138,6 @@ const leadStatusItems = computed(() => [
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="toast.show" :color="toast.color" timeout="2600">{{ toast.text }}</v-snackbar>
   </div>
 </template>
 

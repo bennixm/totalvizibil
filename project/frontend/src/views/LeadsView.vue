@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -7,6 +7,7 @@ import { storeToRefs } from 'pinia'
 import InfoHint from '@/components/InfoHint.vue'
 import { useCompaniesStore } from '@/stores/companies'
 import { useLeadsStore, type Lead, type LeadStatus } from '@/stores/leads'
+import { useToastStore } from '@/stores/toast'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -14,6 +15,10 @@ const router = useRouter()
 const companies = useCompaniesStore()
 const leads = useLeadsStore()
 const { items, summary, filters, loading, working, nextCursor, error } = storeToRefs(leads)
+const toasts = useToastStore()
+watch(error, (v) => {
+  if (v) toasts.error(v)
+})
 
 const companyId = ref<string | null>(null)
 const expanded = ref<string | null>(null)
@@ -22,7 +27,6 @@ const toDelete = ref<Lead | null>(null)
 // Quick-reply composer
 const replyFor = ref<string | null>(null)
 const replyBody = ref('')
-const replySnack = ref(false)
 
 const STATUS_TABS: Array<{ v: '' | LeadStatus; key: string }> = [
   { v: '', key: 'leads.filterAll' },
@@ -86,7 +90,7 @@ async function sendReply(lead: Lead): Promise<void> {
   const ok = await leads.reply(lead.id, body)
   if (ok) {
     closeReply()
-    replySnack.value = true
+    toasts.success(t('leads.replySent'))
   }
 }
 
@@ -168,10 +172,6 @@ onMounted(async () => {
             {{ t(tab.key) }}
           </button>
         </div>
-      </div>
-
-      <div v-if="error" class="lds__error">
-        <v-icon icon="mdi-alert-circle-outline" size="16" /> {{ error }}
       </div>
 
       <!-- Empty -->
@@ -394,9 +394,6 @@ onMounted(async () => {
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="replySnack" :timeout="3000" color="success" location="bottom">
-      {{ t('leads.replySent') }}
-    </v-snackbar>
   </v-container>
 </template>
 

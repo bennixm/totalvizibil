@@ -1473,6 +1473,18 @@ function isSectionType(v: unknown): v is SectionType {
   return typeof v === 'string' && v in SECTION_CATALOG;
 }
 
+/**
+ * Top-level prose field keys of a section type (`text` / `textarea` / `richtext`).
+ * These are the elements a per-element style override can target.
+ */
+export function textFieldKeys(type: SectionType): string[] {
+  const spec = SECTION_CATALOG[type];
+  if (!spec) return [];
+  return spec.fields
+    .filter((f) => f.type === 'text' || f.type === 'textarea' || f.type === 'richtext')
+    .map((f) => f.key);
+}
+
 /** Snap an arbitrary variant string to a known id for the type (else the default). */
 export function snapVariant(type: SectionType, variant: unknown): string {
   const spec = SECTION_CATALOG[type];

@@ -7,7 +7,6 @@ import { SetLocationDto } from './dto/set-location.dto';
 import { PatchEasyDto } from './dto/patch-easy.dto';
 import { AddAssetDto } from './dto/add-asset.dto';
 import { RegenerateServicesDto } from './dto/regenerate-services.dto';
-import { ProofreadDto } from './dto/proofread.dto';
 
 /**
  * Anonymous website-draft studio (free "Site Simplu" one-pager). No auth: a
@@ -63,15 +62,12 @@ export class WebsiteDraftController {
     return this.drafts.patchEasy(id, token ?? '', dto);
   }
 
-  /** Fix spelling / grammar in a manual prose string (grammar toggle). */
-  @Throttle({ default: { ttl: 60_000, limit: 40 } })
-  @Post(':id/proofread')
-  proofread(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: ProofreadDto,
-    @Headers('x-draft-token') token?: string,
-  ) {
-    return this.drafts.proofread(id, token ?? '', dto.text);
+  /** End-of-setup: AI review of every text the owner typed (meaning / grammar /
+   *  vulgar / other). Grammar fixes are auto-applied; the rest is returned. */
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Post(':id/review')
+  review(@Param('id', ParseUUIDPipe) id: string, @Headers('x-draft-token') token?: string) {
+    return this.drafts.reviewDraft(id, token ?? '');
   }
 
   /** Re-run the one AI call for a new/edited list of service names. */

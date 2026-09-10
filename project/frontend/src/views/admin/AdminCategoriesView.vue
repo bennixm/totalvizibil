@@ -8,14 +8,15 @@ import {
   type AdminCategoryGroup,
   type CreateCategoryInput,
 } from '@/stores/admin'
+import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
 
 const { t, locale } = useI18n()
 const admin = useAdminStore()
 
-const toast = reactive({ show: false, text: '', color: 'success' })
+const toasts = useToastStore()
 function flash(text: string, color: 'success' | 'error' = 'success') {
-  Object.assign(toast, { show: true, text, color })
+  toasts.push(color === 'error' ? 'error' : 'success', text)
 }
 function errText(e: unknown, fb: string) {
   return e instanceof ApiError ? e.message : fb
@@ -280,7 +281,6 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="toast.show" :color="toast.color" timeout="2600">{{ toast.text }}</v-snackbar>
   </div>
 </template>
 

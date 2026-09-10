@@ -3,6 +3,7 @@ import { useDisplay } from 'vuetify'
 
 import AppBar from '@/components/AppBar.vue'
 import AppFooter from '@/components/AppFooter.vue'
+import AppToasts from '@/components/AppToasts.vue'
 import MobileTabBar from '@/components/MobileTabBar.vue'
 import { useLocaleSync } from '@/composables/useLocaleSync'
 import { useThemeSync } from '@/composables/useThemeSync'
@@ -24,6 +25,8 @@ const { mdAndUp } = useDisplay()
 
     <AppFooter v-if="mdAndUp" />
     <MobileTabBar v-else />
+
+    <AppToasts />
   </v-app>
 </template>
 
