@@ -1,15 +1,14 @@
 import { Global, Module } from '@nestjs/common';
-import { DeepseekService } from './deepseek.service';
+import { AiService } from './ai.service';
 
 /**
- * AI integrations. Global so any feature can inject the client without wiring
- * an import. `DeepseekService` is the (historically named) AI client — it now
- * talks to Claude with a DeepSeek fallback; call sites are the two website
- * builders.
+ * AI integrations. Global so any feature can inject `AiService` without wiring an
+ * import. `AiService` talks to Claude (Anthropic Messages API) only; call sites
+ * are the two website builders.
  */
 @Global()
 @Module({
-  providers: [DeepseekService],
-  exports: [DeepseekService],
+  providers: [AiService],
+  exports: [AiService],
 })
 export class AiModule {}

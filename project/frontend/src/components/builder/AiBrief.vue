@@ -26,12 +26,32 @@ const planCount = computed(() => view.value?.doc?.ai?.planCount ?? 0)
 const canImprove = computed(() => planCount.value > 0)
 const mode = ref<'improve' | 'replace'>('improve')
 
+// The brief that produced the current site — lets "another variant" work even
+// when the user hasn't retyped anything.
+const lastBrief = computed(() => (view.value?.doc?.ai?.brief ?? '').trim())
+const canRegen = computed(
+  () =>
+    canImprove.value &&
+    !outOfQuota.value &&
+    (brief.value.trim().length >= 4 || lastBrief.value.length >= 4),
+)
+
 function generate(): void {
   const b = brief.value.trim()
   if (b.length < 4 || working.value || outOfQuota.value) return
   // Fire and close straight away — the full-screen AiLoader takes over and
   // any error surfaces in the builder view once it resolves.
   void store.aiPlan(props.companyId, b, canImprove.value ? mode.value : undefined)
+  emit('close')
+}
+
+// Rebuild from the same brief with a fresh random seed — same business, a
+// genuinely different layout / design direction. Always a full replace.
+function regenVariant(): void {
+  if (!canRegen.value || working.value) return
+  const b = brief.value.trim().length >= 4 ? brief.value.trim() : lastBrief.value
+  const seed = Math.floor(Math.random() * 2_147_483_647)
+  void store.aiPlan(props.companyId, b, 'replace', seed)
   emit('close')
 }
 </script>
@@ -96,6 +116,20 @@ function generate(): void {
           <input v-model="confirmed" type="checkbox" />
           {{ t('builder.aiConfirm') }}
         </label>
+
+        <button
+          v-if="canImprove"
+          type="button"
+          class="ab__regen"
+          :disabled="!canRegen || working"
+          @click="regenVariant"
+        >
+          <v-icon icon="mdi-dice-multiple" size="15" />
+          <span>
+            <strong>{{ t('builder.regenVariant') }}</strong>
+            <em>{{ t('builder.regenVariantHint') }}</em>
+          </span>
+        </button>
       </div>
 
       <footer class="ab__foot">
@@ -238,6 +272,43 @@ function generate(): void {
   margin-top: 0.9rem;
   font-size: 0.82rem;
   color: rgba(var(--v-theme-on-surface), 0.8);
+}
+.ab__regen {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  width: 100%;
+  margin-top: 0.9rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  text-align: left;
+  border: 1px dashed var(--tvz-glass-border);
+  background: rgb(var(--v-theme-surface));
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.ab__regen:hover:not(:disabled) {
+  border-color: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-primary));
+}
+.ab__regen:disabled {
+  opacity: 0.45;
+}
+.ab__regen .v-icon {
+  margin-top: 0.1rem;
+  flex: none;
+}
+.ab__regen span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.ab__regen strong {
+  font-size: 0.8rem;
+}
+.ab__regen em {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .ab__foot {
   display: flex;

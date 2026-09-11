@@ -5,13 +5,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CompanyRole, Prisma } from '@prisma/client';
+import { AppConfig } from '../../config/env';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../../wallet/wallet.service';
 import { CREDIT_MINOR } from '../../wallet/money';
 import { PlatformSettingsService } from '../../platform-settings/platform-settings.service';
 import { slugify } from '../../common/slug';
-import { DeepseekService } from '../../ai/deepseek.service';
+import { AiService } from '../../ai/ai.service';
 import { SectionType } from '../website.types';
 import { assertClean } from '../drafts/content-filter';
 import { WebsiteAssetService } from '../assets/website-asset.service';
@@ -37,7 +39,6 @@ import {
   coerceStyle,
   composeAdvancedDoc,
   docFromLegacy,
-  keywordPlanDoc,
   normalizeDoc,
   normalizeFooter,
   normalizeNav,
@@ -46,8 +47,10 @@ import {
   starterAdvancedDoc,
 } from './compose-advanced';
 import { classifyArchetype, pickSkeleton, skeletonExampleJson } from './site-archetypes';
-import { siteDigest, structuralAudit } from './site-audit';
 import { fillDocImages, hashInt, verifyDocImages } from './stock-images';
+import { generateSite } from './generator/pipeline';
+import { ImageSearchService } from './generator/image-provider/image-search.service';
+import type { VisualQaConfig } from './generator/types';
 import { PutPagesDto } from './dto/put-pages.dto';
 import { SaveDocDto } from './dto/save-doc.dto';
 import { AddSectionDto } from './dto/add-section.dto';
@@ -149,13 +152,24 @@ type LoadedCompany = Prisma.CompanyGetPayload<{
 
 @Injectable()
 export class WebsiteBuilderService {
+  private readonly visualQa: VisualQaConfig;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly settings: PlatformSettingsService,
     private readonly assets: WebsiteAssetService,
-    private readonly deepseek: DeepseekService,
-  ) {}
+    private readonly ai: AiService,
+    private readonly imageSearch: ImageSearchService,
+    config: ConfigService<AppConfig, true>,
+  ) {
+    // Phase 3 visual QA is opt-in and needs a screenshot service; without one it
+    // is a no-op (`siteUrl` is left undefined here — no public preview endpoint).
+    this.visualQa = {
+      enabled: config.get('visualQa', { infer: true }),
+      screenshotUrl: config.get('screenshotUrl', { infer: true }),
+    };
+  }
 
   // --- loading / context ------------------------------------------------
 
@@ -351,7 +365,7 @@ export class WebsiteBuilderService {
       content,
       doc: clientDoc,
       aiCanUndo,
-      aiConfigured: this.deepseek.configured,
+      aiConfigured: this.ai.configured,
       // Manual editing is unlimited; AI is metered per site so it can't run away
       // with cost. `left` is what's still available on this site.
       aiLimits: {
@@ -674,106 +688,40 @@ export class WebsiteBuilderService {
     // it, so drop them for this generation. (Follow-up prompts keep continuity.)
     const genCtx: SeedCtx = improve ? ctx : { ...ctx, businessType: '', services: [] };
 
-    const current = improve
-      ? {
-          theme: doc.theme as unknown as Record<string, unknown>,
-          pages: doc.pages
-            .filter((p) => !p.system)
-            .map((p) => ({
-              title: p.title,
-              slug: p.slug,
-              sections: p.sections.map((s) => ({ id: s.id, type: s.type, variant: s.variant })),
-            })),
-        }
-      : undefined;
-
-    // Classify the site up-front so the same archetype steers BOTH the model
-    // (few-shot example) and the deterministic fallback.
-    const archetype = classifyArchetype(brief, genCtx.businessType, genCtx.services);
-    const skeletonExample = skeletonExampleJson(
-      pickSkeleton(archetype, hashInt(`${companyId}|${brief}`)),
-    );
-
-    const raw = await this.deepseek.planWebsite({
-      brief,
-      business: {
-        name: genCtx.businessName,
-        type: genCtx.businessType || undefined,
-        city: genCtx.city || undefined,
-        services: genCtx.services,
-      },
-      locale: ctx.locale,
-      catalogText: catalogPromptText(),
-      archetype,
-      skeletonExample,
-      variantHints: variantHintText(),
-      current,
-    });
-
     let planned: BuilderDoc;
-    let seededCount = 0;
-    if (raw && Array.isArray(raw.pages) && raw.pages.length) {
-      planned = normalizeDoc(
-        {
-          v: 2,
-          mode: 'ai',
-          theme: raw.theme ?? doc.theme,
-          pages: raw.pages,
-          nav: doc.nav,
-          footer: doc.footer,
-        },
-        genCtx,
-      );
-      if (improve) {
-        // Restore the copy of every section the planner chose to keep (by id).
-        const oldById = new Map(doc.pages.flatMap((p) => p.sections).map((s) => [s.id, s.content]));
-        for (const p of planned.pages) {
-          for (const s of p.sections) {
-            const kept = oldById.get(s.id);
-            if (kept && Object.keys(s.content ?? {}).length === 0) s.content = kept;
-          }
-        }
-      }
-      // A page whose copy call failed/truncated comes back with empty sections —
-      // backfill them from the catalog seed so the site is always complete.
-      seededCount = seedFillEmptySections(planned, genCtx);
-      // The model no longer supplies image URLs; fill every empty slot from the
-      // pool (on improve, kept sections' images are preserved).
-      fillDocImages(planned, genCtx, brief, { keepExisting: improve });
-      // On a first plan, if the model barely filled anything the blueprint is
-      // better; on improve we never rebuild — keep what we merged.
-      const total = planned.pages.reduce((n, p) => n + p.sections.length, 0);
-      if (!improve && total > 0 && seededCount / total > 0.5) {
-        planned = keywordPlanDoc(brief, genCtx);
-        seededCount = 0;
-      }
-    } else if (improve) {
-      // Never destroy an existing site because the model was unavailable.
-      throw new BadRequestException('ai_unavailable');
+    let notes: string[];
+    // Structural fingerprints of this company's recent generations — the pipeline
+    // re-rolls the seed if a fresh structure repeats one of them.
+    const recentFingerprints =
+      (doc.ai as { fingerprints?: string[] } | undefined)?.fingerprints ?? [];
+    let fingerprints = recentFingerprints;
+
+    if (improve) {
+      ({ planned, notes } = await this.aiImprove(doc, brief, genCtx));
     } else {
-      planned = keywordPlanDoc(brief, genCtx);
-    }
-
-    // Drop any stock/model image URL that no longer resolves (a rotted curated
-    // id, or a same-host fake the model slipped through) — swap for a live one.
-    await verifyDocImages(planned, genCtx, brief);
-
-    const notes = sanitizeAiPlan(planned, ctx);
-    if (seededCount > 0 && !notes.includes('seeded')) notes.push('seeded');
-
-    // Post-generation review: deterministic structural checks + the model's own
-    // read of the result. Advisory — surfaced in the studio, nothing is blocked.
-    const failedChecks = structuralAudit(planned, brief)
-      .filter((c) => !c.ok)
-      .map((c) => (c.detail ? `${c.id}: ${c.detail}` : c.id));
-    const findings =
-      (await this.deepseek.reviewSite({
+      // Fresh generation → the business-aware design pipeline. It runs the full
+      // chain (analysis → direction + DNA hints → IA → DNA + recipe → copy →
+      // compose → VERIFY → FIX) with a deterministic fallback at every stage. Any
+      // problems the model introduced are corrected inside `generateSite`; the
+      // studio is never handed a list of generation issues to resolve.
+      // Pass the seed through ONLY when the caller set one explicitly (the
+      // "generate another variant" button). Otherwise let `generateSite` derive
+      // its own stable default AND run the anti-collision re-roll off
+      // `recentFingerprints` so a plain re-generate lands on a new layout.
+      const gen = await generateSite(this.ai, {
         brief,
-        digest: siteDigest(planned),
-        locale: ctx.locale,
-      })) ?? [];
-    const review =
-      failedChecks.length || findings.length ? { checks: failedChecks, findings } : undefined;
+        ctx: genCtx,
+        ...(typeof dto.seed === 'number' ? { seed: dto.seed } : {}),
+        recentFingerprints,
+        images: this.imageSearch,
+        ...(this.visualQa.enabled && this.visualQa.screenshotUrl
+          ? { visualQa: this.visualQa }
+          : {}),
+      });
+      planned = gen.doc;
+      notes = sanitizeAiPlan(planned, ctx);
+      fingerprints = [gen.fingerprint.hash, ...recentFingerprints].slice(0, 5);
+    }
 
     planned.mode = 'ai';
     planned.ai = {
@@ -781,12 +729,75 @@ export class WebsiteBuilderService {
       planCount: spent + 1,
       sectionCount: doc.ai?.sectionCount ?? 0,
       ...(notes.length ? { notes } : {}),
-      ...(review ? { review } : {}),
+      ...(fingerprints.length ? { fingerprints } : {}),
     };
     planned.history = [...(doc.history ?? []).slice(-2), doc.pages];
 
     await this.persist(companyId, planned, ctx);
     return this.view(companyId, userId);
+  }
+
+  /**
+   * Follow-up prompt: evolve the existing site (keep sections that still fit by
+   * id, apply the brief on top). Never rebuilds. Uses the legacy structure call
+   * which handles `current` / partial edits well.
+   */
+  private async aiImprove(doc: BuilderDoc, brief: string, genCtx: SeedCtx) {
+    const current = {
+      theme: doc.theme as unknown as Record<string, unknown>,
+      pages: doc.pages
+        .filter((p) => !p.system)
+        .map((p) => ({
+          title: p.title,
+          slug: p.slug,
+          sections: p.sections.map((s) => ({ id: s.id, type: s.type, variant: s.variant })),
+        })),
+    };
+    const archetype = classifyArchetype(brief, genCtx.businessType, genCtx.services);
+    const raw = await this.ai.planWebsite({
+      brief,
+      business: {
+        name: genCtx.businessName,
+        type: genCtx.businessType || undefined,
+        city: genCtx.city || undefined,
+        services: genCtx.services,
+      },
+      locale: genCtx.locale,
+      catalogText: catalogPromptText(),
+      archetype,
+      skeletonExample: skeletonExampleJson(pickSkeleton(archetype, hashInt(`${brief}`))),
+      variantHints: variantHintText(),
+      current,
+    });
+    if (!raw || !Array.isArray(raw.pages) || !raw.pages.length) {
+      throw new BadRequestException('ai_unavailable');
+    }
+    const planned = normalizeDoc(
+      {
+        v: 2,
+        mode: 'ai',
+        theme: raw.theme ?? doc.theme,
+        pages: raw.pages,
+        nav: doc.nav,
+        footer: doc.footer,
+      },
+      genCtx,
+    );
+    // Restore the copy of every section the planner chose to keep (by id).
+    const oldById = new Map(doc.pages.flatMap((p) => p.sections).map((s) => [s.id, s.content]));
+    for (const p of planned.pages) {
+      for (const s of p.sections) {
+        const kept = oldById.get(s.id);
+        if (kept && Object.keys(s.content ?? {}).length === 0) s.content = kept;
+      }
+    }
+    const seededCount = seedFillEmptySections(planned, genCtx);
+    fillDocImages(planned, genCtx, brief, { keepExisting: true });
+    await verifyDocImages(planned, genCtx, brief);
+
+    const notes = sanitizeAiPlan(planned, genCtx);
+    if (seededCount > 0 && !notes.includes('seeded')) notes.push('seeded');
+    return { planned, notes };
   }
 
   /** Roll back the most recent AI plan replace. */
@@ -816,7 +827,7 @@ export class WebsiteBuilderService {
     assertClean(instruction);
 
     const spec = SECTION_CATALOG[found.section.type];
-    const raw = await this.deepseek.sectionContent({
+    const raw = await this.ai.sectionContent({
       type: found.section.type,
       variant: found.section.variant,
       fieldKeys: spec.fields.map((f) => f.key),

@@ -64,16 +64,9 @@ const aiNotesDismissed = ref(false)
 const aiNotes = computed(() => view.value?.doc?.ai?.notes ?? [])
 watch(aiNotes, () => (aiNotesDismissed.value = false))
 
-// Post-generation review (deterministic checks + the model's findings).
-const reviewDismissed = ref(false)
-const aiReview = computed(() => view.value?.doc?.ai?.review ?? null)
-const reviewChecks = computed(() =>
-  (aiReview.value?.checks ?? []).map((raw) => {
-    const [id, ...rest] = raw.split(': ')
-    return { id, detail: rest.join(': ') }
-  }),
-)
-watch(aiReview, () => (reviewDismissed.value = false))
+// NB: the AI verifies + auto-fixes the site DURING generation (see the backend
+// `repairGeneratedSite`), so there is deliberately no "issues to resolve" panel
+// here — the studio only ever receives the finished, corrected result.
 
 const balance = computed(() => view.value?.wallet.balance.credits ?? 0)
 const price = computed(() => view.value?.priceCredits ?? 0)
@@ -344,27 +337,6 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div
-          v-if="aiReview && (reviewChecks.length || aiReview.findings.length) && !reviewDismissed"
-          class="wb__ainote wb__ainote--review"
-        >
-          <v-icon icon="mdi-clipboard-check-outline" size="16" />
-          <div>
-            <strong>{{ t('builder.reviewTitle') }}</strong>
-            <ul>
-              <li v-for="c in reviewChecks" :key="c.id">
-                {{ t(`builder.reviewCheck.${c.id}`) }}<span v-if="c.detail"> — {{ c.detail }}</span>
-              </li>
-              <li v-for="(f, i) in aiReview.findings" :key="`f${i}`">
-                <em>[{{ t(`builder.reviewSeverity.${f.severity}`) }}]</em> {{ f.ref }} — {{ f.message }}
-              </li>
-            </ul>
-          </div>
-          <button type="button" class="wb__ainote-x" @click="reviewDismissed = true">
-            <v-icon icon="mdi-close" size="16" />
-          </button>
-        </div>
-
         <div v-if="!view.locationSet && !adminMode" class="wb__note">
           <div class="wb__note-txt">
             <strong>{{ t('builder.doneTitle') }}</strong>
@@ -604,16 +576,15 @@ onBeforeUnmount(() => {
   gap: 0.8rem;
 }
 
-/* Below the grid: errors + AI notes + the "continue" nudge + AI quota. Capped
-   and scrollable as one block so a stack of notes can never squeeze the
-   preview grid above it (which is what made the preview far too short). */
+/* Below the grid: AI notes + the "continue" nudge + AI quota. Sized to its
+   content and always fully visible (no inner scrollbar). It stays small on its
+   own now that the old post-generation "review" panel is gone, so the preview
+   grid above keeps almost the full height. */
 .wb__foot {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  max-height: 32vh;
-  overflow-y: auto;
+  gap: 0.55rem;
 }
 .wb__foot:empty {
   display: none;
@@ -642,9 +613,6 @@ onBeforeUnmount(() => {
 @media (max-width: 1100px) {
   .wb__preview {
     min-height: 62vh;
-  }
-  .wb__foot {
-    max-height: none;
   }
 }
 .wb__rail,
@@ -703,23 +671,11 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
-  padding: 0.8rem 1rem;
+  padding: 0.7rem 0.9rem;
   border-radius: var(--tvz-radius-md);
   background: rgba(var(--v-theme-warning), 0.12);
   border: 1px solid rgba(var(--v-theme-warning), 0.35);
   font-size: 0.82rem;
-  max-height: 18vh;
-  overflow-y: auto;
-}
-.wb__ainote--review {
-  background: rgba(var(--v-theme-info), 0.1);
-  border-color: rgba(var(--v-theme-info), 0.35);
-}
-.wb__ainote--review em {
-  font-style: normal;
-  font-weight: 600;
-  color: rgb(var(--v-theme-warning));
-  margin-right: 0.15rem;
 }
 .wb__ainote strong {
   font-size: 0.86rem;

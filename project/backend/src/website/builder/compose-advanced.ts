@@ -76,6 +76,32 @@ export const MOTIONS: NonNullable<WebsiteTheme['motion']>[] = ['off', 'subtle', 
 export const PRESET_IDS = ['studio', 'bold', 'editorial', 'soft', 'tech', 'warm', 'mono'];
 const DENSITIES: WebsiteTheme['density'][] = ['compact', 'comfortable', 'spacious'];
 
+// --- typographic-character knobs (Design DNA → renderer CSS vars) --------
+export const HEADING_SCALES: NonNullable<WebsiteTheme['headingScale']>[] = [
+  'tight',
+  'normal',
+  'display',
+];
+export const HEADING_WEIGHTS: NonNullable<WebsiteTheme['headingWeight']>[] = [
+  'regular',
+  'medium',
+  'semibold',
+  'bold',
+];
+export const HEADING_ALIGNS: NonNullable<WebsiteTheme['headingAlign']>[] = ['left', 'center'];
+export const BODY_SCALES: NonNullable<WebsiteTheme['bodyScale']>[] = ['small', 'normal', 'large'];
+export const LINE_HEIGHTS: NonNullable<WebsiteTheme['lineHeight']>[] = [
+  'tight',
+  'normal',
+  'relaxed',
+];
+export const LETTER_SPACINGS: NonNullable<WebsiteTheme['letterSpacing']>[] = [
+  'tight',
+  'normal',
+  'wide',
+];
+export const TEXT_WIDTHS: NonNullable<WebsiteTheme['textWidth']>[] = ['narrow', 'normal', 'wide'];
+
 /** Old 3-value radius scale → new 5-value scale. */
 const RADIUS_MIGRATE: Record<string, WebsiteTheme['radius']> = {
   sharp: 'none',
@@ -207,8 +233,12 @@ export interface BuilderDoc {
     planCount: number;
     sectionCount: number;
     notes?: string[];
-    /** Post-generation review — failed deterministic checks + the model's findings. */
+    /** Post-generation review — failed deterministic checks + the model's findings.
+     *  No longer populated (the generator auto-fixes instead); kept for old docs. */
     review?: { checks: string[]; findings: SiteFinding[] };
+    /** Structural fingerprint hashes of this company's last few generations, so a
+     *  re-generate re-rolls off a repeated layout. Newest first, bounded. */
+    fingerprints?: string[];
   };
   /** Snapshots kept before an AI plan replace, newest last. Bounded. */
   history?: PageSpec[][];
@@ -310,6 +340,21 @@ export function normalizeTheme(raw: unknown): WebsiteTheme {
       : {}),
     ...(opt(t.shadow, SHADOWS) ? { shadow: opt(t.shadow, SHADOWS) } : {}),
     ...(opt(t.motion, MOTIONS) ? { motion: opt(t.motion, MOTIONS) } : {}),
+    ...(opt(t.headingScale, HEADING_SCALES)
+      ? { headingScale: opt(t.headingScale, HEADING_SCALES) }
+      : {}),
+    ...(opt(t.headingWeight, HEADING_WEIGHTS)
+      ? { headingWeight: opt(t.headingWeight, HEADING_WEIGHTS) }
+      : {}),
+    ...(opt(t.headingAlign, HEADING_ALIGNS)
+      ? { headingAlign: opt(t.headingAlign, HEADING_ALIGNS) }
+      : {}),
+    ...(opt(t.bodyScale, BODY_SCALES) ? { bodyScale: opt(t.bodyScale, BODY_SCALES) } : {}),
+    ...(opt(t.lineHeight, LINE_HEIGHTS) ? { lineHeight: opt(t.lineHeight, LINE_HEIGHTS) } : {}),
+    ...(opt(t.letterSpacing, LETTER_SPACINGS)
+      ? { letterSpacing: opt(t.letterSpacing, LETTER_SPACINGS) }
+      : {}),
+    ...(opt(t.textWidth, TEXT_WIDTHS) ? { textWidth: opt(t.textWidth, TEXT_WIDTHS) } : {}),
     ...(logoUrl ? { logoUrl } : {}),
   };
 }
@@ -462,7 +507,7 @@ export function starterAdvancedDoc(ctx: SeedCtx): BuilderDoc {
 }
 
 /**
- * Deterministic "AI plan" fallback — used when DeepSeek is unavailable. Starts
+ * Deterministic "AI plan" fallback — used when the AI call is unavailable. Starts
  * from the 3-page starter and adds brief-keyword-driven sections/pages so a
  * prompt still yields something tailored.
  */
@@ -725,6 +770,11 @@ export function normalizeDoc(raw: unknown, ctx: SeedCtx): BuilderDoc {
       : [];
     if (checks.length || findings.length) review = { checks, findings };
   }
+  const fingerprints = Array.isArray(aiRaw?.fingerprints)
+    ? (aiRaw.fingerprints as unknown[])
+        .filter((x): x is string => typeof x === 'string' && x.length > 0)
+        .slice(0, 6)
+    : undefined;
   const ai = aiRaw
     ? {
         brief: typeof aiRaw.brief === 'string' ? String(aiRaw.brief).slice(0, 4000) : undefined,
@@ -734,6 +784,7 @@ export function normalizeDoc(raw: unknown, ctx: SeedCtx): BuilderDoc {
           ? (aiRaw.notes as unknown[]).filter((x): x is string => typeof x === 'string').slice(0, 5)
           : undefined,
         ...(review ? { review } : {}),
+        ...(fingerprints?.length ? { fingerprints } : {}),
       }
     : undefined;
 

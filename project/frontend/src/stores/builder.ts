@@ -555,14 +555,18 @@ export const useBuilderStore = defineStore('builder', {
       companyId: string,
       brief: string,
       mode?: 'improve' | 'replace',
+      seed?: number,
     ): Promise<boolean> {
       if (this.dirty && !(await this.save(companyId))) return false
       this.aiPlanning = true
       try {
+        const body: Record<string, unknown> = { brief }
+        if (mode) body.mode = mode
+        if (typeof seed === 'number') body.seed = seed
         return await this.run(() =>
           apiFetch<BuilderView>(`/companies/${companyId}/website-builder/ai/plan`, {
             method: 'POST',
-            body: mode ? { brief, mode } : { brief },
+            body,
             timeoutMs: 120_000,
           }),
         )

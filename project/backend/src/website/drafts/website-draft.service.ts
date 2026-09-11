@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DeepseekService } from '../../ai/deepseek.service';
+import { AiService } from '../../ai/ai.service';
 import { ServiceItem } from '../website.types';
 import {
   EasyStep,
@@ -109,7 +109,7 @@ export type { EasyPatch };
 export class WebsiteDraftService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly deepseek: DeepseekService,
+    private readonly ai: AiService,
   ) {}
 
   private static hash(token: string): string {
@@ -188,7 +188,7 @@ export class WebsiteDraftService {
     };
   }
 
-  /** Run the single DeepSeek call (capped per draft), else deterministic copy. */
+  /** Run the single AI call (capped per draft), else deterministic copy. */
   private async writeServiceCopy(a: EasyAnswers, names: string[]): Promise<ServiceItem[]> {
     const clean = names
       .map((n) => n.trim())
@@ -200,7 +200,7 @@ export class WebsiteDraftService {
 
     let items: ServiceItem[] | null = null;
     if (spent < AI_CALL_CAP) {
-      items = await this.deepseek.serviceCopy({
+      items = await this.ai.serviceCopy({
         companyName: a.companyName ?? '',
         businessType: a.businessType,
         city: a.city,
@@ -388,7 +388,7 @@ export class WebsiteDraftService {
       return { issues: [], draft: toDraftView(draft) };
     }
 
-    const found = await this.deepseek.reviewCopy({
+    const found = await this.ai.reviewCopy({
       items: items.map(({ key, label, text }) => ({ key, label, text })),
       locale,
     });

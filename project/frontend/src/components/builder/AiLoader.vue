@@ -15,9 +15,13 @@ const pct = ref(4)
 const done = ref(false)
 let timer: ReturnType<typeof setInterval> | undefined
 
-const STEPS = ['structure', 'copy', 'design'] as const
-/** Which step is active from the current percentage. */
-const step = computed(() => (pct.value < 34 ? 0 : pct.value < 82 ? 1 : 2))
+const STEPS = ['structure', 'copy', 'design', 'verify'] as const
+/** Which step is active from the current percentage. The last stretch is the
+ *  server-side verify → auto-fix pass, so it runs longer before `aiPlanning`
+ *  flips false. */
+const step = computed(() =>
+  pct.value < 26 ? 0 : pct.value < 58 ? 1 : pct.value < 80 ? 2 : 3,
+)
 
 function stepState(i: number): 'done' | 'active' | 'wait' {
   if (done.value || step.value > i) return 'done'

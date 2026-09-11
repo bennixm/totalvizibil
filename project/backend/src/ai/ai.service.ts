@@ -3,6 +3,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '../config/env';
 import type { SiteFinding } from '../website/builder/site-audit';
+import type {
+  BusinessProfile,
+  CreativeDirection,
+  DesignDNA,
+  DnaHints,
+  GeneratorBusiness,
+  IARole,
+  SectionRole,
+  TargetedFix,
+  VisualReview,
+} from '../website/builder/generator/types';
 
 export type AiLocale = 'ro' | 'en' | 'de';
 
@@ -77,16 +88,17 @@ export interface ReviewIssue {
   fix?: string;
 }
 
-const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions';
 const TIMEOUT_MS = 20_000;
-const PLAN_TIMEOUT_MS = 45_000;
+const PLAN_TIMEOUT_MS = 60_000;
 
-/** Shared knobs for one AI call. `effort` steers Claude, `temperature` DeepSeek. */
+/** Shared knobs for one Claude call. */
 interface CallOpts {
   maxTokens: number;
   timeoutMs?: number;
+  /** Adaptive-thinking budget — `low` on mechanical calls, `medium` on the plan. */
   effort?: 'low' | 'medium' | 'high';
-  temperature?: number;
+  /** Override the model for this call (generator routing: `_FAST` / `_VISION`). */
+  model?: string;
 }
 
 /**
@@ -215,40 +227,42 @@ const REVIEW_SYSTEM: Record<AiLocale, string> = {
 };
 
 /**
- * AI client for the website builders.
+ * AI client for the website builders — **Claude (Anthropic Messages API) only**.
  *
- * Provider: **Claude (Anthropic Messages API)** when `ANTHROPIC_API_KEY` is set,
- * with the legacy **DeepSeek** call kept as a secondary fallback (`DEEPSEEK_API_KEY`).
- * When neither key is set every method resolves to `null` and the callers fall
- * back to deterministic copy/plans, so the flow always completes.
- *
- * The class name stays `DeepseekService` to keep this migration a swap-in-place —
- * every call site, method signature, timeout and JSON-repair behaviour is
- * unchanged. Only the transport moved from DeepSeek to Claude.
+ * Powered by `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` (with optional
+ * `ANTHROPIC_MODEL_FAST` / `ANTHROPIC_MODEL_VISION` for the generator's cheaper /
+ * vision calls). When the key is unset every method resolves to `null` and the
+ * callers fall back to deterministic copy / keyword plans, so every flow still
+ * completes. (The earlier DeepSeek fallback transport has been removed.)
  */
 @Injectable()
-export class DeepseekService {
+export class AiService {
   private readonly logger = new Logger('AiService');
   private readonly anthropic: Anthropic | null;
   private readonly anthropicModel: string;
-  private readonly deepseekKey: string;
+  private readonly anthropicModelFast: string;
+  private readonly anthropicModelVision: string;
 
   constructor(config: ConfigService<AppConfig, true>) {
     const anthropicKey = config.get('anthropicApiKey', { infer: true }) ?? '';
     this.anthropicModel = config.get('anthropicModel', { infer: true }) || 'claude-opus-5';
-    this.deepseekKey = config.get('deepseekApiKey', { infer: true }) ?? '';
+    // The generator fires ~6–10 calls per site; the high-volume ones (copy,
+    // section rewrites, reviews, image intents) run on a faster/cheaper model.
+    // Sonnet is the sane default — Opus times out on a chain this long.
+    this.anthropicModelFast =
+      config.get('anthropicModelFast', { infer: true }) || 'claude-sonnet-5';
+    this.anthropicModelVision =
+      config.get('anthropicModelVision', { infer: true }) || this.anthropicModel;
     this.anthropic = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : null;
 
-    if (!this.anthropic && this.deepseekKey) {
-      this.logger.log('ANTHROPIC_API_KEY not set — falling back to the DeepSeek key');
-    } else if (!this.anthropic && !this.deepseekKey) {
-      this.logger.log('No AI key set — builders run on deterministic copy/plans');
+    if (!this.anthropic) {
+      this.logger.log('ANTHROPIC_API_KEY not set — builders run on deterministic copy/plans');
     }
   }
 
-  /** True when any provider is configured (Claude preferred). */
+  /** True when Claude is configured. */
   get configured(): boolean {
-    return !!this.anthropic || this.deepseekKey.length > 0;
+    return !!this.anthropic;
   }
 
   // --- transports ------------------------------------------------------
@@ -263,7 +277,7 @@ export class DeepseekService {
     try {
       const res = await this.anthropic.messages.create(
         {
-          model: this.anthropicModel,
+          model: opts.model || this.anthropicModel,
           max_tokens: opts.maxTokens,
           system,
           messages: [{ role: 'user', content: user }],
@@ -298,7 +312,7 @@ export class DeepseekService {
     try {
       const res = await this.anthropic.messages.create(
         {
-          model: this.anthropicModel,
+          model: opts.model || this.anthropicModel,
           max_tokens: opts.maxTokens,
           system,
           messages: [{ role: 'user', content: user }],
@@ -310,6 +324,55 @@ export class DeepseekService {
       return out || null;
     } catch (err) {
       this.logger.warn(`Claude call failed: ${this.errMsg(err)}`);
+      return null;
+    }
+  }
+
+  /**
+   * One Claude **vision** Messages call (a base64 image + a text prompt) → parsed
+   * JSON, or `null` on any failure. Runs on `ANTHROPIC_MODEL_VISION`.
+   */
+  private async anthropicVisionJson(
+    system: string,
+    textPrompt: string,
+    image: { base64: string; mediaType: 'image/png' | 'image/jpeg' | 'image/webp' },
+    opts: CallOpts,
+  ): Promise<Record<string, unknown> | null> {
+    if (!this.anthropic) return null;
+    try {
+      const res = await this.anthropic.messages.create(
+        {
+          model: opts.model || this.anthropicModelVision,
+          max_tokens: opts.maxTokens,
+          system,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: image.mediaType,
+                    data: image.base64,
+                  },
+                },
+                { type: 'text', text: textPrompt },
+              ],
+            },
+          ],
+          ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
+        },
+        { timeout: opts.timeoutMs ?? TIMEOUT_MS },
+      );
+      const parsed = parseLooseJson(this.textOf(res));
+      if (!parsed) {
+        this.logger.warn('Claude vision returned unparseable JSON');
+        return null;
+      }
+      return parsed;
+    } catch (err) {
+      this.logger.warn(`Claude vision call failed: ${this.errMsg(err)}`);
       return null;
     }
   }
@@ -326,106 +389,21 @@ export class DeepseekService {
     return err instanceof Error ? err.message : String(err);
   }
 
-  /** One DeepSeek chat completion in JSON mode → parsed object, or `null`. */
-  private async deepseekJson(
+  /** One Claude call → parsed JSON object, or `null` on any failure. */
+  private json(
     system: string,
     user: string,
     opts: CallOpts,
   ): Promise<Record<string, unknown> | null> {
-    if (!this.deepseekKey) return null;
-    try {
-      const res = await fetch(DEEPSEEK_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.deepseekKey}`,
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-          temperature: opts.temperature ?? 0.6,
-          max_tokens: opts.maxTokens,
-          response_format: { type: 'json_object' },
-        }),
-        signal: AbortSignal.timeout(opts.timeoutMs ?? TIMEOUT_MS),
-      });
-      if (!res.ok) {
-        this.logger.warn(`DeepSeek responded ${res.status}`);
-        return null;
-      }
-      const data = (await res.json()) as {
-        choices?: { message?: { content?: string }; finish_reason?: string }[];
-      };
-      const raw = data.choices?.[0]?.message?.content;
-      if (!raw) return null;
-      if (data.choices?.[0]?.finish_reason === 'length') {
-        this.logger.warn(
-          `DeepSeek hit max_tokens (${opts.maxTokens}) — attempting to repair truncated JSON`,
-        );
-      }
-      const parsed = parseLooseJson(raw);
-      if (!parsed) {
-        this.logger.warn('DeepSeek returned unparseable JSON (even after repair)');
-        return null;
-      }
-      return parsed;
-    } catch (err) {
-      this.logger.warn(`DeepSeek call failed: ${this.errMsg(err)}`);
-      return null;
-    }
+    return this.anthropicJson(system, user, opts);
   }
 
-  /** One DeepSeek chat completion → plain text, or `null`. */
-  private async deepseekText(system: string, user: string, opts: CallOpts): Promise<string | null> {
-    if (!this.deepseekKey) return null;
-    try {
-      const res = await fetch(DEEPSEEK_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.deepseekKey}`,
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-          temperature: opts.temperature ?? 0.2,
-          max_tokens: opts.maxTokens,
-        }),
-        signal: AbortSignal.timeout(opts.timeoutMs ?? TIMEOUT_MS),
-      });
-      if (!res.ok) {
-        this.logger.warn(`DeepSeek responded ${res.status}`);
-        return null;
-      }
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      const out = data.choices?.[0]?.message?.content?.trim();
-      return out || null;
-    } catch (err) {
-      this.logger.warn(`DeepSeek call failed: ${this.errMsg(err)}`);
-      return null;
-    }
+  /** One Claude call → plain text, or `null` on any failure. */
+  private text(system: string, user: string, opts: CallOpts): Promise<string | null> {
+    return this.anthropicText(system, user, opts);
   }
 
-  /** Claude first, DeepSeek second. `null` only when both are unavailable/failed. */
-  private async json(
-    system: string,
-    user: string,
-    opts: CallOpts,
-  ): Promise<Record<string, unknown> | null> {
-    return (await this.anthropicJson(system, user, opts)) ?? this.deepseekJson(system, user, opts);
-  }
-
-  private async text(system: string, user: string, opts: CallOpts): Promise<string | null> {
-    return (await this.anthropicText(system, user, opts)) ?? this.deepseekText(system, user, opts);
-  }
-
-  // --- public API (unchanged signatures) -----------------------------
+  // --- public API --------------------------------------------------
 
   async serviceCopy(input: ServiceCopyInput): Promise<ServiceCopy[] | null> {
     const names = input.services
@@ -455,8 +433,8 @@ export class DeepseekService {
 
     const parsed = (await this.json(SYSTEM[input.locale], prompt, {
       maxTokens: 900,
-      temperature: 0.7,
       effort: 'low',
+      model: this.anthropicModelFast,
     })) as { services?: { name?: string; description?: string }[] } | null;
     if (!parsed) return null;
 
@@ -481,8 +459,8 @@ export class DeepseekService {
 
     const out = await this.text(PROOFREAD_SYSTEM[locale] ?? PROOFREAD_SYSTEM.ro, src, {
       maxTokens: 600,
-      temperature: 0.1,
       effort: 'low',
+      model: this.anthropicModelFast,
     });
     if (!out) return null;
     // Strip a wrapping pair of quotes the model sometimes adds.
@@ -514,8 +492,8 @@ export class DeepseekService {
 
     const parsed = (await this.json(REVIEW_SYSTEM[input.locale] ?? REVIEW_SYSTEM.ro, user, {
       maxTokens: 2000,
-      temperature: 0.2,
       effort: 'low',
+      model: this.anthropicModelFast,
     })) as { issues?: unknown[] } | null;
     if (!parsed) return null;
 
@@ -568,8 +546,8 @@ export class DeepseekService {
 
     const parsed = (await this.json(system, user, {
       maxTokens: 1500,
-      temperature: 0.2,
       effort: 'low',
+      model: this.anthropicModelFast,
     })) as { findings?: unknown[] } | null;
     if (!parsed) return null;
 
@@ -590,6 +568,270 @@ export class DeepseekService {
       });
     }
     return out.slice(0, 20);
+  }
+
+  // --- Advanced builder: business-aware generation pipeline -----------
+
+  private facts(b: GeneratorBusiness): string {
+    return (
+      `Business: ${b.name || '(unnamed)'}\n` +
+      (b.type ? `Field: ${b.type}\n` : '') +
+      (b.city ? `City: ${b.city}\n` : '') +
+      (b.services.length ? `Services: ${b.services.join(', ')}\n` : '')
+    );
+  }
+
+  /**
+   * Stage 1–2: read the business, then commit to ONE creative direction that
+   * fits it. `seed` asks for "variant N" of a fitting direction so re-runs vary.
+   */
+  async analyzeBusiness(input: {
+    brief: string;
+    business: GeneratorBusiness;
+    locale: AiLocale;
+    seed: number;
+  }): Promise<{
+    profile: Partial<BusinessProfile>;
+    direction: Partial<CreativeDirection>;
+    dnaHints?: Partial<DnaHints>;
+  } | null> {
+    if (!this.configured) return null;
+    const system =
+      `You are a brand & web strategist. From a brief for a small business, output ONE JSON object:\n` +
+      `{"profile":{"businessType","audience","purchaseIntent":"impulse|considered|high-trust",` +
+      `"trustDrivers":[..],"primaryConversion","secondaryConversion",` +
+      `"maturity":"new|established|premium","positioning","emotionalTone",` +
+      `"visualOpportunities":[what is worth photographing],"contentPriorities":[ordered],` +
+      `"imageIntensity":"minimal|medium|high|gallery-led"},` +
+      `"direction":{"family":"one-or-two words e.g. architectural / warm-local / editorial / clinical-calm",` +
+      `"rationale":"<=25 words","referencePoints":[2 comparables]},` +
+      `"dna":{ optional deliberate design choices for THIS brand — include ONLY what you would ` +
+      `genuinely pick, omit the rest: "headingFont":"grotesk|inter|fraunces|jetbrains",` +
+      `"headingScale":"tight|normal|display","headingAlign":"left|center",` +
+      `"spacing":"compact|standard|spacious","radius":"none|subtle|rounded|large|pill",` +
+      `"heroStyle":"split|centered|imageBg|minimal|gradient|overlap",` +
+      `"cardStyle":"flat|bordered|raised|editorial","decorativeStyle":"none|subtle|expressive",` +
+      `"background":"light|tinted|dark","palette":"indigo|violet|blue|cyan|teal|emerald|lime|amber|orange|rose|fuchsia|slate",` +
+      `"accentHex":"#rrggbb only if the brand has a real colour","photographyStyle":"short phrase" }}.\n` +
+      `The direction AND the dna MUST suit the business — never pick a look just to be different. ` +
+      `Give creative-direction variant #${(Math.abs(input.seed) % 3) + 1} of a fitting family. ` +
+      `Reply with JSON only.`;
+    const parsed = (await this.json(
+      system,
+      `Brief: ${input.brief}\n${this.facts(input.business)}`,
+      {
+        maxTokens: 2000,
+        effort: 'medium',
+        timeoutMs: PLAN_TIMEOUT_MS,
+      },
+    )) as {
+      profile?: Partial<BusinessProfile>;
+      direction?: Partial<CreativeDirection>;
+      dna?: Partial<DnaHints>;
+    } | null;
+    if (!parsed) return null;
+    return {
+      profile: parsed.profile ?? {},
+      direction: parsed.direction ?? {},
+      dnaHints: parsed.dna && typeof parsed.dna === 'object' ? parsed.dna : {},
+    };
+  }
+
+  /**
+   * Stage 4: ordered list of section ROLES (from a fixed vocab) this business
+   * needs — plus which to omit. Structure only, no copy, no catalog types.
+   */
+  async planArchitecture(input: {
+    brief: string;
+    business: GeneratorBusiness;
+    profile: BusinessProfile;
+    direction: CreativeDirection;
+    locale: AiLocale;
+    seed: number;
+    roleVocab: string[];
+  }): Promise<{ roles: IARole[]; omitted: SectionRole[]; pageCount: number } | null> {
+    if (!this.configured) return null;
+    const system =
+      `You are an information architect. Decide which sections THIS business needs and their order. ` +
+      `Use ONLY these role ids: ${input.roleVocab.join(', ')}. A lawyer, a photographer and a ` +
+      `restaurant should get visibly different lists — do not default to hero/services/testimonials/cta ` +
+      `for everyone. Drop roles that do not serve this business.\n` +
+      `Return JSON only: {"roles":[{"role","required":bool,"priority":int,"rationale":"<=12 words"}],` +
+      `"omitted":[role,...],"pageCount":1|2}. "hero" first, "contact" last. 4–9 roles.`;
+    const user =
+      `Brief: ${input.brief}\n${this.facts(input.business)}` +
+      `Positioning: ${input.profile.positioning}\nPrimary goal: ${input.profile.primaryConversion}\n` +
+      `Direction: ${input.direction.family} — ${input.direction.rationale}\n` +
+      `Image intensity: ${input.profile.imageIntensity}. Variant seed: ${input.seed}.`;
+    const parsed = (await this.json(system, user, {
+      maxTokens: 1200,
+      effort: 'medium',
+      timeoutMs: PLAN_TIMEOUT_MS,
+    })) as { roles?: unknown[]; omitted?: unknown[]; pageCount?: unknown } | null;
+    if (!parsed || !Array.isArray(parsed.roles)) return null;
+    const roles: IARole[] = parsed.roles
+      .map((r, i) => {
+        const o = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>;
+        return {
+          role: String(o.role ?? '') as SectionRole,
+          required: !!o.required,
+          priority: Number.isFinite(o.priority) ? Number(o.priority) : i,
+          rationale: typeof o.rationale === 'string' ? o.rationale.slice(0, 120) : undefined,
+        };
+      })
+      .filter((r) => r.role);
+    const omitted = Array.isArray(parsed.omitted)
+      ? parsed.omitted.filter((x): x is SectionRole => typeof x === 'string')
+      : [];
+    const pageCount = parsed.pageCount === 2 ? 2 : 1;
+    return roles.length >= 3 ? { roles, omitted, pageCount } : null;
+  }
+
+  /**
+   * Stage 6: fill the copy for a set of pages whose section list + variants are
+   * ALREADY fixed by the recipe. Returns one `{type,content}[]` per page, or
+   * `null` when nothing came back. Reuses the batched `copyPasses` transport.
+   */
+  async writePageCopy(input: {
+    brief: string;
+    business: GeneratorBusiness;
+    profile: BusinessProfile;
+    dna: DesignDNA;
+    locale: AiLocale;
+    pages: {
+      title: string;
+      purpose: string;
+      sections: { type: string; variant: string; role: string; fieldKeys: string[] }[];
+    }[];
+  }): Promise<Record<string, unknown>[][] | null> {
+    if (!this.configured || !input.pages.length) return null;
+    const lang = LOCALE_NAME[input.locale] ?? 'Romanian';
+    const system =
+      `You write website copy for a specific business. Fill each section's "content" object using ` +
+      `ONLY its listed field keys — keep the section order and its type/variant. "items" fields are ` +
+      `arrays of objects; "list" fields are arrays of strings. Return EVERY section.\n` +
+      `Voice: ${input.profile.emotionalTone}. Positioning: ${input.profile.positioning}. ` +
+      `Audience: ${input.profile.audience}. Primary goal: ${input.profile.primaryConversion}.\n` +
+      `Write ALL text in ${lang}, concrete and specific to THIS business — no lorem ipsum, no empty ` +
+      `clichés, no "we are a team that…" openers repeated. Vary sentence length and how sections open.\n` +
+      `GOOD: "Turnăm fundații și structuri de rezistență pentru case pe un nivel, în jur de Cluj." ` +
+      `BAD: "Oferim servicii de calitate superioară adaptate nevoilor dumneavoastră." ` +
+      `Name real things (materiale, orașe, tipuri de lucrări, pași); avoid superlative fără dovadă ` +
+      `("cel mai bun", "lider de piață", "24/7") unless the brief says so.\n` +
+      `Leave every image/imageUrl/backgroundImage field an empty string "". In "contact" leave phone/` +
+      `email empty. In "team" use a short placeholder name and empty bio.\n` +
+      `Reply with COMPACT JSON only: {"sections":[{"type":string,"content":{...}}]}.`;
+    const user = (pg: (typeof input.pages)[number]): string =>
+      `Brief: ${input.brief}\n${this.facts(input.business)}` +
+      `Page "${pg.title}" — ${pg.purpose}\nSections (in order):\n` +
+      JSON.stringify(
+        pg.sections.map((s) => ({ type: s.type, variant: s.variant, fields: s.fieldKeys })),
+      );
+    const out = await this.copyPasses(input.pages, system, user);
+    return out.some((p) => p.length) ? out : null;
+  }
+
+  /**
+   * Stage 7 (Phase 2): enrich image-search intents. Given rough slots, return a
+   * map key → { subject, scene, avoid } with business-specific search subjects.
+   */
+  async enrichImageIntents(input: {
+    business: GeneratorBusiness;
+    profile: BusinessProfile;
+    dna: DesignDNA;
+    locale: AiLocale;
+    slots: { key: string; role: string; sectionType: string; hint: string }[];
+  }): Promise<Record<string, { subject: string; scene: string; avoid: string[] }> | null> {
+    if (!this.configured || !input.slots.length) return null;
+    const system =
+      `You brief a photo researcher for a small-business website. For each slot return a concrete, ` +
+      `searchable subject + scene for THIS business and a short "avoid" list. Never generic ` +
+      `("business", "team", "office"). Reply JSON only: {"<key>":{"subject","scene","avoid":[..]}}.`;
+    const user =
+      `Business: ${input.business.name} — ${input.profile.businessType}\n` +
+      `Photography style: ${input.dna.photographyStyle}\n` +
+      `Visual opportunities: ${input.profile.visualOpportunities.join(', ')}\n` +
+      `Slots:\n` +
+      JSON.stringify(input.slots);
+    const parsed = (await this.json(system, user, {
+      maxTokens: 1400,
+      effort: 'low',
+      model: this.anthropicModelFast,
+    })) as Record<string, unknown> | null;
+    if (!parsed) return null;
+    const out: Record<string, { subject: string; scene: string; avoid: string[] }> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+      out[k] = {
+        subject: String(o.subject ?? '')
+          .trim()
+          .slice(0, 120),
+        scene: String(o.scene ?? '')
+          .trim()
+          .slice(0, 120),
+        avoid: Array.isArray(o.avoid)
+          ? o.avoid.filter((x): x is string => typeof x === 'string').slice(0, 6)
+          : [],
+      };
+    }
+    return out;
+  }
+
+  /**
+   * Phase 3 — Claude-vision review of a screenshot of the RENDERED site. Returns
+   * a 0–100 score + issues + a short list of surgical `TargetedFix`es. `null`
+   * when no key. Runs on `ANTHROPIC_MODEL_VISION`.
+   */
+  async visualReview(input: {
+    imageBase64: string;
+    mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
+    brief: string;
+    digest: string;
+    locale: AiLocale;
+  }): Promise<VisualReview | null> {
+    if (!this.configured) return null;
+    const system =
+      `You are a senior web designer reviewing a SCREENSHOT of a freshly generated small-business ` +
+      `website against its brief. Judge: visual hierarchy, whitespace/rhythm, typographic quality, ` +
+      `image fit, and whether it looks bespoke vs. a filled template. Be concrete and brief.\n` +
+      `"recommendedFixes" MUST be surgical — each is {"target","instruction"} where target is one of: ` +
+      `"hero.image", "typography", "spacing", "section:<id>.image", "section:<id>.variant", ` +
+      `"section:<id>.copy". Use the section ids from the digest. Max 4 fixes; only real problems.\n` +
+      `Reply JSON only: {"score":0-100,"criticalIssues":[..],"warnings":[..],"strengths":[..],` +
+      `"recommendedFixes":[{"target","instruction"}]}.`;
+    const user = `Brief: ${input.brief}\n\nSite digest (section ids in brackets):\n${input.digest}`;
+    const parsed = await this.anthropicVisionJson(
+      system,
+      user,
+      { base64: input.imageBase64, mediaType: input.mediaType },
+      { maxTokens: 1200, effort: 'low', timeoutMs: PLAN_TIMEOUT_MS },
+    );
+    if (!parsed) return null;
+
+    const arr = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 8) : [];
+    const rawFixes = Array.isArray(parsed.recommendedFixes) ? parsed.recommendedFixes : [];
+    const fixTarget = /^(hero\.image|typography|spacing|section:[^.]+\.(image|variant|copy))$/;
+    const recommendedFixes: TargetedFix[] = rawFixes
+      .map((f): TargetedFix | null => {
+        const o = (f && typeof f === 'object' ? f : {}) as Record<string, unknown>;
+        const target = String(o.target ?? '');
+        const instruction = String(o.instruction ?? '').trim();
+        return fixTarget.test(target) && instruction
+          ? { target: target as TargetedFix['target'], instruction: instruction.slice(0, 200) }
+          : null;
+      })
+      .filter((f): f is TargetedFix => f !== null)
+      .slice(0, 4);
+
+    const scoreNum = Number(parsed.score);
+    return {
+      score: Number.isFinite(scoreNum) ? Math.max(0, Math.min(100, Math.round(scoreNum))) : 60,
+      criticalIssues: arr(parsed.criticalIssues),
+      warnings: arr(parsed.warnings),
+      strengths: arr(parsed.strengths),
+      recommendedFixes,
+    };
   }
 
   /**
@@ -673,7 +915,6 @@ export class DeepseekService {
       `Reply with JSON only.`;
     const outline = (await this.json(outlineSys, `Brief: ${input.brief}\n${facts}`, {
       maxTokens: 3200,
-      temperature: improve ? 0.5 : 0.85,
       effort: 'medium',
       timeoutMs: PLAN_TIMEOUT_MS,
     })) as { theme?: Record<string, unknown>; pages?: unknown[] } | null;
@@ -809,8 +1050,8 @@ export class DeepseekService {
     const call = (i: number) =>
       this.json(system, user(pages[i]), {
         maxTokens: 3200,
-        temperature: 0.7,
         effort: 'low',
+        model: this.anthropicModelFast,
         timeoutMs: PLAN_TIMEOUT_MS,
       });
     const pass = async (idxs: number[]): Promise<void> => {
@@ -834,6 +1075,69 @@ export class DeepseekService {
   }
 
   /**
+   * Advanced builder — post-generation auto-repair. Given a set of just-generated
+   * sections and the concrete ISSUES found in each, rewrite their content to
+   * resolve them (drop exaggerated / contradictory / unverifiable / placeholder
+   * claims, be concrete and credible) keeping the same field shape. One batched
+   * call. Returns `index → new content`, or `null` when unavailable.
+   */
+  async fixSections(input: {
+    brief: string;
+    business: GeneratorBusiness;
+    locale: AiLocale;
+    sections: {
+      ref: string;
+      type: string;
+      variant: string;
+      fieldKeys: string[];
+      content: Record<string, unknown>;
+      issues: string[];
+    }[];
+  }): Promise<Record<number, Record<string, unknown>> | null> {
+    if (!this.configured || !input.sections.length) return null;
+    const lang = LOCALE_NAME[input.locale] ?? 'Romanian';
+    const system =
+      `You are quality-fixing specific sections of a small-business website that was just generated. ` +
+      `For each section, rewrite its "content" so the listed ISSUES are resolved:\n` +
+      `- remove exaggerated, absolute, contradictory or unverifiable claims (e.g. "0 wait time", "24/7", ` +
+      `"#1", "best in the country") unless the brief clearly supports them;\n` +
+      `- replace placeholder / lorem-ipsum / empty text with concrete, specific copy for THIS business;\n` +
+      `- keep claims consistent with the rest of the site.\n` +
+      `Keep EXACTLY the given field keys and their types. Do not add or drop keys. Leave every ` +
+      `image / imageUrl / backgroundImage field untouched. Write all text in ${lang}.\n` +
+      `Reply with JSON only: {"sections":[{"index":int,"content":{...}}]} — one entry per input section.`;
+    const user =
+      `Brief: ${input.brief}\n${this.facts(input.business)}\nSections to fix:\n` +
+      JSON.stringify(
+        input.sections.map((s, i) => ({
+          index: i,
+          type: s.type,
+          variant: s.variant,
+          fields: s.fieldKeys,
+          issues: s.issues,
+          content: s.content,
+        })),
+      );
+    const parsed = (await this.json(system, user, {
+      maxTokens: 3000,
+      effort: 'low',
+      model: this.anthropicModelFast,
+      timeoutMs: PLAN_TIMEOUT_MS,
+    })) as { sections?: unknown[] } | null;
+    if (!parsed || !Array.isArray(parsed.sections)) return null;
+    const out: Record<number, Record<string, unknown>> = {};
+    for (const raw of parsed.sections) {
+      const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+      const idx = Number(o.index);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= input.sections.length) continue;
+      if (o.content && typeof o.content === 'object') {
+        out[idx] = o.content as Record<string, unknown>;
+      }
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
+  /**
    * Advanced builder — rewrite a single section's content per an instruction,
    * keeping the same field shape. Returns the raw content object or `null`.
    */
@@ -850,8 +1154,8 @@ export class DeepseekService {
       `Current content:\n${JSON.stringify(input.current)}`;
     const parsed = await this.json(system, user, {
       maxTokens: 1200,
-      temperature: 0.6,
       effort: 'low',
+      model: this.anthropicModelFast,
     });
     return parsed && typeof parsed === 'object' ? parsed : null;
   }

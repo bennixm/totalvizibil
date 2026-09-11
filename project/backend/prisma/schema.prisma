@@ -861,3 +861,26 @@ model SupportMessage {
   @@index([ticketId, createdAt])
   @@map("support_messages")
 }
+
+// ---------------------------------------------------------------------------
+// Website builder — stock-photo (Pexels) search cache
+// ---------------------------------------------------------------------------
+
+// One row per distinct Pexels search (query + orientation + size). The Advanced
+// builder's image pipeline reads this before hitting the API so re-generating a
+// site — or generating several similar ones — stays well under the free-tier
+// rate limit. Rows past the service's TTL (~30d) are ignored and overwritten.
+model PexelsCacheEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  // "<query>|<orientation>|<size>", lowercased.
+  key         String   @unique
+  query       String
+  orientation String
+  size        String
+  // PexelsPhoto[] — the trimmed photo objects the search returned.
+  photos      Json
+  fetchedAt   DateTime @default(now()) @map("fetched_at")
+
+  @@index([fetchedAt])
+  @@map("pexels_cache")
+}

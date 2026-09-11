@@ -1183,7 +1183,8 @@
     "aiStage": {
       "structure": "Planific structura",
       "copy": "Scriu textele",
-      "design": "Aplic designul"
+      "design": "Aplic designul",
+      "verify": "Verific și optimizez"
     },
     "feat": {
       "pages": "Builder pe pagini — până la 6 pagini, complet editabile",
@@ -1218,6 +1219,8 @@
     "aiModeImproveHint": "Păstrează site-ul actual și aplică ce ceri",
     "aiModeReplace": "Reconstruiește",
     "aiModeReplaceHint": "Șterge tot și generează un site nou",
+    "regenVariant": "Generează altă variantă",
+    "regenVariantHint": "Aceeași afacere, alt aranjament și altă direcție de design",
     "aiPlaceholderImprove": "ex: adaugă testimoniale pe Acasă și fă tonul mai cald",
     "chrome": {
       "show": "Arată",
@@ -1278,6 +1281,7 @@
     "footContact": "Contact",
     "footLegal": "Legal",
     "madeWith": "Site creat cu Totalvizibil",
+    "photosPexels": "Fotografii: Pexels",
     "formPreview": "Formularul devine activ după publicarea site-ului."
   },
   "leads": {

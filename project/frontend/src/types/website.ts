@@ -125,4 +125,13 @@ export interface WebsiteTheme {
   motion?: 'off' | 'subtle' | 'lively'
   /** Brand logo shown in the site nav + footer (both builders). */
   logoUrl?: string
+
+  // --- typographic character (Advanced generator's Design DNA) ----------
+  headingScale?: 'tight' | 'normal' | 'display'
+  headingWeight?: 'regular' | 'medium' | 'semibold' | 'bold'
+  headingAlign?: 'left' | 'center'
+  bodyScale?: 'small' | 'normal' | 'large'
+  lineHeight?: 'tight' | 'normal' | 'relaxed'
+  letterSpacing?: 'tight' | 'normal' | 'wide'
+  textWidth?: 'narrow' | 'normal' | 'wide'
 }

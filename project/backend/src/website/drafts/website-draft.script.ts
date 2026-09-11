@@ -4,7 +4,7 @@
  * This is deliberately NOT an LLM: a small deterministic state machine that
  * walks the visitor through configuring the fixed one-pager template (name,
  * colour, landing, services, portfolio, contact). The ONE real AI touchpoint —
- * writing the Services copy with DeepSeek — is triggered by this script but
+ * writing the Services copy with Claude — is triggered by this script but
  * executed by the service (`generateServicesFor`).
  *
  * Assistant turns are returned as i18n KEYS (resolved under `studio.msg.*` on
@@ -50,7 +50,7 @@ export const NO_CHAT_STEPS: EasyStep[] = ['template', 'color', 'portfolio', 'don
 
 /**
  * Guidance is cheap (no LLM), so the message budget is generous — it only
- * exists to stop a runaway client. The single billable action (DeepSeek) is
+ * exists to stop a runaway client. The single billable action (the AI call) is
  * capped separately, per draft, in the service.
  */
 export const FREE_MAX_TURNS = 40;
@@ -71,7 +71,7 @@ export interface EasyAdvance {
   assistant: string[];
   /** whether the site should be re-composed from the new answers */
   regenerate: boolean;
-  /** service names to run through DeepSeek before composing (services step only) */
+  /** service names to run through the AI before composing (services step only) */
   generateServicesFor?: string[];
 }
 
@@ -142,7 +142,7 @@ export function nextEasyStep(step: EasyStep): EasyStep {
  * the text steps (name / landing title / services list / contact); the widget
  * steps (colour, portfolio) carry no text and are advanced from the studio's
  * "Continue" button. Pure: the caller persists answers/step, runs the single
- * DeepSeek call if `generateServicesFor` is set, then re-composes the site.
+ * AI call if `generateServicesFor` is set, then re-composes the site.
  */
 export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string): EasyAdvance {
   const a: EasyAnswers = { ...answers };
@@ -159,7 +159,7 @@ export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string)
     }
 
     case 'field': {
-      // The trade/field — given to DeepSeek so the Services copy is on point.
+      // The trade/field — given to the AI so the Services copy is on point.
       if (t && !SKIP_PATTERN.test(t)) a.businessType = condenseType(t);
       return { answers: a, step: 'color', assistant: ['askColor'], regenerate: true };
     }

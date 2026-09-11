@@ -118,6 +118,19 @@ const DENSITY: Record<WebsiteTheme['density'], string> = {
   comfortable: '1',
   spacious: '1.25',
 }
+
+// --- typographic character (Design DNA → CSS vars) --------------------
+const H_SCALE: Record<string, string> = { tight: '0.9', normal: '1', display: '1.16' }
+const H_WEIGHT: Record<string, string> = {
+  regular: '400',
+  medium: '500',
+  semibold: '600',
+  bold: '700',
+}
+const H_TRACK: Record<string, string> = { tight: '-0.03em', normal: '-0.015em', wide: '0.015em' }
+const BODY_SCALE: Record<string, string> = { small: '0.94', normal: '1', large: '1.07' }
+const LINE_HEIGHT: Record<string, string> = { tight: '1.45', normal: '1.65', relaxed: '1.8' }
+const MEASURE: Record<string, string> = { narrow: '56ch', normal: '68ch', wide: '80ch' }
 const SHADOWS: Record<string, string> = {
   none: 'none',
   soft: '0 14px 36px -18px color-mix(in srgb, var(--site-ink) 42%, transparent)',
@@ -171,12 +184,25 @@ const styleVars = computed(() => {
     '--site-display': heading,
     '--site-body': body,
     '--site-density': DENSITY[th.density] ?? '1',
+    '--site-h-scale': H_SCALE[th.headingScale ?? 'normal'] ?? '1',
+    '--site-h-weight': H_WEIGHT[th.headingWeight ?? 'bold'] ?? '700',
+    '--site-h-track': H_TRACK[th.letterSpacing ?? 'normal'] ?? '-0.015em',
+    '--site-h-align': th.headingAlign ?? 'inherit',
+    '--site-h-bar-ml': th.headingAlign === 'center' ? 'auto' : '0',
+    '--site-body-scale': BODY_SCALE[th.bodyScale ?? 'normal'] ?? '1',
+    '--site-lh': LINE_HEIGHT[th.lineHeight ?? 'normal'] ?? '1.65',
+    '--site-measure': MEASURE[th.textWidth ?? 'normal'] ?? '68ch',
   } as Record<string, string>
 })
 
 const pages = computed(() => props.content.pages ?? [])
 /** Legal pages — linked from the footer, never the top nav. */
 const legalPages = computed(() => pages.value.filter((p) => !!(p as { system?: string }).system))
+
+/** Pexels API guideline: show a credit when any photo came from their search. */
+const usesPexels = computed(() =>
+  JSON.stringify(props.content.pages ?? []).includes('images.pexels.com'),
+)
 /** Pages shown in the multi-page top nav. In the builder preview `navPreview`
  *  carries the real list (the preview itself renders one page at a time). */
 const navPages = computed<{ slug: string; title: string }[]>(() => {
@@ -1542,6 +1568,13 @@ watch(
         </div>
         <div class="site__foot-bar">
           <span>© {{ year }} {{ brandName }}</span>
+          <a
+            v-if="usesPexels"
+            class="site__foot-made"
+            href="https://www.pexels.com"
+            target="_blank"
+            rel="noopener nofollow"
+          >{{ t('site.photosPexels') }}</a>
           <span class="site__foot-made">{{ t('site.madeWith') }}</span>
         </div>
       </footer>
@@ -1912,16 +1945,25 @@ watch(
 .s h2,
 .s h3 {
   font-family: var(--site-display);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--site-h-track, -0.02em);
+  font-weight: var(--site-h-weight, 700);
   line-height: 1.12;
   margin: 0;
 }
 .s p {
-  line-height: 1.65;
+  line-height: var(--site-lh, 1.65);
+  font-size: calc(1em * var(--site-body-scale, 1));
+}
+/* running-prose lead / body blocks honour the DNA measure */
+.s__lead,
+.s__body,
+.s__text {
+  max-width: var(--site-measure, 68ch);
 }
 /* `.s h2` (the shared reset) has more weight than a bare `.s__h`, so qualify. */
 .s h2.s__h {
-  font-size: clamp(1.5rem, 3.4vw, 2.15rem);
+  font-size: calc(clamp(1.5rem, 3.4vw, 2.15rem) * var(--site-h-scale, 1));
+  text-align: var(--site-h-align, inherit);
   /* The accent rule is a separate block in flow, not glued to the text: clear
      air above it (its own `margin-top`) to the heading, and a generous
      `margin-bottom` from the rule to the section content. */
@@ -1943,6 +1985,8 @@ watch(
   content: '';
   display: block;
   margin-top: 1.15rem;
+  margin-left: var(--site-h-bar-ml, auto);
+  margin-right: auto;
   width: 48px;
   height: 3px;
   border-radius: 3px;

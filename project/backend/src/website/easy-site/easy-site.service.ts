@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, CompanyRole, Website } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DeepseekService } from '../../ai/deepseek.service';
+import { AiService } from '../../ai/ai.service';
 import { WebsiteAssetService } from '../assets/website-asset.service';
 import { assertClean } from '../drafts/content-filter';
 import { easyBlock } from '../drafts/website-draft.view';
@@ -33,7 +33,7 @@ export class EasySiteService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly assets: WebsiteAssetService,
-    private readonly deepseek: DeepseekService,
+    private readonly ai: AiService,
   ) {}
 
   // --- loading + auth -------------------------------------------------
@@ -158,7 +158,7 @@ export class EasySiteService {
     let items: ServiceItem[] | null = null;
     const spent = a.aiCalls ?? 0;
     if (clean.length && spent < AI_CALL_CAP) {
-      items = await this.deepseek.serviceCopy({
+      items = await this.ai.serviceCopy({
         companyName: a.companyName ?? '',
         businessType: a.businessType,
         city: a.city,

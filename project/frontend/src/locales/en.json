@@ -1183,7 +1183,8 @@
     "aiStage": {
       "structure": "Planning the structure",
       "copy": "Writing the copy",
-      "design": "Applying the design"
+      "design": "Applying the design",
+      "verify": "Checking & optimising"
     },
     "feat": {
       "pages": "Page-based builder — up to 6 pages, fully editable",
@@ -1218,6 +1219,8 @@
     "aiModeImproveHint": "Keep the current site and apply your changes",
     "aiModeReplace": "Rebuild",
     "aiModeReplaceHint": "Discard everything and generate a new site",
+    "regenVariant": "Generate another variant",
+    "regenVariantHint": "Same business, a different layout and design direction",
     "aiPlaceholderImprove": "e.g. add a testimonials section on Home and make the tone warmer",
     "chrome": {
       "show": "Show",
@@ -1278,6 +1281,7 @@
     "footContact": "Contact",
     "footLegal": "Legal",
     "madeWith": "Website by Totalvizibil",
+    "photosPexels": "Photos: Pexels",
     "formPreview": "The form goes live once the site is published."
   },
   "leads": {

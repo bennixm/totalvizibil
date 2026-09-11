@@ -1183,7 +1183,8 @@
     "aiStage": {
       "structure": "Struktur planen",
       "copy": "Texte schreiben",
-      "design": "Design anwenden"
+      "design": "Design anwenden",
+      "verify": "Prüfen & optimieren"
     },
     "feat": {
       "pages": "Seitenbasierter Builder — bis zu 6 Seiten, voll bearbeitbar",
@@ -1218,6 +1219,8 @@
     "aiModeImproveHint": "Bestehende Website behalten und Änderungen anwenden",
     "aiModeReplace": "Neu erstellen",
     "aiModeReplaceHint": "Alles verwerfen und eine neue Website generieren",
+    "regenVariant": "Weitere Variante generieren",
+    "regenVariantHint": "Gleiches Unternehmen, anderes Layout und andere Designrichtung",
     "aiPlaceholderImprove": "z. B. einen Testimonials-Abschnitt auf Start hinzufügen und den Ton wärmer machen",
     "chrome": {
       "show": "Anzeigen",
@@ -1278,6 +1281,7 @@
     "footContact": "Kontakt",
     "footLegal": "Rechtliches",
     "madeWith": "Website von Totalvizibil",
+    "photosPexels": "Fotos: Pexels",
     "formPreview": "Das Formular wird nach der Veröffentlichung aktiv."
   },
   "leads": {

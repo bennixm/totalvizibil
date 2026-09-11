@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class AiPlanDto {
   @IsString()
@@ -13,4 +13,15 @@ export class AiPlanDto {
   @IsOptional()
   @IsIn(['improve', 'replace'])
   mode?: 'improve' | 'replace';
+
+  /**
+   * Variant seed for a fresh generation — same brief + different seed ⇒ a
+   * genuinely different (but still fitting) design. Absent ⇒ derived from the
+   * company + brief (reproducible). Used only on a first / `replace` plan.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(2_147_483_647)
+  seed?: number;
 }

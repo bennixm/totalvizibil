@@ -533,6 +533,24 @@ export interface WebsiteTheme {
   /** Brand logo shown in the site nav + footer (both builders). Also mirrored
    *  to `company.logoUrl` so the feed card uses the same image. */
   logoUrl?: string;
+
+  // --- typographic character (Advanced generator's Design DNA) ----------
+  // All optional; absent ⇒ the renderer's existing defaults. They let one
+  // theme read as "quiet editorial" vs "loud display" without new fonts.
+  /** Heading size ramp. `display` = oversized, `tight` = restrained. */
+  headingScale?: 'tight' | 'normal' | 'display';
+  /** Heading font-weight. */
+  headingWeight?: 'regular' | 'medium' | 'semibold' | 'bold';
+  /** Section-heading alignment. `left` = editorial, `center` = classic. */
+  headingAlign?: 'left' | 'center';
+  /** Body copy size nudge. */
+  bodyScale?: 'small' | 'normal' | 'large';
+  /** Body line-height. */
+  lineHeight?: 'tight' | 'normal' | 'relaxed';
+  /** Heading letter-spacing. */
+  letterSpacing?: 'tight' | 'normal' | 'wide';
+  /** Max width of running prose (`narrow` ≈ 58ch, `wide` ≈ 78ch). */
+  textWidth?: 'narrow' | 'normal' | 'wide';
 }
 
 // --- Generator inputs -----------------------------------------------------

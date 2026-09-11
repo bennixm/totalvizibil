@@ -10,6 +10,7 @@ import { WebsiteAssetService } from './assets/website-asset.service';
 import { EasySiteController } from './easy-site/easy-site.controller';
 import { EasySiteService } from './easy-site/easy-site.service';
 import { RuleBasedWebsiteGenerator } from './website-generator';
+import { ImageSearchService } from './builder/generator/image-provider/image-search.service';
 
 @Module({
   imports: [AuthModule, WalletModule],
@@ -25,6 +26,7 @@ import { RuleBasedWebsiteGenerator } from './website-generator';
     WebsiteAssetService,
     EasySiteService,
     RuleBasedWebsiteGenerator,
+    ImageSearchService,
   ],
   exports: [RuleBasedWebsiteGenerator, WebsiteDraftService, WebsiteBuilderService],
 })

@@ -139,13 +139,30 @@ function escapeRe(s: string): string {
 
 const WORD_RE = new RegExp(`(^|[^a-z])(${BANNED_WORDS.map(escapeRe).join('|')})([^a-z]|$)`, 'i');
 
+/**
+ * Collapse ONLY the "spaced-out / punctuated evasion" pattern — a run of ≥3
+ * short (1–2 letter) fragments joined by single separators, e.g. `p u l a`,
+ * `f-u-c-k`, `f.u.c.k`. Real prose keeps its word boundaries, so an innocent
+ * phrase like "structura vastă" can no longer fuse into a banned substring —
+ * that cross-word collision was a source of false `banned_content` 400s.
+ */
+function collapseEvasion(norm: string): string {
+  // ≥4 short fragments (min banned term is 4 chars: "muie", "fuck") joined by
+  // single separators — enough to require a real spell-out, not a run of tiny
+  // innocent words.
+  return norm.replace(
+    /(?:^|[^a-z])([a-z]{1,2}(?:[\s._*-]+[a-z]{1,2}){3,})(?=[^a-z]|$)/g,
+    (m, run: string) => m.slice(0, m.length - run.length) + run.replace(/[\s._*-]+/g, ''),
+  );
+}
+
 export function containsBannedContent(text: string): boolean {
   const raw = (text ?? '').toString();
   if (!raw.trim()) return false;
   const norm = normalise(raw);
   if (WORD_RE.test(norm)) return true;
-  const squashed = norm.replace(/[^a-z]/g, '');
-  return SQUASHED_TERMS.some((t) => squashed.includes(t));
+  const deEvaded = collapseEvasion(norm).replace(/[^a-z]/g, ' ');
+  return SQUASHED_TERMS.some((t) => deEvaded.includes(t));
 }
 
 /** Throws `banned_content` if any of the given strings trips the filter. */

@@ -9,12 +9,20 @@ export interface AppConfig {
   sessionTtlDays: number;
   sessionCookieSecure: boolean;
   frontendOrigin: string;
-  /** Anthropic (Claude) API key — the primary AI for both website builders. Empty = try DeepSeek, else deterministic. */
+  /** Anthropic (Claude) API key — the only AI provider for both website builders. Empty ⇒ deterministic fallback. */
   anthropicApiKey: string;
   /** Claude model id for the builders (e.g. `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`). */
   anthropicModel: string;
-  /** DeepSeek API key — legacy AI transport, kept as a secondary fallback. Empty = deterministic fallback. */
-  deepseekApiKey: string;
+  /** Optional faster/cheaper model for the mechanical generator calls (copy, image intents, review). Empty ⇒ `anthropicModel`. */
+  anthropicModelFast: string;
+  /** Optional vision-capable model for the post-generation visual review. Empty ⇒ `anthropicModel`. */
+  anthropicModelVision: string;
+  /** Pexels API key — primary stock-photo provider for the Advanced generator. Empty ⇒ curated pool fallback. */
+  pexelsApiKey: string;
+  /** `on` enables the opt-in post-generation visual (screenshot + vision) QA pass. */
+  visualQa: boolean;
+  /** Dev-only URL of a screenshot service (`?url=` → PNG). Empty ⇒ visual QA no-ops. */
+  screenshotUrl: string;
 }
 
 // Matches project/docker-compose.yml. Used only as a dev fallback when .env is
@@ -45,7 +53,11 @@ export function loadConfig(): AppConfig {
     frontendOrigin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173',
     anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() ?? '',
     anthropicModel: process.env.ANTHROPIC_MODEL?.trim() || 'claude-opus-5',
-    deepseekApiKey: process.env.DEEPSEEK_API_KEY?.trim() ?? '',
+    anthropicModelFast: process.env.ANTHROPIC_MODEL_FAST?.trim() ?? '',
+    anthropicModelVision: process.env.ANTHROPIC_MODEL_VISION?.trim() ?? '',
+    pexelsApiKey: process.env.PEXELS_API_KEY?.trim() ?? '',
+    visualQa: (process.env.VISUAL_QA?.trim().toLowerCase() ?? '') === 'on',
+    screenshotUrl: process.env.SCREENSHOT_URL?.trim() ?? '',
   };
 }
 

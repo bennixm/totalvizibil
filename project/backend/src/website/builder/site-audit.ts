@@ -6,7 +6,7 @@
  *   1. `structuralAudit()` — deterministic, no network: missing hero/contact,
  *      thin pages, stacked duplicate sections, placeholder / lorem-ipsum text,
  *      near-empty copy, whether the brief is echoed anywhere.
- *   2. the model's own read of the result — `DeepseekService.reviewSite()` — a
+ *   2. the model's own read of the result — `AiService.reviewSite()` — a
  *      single call over a text digest of the finished site.
  *
  * Both are advisory: findings are attached to `doc.ai.review` and surfaced in
@@ -125,11 +125,45 @@ export function structuralAudit(doc: BuilderDoc, brief = ''): AuditCheck[] {
     add('brief_reflected', echoed, echoed ? undefined : briefWords.slice(0, 6).join(', '));
   }
 
+  // --- design-quality signals (the generator's diversity engine) ---------
+  const allSecs = pages.flatMap((p) => p.sections.filter((s) => s.visible !== false));
+
+  // section-type variety: a site that is mostly one or two block types reads
+  // as "template filling".
+  if (allSecs.length >= 4) {
+    const distinct = new Set(allSecs.map((s) => s.type)).size;
+    const ratio = distinct / allSecs.length;
+    add('section_variety', ratio >= 0.6, `${distinct}/${allSecs.length} distinct types`);
+  }
+
+  // no run of 3+ sections sharing one variant id (a visible rhythm stall).
+  let stall = 0;
+  let maxStall = 1;
+  for (let i = 1; i < allSecs.length; i++) {
+    stall = allSecs[i].variant === allSecs[i - 1].variant ? stall + 1 : 0;
+    maxStall = Math.max(maxStall, stall + 1);
+  }
+  add('layout_rhythm', maxStall < 3, maxStall >= 3 ? `${maxStall} in a row` : undefined);
+
+  // the theme carries a typographic character (Design DNA landed).
+  const t = doc.theme as {
+    headingAlign?: string;
+    headingScale?: string;
+    background?: string;
+  };
+  add('typographic_character', !!(t.headingAlign || t.headingScale || t.background));
+
   return checks;
 }
 
-/** Compact text digest of the finished site for the model review call. */
-export function siteDigest(doc: BuilderDoc, cap = 4000): string {
+/** Compact text digest of the finished site for the model review call.
+ *  `sectionIds` prefixes each line with `[<id>]` so a visual-QA verdict can
+ *  point a fix at a specific section. */
+export function siteDigest(
+  doc: BuilderDoc,
+  cap = 4000,
+  opts: { sectionIds?: boolean } = {},
+): string {
   const lines: string[] = [];
   for (const p of nonSystemPages(doc)) {
     lines.push(`## ${p.title}`);
@@ -139,7 +173,8 @@ export function siteDigest(doc: BuilderDoc, cap = 4000): string {
         .join(' · ')
         .replace(/\s+/g, ' ')
         .slice(0, 240);
-      lines.push(`- ${s.type}/${s.variant}: ${txt || '(no text)'}`);
+      const id = opts.sectionIds ? `[${s.id}] ` : '';
+      lines.push(`- ${id}${s.type}/${s.variant}: ${txt || '(no text)'}`);
     }
   }
   return lines.join('\n').slice(0, cap);

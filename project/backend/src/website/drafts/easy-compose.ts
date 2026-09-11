@@ -127,7 +127,7 @@ interface Labels {
   ctaTitle: (name: string) => string;
   ctaButton: string;
   contactTitle: string;
-  /** Deterministic copy used when the DeepSeek call is unavailable; `i` rotates a few phrasings. */
+  /** Deterministic copy used when the AI call is unavailable; `i` rotates a few phrasings. */
   fallbackDesc: (name: string, i: number) => string;
   seoDesc: (name: string, trade: string) => string;
 }
