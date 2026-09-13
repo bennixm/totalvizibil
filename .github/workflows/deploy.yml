@@ -1,0 +1,78 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Backend — install
+        working-directory: project/backend
+        run: npm ci
+
+      - name: Backend — typecheck
+        working-directory: project/backend
+        run: npm run typecheck
+
+      - name: Backend — lint
+        working-directory: project/backend
+        run: npm run lint:check
+
+      - name: Backend — test
+        working-directory: project/backend
+        run: npm test
+
+      - name: Frontend — install
+        working-directory: project/frontend
+        run: npm ci
+
+      - name: Frontend — lint
+        working-directory: project/frontend
+        run: npm run lint:check
+
+      - name: Frontend — test
+        working-directory: project/frontend
+        run: npm test
+
+      - name: Frontend — typecheck + build
+        working-directory: project/frontend
+        run: npm run build
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-vps
+      cancel-in-progress: false
+    steps:
+      - name: SSH into the VPS and redeploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /var/www/totalvizibil
+            git pull origin main
+
+            cd project/backend
+            npm ci
+            npx prisma migrate deploy
+            npm run build
+            pm2 describe tvz-api > /dev/null 2>&1 && pm2 restart tvz-api || pm2 start dist/main.js --name tvz-api
+            pm2 save
+
+            cd ../frontend
+            npm ci
+            npm run build
