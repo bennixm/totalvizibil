@@ -93,7 +93,7 @@ watch(() => auth.isAuthenticated, loadCompanies)
     <div class="topbar__inner">
       <router-link :to="{ name: 'feed' }" class="brand" aria-label="Totalvizibil">
         <span class="brand__mark"><v-icon icon="mdi-compass-outline" size="19" /></span>
-        <span class="brand__word">{{ t('app.name') }}</span>
+        <span class="brand__word">dev.{{ t('app.name') }}</span>
       </router-link>
 
       <nav v-if="mdAndUp" class="navlinks">
