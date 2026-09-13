@@ -34,6 +34,8 @@ const NO_AI: GeneratorAi = {
   reviewSite: async () => [],
   fixSections: async () => null,
   visualReview: async () => null,
+  refineBrief: async () => null,
+  clarifyBrief: async () => null,
 };
 
 function doc(): BuilderDoc {

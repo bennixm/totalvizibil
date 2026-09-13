@@ -280,8 +280,12 @@ onMounted(async () => {
   // Post-account (advanced flow, or editing later): operate on the real company.
   if (auth.isAuthenticated) {
     mode.value = 'company'
+    // `ensureLoaded()` (→ `fetchList()`) has no internal error handling — an
+    // unguarded rejection here used to kill this whole `Promise.all` and, with
+    // it, this entire `onMounted`, leaving `ready` stuck at `false` forever
+    // (a permanent spinner, only cleared by a full page refresh).
     await Promise.all([
-      companies.ensureLoaded(),
+      companies.ensureLoaded().catch(() => {}),
       companies.fetchOverview().catch(() => {}),
     ])
     const id = companies.resolveId(route.query.c)

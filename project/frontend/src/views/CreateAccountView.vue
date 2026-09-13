@@ -18,13 +18,22 @@ const router = useRouter()
 const auth = useAuthStore()
 const companies = useCompaniesStore()
 const draftStore = useWebsiteDraftStore()
-const { draft, loading } = storeToRefs(draftStore)
+const { draft } = storeToRefs(draftStore)
 
 const name = ref('')
 const email = ref('')
 const password = ref('')
 const busy = ref(false)
 const error = ref('')
+// Gates the real content until `onMounted`'s validation (below) has actually
+// settled — otherwise the form/signed-in card renders on the FIRST paint
+// using whatever was already in the shared stores from the previous step,
+// and only corrects (or redirects away) a moment later once the checks
+// resolve. That's the visible "flash of another page" during the create
+// flow. Stays `true` forever on a redirect branch — the spinner should keep
+// showing until the browser actually navigates away, never flip back to
+// this page's real content first.
+const checking = ref(true)
 const toasts = useToastStore()
 watch(error, (v) => {
   if (v) toasts.error(v)
@@ -127,7 +136,7 @@ function claimExisting(): void {
 onMounted(async () => {
   const hasDraft = await draftStore.resumeIfAny()
   if (!hasDraft) {
-    void router.replace({ name: 'create' })
+    await router.replace({ name: 'create' })
     return
   }
   if (!draft.value?.ready) {
@@ -140,7 +149,13 @@ onMounted(async () => {
     return
   }
   if (auth.isAuthenticated) {
-    await companies.fetchOverview()
+    // Was previously unguarded — `fetchOverview()` throws on any network
+    // hiccup (it has no internal try/catch), which killed this WHOLE
+    // `onMounted` silently and left `checking` stuck at `true` forever: a
+    // permanent spinner that only a full page refresh could clear. Pricing/
+    // wallet figures are a nice-to-have here (`isAdditional` still works off
+    // `companies.overview`, defaulting to empty), so a soft-fail is correct.
+    await companies.fetchOverview().catch(() => {})
     try {
       const [pricing, wal] = await Promise.all([
         fetchPricing(),
@@ -152,6 +167,7 @@ onMounted(async () => {
       /* keep defaults */
     }
   }
+  checking.value = false
 })
 </script>
 
@@ -168,7 +184,7 @@ onMounted(async () => {
       <p class="acc__lead">{{ t('claim.lead', { business: businessName }) }}</p>
     </header>
 
-    <div v-if="loading && !draft" class="acc__loading">
+    <div v-if="checking" class="acc__loading">
       <v-progress-circular indeterminate color="primary" />
     </div>
 

@@ -14,6 +14,8 @@ const NO_AI: GeneratorAi = {
   reviewSite: async () => [],
   fixSections: async () => null,
   visualReview: async () => null,
+  refineBrief: async () => null,
+  clarifyBrief: async () => null,
 };
 
 function docWith(sections: { type: string; variant?: string; items?: number }[]): BuilderDoc {
@@ -185,6 +187,69 @@ describe('deriveImageIntents', () => {
     // the AI phrasing was captured separately + the avoid list merged
     expect(a[0].refinedSubject).toMatch(/^AI-worded /);
     expect(a[0].avoid).toContain('empty room');
+  });
+
+  it('a "minimal" hero (the lean page-header) never gets an image slot', async () => {
+    const doc = docWith([{ type: 'hero', variant: 'minimal' }]);
+    const profile = profFor();
+    const dna = deriveDesignDNA(profile, ARCHETYPE_PROFILE_DEFAULTS.portfolio.directions[0], 1);
+    const intents = await deriveImageIntents(NO_AI, {
+      doc,
+      profile,
+      dna,
+      business: { name: 'x', services: [] },
+      locale: 'ro',
+      seed: 1,
+    });
+    expect(intents).toEqual([]);
+  });
+
+  it("passes each slot's own page title to AI enrichment (anti cross-pillar bleed)", async () => {
+    const seenPageTitles: string[] = [];
+    const AI: GeneratorAi = {
+      ...NO_AI,
+      configured: true,
+      enrichImageIntents: async ({ slots }) => {
+        seenPageTitles.push(...slots.map((s) => s.pageTitle));
+        return null;
+      },
+    };
+    const multiPage: BuilderDoc = {
+      v: 2,
+      mode: 'ai',
+      theme: {} as BuilderDoc['theme'],
+      pages: [
+        {
+          id: 'home',
+          title: 'Acasă',
+          slug: 'acasa',
+          isHome: true,
+          nav: true,
+          sections: [{ id: 'h1', type: 'hero', variant: 'split', visible: true, content: {} }],
+        },
+        {
+          id: 'interior',
+          title: 'Design Interior',
+          slug: 'design-interior',
+          isHome: false,
+          nav: true,
+          sections: [
+            { id: 'i1', type: 'showcase', variant: 'default', visible: true, content: {} },
+          ],
+        },
+      ],
+    } as BuilderDoc;
+    const profile = profFor();
+    const dna = deriveDesignDNA(profile, ARCHETYPE_PROFILE_DEFAULTS.agency.directions[0], 1);
+    await deriveImageIntents(AI, {
+      doc: multiPage,
+      profile,
+      dna,
+      business: { name: 'x', services: [] },
+      locale: 'ro',
+      seed: 1,
+    });
+    expect(seenPageTitles).toEqual(['Acasă', 'Design Interior']);
   });
 });
 

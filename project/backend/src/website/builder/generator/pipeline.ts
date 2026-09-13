@@ -1,7 +1,8 @@
 /**
  * The Advanced builder's generation pipeline orchestrator.
  *
- *   BRIEF → analyzeBusiness (profile + direction + DNA hints) → planIA
+ *   BRIEF → refineBrief (richer brief + page-split hint, no invented facts)
+ *         → analyzeBusiness (profile + direction + DNA hints) → planIA
  *         → deriveDesignDNA + buildRecipe  [re-roll seed once if it repeats a
  *           recent generation]
  *         → writePageCopy → recipeToDoc
@@ -20,6 +21,7 @@ import { siteDigest } from '../site-audit';
 import { structuralAudit } from '../site-audit';
 import { hashInt } from '../stock-images';
 import { fillDocImages, verifyDocImages } from '../stock-images';
+import { refineBrief, serializePageHint } from './brief-refine';
 import { analyzeBusiness } from './business-analysis';
 import { deriveDesignDNA } from './design-dna';
 import { planIA, reshuffleIA } from './information-architecture';
@@ -35,11 +37,13 @@ import type {
   BusinessProfile,
   CreativeDirection,
   DesignDNA,
+  EnrichedBrief,
   GeneratorAi,
   ImageIntent,
   ImageSearchResolver,
   LayoutRecipe,
   QaReport,
+  SuggestedPage,
   VisualQaConfig,
 } from './types';
 
@@ -52,6 +56,16 @@ export interface GenerateInput {
    *  fresh structure matches one, the seed is bumped once (free re-roll) so a
    *  re-generate never lands on the same layout. */
   recentFingerprints?: string[];
+  /** Confirmed answers from the pre-generation clarification round, as plain
+   *  "question: answer" lines (`clarify.ts` `formatClarifyContext`). These are
+   *  facts the client explicitly confirmed — appended to the brief so every
+   *  downstream AI call treats them as certain, not a guess. */
+  clarifyContext?: string;
+  /** The concrete pages the client explicitly chose during clarification
+   *  (`clarify.ts` `resolveClarifiedPages`) — a REQUIREMENT, overriding Stage
+   *  0's own (much softer) `suggestedPages` guess, and forcing `planIA`'s
+   *  final `pageCount` in code regardless of what any AI call returns. */
+  clarifiedPages?: SuggestedPage[];
   /** A text digest review from the model (advisory). Set false to skip. */
   runContentReview?: boolean;
   /** Phase 2 — real photo search. Omitted / unconfigured ⇒ curated pool only. */
@@ -74,23 +88,49 @@ export interface GenerateResult {
   direction: CreativeDirection;
   dna: DesignDNA;
   recipe: LayoutRecipe;
+  /** Stage 0's output — server-side audit only. `enrichedBrief.brief` is what
+   *  every AI call in this run saw; `doc.ai.brief` stays the client's own text. */
+  enrichedBrief: EnrichedBrief;
 }
 
 const MAX_REPAIR_ROUNDS = 2;
 
 export async function generateSite(ai: GeneratorAi, input: GenerateInput): Promise<GenerateResult> {
-  const { brief, ctx } = input;
+  const { ctx } = input;
+  const rawBrief = input.brief;
   // An EXPLICIT seed (the "generate another variant" button, or a reproducible
   // run) is honoured as-is — the anti-collision re-roll only kicks in for the
-  // auto-derived seed, where a plain "regenerate" would otherwise repeat.
+  // auto-derived seed, where a plain "regenerate" would otherwise repeat. The
+  // seed is derived from the RAW brief (never the enriched one below) so the
+  // same client input always maps to the same seed, run after run.
   const explicitSeed = typeof input.seed === 'number';
-  const seed = input.seed ?? hashInt(`${ctx.businessName}|${brief}`);
+  const seed = input.seed ?? hashInt(`${ctx.businessName}|${rawBrief}`);
   const business = {
     name: ctx.businessName,
     type: ctx.businessType || undefined,
     city: ctx.city || undefined,
     services: ctx.services,
   };
+
+  // 0 · brief refinement — a richer, more specific brief + a recommended page
+  // split, WITHOUT inventing any fact not stated or clearly implied. Every AI
+  // call below reads this; the client's own words (`doc.ai.brief`, set by the
+  // caller in `website-builder.service.ts`) are never touched by it.
+  const enriched = await refineBrief(ai, { brief: rawBrief, business, locale: ctx.locale });
+  const brief = input.clarifyContext
+    ? `${enriched.brief}\n\nConfirmed by the client (treat as certain, do not contradict):\n${input.clarifyContext}`
+    : enriched.brief;
+  // A client-chosen page structure from clarification OVERRIDES Stage 0's own
+  // (much softer) guess — the two used to just sit side by side as competing
+  // prose in the same brief, and the model could quietly follow whichever one
+  // it liked, ignoring an explicit interactive choice.
+  const suggestedPages = input.clarifiedPages?.length
+    ? input.clarifiedPages
+    : enriched.suggestedPages;
+  const pageHint = suggestedPages.length ? serializePageHint(suggestedPages) : undefined;
+  const forcedPageCount = input.clarifiedPages?.length
+    ? Math.max(1, Math.min(5, input.clarifiedPages.length))
+    : undefined;
 
   // 1–2 · business analysis + creative direction + AI design hints
   const { profile, direction, dnaHints } = await analyzeBusiness(ai, {
@@ -108,6 +148,8 @@ export async function generateSite(ai: GeneratorAi, input: GenerateInput): Promi
     direction,
     locale: ctx.locale,
     seed,
+    pageHint,
+    ...(forcedPageCount ? { forcedPageCount } : {}),
   });
 
   // 3 + 5 · design DNA + layout recipe. If the resulting structure repeats a
@@ -117,7 +159,22 @@ export async function generateSite(ai: GeneratorAi, input: GenerateInput): Promi
   // brief lands on a genuinely different layout, not a 1-section tweak.
   const buildFor = (s: number, ia = baseIa): { dna: DesignDNA; recipe: LayoutRecipe } => {
     const d = deriveDesignDNA(profile, direction, s, dnaHints);
-    return { dna: d, recipe: buildRecipe({ ia, dna: d, profile, ctx, seed: s }) };
+    // Only a genuine client-confirmed page structure (clarification) renames
+    // the built pages — Stage 0's own `enriched.suggestedPages` is an
+    // internal, English-only placeholder guess (see `ARCHETYPE_PAGE_HINTS`),
+    // never meant to be shown to the client, so it must NOT drive display
+    // titles (it already influences `pageHint`/role selection above).
+    return {
+      dna: d,
+      recipe: buildRecipe({
+        ia,
+        dna: d,
+        profile,
+        ctx,
+        seed: s,
+        suggestedPages: input.clarifiedPages,
+      }),
+    };
   };
   let usedSeed = seed;
   let { dna, recipe } = buildFor(usedSeed);
@@ -139,7 +196,15 @@ export async function generateSite(ai: GeneratorAi, input: GenerateInput): Promi
   }));
   const copy =
     (await ai
-      .writePageCopy({ brief, business, profile, dna, locale: ctx.locale, pages: pageSpecs })
+      .writePageCopy({
+        brief,
+        business,
+        profile,
+        dna,
+        locale: ctx.locale,
+        emphasize: enriched.emphasize,
+        pages: pageSpecs,
+      })
       .catch(() => null)) ?? recipe.pages.map(() => [] as Record<string, unknown>[]);
 
   // 9 · compose the doc (empty sections seed-fill deterministically)
@@ -266,7 +331,17 @@ export async function generateSite(ai: GeneratorAi, input: GenerateInput): Promi
       : {}),
   };
 
-  return { doc, report, repaired, fingerprint, profile, direction, dna, recipe };
+  return {
+    doc,
+    report,
+    repaired,
+    fingerprint,
+    profile,
+    direction,
+    dna,
+    recipe,
+    enrichedBrief: enriched,
+  };
 }
 
 /** Min structural distance from `fp` to any recent fingerprint hash (1 = none / all different). */

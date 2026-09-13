@@ -93,7 +93,13 @@ function syncCategory(): void {
 }
 
 onMounted(async () => {
-  await feed.loadFacets()
+  // `loadFacets()` has no internal error handling — an unguarded rejection
+  // here (a network hiccup) used to kill this WHOLE `onMounted`, so
+  // `syncCategory()` below never ran and the actual feed listings never
+  // loaded: a permanently empty homepage until a hard refresh. The facets
+  // only feed the category filter UI + a legacy-redirect lookup, neither of
+  // which should ever block the real content.
+  await feed.loadFacets().catch(() => {})
 
   // Legacy `?category=slug` → redirect to the clean path form.
   const legacy = typeof route.query.category === 'string' ? route.query.category : null

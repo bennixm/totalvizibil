@@ -10,7 +10,7 @@
 import type { BusinessProfile, DesignDNA, ImageIntent } from '../types';
 
 const BANNED =
-  /\b(business|company|professional|corporate|team|office|meeting|workplace|entrepreneur)\b/gi;
+  /\b(business|company|professional|corporate|team|office|meeting|workplace|entrepreneur|developer|real estate|realtor)\b/gi;
 
 /** A few photography-direction phrases distilled to search-friendly keywords. */
 function styleKeywords(dna: DesignDNA): string {

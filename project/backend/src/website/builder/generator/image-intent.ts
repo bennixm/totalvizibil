@@ -38,22 +38,32 @@ interface RawSlot {
   role: string;
   orientation: ImageIntent['orientation'];
   priority: number; // lower = more important, kept when the cap bites
+  /** Which page this slot lives on — the topical anchor for AI enrichment on a
+   *  multi-pillar site (a "Design Interior" page shouldn't get an office photo
+   *  just because it shares a global `visualOpportunities` rotation). */
+  pageTitle: string;
 }
 
-function slotsForSection(s: DocSection): RawSlot[] {
+type BareSlot = Omit<RawSlot, 'pageTitle'>;
+
+function bareSlotsForSection(s: DocSection): BareSlot[] {
   const c = (s.content ?? {}) as Record<string, unknown>;
   const items = Array.isArray(c.items) ? (c.items as Record<string, unknown>[]) : [];
   switch (s.type) {
     case 'hero':
-      return [
-        {
-          section: s,
-          field: 'backgroundImage',
-          role: 'hero',
-          orientation: 'landscape',
-          priority: 0,
-        },
-      ];
+      // A "minimal" hero is deliberately text-only (also the lean page-header
+      // on secondary pages) — never search a photo for it.
+      return s.variant === 'minimal'
+        ? []
+        : [
+            {
+              section: s,
+              field: 'backgroundImage',
+              role: 'hero',
+              orientation: 'landscape',
+              priority: 0,
+            },
+          ];
     case 'showcase':
       return [
         {
@@ -109,6 +119,10 @@ function slotsForSection(s: DocSection): RawSlot[] {
     default:
       return [];
   }
+}
+
+function slotsForSection(s: DocSection, pageTitle: string): RawSlot[] {
+  return bareSlotsForSection(s).map((slot) => ({ ...slot, pageTitle }));
 }
 
 function pickSubject(opps: string[], seed: number, i: number): string {
@@ -171,7 +185,7 @@ export async function deriveImageIntents(
   const raw: RawSlot[] = [];
   for (const p of doc.pages) {
     if (p.system) continue;
-    for (const s of p.sections) raw.push(...slotsForSection(s));
+    for (const s of p.sections) raw.push(...slotsForSection(s, p.title));
   }
   if (!raw.length) return [];
 
@@ -200,9 +214,13 @@ export async function deriveImageIntents(
   // --- optional AI enrichment (one batched call) ---
   // Refined phrasing lands in `refinedSubject` / `refinedScene` (ranking + alt
   // text) and `avoid` — never `subject`/`scene`, so the query is reproducible.
+  // `pageTitle` is the anti-cross-pillar-bleed signal: on a multi-pillar site
+  // (e.g. "Design Interior" + "Proiecte Comerciale" pages), the naive rotation
+  // over the business-wide `visualOpportunities` list has no idea which pillar
+  // a given slot belongs to — the model does, given the page it's actually on.
   if (ai.configured) {
     const bySlotKey = new Map<string, ImageIntent>();
-    const slots = intents.map((it) => {
+    const slots = intents.map((it, i) => {
       const key = `${it.sectionId}:${it.field}:${it.itemIndex ?? 0}`;
       bySlotKey.set(key, it);
       return {
@@ -211,6 +229,7 @@ export async function deriveImageIntents(
         sectionType:
           doc.pages.flatMap((p) => p.sections).find((s) => s.id === it.sectionId)?.type ?? '',
         hint: `${it.subject} — ${it.scene}`,
+        pageTitle: kept[i].pageTitle,
       };
     });
     const enriched = await ai

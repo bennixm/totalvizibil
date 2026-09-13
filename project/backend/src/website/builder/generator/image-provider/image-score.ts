@@ -19,7 +19,7 @@ export interface ScoreContext {
 }
 
 const GENERIC_STOCK =
-  /\b(handshake|shaking hands|meeting room|conference room|smiling (employee|team|woman|man|people)|team of|laptop on (a )?desk|corporate|business people|office building|whiteboard|coworking|thumbs up|stock photo)\b/i;
+  /\b(handshake|shaking hands|meeting room|conference room|smiling (employee|team|woman|man|people)|team of|laptop on (a )?desk|corporate|business people|office building|whiteboard|coworking|thumbs up|stock photo|real estate agent|property developer|real estate developer|house for sale|for sale sign|realtor)\b/i;
 
 const STOP = new Set([
   'the',

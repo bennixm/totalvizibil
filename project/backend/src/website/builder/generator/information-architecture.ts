@@ -13,6 +13,7 @@ import type { SectionType } from '../../website.types';
 import type { Archetype } from '../site-archetypes';
 import type {
   BusinessProfile,
+  CompositionMode,
   CreativeDirection,
   DesignDNA,
   GeneratorAi,
@@ -40,10 +41,49 @@ export const ROLE_VOCAB: SectionRole[] = [
   'pricing',
   'gallery',
   'hours',
+  'comparisonTable',
+  'featuredProject',
+  'specialties',
+  'serviceArea',
   'primaryCTA',
   'secondaryCTA',
   'contact',
 ];
+
+/**
+ * Roles that make a natural secondary page when the IA asked for multi-page —
+ * the shared source of truth for `layout-recipe.ts`'s `buildRecipe` (which
+ * actually peels a group into its own page) AND `planIA`'s retry heuristic
+ * (which judges whether a role list can realistically reach a client-forced
+ * page count BEFORE building anything, by checking group depth, not just a
+ * raw role total). Each group carries a couple of extra members beyond its
+ * "obvious" core so it stays viable even when one is dropped upstream (e.g.
+ * `pricing` is stripped for most archetypes by `dropMisfitRoles`) — otherwise
+ * a group can quietly fall under the depth threshold and its roles get stuck
+ * on home instead of becoming their own page. Every role belongs to EXACTLY
+ * one group — no role is shared between two groups — so which page a role
+ * lands on stays predictable regardless of seed-rotated processing order.
+ */
+export const SPLIT_OFF: Record<string, SectionRole[]> = {
+  work: ['work', 'gallery', 'process', 'testimonials'],
+  services: ['services', 'pricing', 'faq', 'trustBar', 'hours'],
+  about: ['about', 'story', 'team', 'credentials', 'stats'],
+  proof: ['comparisonTable', 'featuredProject', 'specialties', 'serviceArea'],
+};
+
+/** Same depth floor `buildRecipe` uses before peeling a group off. */
+const MIN_GROUP_DEPTH = 3;
+
+const VALID_EMPHASIS = new Set<CompositionMode>([
+  'full',
+  'split',
+  'asymmetric',
+  'centered',
+  'editorial',
+  'grid',
+  'image-led',
+  'compact',
+]);
 
 type RoleWeight = { role: SectionRole; required: boolean; weight: number };
 
@@ -57,6 +97,10 @@ const ARCHETYPE_IA: Record<Archetype, RoleWeight[]> = {
     { role: 'process', required: false, weight: 70 },
     { role: 'testimonials', required: false, weight: 65 },
     { role: 'faq', required: false, weight: 45 },
+    { role: 'comparisonTable', required: false, weight: 40 },
+    { role: 'featuredProject', required: false, weight: 45 },
+    { role: 'specialties', required: false, weight: 40 },
+    { role: 'serviceArea', required: false, weight: 50 },
     { role: 'primaryCTA', required: true, weight: 90 },
     { role: 'contact', required: true, weight: 100 },
   ],
@@ -68,6 +112,9 @@ const ARCHETYPE_IA: Record<Archetype, RoleWeight[]> = {
     { role: 'services', required: true, weight: 88 },
     { role: 'process', required: false, weight: 72 },
     { role: 'testimonials', required: false, weight: 62 },
+    { role: 'comparisonTable', required: false, weight: 42 },
+    { role: 'featuredProject', required: false, weight: 55 },
+    { role: 'specialties', required: false, weight: 42 },
     { role: 'primaryCTA', required: true, weight: 88 },
     { role: 'contact', required: true, weight: 100 },
   ],
@@ -78,6 +125,7 @@ const ARCHETYPE_IA: Record<Archetype, RoleWeight[]> = {
     { role: 'about', required: false, weight: 75 },
     { role: 'services', required: false, weight: 55 },
     { role: 'testimonials', required: false, weight: 48 },
+    { role: 'featuredProject', required: false, weight: 52 },
     { role: 'primaryCTA', required: true, weight: 80 },
     { role: 'contact', required: true, weight: 100 },
   ],
@@ -90,6 +138,8 @@ const ARCHETYPE_IA: Record<Archetype, RoleWeight[]> = {
     { role: 'pricing', required: false, weight: 78 },
     { role: 'testimonials', required: false, weight: 58 },
     { role: 'faq', required: false, weight: 50 },
+    { role: 'comparisonTable', required: false, weight: 55 },
+    { role: 'specialties', required: false, weight: 45 },
     { role: 'primaryCTA', required: true, weight: 92 },
     { role: 'contact', required: true, weight: 90 },
   ],
@@ -100,6 +150,7 @@ const ARCHETYPE_IA: Record<Archetype, RoleWeight[]> = {
     { role: 'gallery', required: true, weight: 95 },
     { role: 'testimonials', required: false, weight: 60 },
     { role: 'hours', required: false, weight: 72 },
+    { role: 'serviceArea', required: false, weight: 35 },
     { role: 'primaryCTA', required: true, weight: 85 },
     { role: 'contact', required: true, weight: 100 },
   ],
@@ -112,6 +163,9 @@ const ARCHETYPE_IA: Record<Archetype, RoleWeight[]> = {
     { role: 'testimonials', required: false, weight: 60 },
     { role: 'faq', required: false, weight: 58 },
     { role: 'hours', required: false, weight: 55 },
+    { role: 'comparisonTable', required: false, weight: 45 },
+    { role: 'specialties', required: false, weight: 48 },
+    { role: 'serviceArea', required: false, weight: 40 },
     { role: 'primaryCTA', required: true, weight: 88 },
     { role: 'contact', required: true, weight: 100 },
   ],
@@ -122,6 +176,7 @@ const ARCHETYPE_IA: Record<Archetype, RoleWeight[]> = {
     { role: 'services', required: false, weight: 60 },
     { role: 'stats', required: false, weight: 50 },
     { role: 'testimonials', required: false, weight: 62 },
+    { role: 'serviceArea', required: false, weight: 30 },
     { role: 'primaryCTA', required: true, weight: 88 },
     { role: 'contact', required: true, weight: 85 },
   ],
@@ -133,6 +188,7 @@ const ARCHETYPE_IA: Record<Archetype, RoleWeight[]> = {
     { role: 'process', required: false, weight: 64 },
     { role: 'pricing', required: false, weight: 70 },
     { role: 'testimonials', required: false, weight: 58 },
+    { role: 'featuredProject', required: false, weight: 40 },
     { role: 'primaryCTA', required: true, weight: 85 },
     { role: 'contact', required: true, weight: 100 },
   ],
@@ -143,6 +199,8 @@ const ARCHETYPE_IA: Record<Archetype, RoleWeight[]> = {
     { role: 'trustBar', required: false, weight: 60 },
     { role: 'testimonials', required: false, weight: 62 },
     { role: 'faq', required: false, weight: 48 },
+    { role: 'specialties', required: false, weight: 38 },
+    { role: 'serviceArea', required: false, weight: 35 },
     { role: 'primaryCTA', required: true, weight: 85 },
     { role: 'contact', required: true, weight: 100 },
   ],
@@ -195,31 +253,44 @@ function applyProfile(list: RoleWeight[], profile: BusinessProfile): RoleWeight[
 function coerceAiRoles(
   raw: { roles: IARole[]; omitted: SectionRole[]; pageCount: number } | null,
   fallback: IASpec,
+  forcedPageCount?: number,
 ): IASpec {
-  if (!raw || !Array.isArray(raw.roles) || raw.roles.length < 3) return fallback;
+  const withForcedCount = (ia: IASpec): IASpec =>
+    forcedPageCount
+      ? {
+          ...ia,
+          pageCount: Math.max(1, Math.min(5, forcedPageCount)),
+          pageStrategy: forcedPageCount > 1 ? 'multi-page' : 'one-page',
+        }
+      : ia;
+  if (!raw || !Array.isArray(raw.roles) || raw.roles.length < 3) return withForcedCount(fallback);
   const seen = new Set<SectionRole>();
   const roles: IARole[] = [];
   for (const r of raw.roles) {
     const role = r?.role as SectionRole;
     if (!ROLE_VOCAB.includes(role) || seen.has(role)) continue;
     seen.add(role);
+    const emphasis = VALID_EMPHASIS.has(r.emphasis as CompositionMode)
+      ? (r.emphasis as CompositionMode)
+      : undefined;
     roles.push({
       role,
       required: !!r.required,
       priority: Number.isFinite(r.priority) ? Number(r.priority) : roles.length,
       rationale: typeof r.rationale === 'string' ? r.rationale.slice(0, 120) : undefined,
+      ...(emphasis ? { emphasis } : {}),
     });
   }
   if (!roles.some((r) => r.role === 'hero'))
     roles.unshift({ role: 'hero', required: true, priority: -1 });
   if (!roles.some((r) => r.role === 'contact'))
     roles.push({ role: 'contact', required: true, priority: 999 });
-  return {
+  return withForcedCount({
     roles: roles.sort((a, b) => a.priority - b.priority),
     omitted: (raw.omitted ?? []).filter((r): r is SectionRole => ROLE_VOCAB.includes(r)),
     pageStrategy: raw.pageCount > 1 ? 'multi-page' : 'one-page',
-    pageCount: Math.max(1, Math.min(4, raw.pageCount || fallback.pageCount)),
-  };
+    pageCount: Math.max(1, Math.min(5, raw.pageCount || fallback.pageCount)),
+  });
 }
 
 export interface PlanIAInput {
@@ -229,6 +300,12 @@ export interface PlanIAInput {
   direction: CreativeDirection;
   locale: StudioLocale;
   seed: number;
+  /** Stage 0's recommended page split, serialized — a strong signal, not a command. */
+  pageHint?: string;
+  /** The client EXPLICITLY chose this page count during pre-generation
+   *  clarification — a requirement, not a suggestion. `coerceAiRoles` clamps
+   *  the final `pageCount` to it regardless of what the model returns. */
+  forcedPageCount?: number;
 }
 
 /** Deterministic IA — the floor the AI result is merged over. */
@@ -357,21 +434,83 @@ export function reshuffleIA(ia: IASpec, seed: number): IASpec {
   };
 }
 
+/**
+ * Roles whose CATALOG TYPE only makes sense for a narrow set of archetypes —
+ * `pricing` renders as subscription-style plans (name/price/"€X per month"/
+ * features), which is a genuine fit for a SaaS or a ticketed event but reads as
+ * a fabricated monthly-subscription price on a project-quote business
+ * (construction, an agency, an architecture studio, a law firm...). The
+ * deterministic `ARCHETYPE_IA` tables already only offer `pricing` where it
+ * fits; the AI path has no such guardrail on its own, so it's enforced here —
+ * a widened role budget must not smuggle in a role that doesn't belong.
+ */
+const PRICING_FIT_ARCHETYPES = new Set<Archetype>(['saas', 'events']);
+
+function dropMisfitRoles(ia: IASpec, archetype: Archetype): IASpec {
+  if (PRICING_FIT_ARCHETYPES.has(archetype) || !ia.roles.some((r) => r.role === 'pricing')) {
+    return ia;
+  }
+  return {
+    ...ia,
+    roles: ia.roles.filter((r) => r.role !== 'pricing'),
+    omitted: ia.omitted.includes('pricing') ? ia.omitted : [...ia.omitted, 'pricing'],
+  };
+}
+
 export async function planIA(ai: GeneratorAi, input: PlanIAInput): Promise<IASpec> {
   const fallback = deterministicIA(input.profile, input.direction, input.seed);
   if (!ai.configured) return fallback;
-  const raw = await ai
-    .planArchitecture({
-      brief: input.brief,
-      business: input.business,
-      profile: input.profile,
-      direction: input.direction,
-      locale: input.locale,
-      seed: input.seed,
-      roleVocab: ROLE_VOCAB,
-    })
-    .catch(() => null);
-  return coerceAiRoles(raw, fallback);
+  const call = () =>
+    ai
+      .planArchitecture({
+        brief: input.brief,
+        business: input.business,
+        profile: input.profile,
+        direction: input.direction,
+        locale: input.locale,
+        seed: input.seed,
+        roleVocab: ROLE_VOCAB,
+        ...(input.pageHint ? { pageHint: input.pageHint } : {}),
+        ...(input.forcedPageCount ? { forcedPageCount: input.forcedPageCount } : {}),
+      })
+      .catch(() => null);
+  let raw = await call();
+  // A client-forced page count is the STRONGEST possible depth signal — an
+  // explicit interactive choice, not a guess — so it always earns the retry
+  // check, judged against the role count that count actually needs. Absent
+  // that: either Stage 0 recommended real depth (≥3 distinct pages) OR the
+  // brief itself is long/detailed (this also covers the case where Stage 0's
+  // OWN AI call was skipped for being already-detailed — see
+  // `SKIP_AI_OVER_CHARS` in brief-refine.ts — whose deterministic fallback
+  // only ever suggests 2 pages, so it would never trip the pageHint check on
+  // its own even for a rich brief). Either way, the model coming back thin is
+  // sampling variance (the same call can land differently run to run), not a
+  // considered "this business is simple" judgement — worth ONE bounded retry.
+  const suggestedDepth =
+    !!input.forcedPageCount ||
+    (input.pageHint?.split(';').length ?? 0) >= 3 ||
+    input.brief.length > 400;
+  // A raw role COUNT can clear the target while still being lopsided — e.g.
+  // 18 roles that are all "about"/"services" and only 2 in "proof" — which
+  // still can't actually reach the forced page count, since `buildRecipe`
+  // only peels a group off with ≥`MIN_GROUP_DEPTH` matched roles. So for a
+  // forced count, check the SAME grouping `buildRecipe` will use, not a total.
+  const groupsDeepEnough = (roles: SectionRole[]): number =>
+    Object.values(SPLIT_OFF).filter(
+      (group) => roles.filter((r) => group.includes(r)).length >= MIN_GROUP_DEPTH,
+    ).length;
+  const tooThin = (r: NonNullable<typeof raw>): boolean =>
+    input.forcedPageCount
+      ? r.pageCount < input.forcedPageCount ||
+        groupsDeepEnough(r.roles.map((role) => role.role)) < input.forcedPageCount - 1
+      : r.roles.length < 8 || r.pageCount < 2;
+  if (suggestedDepth && raw && tooThin(raw)) {
+    raw = (await call()) ?? raw;
+  }
+  return dropMisfitRoles(
+    coerceAiRoles(raw, fallback, input.forcedPageCount),
+    input.profile.archetype,
+  );
 }
 
 // --- role → catalog type -----------------------------------------------
@@ -421,6 +560,14 @@ export function roleToType(
       return 'gallery';
     case 'hours':
       return 'hours';
+    case 'comparisonTable':
+      return 'comparison';
+    case 'featuredProject':
+      return 'caseStudy';
+    case 'specialties':
+      return pick(['featureSplit', 'tabs', 'features']);
+    case 'serviceArea':
+      return pick(['features', 'highlightsRow']);
     case 'primaryCTA':
       return pick(['cta', 'splitCta', 'banner']);
     case 'secondaryCTA':

@@ -10,6 +10,7 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '../../auth/auth.guard';
 import { CurrentUser } from '../../auth/current-user.decorator';
 import { AuthPrincipal } from '../../auth/auth.types';
@@ -24,6 +25,8 @@ import { PatchChromeDto } from './dto/patch-chrome.dto';
 import { BuilderAddAssetDto } from './dto/add-asset.dto';
 import { AiPlanDto } from './dto/ai-plan.dto';
 import { AiSectionDto } from './dto/ai-section.dto';
+import { AiClarifyDto } from './dto/ai-clarify.dto';
+import { AiClarifyAnswerDto } from './dto/ai-clarify-answer.dto';
 
 @UseGuards(AuthGuard)
 @Controller('companies/:companyId/website-builder')
@@ -136,6 +139,28 @@ export class WebsiteBuilderController {
     @Body() dto: AiPlanDto,
   ) {
     return this.builder.aiPlan(user.id, companyId, dto);
+  }
+
+  /** Start pre-generation clarification for a fresh brief — questions or {done:true}. */
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @Post('ai/clarify')
+  aiClarifyStart(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+    @Body() dto: AiClarifyDto,
+  ) {
+    return this.builder.aiClarifyStart(user.id, companyId, dto);
+  }
+
+  /** Answer one round of clarification questions — the next round, or {done:true}. */
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @Post('ai/clarify/answer')
+  aiClarifyAnswer(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+    @Body() dto: AiClarifyAnswerDto,
+  ) {
+    return this.builder.aiClarifyAnswer(user.id, companyId, dto);
   }
 
   @Post('ai/undo')

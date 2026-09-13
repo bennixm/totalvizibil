@@ -225,6 +225,45 @@ describe('advanced composer', () => {
     expect(coerceOverrides('hero', { headline: { size: 'huge' } })).toBeUndefined();
   });
 
+  it('coerceOverrides accepts a type-specific extra target (button/input/gap) with its full style', () => {
+    const ov = coerceOverrides('hero', {
+      primaryButton: {
+        bg: '#000000',
+        color: '#FFFFFF',
+        borderWidth: 'thick',
+        borderColor: '#00FF00',
+        radius: 'pill',
+        padding: 'lg',
+        font: 'jetbrains',
+        junk: 1,
+      },
+    });
+    expect(ov).toEqual({
+      primaryButton: {
+        bg: '#000000',
+        color: '#ffffff',
+        borderWidth: 'thick',
+        borderColor: '#00ff00',
+        radius: 'pill',
+        padding: 'lg',
+        font: 'jetbrains',
+      },
+    });
+    // 'formInput' isn't an extra target declared for 'hero' -> dropped
+    expect(coerceOverrides('hero', { formInput: { bg: '#fff' } })).toBeUndefined();
+    // but it IS declared for 'contact'
+    expect(coerceOverrides('contact', { formInput: { bg: '#ffffff' } })).toEqual({
+      formInput: { bg: '#ffffff' },
+    });
+  });
+
+  it('coerceOverrides accepts a gap target and rejects an unknown gap value', () => {
+    expect(coerceOverrides('services', { itemsGap: { gap: 'loose' } })).toEqual({
+      itemsGap: { gap: 'loose' },
+    });
+    expect(coerceOverrides('services', { itemsGap: { gap: 'huge' } })).toBeUndefined();
+  });
+
   it('normalizeDoc + composeAdvancedDoc carry a per-element override through', () => {
     const base = starterAdvancedDoc(ctx);
     base.pages[0].sections[0].overrides = {
@@ -238,6 +277,34 @@ describe('advanced composer', () => {
     const g = composeAdvancedDoc(out, ctx);
     expect((g.content.pages[0].sections[0] as { overrides?: unknown }).overrides).toEqual({
       headline: { color: '#112233', size: 'xl' },
+    });
+  });
+
+  it('normalizeDoc + composeAdvancedDoc carry an extra style target (button/input/gap) through', () => {
+    const base = starterAdvancedDoc(ctx);
+    const contactPage = base.pages.find((p) => p.sections.some((s) => s.type === 'contact'))!;
+    const contact = contactPage.sections.find((s) => s.type === 'contact')!;
+    contact.overrides = {
+      formInput: { borderColor: '#00FF00', borderWidth: 'thick', radius: 'pill' },
+      formGap: { gap: 'loose' },
+      submitButton: { bg: '#123456' },
+      notATarget: { color: '#000000' },
+    } as never;
+    const out = normalizeDoc(base, ctx);
+    const outContact = out.pages.flatMap((p) => p.sections).find((s) => s.type === 'contact')!;
+    expect(outContact.overrides).toEqual({
+      formInput: { borderColor: '#00ff00', borderWidth: 'thick', radius: 'pill' },
+      formGap: { gap: 'loose' },
+      submitButton: { bg: '#123456' },
+    });
+    const g = composeAdvancedDoc(out, ctx);
+    const composedContact = g.content.pages
+      .flatMap((p) => p.sections)
+      .find((s) => s.type === 'contact') as { overrides?: unknown };
+    expect(composedContact.overrides).toEqual({
+      formInput: { borderColor: '#00ff00', borderWidth: 'thick', radius: 'pill' },
+      formGap: { gap: 'loose' },
+      submitButton: { bg: '#123456' },
     });
   });
 

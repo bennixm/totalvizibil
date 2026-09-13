@@ -24,6 +24,25 @@ const companyId = ref<string | null>(null)
 const expanded = ref<string | null>(null)
 const toDelete = ref<Lead | null>(null)
 
+// `leads.loadMore()` has no internal error handling AND never touches
+// `working` (that flag is only ever set by `mutate`/`reply`/`remove`, used
+// everywhere else on this page) — the button's `:loading="working"` binding
+// was dead, and a failed "load more" silently did nothing. Local flag +
+// explicit error handling, without touching `working`'s existing meaning
+// for the other buttons on this page.
+const loadingMore = ref(false)
+async function loadMore(): Promise<void> {
+  if (loadingMore.value || !nextCursor.value) return
+  loadingMore.value = true
+  try {
+    await leads.loadMore()
+  } catch (e) {
+    toasts.error(e instanceof Error ? e.message : t('leads.loadMoreError'))
+  } finally {
+    loadingMore.value = false
+  }
+}
+
 // Quick-reply composer
 const replyFor = ref<string | null>(null)
 const replyBody = ref('')
@@ -371,8 +390,8 @@ onMounted(async () => {
         variant="text"
         size="small"
         class="mt-2"
-        :loading="working"
-        @click="leads.loadMore()"
+        :loading="loadingMore"
+        @click="loadMore"
       >
         {{ t('leads.loadMore') }}
       </v-btn>

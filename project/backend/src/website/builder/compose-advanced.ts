@@ -23,7 +23,7 @@ import {
   seedSectionContent,
   snapAnimation,
   snapVariant,
-  textFieldKeys,
+  styleTargetKeys,
 } from './section-catalog';
 import { SkeletonSpec, classifyArchetype, pickSkeleton } from './site-archetypes';
 import type { SiteFinding } from './site-audit';
@@ -120,14 +120,35 @@ export interface SectionStyle {
 export const EL_SIZES = ['sm', 'md', 'lg', 'xl'] as const;
 export const EL_WEIGHTS = ['normal', 'medium', 'semibold', 'bold'] as const;
 export const EL_ALIGNS = ['left', 'center', 'right'] as const;
+export const EL_FONTS = ['grotesk', 'inter', 'fraunces', 'jetbrains'] as const;
+export const EL_GAPS = ['tight', 'normal', 'relaxed', 'loose'] as const;
+export const EL_BORDERS = ['none', 'thin', 'medium', 'thick'] as const;
+export const EL_PADDINGS = ['sm', 'md', 'lg'] as const;
+/** Same id set as the theme's own radius scale — one shared vocabulary. */
+export const EL_RADII = RADII;
 
-/** Style for one individual element inside a section (a heading, a paragraph…). */
+/**
+ * Style for one individual "part" of a section — a heading, a paragraph, a
+ * form input, a button, or the gap between repeated cards/rows. Which
+ * properties actually apply depends on the target: a prose field (see
+ * `textFieldKeys`) reads `color/bg/size/weight/align/font`; a box-like part
+ * (a button, a form input) reads `color/bg/font/border-width/radius/padding`;
+ * a gap target (`itemsGap`, `formGap`) reads only `gap`. Unused properties
+ * for a given target are simply ignored by the renderer — never invalid,
+ * just inert there.
+ */
 export interface ElementStyle {
   color?: string;
   bg?: string;
   size?: (typeof EL_SIZES)[number];
   weight?: (typeof EL_WEIGHTS)[number];
   align?: (typeof EL_ALIGNS)[number];
+  font?: (typeof EL_FONTS)[number];
+  gap?: (typeof EL_GAPS)[number];
+  borderWidth?: (typeof EL_BORDERS)[number];
+  borderColor?: string;
+  radius?: (typeof EL_RADII)[number];
+  padding?: (typeof EL_PADDINGS)[number];
 }
 
 export interface DocSection {
@@ -140,9 +161,10 @@ export interface DocSection {
   /** Owner colour overrides for this section (bg / body text / headings / accent). */
   style?: SectionStyle;
   /**
-   * Per-element style, keyed by a top-level prose field of this section type
-   * (e.g. `title`, `headline`, `subheadline`, `body`). Lets the owner restyle
-   * one element without touching the rest of the section.
+   * Per-element style, keyed by a style target of this section type — see
+   * `styleTargetKeys` (prose fields like `title`/`headline`/`body`, plus
+   * type-specific parts like `formInput`/`submitButton`/`itemsGap`). Lets
+   * the owner restyle one part without touching the rest of the section.
    */
   overrides?: Record<string, ElementStyle>;
   content: Record<string, unknown>;
@@ -164,7 +186,7 @@ export function coerceStyle(raw: unknown): SectionStyle | undefined {
 function coerceElementStyle(raw: unknown): ElementStyle | undefined {
   const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const out: ElementStyle = {};
-  for (const k of ['color', 'bg'] as const) {
+  for (const k of ['color', 'bg', 'borderColor'] as const) {
     const v = s[k];
     if (typeof v === 'string' && HEX_RE.test(v.trim())) out[k] = v.trim().toLowerCase();
   }
@@ -177,16 +199,31 @@ function coerceElementStyle(raw: unknown): ElementStyle | undefined {
   if (EL_ALIGNS.includes(s.align as (typeof EL_ALIGNS)[number])) {
     out.align = s.align as ElementStyle['align'];
   }
+  if (EL_FONTS.includes(s.font as (typeof EL_FONTS)[number])) {
+    out.font = s.font as ElementStyle['font'];
+  }
+  if (EL_GAPS.includes(s.gap as (typeof EL_GAPS)[number])) {
+    out.gap = s.gap as ElementStyle['gap'];
+  }
+  if (EL_BORDERS.includes(s.borderWidth as (typeof EL_BORDERS)[number])) {
+    out.borderWidth = s.borderWidth as ElementStyle['borderWidth'];
+  }
+  if (EL_RADII.includes(s.radius as (typeof EL_RADII)[number])) {
+    out.radius = s.radius as ElementStyle['radius'];
+  }
+  if (EL_PADDINGS.includes(s.padding as (typeof EL_PADDINGS)[number])) {
+    out.padding = s.padding as ElementStyle['padding'];
+  }
   return Object.keys(out).length ? out : undefined;
 }
 
-/** Drop unknown element keys + junk style values for a section type. */
+/** Drop unknown element/target keys + junk style values for a section type. */
 export function coerceOverrides(
   type: SectionType,
   raw: unknown,
 ): Record<string, ElementStyle> | undefined {
   const src = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const valid = new Set(textFieldKeys(type));
+  const valid = new Set(styleTargetKeys(type));
   const out: Record<string, ElementStyle> = {};
   for (const [key, val] of Object.entries(src)) {
     if (!valid.has(key)) continue;

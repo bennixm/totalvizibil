@@ -7,6 +7,8 @@ import {
   coerceSection,
   seedSection,
   snapVariant,
+  styleTargetKeys,
+  textFieldKeys,
 } from './section-catalog';
 
 const ctx: SeedCtx = {
@@ -101,5 +103,27 @@ describe('section catalog', () => {
     const client = catalogForClient();
     expect(client.map((c) => c.type).sort()).toEqual([...SECTION_TYPES].sort());
     expect(JSON.stringify(client)).not.toContain('function');
+  });
+
+  it('catalogForClient exposes each type’s extra style targets', () => {
+    const client = catalogForClient();
+    const contact = client.find((c) => c.type === 'contact')!;
+    expect(contact.styleTargets).toEqual(
+      expect.arrayContaining(['formInput', 'formGap', 'formLead', 'submitButton']),
+    );
+    const richText = client.find((c) => c.type === 'richText')!;
+    expect(richText.styleTargets).toEqual([]);
+  });
+
+  it('styleTargetKeys is prose fields plus the type’s extra targets', () => {
+    expect(styleTargetKeys('contact')).toEqual([
+      ...textFieldKeys('contact'),
+      'formInput',
+      'formGap',
+      'formLead',
+      'submitButton',
+    ]);
+    // a type with no extra targets falls back to just its prose fields
+    expect(styleTargetKeys('richText')).toEqual(textFieldKeys('richText'));
   });
 });

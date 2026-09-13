@@ -296,7 +296,13 @@ const sectionStyleCss = computed(() => {
 // --- per-element style overrides -----------------------------------
 // Restyle one element (a heading, a paragraph) without touching the rest of
 // the section. Applied as an inline :style so it always wins over the theme.
-const EL_SIZE_EM: Record<string, string> = { sm: '0.85em', md: '1em', lg: '1.35em', xl: '1.8em' }
+// A MULTIPLIER on the element's own base size (via the `--el-size-mult` custom
+// property the base CSS rules already read), not an absolute `font-size` —
+// `em` is relative to the INHERITED (parent) size, so setting `font-size`
+// directly here would replace a heading's own large clamp() with something
+// relative to the surrounding body text, making "XL" render smaller than the
+// untouched default.
+const EL_SIZE_MULT: Record<string, string> = { sm: '0.75', md: '1', lg: '1.35', xl: '1.75' }
 const EL_WEIGHT_N: Record<string, string> = {
   normal: '400',
   medium: '500',
@@ -309,6 +315,12 @@ interface ElOv {
   size?: string
   weight?: string
   align?: string
+  font?: string
+  gap?: string
+  borderWidth?: string
+  borderColor?: string
+  radius?: string
+  padding?: string
 }
 function ovStyle(el?: ElOv): Record<string, string> | undefined {
   if (!el) return undefined
@@ -319,10 +331,38 @@ function ovStyle(el?: ElOv): Record<string, string> | undefined {
     o.padding = '0.1em 0.35em'
     o.borderRadius = '0.2em'
   }
-  if (el.size && EL_SIZE_EM[el.size]) o.fontSize = EL_SIZE_EM[el.size]
+  if (el.size && EL_SIZE_MULT[el.size]) o['--el-size-mult'] = EL_SIZE_MULT[el.size]
   if (el.weight && EL_WEIGHT_N[el.weight]) o.fontWeight = EL_WEIGHT_N[el.weight]
   if (el.align) o.textAlign = el.align
+  if (el.font && FONT_FACES[el.font]) o.fontFamily = FONT_FACES[el.font]
   return Object.keys(o).length ? o : undefined
+}
+// --- box-like element overrides (buttons, form inputs) ---
+const EL_BORDER_PX: Record<string, string> = { none: '0px', thin: '1px', medium: '2px', thick: '3px' }
+const EL_PAD_REM: Record<string, string> = { sm: '0.45rem 0.7rem', md: '0.65rem 0.9rem', lg: '0.9rem 1.3rem' }
+function ovBoxStyle(el?: ElOv): Record<string, string> | undefined {
+  if (!el) return undefined
+  const o: Record<string, string> = {}
+  if (el.color && HEX.test(el.color)) o.color = el.color
+  if (el.bg && HEX.test(el.bg)) o.background = el.bg
+  if (el.borderColor && HEX.test(el.borderColor)) {
+    o.borderColor = el.borderColor
+    o.borderWidth = EL_BORDER_PX[el.borderWidth ?? 'thin']
+    o.borderStyle = 'solid'
+  } else if (el.borderWidth && EL_BORDER_PX[el.borderWidth]) {
+    o.borderWidth = EL_BORDER_PX[el.borderWidth]
+    o.borderStyle = el.borderWidth === 'none' ? 'none' : 'solid'
+  }
+  if (el.radius && RADII[el.radius]) o.borderRadius = RADII[el.radius]
+  if (el.padding && EL_PAD_REM[el.padding]) o.padding = EL_PAD_REM[el.padding]
+  if (el.font && FONT_FACES[el.font]) o.fontFamily = FONT_FACES[el.font]
+  return Object.keys(o).length ? o : undefined
+}
+// --- gap overrides (spacing between repeated cards/rows, or form fields) ---
+const EL_GAP_REM: Record<string, string> = { tight: '0.4rem', normal: '0.9rem', relaxed: '1.5rem', loose: '2.5rem' }
+function ovGapStyle(el?: ElOv): Record<string, string> | undefined {
+  if (!el?.gap || !EL_GAP_REM[el.gap]) return undefined
+  return { gap: EL_GAP_REM[el.gap] }
 }
 function secOv(s: Section): Record<string, ElOv> {
   return (s as { overrides?: Record<string, ElOv> }).overrides ?? {}
@@ -602,6 +642,15 @@ function setupObserver(): void {
   teardownObserver()
   const root = scrollEl.value
   paintAnims()
+  if (root) {
+    // Re-arms on an animation change (see the watch below) — strip the reveal
+    // class first so a freshly picked entrance actually replays. Adding a
+    // class an element already has doesn't restart a CSS transition, so
+    // without this the studio preview looked like nothing happened.
+    const alreadyIn = root.querySelectorAll<HTMLElement>('.s.is-in')
+    alreadyIn.forEach((el) => el.classList.remove('is-in'))
+    if (alreadyIn.length) void root.offsetHeight // force a reflow before re-adding
+  }
   if (!animate.value || !root || typeof IntersectionObserver === 'undefined') {
     revealAll()
     return
@@ -653,6 +702,7 @@ watch(
       `site--btn-${theme.buttonStyle || 'solid'}`,
       `site--motion-${motion}`,
       { 'site--framed': framed, 'site--dark': theme.background === 'dark' },
+      theme.preset ? `site--preset-${theme.preset}` : '',
     ]"
     :style="[styleVars, { '--site-prog': prog }]"
   >
@@ -783,13 +833,19 @@ watch(
             <h1 :style="hOv(s)">{{ f(s, 'headline') }}</h1>
             <p v-if="f(s, 'subheadline')" class="s--hero__sub" :style="bOv(s)">{{ f(s, 'subheadline') }}</p>
             <div class="s--hero__cta">
-              <button type="button" class="btn btn--solid" @click="ctaClick(s, goToContact)">
+              <button
+                type="button"
+                class="btn btn--solid"
+                :style="ovBoxStyle(secOv(s).primaryButton)"
+                @click="ctaClick(s, goToContact)"
+              >
                 {{ f(s, 'primaryCta') }}
               </button>
               <button
                 v-if="f(s, 'secondaryCta')"
                 type="button"
                 class="btn btn--ghost"
+                :style="ovBoxStyle(secOv(s).secondaryButton)"
                 @click="ctaClick(s, goToWork)"
               >
                 {{ f(s, 'secondaryCta') }}
@@ -820,7 +876,7 @@ watch(
         <!-- STATS / NUMBERS BAND -->
         <section v-else-if="s.type === 'stats'" :id="s.id" class="s s--stats" :class="vclass(s)">
           <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div class="stats">
+          <div class="stats" :style="ovGapStyle(secOv(s).itemsGap)">
             <div v-for="(item, i) in f(s, 'items')" :key="i" class="stat">
               <span class="stat__v">{{ item.value }}</span>
               <span class="stat__l">{{ item.label }}</span>
@@ -845,7 +901,7 @@ watch(
         <!-- SERVICES -->
         <section v-else-if="s.type === 'services'" :id="s.id" class="s s--services" :class="vclass(s)">
           <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div v-if="f(s, 'layout') === 'list' || f(s, 'variant') === 'list'" class="slist">
+          <div v-if="f(s, 'layout') === 'list' || f(s, 'variant') === 'list'" class="slist" :style="ovGapStyle(secOv(s).itemsGap)">
             <div v-for="(item, i) in f(s, 'items')" :key="i" class="srow">
               <span class="srow__ic">
                 <v-icon :icon="item.icon || pickServiceIcon(item.name)" size="22" />
@@ -857,7 +913,7 @@ watch(
               <span class="srow__n">{{ String(i + 1).padStart(2, '0') }}</span>
             </div>
           </div>
-          <div v-else class="cards">
+          <div v-else class="cards" :style="ovGapStyle(secOv(s).itemsGap)">
             <article v-for="(item, i) in f(s, 'items')" :key="i" class="card">
               <span class="card__ic">
                 <v-icon :icon="item.icon || pickServiceIcon(item.name)" size="22" />
@@ -872,7 +928,7 @@ watch(
         <!-- FEATURES / WHY US -->
         <section v-else-if="s.type === 'features'" :id="s.id" class="s s--feats" :class="vclass(s)">
           <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div class="feats">
+          <div class="feats" :style="ovGapStyle(secOv(s).itemsGap)">
             <div v-for="(item, i) in f(s, 'items')" :key="i" class="feat">
               <span class="feat__ic">
                 <v-icon :icon="item.icon || 'mdi-check-decagram-outline'" size="20" />
@@ -888,7 +944,7 @@ watch(
         <!-- GALLERY / PORTFOLIO -->
         <section v-else-if="s.type === 'gallery'" :id="s.id" class="s s--gallery" :class="vclass(s)">
           <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div class="pfolio">
+          <div class="pfolio" :style="ovGapStyle(secOv(s).itemsGap)">
             <figure v-for="(item, i) in f(s, 'items')" :key="i" class="pcard">
               <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.title || ''" loading="lazy" />
               <span v-else class="pcard__ph" aria-hidden="true" />
@@ -902,7 +958,7 @@ watch(
         <!-- TESTIMONIALS -->
         <section v-else-if="s.type === 'testimonials'" :id="s.id" class="s s--quotes" :class="vclass(s)">
           <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div class="quotes">
+          <div class="quotes" :style="ovGapStyle(secOv(s).itemsGap)">
             <figure v-for="(item, i) in f(s, 'items')" :key="i" class="quote">
               <span class="quote__mark" aria-hidden="true">”</span>
               <blockquote>{{ item.quote }}</blockquote>
@@ -968,17 +1024,18 @@ watch(
             v-if="cState !== 'sent'"
             class="cform"
             :class="{ 'cform--preview': !leadSlug }"
+            :style="ovGapStyle(secOv(s).formGap)"
             @submit.prevent="leadSlug && sendContactForm()"
           >
-            <p class="cform__lead">{{ t('site.formLead') }}</p>
+            <p class="cform__lead" :style="ovStyle(secOv(s).formLead)">{{ t('site.formLead') }}</p>
             <div class="cform__row">
-              <input v-model="cf.name" type="text" :placeholder="t('site.fName')" autocomplete="name" :disabled="!leadSlug" />
-              <input v-model="cf.email" type="email" :placeholder="t('site.fEmail')" autocomplete="email" :disabled="!leadSlug" />
+              <input v-model="cf.name" type="text" :placeholder="t('site.fName')" autocomplete="name" :disabled="!leadSlug" :style="ovBoxStyle(secOv(s).formInput)" />
+              <input v-model="cf.email" type="email" :placeholder="t('site.fEmail')" autocomplete="email" :disabled="!leadSlug" :style="ovBoxStyle(secOv(s).formInput)" />
             </div>
-            <input v-model="cf.phone" type="tel" :placeholder="t('site.fPhone')" autocomplete="tel" :disabled="!leadSlug" />
-            <textarea v-model="cf.message" rows="3" :placeholder="t('site.fMessage')" :required="!!leadSlug" :disabled="!leadSlug"></textarea>
+            <input v-model="cf.phone" type="tel" :placeholder="t('site.fPhone')" autocomplete="tel" :disabled="!leadSlug" :style="ovBoxStyle(secOv(s).formInput)" />
+            <textarea v-model="cf.message" rows="3" :placeholder="t('site.fMessage')" :required="!!leadSlug" :disabled="!leadSlug" :style="ovBoxStyle(secOv(s).formInput)"></textarea>
             <p v-if="cState === 'error'" class="cform__err">{{ t('site.formError') }}</p>
-            <button type="submit" class="btn btn--solid" :disabled="!leadSlug || !cValid || cState === 'busy'">
+            <button type="submit" class="btn btn--solid" :disabled="!leadSlug || !cValid || cState === 'busy'" :style="ovBoxStyle(secOv(s).submitButton)">
               {{ cState === 'busy' ? t('site.formSending') : t('site.formSend') }}
             </button>
             <p v-if="!leadSlug" class="cform__note">{{ t('site.formPreview') }}</p>
@@ -991,7 +1048,7 @@ watch(
         <!-- LOGOS -->
         <section v-else-if="s.type === 'logos'" :id="s.id" class="s s--logos" :class="vclass(s)">
           <p v-if="f(s, 'title')" class="s--logos__t">{{ f(s, 'title') }}</p>
-          <div class="logos">
+          <div class="logos" :style="ovGapStyle(secOv(s).itemsGap)">
             <span v-for="(item, i) in f(s, 'items')" :key="i" class="logo">
               <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.name || ''" loading="lazy" />
               <span v-else>{{ item.name }}</span>
@@ -1027,7 +1084,7 @@ watch(
         <!-- TEAM -->
         <section v-else-if="s.type === 'team'" :id="s.id" class="s s--team" :class="vclass(s)">
           <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div class="team">
+          <div class="team" :style="ovGapStyle(secOv(s).itemsGap)">
             <figure v-for="(m, i) in f(s, 'items')" :key="i" class="tm">
               <span class="tm__ph">
                 <img v-if="m.imageUrl" :src="m.imageUrl" :alt="m.name || ''" loading="lazy" />
@@ -1045,7 +1102,7 @@ watch(
         <!-- PRICING -->
         <section v-else-if="s.type === 'pricing'" :id="s.id" class="s s--pricing" :class="vclass(s)">
           <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div class="price">
+          <div class="price" :style="ovGapStyle(secOv(s).itemsGap)">
             <article
               v-for="(p, i) in f(s, 'items')"
               :key="i"
@@ -1063,6 +1120,7 @@ watch(
                 v-if="p.cta"
                 type="button"
                 class="btn btn--solid tier__cta"
+                :style="ovBoxStyle(secOv(s).tierButton)"
                 @click="ctaClick(s, goToContact)"
               >
                 {{ p.cta }}
@@ -1083,7 +1141,12 @@ watch(
         <section v-else-if="s.type === 'cta'" :id="s.id" class="s s--cta" :class="vclass(s)">
           <span class="s--cta__glow" aria-hidden="true" />
           <h2 class="s__h" :style="hOv(s)">{{ f(s, 'headline') }}</h2>
-          <button type="button" class="btn btn--solid s--cta__btn" @click="ctaClick(s, goToContact)">
+          <button
+            type="button"
+            class="btn btn--solid s--cta__btn"
+            :style="ovBoxStyle(secOv(s).button)"
+            @click="ctaClick(s, goToContact)"
+          >
             {{ f(s, 'buttonLabel') }}
           </button>
         </section>
@@ -1108,7 +1171,7 @@ watch(
         <!-- BENTO grid -->
         <section v-else-if="s.type === 'bento'" :id="s.id" class="s s--bento" :class="vclass(s)">
           <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div class="bento">
+          <div class="bento" :style="ovGapStyle(secOv(s).itemsGap)">
             <article v-for="(it, i) in f(s, 'items')" :key="i" class="bento__c">
               <div
                 v-if="it.imageUrl"
@@ -1166,6 +1229,7 @@ watch(
               v-if="f(s, 'buttonLabel')"
               type="button"
               class="btn btn--solid"
+              :style="ovBoxStyle(secOv(s).button)"
               @click="ctaClick(s, goToContact)"
             >
               {{ f(s, 'buttonLabel') }}
@@ -1251,7 +1315,7 @@ watch(
           :class="vclass(s)"
         >
           <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div class="hl">
+          <div class="hl" :style="ovGapStyle(secOv(s).itemsGap)">
             <div v-for="(it, i) in f(s, 'items')" :key="i" class="hl__i">
               <v-icon :icon="it.icon || 'mdi-check-circle-outline'" size="24" />
               <span>{{ it.label }}</span>
@@ -1328,6 +1392,7 @@ watch(
               v-if="f(s, 'buttonLabel')"
               type="button"
               class="btn btn--solid"
+              :style="ovBoxStyle(secOv(s).button)"
               @click="ctaClick(s, goToContact)"
             >
               {{ f(s, 'buttonLabel') }}
@@ -1439,7 +1504,7 @@ watch(
           :class="vclass(s)"
         >
           <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div class="scta">
+          <div class="scta" :style="ovGapStyle(secOv(s).itemsGap)">
             <article v-for="(it, i) in f(s, 'items')" :key="i" class="scta__c">
               <h3>{{ it.title }}</h3>
               <p v-if="it.text">{{ it.text }}</p>
@@ -1447,6 +1512,7 @@ watch(
                 v-if="it.buttonLabel"
                 type="button"
                 class="btn btn--solid"
+                :style="ovBoxStyle(secOv(s).itemButton)"
                 @click="ctaClick(s, () => customBlockGo(it.target || 'contact'))"
               >
                 {{ it.buttonLabel }}
@@ -1482,6 +1548,7 @@ watch(
                 type="submit"
                 class="btn btn--solid"
                 :disabled="!leadSlug || nlStatus(s.id) === 'busy'"
+                :style="ovBoxStyle(secOv(s).submitButton)"
               >
                 {{ f(s, 'buttonLabel') || t('site.formSend') }}
               </button>
@@ -1981,6 +2048,37 @@ watch(
   color: var(--site-accent);
   opacity: 0.85;
 }
+
+/* ============ style-preset structural touches (item 2) ============
+   A theme's `preset` (a ThemeBar pick, or the archetype-matched preset an
+   AI-generated site now carries — see `layout-recipe.ts` `ARCHETYPE_PRESET`)
+   restyles a few section "parts" distinctly per style family, beyond the
+   palette/font/radius tokens every preset already sets — the section index
+   kicker's shape, and the contact form's whole look (including, for `tech`,
+   the actual ORDER its fields appear in). Presets without a rule here keep
+   the plain token-driven look. */
+
+/* tech: bracketed monospace index, e.g. "[01]" */
+.site--preset-tech .s:not(.s--hero):not(.s--cta):not(.s--about) h2.s__h::before {
+  content: '[' counter(sec, decimal-leading-zero) ']';
+  font-family: 'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', monospace;
+}
+/* bold: a solid colour chip instead of bare text */
+.site--preset-bold .s:not(.s--hero):not(.s--cta):not(.s--about) h2.s__h::before {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  background: var(--site-accent);
+  color: var(--site-accent-ink);
+  border-radius: 0;
+}
+/* editorial: a quiet rule, no number — a print-style section break */
+.site--preset-editorial .s:not(.s--hero):not(.s--cta):not(.s--about) h2.s__h::before {
+  content: '';
+  width: 2.75rem;
+  height: 2px;
+  background: var(--site-ink);
+  opacity: 0.35;
+}
 .s h2.s__h::after {
   content: '';
   display: block;
@@ -2138,7 +2236,7 @@ watch(
   max-width: 54ch;
   margin: 1.2rem auto 1.9rem;
   color: color-mix(in srgb, var(--site-ink) 72%, var(--site-bg));
-  font-size: 1.06rem;
+  font-size: calc(1.06rem * var(--el-size-mult, 1));
 }
 .s--hero__cta {
   display: flex;
@@ -2259,13 +2357,13 @@ watch(
 .s--about__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  font-size: 12px;
+  font-size: calc(12px * var(--el-size-mult, 1));
   font-weight: 700;
   color: var(--site-accent);
   margin: 0 0 1rem;
 }
 .s--about__body {
-  font-size: clamp(1.1rem, 2.2vw, 1.4rem);
+  font-size: calc(clamp(1.1rem, 2.2vw, 1.4rem) * var(--el-size-mult, 1));
   line-height: 1.6;
   color: color-mix(in srgb, var(--site-ink) 82%, var(--site-bg));
 }
@@ -2818,6 +2916,120 @@ a.ccard:hover {
 .cform__note::before {
   content: '👁';
   font-size: 0.9rem;
+}
+
+/* --- tech preset: a terminal-styled contact form, message-first --- */
+.site--preset-tech .cform {
+  font-family: 'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', monospace;
+  border-color: color-mix(in srgb, var(--site-accent) 45%, transparent);
+  border-radius: 10px;
+  padding-top: 2.5rem;
+  position: relative;
+  overflow: hidden;
+}
+.site--preset-tech .cform::before {
+  content: '● ● ●   contact.sh';
+  position: absolute;
+  inset: 0 0 auto 0;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--site-ink) 55%, var(--site-bg));
+  background: color-mix(in srgb, var(--site-ink) 8%, var(--site-surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--site-accent) 30%, transparent);
+}
+.site--preset-tech .cform__lead {
+  color: var(--site-accent);
+}
+.site--preset-tech .cform__lead::before {
+  content: '$ ';
+  opacity: 0.7;
+}
+.site--preset-tech .cform input,
+.site--preset-tech .cform textarea {
+  font-family: inherit;
+  border-radius: 4px;
+  border-color: color-mix(in srgb, var(--site-accent) 30%, transparent);
+}
+.site--preset-tech .cform .btn {
+  font-family: inherit;
+  border-radius: 4px;
+}
+.site--preset-tech .cform .btn::before {
+  content: '> ';
+}
+/* structural reorder — the message comes right after the prompt line, like
+   a terminal, instead of at the bottom of a form (`order` only changes the
+   VISUAL order; the DOM/tab order is untouched). */
+.site--preset-tech .cform textarea {
+  order: 1;
+}
+.site--preset-tech .cform__row {
+  order: 2;
+}
+.site--preset-tech .cform > input[type='tel'] {
+  order: 3;
+}
+.site--preset-tech .cform__err {
+  order: 4;
+}
+.site--preset-tech .cform .btn {
+  order: 5;
+}
+.site--preset-tech .cform__note {
+  order: 6;
+}
+
+/* --- bold preset: a graphic, high-contrast contact form --- */
+.site--preset-bold .cform {
+  border: 3px solid var(--site-ink);
+  border-radius: 0;
+  box-shadow: 8px 8px 0 var(--site-accent);
+}
+.site--preset-bold .cform__lead {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.site--preset-bold .cform input,
+.site--preset-bold .cform textarea {
+  border: 2px solid var(--site-ink);
+  border-radius: 0;
+}
+.site--preset-bold .cform .btn {
+  border-radius: 999px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+/* --- editorial preset: a quiet, borderless, underline-only form --- */
+.site--preset-editorial .cform {
+  background: transparent;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--site-ink) 25%, transparent);
+  border-radius: 0;
+  padding: 2rem 0 0;
+}
+.site--preset-editorial .cform__lead {
+  font-family: var(--site-display);
+  font-style: italic;
+  font-size: 1.15rem;
+}
+.site--preset-editorial .cform input,
+.site--preset-editorial .cform textarea {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--site-ink) 30%, transparent);
+  border-radius: 0;
+  padding: 0.6rem 0.1rem;
+}
+.site--preset-editorial .cform input:focus,
+.site--preset-editorial .cform textarea:focus {
+  border-bottom-color: var(--site-accent);
+  outline: none;
+}
+.site--preset-editorial .cform .btn {
+  border-radius: 0;
 }
 
 /* CTA */
@@ -3963,11 +4175,11 @@ a.ccard:hover {
 
 /* ============ modern refinements (token-driven; light + dark) ============ */
 .s h2.s__h {
-  font-size: clamp(1.7rem, 3.8vw, 2.5rem);
+  font-size: calc(clamp(1.7rem, 3.8vw, 2.5rem) * var(--el-size-mult, 1));
   letter-spacing: -0.025em;
 }
 .s--hero h1 {
-  font-size: clamp(2.3rem, 6vw, 4rem);
+  font-size: calc(clamp(2.3rem, 6vw, 4rem) * var(--el-size-mult, 1));
   letter-spacing: -0.03em;
   line-height: 1.05;
 }

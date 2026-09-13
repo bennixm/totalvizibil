@@ -1485,6 +1485,39 @@ export function textFieldKeys(type: SectionType): string[] {
     .map((f) => f.key);
 }
 
+/**
+ * Non-prose "parts" of a section a style override can also target — a form
+ * input, a button, the gap between repeated cards/rows — beyond the plain
+ * text fields `textFieldKeys` already covers. The renderer decides which
+ * `ElementStyle` properties apply at each of these (e.g. `gap` only makes
+ * sense on an `itemsGap`/`formGap` target, `border*`/`radius`/`padding` only
+ * on a box-like target such as a button or an input).
+ */
+const EXTRA_STYLE_TARGETS: Partial<Record<SectionType, string[]>> = {
+  contact: ['formInput', 'formGap', 'formLead', 'submitButton'],
+  newsletter: ['submitButton'],
+  hero: ['primaryButton', 'secondaryButton'],
+  cta: ['button'],
+  banner: ['button'],
+  showcase: ['button'],
+  pricing: ['tierButton', 'itemsGap'],
+  splitCta: ['itemButton', 'itemsGap'],
+  stats: ['itemsGap'],
+  services: ['itemsGap'],
+  features: ['itemsGap'],
+  gallery: ['itemsGap'],
+  testimonials: ['itemsGap'],
+  logos: ['itemsGap'],
+  team: ['itemsGap'],
+  bento: ['itemsGap'],
+  highlightsRow: ['itemsGap'],
+};
+
+/** Every style-able target key for a section type — prose fields + the extra parts above. */
+export function styleTargetKeys(type: SectionType): string[] {
+  return [...textFieldKeys(type), ...(EXTRA_STYLE_TARGETS[type] ?? [])];
+}
+
 /** Snap an arbitrary variant string to a known id for the type (else the default). */
 export function snapVariant(type: SectionType, variant: unknown): string {
   const spec = SECTION_CATALOG[type];
@@ -1654,12 +1687,22 @@ export interface ClientSectionSpec {
   icon: string;
   variants: VariantSpec[];
   fields: FieldSpec[];
+  /** Non-prose style-override targets for this type (`formInput`, `submitButton`, `itemsGap`…). */
+  styleTargets: string[];
 }
 
 /** Function-free catalog for the builder UI (picker + schema-driven editor). */
 export function catalogForClient(): ClientSectionSpec[] {
   return SECTION_TYPES.map((t) => {
     const { type, category, label, icon, variants, fields } = SECTION_CATALOG[t];
-    return { type, category, label, icon, variants, fields };
+    return {
+      type,
+      category,
+      label,
+      icon,
+      variants,
+      fields,
+      styleTargets: EXTRA_STYLE_TARGETS[t] ?? [],
+    };
   });
 }

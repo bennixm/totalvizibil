@@ -441,6 +441,19 @@ const H_SCALES = new Set(['tight', 'normal', 'display']);
 const H_ALIGNS = new Set(['left', 'center']);
 const SPACINGS = new Set(['compact', 'standard', 'spacious']);
 
+/**
+ * Reject an accent too close to pure white or pure black. The renderer pairs
+ * an accent-as-background with a contrast-safe ink (`inkOn`), but an accent
+ * used in a fade-to-transparent gradient can still lose contrast at the faded
+ * end when it's near either extreme — an unvalidated AI-picked hex was a real
+ * risk here. Perceived luminance (0-255); keep a comfortable margin off both ends.
+ */
+function isUsableAccent(hex: string): boolean {
+  const n = parseInt(hex.slice(1), 16);
+  const l = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+  return l >= 40 && l <= 215;
+}
+
 /** Keep only the AI DNA hints that name a real, valid value. */
 function coerceDnaHints(raw: Partial<DnaHints> | undefined): DnaHints {
   const r = raw ?? {};
@@ -470,8 +483,9 @@ function coerceDnaHints(raw: Partial<DnaHints> | undefined): DnaHints {
   if (bg) out.background = bg;
   const pal = inArr<DnaHints['palette']>(r.palette, PALETTES);
   if (pal) out.palette = pal;
-  if (typeof r.accentHex === 'string' && /^#[0-9a-fA-F]{6}$/.test(r.accentHex.trim())) {
-    out.accentHex = r.accentHex.trim().toLowerCase();
+  const accentHex = typeof r.accentHex === 'string' ? r.accentHex.trim().toLowerCase() : '';
+  if (/^#[0-9a-f]{6}$/.test(accentHex) && isUsableAccent(accentHex)) {
+    out.accentHex = accentHex;
   }
   if (typeof r.photographyStyle === 'string' && r.photographyStyle.trim()) {
     out.photographyStyle = r.photographyStyle.trim().slice(0, 140);

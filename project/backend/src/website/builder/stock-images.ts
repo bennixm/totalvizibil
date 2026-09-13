@@ -300,9 +300,11 @@ export function fillDocImages(
   for (const page of doc.pages) {
     for (const s of page.sections) {
       const c = s.content ?? {};
-      if (s.type === 'hero' || s.type === 'showcase') {
+      if (s.type === 'showcase' || (s.type === 'hero' && s.variant !== 'minimal')) {
         // Every hero / showcase gets a photo — the renderer's `--photo` styling
         // kicks in automatically (a "forgotten" hero image was a common AI miss).
+        // EXCEPT a "minimal" hero — that variant is deliberately text-only (it's
+        // also used as the lean, image-free header on secondary pages).
         slot(c, 'backgroundImage');
       } else if (s.type === 'video') {
         slot(c, 'posterImage');

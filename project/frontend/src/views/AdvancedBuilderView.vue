@@ -155,6 +155,16 @@ onMounted(async () => {
   }
   companyId.value = id
   await builder.load(id)
+  // Auto-open the AI popup ONLY the very first time this business's owner
+  // reaches the builder as part of onboarding (arrived with `?flow=onboarding`
+  // straight from `create-unlock`/the easy-plan handoff, AND the site has
+  // never been AI-generated). A later edit visit — even before the campaign
+  // is activated — must NOT reopen it; `planCount > 0` is the signal that
+  // distinguishes "first ever visit" from "still finishing setup, been here
+  // before".
+  if (route.query.flow === 'onboarding' && (view.value?.doc?.ai?.planCount ?? 0) === 0) {
+    aiOpen.value = true
+  }
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)

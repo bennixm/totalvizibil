@@ -32,7 +32,7 @@ const route = useRoute()
 const feed = useFeedStore()
 const { facets, facetsLoaded } = storeToRefs(feed)
 
-onMounted(() => feed.loadFacets())
+onMounted(() => void feed.loadFacets().catch(() => {}))
 
 const seg1 = computed(() => route.params.seg1 as string)
 const seg2 = computed(() => (route.params.seg2 as string | undefined) ?? null)

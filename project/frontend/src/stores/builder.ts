@@ -39,6 +39,8 @@ export interface SectionSpec {
   icon: string
   variants: VariantSpec[]
   fields: FieldSpec[]
+  /** Non-prose style-override targets for this type (`formInput`, `submitButton`, `itemsGap`…). */
+  styleTargets: string[]
 }
 
 /** Per-section colour overrides (hex or absent = inherit the theme). */
@@ -52,14 +54,32 @@ export interface SectionStyle {
 export const EL_SIZES = ['sm', 'md', 'lg', 'xl'] as const
 export const EL_WEIGHTS = ['normal', 'medium', 'semibold', 'bold'] as const
 export const EL_ALIGNS = ['left', 'center', 'right'] as const
+export const EL_FONTS = ['grotesk', 'inter', 'fraunces', 'jetbrains'] as const
+export const EL_GAPS = ['tight', 'normal', 'relaxed', 'loose'] as const
+export const EL_BORDERS = ['none', 'thin', 'medium', 'thick'] as const
+export const EL_RADII = ['none', 'subtle', 'rounded', 'large', 'pill'] as const
+export const EL_PADDINGS = ['sm', 'md', 'lg'] as const
 
-/** Style for one individual element (a heading, a paragraph…) inside a section. */
+/**
+ * Style for one individual "part" of a section — a heading, a paragraph, a
+ * form input, a button, or the gap between repeated cards/rows. Which
+ * properties apply depends on the target (see `SectionSpec`'s style targets,
+ * surfaced per-type from the server) — a prose field reads
+ * `color/bg/size/weight/align/font`, a box-like part (button/input) reads
+ * `color/bg/font/border-width/radius/padding`, a gap target reads only `gap`.
+ */
 export interface ElementStyle {
   color?: string
   bg?: string
   size?: (typeof EL_SIZES)[number]
   weight?: (typeof EL_WEIGHTS)[number]
   align?: (typeof EL_ALIGNS)[number]
+  font?: (typeof EL_FONTS)[number]
+  gap?: (typeof EL_GAPS)[number]
+  borderWidth?: (typeof EL_BORDERS)[number]
+  borderColor?: string
+  radius?: (typeof EL_RADII)[number]
+  padding?: (typeof EL_PADDINGS)[number]
 }
 
 export interface DocSection {
@@ -71,7 +91,7 @@ export interface DocSection {
   animation?: string
   /** Colour overrides for this section. */
   style?: SectionStyle
-  /** Per-element style, keyed by a prose field (`title`, `headline`, `body`…). */
+  /** Per-element style, keyed by a style target (prose field or type-specific part). */
   overrides?: Record<string, ElementStyle>
   content: Record<string, unknown>
 }
@@ -148,6 +168,17 @@ export interface BuilderView {
   /** Site-wide motion intensity options. */
   motions?: Array<'off' | 'subtle' | 'lively'>
 }
+
+/** A single pre-generation clarification question. */
+export interface ClarifyQuestion {
+  id: string
+  kind: 'choice' | 'text'
+  prompt: string
+  /** Only for `kind:'choice'`. Always includes an explicit "let the AI decide" option. */
+  options?: { id: string; label: string }[]
+}
+
+export type ClarifyResult = { done: true } | { done: false; questions: ClarifyQuestion[] }
 
 export interface PageInput {
   id?: string
@@ -572,6 +603,42 @@ export const useBuilderStore = defineStore('builder', {
         )
       } finally {
         this.aiPlanning = false
+      }
+    },
+
+    /** Start pre-generation clarification for a fresh brief — questions, or
+     *  `{done:true}` when the brief already gives enough to go on. A failed
+     *  call fails OPEN (treated as `done:true`) so a hiccup here never blocks
+     *  generation — clarification is a quality nicety, not a hard gate. */
+    async aiClarifyStart(companyId: string, brief: string): Promise<ClarifyResult> {
+      this.working = true
+      try {
+        return await apiFetch<ClarifyResult>(
+          `/companies/${companyId}/website-builder/ai/clarify`,
+          { method: 'POST', body: { brief }, timeoutMs: 20_000 },
+        )
+      } catch {
+        return { done: true }
+      } finally {
+        this.working = false
+      }
+    },
+
+    /** Answer one round of clarification questions — the next round, or done. */
+    async aiClarifyAnswer(
+      companyId: string,
+      answers: { questionId: string; value: string }[],
+    ): Promise<ClarifyResult> {
+      this.working = true
+      try {
+        return await apiFetch<ClarifyResult>(
+          `/companies/${companyId}/website-builder/ai/clarify/answer`,
+          { method: 'POST', body: { answers }, timeoutMs: 20_000 },
+        )
+      } catch {
+        return { done: true }
+      } finally {
+        this.working = false
       }
     },
 

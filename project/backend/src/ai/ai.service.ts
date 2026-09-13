@@ -5,9 +5,12 @@ import { AppConfig } from '../config/env';
 import type { SiteFinding } from '../website/builder/site-audit';
 import type {
   BusinessProfile,
+  ClarifyAnswer,
+  ClarifyQuestion,
   CreativeDirection,
   DesignDNA,
   DnaHints,
+  EnrichedBrief,
   GeneratorBusiness,
   IARole,
   SectionRole,
@@ -582,6 +585,177 @@ export class AiService {
   }
 
   /**
+   * Stage 0 — rewrite the client's raw brief into a richer, more specific one,
+   * and recommend a page split. This is the ONLY place in the pipeline allowed
+   * to "add" anything to what the client said — so the rule is strict: elaborate
+   * tone / structure / emphasis, make the IMPLICIT explicit, but never invent a
+   * fact (years in business, staff size, prices, certifications, testimonials).
+   * The rewritten brief feeds every later AI call; the client only ever sees
+   * their own original text (`doc.ai.brief` is never touched by this).
+   */
+  async refineBrief(input: {
+    brief: string;
+    business: GeneratorBusiness;
+    locale: AiLocale;
+  }): Promise<Partial<EnrichedBrief> | null> {
+    if (!this.configured) return null;
+    const system =
+      `You sharpen a small-business website brief before a design pipeline reads it. Rewrite it ` +
+      `richer and more specific — but DO NOT INVENT FACTS not stated or clearly implied: no years ` +
+      `in business, staff count, prices, awards, certifications, testimonials, or named clients. ` +
+      `You MAY: elaborate the tone, turn a flat list into clear content pillars, make an implicit ` +
+      `specific explicit (e.g. "we do weddings and portraits" ⇒ note these as two distinct content ` +
+      `angles), and recommend a REALISTIC page split for this kind of business (standard ` +
+      `conventions are fine — e.g. a Menu page for a restaurant even if not asked — but that is a ` +
+      `structural recommendation, not a claim about the business). The more detailed the ORIGINAL ` +
+      `brief already is, the LESS you should add — never dilute a brief that is already good with ` +
+      `restated filler. 1–4 pages; the home page is implicit, do not list it separately unless it ` +
+      `needs its own distinct purpose beyond an overview.\n` +
+      `Reply with JSON only: {"brief":"<rewritten brief, 2-5 sentences>",` +
+      `"suggestedPages":[{"title","purpose"}],"emphasize":["<=6 short phrases>"],` +
+      `"clarifications":["<=4 short notes on assumptions you made, for an internal log only"]}.`;
+    const user = `Brief: ${input.brief}\n${this.facts(input.business)}`;
+    const parsed = (await this.json(system, user, {
+      maxTokens: 900,
+      effort: 'low',
+      model: this.anthropicModelFast,
+    })) as {
+      brief?: string;
+      suggestedPages?: { title?: string; purpose?: string }[];
+      emphasize?: string[];
+      clarifications?: string[];
+    } | null;
+    if (!parsed) return null;
+    const brief = typeof parsed.brief === 'string' ? parsed.brief.trim().slice(0, 1200) : '';
+    const suggestedPages = Array.isArray(parsed.suggestedPages)
+      ? parsed.suggestedPages
+          .map((p) => ({
+            title: String(p?.title ?? '')
+              .trim()
+              .slice(0, 40),
+            purpose: String(p?.purpose ?? '')
+              .trim()
+              .slice(0, 120),
+          }))
+          .filter((p) => p.title && p.purpose)
+          .slice(0, 4)
+      : [];
+    const strList = (v: unknown, max: number): string[] =>
+      Array.isArray(v)
+        ? v
+            .filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+            .map((x) => x.trim().slice(0, 140))
+            .slice(0, max)
+        : [];
+    return {
+      ...(brief ? { brief } : {}),
+      suggestedPages,
+      emphasize: strList(parsed.emphasize, 6),
+      clarifications: strList(parsed.clarifications, 4),
+    };
+  }
+
+  /**
+   * Pre-generation clarification. Decides whether the brief already gives
+   * enough to go on, or whether generating now would force a guess on
+   * something that matters (page structure, design direction, a concrete
+   * fact) — and if so, asks a SMALL number of concrete questions instead.
+   * Never asks about anything safely defaultable (exact colors, fonts,
+   * image choices stay automatic).
+   */
+  async clarifyBrief(input: {
+    brief: string;
+    business: GeneratorBusiness;
+    locale: AiLocale;
+    archetype: string;
+    answers: ClarifyAnswer[];
+  }): Promise<{ done: boolean; questions?: ClarifyQuestion[] } | null> {
+    if (!this.configured) return null;
+    const system =
+      `You help set up a small-business website, before it gets built. Decide if you are missing ` +
+      `information that would otherwise force you to GUESS something important — a page ` +
+      `structure decision, a design direction, or a concrete fact (city/area served, whether to ` +
+      `show prices, which named services). If the brief plus any answers already given cover this ` +
+      `well enough, reply {"done":true}. Otherwise ask up to 4 SHORT, concrete questions — never ` +
+      `vague ("tell me more about your business"), never about something safely inferable from ` +
+      `the brief or the archetype, never about a stylistic detail that can just default sensibly ` +
+      `(exact colors, fonts, which stock photo).\n` +
+      `EVERY "kind":"choice" question MUST include exactly one option with "id":"ai_decide" whose ` +
+      `label means "let the AI decide" — this exact id is required, it is how the app detects that ` +
+      `choice, not the wording.\n` +
+      `For a DESIGN-DIRECTION question: 3-4 real style options plus the required "ai_decide" one.\n` +
+      `For a PAGE-STRUCTURE question: propose the default pages — Acasă/Home, Despre noi/About, ` +
+      `Servicii/Services, Portofoliu/Portfolio, Contact — ADAPTED to this business's archetype ` +
+      `(drop or rename what doesn't fit — e.g. no "Portofoliu" for a clinic or a SaaS). EVERY option ` +
+      `except "ai_decide" MUST also carry a "pages" array — the concrete pages that option means, ` +
+      `each {"title","purpose"} — because the app builds EXACTLY that many pages from it, not a ` +
+      `guess from the label text. The "ai_decide" option must NOT have a "pages" array.\n` +
+      `Never ask more than 4 questions total, never re-ask something already answered below.\n` +
+      `Reply JSON only: {"done":bool,"questions":[{"id","kind":"choice"|"text","prompt",` +
+      `"options":[{"id","label","pages":[{"title","purpose"}]}]}]}.`;
+    const user =
+      `Brief: ${input.brief}\nArchetype: ${input.archetype}\n${this.facts(input.business)}` +
+      (input.answers.length ? `\nAnswers already given: ${JSON.stringify(input.answers)}` : '');
+    const parsed = (await this.json(system, user, {
+      maxTokens: 700,
+      effort: 'low',
+      model: this.anthropicModelFast,
+    })) as { done?: unknown; questions?: unknown[] } | null;
+    if (!parsed) return null;
+    if (parsed.done === true) return { done: true };
+    if (!Array.isArray(parsed.questions) || !parsed.questions.length) return { done: true };
+    const questions: ClarifyQuestion[] = parsed.questions
+      .map((q, i) => {
+        const o = (q && typeof q === 'object' ? q : {}) as Record<string, unknown>;
+        const kind: ClarifyQuestion['kind'] = o.kind === 'choice' ? 'choice' : 'text';
+        const options = Array.isArray(o.options)
+          ? o.options
+              .map((opt) => {
+                const oo = (opt && typeof opt === 'object' ? opt : {}) as Record<string, unknown>;
+                const id = String(oo.id ?? '').slice(0, 40);
+                const pages = Array.isArray(oo.pages)
+                  ? oo.pages
+                      .map((p) => {
+                        const pp = (p && typeof p === 'object' ? p : {}) as Record<string, unknown>;
+                        return {
+                          title: String(pp.title ?? '')
+                            .trim()
+                            .slice(0, 40),
+                          purpose: String(pp.purpose ?? '')
+                            .trim()
+                            .slice(0, 120),
+                        };
+                      })
+                      .filter((p) => p.title && p.purpose)
+                      .slice(0, 6)
+                  : [];
+                return {
+                  id,
+                  label: String(oo.label ?? '')
+                    .trim()
+                    .slice(0, 80),
+                  // "ai_decide" never carries a structure, even if the model slipped one in.
+                  ...(id !== 'ai_decide' && pages.length ? { pages } : {}),
+                };
+              })
+              .filter((opt) => opt.id && opt.label)
+              .slice(0, 6)
+          : [];
+        return {
+          id: String(o.id ?? `q${i}`).slice(0, 40),
+          kind,
+          prompt: String(o.prompt ?? '')
+            .trim()
+            .slice(0, 200),
+          ...(kind === 'choice' ? { options } : {}),
+        };
+      })
+      .filter((q) => q.prompt && (q.kind === 'text' || (q.options?.length ?? 0) >= 2))
+      .slice(0, 4);
+    return questions.length ? { done: false, questions } : { done: true };
+  }
+
+  /**
    * Stage 1–2: read the business, then commit to ONE creative direction that
    * fits it. `seed` asks for "variant N" of a fitting direction so re-runs vary.
    */
@@ -649,22 +823,62 @@ export class AiService {
     locale: AiLocale;
     seed: number;
     roleVocab: string[];
+    pageHint?: string;
+    forcedPageCount?: number;
   }): Promise<{ roles: IARole[]; omitted: SectionRole[]; pageCount: number } | null> {
     if (!this.configured) return null;
     const system =
       `You are an information architect. Decide which sections THIS business needs and their order. ` +
       `Use ONLY these role ids: ${input.roleVocab.join(', ')}. A lawyer, a photographer and a ` +
       `restaurant should get visibly different lists — do not default to hero/services/testimonials/cta ` +
-      `for everyone. Drop roles that do not serve this business.\n` +
-      `Return JSON only: {"roles":[{"role","required":bool,"priority":int,"rationale":"<=12 words"}],` +
-      `"omitted":[role,...],"pageCount":1|2}. "hero" first, "contact" last. 4–9 roles.`;
+      `for everyone. Drop roles that do not serve this business — in particular, "pricing" renders as ` +
+      `fixed subscription plans (name / price / "per month" / features) and only fits a SaaS product or ` +
+      `a ticketed event; NEVER use it for a project-quote business (construction, agency, architecture, ` +
+      `legal, consulting) — those don't have monthly plans.\n` +
+      (input.forcedPageCount
+        ? `The client EXPLICITLY chose "pageCount":${input.forcedPageCount} during clarification — this ` +
+          `is a REQUIREMENT, not a suggestion. Return exactly that "pageCount" and provide enough ` +
+          `DISTINCT roles (per the scaling target below) to make every one of those pages genuinely ` +
+          `full, not declared-but-empty.\n`
+        : `A recommended page split may be given below — weigh it seriously (it reflects distinct ` +
+          `content pillars in the brief) but you decide the final "pageCount"; do not fragment a simple ` +
+          `business into pages it doesn't need.\n`) +
+      `"comparisonTable" renders an "us vs. elsewhere" / package-differences table — good when the ` +
+      `business has a real reason to justify why it's the better choice (a local trade competing on ` +
+      `speed/price, an agency/SaaS/clinic comparing tiers); skip it for a portfolio or gallery-only site ` +
+      `with nothing to compare. "featuredProject" is a deep-dive on ONE standout project — reuse real ` +
+      `details already implied by the brief, never invent a specific project. "specialties" is a SECOND, ` +
+      `deeper services section — one or two flagship services explained further, not a repeat of the ` +
+      `"services" overview. "serviceArea" states the geographic area served — only use it when the brief ` +
+      `names a city/region; never invent locations.\n` +
+      `The role COUNT must scale with "pageCount" — every page needs real depth, home included. ` +
+      `Never spread a short role list thin across many pages. Each role may be used ONCE total (not per ` +
+      `page), so pick that many DISTINCT roles from the vocabulary above. Target: pageCount 1 → 4-9 roles; ` +
+      `pageCount 2 → 9-13 roles; pageCount 3 → 12-16 roles; pageCount 4 → 15-18 roles; pageCount 5 → 18-22 ` +
+      `roles. A page left with only 1-2 roles reads as empty and unfinished — avoid that outcome; a rich, ` +
+      `detailed brief with several distinct content pillars should reach for pageCount 4-5 and use MOST of ` +
+      `the vocabulary, not the bare minimum — but never invent a pillar the brief doesn't support. ` +
+      `SPREAD roles across distinct content families (work/portfolio, services/offer, about/team, ` +
+      `proof/comparison) rather than clustering most of them in one family — a page can only exist if ` +
+      `its own family has enough roles on its own; piling everything into "about" while leaving ` +
+      `"services" or "proof" with just one role each will silently produce FEWER pages than requested.\n` +
+      `Each role may also carry an optional "emphasis" — one of: full, split, asymmetric, centered, ` +
+      `editorial, grid, image-led, compact — a hint for how much visual weight THIS section's actual ` +
+      `content deserves. Use "image-led" for a strong visual pillar (a real portfolio, before/after work, ` +
+      `a gallery-led business); "full" for a high-impact single statement; "grid" for several parallel ` +
+      `items (services, team, credentials); "compact" for minor supporting info (hours, a short FAQ); ` +
+      `"editorial" for narrative/story/quote content. Only set it when the content genuinely calls for ` +
+      `that weight — omit it otherwise and the layout engine picks a sensible default.\n` +
+      `Return JSON only: {"roles":[{"role","required":bool,"priority":int,"rationale":"<=12 words",` +
+      `"emphasis":"<optional>"}],"omitted":[role,...],"pageCount":1|2|3|4|5}. "hero" first, "contact" last.`;
     const user =
       `Brief: ${input.brief}\n${this.facts(input.business)}` +
       `Positioning: ${input.profile.positioning}\nPrimary goal: ${input.profile.primaryConversion}\n` +
       `Direction: ${input.direction.family} — ${input.direction.rationale}\n` +
-      `Image intensity: ${input.profile.imageIntensity}. Variant seed: ${input.seed}.`;
+      `Image intensity: ${input.profile.imageIntensity}. Variant seed: ${input.seed}.` +
+      (input.pageHint ? `\nRecommended page split: ${input.pageHint}` : '');
     const parsed = (await this.json(system, user, {
-      maxTokens: 1200,
+      maxTokens: 1400,
       effort: 'medium',
       timeoutMs: PLAN_TIMEOUT_MS,
     })) as { roles?: unknown[]; omitted?: unknown[]; pageCount?: unknown } | null;
@@ -677,13 +891,15 @@ export class AiService {
           required: !!o.required,
           priority: Number.isFinite(o.priority) ? Number(o.priority) : i,
           rationale: typeof o.rationale === 'string' ? o.rationale.slice(0, 120) : undefined,
+          emphasis: typeof o.emphasis === 'string' ? (o.emphasis as IARole['emphasis']) : undefined,
         };
       })
       .filter((r) => r.role);
     const omitted = Array.isArray(parsed.omitted)
       ? parsed.omitted.filter((x): x is SectionRole => typeof x === 'string')
       : [];
-    const pageCount = parsed.pageCount === 2 ? 2 : 1;
+    const pageCountNum = Number(parsed.pageCount);
+    const pageCount = Number.isInteger(pageCountNum) ? Math.max(1, Math.min(5, pageCountNum)) : 1;
     return roles.length >= 3 ? { roles, omitted, pageCount } : null;
   }
 
@@ -698,6 +914,7 @@ export class AiService {
     profile: BusinessProfile;
     dna: DesignDNA;
     locale: AiLocale;
+    emphasize?: string[];
     pages: {
       title: string;
       purpose: string;
@@ -718,6 +935,10 @@ export class AiService {
       `BAD: "Oferim servicii de calitate superioară adaptate nevoilor dumneavoastră." ` +
       `Name real things (materiale, orașe, tipuri de lucrări, pași); avoid superlative fără dovadă ` +
       `("cel mai bun", "lider de piață", "24/7") unless the brief says so.\n` +
+      (input.emphasize?.length
+        ? `Concrete angles worth drawing on where relevant (do not force all of them): ` +
+          `${input.emphasize.join('; ')}.\n`
+        : '') +
       `Leave every image/imageUrl/backgroundImage field an empty string "". In "contact" leave phone/` +
       `email empty. In "team" use a short placeholder name and empty bio.\n` +
       `Reply with COMPACT JSON only: {"sections":[{"type":string,"content":{...}}]}.`;
@@ -740,17 +961,21 @@ export class AiService {
     profile: BusinessProfile;
     dna: DesignDNA;
     locale: AiLocale;
-    slots: { key: string; role: string; sectionType: string; hint: string }[];
+    slots: { key: string; role: string; sectionType: string; hint: string; pageTitle: string }[];
   }): Promise<Record<string, { subject: string; scene: string; avoid: string[] }> | null> {
     if (!this.configured || !input.slots.length) return null;
     const system =
       `You brief a photo researcher for a small-business website. For each slot return a concrete, ` +
       `searchable subject + scene for THIS business and a short "avoid" list. Never generic ` +
-      `("business", "team", "office"). Reply JSON only: {"<key>":{"subject","scene","avoid":[..]}}.`;
+      `("business", "team", "office"). Each slot names the PAGE it sits on ("pageTitle") — on a ` +
+      `multi-pillar business (e.g. separate pages for residential vs. commercial work), keep the ` +
+      `subject specific to THAT page's own topic, never a different pillar's. Reply JSON only: ` +
+      `{"<key>":{"subject","scene","avoid":[..]}}.`;
     const user =
       `Business: ${input.business.name} — ${input.profile.businessType}\n` +
       `Photography style: ${input.dna.photographyStyle}\n` +
-      `Visual opportunities: ${input.profile.visualOpportunities.join(', ')}\n` +
+      `Visual opportunities (business-wide — pick only the ones matching each slot's own page): ` +
+      `${input.profile.visualOpportunities.join(', ')}\n` +
       `Slots:\n` +
       JSON.stringify(input.slots);
     const parsed = (await this.json(system, user, {

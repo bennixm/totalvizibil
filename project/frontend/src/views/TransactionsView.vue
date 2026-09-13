@@ -1,16 +1,52 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
 import CreditsValue from '@/components/CreditsValue.vue'
 import { useWalletStore } from '@/stores/wallet'
+import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
 const wallet = useWalletStore()
-const { transactions, nextCursor, loading, working } = storeToRefs(wallet)
+const toasts = useToastStore()
+const { transactions, nextCursor } = storeToRefs(wallet)
 
-onMounted(() => wallet.loadTransactions(false))
+// `loadTransactions()` doesn't manage its own loading flags (its other two
+// callers — `wallet.load()`/`confirmPending()` — already wrap it in their
+// OWN loading state, so it isn't meant to be called standalone). The
+// store's shared `loading`/`working` flags this view used to read are only
+// ever toggled by those OTHER actions — never by `loadTransactions()` — so
+// on a normal visit here they're already back to `false` from whatever
+// finished on a previous page, and the list flashed as "empty" every time
+// before the real data replaced it a moment later. Local flags instead.
+const loading = ref(true)
+const loadingMore = ref(false)
+
+async function loadInitial(): Promise<void> {
+  loading.value = true
+  try {
+    await wallet.loadTransactions(false)
+  } catch {
+    toasts.error(t('wallet.historyError'))
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadMore(): Promise<void> {
+  if (loadingMore.value || !nextCursor.value) return
+  loadingMore.value = true
+  try {
+    await wallet.loadTransactions(true)
+  } catch {
+    toasts.error(t('wallet.historyError'))
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+onMounted(loadInitial)
 </script>
 
 <template>
@@ -66,8 +102,8 @@ onMounted(() => wallet.loadTransactions(false))
           v-if="nextCursor"
           variant="text"
           size="small"
-          :loading="working"
-          @click="wallet.loadTransactions(true)"
+          :loading="loadingMore"
+          @click="loadMore"
         >
           {{ t('wallet.loadMore') }}
         </v-btn>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
 import { useBuilderStore } from '@/stores/builder'
+import type { ClarifyQuestion } from '@/stores/builder'
 
 const props = defineProps<{ companyId: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -14,6 +15,43 @@ const { working, view } = storeToRefs(store)
 
 const brief = ref('')
 const confirmed = ref(false)
+
+// Pre-generation clarification — only on a FRESH build (never "improve" or the
+// "another variant" reroll, which stay instant). The popup stays open and
+// swaps the form for a short round of question cards before handing off to
+// the AiLoader, same as a plain brief always has.
+const phase = ref<'brief' | 'thinking' | 'clarify'>('brief')
+const questions = ref<ClarifyQuestion[]>([])
+const questionIndex = ref(0)
+const roundAnswers = ref<Record<string, string>>({})
+const textAnswer = ref('')
+const currentQuestion = computed<ClarifyQuestion | null>(() => questions.value[questionIndex.value] ?? null)
+
+// "Thinking" is a staged, animated stand-in for the one real network wait
+// each clarify round has — there's no per-phase signal from the backend (a
+// single request/response), so — same philosophy as `AiLoader.vue`'s fake
+// progress bar for the full generation — we cycle through a few short,
+// honest status lines on a timer rather than leaving a bare spinner up.
+// Never advances past the last line before the real response lands.
+const thinkingSteps = ref<string[]>([])
+const thinkingStep = ref(0)
+let thinkingTimer: ReturnType<typeof setInterval> | undefined
+const THINKING_INITIAL = ['builder.aiThink.received', 'builder.aiThink.analyzing', 'builder.aiThink.preparing']
+const THINKING_ANSWER = ['builder.aiThink.noted', 'builder.aiThink.checking']
+
+function startThinking(steps: string[]): void {
+  thinkingSteps.value = steps
+  thinkingStep.value = 0
+  phase.value = 'thinking'
+  clearInterval(thinkingTimer)
+  thinkingTimer = setInterval(() => {
+    if (thinkingStep.value < steps.length - 1) thinkingStep.value += 1
+  }, 1100)
+}
+function stopThinking(): void {
+  clearInterval(thinkingTimer)
+  thinkingTimer = undefined
+}
 
 // AI is metered per site (manual editing stays unlimited).
 const planLeft = computed(() => view.value?.aiLimits?.planLeft ?? null)
@@ -36,14 +74,74 @@ const canRegen = computed(
     (brief.value.trim().length >= 4 || lastBrief.value.length >= 4),
 )
 
-function generate(): void {
+function launchGeneration(): void {
   const b = brief.value.trim()
-  if (b.length < 4 || working.value || outOfQuota.value) return
-  // Fire and close straight away — the full-screen AiLoader takes over and
-  // any error surfaces in the builder view once it resolves.
+  // Fire and close — the full-screen AiLoader takes over and any error
+  // surfaces in the builder view once it resolves.
   void store.aiPlan(props.companyId, b, canImprove.value ? mode.value : undefined)
   emit('close')
 }
+
+async function generate(): Promise<void> {
+  const b = brief.value.trim()
+  if (b.length < 4 || working.value || outOfQuota.value) return
+  // Clarification only applies to a genuinely FRESH build — an "improve" edit
+  // is a surgical follow-up instruction, not a from-scratch brief.
+  if (canImprove.value && mode.value === 'improve') {
+    launchGeneration()
+    return
+  }
+  startThinking(THINKING_INITIAL)
+  const res = await store.aiClarifyStart(props.companyId, b)
+  stopThinking()
+  if (res.done) {
+    launchGeneration()
+    return
+  }
+  questions.value = res.questions
+  questionIndex.value = 0
+  roundAnswers.value = {}
+  textAnswer.value = ''
+  phase.value = 'clarify'
+}
+
+async function answerCurrent(value: string): Promise<void> {
+  const q = currentQuestion.value
+  if (!q || !value.trim() || working.value) return
+  roundAnswers.value[q.id] = value.trim()
+  textAnswer.value = ''
+  if (questionIndex.value < questions.value.length - 1) {
+    questionIndex.value += 1
+    return
+  }
+  // Round complete — send the batch, then either show the next round or generate.
+  const answers = Object.entries(roundAnswers.value).map(([questionId, val]) => ({
+    questionId,
+    value: val,
+  }))
+  startThinking(THINKING_ANSWER)
+  const res = await store.aiClarifyAnswer(props.companyId, answers)
+  stopThinking()
+  if (res.done) {
+    launchGeneration()
+    return
+  }
+  questions.value = res.questions
+  questionIndex.value = 0
+  roundAnswers.value = {}
+  phase.value = 'clarify'
+}
+
+function backToBrief(): void {
+  stopThinking()
+  phase.value = 'brief'
+  questions.value = []
+  questionIndex.value = 0
+  roundAnswers.value = {}
+  textAnswer.value = ''
+}
+
+onBeforeUnmount(stopThinking)
 
 // Rebuild from the same brief with a fresh random seed — same business, a
 // genuinely different layout / design direction. Always a full replace.
@@ -66,7 +164,8 @@ function regenVariant(): void {
         </button>
       </header>
 
-      <div class="ab__body">
+      <Transition name="ab-phase" mode="out-in">
+      <div v-if="phase === 'brief'" key="brief" class="ab__body">
         <p class="ab__lead">{{ t('builder.aiLead') }}</p>
 
         <div v-if="canImprove" class="ab__mode">
@@ -132,16 +231,81 @@ function regenVariant(): void {
         </button>
       </div>
 
-      <footer class="ab__foot">
-        <button type="button" class="ab__cancel" @click="emit('close')">{{ t('builder.cancel') }}</button>
+      <div v-else-if="phase === 'thinking'" key="thinking" class="ab__body ab__thinking">
+        <div class="ab__think-orb">
+          <v-icon icon="mdi-creation" size="26" />
+        </div>
+        <Transition name="ab-think-text" mode="out-in">
+          <p :key="thinkingStep" class="ab__think-text">{{ t(thinkingSteps[thinkingStep]) }}</p>
+        </Transition>
+        <div class="ab__think-dots"><span /><span /><span /></div>
+      </div>
+
+      <div v-else key="clarify" class="ab__body ab__clarify">
+        <p class="ab__lead">
+          {{ t('builder.aiClarifyLead') }}
+          <span v-if="questions.length > 1" class="ab__step">
+            {{ t('builder.aiClarifyStep', { n: questionIndex + 1, total: questions.length }) }}
+          </span>
+        </p>
+
+        <template v-if="currentQuestion">
+          <p class="ab__q">{{ currentQuestion.prompt }}</p>
+
+          <div v-if="currentQuestion.kind === 'choice'" class="ab__opts">
+            <button
+              v-for="opt in currentQuestion.options"
+              :key="opt.id"
+              type="button"
+              class="ab__opt"
+              :disabled="working"
+              @click="answerCurrent(opt.label)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+
+          <div v-else class="ab__textq">
+            <input
+              v-model="textAnswer"
+              type="text"
+              class="ab__qinput"
+              maxlength="300"
+              :placeholder="t('builder.aiClarifyTextPlaceholder')"
+              @keydown.enter="answerCurrent(textAnswer)"
+            />
+          </div>
+        </template>
+      </div>
+      </Transition>
+
+      <footer v-if="phase !== 'thinking'" class="ab__foot">
         <button
+          v-if="phase === 'brief'"
+          type="button"
+          class="ab__cancel"
+          @click="emit('close')"
+        >{{ t('builder.cancel') }}</button>
+        <button v-else type="button" class="ab__cancel" @click="backToBrief">
+          {{ t('builder.back') }}
+        </button>
+        <button
+          v-if="phase === 'brief'"
           type="button"
           class="ab__go"
           :disabled="!confirmed || brief.trim().length < 4 || working || outOfQuota"
           @click="generate"
         >
-          <v-progress-circular v-if="working" indeterminate size="15" width="2" />
-          <template v-else><v-icon icon="mdi-creation" size="15" /> {{ t('builder.aiGo') }}</template>
+          <v-icon icon="mdi-creation" size="15" /> {{ t('builder.aiGo') }}
+        </button>
+        <button
+          v-else-if="currentQuestion?.kind === 'text'"
+          type="button"
+          class="ab__go"
+          :disabled="!textAnswer.trim() || working"
+          @click="answerCurrent(textAnswer)"
+        >
+          {{ t('builder.aiClarifyNext') }}
         </button>
       </footer>
     </div>
@@ -337,5 +501,159 @@ function regenVariant(): void {
 }
 .ab__go:disabled {
   opacity: 0.5;
+}
+.ab__step {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.ab__q {
+  margin: 0.8rem 0 0.9rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.ab__opts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ab__opt {
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 0.85rem;
+  border: 1px solid var(--tvz-glass-border);
+  background: rgb(var(--v-theme-surface));
+  color: rgba(var(--v-theme-on-surface), 0.85);
+}
+.ab__opt:hover:not(:disabled) {
+  border-color: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.06);
+}
+.ab__opt:disabled {
+  opacity: 0.5;
+}
+.ab__qinput {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--tvz-glass-border);
+  background: rgb(var(--v-theme-background));
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+}
+.ab__qinput:focus {
+  outline: 2px solid rgba(var(--v-theme-primary), 0.4);
+  outline-offset: 1px;
+}
+
+/* Crossfade between brief / thinking / clarify — the "the AI just received
+   this and is starting" moment the transition into `thinking` is meant to sell. */
+.ab-phase-enter-active,
+.ab-phase-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.ab-phase-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.ab-phase-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.ab__thinking {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  padding: 2.6rem 1.5rem 2.8rem;
+  text-align: center;
+  min-height: 200px;
+}
+.ab__think-orb {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--v-theme-primary), 0.2), rgba(var(--v-theme-primary), 0.04));
+  color: rgb(var(--v-theme-primary));
+  animation: ab-pulse 1.7s ease-in-out infinite;
+}
+@keyframes ab-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(var(--v-theme-primary), 0.22);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 12px rgba(var(--v-theme-primary), 0);
+  }
+}
+.ab__think-text {
+  margin: 0;
+  min-height: 1.3em;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.85);
+}
+.ab-think-text-enter-active,
+.ab-think-text-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.ab-think-text-enter-from {
+  opacity: 0;
+  transform: translateY(5px);
+}
+.ab-think-text-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+.ab__think-dots {
+  display: flex;
+  gap: 0.32rem;
+}
+.ab__think-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-primary), 0.45);
+  animation: ab-dot 1.2s ease-in-out infinite;
+}
+.ab__think-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ab__think-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes ab-dot {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ab__think-orb,
+  .ab__think-dots span {
+    animation: none;
+  }
+  .ab-phase-enter-active,
+  .ab-phase-leave-active,
+  .ab-think-text-enter-active,
+  .ab-think-text-leave-active {
+    transition: none;
+  }
 }
 </style>

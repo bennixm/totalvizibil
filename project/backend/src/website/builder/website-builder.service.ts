@@ -51,6 +51,13 @@ import { fillDocImages, hashInt, verifyDocImages } from './stock-images';
 import { generateSite } from './generator/pipeline';
 import { ImageSearchService } from './generator/image-provider/image-search.service';
 import type { VisualQaConfig } from './generator/types';
+import {
+  AI_CLARIFY_MAX_TURNS,
+  clarifyTurn,
+  formatClarifyContext,
+  resolveClarifiedPages,
+  type ClarifyState,
+} from './generator/clarify';
 import { PutPagesDto } from './dto/put-pages.dto';
 import { SaveDocDto } from './dto/save-doc.dto';
 import { AddSectionDto } from './dto/add-section.dto';
@@ -61,6 +68,8 @@ import { PatchChromeDto } from './dto/patch-chrome.dto';
 import { BuilderAddAssetDto } from './dto/add-asset.dto';
 import { AiPlanDto } from './dto/ai-plan.dto';
 import { AiSectionDto } from './dto/ai-section.dto';
+import { AiClarifyDto } from './dto/ai-clarify.dto';
+import { AiClarifyAnswerDto } from './dto/ai-clarify-answer.dto';
 
 const CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager];
 
@@ -678,6 +687,14 @@ export class WebsiteBuilderService {
     const brief = dto.brief.trim();
     assertClean(brief);
 
+    // If pre-generation clarification ran for THIS exact brief and finished,
+    // fold the client's answers in as confirmed facts — a mismatched or
+    // in-progress transcript (different brief, abandoned mid-flow) is ignored.
+    const storedChat = company.website!.builderChat as unknown as ClarifyState | null;
+    const clarifyMatches = !!storedChat && storedChat.done && storedChat.brief === brief;
+    const clarifyContext = clarifyMatches ? formatClarifyContext(storedChat!) : '';
+    const clarifiedPages = clarifyMatches ? resolveClarifiedPages(storedChat!) : undefined;
+
     // A follow-up prompt EVOLVES the current site (keeps what works, applies the
     // request on top) instead of rebuilding it. First prompt → build from scratch.
     const improve = dto.mode === 'replace' ? false : spent > 0 && doc.pages.some((p) => !p.system);
@@ -712,6 +729,8 @@ export class WebsiteBuilderService {
         brief,
         ctx: genCtx,
         ...(typeof dto.seed === 'number' ? { seed: dto.seed } : {}),
+        ...(clarifyContext ? { clarifyContext } : {}),
+        ...(clarifiedPages?.length ? { clarifiedPages } : {}),
         recentFingerprints,
         images: this.imageSearch,
         ...(this.visualQa.enabled && this.visualQa.screenshotUrl
@@ -734,7 +753,96 @@ export class WebsiteBuilderService {
     planned.history = [...(doc.history ?? []).slice(-2), doc.pages];
 
     await this.persist(companyId, planned, ctx);
+    // Consumed (or stale/mismatched) — either way this generation is done with it.
+    if (storedChat) {
+      await this.prisma.website.update({
+        where: { companyId },
+        data: { builderChat: Prisma.JsonNull },
+      });
+    }
     return this.view(companyId, userId);
+  }
+
+  /** Start (or restart) pre-generation clarification for a fresh brief. */
+  async aiClarifyStart(userId: string, companyId: string, dto: AiClarifyDto) {
+    const company = await this.loadEditable(companyId, userId);
+    const ctx = this.seedCtx(company);
+    const brief = dto.brief.trim();
+    assertClean(brief);
+
+    const business = {
+      name: ctx.businessName,
+      type: ctx.businessType || undefined,
+      city: ctx.city || undefined,
+      services: ctx.services,
+    };
+    const result = await clarifyTurn(this.ai, {
+      brief,
+      business,
+      locale: ctx.locale,
+      answers: [],
+      turnsSoFar: 0,
+    });
+    const state: ClarifyState = {
+      brief,
+      done: result.done,
+      turnsSoFar: result.done ? 0 : 1,
+      answers: [],
+      askedQuestions: result.questions,
+    };
+    await this.prisma.website.update({
+      where: { companyId },
+      data: { builderChat: state as unknown as Prisma.InputJsonValue },
+    });
+    return result.done
+      ? { done: true as const }
+      : { done: false as const, questions: result.questions };
+  }
+
+  /** Answer one round of clarification questions — the next round, or done. */
+  async aiClarifyAnswer(userId: string, companyId: string, dto: AiClarifyAnswerDto) {
+    const company = await this.loadEditable(companyId, userId);
+    const ctx = this.seedCtx(company);
+    const stored = company.website!.builderChat as unknown as ClarifyState | null;
+    if (!stored || stored.done) throw new BadRequestException('no_active_clarification');
+
+    const answers = [...stored.answers, ...dto.answers];
+    if (stored.turnsSoFar >= AI_CLARIFY_MAX_TURNS) {
+      const closed: ClarifyState = { ...stored, done: true, answers };
+      await this.prisma.website.update({
+        where: { companyId },
+        data: { builderChat: closed as unknown as Prisma.InputJsonValue },
+      });
+      return { done: true as const };
+    }
+
+    const business = {
+      name: ctx.businessName,
+      type: ctx.businessType || undefined,
+      city: ctx.city || undefined,
+      services: ctx.services,
+    };
+    const result = await clarifyTurn(this.ai, {
+      brief: stored.brief,
+      business,
+      locale: ctx.locale,
+      answers,
+      turnsSoFar: stored.turnsSoFar,
+    });
+    const state: ClarifyState = {
+      brief: stored.brief,
+      done: result.done,
+      turnsSoFar: stored.turnsSoFar + 1,
+      answers,
+      askedQuestions: [...stored.askedQuestions, ...result.questions],
+    };
+    await this.prisma.website.update({
+      where: { companyId },
+      data: { builderChat: state as unknown as Prisma.InputJsonValue },
+    });
+    return result.done
+      ? { done: true as const }
+      : { done: false as const, questions: result.questions };
   }
 
   /**

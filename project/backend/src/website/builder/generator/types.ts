@@ -14,6 +14,58 @@ import type { SiteFinding } from '../site-audit';
 import type { Archetype } from '../site-archetypes';
 import type { StudioLocale } from '../section-catalog';
 
+// --- Stage 0: brief refinement -------------------------------------------
+
+export interface SuggestedPage {
+  title: string;
+  purpose: string;
+}
+
+/** An option the client can pick for a `kind:'choice'` clarify question. */
+export interface ClarifyOption {
+  /** The literal id `"ai_decide"` marks the "let the AI decide" option — every
+   *  choice question must include exactly one. Detected by this exact id, not
+   *  by matching label text, so downstream code can filter it out reliably
+   *  regardless of phrasing/locale. */
+  id: string;
+  label: string;
+  /** ONLY for a page-structure question: the concrete pages THIS option
+   *  prescribes. Absent/empty ⇒ this option does not commit to a structure
+   *  (always true for the `ai_decide` option). Structured on purpose — the
+   *  page count/split becomes a hard downstream requirement, not something
+   *  re-parsed out of prose the model could phrase inconsistently. */
+  pages?: SuggestedPage[];
+}
+
+/** A single follow-up question the clarification step wants the client to answer. */
+export interface ClarifyQuestion {
+  id: string;
+  kind: 'choice' | 'text';
+  /** The question itself, in the client's locale. */
+  prompt: string;
+  /** Only for `kind:'choice'`. Always includes an `id:"ai_decide"` option. */
+  options?: ClarifyOption[];
+}
+
+/** One answered question — free text, or the id/label of the chosen option. */
+export interface ClarifyAnswer {
+  questionId: string;
+  value: string;
+}
+
+export interface EnrichedBrief {
+  /** The rewritten, richer brief — feeds analyzeBusiness/planIA/writePageCopy and
+   *  every other internal AI call. NEVER shown to the client and NEVER replaces
+   *  `doc.ai.brief` (which stays exactly what the client typed). */
+  brief: string;
+  /** Recommended page split — a strong signal for `planIA`, not a command. */
+  suggestedPages: SuggestedPage[];
+  /** Concrete content angles to emphasize, drawn from what the client actually said. */
+  emphasize: string[];
+  /** Assumptions made explicit, for logs/audit — never injected into copy as fact. */
+  clarifications: string[];
+}
+
 // --- Stage 1: business analysis --------------------------------------------
 
 export type PurchaseIntent = 'impulse' | 'considered' | 'high-trust';
@@ -133,6 +185,10 @@ export type SectionRole =
   | 'pricing'
   | 'gallery'
   | 'hours'
+  | 'comparisonTable'
+  | 'featuredProject'
+  | 'specialties'
+  | 'serviceArea'
   | 'primaryCTA'
   | 'secondaryCTA'
   | 'contact';
@@ -143,6 +199,10 @@ export interface IARole {
   /** Lower = earlier on the page. */
   priority: number;
   rationale?: string;
+  /** AI's suggested visual weight for THIS section's actual content — a hint
+   *  layered onto the deterministic rhythm engine, not a structural decision.
+   *  Ignored when invalid/absent; `assignRhythm` falls back to its own rotation. */
+  emphasis?: CompositionMode;
 }
 
 export interface IASpec {
@@ -315,13 +375,49 @@ export interface GeneratorAi {
     locale: StudioLocale;
     seed: number;
     roleVocab: string[];
+    /** Recommended page split from Stage 0 (`refineBrief`) — a strong signal, not a command. */
+    pageHint?: string;
+    /** The client EXPLICITLY chose this page count during clarification — not a
+     *  suggestion, a requirement. The caller still clamps `pageCount` to this
+     *  value in code regardless of what comes back; this is passed so the
+     *  model scales its own role budget to match rather than under-shooting. */
+    forcedPageCount?: number;
   }): Promise<{ roles: IARole[]; omitted: SectionRole[]; pageCount: number } | null>;
+  /**
+   * Stage 0 — rewrite the client's raw brief into a richer, more specific one
+   * BEFORE the rest of the pipeline reads it, and recommend a page split.
+   * MUST NOT invent facts not stated or clearly implied (no years in business,
+   * staff counts, prices, certifications) — only elaborate tone/structure/
+   * emphasis and make implicit specifics explicit. `null` ⇒ caller falls back
+   * to the original brief unchanged.
+   */
+  refineBrief(input: {
+    brief: string;
+    business: GeneratorBusiness;
+    locale: StudioLocale;
+  }): Promise<Partial<EnrichedBrief> | null>;
+  /**
+   * Pre-generation clarification: decide whether the brief is missing
+   * something important enough that generating now would force a guess
+   * (page structure, design direction, a concrete fact) — and if so, ask up
+   * to a few short questions instead of guessing. `null`/`done:true` ⇒ the
+   * caller proceeds straight to generation.
+   */
+  clarifyBrief(input: {
+    brief: string;
+    business: GeneratorBusiness;
+    locale: StudioLocale;
+    archetype: string;
+    answers: ClarifyAnswer[];
+  }): Promise<{ done: boolean; questions?: ClarifyQuestion[] } | null>;
   writePageCopy(input: {
     brief: string;
     business: GeneratorBusiness;
     profile: BusinessProfile;
     dna: DesignDNA;
     locale: StudioLocale;
+    /** Stage 0's concrete content angles — real material, not invented. */
+    emphasize?: string[];
     pages: {
       title: string;
       purpose: string;
@@ -333,7 +429,7 @@ export interface GeneratorAi {
     profile: BusinessProfile;
     dna: DesignDNA;
     locale: StudioLocale;
-    slots: { key: string; role: string; sectionType: string; hint: string }[];
+    slots: { key: string; role: string; sectionType: string; hint: string; pageTitle: string }[];
   }): Promise<Record<string, { subject: string; scene: string; avoid: string[] }> | null>;
   /** The model's read of the finished site (text digest) — feeds auto-repair. */
   reviewSite(input: {

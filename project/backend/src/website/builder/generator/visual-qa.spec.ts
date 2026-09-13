@@ -16,6 +16,8 @@ const AI_OK: GeneratorAi = {
     strengths: ['clear hierarchy'],
     recommendedFixes: [{ target: 'hero.image', instruction: 'stronger hero photo' }],
   }),
+  refineBrief: async () => null,
+  clarifyBrief: async () => null,
 };
 const AI_OFF: GeneratorAi = { ...AI_OK, configured: false };
 
