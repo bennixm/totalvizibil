@@ -51,9 +51,11 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+
     concurrency:
       group: deploy-vps
       cancel-in-progress: false
+
     steps:
       - name: SSH into the VPS and redeploy
         uses: appleboy/ssh-action@v1.0.3
@@ -61,18 +63,50 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+
           script: |
             set -e
+
+            # Load NVM for non-interactive SSH sessions
+            export NVM_DIR="$HOME/.nvm"
+
+            if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+              echo "ERROR: NVM not found at $NVM_DIR"
+              exit 1
+            fi
+
+            . "$NVM_DIR/nvm.sh"
+            nvm use 20
+
+            echo "Node: $(node -v)"
+            echo "npm:  $(npm -v)"
+            echo "PM2:  $(pm2 -v)"
+
             cd /var/www/totalvizibil
+
+            echo "==> Pulling latest code"
             git pull origin main
 
+            echo "==> Building backend"
             cd project/backend
+
             npm ci
             npx prisma migrate deploy
             npm run build
-            pm2 describe tvz-api > /dev/null 2>&1 && pm2 restart tvz-api || pm2 start dist/main.js --name tvz-api
+
+            echo "==> Restarting backend"
+            if pm2 describe tvz-api > /dev/null 2>&1; then
+              pm2 restart tvz-api
+            else
+              pm2 start dist/main.js --name tvz-api
+            fi
+
             pm2 save
 
+            echo "==> Building frontend"
             cd ../frontend
+
             npm ci
             npm run build
+
+            echo "==> Deployment complete"
