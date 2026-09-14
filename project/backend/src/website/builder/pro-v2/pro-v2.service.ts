@@ -9,6 +9,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { WalletService } from '../../../wallet/wallet.service';
 import { CREDIT_MINOR } from '../../../wallet/money';
 import { PlatformSettingsService } from '../../../platform-settings/platform-settings.service';
+import { WebsiteAssetService } from '../../assets/website-asset.service';
 import { STARTER_FILES } from './starter-project';
 import {
   MAX_BUNDLE_FILES,
@@ -44,6 +45,7 @@ export class ProV2Service {
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly settings: PlatformSettingsService,
+    private readonly assets: WebsiteAssetService,
   ) {}
 
   // --- ownership ---------------------------------------------------------
@@ -172,6 +174,22 @@ export class ProV2Service {
       email ? `Email: ${email}` : '',
     ].filter(Boolean);
     return lines.join('\n');
+  }
+
+  /** An image the owner attaches in chat (portfolio/product/team/logo/etc.).
+   *  Reuses the exact same storage + serving path the Advanced/Easy builders
+   *  already use (`WebsiteAssetService`, bytes in Postgres, served publicly
+   *  at /api/v1/website-assets/:id) — no new asset system. The returned URL
+   *  is meant to be woven into the user's own chat message text so the agent
+   *  can use it directly instead of searching stock photos. */
+  async uploadAsset(
+    companyId: string,
+    userId: string,
+    dataUri: string,
+  ): Promise<{ id: string; url: string }> {
+    await this.assertCanEdit(companyId, userId);
+    await this.assertUnlocked(companyId, userId);
+    return this.assets.addCompanyAsset(companyId, dataUri, 'custom');
   }
 
   // --- project lifecycle ---------------------------------------------------

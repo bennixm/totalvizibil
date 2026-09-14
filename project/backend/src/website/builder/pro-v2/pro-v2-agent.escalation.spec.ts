@@ -187,7 +187,7 @@ function fakeConfig() {
 describe('ProV2AgentService — cross-provider escalation (DeepSeek configured)', () => {
   it('escalates flash -> claude when DeepSeek hard-fails (provider returns null)', async () => {
     const prisma = fakePrisma();
-    const projects = new ProV2Service(prisma as never, {} as never, {} as never);
+    const projects = new ProV2Service(prisma as never, {} as never, {} as never, {} as never);
 
     const deepseek: AiProvider = {
       name: 'deepseek',
@@ -240,7 +240,7 @@ describe('ProV2AgentService — cross-provider escalation (DeepSeek configured)'
 
   it('escalates when DeepSeek "succeeds" but the static quality gate fails (a no-op edit — real content unchanged)', async () => {
     const prisma = fakePrisma();
-    const projects = new ProV2Service(prisma as never, {} as never, {} as never);
+    const projects = new ProV2Service(prisma as never, {} as never, {} as never, {} as never);
     const project = await projects.getOrCreateProject('c1', 'u1');
     await projects.writeFile(
       project.id,

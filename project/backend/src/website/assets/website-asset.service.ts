@@ -5,8 +5,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 const MAX_ASSET_BYTES = 4_500_000;
 const DATA_URI_RE = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/;
 
-/** Section-image slots the Advanced builder can upload to. */
-export const BUILDER_ASSET_KINDS = ['hero', 'gallery', 'team', 'logo', 'about'] as const;
+/** Section-image slots the Advanced builder can upload to. `custom` is the
+ *  Website Builder's own kind — any image the owner attaches in chat
+ *  (portfolio/product/team/logo/etc.) for the agent to place where asked. */
+export const BUILDER_ASSET_KINDS = ['hero', 'gallery', 'team', 'logo', 'about', 'custom'] as const;
 export type BuilderAssetKind = (typeof BUILDER_ASSET_KINDS)[number];
 
 @Injectable()

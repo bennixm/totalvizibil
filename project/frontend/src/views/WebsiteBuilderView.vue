@@ -45,6 +45,52 @@ const showLog = ref(false)
 const showRepairLog = ref(false)
 const isRepairing = ref(false)
 
+// Left panel: Chat is the primary surface, Files is opt-in. On narrow
+// viewports the same idea extends to a 3-way switch (chat/files/preview) —
+// `leftTab` picks which of chat/files shows inside the panel (used on both
+// desktop and mobile), `mobileView` picks, mobile-only, whether the panel or
+// the preview fills the screen.
+const leftTab = ref<'chat' | 'files'>('chat')
+const mobileView = ref<'panel' | 'preview'>('panel')
+function selectMobileTab(tab: 'chat' | 'files' | 'preview'): void {
+  if (tab === 'preview') {
+    mobileView.value = 'preview'
+  } else {
+    leftTab.value = tab
+    mobileView.value = 'panel'
+  }
+}
+
+// --- image attachments (chat composer) --------------------------------
+interface PendingAttachment {
+  file: File
+  previewUrl: string
+}
+const pendingAttachments = ref<PendingAttachment[]>([])
+const uploadingAttachments = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+function onAttachClick(): void {
+  fileInput.value?.click()
+}
+function onFilesPicked(e: Event): void {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue
+    pendingAttachments.value.push({ file, previewUrl: URL.createObjectURL(file) })
+  }
+  input.value = ''
+}
+function removeAttachment(index: number): void {
+  const [removed] = pendingAttachments.value.splice(index, 1)
+  if (removed) URL.revokeObjectURL(removed.previewUrl)
+}
+function clearAttachments(): void {
+  for (const a of pendingAttachments.value) URL.revokeObjectURL(a.previewUrl)
+  pendingAttachments.value = []
+}
+
 /** Only hide the iframe behind a full spinner while there's genuinely
  *  nothing to show yet. Once it's rendered once, a later error/fixing/failed
  *  state keeps the (possibly broken) preview visible alongside the status
@@ -125,9 +171,34 @@ async function scrollToEnd(): Promise<void> {
 watch(() => v2.messages.length, scrollToEnd)
 
 async function submit(): Promise<void> {
-  if (!companyId.value || !draft.value.trim() || v2.sending) return
-  const text = draft.value
+  if (!companyId.value || v2.sending || uploadingAttachments.value) return
+  const hasText = !!draft.value.trim()
+  const hasAttachments = pendingAttachments.value.length > 0
+  if (!hasText && !hasAttachments) return
+
+  let text = draft.value
+  const attachments = pendingAttachments.value
+  if (attachments.length) {
+    uploadingAttachments.value = true
+    try {
+      const urls: string[] = []
+      for (const a of attachments) {
+        const url = await v2.uploadAsset(companyId.value, a.file)
+        if (url) urls.push(url)
+      }
+      if (urls.length) {
+        text = [text.trim(), ...urls.map((u) => `Uploaded image: ${u}`)].filter(Boolean).join('\n\n')
+      } else {
+        toasts.error(t('proV2.attachUploadError'))
+        return
+      }
+    } finally {
+      uploadingAttachments.value = false
+    }
+  }
+
   draft.value = ''
+  clearAttachments()
   await scrollToEnd()
   const ok = await v2.send(companyId.value, text)
   if (!ok) {
@@ -188,13 +259,27 @@ onMounted(async () => {
   box.onServerReady = (url) => (previewUrl.value = url)
   box.onExecutionError = (err) => void handleSandboxError(err)
   sandbox.value = box
+
+  // If the last message is the user's own with no reply yet, a turn was
+  // still running when this page was last closed/reloaded — resume watching
+  // for it (sets `v2.sending` immediately, so the "thinking…" indicator
+  // shows right away) in parallel with booting the sandbox, since neither
+  // depends on the other until the reply actually lands.
+  const resumePromise = v2.resumeIfInFlight(id)
   await box.start(v2.files)
+  const resumeResult = await resumePromise
+  if (resumeResult === 'resolved') {
+    await sandbox.value?.sync(v2.files)
+  } else if (resumeResult === 'timed_out') {
+    toasts.error(t('proV2.resumeTimedOut'))
+  }
 })
 
 onBeforeUnmount(() => {
   // The WebContainer instance itself is intentionally NOT torn down here —
   // only one may ever boot per tab, and StackBlitz's API has no explicit
   // "unboot"; it's released when the tab/navigation actually discards it.
+  clearAttachments()
 })
 </script>
 
@@ -241,35 +326,172 @@ onBeforeUnmount(() => {
       <p>{{ t('pro.loadErrorText') }}</p>
     </div>
 
-    <div v-else class="v2__grid">
-      <!-- FILE TREE -->
-      <aside class="v2__tree">
-        <span class="v2__paneLabel">{{ t('proV2.files') }}</span>
+    <div
+      v-else
+      class="v2__grid"
+      :class="mobileView === 'preview' ? 'is-mobile-preview' : 'is-mobile-panel'"
+    >
+      <!-- MOBILE-ONLY: 3-way switch, static (not fixed) so it never fights
+           the app's own fixed bottom nav — hidden on desktop via CSS. -->
+      <nav class="v2__mobileTabs">
         <button
-          v-for="f in v2.files"
-          :key="f.path"
           type="button"
-          class="v2__file"
-          :style="{ paddingLeft: `${0.65 + fileDepth(f.path) * 0.85}rem` }"
-          :class="{
-            'is-active': f.path === v2.activeFilePath,
-            'is-changed': v2.lastChangedPaths.includes(f.path),
-          }"
-          @click="v2.selectFile(f.path)"
+          :class="{ 'is-active': mobileView === 'panel' && leftTab === 'chat' }"
+          @click="selectMobileTab('chat')"
         >
-          <v-icon icon="mdi-file-code-outline" size="13" />
-          {{ fileName(f.path) }}
+          <v-icon icon="mdi-chat-outline" size="18" />
+          {{ t('proV2.tabChat') }}
         </button>
-      </aside>
+        <button
+          type="button"
+          :class="{ 'is-active': mobileView === 'panel' && leftTab === 'files' }"
+          @click="selectMobileTab('files')"
+        >
+          <v-icon icon="mdi-file-code-outline" size="18" />
+          {{ t('proV2.files') }}
+        </button>
+        <button
+          type="button"
+          :class="{ 'is-active': mobileView === 'preview' }"
+          @click="selectMobileTab('preview')"
+        >
+          <v-icon icon="mdi-monitor" size="18" />
+          {{ t('proV2.tabPreview') }}
+        </button>
+      </nav>
 
-      <!-- CODE VIEWER -->
-      <main class="v2__code">
-        <span class="v2__paneLabel v2__codePath">{{ v2.activeFile?.path }}</span>
-        <pre class="v2__codeBody"><code>{{ v2.activeFile?.content }}</code></pre>
-      </main>
+      <!-- LEFT PANEL: Chat (default) | Files -->
+      <div class="v2__left">
+        <div class="v2__tabs">
+          <button
+            type="button"
+            class="v2__tab"
+            :class="{ 'is-active': leftTab === 'chat' }"
+            @click="leftTab = 'chat'"
+          >
+            <v-icon icon="mdi-chat-outline" size="16" />
+            {{ t('proV2.tabChat') }}
+          </button>
+          <button
+            type="button"
+            class="v2__tab"
+            :class="{ 'is-active': leftTab === 'files' }"
+            @click="leftTab = 'files'"
+          >
+            <v-icon icon="mdi-file-code-outline" size="16" />
+            {{ t('proV2.files') }}
+          </button>
+        </div>
 
-      <!-- LIVE PREVIEW -->
-      <section class="v2__preview">
+        <!-- CHAT -->
+        <div v-show="leftTab === 'chat'" class="v2__chatPane">
+          <div ref="messagesEl" class="v2__messages">
+            <div v-if="!v2.messages.length" class="v2__intro">
+              <v-icon icon="mdi-creation" size="26" />
+              <h2>{{ t('proV2.introTitle') }}</h2>
+              <p>{{ t('proV2.introText') }}</p>
+            </div>
+            <div v-for="(m, i) in v2.messages" :key="i" class="v2__msg" :class="`v2__msg--${m.role}`">
+              <p class="v2__msgText">{{ m.content }}</p>
+              <details v-if="m.toolCalls?.length" class="v2__steps">
+                <summary>{{ t('pro.whatIDid', m.toolCalls.length) }}</summary>
+                <ul>
+                  <li v-for="(s, j) in m.toolCalls" :key="j">{{ s.summary }}</li>
+                </ul>
+              </details>
+              <p v-if="m.usage" class="v2__usage">{{ usageCaption(m.usage) }}</p>
+            </div>
+            <div v-if="v2.sending" class="v2__msg v2__msg--assistant v2__thinking">
+              <span class="v2__dots"><span /><span /><span /></span>
+              {{ t('pro.working') }}
+            </div>
+          </div>
+
+          <div v-if="pendingAttachments.length" class="v2__attachments">
+            <div v-for="(a, i) in pendingAttachments" :key="i" class="v2__attachmentChip">
+              <img :src="a.previewUrl" alt="" />
+              <button
+                type="button"
+                class="v2__attachmentRemove"
+                :aria-label="t('proV2.removeAttachment')"
+                @click="removeAttachment(i)"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <form class="v2__composer" @submit.prevent="submit">
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/*"
+              multiple
+              class="v2__fileInput"
+              @change="onFilesPicked"
+            />
+            <button
+              type="button"
+              class="v2__attachBtn"
+              :disabled="v2.sending || !v2.aiConfigured"
+              :title="t('proV2.attachImage')"
+              @click="onAttachClick"
+            >
+              <v-icon icon="mdi-paperclip" size="18" />
+            </button>
+            <textarea
+              v-model="draft"
+              class="v2__input"
+              rows="2"
+              :placeholder="t('proV2.placeholder')"
+              :disabled="v2.sending || !v2.aiConfigured"
+              @keydown="onComposerKeydown"
+            />
+            <button
+              type="submit"
+              class="v2__send"
+              :disabled="
+                v2.sending ||
+                uploadingAttachments ||
+                (!draft.trim() && !pendingAttachments.length) ||
+                !v2.aiConfigured
+              "
+            >
+              <v-progress-circular v-if="v2.sending || uploadingAttachments" indeterminate size="16" width="2" />
+              <v-icon v-else icon="mdi-arrow-up" size="18" />
+            </button>
+          </form>
+          <p v-if="!v2.aiConfigured" class="v2__note">{{ t('pro.noKey') }}</p>
+        </div>
+
+        <!-- FILES -->
+        <div v-show="leftTab === 'files'" class="v2__filesPane">
+          <div class="v2__fileList">
+            <button
+              v-for="f in v2.files"
+              :key="f.path"
+              type="button"
+              class="v2__file"
+              :style="{ paddingLeft: `${0.65 + fileDepth(f.path) * 0.85}rem` }"
+              :class="{
+                'is-active': f.path === v2.activeFilePath,
+                'is-changed': v2.lastChangedPaths.includes(f.path),
+              }"
+              @click="v2.selectFile(f.path)"
+            >
+              <v-icon icon="mdi-file-code-outline" size="13" />
+              {{ fileName(f.path) }}
+            </button>
+          </div>
+          <div class="v2__codeViewer">
+            <span class="v2__codePath">{{ v2.activeFile?.path }}</span>
+            <pre class="v2__codeBody"><code>{{ v2.activeFile?.content }}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIVE PREVIEW — the wide pane -->
+      <section class="v2__previewPane">
         <div class="v2__previewBar">
           <span class="v2__statusPill" :class="`is-${status}`">
             <span class="v2__statusDot" />
@@ -314,46 +536,6 @@ onBeforeUnmount(() => {
           <p v-for="(l, i) in logLines" :key="i" :class="{ 'is-error': l.kind === 'error' }">{{ l.text }}</p>
         </div>
       </section>
-
-      <!-- CHAT -->
-      <aside class="v2__chat">
-        <div ref="messagesEl" class="v2__messages">
-          <div v-if="!v2.messages.length" class="v2__intro">
-            <v-icon icon="mdi-creation" size="26" />
-            <p>{{ t('proV2.introText') }}</p>
-          </div>
-          <div v-for="(m, i) in v2.messages" :key="i" class="v2__msg" :class="`v2__msg--${m.role}`">
-            <p class="v2__msgText">{{ m.content }}</p>
-            <details v-if="m.toolCalls?.length" class="v2__steps">
-              <summary>{{ t('pro.whatIDid', m.toolCalls.length) }}</summary>
-              <ul>
-                <li v-for="(s, j) in m.toolCalls" :key="j">{{ s.summary }}</li>
-              </ul>
-            </details>
-            <p v-if="m.usage" class="v2__usage">{{ usageCaption(m.usage) }}</p>
-          </div>
-          <div v-if="v2.sending" class="v2__msg v2__msg--assistant v2__thinking">
-            <span class="v2__dots"><span /><span /><span /></span>
-            {{ t('pro.working') }}
-          </div>
-        </div>
-
-        <form class="v2__composer" @submit.prevent="submit">
-          <textarea
-            v-model="draft"
-            class="v2__input"
-            rows="2"
-            :placeholder="t('proV2.placeholder')"
-            :disabled="v2.sending || !v2.aiConfigured"
-            @keydown="onComposerKeydown"
-          />
-          <button type="submit" class="v2__send" :disabled="v2.sending || !draft.trim() || !v2.aiConfigured">
-            <v-progress-circular v-if="v2.sending" indeterminate size="16" width="2" />
-            <v-icon v-else icon="mdi-arrow-up" size="18" />
-          </button>
-        </form>
-        <p v-if="!v2.aiConfigured" class="v2__note">{{ t('pro.noKey') }}</p>
-      </aside>
     </div>
   </div>
 </template>
@@ -365,6 +547,13 @@ onBeforeUnmount(() => {
   min-height: calc(100dvh - var(--tvz-topbar-h) - 2px);
   padding: clamp(1rem, 3vw, 1.75rem);
   gap: 0.9rem;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+@media (max-width: 900px) {
+  .v2 {
+    padding: 0.75rem;
+  }
 }
 .v2__bar {
   display: flex;
@@ -430,82 +619,90 @@ onBeforeUnmount(() => {
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
+/* Desktop: a narrow left panel (Chat/Files) + a MUCH wider preview — the
+ * preview is the most important surface, so it gets the bulk of the width. */
 .v2__grid {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(170px, 210px) minmax(260px, 1fr) minmax(320px, 1fr);
-  grid-template-rows: minmax(0, 1fr) minmax(220px, 300px);
+  grid-template-columns: minmax(300px, 380px) 1fr;
   gap: 0.8rem;
 }
-@media (max-width: 1100px) {
-  .v2__grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto auto;
-  }
-  .v2__preview {
-    grid-column: 1;
-    grid-row: auto;
-    min-height: 320px;
-  }
-  .v2__chat {
-    grid-column: 1;
-  }
-}
 
-.v2__tree {
-  grid-column: 1;
-  grid-row: 1;
-}
-.v2__code {
-  grid-column: 2;
-  grid-row: 1;
-}
-.v2__preview {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-}
-.v2__chat {
-  grid-column: 1 / span 2;
-  grid-row: 2;
-}
-
-.v2__tree,
-.v2__code,
-.v2__preview,
-.v2__chat {
+.v2__left,
+.v2__previewPane {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   border: 1px solid var(--tvz-hairline);
   border-radius: 14px;
   background: rgb(var(--v-theme-surface));
   overflow: hidden;
 }
 
-.v2__tree {
-  padding: 0.8rem 0.5rem;
-  gap: 0.15rem;
-  overflow-y: auto;
+.v2__mobileTabs {
+  display: none;
 }
-.v2__paneLabel {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(var(--v-theme-on-surface), 0.45);
-  margin: 0 0 0.3rem 0.65rem;
+
+/* --- Left panel: Chat/Files tab switch --- */
+.v2__tabs {
+  flex: none;
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.6rem 0.6rem 0;
+}
+.v2__tab {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 9px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  min-height: 40px;
+}
+.v2__tab:hover {
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+.v2__tab.is-active {
+  background: var(--tvz-ai-soft);
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.v2__chatPane,
+.v2__filesPane {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Files pane: a compact file list stacked over the code viewer --- */
+.v2__fileList {
+  flex: none;
+  max-height: 34%;
+  overflow-y: auto;
+  padding: 0.6rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  border-bottom: 1px solid var(--tvz-hairline);
 }
 .v2__file {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   text-align: left;
-  padding: 0.4rem 0.65rem;
+  padding: 0.5rem 0.65rem;
   border-radius: 8px;
   font-size: 0.78rem;
   font-family: 'JetBrains Mono Variable', monospace;
   color: rgba(var(--v-theme-on-surface), 0.75);
+  min-height: 40px;
 }
 .v2__file:hover {
   background: rgba(var(--v-theme-on-surface), 0.04);
@@ -522,13 +719,21 @@ onBeforeUnmount(() => {
   background: var(--tvz-ai);
   margin-left: auto;
 }
-
-.v2__code {
-  padding: 0.8rem 0 0;
+.v2__codeViewer {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem 0 0;
 }
 .v2__codePath {
+  flex: none;
   padding: 0 0.9rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: rgba(var(--v-theme-on-surface), 0.5);
   font-family: 'JetBrains Mono Variable', monospace;
+  word-break: break-all;
 }
 .v2__codeBody {
   flex: 1 1 auto;
@@ -540,6 +745,59 @@ onBeforeUnmount(() => {
   font-size: 0.78rem;
   line-height: 1.55;
   background: rgba(var(--v-theme-on-surface), 0.02);
+  max-width: 100%;
+}
+
+/* --- Responsive: below this width, the grid collapses to a single column
+ * and a static Chat/Files/Preview switch takes over. It's deliberately NOT
+ * `position: fixed` — the app shell already has its own fixed bottom nav
+ * (MobileTabBar, z-index 1000); a second fixed bar at the same edge would
+ * either fight it for the same screen space or sit invisibly behind it. This
+ * one lives in normal flow at the top of the builder instead. --- */
+@media (max-width: 900px) {
+  .v2__grid {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .v2__mobileTabs {
+    flex: none;
+    display: flex;
+    gap: 0.3rem;
+    padding: 0.1rem 0.1rem 0.6rem;
+  }
+  .v2__mobileTabs button {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.5rem 0.2rem;
+    min-height: 48px;
+    border-radius: 10px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: rgba(var(--v-theme-on-surface), 0.55);
+    background: rgb(var(--v-theme-surface));
+    border: 1px solid var(--tvz-hairline);
+  }
+  .v2__mobileTabs button.is-active {
+    color: rgb(var(--v-theme-primary));
+    background: var(--tvz-ai-soft);
+    border-color: transparent;
+  }
+  .v2__left,
+  .v2__previewPane {
+    display: none;
+    flex: 1 1 auto;
+    min-height: 60vh;
+  }
+  .v2__grid.is-mobile-panel .v2__left {
+    display: flex;
+  }
+  .v2__grid.is-mobile-preview .v2__previewPane {
+    display: flex;
+  }
 }
 
 .v2__previewBar {
@@ -695,8 +953,18 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  max-width: 30ch;
+  gap: 0.4rem;
+  max-width: 34ch;
+}
+.v2__intro h2 {
+  margin: 0.2rem 0 0;
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: rgb(var(--v-theme-on-surface));
+}
+.v2__intro p {
+  margin: 0;
 }
 .v2__msg {
   max-width: 92%;
@@ -777,6 +1045,45 @@ onBeforeUnmount(() => {
   }
 }
 
+.v2__attachments {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.5rem 0.7rem 0;
+}
+.v2__attachmentChip {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--tvz-hairline);
+}
+.v2__attachmentChip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.v2__attachmentRemove {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  border-radius: 50%;
+  background: rgb(var(--v-theme-error));
+  color: #fff;
+  font-size: 13px;
+  display: grid;
+  place-items: center;
+}
+.v2__fileInput {
+  display: none;
+}
+
 .v2__composer {
   flex: none;
   display: flex;
@@ -784,6 +1091,21 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
   padding: 0.6rem 0.7rem;
   border-top: 1px solid var(--tvz-hairline);
+}
+.v2__attachBtn {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.v2__attachBtn:hover {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+}
+.v2__attachBtn:disabled {
+  opacity: 0.5;
 }
 .v2__input {
   flex: 1 1 auto;
@@ -802,8 +1124,8 @@ onBeforeUnmount(() => {
 }
 .v2__send {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
   border-radius: 10px;

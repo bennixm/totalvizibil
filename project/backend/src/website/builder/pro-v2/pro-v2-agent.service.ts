@@ -333,6 +333,12 @@ export class ProV2AgentService {
       userContent,
     });
 
+    // Persisted BEFORE the (possibly long-running, escalating) loop below —
+    // a page reload mid-turn must still show the user's own message instead
+    // of an empty chat. The assistant's reply is appended once the loop
+    // finishes, same as before.
+    await this.projects.appendMessage(projectId, 'user', userContent);
+
     const tools = buildTools();
     const businessFacts = await this.projects.getBusinessFacts(companyId);
     const system = this.buildSystemPrompt(businessFacts);
@@ -434,7 +440,6 @@ export class ProV2AgentService {
     const durationMs = Date.now() - startedAt;
     const totalCostUsd = await this.usage.costForRequest(requestId);
 
-    await this.projects.appendMessage(projectId, 'user', userContent);
     await this.projects.appendMessage(projectId, 'assistant', finalText, {
       toolCalls: result.steps,
       model: route.model,
@@ -628,6 +633,11 @@ export class ProV2AgentService {
             '',
           ]
         : []),
+      '## Before you build',
+      '- If the request (plus the business facts above, if any) already gives you enough to produce a good result, BUILD DIRECTLY — do not ask permission or restate the request back as a question.',
+      '- Only ask a short clarifying question first when something genuinely essential is missing that you cannot reasonably infer or default (e.g. you have no idea at all what the site is even for). Ask at most one or two short questions, in plain text, and do NOT call any file tools on that turn — wait for the answer.',
+      '- Never ask about anything you can safely default (exact colors, fonts, wording, section order, image choices) — pick something sensible and move on.',
+      '',
       '## Project conventions',
       '- Entry point: src/main.ts mounts src/App.vue into #app. Keep that wiring intact.',
       '- Put new UI pieces in src/components/ as .vue Single File Components (<template>/<script setup lang="ts">/<style scoped>), and import them from App.vue or from each other.',
@@ -636,6 +646,7 @@ export class ProV2AgentService {
       "- Never invent facts not given by the user — no fake years of experience, staff counts, prices, certifications, testimonials, or real people's names/photos.",
       '- Keep content concise, professional, and varied — avoid generic filler and repeated sentence openers.',
       '- When a section calls for a real photo, use search_images and the URL it returns — never invent an image URL. Reuse a result across sections rather than re-searching near-identical queries (limited to 3 searches per request).',
+      '- If the user\'s message contains one or more "Uploaded image:" lines with a /api/v1/website-assets/ URL, those are real images the user just uploaded for THIS request — use that EXACT URL for the image they describe (e.g. "replace the hero image with this" ⇒ the hero image src). Do not run search_images for something the user already uploaded an image for.',
       '',
       '## How to work',
       '- You have tools to inspect and mutate the real file tree directly. USE THEM — never describe a change in prose instead of making it.',

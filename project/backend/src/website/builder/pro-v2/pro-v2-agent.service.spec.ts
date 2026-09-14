@@ -231,7 +231,7 @@ const fakePexels = { configured: false, search: jest.fn(async () => []) };
  *  preserving this suite's original all-Claude behavior. */
 function setup(claudeScript: AiProvider) {
   const prisma = fakePrisma();
-  const projects = new ProV2Service(prisma as never, {} as never, {} as never);
+  const projects = new ProV2Service(prisma as never, {} as never, {} as never, {} as never);
   const router = new ModelRouter(
     claudeScript as never,
     fakeDeepSeekUnconfigured as never,
@@ -264,6 +264,23 @@ describe('ProV2AgentService', () => {
     const view = await svc.getView('c1', 'u1');
     expect(view.files.some((f) => f.path === 'src/App.vue')).toBe(true);
     expect(view.messages).toEqual([]);
+  });
+
+  it("persists the user's message BEFORE running the (possibly slow) agent loop — a reload mid-turn must still show it", async () => {
+    let userMessageVisibleDuringCall = false;
+    const ai: AiProvider & { agentMessage: jest.Mock } = {
+      name: 'claude',
+      configured: true,
+      agentMessage: jest.fn(async () => {
+        userMessageVisibleDuringCall = (
+          prisma.__messages as { role: string; content: string }[]
+        ).some((m) => m.role === 'user' && m.content === 'Build me a landing page');
+        return endTurnResult('Done.');
+      }),
+    };
+    const { svc, prisma } = setup(ai);
+    await svc.sendMessage('u1', 'c1', 'Build me a landing page');
+    expect(userMessageVisibleDuringCall).toBe(true);
   });
 
   it('executes a real write_file tool call, persists it, and returns the updated file tree', async () => {

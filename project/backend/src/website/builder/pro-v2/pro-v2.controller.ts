@@ -8,10 +8,12 @@ import { ProV2Service } from './pro-v2.service';
 import { ProV2MessageDto } from './dto/pro-v2-message.dto';
 import { ProV2RepairDto } from './dto/pro-v2-repair.dto';
 import { ProV2PublishDto } from './dto/pro-v2-publish.dto';
+import { ProV2AssetDto } from './dto/pro-v2-asset.dto';
 
 /**
- * PRO V2 — the raw-code agent. A project only needs company membership
- * (owner/manager), independent of the Advanced builder's unlock/website.
+ * The Website Builder — the AI chat that owns a real Vue/Vite project.
+ * Requires company membership (owner/manager) AND the paid advanced-builder
+ * unlock, re-checked on every call below.
  */
 @UseGuards(AuthGuard)
 @Controller('companies/:companyId/pro-v2')
@@ -88,5 +90,19 @@ export class ProV2Controller {
     @Body() dto: ProV2PublishDto,
   ) {
     return this.projects.publishBundle(companyId, user.id, dto.files);
+  }
+
+  // An image attached in the chat composer (portfolio/product/team/logo/
+  // etc.) — stored the same way the Advanced/Easy builders already store
+  // uploaded images. The frontend weaves the returned URL into the user's
+  // own chat message text; the agent isn't aware of "uploads" as a concept.
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @Post('assets')
+  uploadAsset(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+    @Body() dto: ProV2AssetDto,
+  ) {
+    return this.projects.uploadAsset(companyId, user.id, dto.dataUri);
   }
 }

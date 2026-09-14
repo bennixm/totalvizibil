@@ -157,30 +157,55 @@ function fakeWallet(balanceCredits = 1000) {
 function fakeSettings(priceCredits = 50) {
   return { advancedBuilderPriceCredits: jest.fn(async () => priceCredits) };
 }
+function fakeAssets() {
+  return {
+    addCompanyAsset: jest.fn(async () => ({ id: 'asset1', url: '/api/v1/website-assets/asset1' })),
+  };
+}
 
 describe('ProV2Service', () => {
   it('rejects a non-member (not found, not a security-revealing 403)', async () => {
     const prisma = fakePrisma(null);
-    const svc = new ProV2Service(prisma as never, fakeWallet() as never, fakeSettings() as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
     await expect(svc.getOrCreateProject('c1', 'u1')).rejects.toThrow(NotFoundException);
   });
 
   it('rejects an editor-role member (can view the company, not edit code)', async () => {
     const prisma = fakePrisma('editor');
-    const svc = new ProV2Service(prisma as never, fakeWallet() as never, fakeSettings() as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
     await expect(svc.getOrCreateProject('c1', 'u1')).rejects.toThrow(ForbiddenException);
   });
 
   it('blocks project access when the advanced builder has not been unlocked yet', async () => {
     const prisma = fakePrisma('owner', false);
-    const svc = new ProV2Service(prisma as never, fakeWallet() as never, fakeSettings() as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
     await expect(svc.getOrCreateProject('c1', 'u1')).rejects.toThrow(ForbiddenException);
   });
 
   it('a platform admin opening an un-unlocked company heals the flag for free instead of being blocked', async () => {
     const prisma = fakePrisma(null, false);
     prisma.platformRoleAssignment.findFirst = jest.fn(async () => ({ role: 'admin' })) as never;
-    const svc = new ProV2Service(prisma as never, fakeWallet() as never, fakeSettings() as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
     await expect(svc.getOrCreateProject('c1', 'admin1')).resolves.toBeDefined();
     expect(prisma.company.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { advancedUnlockedAt: expect.any(Date) } }),
@@ -193,6 +218,7 @@ describe('ProV2Service', () => {
       prisma as never,
       fakeWallet(30) as never,
       fakeSettings(50) as never,
+      fakeAssets() as never,
     );
     const status = await svc.getUnlockStatus('c1', 'u1');
     expect(status).toEqual({
@@ -205,7 +231,12 @@ describe('ProV2Service', () => {
   it('unlock charges the wallet once and then allows project access', async () => {
     const prisma = fakePrisma('owner', false);
     const wallet = fakeWallet(100);
-    const svc = new ProV2Service(prisma as never, wallet as never, fakeSettings(50) as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      wallet as never,
+      fakeSettings(50) as never,
+      fakeAssets() as never,
+    );
     await svc.unlock('c1', 'u1');
     expect(wallet.spend).toHaveBeenCalledTimes(1);
     await expect(svc.getOrCreateProject('c1', 'u1')).resolves.toBeDefined();
@@ -214,9 +245,47 @@ describe('ProV2Service', () => {
     expect(wallet.spend).toHaveBeenCalledTimes(1);
   });
 
+  it('uploadAsset delegates to WebsiteAssetService as kind "custom", after ownership + unlock checks', async () => {
+    const prisma = fakePrisma('owner', true);
+    const assets = fakeAssets();
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      assets as never,
+    );
+    const result = await svc.uploadAsset('c1', 'u1', 'data:image/png;base64,abc123');
+    expect(assets.addCompanyAsset).toHaveBeenCalledWith(
+      'c1',
+      'data:image/png;base64,abc123',
+      'custom',
+    );
+    expect(result).toEqual({ id: 'asset1', url: '/api/v1/website-assets/asset1' });
+  });
+
+  it('uploadAsset is blocked before unlock, same as project access', async () => {
+    const prisma = fakePrisma('owner', false);
+    const assets = fakeAssets();
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      assets as never,
+    );
+    await expect(svc.uploadAsset('c1', 'u1', 'data:image/png;base64,abc123')).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(assets.addCompanyAsset).not.toHaveBeenCalled();
+  });
+
   it('seeds a brand-new project with the starter Vue/Vite scaffold, once', async () => {
     const prisma = fakePrisma();
-    const svc = new ProV2Service(prisma as never, fakeWallet() as never, fakeSettings() as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
     const p1 = await svc.getOrCreateProject('c1', 'u1');
     const p2 = await svc.getOrCreateProject('c1', 'u1');
     expect(p1.id).toBe(p2.id); // idempotent — no double-seeding
@@ -226,7 +295,12 @@ describe('ProV2Service', () => {
 
   it('write_file creates a new file and overwrites an existing one', async () => {
     const prisma = fakePrisma();
-    const svc = new ProV2Service(prisma as never, fakeWallet() as never, fakeSettings() as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
     const project = await svc.getOrCreateProject('c1', 'u1');
     await svc.writeFile(project.id, 'src/components/Hero.vue', '<template>v1</template>');
     const read1 = await svc.readFile(project.id, 'src/components/Hero.vue');
@@ -238,7 +312,12 @@ describe('ProV2Service', () => {
 
   it('enforces the max-files-per-project cap on genuinely new files', async () => {
     const prisma = fakePrisma();
-    const svc = new ProV2Service(prisma as never, fakeWallet() as never, fakeSettings() as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
     const project = await svc.getOrCreateProject('c1', 'u1');
     // Fill up to the cap with new files (starter files already count toward it).
     const starterCount = Object.keys(STARTER_FILES).length;
@@ -252,7 +331,12 @@ describe('ProV2Service', () => {
 
   it('edit_file requires exactly one match — errors on zero or multiple', async () => {
     const prisma = fakePrisma();
-    const svc = new ProV2Service(prisma as never, fakeWallet() as never, fakeSettings() as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
     const project = await svc.getOrCreateProject('c1', 'u1');
     await svc.writeFile(project.id, 'src/App.vue', 'const a = 1;\nconst a = 1;\n');
 
@@ -271,7 +355,12 @@ describe('ProV2Service', () => {
 
   it('cannot delete the last remaining file', async () => {
     const prisma = fakePrisma();
-    const svc = new ProV2Service(prisma as never, fakeWallet() as never, fakeSettings() as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
     const project = await svc.getOrCreateProject('c1', 'u1');
     // Delete every file but one first.
     const files = await svc.listFiles(project.id);
@@ -283,7 +372,12 @@ describe('ProV2Service', () => {
 
   it('searchFiles finds a text match across files with path/line/snippet', async () => {
     const prisma = fakePrisma();
-    const svc = new ProV2Service(prisma as never, fakeWallet() as never, fakeSettings() as never);
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
     const project = await svc.getOrCreateProject('c1', 'u1');
     await svc.writeFile(
       project.id,

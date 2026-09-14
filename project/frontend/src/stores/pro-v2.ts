@@ -71,6 +71,17 @@ export interface RepairOutcome {
   shouldRetry: boolean
 }
 
+export type ResumeResult = 'not_needed' | 'resolved' | 'timed_out'
+
+function readFileAsDataUri(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error ?? new Error('file_read_failed'))
+    reader.readAsDataURL(file)
+  })
+}
+
 interface State {
   projectId: string | null
   files: ProjectFile[]
@@ -173,6 +184,58 @@ export const useProV2Store = defineStore('pro-v2', {
 
     selectFile(path: string): void {
       this.activeFilePath = path
+    },
+
+    /** Called right after `load()` on mount. The backend now persists the
+     *  user's message BEFORE running the (possibly multi-minute) agent turn,
+     *  so a reload mid-turn shows that message with no assistant reply yet —
+     *  detect that shape and poll the same `load()` endpoint until the reply
+     *  lands, instead of leaving the chat looking finished/empty. Reuses the
+     *  existing `sending` flag so the UI's "thinking…" indicator just works. */
+    async resumeIfInFlight(companyId: string): Promise<ResumeResult> {
+      const last = this.messages.at(-1)
+      if (!last || last.role !== 'user') return 'not_needed'
+      this.sending = true
+      const POLL_MS = 4000
+      const MAX_POLLS = 90 // ~6 minutes — comfortably past the longest observed real turn
+      for (let i = 0; i < MAX_POLLS; i++) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS))
+        try {
+          const res = await apiFetch<ViewResponse>(`/companies/${companyId}/pro-v2`)
+          this.files = res.files
+          this.messages = res.messages
+          this.publishedAt = res.publishedAt
+          if (res.messages.at(-1)?.role !== 'user') {
+            this.sending = false
+            void this.loadUsage(companyId)
+            return 'resolved'
+          }
+        } catch {
+          /* a single failed poll is not fatal — the turn may still be running server-side */
+        }
+      }
+      // Given up — the server-side call most likely died without replying.
+      // Never claim "still working" forever; let the owner try again.
+      this.sending = false
+      return 'timed_out'
+    },
+
+    /** Uploads an image attached in the chat composer (portfolio/product/
+     *  team/logo/etc.) and returns its public URL, or null on failure. The
+     *  caller weaves the URL into the plain chat message text — the agent
+     *  isn't aware of "uploads" as a separate concept, keeping this simple. */
+    async uploadAsset(companyId: string, file: File): Promise<string | null> {
+      try {
+        const dataUri = await readFileAsDataUri(file)
+        const res = await apiFetch<{ id: string; url: string }>(
+          `/companies/${companyId}/pro-v2/assets`,
+          { method: 'POST', body: { dataUri }, timeoutMs: 30_000 },
+        )
+        return res.url
+      } catch (err) {
+        this.error = err instanceof ApiError ? err.message : 'error'
+        return null
+      }
     },
 
     resetRepairState(): void {
