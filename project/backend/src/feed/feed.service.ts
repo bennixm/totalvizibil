@@ -49,10 +49,28 @@ interface Billboard {
  * The headline / sub / hero visual + theme accent from a generated site — reused
  * on the feed ad card. Advanced-builder sites (`generator` = `advanced-builder…`)
  * get the "own website" featured card. Reads the home page out of `content`.
+ *
+ * The Website Builder (PRO V2, `generator` = `pro-v2`) is different: it writes
+ * a real Vue/Vite project + static bundle, and never touches `content`/`theme`
+ * on publish — those columns are still whatever onboarding placeholder JSON
+ * was there before the company ever opened the builder, completely
+ * disconnected from the real site. Extracting a hero title/image/accent from
+ * that JSON would show stale, unrelated text, so PRO V2 sites skip content
+ * extraction entirely and fall back to the company's own displayName/
+ * description + illustrated banner (see FeedAdCard.vue) — still `builtWithBuilder`
+ * so they get the "own website" featured treatment.
  */
-function heroBillboard(content: unknown, theme: unknown, generator: string | null): Billboard {
+export function heroBillboard(
+  content: unknown,
+  theme: unknown,
+  generator: string | null,
+): Billboard {
+  const isBundleBuilt = generator === 'pro-v2';
   const builtWithBuilder =
-    typeof generator === 'string' && generator.startsWith('advanced-builder');
+    isBundleBuilt || (typeof generator === 'string' && generator.startsWith('advanced-builder'));
+  if (isBundleBuilt) {
+    return { title: null, subtitle: null, image: null, builtWithBuilder, accent: null };
+  }
   const th = (theme ?? null) as { accent?: unknown; palette?: unknown } | null;
   const accent =
     typeof th?.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(th.accent)

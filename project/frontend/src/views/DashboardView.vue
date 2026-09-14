@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
+import { BASE_URL } from '@/services/api'
 import InfoHint from '@/components/InfoHint.vue'
 import TrendChart from '@/components/TrendChart.vue'
 import CreditsValue from '@/components/CreditsValue.vue'
@@ -58,6 +59,16 @@ const companyItems = computed(() =>
 const website = computed(() => dash.value?.website ?? null)
 const websiteReady = computed(
   (): boolean => !!website.value && website.value.status !== 'none' && 'content' in website.value,
+)
+// The Website Builder (PRO V2) publishes a real built bundle instead of the
+// `content`/`theme` JSON WebsiteRenderer expects — once published, that JSON
+// is stale onboarding placeholder text, so the preview must show the actual
+// live bundle instead. Same endpoint the public company page already uses.
+const hasBundle = computed(
+  () => !!website.value && 'publishedAt' in website.value && website.value.publishedAt != null,
+)
+const bundleUrl = computed(() =>
+  companyId.value ? `${BASE_URL}/public/companies/${companyId.value}/site/index.html` : '',
 )
 /** Live → "in feed"; built but not published → "unpublished" (not "draft"). */
 const websiteBadge = computed<{ key: string; cls: string }>(() => {
@@ -753,8 +764,14 @@ watch(
     <v-dialog v-model="showSite" max-width="960" scrollable>
       <v-card>
         <v-card-text class="pa-2">
+          <iframe
+            v-if="hasBundle"
+            :src="bundleUrl"
+            class="dsite__bundleFrame"
+            title="Website"
+          />
           <WebsiteRenderer
-            v-if="websiteReady && website && 'content' in website"
+            v-else-if="websiteReady && website && 'content' in website"
             :content="website.content"
             :theme="website.theme"
             framed
@@ -770,6 +787,13 @@ watch(
 </template>
 
 <style scoped>
+.dsite__bundleFrame {
+  display: block;
+  width: 100%;
+  height: 620px;
+  border: 0;
+  border-radius: 8px;
+}
 .dash {
   max-width: 960px;
   padding-block: clamp(1.5rem, 5vw, 3rem);

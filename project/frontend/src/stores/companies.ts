@@ -145,6 +145,9 @@ export interface DashboardPayload {
         isLive: boolean
         theme: WebsiteTheme
         content: WebsiteContent
+        // Set once a Website Builder (PRO V2) bundle has been published —
+        // `content`/`theme` above are stale placeholder JSON for those sites.
+        publishedAt: string | null
       }
   tasks: {
     key: string

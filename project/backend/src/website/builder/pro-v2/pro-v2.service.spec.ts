@@ -20,6 +20,19 @@ function fakePrisma(
     ownerUserId: 'owner1',
     advancedUnlockedAt: unlocked ? new Date('2026-01-01') : null,
   };
+  const website = {
+    id: 'w1',
+    companyId: 'c1',
+    generator: 'easy-template-v3:classic',
+    publishedAt: null as Date | null,
+  };
+  const bundleFiles: {
+    websiteId: string;
+    path: string;
+    mime: string;
+    bytes: Buffer;
+    size: number;
+  }[] = [];
 
   return {
     companyUser: {
@@ -38,7 +51,26 @@ function fakePrisma(
     },
     website: {
       updateMany: jest.fn(async () => ({ count: 1 })),
+      findUnique: jest.fn(async () => website),
+      update: jest.fn(async ({ data }: { data: Partial<typeof website> }) => {
+        Object.assign(website, data);
+        return website;
+      }),
     },
+    websiteBundleFile: {
+      deleteMany: jest.fn(async () => ({ count: bundleFiles.length })),
+      createMany: jest.fn(
+        async ({
+          data,
+        }: {
+          data: { websiteId: string; path: string; mime: string; bytes: Buffer; size: number }[];
+        }) => {
+          bundleFiles.push(...data);
+          return { count: data.length };
+        },
+      ),
+    },
+    $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
     proV2Project: {
       findUnique: jest.fn(async () => project),
       create: jest.fn(
@@ -388,5 +420,45 @@ describe('ProV2Service', () => {
     expect(matches).toEqual([
       expect.objectContaining({ path: 'src/components/Pricing.vue', line: 2 }),
     ]);
+  });
+
+  it('publishBundle stores the built dist/ output and tags generator "pro-v2" — the signal feed.service.ts / dashboard use to know content/theme are stale onboarding placeholders, not the real site', async () => {
+    const prisma = fakePrisma();
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
+    const result = await svc.publishBundle('c1', 'u1', [
+      { path: 'index.html', contentBase64: Buffer.from('<html></html>').toString('base64') },
+      {
+        path: 'assets/index.js',
+        contentBase64: Buffer.from('console.log(1)').toString('base64'),
+      },
+    ]);
+
+    expect(result.fileCount).toBe(2);
+    expect(prisma.website.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ generator: 'pro-v2' }) }),
+    );
+    const updated = await prisma.website.findUnique();
+    expect(updated?.generator).toBe('pro-v2');
+    expect(updated?.publishedAt).toBeInstanceOf(Date);
+  });
+
+  it('publishBundle rejects a bundle with no index.html entry point', async () => {
+    const prisma = fakePrisma();
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
+    await expect(
+      svc.publishBundle('c1', 'u1', [
+        { path: 'assets/index.js', contentBase64: Buffer.from('x').toString('base64') },
+      ]),
+    ).rejects.toThrow(BadRequestException);
   });
 });

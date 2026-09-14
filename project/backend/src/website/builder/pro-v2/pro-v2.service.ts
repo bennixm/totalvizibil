@@ -439,7 +439,13 @@ export class ProV2Service {
           size: r.size,
         })),
       }),
-      this.prisma.website.update({ where: { id: website.id }, data: { publishedAt } }),
+      this.prisma.website.update({
+        where: { id: website.id },
+        // Tag the generator so the feed/dashboard know this site's `content`/
+        // `theme` (leftover onboarding placeholder JSON) is not what's
+        // actually live — the real site is the bundle above. See feed.service.ts.
+        data: { publishedAt, generator: 'pro-v2' },
+      }),
     ]);
 
     return { publishedAt, fileCount: rows.length };

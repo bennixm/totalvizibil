@@ -435,6 +435,11 @@ export class CompaniesService implements OnModuleInit {
             isLive: website.status === 'published' && company.status === 'active',
             theme: website.theme,
             content: website.content,
+            // Set only once a Website Builder (PRO V2) bundle has been
+            // published — the dashboard preview uses this to show the real
+            // live bundle instead of `content`/`theme`, which PRO V2 never
+            // touches (see pro-v2.service.ts publishBundle).
+            publishedAt: website.publishedAt,
           }
         : { status: 'none' as const },
       // Required onboarding tasks (in order).
