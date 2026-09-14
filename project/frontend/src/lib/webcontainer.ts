@@ -38,7 +38,13 @@ export function filesToTree(files: ProjectFile[]): FileSystemTree {
  *  injection is needed or supported for this; see `BootOptions` in
  *  `@webcontainer/api`. */
 let containerPromise: Promise<WebContainer> | null = null
-function bootContainer(): Promise<WebContainer> {
+/** Kicks off (or returns the already-in-flight) WebContainer boot. Exported
+ *  so the view can call this the instant it mounts — in parallel with the
+ *  company/file-list fetch — instead of only starting the boot after that
+ *  network round-trip resolves. `start()` below awaits this same cached
+ *  promise, so calling it early costs nothing and just overlaps the ~1-2s
+ *  boot with work that was happening anyway. */
+export function bootContainer(): Promise<WebContainer> {
   if (!containerPromise) containerPromise = WebContainer.boot({ forwardPreviewErrors: true })
   return containerPromise
 }
@@ -210,7 +216,19 @@ export class ProV2Sandbox {
     if (!this.container) return false
     this.onLog({ text: '$ npm install', kind: 'info' })
     this.outputBuffer = ''
-    const install = await this.container.spawn('npm', ['install'])
+    // The starter project ships its own package-lock.json (see
+    // starter-project.ts) so npm can skip version-range resolution and go
+    // straight to the pinned tarballs. --no-audit/--no-fund drop two more
+    // network round-trips (a security-audit call and a funding-message
+    // lookup) that add real latency here and are pointless for an ephemeral
+    // sandbox. Together these were the single biggest lever on preview
+    // startup time — install alone was ~70% of the wait before this.
+    const install = await this.container.spawn('npm', [
+      'install',
+      '--no-audit',
+      '--no-fund',
+      '--prefer-offline',
+    ])
     const pipe = this.pipeToLog(install, false)
     const code = await install.exit
     await pipe

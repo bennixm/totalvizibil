@@ -7,7 +7,13 @@ import { useCompaniesStore } from '@/stores/companies'
 import { useProV2Store } from '@/stores/pro-v2'
 import { useToastStore } from '@/stores/toast'
 import type { ProV2Usage } from '@/stores/pro-v2'
-import { ProV2Sandbox, type LogLine, type SandboxStatus, type ExecutionError } from '@/lib/webcontainer'
+import {
+  ProV2Sandbox,
+  bootContainer,
+  type LogLine,
+  type SandboxStatus,
+  type ExecutionError,
+} from '@/lib/webcontainer'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -153,6 +159,11 @@ async function publish(): Promise<void> {
 }
 
 onMounted(async () => {
+  // Fire the WebContainer boot immediately, in parallel with the company/file
+  // fetch below, instead of only starting it once that network round-trip
+  // resolves — `ProV2Sandbox.start()` awaits this same cached promise, so
+  // this simply overlaps two waits that were previously sequential.
+  void bootContainer()
   await companies.fetchOverview().catch(() => {})
   const id = adminMode.value
     ? String(route.query.companyId)
