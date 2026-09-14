@@ -53,8 +53,25 @@ export class PublicCompanyService {
               mode: company.website.mode,
               theme: company.website.theme as unknown as WebsiteTheme,
               content: company.website.content as unknown as WebsiteContent,
+              // A Website Builder bundle takes priority in the client when present
+              // (see CompanyPublicView) — `content`/`theme` above stay as the
+              // fallback for a site that hasn't published a bundle yet.
+              hasBundle: company.website.publishedAt != null,
             }
           : null,
     };
+  }
+
+  /** One file from a company's published Website Builder bundle — public, no
+   *  auth, keyed by companyId (already known to the caller from `bySlug`). */
+  async bundleFile(companyId: string, rawPath: string): Promise<{ mime: string; bytes: Buffer }> {
+    const path = rawPath || 'index.html';
+    const website = await this.prisma.website.findUnique({ where: { companyId } });
+    if (!website || !website.publishedAt) throw new NotFoundException('No published site');
+    const file = await this.prisma.websiteBundleFile.findUnique({
+      where: { websiteId_path: { websiteId: website.id, path } },
+    });
+    if (!file) throw new NotFoundException(`No bundle file at "${path}"`);
+    return { mime: file.mime, bytes: file.bytes as Buffer };
   }
 }

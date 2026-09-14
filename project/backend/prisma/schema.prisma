@@ -54,6 +54,7 @@ model User {
   supportMessages         SupportMessage[]
   referralsMade           Referral[]               @relation("ReferralsMade")
   referralReceived        Referral?                @relation("ReferralReceived")
+  aiUsageRecords          AiUsageRecord[]
 
   @@map("users")
 }
@@ -214,6 +215,7 @@ model Company {
   contacts           CompanyContact[]
   services           CompanyService[]
   website            Website?
+  proV2Project       ProV2Project?
   campaign           Campaign?
   walletTransactions WalletTransaction[]
   adClicks           AdClick[]
@@ -258,12 +260,149 @@ model Website {
   builderChat Json?         @map("builder_chat")
   // Simple-site guided answers (EasyAnswers), so the owner can re-open the studio editor after claiming.
   easyConfig  Json?         @map("easy_config")
+  // Last time the Website Builder's live-code project was built and published
+  // as a static bundle (see WebsiteBundleFile). Null = never published — the
+  // public page falls back to `content`/`theme` (or the identity-only page).
+  publishedAt DateTime?     @map("published_at")
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bundleFiles WebsiteBundleFile[]
 
   @@map("websites")
+}
+
+// ---------------------------------------------------------------------------
+// Website Builder — published static bundle. The Website Builder (PRO V2)
+// generates a real Vue/Vite project that only *runs* live via the browser's
+// WebContainer dev sandbox — it has no server of its own. "Publish" builds
+// that project (`npm run build`, in the same WebContainer) and uploads the
+// resulting `dist/` output here, one row per file, so the public company page
+// can serve it directly — the one production-hosting path for Website Builder
+// output. Stored as bytes in Postgres, same pattern as `WebsiteAsset`.
+// ---------------------------------------------------------------------------
+model WebsiteBundleFile {
+  id        String   @id @default(uuid()) @db.Uuid
+  websiteId String   @map("website_id") @db.Uuid
+  // Relative path within the built `dist/` output: "index.html", "assets/index-abc123.js".
+  path      String
+  mime      String
+  bytes     Bytes
+  size      Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, path])
+  @@map("website_bundle_files")
+}
+
+// ---------------------------------------------------------------------------
+// PRO V2 — the raw-code agent. Unlike the old BuilderDoc-based tools, V2 owns
+// a real Vue+Vite file tree per company, mutated directly by Claude's file
+// tools and run live in the browser via WebContainer. Files are stored one
+// row per path (not a single JSON blob) so a targeted read/write/edit never
+// has to load or rewrite the whole tree. One project + one conversation per
+// company, mirroring the ProConversation/ProMessage split above.
+// ---------------------------------------------------------------------------
+model ProV2Project {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @unique @map("company_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company       Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  files         ProV2File[]
+  messages      ProV2Message[]
+  usageRecords  AiUsageRecord[]
+
+  @@map("pro_v2_projects")
+}
+
+model ProV2File {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  // Relative path within the project, no leading "/", no "..": "src/App.vue".
+  path      String
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project ProV2Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+  @@map("pro_v2_files")
+}
+
+model ProV2Message {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  role      String // "user" | "assistant"
+  content   String   @db.Text
+  // Assistant turns only — the tool-call log for this turn, for the "what
+  // changed" UI (same shape/purpose as ProMessage.toolCalls).
+  toolCalls    Json?    @map("tool_calls")
+  model        String?
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  iterations   Int?
+  durationMs   Int?     @map("duration_ms")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  project ProV2Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@map("pro_v2_messages")
+}
+
+// ---------------------------------------------------------------------------
+// PRO V2 AI usage — one row per actual provider call, not per user-facing
+// turn: a turn that escalates (DeepSeek Flash fails → Pro → Claude) writes
+// one row per hop, all sharing the same `requestId`. This is what answers
+// "where is the money going" and is queried on every request to enforce the
+// per-request/day/month budgets — never derived after the fact from
+// ProV2Message, which only has the WINNING provider's numbers.
+// ---------------------------------------------------------------------------
+model AiUsageRecord {
+  id      String @id @default(uuid()) @db.Uuid
+  userId  String @map("user_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  /** Groups every hop of one logical turn together (incl. escalation retries). */
+  requestId String @map("request_id") @db.Uuid
+
+  provider     String // "claude" | "deepseek"
+  model        String
+  /** "initial_generation" | "simple_edit" | "multi_file" | "repair" | "review" */
+  taskCategory String @map("task_category")
+
+  inputTokens      Int @default(0) @map("input_tokens")
+  outputTokens     Int @default(0) @map("output_tokens")
+  cacheReadTokens  Int @default(0) @map("cache_read_tokens")
+  toolCalls        Int @default(0) @map("tool_calls")
+  iterations       Int @default(0) @map("iterations")
+  pexelsSearches   Int @default(0) @map("pexels_searches")
+  /** Captured at write time, from that call's own provider/model price —
+   *  never recomputed later so a historical total stays accurate even if a
+   *  price table changes. Still just an estimate, never used for real billing. */
+  estimatedCostUsd Float @default(0) @map("estimated_cost_usd")
+
+  /** Which repair attempt this was (1-3), or null for a normal message/generation. */
+  repairAttempt Int? @map("repair_attempt")
+  /** "provider:model" this hop escalated FROM, if it's an escalation retry. */
+  escalatedFrom String? @map("escalated_from")
+  /** Did THIS hop's static quality check pass? (Not "did the whole turn succeed".) */
+  succeeded Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project ProV2Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([requestId])
+  @@map("ai_usage_records")
 }
 
 // ---------------------------------------------------------------------------

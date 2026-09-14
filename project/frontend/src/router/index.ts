@@ -53,8 +53,8 @@ const routes: RouteRecordRaw[] = [
   },
   {
     // Advanced-plan only: the one-time "unlock the advanced builder" payment
-    // step. A standalone flow step — deliberately NOT the pay screen inside
-    // AdvancedBuilderView, so the stepper's sequencing never leaks into the editor.
+    // step. A standalone flow step — deliberately NOT a pay screen embedded in
+    // the Website Builder itself, so the stepper's sequencing never leaks in.
     path: '/create/unlock',
     name: 'create-unlock',
     component: () => import('@/views/CreateUnlockView.vue'),
@@ -139,9 +139,13 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    // The Website Builder: an AI chat that writes a real Vue/Vite project and
+    // runs it live via WebContainer. Same `?c=` company-id convention as the
+    // rest of the Advanced flow. Gated server-side by the same one-time paid
+    // "advanced unlock" the Advanced business-creation flow charges for.
     path: '/website/builder',
     name: 'website-builder',
-    component: () => import('@/views/AdvancedBuilderView.vue'),
+    component: () => import('@/views/WebsiteBuilderView.vue'),
     meta: { requiresAuth: true },
   },
   {

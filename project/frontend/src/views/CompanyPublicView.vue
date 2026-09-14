@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
-import { apiFetch, ApiError } from '@/services/api'
+import { apiFetch, ApiError, BASE_URL } from '@/services/api'
 import { trackCall } from '@/services/leads'
 import { useSeo } from '@/composables/useSeo'
 import { companyCrumbs, companyRoute } from '@/services/routes'
@@ -33,7 +33,7 @@ interface PublicCompany {
   }[]
   contacts: { type: string; value: string }[]
   services: { name: string; description: string | null }[]
-  website: { mode: string; theme: WebsiteTheme; content: WebsiteContent } | null
+  website: { mode: string; theme: WebsiteTheme; content: WebsiteContent; hasBundle: boolean } | null
 }
 
 const props = defineProps<{ crumbs: string[] }>()
@@ -83,6 +83,15 @@ const catLoc = (n?: LocalizedName | null): string | null =>
   n ? (n[locale.value as keyof LocalizedName] ?? n.en) : null
 const categoryName = computed(() => catLoc(company.value?.category?.name))
 const parentName = computed(() => catLoc(company.value?.category?.parent?.name))
+
+/** Website Builder's published static bundle takes priority over the older
+ *  block-tree renderer when present — it's the actual real Vue/Vite site the
+ *  owner built, not a re-rendered content JSON. */
+const bundleUrl = computed(() =>
+  company.value?.website?.hasBundle
+    ? `${BASE_URL}/public/companies/${company.value.id}/site/index.html`
+    : null,
+)
 
 // --- SEO: title, description, canonical + LocalBusiness / breadcrumb JSON-LD ---
 useSeo(() => {
@@ -210,8 +219,13 @@ useSeo(() => {
     </div>
 
     <template v-else-if="company">
+      <!-- Website Builder's published site (a real built app, edge to edge) -->
+      <div v-if="bundleUrl" class="cp__site">
+        <iframe :src="bundleUrl" class="cp__bundleFrame" title="Website" />
+      </div>
+
       <!-- Full website preview (edge to edge, like visiting the real site) -->
-      <div v-if="company.website" class="cp__site">
+      <div v-else-if="company.website" class="cp__site">
         <WebsiteRenderer
           class="cp__renderer"
           :content="company.website.content"
@@ -309,6 +323,12 @@ useSeo(() => {
 .cp__site :deep(.site) {
   border: 0;
   border-radius: 0;
+}
+.cp__bundleFrame {
+  display: block;
+  width: 100%;
+  height: calc(100dvh - var(--tvz-topbar-h) - 48px);
+  border: 0;
 }
 .cp__profile {
   padding-bottom: 5rem;

@@ -5,7 +5,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { CampaignService } from '../campaigns/campaign.service';
 import { LeadsService } from '../leads/leads.service';
 import { AnalyticsService } from '../analytics/analytics.service';
-import { WebsiteBuilderService } from '../website/builder/website-builder.service';
+import { ProV2Service } from '../website/builder/pro-v2/pro-v2.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { RUN_SCORE_GRACE_MS } from '../analytics/visibility';
 import { money } from '../wallet/money';
@@ -31,7 +31,7 @@ export class AdminCompaniesService {
     private readonly campaigns: CampaignService,
     private readonly leads: LeadsService,
     private readonly analytics: AnalyticsService,
-    private readonly builder: WebsiteBuilderService,
+    private readonly builder: ProV2Service,
     private readonly settings: PlatformSettingsService,
   ) {}
 

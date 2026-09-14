@@ -5,22 +5,23 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
-import { useBuilderStore } from '@/stores/builder'
+import { useAdvancedUnlockStore } from '@/stores/advanced-unlock'
 import { useCompaniesStore } from '@/stores/companies'
 import { useToastStore } from '@/stores/toast'
 
 /**
  * Advanced-plan onboarding step: pay the one-time fee that unlocks the
- * page builder. Standalone — it drives only the `builder` store's `load` /
- * `unlock` actions and then hands off to the editor. The editor's own
- * `!unlocked` pay screen stays as a fallback for direct navigation.
+ * Website Builder. Standalone — it drives only the unlock store's `load` /
+ * `unlock` actions and then hands off to the builder, which re-checks the
+ * same unlock flag server-side on every call (so direct navigation can't
+ * skip paying).
  */
 const { t, n } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const builder = useBuilderStore()
+const unlock = useAdvancedUnlockStore()
 const companies = useCompaniesStore()
-const { view, working } = storeToRefs(builder)
+const { view, working } = storeToRefs(unlock)
 
 const companyId = ref<string | null>(null)
 const ready = ref(false)
@@ -32,10 +33,8 @@ const price = computed(() => view.value?.priceCredits ?? 0)
 const balance = computed(() => view.value?.wallet.balance.credits ?? 0)
 const short = computed(() => Math.max(0, price.value - balance.value))
 const funded = computed(() => short.value === 0)
-const aiPlan = computed(() => view.value?.aiLimits?.plan ?? 6)
-const aiSection = computed(() => view.value?.aiLimits?.section ?? 40)
 
-const FEATURES = ['pages', 'sections', 'design', 'unlimited'] as const
+const FEATURES = ['pages', 'ai', 'design', 'unlimited'] as const
 
 const KNOWN_ERR = ['insufficient_credits', 'company_pending_deletion']
 function errText(code: string): string {
@@ -52,9 +51,9 @@ function toBuilder(): void {
 async function pay(): Promise<void> {
   if (!companyId.value || working.value) return
   error.value = ''
-  const ok = await builder.unlock(companyId.value)
+  const ok = await unlock.unlock(companyId.value)
   if (ok) toBuilder()
-  else error.value = errText(builder.error)
+  else error.value = errText(unlock.error)
 }
 
 onMounted(async () => {
@@ -65,7 +64,7 @@ onMounted(async () => {
     return
   }
   companyId.value = id
-  await builder.load(id)
+  await unlock.load(id)
   // Already paid (back-nav, refresh, resumed flow) → straight to the editor.
   if (view.value?.unlocked) {
     toBuilder()
@@ -93,10 +92,6 @@ onMounted(async () => {
         <li v-for="f in FEATURES" :key="f">
           <v-icon icon="mdi-check-circle-outline" size="17" />
           <span>{{ t('builder.feat.' + f) }}</span>
-        </li>
-        <li>
-          <v-icon icon="mdi-check-circle-outline" size="17" />
-          <span>{{ t('builder.feat.ai', { plan: aiPlan, section: aiSection }) }}</span>
         </li>
       </ul>
 

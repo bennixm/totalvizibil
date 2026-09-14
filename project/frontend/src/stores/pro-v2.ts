@@ -1,0 +1,263 @@
+import { defineStore } from 'pinia'
+
+import { apiFetch, ApiError } from '@/services/api'
+import type { ProjectFile, ExecutionError, BundleFile } from '@/lib/webcontainer'
+import { decideRepairAction, normalizeErrorKey } from '@/lib/repair-loop'
+
+export interface ProV2Step {
+  tool: string
+  summary: string
+}
+
+export interface ProV2Usage {
+  inputTokens?: number | null
+  outputTokens?: number | null
+  iterations?: number | null
+  durationMs?: number | null
+  cacheReadTokens?: number
+  toolCalls?: number
+  estimatedCostUsd?: number
+  /** Which provider/model actually produced the final result, and how many
+   *  times the router escalated to a stronger tier before that. */
+  provider?: string
+  model?: string
+  escalations?: number
+}
+
+export interface AiUsageSummary {
+  dailySpendUsd: number
+  dailyLimitUsd: number
+  monthlySpendUsd: number
+  monthlyLimitUsd: number
+  byProvider: { provider: string; calls: number; costUsd: number; inputTokens: number; outputTokens: number }[]
+  byCategory: { taskCategory: string; calls: number; costUsd: number }[]
+}
+
+export interface ProV2Message {
+  id?: string
+  role: 'user' | 'assistant'
+  content: string
+  toolCalls?: ProV2Step[] | null
+  usage?: ProV2Usage
+  createdAt?: string
+}
+
+interface ViewResponse {
+  aiConfigured: boolean
+  projectId: string
+  publishedAt: string | null
+  files: ProjectFile[]
+  messages: ProV2Message[]
+}
+
+interface MessageResponse {
+  reply: string
+  steps: ProV2Step[]
+  files: ProjectFile[]
+  changedPaths: string[]
+  usage: ProV2Usage
+}
+
+export interface RepairLogEntry {
+  kind: ExecutionError['kind']
+  errorSummary: string
+  path?: string
+  status: 'fixing' | 'fixed' | 'failed'
+  fixSummary?: string
+  toolCalls?: ProV2Step[]
+}
+
+export interface RepairOutcome {
+  shouldRetry: boolean
+}
+
+interface State {
+  projectId: string | null
+  files: ProjectFile[]
+  messages: ProV2Message[]
+  aiConfigured: boolean
+  loading: boolean
+  sending: boolean
+  error: string
+  activeFilePath: string | null
+  lastChangedPaths: string[]
+  repairAttempts: number
+  lastRepairedErrorKey: string | null
+  repairLog: RepairLogEntry[]
+  usageSummary: AiUsageSummary | null
+  publishing: boolean
+  publishedAt: string | null
+  publishError: string
+}
+
+export const useProV2Store = defineStore('pro-v2', {
+  state: (): State => ({
+    projectId: null,
+    files: [],
+    messages: [],
+    aiConfigured: true,
+    loading: false,
+    sending: false,
+    error: '',
+    activeFilePath: null,
+    lastChangedPaths: [],
+    repairAttempts: 0,
+    lastRepairedErrorKey: null,
+    repairLog: [],
+    usageSummary: null,
+    publishing: false,
+    publishedAt: null,
+    publishError: '',
+  }),
+
+  getters: {
+    activeFile(state): ProjectFile | null {
+      return state.files.find((f) => f.path === state.activeFilePath) ?? state.files[0] ?? null
+    },
+  },
+
+  actions: {
+    async load(companyId: string): Promise<void> {
+      this.loading = true
+      this.error = ''
+      try {
+        const res = await apiFetch<ViewResponse>(`/companies/${companyId}/pro-v2`)
+        this.projectId = res.projectId
+        this.files = res.files
+        this.messages = res.messages
+        this.aiConfigured = res.aiConfigured
+        this.publishedAt = res.publishedAt
+        if (!this.activeFilePath) {
+          this.activeFilePath = res.files.find((f) => f.path === 'src/App.vue')?.path ?? res.files[0]?.path ?? null
+        }
+        void this.loadUsage(companyId)
+      } catch (err) {
+        this.error = err instanceof ApiError ? err.message : 'error'
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async send(companyId: string, content: string): Promise<boolean> {
+      const text = content.trim()
+      if (!text || this.sending) return false
+      this.sending = true
+      this.error = ''
+      // A fresh user-initiated request starts a new generation/edit turn —
+      // it gets its own budget of repair attempts.
+      this.resetRepairState()
+      this.messages.push({ role: 'user', content: text })
+      try {
+        // A full initial generation writes several complete files (more real
+        // work per turn than V1's structured edits) and can legitimately run
+        // past two minutes — a live test's backend call took 136s.
+        const res = await apiFetch<MessageResponse>(`/companies/${companyId}/pro-v2/message`, {
+          method: 'POST',
+          body: { content: text },
+          timeoutMs: 240_000,
+        })
+        this.files = res.files
+        this.lastChangedPaths = res.changedPaths
+        this.messages.push({ role: 'assistant', content: res.reply, toolCalls: res.steps, usage: res.usage })
+        if (res.changedPaths.length) this.activeFilePath = res.changedPaths[0]
+        void this.loadUsage(companyId)
+        return true
+      } catch (err) {
+        this.error = err instanceof ApiError ? err.message : 'error'
+        this.messages.pop()
+        return false
+      } finally {
+        this.sending = false
+      }
+    },
+
+    selectFile(path: string): void {
+      this.activeFilePath = path
+    },
+
+    resetRepairState(): void {
+      this.repairAttempts = 0
+      this.lastRepairedErrorKey = null
+    },
+
+    /** §5 self-correction: called when the sandbox reports a real
+     *  install/build/runtime failure. Decides (via the same pure rules the
+     *  backend's own duplicate-failure guard is built on) whether to spend
+     *  another repair turn or give up, and if so, sends the labeled error
+     *  report through the SAME agent as a normal message — no new Claude
+     *  client. Returns whether the caller should sync + keep watching. */
+    async handleExecutionError(companyId: string, error: ExecutionError): Promise<RepairOutcome> {
+      const key = normalizeErrorKey(error.summary)
+      const action = decideRepairAction(
+        { attempts: this.repairAttempts, lastErrorKey: this.lastRepairedErrorKey },
+        key,
+      )
+      if (action.type !== 'repair') {
+        this.repairLog.push({
+          kind: error.kind,
+          errorSummary: error.summary,
+          path: error.path,
+          status: 'failed',
+        })
+        return { shouldRetry: false }
+      }
+
+      this.repairAttempts++
+      this.lastRepairedErrorKey = key
+      const index =
+        this.repairLog.push({
+          kind: error.kind,
+          errorSummary: error.summary,
+          path: error.path,
+          status: 'fixing',
+        }) - 1
+
+      try {
+        const res = await apiFetch<MessageResponse>(`/companies/${companyId}/pro-v2/repair`, {
+          method: 'POST',
+          body: { kind: error.kind, summary: error.summary, path: error.path, attempt: this.repairAttempts },
+          timeoutMs: 240_000,
+        })
+        this.files = res.files
+        this.lastChangedPaths = res.changedPaths
+        this.repairLog[index] = { ...this.repairLog[index], status: 'fixed', fixSummary: res.reply, toolCalls: res.steps }
+        void this.loadUsage(companyId)
+        return { shouldRetry: true }
+      } catch {
+        this.repairLog[index] = { ...this.repairLog[index], status: 'failed' }
+        return { shouldRetry: false }
+      }
+    },
+
+    /** Publishes an already-built `dist/` output (see `ProV2Sandbox.build()`)
+     *  as the company's live static bundle. The build itself runs in the
+     *  browser's WebContainer — this just uploads the result. */
+    async publish(companyId: string, files: BundleFile[]): Promise<boolean> {
+      this.publishing = true
+      this.publishError = ''
+      try {
+        const res = await apiFetch<{ publishedAt: string; fileCount: number }>(
+          `/companies/${companyId}/pro-v2/publish`,
+          { method: 'POST', body: { files }, timeoutMs: 60_000 },
+        )
+        this.publishedAt = res.publishedAt
+        return true
+      } catch (err) {
+        this.publishError = err instanceof ApiError ? err.message : 'error'
+        return false
+      } finally {
+        this.publishing = false
+      }
+    },
+
+    /** Current request/day/month AI spend (item 11) — best-effort, never
+     *  blocks the chat UI if it fails. */
+    async loadUsage(companyId: string): Promise<void> {
+      try {
+        this.usageSummary = await apiFetch<AiUsageSummary>(`/companies/${companyId}/pro-v2/usage`)
+      } catch {
+        /* usage display is a nice-to-have, not worth surfacing an error for */
+      }
+    },
+  },
+})

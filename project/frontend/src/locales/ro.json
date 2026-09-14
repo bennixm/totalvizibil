@@ -851,12 +851,12 @@
     "priceValue": "{credits} credite",
     "priceNote": "Suma se plătește din portofel după crearea contului, înainte de a folosi builder-ul.",
     "perk": {
-      "pages": "Site pe pagini — până la 6 pagini, complet editabile",
-      "design": "Control total pe design: teme, culori, fonturi, colțuri, mișcare",
+      "pages": "Un site real, construit pe măsură — cod adevărat, nu un șablon",
+      "design": "Control creativ total: ceri orice modificare, oricând",
       "portfolio": "Secțiune de portofoliu / lucrări",
-      "sections": "Zeci de secțiuni predesignate, cu variante și animații",
-      "unlimited": "Acces nelimitat la builder — editezi manual oricât, fără limită",
-      "ai": "Generare cu AI inclusă (în limită), plus ajustări pe secțiuni"
+      "sections": "Construit pagină cu pagină de AI, adaptat afacerii tale",
+      "unlimited": "Continui să-l îmbunătățești oricât timp vrei, fără cost suplimentar",
+      "ai": "Un asistent AI construiește și editează site-ul dintr-un chat live"
     },
     "fieldName": "Numele afacerii",
     "cta": "Continuă spre cont",
@@ -1200,11 +1200,10 @@
       "verify": "Verific și optimizez"
     },
     "feat": {
-      "pages": "Builder pe pagini — până la 6 pagini, complet editabile",
-      "sections": "Zeci de secțiuni predesignate, cu variante și tranziții",
-      "design": "Control total pe design: temă, culori, fonturi, colțuri, umbre, mișcare",
-      "unlimited": "Acces nelimitat la builder — editează manual oricât, fără limită",
-      "ai": "Generare cu AI inclusă — {plan} generări complete de site + {section} ajustări pe secțiuni"
+      "pages": "Un site real, construit pe măsură — cod adevărat, nu un șablon",
+      "design": "Control creativ total: ceri orice modificare, oricând",
+      "unlimited": "Continui să-l îmbunătățești oricât timp vrei, fără cost suplimentar",
+      "ai": "Un asistent AI construiește și editează site-ul dintr-un chat live"
     },
     "aiQuota": "Generări AI rămase pe acest site: {left} din {limit}. Editarea manuală e nelimitată.",
     "aiQuotaOut": "Ai folosit toate generările AI pentru acest site. Poți edita în continuare manual, fără limită.",
@@ -1299,6 +1298,47 @@
       "accent": "Accent",
       "clear": "Șterge"
     }
+  },
+  "pro": {
+    "back": "Înapoi la Builder",
+    "loadErrorTitle": "Nu am putut încărca builderul",
+    "loadErrorText": "Încearcă din nou sau revino mai târziu.",
+    "whatIDid": "Ce am făcut (0 acțiuni) | Ce am făcut (1 acțiune) | Ce am făcut ({count} acțiuni)",
+    "working": "Lucrează…",
+    "noKey": "AI-ul nu este configurat pentru acest mediu — builderul nu poate răspunde momentan.",
+    "sendError": "Ceva nu a mers bine. Încearcă din nou.",
+    "seconds": "{n}s",
+    "toolCallsCount": "0 acțiuni | 1 acțiune | {count} acțiuni",
+    "iterations": "0 iterații | 1 iterație | {count} iterații"
+  },
+  "proV2": {
+    "eyebrow": "Builder AI de site-uri",
+    "title": "Website Builder",
+    "files": "Fișiere",
+    "introText": "Descrie ce vrei să construiești — AI-ul scrie fișiere Vue reale și le rulează live.",
+    "placeholder": "ex: Creează o pagină cu hero, features și prețuri…",
+    "statusBooting": "Se pornește sandbox-ul…",
+    "statusInstalling": "Se instalează dependențele…",
+    "statusStarting": "Se pornește serverul de dezvoltare…",
+    "statusReady": "Live",
+    "statusErrorDetected": "Eroare detectată",
+    "statusFixing": "Se repară…",
+    "statusFailed": "Nu am putut repara",
+    "showLog": "Arată jurnalul",
+    "hideLog": "Ascunde jurnalul",
+    "showRepairLog": "0 reparații | 1 reparație | {count} reparații",
+    "hideRepairLog": "Ascunde reparațiile",
+    "repairGaveUp": "Nu am putut rezolva automat — poți descrie ce nu merge, sau reformulează ultima cerere.",
+    "escalated": "0 escaladări | 1 escaladare | {count} escaladări",
+    "usageToday": "Azi",
+    "usageMonth": "Luna",
+    "usageTooltip": "Cheltuiala AI estimată pentru acest cont, pe toate proiectele",
+    "publish": "Publică",
+    "republish": "Republică",
+    "published": "Publicat",
+    "publishSuccess": "Site-ul tău este live.",
+    "publishError": "Nu am putut publica — încearcă din nou peste puțin timp.",
+    "publishBuildFailed": "Build eșuat — rezolvă eroarea afișată în previzualizare înainte de a publica."
   },
   "site": {
     "phone": "Telefon",
@@ -2063,7 +2103,7 @@
   },
   "unlock": {
     "title": "Deblochează builderul avansat",
-    "lead": "Un cost unic, plătit din portofel. După asta editezi manual cât vrei, iar generările cu AI sunt incluse.",
+    "lead": "Un cost unic, plătit din portofel. După asta, un asistent AI construiește și continuă să-ți îmbunătățească site-ul cât timp vrei.",
     "pay": "Plătește {credits} credite și continuă",
     "balance": "Ai {credits} credite în portofel",
     "short": "Nu ai destule credite — îți lipsesc {credits}.",

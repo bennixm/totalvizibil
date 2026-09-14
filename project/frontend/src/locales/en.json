@@ -851,12 +851,12 @@
     "priceValue": "{credits} credits",
     "priceNote": "Paid from your wallet after you create an account, before you use the builder.",
     "perk": {
-      "pages": "Page-based site — up to 6 pages, fully editable",
-      "design": "Full design control: themes, colours, fonts, corners, motion",
+      "pages": "A real, custom-built website — genuine code, not a template",
+      "design": "Full creative control: describe any change, anytime",
       "portfolio": "Portfolio / work section",
-      "sections": "Dozens of pre-designed sections, with variants and animations",
-      "unlimited": "Unlimited builder access — edit manually as much as you want",
-      "ai": "AI generation included (metered), plus per-section tweaks"
+      "sections": "Built page by page with AI, tailored to your business",
+      "unlimited": "Keep refining your site for as long as you want, at no extra cost",
+      "ai": "An AI assistant builds and edits your site from a live chat"
     },
     "fieldName": "Business name",
     "cta": "Continue to account",
@@ -1200,11 +1200,10 @@
       "verify": "Checking & optimising"
     },
     "feat": {
-      "pages": "Page-based builder — up to 6 pages, fully editable",
-      "sections": "Dozens of pre-designed sections, with variants and transitions",
-      "design": "Full design control: theme, colours, fonts, corners, shadows, motion",
-      "unlimited": "Unlimited builder access — edit manually as much as you want, no cap",
-      "ai": "AI generation included — {plan} full-site generations + {section} per-section tweaks"
+      "pages": "A real, custom-built website — genuine code, not a template",
+      "design": "Full creative control: describe any change, anytime",
+      "unlimited": "Keep refining your site for as long as you want, at no extra cost",
+      "ai": "An AI assistant builds and edits your site from a live chat"
     },
     "aiQuota": "AI generations left on this site: {left} of {limit}. Manual editing is unlimited.",
     "aiQuotaOut": "You've used every AI generation for this site. You can still edit manually, with no limit.",
@@ -1299,6 +1298,47 @@
       "accent": "Accent",
       "clear": "Clear"
     }
+  },
+  "pro": {
+    "back": "Back to Builder",
+    "loadErrorTitle": "Couldn't load the builder",
+    "loadErrorText": "Try again, or come back later.",
+    "whatIDid": "What I did (0 tool calls) | What I did (1 tool call) | What I did ({count} tool calls)",
+    "working": "Working…",
+    "noKey": "AI isn't configured for this environment — the builder can't respond right now.",
+    "sendError": "Something went wrong. Try again.",
+    "seconds": "{n}s",
+    "toolCallsCount": "0 tool calls | 1 tool call | {count} tool calls",
+    "iterations": "0 iterations | 1 iteration | {count} iterations"
+  },
+  "proV2": {
+    "eyebrow": "AI website builder",
+    "title": "Website Builder",
+    "files": "Files",
+    "introText": "Describe what you want to build — the AI writes real Vue files and runs them live.",
+    "placeholder": "e.g. Create a landing page with a hero, features and pricing…",
+    "statusBooting": "Starting sandbox…",
+    "statusInstalling": "Installing dependencies…",
+    "statusStarting": "Starting dev server…",
+    "statusReady": "Live",
+    "statusErrorDetected": "Error detected",
+    "statusFixing": "Fixing…",
+    "statusFailed": "Couldn't fix it",
+    "showLog": "Show log",
+    "hideLog": "Hide log",
+    "showRepairLog": "0 fixes | 1 fix | {count} fixes",
+    "hideRepairLog": "Hide fixes",
+    "repairGaveUp": "Couldn't resolve this automatically — you can describe what's wrong, or try rephrasing your last request.",
+    "escalated": "0 escalations | 1 escalation | {count} escalations",
+    "usageToday": "Today",
+    "usageMonth": "Month",
+    "usageTooltip": "Estimated AI spend for this account, across every project",
+    "publish": "Publish",
+    "republish": "Republish",
+    "published": "Published",
+    "publishSuccess": "Your site is live.",
+    "publishError": "Couldn't publish — try again in a moment.",
+    "publishBuildFailed": "Build failed — fix the error shown in the preview before publishing."
   },
   "site": {
     "phone": "Phone",
@@ -2063,7 +2103,7 @@
   },
   "unlock": {
     "title": "Unlock the advanced builder",
-    "lead": "A one-time fee, paid from your wallet. After that you edit manually as much as you like, and AI generations are included.",
+    "lead": "A one-time fee, paid from your wallet. After that, an AI assistant builds and keeps refining your site for as long as you want.",
     "pay": "Pay {credits} cr and continue",
     "balance": "You have {credits} cr in your wallet",
     "short": "Not enough credits — you're {credits} short.",

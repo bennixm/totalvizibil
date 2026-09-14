@@ -851,12 +851,12 @@
     "priceValue": "{credits} Credits",
     "priceNote": "Wird nach der Kontoerstellung aus dem Wallet bezahlt, bevor Sie den Builder nutzen.",
     "perk": {
-      "pages": "Seitenbasierte Website — bis zu 6 Seiten, voll bearbeitbar",
-      "design": "Volle Designkontrolle: Themes, Farben, Schriften, Ecken, Bewegung",
+      "pages": "Eine echte, maßgeschneiderte Website — echter Code, keine Vorlage",
+      "design": "Volle kreative Kontrolle: fordere jederzeit jede Änderung an",
       "portfolio": "Portfolio-/Arbeitsbereich",
-      "sections": "Dutzende vordesignte Abschnitte, mit Varianten und Animationen",
-      "unlimited": "Unbegrenzter Builder-Zugang — beliebig oft manuell bearbeiten",
-      "ai": "KI-Generierung inklusive (limitiert), plus Abschnitts-Anpassungen"
+      "sections": "Seite für Seite von KI gebaut, passend zu deinem Geschäft",
+      "unlimited": "Verbessere deine Website so lange du willst, ohne Zusatzkosten",
+      "ai": "Ein KI-Assistent baut und bearbeitet deine Website per Live-Chat"
     },
     "fieldName": "Unternehmensname",
     "cta": "Weiter zum Konto",
@@ -1200,11 +1200,10 @@
       "verify": "Prüfen & optimieren"
     },
     "feat": {
-      "pages": "Seitenbasierter Builder — bis zu 6 Seiten, voll bearbeitbar",
-      "sections": "Dutzende vordesignte Abschnitte, mit Varianten und Übergängen",
-      "design": "Volle Designkontrolle: Theme, Farben, Schriften, Ecken, Schatten, Bewegung",
-      "unlimited": "Unbegrenzter Builder-Zugang — beliebig oft manuell bearbeiten, ohne Limit",
-      "ai": "KI-Generierung inklusive — {plan} komplette Website-Generierungen + {section} Abschnitts-Anpassungen"
+      "pages": "Eine echte, maßgeschneiderte Website — echter Code, keine Vorlage",
+      "design": "Volle kreative Kontrolle: fordere jederzeit jede Änderung an",
+      "unlimited": "Verbessere deine Website so lange du willst, ohne Zusatzkosten",
+      "ai": "Ein KI-Assistent baut und bearbeitet deine Website per Live-Chat"
     },
     "aiQuota": "Verbleibende KI-Generierungen für diese Website: {left} von {limit}. Manuelles Bearbeiten ist unbegrenzt.",
     "aiQuotaOut": "Du hast alle KI-Generierungen für diese Website verbraucht. Du kannst weiterhin unbegrenzt manuell bearbeiten.",
@@ -1299,6 +1298,47 @@
       "accent": "Akzent",
       "clear": "Entfernen"
     }
+  },
+  "pro": {
+    "back": "Zurück zum Builder",
+    "loadErrorTitle": "Der Builder konnte nicht geladen werden",
+    "loadErrorText": "Versuche es erneut oder komm später zurück.",
+    "whatIDid": "Was ich getan habe (0 Aktionen) | Was ich getan habe (1 Aktion) | Was ich getan habe ({count} Aktionen)",
+    "working": "Arbeitet…",
+    "noKey": "KI ist für diese Umgebung nicht konfiguriert — der Builder kann gerade nicht antworten.",
+    "sendError": "Etwas ist schiefgelaufen. Versuche es erneut.",
+    "seconds": "{n}s",
+    "toolCallsCount": "0 Aktionen | 1 Aktion | {count} Aktionen",
+    "iterations": "0 Durchläufe | 1 Durchlauf | {count} Durchläufe"
+  },
+  "proV2": {
+    "eyebrow": "KI-Website-Builder",
+    "title": "Website Builder",
+    "files": "Dateien",
+    "introText": "Beschreibe, was du bauen möchtest — die KI schreibt echte Vue-Dateien und führt sie live aus.",
+    "placeholder": "z. B. Landingpage mit Hero, Features und Preisen erstellen…",
+    "statusBooting": "Sandbox wird gestartet…",
+    "statusInstalling": "Abhängigkeiten werden installiert…",
+    "statusStarting": "Dev-Server wird gestartet…",
+    "statusReady": "Live",
+    "statusErrorDetected": "Fehler erkannt",
+    "statusFixing": "Wird behoben…",
+    "statusFailed": "Konnte nicht behoben werden",
+    "showLog": "Log anzeigen",
+    "hideLog": "Log ausblenden",
+    "showRepairLog": "0 Reparaturen | 1 Reparatur | {count} Reparaturen",
+    "hideRepairLog": "Reparaturen ausblenden",
+    "repairGaveUp": "Konnte das nicht automatisch beheben — beschreibe das Problem oder formuliere deine letzte Anfrage neu.",
+    "escalated": "0 Eskalationen | 1 Eskalation | {count} Eskalationen",
+    "usageToday": "Heute",
+    "usageMonth": "Monat",
+    "usageTooltip": "Geschätzte KI-Ausgaben für dieses Konto, über alle Projekte hinweg",
+    "publish": "Veröffentlichen",
+    "republish": "Erneut veröffentlichen",
+    "published": "Veröffentlicht",
+    "publishSuccess": "Deine Website ist live.",
+    "publishError": "Veröffentlichung fehlgeschlagen — versuche es gleich noch einmal.",
+    "publishBuildFailed": "Build fehlgeschlagen — behebe den Fehler in der Vorschau, bevor du veröffentlichst."
   },
   "site": {
     "phone": "Telefon",
@@ -2063,7 +2103,7 @@
   },
   "unlock": {
     "title": "Erweiterten Builder freischalten",
-    "lead": "Eine einmalige Gebühr, aus deinem Wallet bezahlt. Danach bearbeitest du manuell so viel du willst, KI-Generierungen sind inklusive.",
+    "lead": "Eine einmalige Gebühr, aus deinem Wallet bezahlt. Danach baut ein KI-Assistent deine Website und verbessert sie weiter, so lange du willst.",
     "pay": "{credits} Cr zahlen und fortfahren",
     "balance": "Du hast {credits} Cr im Wallet",
     "short": "Nicht genug Credits — dir fehlen {credits}.",

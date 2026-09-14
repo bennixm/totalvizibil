@@ -15,10 +15,14 @@ export interface AppConfig {
   anthropicModel: string;
   /** Optional faster/cheaper model for the mechanical generator calls (copy, image intents, review). Empty ⇒ `anthropicModel`. */
   anthropicModelFast: string;
-  /** Optional vision-capable model for the post-generation visual review. Empty ⇒ `anthropicModel`. */
-  anthropicModelVision: string;
   /** Pexels API key — primary stock-photo provider for the Advanced generator. Empty ⇒ curated pool fallback. */
   pexelsApiKey: string;
+  /** DeepSeek API key — PRO V2's cheaper-tier provider only. Empty ⇒ PRO V2's router uses Claude for everything. */
+  deepseekApiKey: string;
+  /** Cheap/fast DeepSeek tier for simple edits and boilerplate. */
+  deepseekModelFlash: string;
+  /** Stronger/pricier DeepSeek tier for harder multi-file work. */
+  deepseekModelPro: string;
   /** `on` enables the opt-in post-generation visual (screenshot + vision) QA pass. */
   visualQa: boolean;
   /** Dev-only URL of a screenshot service (`?url=` → PNG). Empty ⇒ visual QA no-ops. */
@@ -54,8 +58,10 @@ export function loadConfig(): AppConfig {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() ?? '',
     anthropicModel: process.env.ANTHROPIC_MODEL?.trim() || 'claude-opus-5',
     anthropicModelFast: process.env.ANTHROPIC_MODEL_FAST?.trim() ?? '',
-    anthropicModelVision: process.env.ANTHROPIC_MODEL_VISION?.trim() ?? '',
     pexelsApiKey: process.env.PEXELS_API_KEY?.trim() ?? '',
+    deepseekApiKey: process.env.DEEPSEEK_API_KEY?.trim() ?? '',
+    deepseekModelFlash: process.env.DEEPSEEK_MODEL_FLASH?.trim() || 'deepseek-chat',
+    deepseekModelPro: process.env.DEEPSEEK_MODEL_PRO?.trim() || 'deepseek-reasoner',
     visualQa: (process.env.VISUAL_QA?.trim().toLowerCase() ?? '') === 'on',
     screenshotUrl: process.env.SCREENSHOT_URL?.trim() ?? '',
   };
