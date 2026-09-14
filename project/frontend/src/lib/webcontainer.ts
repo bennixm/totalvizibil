@@ -36,7 +36,10 @@ export function filesToTree(files: ProjectFile[]): FileSystemTree {
  *  `preview-message` event (console.error / unhandledrejection / uncaught
  *  error in any preview iframe) — it defaults to `false`. No custom script
  *  injection is needed or supported for this; see `BootOptions` in
- *  `@webcontainer/api`. */
+ *  `@webcontainer/api`. `coep: 'credentialless'` must match the response
+ *  header the host page is actually served with (vite.config.ts in dev, the
+ *  reverse proxy in production) — WebContainer defaults to assuming
+ *  `require-corp` and fails the isolation check otherwise. */
 let containerPromise: Promise<WebContainer> | null = null
 /** Kicks off (or returns the already-in-flight) WebContainer boot. Exported
  *  so the view can call this the instant it mounts — in parallel with the
@@ -45,7 +48,8 @@ let containerPromise: Promise<WebContainer> | null = null
  *  promise, so calling it early costs nothing and just overlaps the ~1-2s
  *  boot with work that was happening anyway. */
 export function bootContainer(): Promise<WebContainer> {
-  if (!containerPromise) containerPromise = WebContainer.boot({ forwardPreviewErrors: true })
+  if (!containerPromise)
+    containerPromise = WebContainer.boot({ forwardPreviewErrors: true, coep: 'credentialless' })
   return containerPromise
 }
 
