@@ -1,13 +1,19 @@
 /**
- * Cost accounting + budget enforcement for PRO V2's model router — one row
- * per actual provider call (see `AiUsageRecord` in schema.prisma for why),
- * across both Claude and DeepSeek. Answers "where is the money going" (the
- * whole point of item 8) and enforces the hard per-request/day/month caps
- * from item 9. Never used for real billing/invoicing — same disclaimer as
- * every other cost estimate in this codebase.
+ * Cost accounting + billing for PRO V2's model router — one row per actual
+ * provider call (see `AiUsageRecord` in schema.prisma for why), across both
+ * Claude and DeepSeek. Answers "where is the money going" (item 8), enforces
+ * the hard per-request safety cap that protects against a single runaway
+ * turn (item 9's `REQUEST_MAX_*` constants — a technical safety net, kept
+ * regardless of billing model), and charges the owner's wallet for what was
+ * actually used (2 credits per $1 of estimated cost — see `chargeForUsage`).
+ * The exact USD figures recorded here are internal-only: the user is gated
+ * purely on their wallet balance (see `assertUserCanAfford`), never shown a
+ * dollar amount.
  */
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { WalletService } from '../../../wallet/wallet.service';
+import { CREDIT_MINOR } from '../../../wallet/money';
 import type { ProviderName } from '../../../ai/provider.types';
 import type { TaskCategory } from './model-router';
 
@@ -16,11 +22,16 @@ export const REQUEST_MAX_TOOL_CALLS = 30;
 export const REQUEST_MAX_ITERATIONS = 24;
 export const REQUEST_MAX_REPAIR_ATTEMPTS = 3;
 export const REQUEST_MAX_PEXELS_SEARCHES = 3;
-export const USER_DAILY_MAX_USD = 5;
-export const USER_MONTHLY_MAX_USD = 50;
+
+/** Credits charged to the owner's wallet per $1 of estimated AI cost — a
+ *  deliberate markup, not a 1:1 pass-through (credits are EUR-denominated,
+ *  see wallet/money.ts; USD cost is treated as the same reference unit,
+ *  same simplification the rest of this app's cost tracking already makes). */
+export const CREDITS_PER_USD = 2;
 
 export interface UsageEntry {
   userId: string;
+  companyId: string;
   projectId: string;
   requestId: string;
   provider: ProviderName;
@@ -49,7 +60,10 @@ function startOfUtcMonth(): Date {
 
 @Injectable()
 export class AiUsageService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly wallet: WalletService,
+  ) {}
 
   async record(entry: UsageEntry): Promise<void> {
     await this.prisma.aiUsageRecord.create({
@@ -72,6 +86,8 @@ export class AiUsageService {
         succeeded: entry.succeeded ?? true,
       },
     });
+    const creditsMinor = Math.round(entry.estimatedCostUsd * CREDITS_PER_USD * CREDIT_MINOR);
+    await this.wallet.chargeAiUsage(entry.userId, creditsMinor, entry.companyId);
   }
 
   async costForRequest(requestId: string): Promise<number> {
@@ -98,16 +114,14 @@ export class AiUsageService {
     return r._sum.estimatedCostUsd ?? 0;
   }
 
-  /** Called before starting a new turn — rejects up front rather than
-   *  letting a turn start and fail expensively partway through. */
-  async assertUserBudget(userId: string): Promise<void> {
-    const [daily, monthly] = await Promise.all([
-      this.dailySpend(userId),
-      this.monthlySpend(userId),
-    ]);
-    if (daily >= USER_DAILY_MAX_USD) throw new BadRequestException('daily_ai_budget_exceeded');
-    if (monthly >= USER_MONTHLY_MAX_USD)
-      throw new BadRequestException('monthly_ai_budget_exceeded');
+  /** Called before starting a new turn — rejects up front, on the SAME
+   *  wallet balance/blocked check every other spend in the app already uses,
+   *  rather than letting a turn start and fail expensively partway through.
+   *  No dollar figure is ever surfaced to the caller — just "can't afford
+   *  it" — the user only ever sees their own wallet balance. */
+  async assertUserCanAfford(userId: string): Promise<void> {
+    const canAfford = await this.wallet.canAfford(userId, 1);
+    if (!canAfford) throw new BadRequestException('insufficient_credits');
   }
 
   /** Called after each hop within a turn (initial try + any escalation) —
@@ -139,9 +153,7 @@ export class AiUsageService {
     ]);
     return {
       dailySpendUsd: daily,
-      dailyLimitUsd: USER_DAILY_MAX_USD,
       monthlySpendUsd: monthly,
-      monthlyLimitUsd: USER_MONTHLY_MAX_USD,
       byProvider: byProvider.map((p) => ({
         provider: p.provider,
         calls: p._count,

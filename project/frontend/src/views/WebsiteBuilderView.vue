@@ -6,7 +6,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useCompaniesStore } from '@/stores/companies'
 import { useProV2Store } from '@/stores/pro-v2'
 import { useToastStore } from '@/stores/toast'
+import { useWalletStore } from '@/stores/wallet'
 import type { ProV2Usage } from '@/stores/pro-v2'
+import CreditsValue from '@/components/CreditsValue.vue'
 import {
   ProV2Sandbox,
   bootContainer,
@@ -21,6 +23,7 @@ const router = useRouter()
 const companies = useCompaniesStore()
 const v2 = useProV2Store()
 const toasts = useToastStore()
+const wallet = useWalletStore()
 
 const companyId = ref<string | null>(null)
 const draft = ref('')
@@ -150,9 +153,6 @@ function usageCaption(u?: ProV2Usage): string {
   if (u.durationMs) parts.push(t('pro.seconds', { n: Math.round(u.durationMs / 1000) }))
   if (typeof u.toolCalls === 'number') parts.push(t('pro.toolCallsCount', u.toolCalls))
   if (u.iterations) parts.push(t('pro.iterations', u.iterations))
-  if (typeof u.estimatedCostUsd === 'number' && u.estimatedCostUsd > 0) {
-    parts.push(`~$${u.estimatedCostUsd.toFixed(3)}`)
-  }
   if (u.provider) parts.push(u.escalations ? `${u.provider} (${t('proV2.escalated', u.escalations)})` : u.provider)
   return parts.join(' · ')
 }
@@ -202,11 +202,23 @@ async function submit(): Promise<void> {
   await scrollToEnd()
   const ok = await v2.send(companyId.value, text)
   if (!ok) {
-    draft.value = text
-    toasts.error(v2.error === 'ai_not_configured' ? t('pro.noKey') : t('pro.sendError'))
+    // A confirmed timeout means the message really was sent and may still
+    // get a real reply (v2.messages already reflects the true server state)
+    // — restoring it into the composer would invite a confusing duplicate.
+    if (v2.error !== 'resume_timed_out') draft.value = text
+    toasts.error(
+      v2.error === 'ai_not_configured'
+        ? t('pro.noKey')
+        : v2.error === 'insufficient_credits'
+          ? t('pro.insufficientCredits')
+          : v2.error === 'resume_timed_out'
+            ? t('proV2.resumeTimedOut')
+            : t('pro.sendError'),
+    )
     return
   }
   await sandbox.value?.sync(v2.files)
+  void wallet.load()
 }
 function onComposerKeydown(e: KeyboardEvent): void {
   if (e.key === 'Enter' && !e.shiftKey) {
@@ -235,6 +247,7 @@ onMounted(async () => {
   // resolves — `ProV2Sandbox.start()` awaits this same cached promise, so
   // this simply overlaps two waits that were previously sequential.
   void bootContainer()
+  void wallet.load()
   await companies.fetchOverview().catch(() => {})
   const id = adminMode.value
     ? String(route.query.companyId)
@@ -291,9 +304,9 @@ onBeforeUnmount(() => {
         <h1>{{ t('proV2.title') }}</h1>
       </div>
       <div class="v2__headerActions">
-        <span v-if="v2.usageSummary" class="v2__usagePill" :title="t('proV2.usageTooltip')">
-          {{ t('proV2.usageToday') }} ${{ v2.usageSummary.dailySpendUsd.toFixed(2) }}/${{ v2.usageSummary.dailyLimitUsd }}
-          · {{ t('proV2.usageMonth') }} ${{ v2.usageSummary.monthlySpendUsd.toFixed(2) }}/${{ v2.usageSummary.monthlyLimitUsd }}
+        <span v-if="wallet.summary" class="v2__usagePill" :title="t('proV2.walletTooltip')">
+          <v-icon icon="mdi-wallet-outline" size="14" />
+          <CreditsValue :credits="wallet.summary.balance.credits" :approx="false" />
         </span>
         <span v-if="v2.publishedAt" class="v2__publishedPill">
           <v-icon icon="mdi-check-circle-outline" size="14" />
@@ -329,7 +342,10 @@ onBeforeUnmount(() => {
     <div
       v-else
       class="v2__grid"
-      :class="mobileView === 'preview' ? 'is-mobile-preview' : 'is-mobile-panel'"
+      :class="[
+        mobileView === 'preview' ? 'is-mobile-preview' : 'is-mobile-panel',
+        leftTab === 'files' ? 'is-files-mode' : 'is-chat-mode',
+      ]"
     >
       <!-- MOBILE-ONLY: 3-way switch, static (not fixed) so it never fights
            the app's own fixed bottom nav — hidden on desktop via CSS. -->
@@ -464,33 +480,35 @@ onBeforeUnmount(() => {
           <p v-if="!v2.aiConfigured" class="v2__note">{{ t('pro.noKey') }}</p>
         </div>
 
-        <!-- FILES -->
-        <div v-show="leftTab === 'files'" class="v2__filesPane">
-          <div class="v2__fileList">
-            <button
-              v-for="f in v2.files"
-              :key="f.path"
-              type="button"
-              class="v2__file"
-              :style="{ paddingLeft: `${0.65 + fileDepth(f.path) * 0.85}rem` }"
-              :class="{
-                'is-active': f.path === v2.activeFilePath,
-                'is-changed': v2.lastChangedPaths.includes(f.path),
-              }"
-              @click="v2.selectFile(f.path)"
-            >
-              <v-icon icon="mdi-file-code-outline" size="13" />
-              {{ fileName(f.path) }}
-            </button>
-          </div>
-          <div class="v2__codeViewer">
-            <span class="v2__codePath">{{ v2.activeFile?.path }}</span>
-            <pre class="v2__codeBody"><code>{{ v2.activeFile?.content }}</code></pre>
-          </div>
+        <!-- FILES: just the file list here — the code viewer is its own
+             top-level column (see .v2__codeViewer below) so files mode gets
+             three real panes: list / file content / site preview. -->
+        <div v-show="leftTab === 'files'" class="v2__fileList">
+          <button
+            v-for="f in v2.files"
+            :key="f.path"
+            type="button"
+            class="v2__file"
+            :style="{ paddingLeft: `${0.65 + fileDepth(f.path) * 0.85}rem` }"
+            :class="{
+              'is-active': f.path === v2.activeFilePath,
+              'is-changed': v2.lastChangedPaths.includes(f.path),
+            }"
+            @click="v2.selectFile(f.path)"
+          >
+            <v-icon icon="mdi-file-code-outline" size="13" />
+            {{ fileName(f.path) }}
+          </button>
         </div>
       </div>
 
-      <!-- LIVE PREVIEW — the wide pane -->
+      <!-- FILE CONTENT — its own column, only while Files is selected -->
+      <div v-if="leftTab === 'files'" class="v2__codeViewer">
+        <span class="v2__codePath">{{ v2.activeFile?.path }}</span>
+        <pre class="v2__codeBody"><code>{{ v2.activeFile?.content }}</code></pre>
+      </div>
+
+      <!-- LIVE PREVIEW — smaller while Files is open, wide otherwise -->
       <section class="v2__previewPane">
         <div class="v2__previewBar">
           <span class="v2__statusPill" :class="`is-${status}`">
@@ -619,18 +637,25 @@ onBeforeUnmount(() => {
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
-/* Desktop: a narrow left panel (Chat/Files) + a MUCH wider preview — the
- * preview is the most important surface, so it gets the bulk of the width. */
+/* Desktop: Chat mode is 2 columns (chat 35% / preview 65% — the preview is
+ * still the most important surface). Files mode is 3 columns (file list
+ * 20% / file content 40% / site preview 40%) — opening Files trades some
+ * preview width for a real, readable look at the open file instead of
+ * squeezing it into the same narrow column as the file list. */
 .v2__grid {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(300px, 380px) 1fr;
+  grid-template-columns: 35% 65%;
   gap: 0.8rem;
+}
+.v2__grid.is-files-mode {
+  grid-template-columns: 20% 40% 40%;
 }
 
 .v2__left,
-.v2__previewPane {
+.v2__previewPane,
+.v2__codeViewer {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -673,24 +698,23 @@ onBeforeUnmount(() => {
   color: rgb(var(--v-theme-on-surface));
 }
 
-.v2__chatPane,
-.v2__filesPane {
+.v2__chatPane {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-/* --- Files pane: a compact file list stacked over the code viewer --- */
+/* --- Files mode: the file list is its own full-height column now (the
+ * code viewer lives in a separate top-level column, .v2__codeViewer). --- */
 .v2__fileList {
-  flex: none;
-  max-height: 34%;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: 0.6rem 0.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  border-bottom: 1px solid var(--tvz-hairline);
 }
 .v2__file {
   display: flex;
@@ -787,13 +811,27 @@ onBeforeUnmount(() => {
     border-color: transparent;
   }
   .v2__left,
-  .v2__previewPane {
+  .v2__previewPane,
+  .v2__codeViewer {
     display: none;
     flex: 1 1 auto;
     min-height: 60vh;
   }
   .v2__grid.is-mobile-panel .v2__left {
     display: flex;
+  }
+  /* Files mode on mobile: file list (compact) stacked above the file
+   * content (gets the rest of the space) — the desktop 3-column split
+   * doesn't fit a phone width, so both panes share one vertical column. */
+  .v2__grid.is-mobile-panel.is-files-mode .v2__left {
+    flex: none;
+    min-height: 0;
+    max-height: 32vh;
+  }
+  .v2__grid.is-mobile-panel.is-files-mode .v2__codeViewer {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 40vh;
   }
   .v2__grid.is-mobile-preview .v2__previewPane {
     display: flex;

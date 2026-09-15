@@ -69,6 +69,7 @@ export class AdminController {
     const [
       eurRonRate,
       advancedBuilderPriceCredits,
+      advancedBuilderUnlockBonusCredits,
       additionalBusinessPriceCredits,
       invoiceVatRatePct,
       invoiceIssuer,
@@ -78,6 +79,7 @@ export class AdminController {
     ] = await Promise.all([
       this.settings.eurRonRate(),
       this.settings.advancedBuilderPriceCredits(),
+      this.settings.advancedBuilderUnlockBonusCredits(),
       this.settings.additionalBusinessPriceCredits(),
       this.settings.invoiceVatRatePct(),
       this.settings.invoiceIssuer(),
@@ -88,6 +90,7 @@ export class AdminController {
     return {
       eurRonRate,
       advancedBuilderPriceCredits,
+      advancedBuilderUnlockBonusCredits,
       additionalBusinessPriceCredits,
       invoiceVatRatePct,
       affiliateEnabled,
@@ -107,6 +110,11 @@ export class AdminController {
     if (dto.eurRonRate !== undefined) await this.settings.setEurRonRate(dto.eurRonRate);
     if (dto.advancedBuilderPriceCredits !== undefined) {
       await this.settings.setAdvancedBuilderPriceCredits(dto.advancedBuilderPriceCredits);
+    }
+    if (dto.advancedBuilderUnlockBonusCredits !== undefined) {
+      await this.settings.setAdvancedBuilderUnlockBonusCredits(
+        dto.advancedBuilderUnlockBonusCredits,
+      );
     }
     if (dto.additionalBusinessPriceCredits !== undefined) {
       await this.settings.setAdditionalBusinessPriceCredits(dto.additionalBusinessPriceCredits);

@@ -184,10 +184,14 @@ function fakeWallet(balanceCredits = 1000) {
   return {
     getSummary: jest.fn(async () => ({ balance: { credits: balanceCredits } })),
     spend: jest.fn(async () => {}),
+    adjust: jest.fn(async () => {}),
   };
 }
-function fakeSettings(priceCredits = 50) {
-  return { advancedBuilderPriceCredits: jest.fn(async () => priceCredits) };
+function fakeSettings(priceCredits = 50, bonusCredits = 10) {
+  return {
+    advancedBuilderPriceCredits: jest.fn(async () => priceCredits),
+    advancedBuilderUnlockBonusCredits: jest.fn(async () => bonusCredits),
+  };
 }
 function fakeAssets() {
   return {
@@ -256,25 +260,29 @@ describe('ProV2Service', () => {
     expect(status).toEqual({
       unlocked: false,
       priceCredits: 50,
+      bonusCredits: 10,
       wallet: { balance: { credits: 30 } },
     });
   });
 
-  it('unlock charges the wallet once and then allows project access', async () => {
+  it('unlock charges the wallet once, grants the unlock bonus, and then allows project access', async () => {
     const prisma = fakePrisma('owner', false);
     const wallet = fakeWallet(100);
     const svc = new ProV2Service(
       prisma as never,
       wallet as never,
-      fakeSettings(50) as never,
+      fakeSettings(50, 10) as never,
       fakeAssets() as never,
     );
     await svc.unlock('c1', 'u1');
     expect(wallet.spend).toHaveBeenCalledTimes(1);
+    expect(wallet.adjust).toHaveBeenCalledWith('owner1', 10, 'Website Builder unlock bonus');
     await expect(svc.getOrCreateProject('c1', 'u1')).resolves.toBeDefined();
-    // Calling unlock again on an already-unlocked company must not charge twice.
+    // Calling unlock again on an already-unlocked company must not charge
+    // (or re-grant the bonus) twice.
     await svc.unlock('c1', 'u1');
     expect(wallet.spend).toHaveBeenCalledTimes(1);
+    expect(wallet.adjust).toHaveBeenCalledTimes(1);
   });
 
   it('uploadAsset delegates to WebsiteAssetService as kind "custom", after ownership + unlock checks', async () => {

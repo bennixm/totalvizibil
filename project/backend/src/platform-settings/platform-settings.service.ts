@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export const SETTING_KEYS = {
   eurRonRate: 'eur_ron_rate',
   advancedBuilderPriceCredits: 'advanced_builder_price_credits',
+  advancedBuilderUnlockBonusCredits: 'advanced_builder_unlock_bonus_credits',
   additionalBusinessPriceCredits: 'additional_business_price_credits',
   invoiceVatRatePct: 'invoice_vat_rate_pct',
   invoiceIssuerName: 'invoice_issuer_name',
@@ -28,6 +29,14 @@ const DEFAULT_ADVANCED_PRICE = 49;
 const DEFAULT_ADDITIONAL_BUSINESS_PRICE = 20;
 const MIN_PRICE = 1;
 const MAX_PRICE = 100_000;
+
+/** Credits granted to the owner's wallet once, right after they unlock the
+ *  Website Builder — a starting balance so they can actually use the AI
+ *  builder they just paid for. 0 = no bonus (unlike a price, this is
+ *  allowed to be zero). */
+const DEFAULT_UNLOCK_BONUS_CREDITS = 10;
+const MIN_UNLOCK_BONUS_CREDITS = 0;
+const MAX_UNLOCK_BONUS_CREDITS = 100_000;
 
 /** VAT rate applied to invoices, as a whole percent (0 = "neplătitor de TVA"). */
 const DEFAULT_VAT_RATE_PCT = 0;
@@ -134,6 +143,38 @@ export class PlatformSettingsService {
   }
   setAdvancedBuilderPriceCredits(credits: number): Promise<number> {
     return this.setPriceSetting(SETTING_KEYS.advancedBuilderPriceCredits, credits);
+  }
+
+  /** One-time bonus (credits) granted to the owner right after they unlock
+   *  the Website Builder. */
+  async advancedBuilderUnlockBonusCredits(): Promise<number> {
+    const raw = await this.get(SETTING_KEYS.advancedBuilderUnlockBonusCredits);
+    const parsed = raw != null ? Number(raw) : NaN;
+    if (
+      !Number.isFinite(parsed) ||
+      parsed < MIN_UNLOCK_BONUS_CREDITS ||
+      parsed > MAX_UNLOCK_BONUS_CREDITS
+    ) {
+      if (raw != null) {
+        this.logger.warn(
+          `Ignoring invalid ${SETTING_KEYS.advancedBuilderUnlockBonusCredits}=${raw}`,
+        );
+      }
+      return DEFAULT_UNLOCK_BONUS_CREDITS;
+    }
+    return Math.round(parsed);
+  }
+  async setAdvancedBuilderUnlockBonusCredits(credits: number): Promise<number> {
+    if (
+      !Number.isFinite(credits) ||
+      credits < MIN_UNLOCK_BONUS_CREDITS ||
+      credits > MAX_UNLOCK_BONUS_CREDITS
+    ) {
+      throw new BadRequestException('advanced_builder_unlock_bonus_credits out of range');
+    }
+    const rounded = Math.round(credits);
+    await this.set(SETTING_KEYS.advancedBuilderUnlockBonusCredits, String(rounded));
+    return rounded;
   }
 
   /** Price (credits) to create a business beyond the first. */

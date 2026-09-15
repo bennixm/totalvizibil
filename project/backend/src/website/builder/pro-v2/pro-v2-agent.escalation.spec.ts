@@ -4,6 +4,15 @@ import { ModelRouter } from './model-router';
 import { AiUsageService } from './ai-usage.service';
 import type { AgentCallParams, AgentCallResult, AiProvider } from '../../../ai/provider.types';
 
+/** See pro-v2-agent.service.spec.ts's fakeWallet — same rationale: these
+ *  tests exercise escalation routing, not billing. */
+function fakeWallet() {
+  return {
+    canAfford: jest.fn(async () => true),
+    chargeAiUsage: jest.fn(async () => {}),
+  };
+}
+
 /** Minimal fake Prisma — same shape as the main spec file's, trimmed to what
  *  these tests touch (project/file CRUD + usage recording). */
 function fakePrisma() {
@@ -201,7 +210,7 @@ describe('ProV2AgentService — cross-provider escalation (DeepSeek configured)'
     };
 
     const router = new ModelRouter(claude as never, deepseek as never, fakeConfig());
-    const usage = new AiUsageService(prisma as never);
+    const usage = new AiUsageService(prisma as never, fakeWallet() as never);
     const svc = new ProV2AgentService(projects, claude as never, router, usage, {
       configured: false,
       search: jest.fn(async () => []),
@@ -280,7 +289,7 @@ describe('ProV2AgentService — cross-provider escalation (DeepSeek configured)'
     };
 
     const router = new ModelRouter(claude as never, deepseek as never, fakeConfig());
-    const usage = new AiUsageService(prisma as never);
+    const usage = new AiUsageService(prisma as never, fakeWallet() as never);
     const svc = new ProV2AgentService(projects, claude as never, router, usage, {
       configured: false,
       search: jest.fn(async () => []),

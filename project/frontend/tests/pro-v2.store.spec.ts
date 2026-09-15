@@ -248,3 +248,125 @@ describe('pro-v2 store — uploading a chat image attachment', () => {
     expect(v2.error).toBe('image_too_large')
   })
 })
+
+describe('pro-v2 store — send() failure recovery (the "message vanishes, comes back on reload" bug)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    apiFetchMock.mockReset()
+  })
+
+  it('sends normally and appends the assistant reply', async () => {
+    const v2 = useProV2Store()
+    apiFetchMock
+      .mockResolvedValueOnce({
+        files: [{ path: 'src/App.vue', content: 'new' }],
+        changedPaths: ['src/App.vue'],
+        reply: 'Done.',
+        steps: [],
+      })
+      .mockResolvedValueOnce({ dailySpendUsd: 0, monthlySpendUsd: 0, byProvider: [], byCategory: [] })
+
+    const ok = await v2.send('c1', 'Add a hero section')
+
+    expect(ok).toBe(true)
+    expect(v2.messages).toEqual([
+      { role: 'user', content: 'Add a hero section' },
+      { role: 'assistant', content: 'Done.', toolCalls: [], usage: undefined },
+    ])
+  })
+
+  it('a fast 4xx rejection (e.g. insufficient_credits) discards the optimistic message immediately, without polling', async () => {
+    const v2 = useProV2Store()
+    apiFetchMock.mockRejectedValueOnce(new ApiError(400, 'insufficient_credits'))
+
+    const ok = await v2.send('c1', 'Add a hero section')
+
+    expect(ok).toBe(false)
+    expect(v2.error).toBe('insufficient_credits')
+    expect(v2.messages).toEqual([])
+    expect(apiFetchMock).toHaveBeenCalledTimes(1) // no resume polling attempted
+  })
+
+  it('a client-side timeout (status 0) reconciles with the server instead of discarding a message that actually sent — resolves', async () => {
+    vi.useFakeTimers()
+    try {
+      const v2 = useProV2Store()
+      apiFetchMock
+        .mockRejectedValueOnce(new ApiError(0, 'Request to /companies/c1/pro-v2/message timed out'))
+        .mockResolvedValueOnce({
+          projectId: 'p1',
+          aiConfigured: true,
+          publishedAt: null,
+          files: [{ path: 'src/App.vue', content: 'new' }],
+          messages: [
+            { role: 'user', content: 'Add a hero section' },
+            { role: 'assistant', content: 'Done — added it.' },
+          ],
+        })
+
+      const sendPromise = v2.send('c1', 'Add a hero section')
+      await vi.advanceTimersByTimeAsync(4000)
+      const ok = await sendPromise
+
+      expect(ok).toBe(true)
+      expect(v2.messages.at(-1)).toEqual({ role: 'assistant', content: 'Done — added it.' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a client-side timeout that never gets a reply times out honestly — the user\'s message stays visible, draft is not restored', async () => {
+    vi.useFakeTimers()
+    try {
+      const v2 = useProV2Store()
+      apiFetchMock
+        .mockRejectedValueOnce(new ApiError(0, 'Request to /companies/c1/pro-v2/message timed out'))
+        .mockResolvedValue({
+          projectId: 'p1',
+          aiConfigured: true,
+          publishedAt: null,
+          files: [],
+          messages: [{ role: 'user', content: 'Add a hero section' }],
+        })
+
+      const sendPromise = v2.send('c1', 'Add a hero section')
+      await vi.advanceTimersByTimeAsync(4000 * 91)
+      const ok = await sendPromise
+
+      expect(ok).toBe(false)
+      expect(v2.error).toBe('resume_timed_out')
+      // The message is NOT popped — it really was sent and is honestly still
+      // pending, per the server's own last-known state.
+      expect(v2.messages).toEqual([{ role: 'user', content: 'Add a hero section' }])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a 5xx (e.g. a proxy timeout) also reconciles instead of assuming the turn never started', async () => {
+    vi.useFakeTimers()
+    try {
+      const v2 = useProV2Store()
+      apiFetchMock
+        .mockRejectedValueOnce(new ApiError(504, 'Gateway Timeout'))
+        .mockResolvedValueOnce({
+          projectId: 'p1',
+          aiConfigured: true,
+          publishedAt: null,
+          files: [],
+          messages: [
+            { role: 'user', content: 'Add a hero section' },
+            { role: 'assistant', content: 'Done.' },
+          ],
+        })
+
+      const sendPromise = v2.send('c1', 'Add a hero section')
+      await vi.advanceTimersByTimeAsync(4000)
+      const ok = await sendPromise
+
+      expect(ok).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

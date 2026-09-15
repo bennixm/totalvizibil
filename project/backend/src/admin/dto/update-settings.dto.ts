@@ -19,6 +19,13 @@ export class UpdateSettingsDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(0)
+  @Max(100_000)
+  advancedBuilderUnlockBonusCredits?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   @Min(1)
   @Max(100_000)
   additionalBusinessPriceCredits?: number;

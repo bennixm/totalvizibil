@@ -10,6 +10,7 @@ export class PlatformController {
   async pricing() {
     const [
       advancedBuilderPriceCredits,
+      advancedBuilderUnlockBonusCredits,
       additionalBusinessPriceCredits,
       eurRonRate,
       affiliateEnabled,
@@ -17,6 +18,7 @@ export class PlatformController {
       affiliateMinDepositCredits,
     ] = await Promise.all([
       this.settings.advancedBuilderPriceCredits(),
+      this.settings.advancedBuilderUnlockBonusCredits(),
       this.settings.additionalBusinessPriceCredits(),
       this.settings.eurRonRate(),
       this.settings.affiliateEnabled(),
@@ -25,6 +27,7 @@ export class PlatformController {
     ]);
     return {
       advancedBuilderPriceCredits,
+      advancedBuilderUnlockBonusCredits,
       additionalBusinessPriceCredits,
       eurRonRate,
       affiliateEnabled,

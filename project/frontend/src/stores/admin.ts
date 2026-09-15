@@ -60,6 +60,7 @@ export interface AdminStats {
 export interface AdminSettings {
   eurRonRate: number
   advancedBuilderPriceCredits: number
+  advancedBuilderUnlockBonusCredits: number
   additionalBusinessPriceCredits: number
   invoiceVatRatePct: number
   affiliateEnabled: boolean

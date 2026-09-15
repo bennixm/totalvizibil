@@ -473,6 +473,42 @@ export class WalletService {
   }
 
   /**
+   * Debit the wallet for AI usage inside the Website Builder. Unlike `spend()`,
+   * this never throws or refuses: the AI call already happened (the cost is
+   * already incurred on our side) by the time this runs, so there's nothing
+   * to "reject" — it just settles the bill, clamping the deduction so the
+   * balance never goes below zero (same clamp as `adjust()`) instead of
+   * silently skipping the charge when the exact remaining balance is less
+   * than this hop's cost. What actually stops a NEW turn once the wallet is
+   * empty is `AiUsageService.assertUserCanAfford`, checked before any of this
+   * runs. A zero-cost hop (or an already-empty wallet) writes nothing.
+   */
+  async chargeAiUsage(userId: string, minor: number, companyId: string): Promise<void> {
+    if (minor <= 0) return;
+    const wallet = await this.ensureWallet(userId);
+    const deltaMinor = Math.min(minor, Math.max(0, wallet.balanceMinor));
+    if (deltaMinor <= 0) return;
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balanceMinor: { decrement: deltaMinor } },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          companyId,
+          type: 'spend',
+          status: 'completed',
+          provider: 'ai-usage',
+          amountMinor: -deltaMinor,
+          balanceAfterMinor: updated.balanceMinor,
+          description: 'Website Builder usage',
+        },
+      });
+    });
+  }
+
+  /**
    * Debit the wallet for a platform service (advanced builder unlock, additional
    * business). Atomic and prepaid — throws `insufficient_credits` rather than
    * going negative. `amountMinor` is a positive magnitude.

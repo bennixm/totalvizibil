@@ -105,4 +105,100 @@ describe('checkStaticQuality', () => {
     });
     expect(result.passed).toBe(true);
   });
+
+  describe('SEO basics — only checked when index.html was itself touched this turn', () => {
+    const seoOkIndex =
+      '<html><head><title>Acme Plumbing — Cluj</title>' +
+      '<meta name="description" content="Licensed plumbers serving Cluj-Napoca."></head><body></body></html>';
+    const seoOkApp =
+      '<template><h1>Acme Plumbing</h1><img src="/hero.jpg" alt="Our team at work" /></template>';
+
+    it('passes a full page build with title, description, an h1, and alt text', () => {
+      const after = new Map(baseFiles).set('index.html', seoOkIndex).set('src/App.vue', seoOkApp);
+      const result = checkStaticQuality({
+        changedPaths: ['index.html', 'src/App.vue'],
+        filesBefore: baseFiles,
+        filesAfter: after,
+        reply: 'Built the site.',
+        mutatingToolCallCount: 2,
+      });
+      expect(result.passed).toBe(true);
+    });
+
+    it('fails when index.html has no <title>', () => {
+      const badIndex = seoOkIndex.replace(/<title>[^<]*<\/title>/, '');
+      const after = new Map(baseFiles).set('index.html', badIndex).set('src/App.vue', seoOkApp);
+      const result = checkStaticQuality({
+        changedPaths: ['index.html', 'src/App.vue'],
+        filesBefore: baseFiles,
+        filesAfter: after,
+        reply: 'Built the site.',
+        mutatingToolCallCount: 2,
+      });
+      expect(result.passed).toBe(false);
+      expect(result.reason).toMatch(/<title>/);
+    });
+
+    it('fails when index.html has no meta description', () => {
+      const badIndex = seoOkIndex.replace(/<meta name="description"[^>]*>/, '');
+      const after = new Map(baseFiles).set('index.html', badIndex).set('src/App.vue', seoOkApp);
+      const result = checkStaticQuality({
+        changedPaths: ['index.html', 'src/App.vue'],
+        filesBefore: baseFiles,
+        filesAfter: after,
+        reply: 'Built the site.',
+        mutatingToolCallCount: 2,
+      });
+      expect(result.passed).toBe(false);
+      expect(result.reason).toMatch(/meta name="description"/);
+    });
+
+    it('fails when the page has no <h1> anywhere', () => {
+      const after = new Map(baseFiles)
+        .set('index.html', seoOkIndex)
+        .set('src/App.vue', '<template><h2>Acme Plumbing</h2></template>');
+      const result = checkStaticQuality({
+        changedPaths: ['index.html', 'src/App.vue'],
+        filesBefore: baseFiles,
+        filesAfter: after,
+        reply: 'Built the site.',
+        mutatingToolCallCount: 2,
+      });
+      expect(result.passed).toBe(false);
+      expect(result.reason).toMatch(/<h1>/);
+    });
+
+    it('fails when an <img> is missing an alt attribute', () => {
+      const after = new Map(baseFiles)
+        .set('index.html', seoOkIndex)
+        .set('src/App.vue', '<template><h1>Acme</h1><img src="/hero.jpg" /></template>');
+      const result = checkStaticQuality({
+        changedPaths: ['index.html', 'src/App.vue'],
+        filesBefore: baseFiles,
+        filesAfter: after,
+        reply: 'Built the site.',
+        mutatingToolCallCount: 2,
+      });
+      expect(result.passed).toBe(false);
+      expect(result.reason).toMatch(/alt attribute/);
+    });
+
+    it('does NOT check SEO basics on an incremental edit that never touches index.html', () => {
+      // src/App.vue here has no h1/alt at all, but index.html wasn't part of
+      // this turn's changes — a small unrelated edit shouldn't be penalized
+      // for pre-existing SEO gaps it never touched.
+      const after = new Map(baseFiles).set(
+        'src/components/Button.vue',
+        '<template><button>Click</button></template>',
+      );
+      const result = checkStaticQuality({
+        changedPaths: ['src/components/Button.vue'],
+        filesBefore: baseFiles,
+        filesAfter: after,
+        reply: 'Updated the button.',
+        mutatingToolCallCount: 1,
+      });
+      expect(result.passed).toBe(true);
+    });
+  });
 });

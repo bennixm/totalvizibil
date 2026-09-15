@@ -1,10 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import {
-  AiUsageService,
-  USER_DAILY_MAX_USD,
-  USER_MONTHLY_MAX_USD,
-  REQUEST_MAX_COST_USD,
-} from './ai-usage.service';
+import { AiUsageService, REQUEST_MAX_COST_USD, CREDITS_PER_USD } from './ai-usage.service';
+import { CREDIT_MINOR } from '../../../wallet/money';
 
 function fakePrisma() {
   const rows: Record<string, unknown>[] = [];
@@ -57,9 +53,27 @@ function fakePrisma() {
   };
 }
 
+/** A minimal in-memory wallet double — just enough to exercise the REAL
+ *  `assertUserCanAfford` (reads `canAfford`) and `record`'s wallet charge
+ *  (calls `chargeAiUsage`), without a real database. */
+function fakeWallet(balanceMinor = 10_000) {
+  let balance = balanceMinor;
+  let blocked = false;
+  return {
+    canAfford: jest.fn(async (_userId: string, minor: number) => !blocked && balance >= minor),
+    chargeAiUsage: jest.fn(async (_userId: string, minor: number, _companyId: string) => {
+      const delta = Math.min(minor, Math.max(0, balance));
+      balance -= delta;
+    }),
+    __setBlocked: (v: boolean) => (blocked = v),
+    __balance: () => balance,
+  };
+}
+
 function entry(overrides: Partial<Parameters<AiUsageService['record']>[0]> = {}) {
   return {
     userId: 'u1',
+    companyId: 'c1',
     projectId: 'p1',
     requestId: 'r1',
     provider: 'claude' as const,
@@ -75,7 +89,7 @@ function entry(overrides: Partial<Parameters<AiUsageService['record']>[0]> = {})
 describe('AiUsageService', () => {
   it('records a usage row with all the accounting fields', async () => {
     const prisma = fakePrisma();
-    const svc = new AiUsageService(prisma as never);
+    const svc = new AiUsageService(prisma as never, fakeWallet() as never);
     await svc.record(entry());
     expect(prisma.__rows).toHaveLength(1);
     expect(prisma.__rows[0]).toMatchObject({ userId: 'u1', provider: 'claude', succeeded: true });
@@ -83,7 +97,7 @@ describe('AiUsageService', () => {
 
   it('sums cost across every hop sharing the same requestId (escalation)', async () => {
     const prisma = fakePrisma();
-    const svc = new AiUsageService(prisma as never);
+    const svc = new AiUsageService(prisma as never, fakeWallet() as never);
     await svc.record(entry({ requestId: 'r1', estimatedCostUsd: 0.01, provider: 'deepseek' }));
     await svc.record(entry({ requestId: 'r1', estimatedCostUsd: 0.02, provider: 'deepseek' }));
     await svc.record(entry({ requestId: 'r1', estimatedCostUsd: 0.4, provider: 'claude' }));
@@ -92,44 +106,51 @@ describe('AiUsageService', () => {
 
   it('returns 0 for a request/user with no recorded usage yet', async () => {
     const prisma = fakePrisma();
-    const svc = new AiUsageService(prisma as never);
+    const svc = new AiUsageService(prisma as never, fakeWallet() as never);
     expect(await svc.costForRequest('none')).toBe(0);
     expect(await svc.dailySpend('nobody')).toBe(0);
   });
 
-  it('rejects a new turn once the user is at or over the daily budget', async () => {
+  it('charges the wallet 2 credits per $1 of estimated cost, tagged to the company', async () => {
     const prisma = fakePrisma();
-    const svc = new AiUsageService(prisma as never);
-    await svc.record(entry({ estimatedCostUsd: USER_DAILY_MAX_USD }));
-    await expect(svc.assertUserBudget('u1')).rejects.toThrow(BadRequestException);
+    const wallet = fakeWallet();
+    const svc = new AiUsageService(prisma as never, wallet as never);
+    await svc.record(entry({ estimatedCostUsd: 0.5, companyId: 'c42' }));
+    const expectedMinor = Math.round(0.5 * CREDITS_PER_USD * CREDIT_MINOR);
+    expect(wallet.chargeAiUsage).toHaveBeenCalledWith('u1', expectedMinor, 'c42');
   });
 
-  it('rejects once the user is at or over the monthly budget even under the daily cap', async () => {
+  it('assertUserCanAfford rejects once the wallet has no balance left', async () => {
     const prisma = fakePrisma();
-    const svc = new AiUsageService(prisma as never);
-    // Spread across many small entries so daily alone wouldn't trip it.
-    for (let i = 0; i < 10; i++)
-      await svc.record(entry({ estimatedCostUsd: USER_MONTHLY_MAX_USD / 10 }));
-    await expect(svc.assertUserBudget('u1')).rejects.toThrow(BadRequestException);
+    const wallet = fakeWallet(0);
+    const svc = new AiUsageService(prisma as never, wallet as never);
+    await expect(svc.assertUserCanAfford('u1')).rejects.toThrow(BadRequestException);
   });
 
-  it('allows a turn comfortably under both budgets', async () => {
+  it('assertUserCanAfford rejects a blocked wallet even with a positive balance', async () => {
     const prisma = fakePrisma();
-    const svc = new AiUsageService(prisma as never);
-    await svc.record(entry({ estimatedCostUsd: 0.5 }));
-    await expect(svc.assertUserBudget('u1')).resolves.toBeUndefined();
+    const wallet = fakeWallet(10_000);
+    wallet.__setBlocked(true);
+    const svc = new AiUsageService(prisma as never, wallet as never);
+    await expect(svc.assertUserCanAfford('u1')).rejects.toThrow(BadRequestException);
+  });
+
+  it('assertUserCanAfford allows a turn while the wallet has any balance', async () => {
+    const prisma = fakePrisma();
+    const svc = new AiUsageService(prisma as never, fakeWallet(100) as never);
+    await expect(svc.assertUserCanAfford('u1')).resolves.toBeUndefined();
   });
 
   it('rejects further escalation once the per-request cost cap is hit', async () => {
     const prisma = fakePrisma();
-    const svc = new AiUsageService(prisma as never);
+    const svc = new AiUsageService(prisma as never, fakeWallet() as never);
     await svc.record(entry({ requestId: 'r1', estimatedCostUsd: REQUEST_MAX_COST_USD }));
     await expect(svc.assertRequestBudget('r1')).rejects.toThrow(BadRequestException);
   });
 
   it('summaryForUser breaks down spend by provider and task category', async () => {
     const prisma = fakePrisma();
-    const svc = new AiUsageService(prisma as never);
+    const svc = new AiUsageService(prisma as never, fakeWallet() as never);
     await svc.record(
       entry({ provider: 'deepseek', taskCategory: 'simple_edit', estimatedCostUsd: 0.01 }),
     );
@@ -138,8 +159,6 @@ describe('AiUsageService', () => {
     );
 
     const summary = await svc.summaryForUser('u1');
-    expect(summary.dailyLimitUsd).toBe(USER_DAILY_MAX_USD);
-    expect(summary.monthlyLimitUsd).toBe(USER_MONTHLY_MAX_USD);
     expect(summary.byProvider.map((p) => p.provider).sort()).toEqual(['claude', 'deepseek']);
     expect(summary.byCategory.map((c) => c.taskCategory).sort()).toEqual([
       'initial_generation',

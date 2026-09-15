@@ -22,6 +22,7 @@ function flash(text: string, color: 'success' | 'error' = 'success') {
 const form = reactive({
   eurRonRate: 0,
   advancedBuilderPriceCredits: 0,
+  advancedBuilderUnlockBonusCredits: 0,
   additionalBusinessPriceCredits: 0,
   invoiceVatRatePct: 0,
 })
@@ -70,6 +71,16 @@ const fields = [
     suffix: 'cr',
   },
   {
+    key: 'advancedBuilderUnlockBonusCredits' as const,
+    label: 'adminSettings.unlockBonus',
+    hint: 'adminSettings.unlockBonusHint',
+    icon: 'mdi-gift-outline',
+    min: 0,
+    max: 100000,
+    step: 1,
+    suffix: 'cr',
+  },
+  {
     key: 'additionalBusinessPriceCredits' as const,
     label: 'adminSettings.extraBizPrice',
     hint: 'adminSettings.extraBizPriceHint',
@@ -95,6 +106,7 @@ function hydrate() {
   if (!admin.settings) return
   form.eurRonRate = admin.settings.eurRonRate
   form.advancedBuilderPriceCredits = admin.settings.advancedBuilderPriceCredits
+  form.advancedBuilderUnlockBonusCredits = admin.settings.advancedBuilderUnlockBonusCredits
   form.additionalBusinessPriceCredits = admin.settings.additionalBusinessPriceCredits
   form.invoiceVatRatePct = admin.settings.invoiceVatRatePct
   affiliate.enabled = admin.settings.affiliateEnabled
@@ -121,6 +133,7 @@ const dirty = computed(
     !!admin.settings &&
     (form.eurRonRate !== admin.settings.eurRonRate ||
       form.advancedBuilderPriceCredits !== admin.settings.advancedBuilderPriceCredits ||
+      form.advancedBuilderUnlockBonusCredits !== admin.settings.advancedBuilderUnlockBonusCredits ||
       form.additionalBusinessPriceCredits !== admin.settings.additionalBusinessPriceCredits ||
       form.invoiceVatRatePct !== admin.settings.invoiceVatRatePct ||
       affiliate.enabled !== admin.settings.affiliateEnabled ||

@@ -24,11 +24,12 @@ export interface ProV2Usage {
   escalations?: number
 }
 
+/** Internal-only cost breakdown (see ai-usage.service.ts) — never rendered
+ *  in the builder UI; the owner only ever sees their wallet balance. Kept
+ *  fetchable for future admin/debug tooling. */
 export interface AiUsageSummary {
   dailySpendUsd: number
-  dailyLimitUsd: number
   monthlySpendUsd: number
-  monthlyLimitUsd: number
   byProvider: { provider: string; calls: number; costUsd: number; inputTokens: number; outputTokens: number }[]
   byCategory: { taskCategory: string; calls: number; costUsd: number }[]
 }
@@ -174,9 +175,30 @@ export const useProV2Store = defineStore('pro-v2', {
         void this.loadUsage(companyId)
         return true
       } catch (err) {
+        const status = err instanceof ApiError ? err.status : -1
         this.error = err instanceof ApiError ? err.message : 'error'
-        this.messages.pop()
-        return false
+        // A 4xx here is always a fast rejection from BEFORE the turn's user
+        // message is even persisted (DTO validation, no AI configured, empty
+        // wallet — see runTurn() in pro-v2-agent.service.ts) — nothing to
+        // reconcile, safe to discard the optimistic message immediately.
+        // Anything else (status 0 = client-side timeout/dropped connection,
+        // 5xx = an upstream proxy gave up on a slow response) tells us
+        // NOTHING about whether the turn actually started — the backend
+        // persists the user message and may finish the turn regardless of
+        // whether the client is still there to see it. Reconcile with the
+        // server instead of silently discarding what might already be a
+        // real exchange — same recovery path a page reload mid-turn uses.
+        if (status >= 400 && status < 500) {
+          this.messages.pop()
+          return false
+        }
+        const outcome = await this.resumeIfInFlight(companyId)
+        if (outcome === 'not_needed') {
+          this.messages.pop()
+          return false
+        }
+        if (outcome === 'timed_out') this.error = 'resume_timed_out'
+        return outcome === 'resolved'
       } finally {
         this.sending = false
       }

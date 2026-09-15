@@ -93,13 +93,15 @@ export class ProV2Service {
       where: { id: companyId },
       select: { advancedUnlockedAt: true, ownerUserId: true },
     });
-    const [priceCredits, walletSummary] = await Promise.all([
+    const [priceCredits, bonusCredits, walletSummary] = await Promise.all([
       this.settings.advancedBuilderPriceCredits(),
+      this.settings.advancedBuilderUnlockBonusCredits(),
       this.wallet.getSummary(company.ownerUserId),
     ]);
     return {
       unlocked: company.advancedUnlockedAt != null,
       priceCredits,
+      bonusCredits,
       wallet: { balance: walletSummary.balance },
     };
   }
@@ -135,6 +137,14 @@ export class ProV2Service {
         description: 'Advanced website builder',
         companyId,
       });
+    }
+    // A starting balance so the owner can actually use the AI builder they
+    // just unlocked — admin-customizable, same pattern as the unlock price
+    // itself. Granted on every real unlock (paid or admin-granted free),
+    // not conditioned on `chargeOwner`.
+    const bonus = await this.settings.advancedBuilderUnlockBonusCredits();
+    if (bonus > 0) {
+      await this.wallet.adjust(ownerUserId, bonus, 'Website Builder unlock bonus');
     }
     await this.prisma.company.update({
       where: { id: companyId },
