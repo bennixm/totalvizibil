@@ -54,22 +54,26 @@ interface Billboard {
  * a real Vue/Vite project + static bundle, and never touches `content`/`theme`
  * on publish — those columns are still whatever onboarding placeholder JSON
  * was there before the company ever opened the builder, completely
- * disconnected from the real site. Extracting a hero title/image/accent from
- * that JSON would show stale, unrelated text, so PRO V2 sites skip content
- * extraction entirely and fall back to the company's own displayName/
- * description + illustrated banner (see FeedAdCard.vue) — still `builtWithBuilder`
- * so they get the "own website" featured treatment.
+ * disconnected from the real site. Extracting a hero title/subtitle/accent
+ * from that JSON would show stale, unrelated text, so PRO V2 sites skip
+ * content extraction entirely and fall back to the company's own
+ * displayName/description (see FeedAdCard.vue) — still `builtWithBuilder`
+ * so they get the "own website" featured treatment. The image is the one
+ * exception: `heroImageUrl` is the real image found in the published
+ * bundle itself (see hero-image.ts), not derived from the stale JSON, so
+ * it's used directly when present.
  */
 export function heroBillboard(
   content: unknown,
   theme: unknown,
   generator: string | null,
+  heroImageUrl: string | null = null,
 ): Billboard {
   const isBundleBuilt = generator === 'pro-v2';
   const builtWithBuilder =
     isBundleBuilt || (typeof generator === 'string' && generator.startsWith('advanced-builder'));
   if (isBundleBuilt) {
-    return { title: null, subtitle: null, image: null, builtWithBuilder, accent: null };
+    return { title: null, subtitle: null, image: heroImageUrl, builtWithBuilder, accent: null };
   }
   const th = (theme ?? null) as { accent?: unknown; palette?: unknown } | null;
   const accent =
@@ -138,7 +142,9 @@ const feedInclude = {
   category: { include: { parent: { select: { slug: true, nameI18n: true } } } },
   locations: { where: { isPrimary: true }, take: 1 },
   services: { orderBy: { position: 'asc' }, take: 6 },
-  website: { select: { content: true, status: true, theme: true, generator: true } },
+  website: {
+    select: { content: true, status: true, theme: true, generator: true, heroImageUrl: true },
+  },
   campaign: { select: { appearFirst: true, status: true } },
   _count: { select: { services: true } },
 } satisfies Prisma.CompanyInclude;
@@ -263,7 +269,12 @@ export class FeedService {
       const loc = c.locations[0] ?? null;
       const hasWebsite = !!c.website && c.website.status !== 'draft';
       const billboard: Billboard = hasWebsite
-        ? heroBillboard(c.website?.content, c.website?.theme, c.website?.generator ?? null)
+        ? heroBillboard(
+            c.website?.content,
+            c.website?.theme,
+            c.website?.generator ?? null,
+            c.website?.heroImageUrl ?? null,
+          )
         : { title: null, subtitle: null, image: null, builtWithBuilder: false, accent: null };
       return {
         id: c.id,

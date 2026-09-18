@@ -20,6 +20,7 @@ import {
   normalizeProjectPath,
 } from './path-safety';
 import { isPublishableBundlePath, mimeForBundlePath } from './bundle-mime';
+import { extractHeroImageUrl } from './hero-image';
 
 const CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager];
 
@@ -438,6 +439,12 @@ export class ProV2Service {
     }
 
     const publishedAt = new Date();
+    // The first real image found in the built bundle — used as the feed
+    // card's background for this site (see feed.service.ts heroBillboard).
+    // Only overwrite when one is actually found: an edit that happens not
+    // to touch the hero shouldn't blank out a good image found earlier.
+    const heroImageUrl = extractHeroImageUrl(rows);
+
     await this.prisma.$transaction([
       this.prisma.websiteBundleFile.deleteMany({ where: { websiteId: website.id } }),
       this.prisma.websiteBundleFile.createMany({
@@ -454,7 +461,11 @@ export class ProV2Service {
         // Tag the generator so the feed/dashboard know this site's `content`/
         // `theme` (leftover onboarding placeholder JSON) is not what's
         // actually live — the real site is the bundle above. See feed.service.ts.
-        data: { publishedAt, generator: 'pro-v2' },
+        data: {
+          publishedAt,
+          generator: 'pro-v2',
+          ...(heroImageUrl ? { heroImageUrl } : {}),
+        },
       }),
     ]);
 

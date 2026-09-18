@@ -45,16 +45,23 @@ export function classifyTask(input: {
   return 'multi_file';
 }
 
-/** Where a fresh (non-repair) turn starts. Initial generation and any future
- *  review pass are pinned to Claude — never moved for cost, per spec. */
+/** Where a fresh (non-repair) turn starts. Initial generation, any future
+ *  review pass, AND multi-file/complex work are pinned to Claude — never
+ *  moved to the cheap tier for cost, per spec (see the module comment: real
+ *  cost data showed multi-file/expansion turns are exactly the category
+ *  that must stay on Claude for quality). Only a narrowly-matched simple,
+ *  mechanical edit (see SIMPLE_EDIT_RE) starts on the cheap tier. `repair`
+ *  is unreachable here in practice — repair turns always resolve via
+ *  `tierForRepairAttempt` instead (see ProV2AgentService.runTurn) — kept
+ *  only for switch exhaustiveness. */
 export function initialTier(category: TaskCategory): ModelTier {
   switch (category) {
     case 'initial_generation':
     case 'review':
+    case 'multi_file':
       return 'claude';
     case 'simple_edit':
       return 'deepseek-flash';
-    case 'multi_file':
     case 'repair':
       return 'deepseek-flash';
   }

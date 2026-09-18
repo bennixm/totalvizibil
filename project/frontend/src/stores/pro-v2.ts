@@ -253,7 +253,15 @@ export const useProV2Store = defineStore('pro-v2', {
           `/companies/${companyId}/pro-v2/assets`,
           { method: 'POST', body: { dataUri }, timeoutMs: 30_000 },
         )
-        return res.url
+        // This URL is woven into the chat message and used verbatim as an
+        // <img src> by the generated Vue file — which runs inside the
+        // WebContainer sandbox, a COMPLETELY different origin
+        // (*.webcontainer-api.io) than this app. The backend returns a bare
+        // relative path (correct once published, same-origin as this app),
+        // but a relative path resolves against the SANDBOX's own origin and
+        // 404s there. Absolute here so it works in both places — <img>
+        // doesn't need CORS to just display a cross-origin image.
+        return new URL(res.url, window.location.origin).toString()
       } catch (err) {
         this.error = err instanceof ApiError ? err.message : 'error'
         return null

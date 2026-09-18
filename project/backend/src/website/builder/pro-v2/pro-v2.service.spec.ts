@@ -25,6 +25,7 @@ function fakePrisma(
     companyId: 'c1',
     generator: 'easy-template-v3:classic',
     publishedAt: null as Date | null,
+    heroImageUrl: null as string | null,
   };
   const bundleFiles: {
     websiteId: string;
@@ -453,6 +454,47 @@ describe('ProV2Service', () => {
     const updated = await prisma.website.findUnique();
     expect(updated?.generator).toBe('pro-v2');
     expect(updated?.publishedAt).toBeInstanceOf(Date);
+  });
+
+  it('publishBundle extracts and stores the real image found in the bundle, for the feed card', async () => {
+    const prisma = fakePrisma();
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
+    await svc.publishBundle('c1', 'u1', [
+      { path: 'index.html', contentBase64: Buffer.from('<html></html>').toString('base64') },
+      {
+        path: 'assets/index.js',
+        contentBase64: Buffer.from(
+          'src:"https://images.pexels.com/photos/42/hero.jpeg?auto=compress"',
+        ).toString('base64'),
+      },
+    ]);
+
+    const updated = await prisma.website.findUnique();
+    expect(updated?.heroImageUrl).toBe('https://images.pexels.com/photos/42/hero.jpeg?auto=compress');
+  });
+
+  it('publishBundle does NOT clobber an existing heroImageUrl when this publish has no recognizable image', async () => {
+    const prisma = fakePrisma();
+    const svc = new ProV2Service(
+      prisma as never,
+      fakeWallet() as never,
+      fakeSettings() as never,
+      fakeAssets() as never,
+    );
+    // Seed an existing value directly, as if a previous publish had found one.
+    await prisma.website.update({ data: { heroImageUrl: 'https://images.pexels.com/existing.jpeg' } });
+
+    await svc.publishBundle('c1', 'u1', [
+      { path: 'index.html', contentBase64: Buffer.from('<html>no images</html>').toString('base64') },
+    ]);
+
+    const updated = await prisma.website.findUnique();
+    expect(updated?.heroImageUrl).toBe('https://images.pexels.com/existing.jpeg');
   });
 
   it('publishBundle rejects a bundle with no index.html entry point', async () => {

@@ -93,6 +93,17 @@ const OUTPUT_BUFFER_CHARS = 4000
  *  path). Debouncing until output has been quiet this long reports the whole
  *  thing instead of a truncated fragment. */
 const ERROR_DEBOUNCE_MS = 250
+/** WebContainer/StackBlitz's OWN infrastructure noise — its HMR WebSocket
+ *  proxy occasionally fails the handshake (a `webcontainer-api.io` internal
+ *  routing hiccup, e.g. "Cannot destructure property 'tcp' of
+ *  this.tcpServers[...]"), and the browser logs that as a normal console
+ *  error just like an app bug would be. It is never something in the
+ *  generated site's own code — reporting it to the AI as a bug wastes a
+ *  turn (it can't fix StackBlitz's infrastructure) and has previously led
+ *  to it disabling HMR entirely as a dead-end "fix". Filtered out here,
+ *  before it ever reaches onExecutionError — still logged to the console
+ *  panel for a human to see, just not sent to the agent. */
+const INFRA_NOISE_RE = /websocket (?:connection|handshake)|tcpServers|webcontainer-api\.io/i
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
@@ -168,6 +179,10 @@ export class ProV2Sandbox {
   private reportExecutionError(kind: ExecutionError['kind'], rawText: string): void {
     const summary = rawText.trim().slice(0, 2000)
     if (!summary) return
+    if (INFRA_NOISE_RE.test(summary)) {
+      this.onLog({ text: summary, kind: 'error' })
+      return
+    }
     const key = normalizeErrorKey(summary)
     const now = Date.now()
     if (key === this.lastErrorKey && now - this.lastErrorAt < 2000) return

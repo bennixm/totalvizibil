@@ -54,10 +54,12 @@ describe('tier ladders', () => {
     expect(initialTier('review')).toBe('claude');
   });
 
-  it('starts simple edits, multi-file work and repairs on the cheapest tier', () => {
+  it('starts only a narrowly-matched simple edit on the cheap tier', () => {
     expect(initialTier('simple_edit')).toBe('deepseek-flash');
-    expect(initialTier('multi_file')).toBe('deepseek-flash');
-    expect(initialTier('repair')).toBe('deepseek-flash');
+  });
+
+  it('pins multi-file/complex work to Claude — the actual bug this fixes: it used to start on DeepSeek and produce lower-quality results on genuinely complex requests', () => {
+    expect(initialTier('multi_file')).toBe('claude');
   });
 
   it('escalates flash -> pro -> claude, and claude has no further tier', () => {
@@ -119,6 +121,7 @@ describe('ModelRouter', () => {
     );
     expect(router.resolveInitial('initial_generation').tier).toBe('claude');
     expect(router.resolveInitial('simple_edit').tier).toBe('deepseek-flash');
+    expect(router.resolveInitial('multi_file').tier).toBe('claude');
     expect(router.resolveNext('deepseek-flash').tier).toBe('deepseek-pro');
     expect(router.resolveForRepairAttempt(3).tier).toBe('claude');
   });

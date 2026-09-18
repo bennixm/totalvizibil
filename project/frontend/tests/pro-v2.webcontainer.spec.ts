@@ -138,6 +138,32 @@ describe('ProV2Sandbox — §5 execution-error capture', () => {
     expect(errors).toHaveLength(1)
   })
 
+  it('does NOT report a WebContainer/HMR WebSocket handshake failure to the agent — it is StackBlitz infrastructure noise, not a bug in the generated site', async () => {
+    const { ProV2Sandbox } = await setup()
+    container.spawn.mockImplementation(async () => fakeProcess({ exitCode: 0 }))
+
+    const box = new ProV2Sandbox()
+    const errors: { kind: string; summary: string }[] = []
+    box.onExecutionError = (e) => errors.push(e)
+    await box.start([{ path: 'package.json', content: '{}' }])
+
+    container.trigger('preview-message', {
+      type: 'PREVIEW_CONSOLE_ERROR',
+      args: [
+        "WebSocket connection to 'wss://k03e2io1v3fx--5173--d5306e6f.local-corp.webcontainer-api.io/' failed: " +
+          "Error during WebSocket handshake: Cannot destructure property 'tcp' of 'this.tcpServers[...]' as it is undefined.",
+      ],
+      stack: '',
+      previewId: 'p1',
+      port: 5173,
+      pathname: '/',
+      search: '',
+      hash: '',
+    })
+
+    expect(errors).toHaveLength(0)
+  })
+
   it('detects a Vite/dev-server build error in its own output and reports kind "build"', async () => {
     const { ProV2Sandbox } = await setup()
     container.spawn.mockImplementation(async (_cmd: string, args: string[]) => {

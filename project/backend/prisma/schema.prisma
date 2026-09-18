@@ -264,6 +264,12 @@ model Website {
   // as a static bundle (see WebsiteBundleFile). Null = never published — the
   // public page falls back to `content`/`theme` (or the identity-only page).
   publishedAt DateTime?     @map("published_at")
+  // The Website Builder (PRO V2) never touches `content`/`theme` (see
+  // `generator`), so those columns can't supply a feed-card image for a
+  // bundle-based site — this is the first real image actually found in the
+  // built bundle at publish time (a Pexels or uploaded-asset URL), so the
+  // feed ad's background can show what the site really looks like.
+  heroImageUrl String?      @map("hero_image_url")
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 

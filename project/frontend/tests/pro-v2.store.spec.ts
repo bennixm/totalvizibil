@@ -220,14 +220,14 @@ describe('pro-v2 store — uploading a chat image attachment', () => {
     apiFetchMock.mockReset()
   })
 
-  it('reads the file, uploads it, and returns the public URL', async () => {
+  it('reads the file, uploads it, and returns an ABSOLUTE public URL (the generated site runs in a different origin — the WebContainer sandbox — so a relative path would 404 there)', async () => {
     const v2 = useProV2Store()
     apiFetchMock.mockResolvedValueOnce({ id: 'a1', url: '/api/v1/website-assets/a1' })
 
     const file = new File([new Uint8Array([1, 2, 3])], 'hero.png', { type: 'image/png' })
     const url = await v2.uploadAsset('c1', file)
 
-    expect(url).toBe('/api/v1/website-assets/a1')
+    expect(url).toBe(`${window.location.origin}/api/v1/website-assets/a1`)
     expect(apiFetchMock).toHaveBeenCalledWith(
       '/companies/c1/pro-v2/assets',
       expect.objectContaining({
