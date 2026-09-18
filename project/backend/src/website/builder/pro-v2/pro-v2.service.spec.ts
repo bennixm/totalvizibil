@@ -475,7 +475,9 @@ describe('ProV2Service', () => {
     ]);
 
     const updated = await prisma.website.findUnique();
-    expect(updated?.heroImageUrl).toBe('https://images.pexels.com/photos/42/hero.jpeg?auto=compress');
+    expect(updated?.heroImageUrl).toBe(
+      'https://images.pexels.com/photos/42/hero.jpeg?auto=compress',
+    );
   });
 
   it('publishBundle does NOT clobber an existing heroImageUrl when this publish has no recognizable image', async () => {
@@ -487,10 +489,15 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
     );
     // Seed an existing value directly, as if a previous publish had found one.
-    await prisma.website.update({ data: { heroImageUrl: 'https://images.pexels.com/existing.jpeg' } });
+    await prisma.website.update({
+      data: { heroImageUrl: 'https://images.pexels.com/existing.jpeg' },
+    });
 
     await svc.publishBundle('c1', 'u1', [
-      { path: 'index.html', contentBase64: Buffer.from('<html>no images</html>').toString('base64') },
+      {
+        path: 'index.html',
+        contentBase64: Buffer.from('<html>no images</html>').toString('base64'),
+      },
     ]);
 
     const updated = await prisma.website.findUnique();

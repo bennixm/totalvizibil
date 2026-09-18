@@ -18,7 +18,10 @@ describe('extractHeroImageUrl', () => {
 
   it('finds an uploaded-asset URL', () => {
     const url = extractHeroImageUrl([
-      file('assets/index-abc.js', 'src:"/api/v1/website-assets/9c1f2a3b-1111-2222-3333-444455556666"'),
+      file(
+        'assets/index-abc.js',
+        'src:"/api/v1/website-assets/9c1f2a3b-1111-2222-3333-444455556666"',
+      ),
     ]);
     expect(url).toBe('/api/v1/website-assets/9c1f2a3b-1111-2222-3333-444455556666');
   });

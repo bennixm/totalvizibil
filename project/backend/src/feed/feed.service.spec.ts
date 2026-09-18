@@ -55,7 +55,12 @@ describe('heroBillboard', () => {
   /** The image IS the exception — it comes from the real published bundle
    *  (see hero-image.ts), not the stale content JSON, so it's used as-is. */
   it('uses heroImageUrl (the real image found in the published bundle) for a "pro-v2" site', () => {
-    const b = heroBillboard(CONTENT, THEME, 'pro-v2', 'https://images.pexels.com/photos/1/real.jpeg');
+    const b = heroBillboard(
+      CONTENT,
+      THEME,
+      'pro-v2',
+      'https://images.pexels.com/photos/1/real.jpeg',
+    );
     expect(b).toEqual({
       title: null,
       subtitle: null,

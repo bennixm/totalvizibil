@@ -12,7 +12,8 @@
  * HTML/JS/CSS is enough — no HTML/JS parsing needed.
  */
 
-const IMAGE_URL_RE = /https:\/\/images\.pexels\.com\/[^\s"'`)]+|\/api\/v1\/website-assets\/[a-f0-9-]+/i;
+const IMAGE_URL_RE =
+  /https:\/\/images\.pexels\.com\/[^\s"'`)]+|\/api\/v1\/website-assets\/[a-f0-9-]+/i;
 const TEXT_EXTENSIONS = new Set(['html', 'js', 'mjs', 'css']);
 
 function isTextFile(path: string): boolean {
