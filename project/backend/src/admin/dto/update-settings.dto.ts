@@ -97,4 +97,17 @@ export class UpdateSettingsDto {
   @IsString()
   @MaxLength(300)
   invoiceIssuerBank?: string;
+
+  // --- credits discount ---
+
+  @IsOptional()
+  @IsBoolean()
+  creditsDiscountEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(90)
+  creditsDiscountPct?: number;
 }

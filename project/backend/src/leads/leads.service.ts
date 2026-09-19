@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { LeadChannel, LeadStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { AppConfig } from '../config/env';
 import { isLikelyBot } from '../campaigns/ad-click';
 import {
@@ -24,6 +25,7 @@ export class LeadsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly notifications: NotificationsService,
     config: ConfigService<AppConfig, true>,
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
@@ -60,7 +62,7 @@ export class LeadsService {
       select: {
         id: true,
         displayName: true,
-        owner: { select: { email: true } },
+        owner: { select: { id: true, email: true } },
         contacts: { where: { isPublic: true } },
       },
     });
@@ -99,12 +101,24 @@ export class LeadsService {
     }
 
     if (channel === 'form') {
-      await this.notifyOwner(company.owner.email, company.displayName, company.id, lead);
+      // The lead is already saved above — a notification hiccup must never
+      // turn an already-successful submission into an error response for
+      // the visitor (who might then retry and create a near-duplicate lead).
+      void this.notifyOwner(
+        company.owner.id,
+        company.owner.email,
+        company.displayName,
+        company.id,
+        lead,
+      ).catch((err) =>
+        this.logger.error('Lead notification failed', err instanceof Error ? err.stack : err),
+      );
     }
     return { ok: true };
   }
 
   private async notifyOwner(
+    ownerId: string,
     to: string,
     companyName: string,
     companyId: string,
@@ -112,25 +126,32 @@ export class LeadsService {
   ): Promise<void> {
     const link = `${this.frontendOrigin}/leads?c=${companyId}`;
     const who = lead.name || lead.email || lead.phone || 'un vizitator';
-    await this.mail
-      .send({
-        to,
-        replyTo: lead.email ?? undefined,
-        subject: `Cerere nouă pentru ${companyName} — de la ${who}`,
-        text: [
-          `Ai o cerere nouă din formularul de contact al site-ului "${companyName}".`,
-          '',
-          `De la:     ${lead.name ?? '—'}`,
-          `Email:     ${lead.email ?? '—'}`,
-          `Telefon:   ${lead.phone ?? '—'}`,
-          '',
-          'Mesaj:',
-          lead.message ?? '',
-          '',
-          `Deschide în panou: ${link}`,
-        ].join('\n'),
+    await this.notifications
+      .notify({
+        userId: ownerId,
+        type: 'lead_received',
+        title: 'Ai primit o cerere pe platformă - conectează-te',
+        body: `Cerere nouă pentru ${companyName}, de la ${who}.`,
+        channels: { panel: true, email: true },
+        data: { companyId },
+        email: {
+          replyTo: lead.email ?? undefined,
+          subject: `Cerere nouă pentru ${companyName} — de la ${who}`,
+          text: [
+            `Ai o cerere nouă din formularul de contact al site-ului "${companyName}".`,
+            '',
+            `De la:     ${lead.name ?? '—'}`,
+            `Email:     ${lead.email ?? '—'}`,
+            `Telefon:   ${lead.phone ?? '—'}`,
+            '',
+            'Mesaj:',
+            lead.message ?? '',
+            '',
+            `Deschide în panou: ${link}`,
+          ].join('\n'),
+        },
       })
-      .catch((err) => this.logger.error(`lead email failed: ${String(err)}`));
+      .catch((err) => this.logger.error(`lead notification failed: ${String(err)}`));
   }
 
   // --- panel: list / detail ---------------------------------------

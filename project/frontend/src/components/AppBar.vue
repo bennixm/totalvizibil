@@ -6,10 +6,12 @@ import { useDisplay } from 'vuetify'
 import { storeToRefs } from 'pinia'
 
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
+import NotificationBell from '@/components/NotificationBell.vue'
 import ThemeQuickToggle from '@/components/ThemeQuickToggle.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
 import { useMoneyStore } from '@/stores/money'
+import { useNotificationsStore } from '@/stores/notifications'
 
 const { t } = useI18n()
 const { mdAndUp } = useDisplay()
@@ -17,6 +19,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const companies = useCompaniesStore()
 const money = useMoneyStore()
+const notifications = useNotificationsStore()
 const { overview, currentId } = storeToRefs(companies)
 
 const menuOpen = ref(false)
@@ -78,14 +81,27 @@ function signOut(): void {
   auth.logout()
   companies.reset()
   money.reset()
+  notifications.reset()
   void router.push({ name: 'feed' })
 }
 
 async function loadCompanies(): Promise<void> {
   if (auth.isAuthenticated) await companies.fetchOverview().catch(() => {})
 }
-onMounted(loadCompanies)
+function syncNotifications(): void {
+  if (auth.isAuthenticated) {
+    notifications.connect()
+    void notifications.fetchUnreadCount().catch(() => {})
+  } else {
+    notifications.reset()
+  }
+}
+onMounted(() => {
+  void loadCompanies()
+  syncNotifications()
+})
 watch(() => auth.isAuthenticated, loadCompanies)
+watch(() => auth.isAuthenticated, syncNotifications)
 </script>
 
 <template>
@@ -118,6 +134,7 @@ watch(() => auth.isAuthenticated, loadCompanies)
           {{ t('nav.createBusiness') }}
         </v-btn>
 
+        <NotificationBell v-if="auth.isAuthenticated" />
         <ThemeQuickToggle />
         <LocaleSwitcher />
 

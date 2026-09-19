@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 import { StripeModule } from './stripe/stripe.module';
 import { MailModule } from './mail/mail.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
 import { CategoriesModule } from './categories/categories.module';
@@ -34,6 +35,7 @@ import { HealthModule } from './health/health.module';
     StripeModule,
     MailModule,
     AuthModule,
+    NotificationsModule,
     CompaniesModule,
     CategoriesModule,
     FeedModule,

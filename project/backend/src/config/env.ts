@@ -31,6 +31,13 @@ export interface AppConfig {
    *  the dev stub confirm flow and refunds are unavailable (nothing real to
    *  refund). */
   stripeSecretKey: string;
+  /** Gmail SMTP, for testing real outbound mail. Empty user/pass ⇒ MailService
+   *  keeps its dev-log-only fallback (nothing is ever faked as sent). */
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpPass: string;
+  smtpFrom: string;
 }
 
 // Matches project/docker-compose.yml. Used only as a dev fallback when .env is
@@ -69,6 +76,11 @@ export function loadConfig(): AppConfig {
     visualQa: (process.env.VISUAL_QA?.trim().toLowerCase() ?? '') === 'on',
     screenshotUrl: process.env.SCREENSHOT_URL?.trim() ?? '',
     stripeSecretKey: process.env.STRIPE_SECRET_KEY?.trim() ?? '',
+    smtpHost: process.env.SMTP_HOST?.trim() || 'smtp.gmail.com',
+    smtpPort: Number(process.env.SMTP_PORT ?? 587),
+    smtpUser: process.env.SMTP_USER?.trim() ?? '',
+    smtpPass: process.env.SMTP_PASS?.trim() ?? '',
+    smtpFrom: process.env.SMTP_FROM?.trim() || process.env.SMTP_USER?.trim() || '',
   };
 }
 

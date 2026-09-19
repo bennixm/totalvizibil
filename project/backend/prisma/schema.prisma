@@ -55,6 +55,7 @@ model User {
   referralsMade           Referral[]               @relation("ReferralsMade")
   referralReceived        Referral?                @relation("ReferralReceived")
   aiUsageRecords          AiUsageRecord[]
+  notifications           Notification[]
 
   @@map("users")
 }
@@ -600,8 +601,13 @@ model Wallet {
   // (campaigns can't activate, clicks aren't billed). Balance is preserved.
   blockedAt     DateTime? @map("blocked_at")
   blockedReason String?   @map("blocked_reason")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  // Cooldown for the "balance almost depleted" notification sweep — set when
+  // sent, so a persistently-low balance doesn't re-notify every sweep tick.
+  // Not cleared on top-up; the cooldown alone (see NotificationsSweepService)
+  // is enough to avoid spam without touching every balance-increment path.
+  lowBalanceNotifiedAt DateTime? @map("low_balance_notified_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions WalletTransaction[]
@@ -653,15 +659,27 @@ model WalletTransaction {
   spendDay   DateTime? @map("spend_day") @db.Date
   clickCount Int?      @map("click_count")
 
-  // --- Refunds (type = 'refund' rows only) ---------------------------
-  // The original `purchase` row being reversed. `amountMinor` on THIS row is
-  // the full negative reversal of that purchase; `feeMinor` is withheld from
-  // what actually goes back to the card (see WalletService.requestRefund).
-  refundOf   WalletTransaction?  @relation("RefundOf", fields: [refundOfId], references: [id])
-  refundOfId String?             @map("refund_of_id") @db.Uuid
-  refunds    WalletTransaction[] @relation("RefundOf")
-  feePct     Int?                @map("fee_pct")
-  feeMinor   Int?                @map("fee_minor")
+  // --- Refunds ---------------------------------------------------------
+  // A refund targets the wallet's current BALANCE, not one specific past
+  // purchase (the balance is a fungible pool — a user who already spent part
+  // of a purchase can only get the unspent rest back). Since Stripe can only
+  // refund against a specific charge, `requestRefund` allocates the
+  // requested amount across one or more eligible `purchase` rows (oldest
+  // first) and records the plan here:
+  //   - on a `purchase` row: `refundReservedMinor` is how much of ITS
+  //     amount is currently held by pending/completed refunds — the rest
+  //     (`amountMinor - refundReservedMinor`) is what's still refundable.
+  //   - on a `refund` row: `refundSources` is the allocation plan itself,
+  //     `{ purchaseId, amountMinor, moneyMinor, stripeRefundId? }[]` —
+  //     `amountMinor` is the credit-face-value slice taken (wallet
+  //     bookkeeping), `moneyMinor` is the proportional real EUR-cents charge
+  //     behind it (can be less than `amountMinor` if a discount was active
+  //     at purchase time) and is what's actually sent to Stripe. Filled in
+  //     with each source's Stripe refund id once `sweepDueRefunds` executes it.
+  refundReservedMinor Int   @default(0) @map("refund_reserved_minor")
+  refundSources       Json? @map("refund_sources")
+  feePct              Int?  @map("fee_pct")
+  feeMinor            Int?  @map("fee_minor")
   // When the 7-day cancel window elapses and the sweep may execute the
   // refund. Only set while status = 'pending' on a refund row.
   processAt         DateTime? @map("process_at")
@@ -676,7 +694,6 @@ model WalletTransaction {
   @@unique([walletId, companyId, provider, spendDay])
   @@index([walletId, createdAt])
   @@index([companyId])
-  @@index([refundOfId])
   @@index([status, processAt])
   @@map("wallet_transactions")
 }
@@ -832,6 +849,10 @@ model Campaign {
   activatedAt          DateTime? @map("activated_at")
   activeSecondsAccrued Int       @default(0) @map("active_seconds_accrued")
   pausedAt             DateTime? @map("paused_at")
+  // Which `spendDay` the "budget depleted" notification was last sent for —
+  // a day-keyed dedup so the alert fires once per day it actually happens,
+  // reusing the same day bucket `spentTodayMinor` already resets on.
+  depletedNotifiedForDay DateTime? @map("depleted_notified_for_day") @db.Date
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1044,4 +1065,40 @@ model PexelsCacheEntry {
 
   @@index([fetchedAt])
   @@map("pexels_cache")
+}
+
+// ---------------------------------------------------------------------------
+// Centralized notifications — every other feature routes through
+// NotificationsService instead of calling MailService/a socket directly, so
+// "which channels" is decided in one place per notification `type`.
+// ---------------------------------------------------------------------------
+
+/** Which channels a notification was actually dispatched to. A row with only
+ *  `email` never shows in the bell/panel — it's still stored, as the one
+ *  audit trail for every notification the platform has ever sent. */
+enum NotificationChannel {
+  panel
+  email
+}
+
+model Notification {
+  id       String                @id @default(uuid()) @db.Uuid
+  userId   String                @map("user_id") @db.Uuid
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /** A short machine key, e.g. "lead_received", "payment_success" — lets the
+   *  frontend pick an icon and lets a future feature filter by kind. */
+  type     String
+  title    String
+  body     String
+  /** Optional structured payload (e.g. `{ "companyId": "..." }`) for the
+   *  panel to build a "go there" link — never used to decide routing. */
+  data     Json?
+  channels NotificationChannel[]
+  readAt      DateTime? @map("read_at")
+  emailSentAt DateTime? @map("email_sent_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
 }

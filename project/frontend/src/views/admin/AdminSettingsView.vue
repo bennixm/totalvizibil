@@ -33,6 +33,37 @@ const REWARD_MAX = 10000
 const MIN_DEPOSIT_MIN = 0
 const MIN_DEPOSIT_MAX = 100000
 const referralStats = ref<AdminReferralsPage | null>(null)
+const discount = reactive({ enabled: false, pct: 10 })
+const DISCOUNT_MIN = 1
+const DISCOUNT_MAX = 90
+const discountValid = computed(
+  () =>
+    !discount.enabled ||
+    (Number.isFinite(discount.pct) && discount.pct >= DISCOUNT_MIN && discount.pct <= DISCOUNT_MAX),
+)
+
+const maintenance = reactive({ title: '', message: '' })
+const maintenanceSending = ref(false)
+const maintenanceValid = computed(
+  () => maintenance.title.trim().length > 0 && maintenance.message.trim().length > 0,
+)
+async function sendMaintenance() {
+  if (!maintenanceValid.value) return
+  maintenanceSending.value = true
+  try {
+    const res = await admin.broadcastMaintenance({
+      title: maintenance.title.trim(),
+      message: maintenance.message.trim(),
+    })
+    flash(t('adminSettings.maintenanceSent', { count: res.notified }))
+    maintenance.title = ''
+    maintenance.message = ''
+  } catch (e) {
+    flash(e instanceof ApiError ? e.message : t('admin.genericError'), 'error')
+  } finally {
+    maintenanceSending.value = false
+  }
+}
 const issuer = reactive({
   invoiceIssuerName: '',
   invoiceIssuerTaxId: '',
@@ -124,6 +155,8 @@ function hydrate() {
   affiliate.enabled = admin.settings.affiliateEnabled
   affiliate.rewardCredits = admin.settings.affiliateRewardCredits
   affiliate.minDeposit = admin.settings.affiliateMinDepositCredits
+  discount.enabled = admin.settings.creditsDiscountEnabled
+  discount.pct = admin.settings.creditsDiscountPct
   for (const f of issuerFields) issuer[f.key] = admin.settings[f.key]
 }
 
@@ -152,12 +185,15 @@ const dirty = computed(
       affiliate.enabled !== admin.settings.affiliateEnabled ||
       affiliate.rewardCredits !== admin.settings.affiliateRewardCredits ||
       affiliate.minDeposit !== admin.settings.affiliateMinDepositCredits ||
+      discount.enabled !== admin.settings.creditsDiscountEnabled ||
+      discount.pct !== admin.settings.creditsDiscountPct ||
       issuerFields.some((f) => issuer[f.key] !== admin.settings![f.key])),
 )
 const valid = computed(
   () =>
     rewardValid.value &&
     minDepositValid.value &&
+    discountValid.value &&
     fields.every((f) => {
       const v = form[f.key]
       return typeof v === 'number' && Number.isFinite(v) && v >= f.min && v <= f.max
@@ -189,6 +225,8 @@ async function save() {
       affiliateEnabled: affiliate.enabled,
       affiliateRewardCredits: affiliate.rewardCredits,
       affiliateMinDepositCredits: affiliate.minDeposit,
+      creditsDiscountEnabled: discount.enabled,
+      creditsDiscountPct: discount.pct,
     })
     hydrate()
     flash(t('adminSettings.saved'))
@@ -338,6 +376,84 @@ async function save() {
           <span class="as__affNum">{{ referralStats.creditsPaid }}</span>
           <span class="as__affLbl">{{ t('adminSettings.affiliateCreditsPaid') }}</span>
         </div>
+      </div>
+    </AdminSection>
+
+    <AdminSection
+      v-if="!loading"
+      :title="t('adminSettings.discountTitle')"
+      icon="mdi-sale-outline"
+      class="mt-4"
+    >
+      <p class="as__sectionNote">{{ t('adminSettings.discountNote') }}</p>
+
+      <div class="as__field">
+        <span class="as__ic"><v-icon icon="mdi-power" size="18" /></span>
+        <div class="as__body">
+          <label class="as__label">{{ t('adminSettings.discountEnabled') }}</label>
+          <p class="as__hint">{{ t('adminSettings.discountEnabledHint') }}</p>
+        </div>
+        <v-switch v-model="discount.enabled" color="primary" density="compact" hide-details inset />
+      </div>
+
+      <div class="as__field">
+        <span class="as__ic"><v-icon icon="mdi-percent-outline" size="18" /></span>
+        <div class="as__body">
+          <label for="discountPct" class="as__label">{{ t('adminSettings.discountPct') }}</label>
+          <p class="as__hint">{{ t('adminSettings.discountPctHint') }}</p>
+        </div>
+        <v-text-field
+          id="discountPct"
+          v-model.number="discount.pct"
+          type="number"
+          :min="DISCOUNT_MIN"
+          :max="DISCOUNT_MAX"
+          step="1"
+          suffix="%"
+          variant="outlined"
+          density="compact"
+          hide-details
+          class="as__input"
+          :error="!discountValid"
+        />
+      </div>
+    </AdminSection>
+
+    <AdminSection
+      v-if="!loading"
+      :title="t('adminSettings.maintenanceTitle')"
+      icon="mdi-wrench-cog-outline"
+      class="mt-4"
+    >
+      <p class="as__sectionNote">{{ t('adminSettings.maintenanceNote') }}</p>
+
+      <v-text-field
+        v-model="maintenance.title"
+        :label="t('adminSettings.maintenanceTitleField')"
+        variant="outlined"
+        density="compact"
+        class="mb-3"
+        hide-details
+      />
+      <v-textarea
+        v-model="maintenance.message"
+        :label="t('adminSettings.maintenanceMessage')"
+        variant="outlined"
+        density="compact"
+        rows="3"
+        hide-details
+      />
+      <div class="as__foot">
+        <v-btn
+          color="primary"
+          variant="flat"
+          :disabled="!maintenanceValid"
+          :loading="maintenanceSending"
+          prepend-icon="mdi-send-outline"
+          @click="sendMaintenance"
+        >
+          {{ t('adminSettings.maintenanceSend') }}
+        </v-btn>
       </div>
     </AdminSection>
 

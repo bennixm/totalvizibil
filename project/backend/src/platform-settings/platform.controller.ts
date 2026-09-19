@@ -16,6 +16,8 @@ export class PlatformController {
       affiliateEnabled,
       affiliateRewardCredits,
       affiliateMinDepositCredits,
+      creditsDiscountEnabled,
+      creditsDiscountPct,
     ] = await Promise.all([
       this.settings.advancedBuilderPriceCredits(),
       this.settings.advancedBuilderUnlockBonusCredits(),
@@ -24,6 +26,8 @@ export class PlatformController {
       this.settings.affiliateEnabled(),
       this.settings.affiliateRewardCredits(),
       this.settings.affiliateMinDepositCredits(),
+      this.settings.creditsDiscountEnabled(),
+      this.settings.creditsDiscountPct(),
     ]);
     return {
       advancedBuilderPriceCredits,
@@ -33,6 +37,8 @@ export class PlatformController {
       affiliateEnabled,
       affiliateRewardCredits,
       affiliateMinDepositCredits,
+      creditsDiscountEnabled,
+      creditsDiscountPct,
     };
   }
 }

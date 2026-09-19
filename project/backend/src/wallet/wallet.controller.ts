@@ -14,6 +14,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
 import { WalletService } from './wallet.service';
 import { BuyCreditsDto } from './dto/buy-credits.dto';
+import { RequestRefundDto } from './dto/request-refund.dto';
 import { SetWalletCurrencyDto } from './dto/set-currency.dto';
 
 /** The user's single wallet — it funds every business they own. */
@@ -68,10 +69,10 @@ export class WalletController {
     return this.wallet.confirmPurchase(user.id, txnId);
   }
 
-  /** Request a refund of a completed Stripe purchase — starts the 7-day hold. */
-  @Post('transactions/:txnId/refund')
-  requestRefund(@CurrentUser() user: AuthPrincipal, @Param('txnId', ParseUUIDPipe) txnId: string) {
-    return this.wallet.requestRefund(user.id, txnId);
+  /** Request a refund of up to the current wallet balance — starts the 7-day hold. */
+  @Post('refund')
+  requestRefund(@CurrentUser() user: AuthPrincipal, @Body() dto: RequestRefundDto) {
+    return this.wallet.requestRefund(user.id, dto.credits);
   }
 
   /** Cancel a still-pending refund before its 7-day hold elapses. */

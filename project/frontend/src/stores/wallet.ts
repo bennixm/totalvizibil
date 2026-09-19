@@ -24,6 +24,9 @@ export interface WalletSummary {
   unbilledPurchases: number
   /** Current refund processing fee (whole percent), for the confirm dialog. */
   refundFeePct: number
+  /** How much of the balance can actually be refunded right now — may be
+   *  less than `balance` if part of it isn't backed by a real Stripe charge. */
+  refundable: Money
 }
 
 export interface IssuedInvoice {
@@ -50,16 +53,11 @@ export interface WalletTxn {
   /** Rolled-up ad-click count for a daily CPC row (else null). */
   clicks: number | null
   createdAt: string
-  /** The purchase this row refunds (only set on `type: 'refund'` rows). */
-  refundOfId: string | null
+  /** A `refund` row's own detail: the fee withheld and its cancel-window
+   *  deadline (only while `status: 'pending'`). Null on other row types. */
   feePct: number | null
   feeMinor: Money | null
-  /** A refund's own cancel-window deadline (only while `status: 'pending'`). */
   processAt: string | null
-  /** A `purchase` row only: can this specific purchase be refunded right now? */
-  refundEligible: boolean
-  /** A `purchase` row only: the id of its active (pending/completed) refund, if any. */
-  activeRefundId: string | null
 }
 
 export interface PendingPurchase {
@@ -223,16 +221,18 @@ export const useWalletStore = defineStore('wallet', {
       return this.pending ? this.confirmTransaction(this.pending.transactionId) : Promise.resolve(false)
     },
 
-    /** Request a refund of a completed Stripe purchase — starts its 7-day
-     *  cancel window. Returns false (and sets `error`) on rejection, e.g.
-     *  "already refunded" or "insufficient balance". */
-    async requestRefund(transactionId: string): Promise<boolean> {
+    /** Request a refund of up to the current (refundable) wallet balance —
+     *  starts a 7-day cancel window. Returns false (and sets `error`) on
+     *  rejection, e.g. "insufficient balance" or "not enough of the balance
+     *  traces back to a real charge". */
+    async requestRefund(credits: number): Promise<boolean> {
       this.working = true
       this.error = ''
       this.errorReason = null
       try {
-        this.summary = await apiFetch<WalletSummary>(`/wallet/transactions/${transactionId}/refund`, {
+        this.summary = await apiFetch<WalletSummary>('/wallet/refund', {
           method: 'POST',
+          body: { credits },
         })
         useMoneyStore().applyFx(this.summary)
         await this.loadTransactions(false)

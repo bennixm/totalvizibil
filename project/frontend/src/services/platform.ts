@@ -7,6 +7,8 @@ export interface PlatformPricing {
   affiliateEnabled: boolean
   affiliateRewardCredits: number
   affiliateMinDepositCredits: number
+  creditsDiscountEnabled: boolean
+  creditsDiscountPct: number
 }
 
 export function fetchPricing(): Promise<PlatformPricing> {

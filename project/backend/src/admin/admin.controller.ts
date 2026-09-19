@@ -31,6 +31,7 @@ import { SetUserPasswordDto } from './dto/set-user-password.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { AdjustWalletDto } from './dto/adjust-wallet.dto';
 import { BlockWalletDto } from './dto/block-wallet.dto';
+import { RequestRefundDto } from '../wallet/dto/request-refund.dto';
 import { CampaignActionDto } from './dto/campaign-action.dto';
 import { SetCompanyStatusDto } from './dto/set-company-status.dto';
 import { SetLeadStatusDto } from './dto/set-lead-status.dto';
@@ -43,6 +44,8 @@ import { ListCompaniesQuery } from './dto/list-companies.query';
 import { SaveCampaignDto } from '../campaigns/dto/save-campaign.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { BroadcastMaintenanceDto } from './dto/broadcast-maintenance.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /** Platform admin panel. Requires the `admin` platform role. */
 @UseGuards(AuthGuard, PlatformRolesGuard)
@@ -57,6 +60,7 @@ export class AdminController {
     private readonly settings: PlatformSettingsService,
     private readonly billing: BillingService,
     private readonly affiliate: AffiliateService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get('stats')
@@ -77,6 +81,8 @@ export class AdminController {
       affiliateRewardCredits,
       affiliateMinDepositCredits,
       refundFeePct,
+      creditsDiscountEnabled,
+      creditsDiscountPct,
     ] = await Promise.all([
       this.settings.eurRonRate(),
       this.settings.advancedBuilderPriceCredits(),
@@ -88,6 +94,8 @@ export class AdminController {
       this.settings.affiliateRewardCredits(),
       this.settings.affiliateMinDepositCredits(),
       this.settings.refundFeePct(),
+      this.settings.creditsDiscountEnabled(),
+      this.settings.creditsDiscountPct(),
     ]);
     return {
       eurRonRate,
@@ -99,6 +107,8 @@ export class AdminController {
       affiliateRewardCredits,
       affiliateMinDepositCredits,
       refundFeePct,
+      creditsDiscountEnabled,
+      creditsDiscountPct,
       invoiceIssuerName: invoiceIssuer.name,
       invoiceIssuerTaxId: invoiceIssuer.taxId,
       invoiceIssuerRegCom: invoiceIssuer.regCom,
@@ -137,6 +147,12 @@ export class AdminController {
     if (dto.refundFeePct !== undefined) {
       await this.settings.setRefundFeePct(dto.refundFeePct);
     }
+    if (dto.creditsDiscountEnabled !== undefined || dto.creditsDiscountPct !== undefined) {
+      await this.settings.setCreditsDiscount({
+        enabled: dto.creditsDiscountEnabled,
+        pct: dto.creditsDiscountPct,
+      });
+    }
     const {
       invoiceIssuerName: name,
       invoiceIssuerTaxId: taxId,
@@ -149,6 +165,18 @@ export class AdminController {
       await this.settings.setInvoiceIssuer({ name, taxId, regCom, address, iban, bank });
     }
     return this.getSettings();
+  }
+
+  /** Broadcast a maintenance/update notice to every active user (email + panel). */
+  @Post('maintenance/broadcast')
+  async broadcastMaintenance(@Body() dto: BroadcastMaintenanceDto) {
+    const notified = await this.notifications.notifyAll({
+      type: 'maintenance',
+      title: dto.title,
+      body: dto.message,
+      channels: { panel: true, email: true },
+    });
+    return { notified };
   }
 
   // --- users --------------------------------------------------------
@@ -187,13 +215,13 @@ export class AdminController {
     return this.users.adjustWallet(id, dto);
   }
 
-  @Post('users/:id/wallet/transactions/:txnId/refund')
-  refundTransaction(
+  @Post('users/:id/wallet/refund')
+  refundBalance(
     @CurrentUser() caller: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
-    @Param('txnId', ParseUUIDPipe) txnId: string,
+    @Body() dto: RequestRefundDto,
   ) {
-    return this.users.refundTransaction(id, txnId, caller.id);
+    return this.users.refundBalance(id, dto.credits, caller.id);
   }
 
   @Post('users/:id/wallet/refunds/:refundId/cancel')

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
 import CreditsValue from '@/components/CreditsValue.vue'
-import { useWalletStore, type WalletTxn, type WalletTxnType } from '@/stores/wallet'
+import { useWalletStore, type WalletTxnType } from '@/stores/wallet'
 import { useCompaniesStore } from '@/stores/companies'
 import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
@@ -37,10 +37,7 @@ const TYPE_OPTIONS: WalletTxnType[] = ['purchase', 'spend', 'refund', 'adjustmen
 async function loadInitial(): Promise<void> {
   loading.value = true
   try {
-    await Promise.all([
-      companies.fetchOverview().catch(() => {}),
-      wallet.ensureSummary().catch(() => {}),
-    ])
+    await companies.fetchOverview().catch(() => {})
     await wallet.loadTransactions(false, { companyId: filterCompany.value, type: filterType.value })
   } catch {
     toasts.error(t('wallet.historyError'))
@@ -79,48 +76,22 @@ watch([filterCompany, filterType], async () => {
 
 onMounted(loadInitial)
 
-// --- Refunds ---------------------------------------------------------
-const REFUND_ERR_CODES = [
-  'purchase_not_refundable',
-  'only_completed_purchases_can_be_refunded',
-  'refund_already_requested',
-  'insufficient_balance_for_refund',
-  'refund_not_cancelable',
-  'refund_hold_expired',
-]
-function refundErrorText(err: unknown): string {
+// --- Refunds (request itself lives on the Wallet page — this only shows
+// history and lets the customer cancel a still-pending one) -------------
+const CANCEL_ERR_CODES = ['refund_not_cancelable', 'refund_hold_expired']
+function cancelErrorText(err: unknown): string {
   const code = err instanceof ApiError ? err.message : ''
-  return REFUND_ERR_CODES.includes(code) ? t('wallet.err.' + code) : t('admin.genericError')
+  return CANCEL_ERR_CODES.includes(code) ? t('wallet.err.' + code) : t('admin.genericError')
 }
 
-const refundTarget = ref<WalletTxn | null>(null)
-const refundFeePct = computed(() => wallet.summary?.refundFeePct ?? 0)
-const refundFeeCredits = computed(() =>
-  refundTarget.value ? (refundTarget.value.amount.credits * refundFeePct.value) / 100 : 0,
-)
 const busyId = ref<string | null>(null)
-
-function askRefund(txn: WalletTxn): void {
-  refundTarget.value = txn
-}
-
-async function confirmRefund(): Promise<void> {
-  if (!refundTarget.value) return
-  const id = refundTarget.value.id
-  busyId.value = id
-  const ok = await wallet.requestRefund(id)
-  busyId.value = null
-  refundTarget.value = null
-  if (ok) toasts.success(t('transactions.refundRequested'))
-  else toasts.error(refundErrorText(new ApiError(0, wallet.error)))
-}
 
 async function doCancelRefund(refundId: string): Promise<void> {
   busyId.value = refundId
   const ok = await wallet.cancelRefund(refundId)
   busyId.value = null
   if (ok) toasts.success(t('transactions.refundCanceled'))
-  else toasts.error(refundErrorText(new ApiError(0, wallet.error)))
+  else toasts.error(cancelErrorText(new ApiError(0, wallet.error)))
 }
 
 function daysLeft(processAt: string): number {
@@ -208,18 +179,8 @@ function daysLeft(processAt: string): number {
               </div>
             </div>
 
-            <div v-if="txn.type === 'purchase' && txn.refundEligible" class="trow__actions">
-              <v-btn
-                size="x-small"
-                variant="text"
-                prepend-icon="mdi-cash-refund"
-                @click="askRefund(txn)"
-              >
-                {{ t('transactions.requestRefund') }}
-              </v-btn>
-            </div>
             <div
-              v-else-if="txn.type === 'refund' && txn.status === 'pending'"
+              v-if="txn.type === 'refund' && txn.status === 'pending'"
               class="trow__actions trow__actions--pending"
             >
               <span class="trow__refundNote">
@@ -253,33 +214,6 @@ function daysLeft(processAt: string): number {
         </v-btn>
       </section>
     </template>
-
-    <v-dialog :model-value="!!refundTarget" max-width="440" @update:model-value="refundTarget = null">
-      <v-card v-if="refundTarget">
-        <v-card-title class="text-h6">{{ t('transactions.confirmRefundTitle') }}</v-card-title>
-        <v-card-text>
-          <p>{{ t('transactions.confirmRefundText', { credits: refundTarget.amount.credits }) }}</p>
-          <p v-if="refundFeePct > 0" class="txn__feeNote">
-            {{ t('transactions.confirmRefundFee', { pct: refundFeePct, fee: refundFeeCredits }) }}
-          </p>
-          <p class="txn__holdNote">{{ t('transactions.confirmRefundHold') }}</p>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" :disabled="busyId === refundTarget.id" @click="refundTarget = null">
-            {{ t('common.cancel') }}
-          </v-btn>
-          <v-btn
-            color="primary"
-            variant="flat"
-            :loading="busyId === refundTarget.id"
-            @click="confirmRefund"
-          >
-            {{ t('transactions.confirmRefundCta') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 
@@ -436,15 +370,5 @@ function daysLeft(processAt: string): number {
 .trow__badge--failed {
   background: rgba(var(--v-theme-error), 0.16);
   color: rgb(var(--v-theme-error));
-}
-.txn__feeNote {
-  margin: 0.5rem 0 0;
-  font-size: 0.85rem;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-}
-.txn__holdNote {
-  margin: 0.6rem 0 0;
-  font-size: 0.8rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 </style>

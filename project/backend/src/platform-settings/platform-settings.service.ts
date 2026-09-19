@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export const SETTING_KEYS = {
   eurRonRate: 'eur_ron_rate',
@@ -17,6 +18,8 @@ export const SETTING_KEYS = {
   affiliateRewardCredits: 'affiliate_reward_credits',
   affiliateMinDepositCredits: 'affiliate_min_deposit_credits',
   refundFeePct: 'refund_fee_pct',
+  creditsDiscountEnabled: 'credits_discount_enabled',
+  creditsDiscountPct: 'credits_discount_pct',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -62,6 +65,11 @@ const DEFAULT_REFUND_FEE_PCT = 5;
 const MIN_REFUND_FEE_PCT = 0;
 const MAX_REFUND_FEE_PCT = 100;
 
+/** Site-wide discount on credit purchases: off by default, whole percent off. */
+const DEFAULT_DISCOUNT_PCT = 10;
+const MIN_DISCOUNT_PCT = 1;
+const MAX_DISCOUNT_PCT = 90;
+
 export interface InvoiceIssuer {
   name: string;
   taxId: string;
@@ -82,7 +90,10 @@ export class PlatformSettingsService {
   private cache = new Map<string, { value: string; at: number }>();
   private readonly ttlMs = 30_000;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async get(key: string): Promise<string | null> {
     const hit = this.cache.get(key);
@@ -300,6 +311,96 @@ export class PlatformSettingsService {
     const rounded = Math.round(pct);
     await this.set(SETTING_KEYS.refundFeePct, String(rounded));
     return rounded;
+  }
+
+  // --- credits discount ------------------------------------------------
+
+  /** Whether a site-wide discount on credit purchases is currently running. */
+  async creditsDiscountEnabled(): Promise<boolean> {
+    return (await this.get(SETTING_KEYS.creditsDiscountEnabled)) === 'true';
+  }
+
+  /** Discount percent off credit purchases, whole percent. Only meaningful
+   *  while `creditsDiscountEnabled()` is true. */
+  async creditsDiscountPct(): Promise<number> {
+    const raw = await this.get(SETTING_KEYS.creditsDiscountPct);
+    const parsed = raw != null ? Number(raw) : NaN;
+    if (!Number.isFinite(parsed) || parsed < MIN_DISCOUNT_PCT || parsed > MAX_DISCOUNT_PCT) {
+      if (raw != null)
+        this.logger.warn(`Ignoring invalid ${SETTING_KEYS.creditsDiscountPct}=${raw}`);
+      return DEFAULT_DISCOUNT_PCT;
+    }
+    return Math.round(parsed);
+  }
+
+  /**
+   * Applies both fields atomically (an admin form submits them together) and
+   * fires exactly one `notifyAll` broadcast when the effective, user-visible
+   * state actually changes — not on every save of an unchanged value.
+   */
+  async setCreditsDiscount(input: {
+    enabled?: boolean;
+    pct?: number;
+  }): Promise<{ enabled: boolean; pct: number }> {
+    const before = {
+      enabled: await this.creditsDiscountEnabled(),
+      pct: await this.creditsDiscountPct(),
+    };
+
+    if (input.pct !== undefined) {
+      if (
+        !Number.isFinite(input.pct) ||
+        input.pct < MIN_DISCOUNT_PCT ||
+        input.pct > MAX_DISCOUNT_PCT
+      ) {
+        throw new BadRequestException('credits_discount_pct out of range');
+      }
+      await this.set(SETTING_KEYS.creditsDiscountPct, String(Math.round(input.pct)));
+    }
+    if (input.enabled !== undefined) {
+      await this.set(SETTING_KEYS.creditsDiscountEnabled, input.enabled ? 'true' : 'false');
+    }
+
+    const after = {
+      enabled: await this.creditsDiscountEnabled(),
+      pct: await this.creditsDiscountPct(),
+    };
+
+    // The setting is already saved by this point — broadcasting to every
+    // user is a slow, best-effort side effect (sequential emails, see
+    // NotificationsService.notifyAll) that must never block the admin's
+    // response nor turn an already-successful settings change into an error.
+    if (after.enabled && (!before.enabled || after.pct !== before.pct)) {
+      void this.notifications
+        .notifyAll({
+          type: 'discount_updated',
+          title: `Reducere de ${after.pct}% la achiziția de credite`,
+          body: `Beneficiezi acum de o reducere de ${after.pct}% la achiziția de credite.`,
+          channels: { panel: true, email: true },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Discount-updated broadcast failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    } else if (!after.enabled && before.enabled) {
+      void this.notifications
+        .notifyAll({
+          type: 'discount_updated',
+          title: 'Reducerea la achiziția de credite s-a încheiat',
+          body: 'Reducerea la achiziția de credite nu mai este activă.',
+          channels: { panel: true, email: true },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Discount-updated broadcast failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
+
+    return after;
   }
 
   /** The platform's own billing identity, snapshotted onto every invoice issued. */

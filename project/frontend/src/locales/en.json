@@ -37,6 +37,12 @@
     "bizDeleting": "deleting",
     "invoices": "Invoices"
   },
+  "notifications": {
+    "bell": "Notifications",
+    "empty": "No notifications",
+    "markAllRead": "Mark all as read",
+    "loadMore": "Load more"
+  },
   "theme": {
     "label": "Theme",
     "light": "Light",
@@ -590,7 +596,16 @@
     "invoiceView": "View invoice",
     "viewTransactionsCta": "View all transactions",
     "checkoutSuccess": "Payment successful — credits have been added to your wallet.",
-    "checkoutCanceled": "The payment was canceled."
+    "checkoutCanceled": "The payment was canceled.",
+    "refundTitle": "Refund",
+    "refundHint": "You can ask for the unspent part of your balance back, any time.",
+    "refundAvailable": "Available to refund: {credits} credits",
+    "refundCta": "Request refund",
+    "refundConfirmTitle": "How much do you want back?",
+    "refundAmountLabel": "Amount to refund",
+    "refundConfirmFee": "A {pct}% processing fee ({fee} credits) is withheld — the rest is sent back via Stripe to the card used for payment.",
+    "refundConfirmHold": "The requested amount is held immediately, but nothing is sent to Stripe until 7 days pass — you can cancel any time before then, from the Transactions page.",
+    "refundRequested": "Refund requested."
   },
   "auth": {
     "loginTitle": "Log in",
@@ -776,7 +791,9 @@
     "apply": "Apply",
     "walletAdjusted": "Balance adjusted",
     "refund": "Refund",
-    "refundConfirmTitle": "Request a refund for this purchase?",
+    "refundTitle": "Refund",
+    "refundAmountLabel": "Credits to refund",
+    "refundConfirmTitle": "Request this refund from their wallet?",
     "refundConfirmText": "Starts the 7-day cancel window — the customer can still cancel the request until then.",
     "refundRequested": "Refund requested",
     "refundCanceled": "Refund canceled",
@@ -1671,7 +1688,19 @@
     "affiliateRewarded": "Rewarded",
     "affiliateCreditsPaid": "Credits paid",
     "affiliateMinDeposit": "Min. deposit per referred client",
-    "affiliateMinDepositHint": "How many credits the referred client must deposit in total before the reward is paid. 0 = no threshold."
+    "affiliateMinDepositHint": "How many credits the referred client must deposit in total before the reward is paid. 0 = no threshold.",
+    "discountTitle": "Credits discount",
+    "discountNote": "A price discount on credit purchases, shown on the homepage. Users still get the full number of credits requested, just for less money.",
+    "discountEnabled": "Discount active",
+    "discountEnabledHint": "When off, credit purchases go back to full price and the offer card disappears from the homepage.",
+    "discountPct": "Discount percent",
+    "discountPctHint": "How much is taken off the credit purchase price.",
+    "maintenanceTitle": "Maintenance / update",
+    "maintenanceNote": "Send a notification to every user (email + panel) about planned maintenance or an update.",
+    "maintenanceTitleField": "Title",
+    "maintenanceMessage": "Message",
+    "maintenanceSend": "Send notification",
+    "maintenanceSent": "Notification sent to {count} users"
   },
   "spend": {
     "eyebrow": "Feed promotion",
@@ -2103,16 +2132,9 @@
     "filterAllTypes": "All types",
     "noneMatch": "No transactions match the selected filters.",
     "clearFilters": "Clear filters",
-    "requestRefund": "Request refund",
-    "refundRequested": "Refund requested.",
     "refundCanceled": "The refund was canceled.",
     "refundProcessesIn": "Processes in {d} days · you can still cancel",
-    "refundFeeNote": "{fee} cr fee withheld",
-    "confirmRefundTitle": "Request a refund for this purchase?",
-    "confirmRefundText": "{credits} credits will be deducted from your wallet. You have 7 days to cancel the request.",
-    "confirmRefundFee": "A {pct}% processing fee ({fee} credits) is withheld — the rest is sent back via Stripe to the card used for payment.",
-    "confirmRefundHold": "The amount is held immediately, but nothing is sent to Stripe until the 7 days pass — you can cancel any time before then.",
-    "confirmRefundCta": "Request refund"
+    "refundFeeNote": "{fee} cr fee withheld"
   },
   "affiliate": {
     "badge": "Affiliate program",
@@ -2137,6 +2159,12 @@
     "adHeadline": "Refer a client, get",
     "adHeadlineTail": "credits",
     "adSub": "Share your link — when your friend builds a site and starts a campaign, the credits are yours."
+  },
+  "discountBanner": {
+    "badge": "Limited offer",
+    "headline": "off credit purchases",
+    "sub": "Take advantage of the discounted credit price now — the same number of credits for less money.",
+    "cta": "Buy credits"
   },
   "onboarding": {
     "aria": "Business setup progress",

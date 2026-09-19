@@ -67,6 +67,8 @@ export interface AdminSettings {
   affiliateRewardCredits: number
   affiliateMinDepositCredits: number
   refundFeePct: number
+  creditsDiscountEnabled: boolean
+  creditsDiscountPct: number
   invoiceIssuerName: string
   invoiceIssuerTaxId: string
   invoiceIssuerRegCom: string
@@ -129,12 +131,9 @@ export interface AdminUserTxn {
   companyName: string | null
   clicks: number | null
   createdAt: string
-  refundOfId: string | null
   feePct: number | null
   feeMinor: Money | null
   processAt: string | null
-  refundEligible: boolean
-  activeRefundId: string | null
 }
 
 export interface AdminUserDetail {
@@ -157,6 +156,7 @@ export interface AdminUserDetail {
     blocked: boolean
     blockedAt: string | null
     blockedReason: string | null
+    refundable: Money
   }
   companies: AdminUserCompany[]
   transactions: AdminUserTxn[]
@@ -536,6 +536,10 @@ export const useAdminStore = defineStore('admin', {
       })
     },
 
+    broadcastMaintenance(input: { title: string; message: string }): Promise<{ notified: number }> {
+      return apiFetch('/admin/maintenance/broadcast', { method: 'POST', body: input })
+    },
+
     fetchReferrals(
       params: { status?: 'pending' | 'rewarded'; page?: number; pageSize?: number } = {},
     ): Promise<AdminReferralsPage> {
@@ -576,11 +580,11 @@ export const useAdminStore = defineStore('admin', {
       })
     },
 
-    refundTransaction(id: string, transactionId: string): Promise<AdminUserDetail> {
-      return apiFetch<AdminUserDetail>(
-        `/admin/users/${id}/wallet/transactions/${transactionId}/refund`,
-        { method: 'POST' },
-      )
+    refundBalance(id: string, credits: number): Promise<AdminUserDetail> {
+      return apiFetch<AdminUserDetail>(`/admin/users/${id}/wallet/refund`, {
+        method: 'POST',
+        body: { credits },
+      })
     },
 
     cancelWalletRefund(id: string, refundId: string): Promise<AdminUserDetail> {

@@ -37,6 +37,12 @@
     "bizDeleting": "wird gelöscht",
     "invoices": "Rechnungen"
   },
+  "notifications": {
+    "bell": "Benachrichtigungen",
+    "empty": "Keine Benachrichtigungen",
+    "markAllRead": "Alle als gelesen markieren",
+    "loadMore": "Mehr laden"
+  },
   "theme": {
     "label": "Design",
     "light": "Hell",
@@ -590,7 +596,16 @@
     "invoiceView": "Rechnung ansehen",
     "viewTransactionsCta": "Alle Transaktionen ansehen",
     "checkoutSuccess": "Zahlung erfolgreich — die Credits wurden deinem Wallet gutgeschrieben.",
-    "checkoutCanceled": "Die Zahlung wurde abgebrochen."
+    "checkoutCanceled": "Die Zahlung wurde abgebrochen.",
+    "refundTitle": "Rückerstattung",
+    "refundHint": "Du kannst dir den nicht ausgegebenen Teil deines Guthabens jederzeit zurückholen.",
+    "refundAvailable": "Verfügbar zur Rückerstattung: {credits} Credits",
+    "refundCta": "Rückerstattung anfordern",
+    "refundConfirmTitle": "Wie viel möchtest du zurück?",
+    "refundAmountLabel": "Zu erstattender Betrag",
+    "refundConfirmFee": "Es wird eine Bearbeitungsgebühr von {pct}% ({fee} Credits) einbehalten — der Rest wird über Stripe an die verwendete Karte zurückgesendet.",
+    "refundConfirmHold": "Der angeforderte Betrag wird sofort einbehalten, aber erst nach Ablauf von 7 Tagen an Stripe gesendet — du kannst bis dahin jederzeit auf der Transaktionsseite stornieren.",
+    "refundRequested": "Rückerstattung angefordert."
   },
   "auth": {
     "loginTitle": "Anmelden",
@@ -776,7 +791,9 @@
     "apply": "Anwenden",
     "walletAdjusted": "Guthaben angepasst",
     "refund": "Erstatten",
-    "refundConfirmTitle": "Rückerstattung für diesen Kauf anfordern?",
+    "refundTitle": "Rückerstattung",
+    "refundAmountLabel": "Zu erstattende Credits",
+    "refundConfirmTitle": "Diese Rückerstattung vom Wallet anfordern?",
     "refundConfirmText": "Startet das 7-tägige Stornierungsfenster — der Kunde kann die Anfrage bis dahin noch stornieren.",
     "refundRequested": "Rückerstattung angefordert",
     "refundCanceled": "Rückerstattung storniert",
@@ -1671,7 +1688,19 @@
     "affiliateRewarded": "Belohnt",
     "affiliateCreditsPaid": "Gezahlte Guthaben",
     "affiliateMinDeposit": "Mindesteinzahlung pro geworbenem Kunden",
-    "affiliateMinDepositHint": "Wie viele Guthaben der geworbene Kunde insgesamt einzahlen muss, bevor die Belohnung gezahlt wird. 0 = keine Schwelle."
+    "affiliateMinDepositHint": "Wie viele Guthaben der geworbene Kunde insgesamt einzahlen muss, bevor die Belohnung gezahlt wird. 0 = keine Schwelle.",
+    "discountTitle": "Guthaben-Rabatt",
+    "discountNote": "Ein Preisnachlass beim Guthabenkauf, sichtbar auf der Startseite. Nutzer erhalten weiterhin die volle angeforderte Guthabenmenge, zahlen aber weniger.",
+    "discountEnabled": "Rabatt aktiv",
+    "discountEnabledHint": "Wenn deaktiviert, gilt beim Guthabenkauf wieder der volle Preis und die Angebotskarte verschwindet von der Startseite.",
+    "discountPct": "Rabattprozent",
+    "discountPctHint": "Wie viel Prozent vom Kaufpreis der Guthaben abgezogen wird.",
+    "maintenanceTitle": "Wartung / Update",
+    "maintenanceNote": "Sende allen Nutzern eine Benachrichtigung (E-Mail + Panel) über eine geplante Wartung oder ein Update.",
+    "maintenanceTitleField": "Titel",
+    "maintenanceMessage": "Nachricht",
+    "maintenanceSend": "Benachrichtigung senden",
+    "maintenanceSent": "Benachrichtigung an {count} Nutzer gesendet"
   },
   "spend": {
     "eyebrow": "Feed-Promotion",
@@ -2103,16 +2132,9 @@
     "filterAllTypes": "Alle Typen",
     "noneMatch": "Keine Transaktionen entsprechen den gewählten Filtern.",
     "clearFilters": "Filter zurücksetzen",
-    "requestRefund": "Rückerstattung anfordern",
-    "refundRequested": "Rückerstattung angefordert.",
     "refundCanceled": "Die Rückerstattung wurde storniert.",
     "refundProcessesIn": "Wird in {d} Tagen bearbeitet · du kannst noch stornieren",
-    "refundFeeNote": "{fee} cr Gebühr einbehalten",
-    "confirmRefundTitle": "Rückerstattung für diesen Kauf anfordern?",
-    "confirmRefundText": "{credits} Credits werden von deinem Wallet abgezogen. Du hast 7 Tage Zeit, die Anfrage zu stornieren.",
-    "confirmRefundFee": "Es wird eine Bearbeitungsgebühr von {pct}% ({fee} Credits) einbehalten — der Rest wird über Stripe an die verwendete Karte zurückgesendet.",
-    "confirmRefundHold": "Der Betrag wird sofort einbehalten, aber erst nach Ablauf der 7 Tage an Stripe gesendet — du kannst bis dahin jederzeit stornieren.",
-    "confirmRefundCta": "Rückerstattung anfordern"
+    "refundFeeNote": "{fee} cr Gebühr einbehalten"
   },
   "affiliate": {
     "badge": "Partnerprogramm",
@@ -2137,6 +2159,12 @@
     "adHeadline": "Wirb einen Kunden, erhalte",
     "adHeadlineTail": "Guthaben",
     "adSub": "Teile deinen Link — wenn dein Freund eine Website erstellt und eine Kampagne startet, gehört das Guthaben dir."
+  },
+  "discountBanner": {
+    "badge": "Zeitlich begrenztes Angebot",
+    "headline": "Rabatt beim Guthabenkauf",
+    "sub": "Nutze jetzt den reduzierten Guthabenpreis — die gleiche Guthabenmenge für weniger Geld.",
+    "cta": "Guthaben kaufen"
   },
   "onboarding": {
     "aria": "Fortschritt der Einrichtung",

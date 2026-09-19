@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PasswordService } from './password.service';
@@ -10,14 +11,18 @@ import { SessionService } from './session.service';
 import { TotpService } from './totp.service';
 import { AuthPrincipal, AuthUserView } from './auth.types';
 import { ChangePasswordDto, UpdateProfileDto } from './dto/account.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class AccountService {
+  private readonly logger = new Logger(AccountService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
     private readonly totp: TotpService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private async requireUser(userId: string) {
@@ -82,6 +87,22 @@ export class AccountService {
     });
     // Keep the current session, drop the rest.
     await this.sessions.revokeAllForUser(user.id, principal.sessionId);
+    // The password is already changed by this point — a notification hiccup
+    // must never make a successful password change look like it failed.
+    void this.notifications
+      .notify({
+        userId: user.id,
+        type: 'password_changed',
+        title: 'Parola contului a fost schimbată',
+        body: 'Parola contului tău a fost schimbată recent. Dacă nu ai fost tu, contactează-ne imediat.',
+        channels: { email: true },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Password-change notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
     return { ok: true };
   }
 

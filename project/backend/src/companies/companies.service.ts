@@ -17,6 +17,7 @@ import { CampaignService } from '../campaigns/campaign.service';
 import { LeadsService } from '../leads/leads.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { companyInclude, toCompanyView, CompanyView } from './company.view';
@@ -37,7 +38,28 @@ export class CompaniesService implements OnModuleInit {
     private readonly leads: LeadsService,
     private readonly analytics: AnalyticsService,
     private readonly settings: PlatformSettingsService,
+    private readonly notifications: NotificationsService,
   ) {}
+
+  /** Email-only confirmation once a business is actually created (direct or draft flow).
+   *  The business is already committed by the time this runs — a notification hiccup
+   *  must never turn an already-successful creation into an error response. */
+  private async notifyBusinessCreated(userId: string, displayName: string): Promise<void> {
+    await this.notifications
+      .notify({
+        userId,
+        type: 'business_created',
+        title: `Afacerea „${displayName}" a fost creată`,
+        body: `Afacerea „${displayName}" a fost creată cu succes pe platformă.`,
+        channels: { email: true },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Business-created notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+  }
 
   /**
    * No cron dependency in this app — cleanup normally rides along with the
@@ -173,6 +195,7 @@ export class CompaniesService implements OnModuleInit {
       include: companyInclude,
     });
 
+    await this.notifyBusinessCreated(userId, company.displayName);
     return toCompanyView(company, CompanyRole.owner);
   }
 
@@ -332,6 +355,7 @@ export class CompaniesService implements OnModuleInit {
       return created;
     });
 
+    await this.notifyBusinessCreated(userId, company.displayName);
     return toCompanyView(company, CompanyRole.owner);
   }
 

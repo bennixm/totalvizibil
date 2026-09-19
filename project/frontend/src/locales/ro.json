@@ -37,6 +37,12 @@
     "bizDeleting": "se șterge",
     "invoices": "Facturi"
   },
+  "notifications": {
+    "bell": "Notificări",
+    "empty": "Nicio notificare",
+    "markAllRead": "Marchează toate ca citite",
+    "loadMore": "Încarcă mai multe"
+  },
   "theme": {
     "label": "Temă",
     "light": "Luminos",
@@ -590,7 +596,16 @@
     "invoiceView": "Vezi factura",
     "viewTransactionsCta": "Vezi toate tranzacțiile",
     "checkoutSuccess": "Plată reușită — creditele au fost adăugate în portofel.",
-    "checkoutCanceled": "Plata a fost anulată."
+    "checkoutCanceled": "Plata a fost anulată.",
+    "refundTitle": "Rambursare",
+    "refundHint": "Poți cere înapoi partea necheltuită din soldul tău, oricând.",
+    "refundAvailable": "Disponibil pentru rambursare: {credits} credite",
+    "refundCta": "Cere rambursare",
+    "refundConfirmTitle": "Cât vrei să ceri înapoi?",
+    "refundAmountLabel": "Sumă de rambursat",
+    "refundConfirmFee": "Se reține o taxă de procesare de {pct}% ({fee} credite) — restul se returnează prin Stripe pe cardul folosit la plată.",
+    "refundConfirmHold": "Suma cerută e blocată imediat, dar nu se trimite nimic către Stripe decât după ce trec 7 zile — poți anula oricând până atunci, din pagina de Tranzacții.",
+    "refundRequested": "Rambursare cerută."
   },
   "auth": {
     "loginTitle": "Autentificare",
@@ -776,7 +791,9 @@
     "apply": "Aplică",
     "walletAdjusted": "Sold ajustat",
     "refund": "Rambursează",
-    "refundConfirmTitle": "Cereri rambursarea acestei achiziții?",
+    "refundTitle": "Rambursare",
+    "refundAmountLabel": "Credite de rambursat",
+    "refundConfirmTitle": "Ceri rambursarea acestei sume din portofel?",
     "refundConfirmText": "Pornește perioada de așteptare de 7 zile — clientul poate anula cererea până atunci.",
     "refundRequested": "Rambursare cerută",
     "refundCanceled": "Rambursare anulată",
@@ -1671,7 +1688,19 @@
     "affiliateRewarded": "Recompensați",
     "affiliateCreditsPaid": "Credite acordate",
     "affiliateMinDeposit": "Depunere minimă / client adus",
-    "affiliateMinDepositHint": "Câte credite trebuie să depună în total clientul adus înainte ca recompensa să fie plătită. 0 = fără prag."
+    "affiliateMinDepositHint": "Câte credite trebuie să depună în total clientul adus înainte ca recompensa să fie plătită. 0 = fără prag.",
+    "discountTitle": "Reducere la credite",
+    "discountNote": "O reducere de preț la achiziția de credite, vizibilă pe homepage. Utilizatorii primesc numărul integral de credite cerut, dar plătesc mai puțin.",
+    "discountEnabled": "Reducere activă",
+    "discountEnabledHint": "Când e oprită, achiziția de credite revine la prețul normal și cardul de ofertă dispare de pe homepage.",
+    "discountPct": "Procent reducere",
+    "discountPctHint": "Cât la sută se scade din prețul de achiziție a creditelor.",
+    "maintenanceTitle": "Mentenanță / actualizare",
+    "maintenanceNote": "Trimite o notificare tuturor utilizatorilor (email + panou) despre o mentenanță sau actualizare planificată.",
+    "maintenanceTitleField": "Titlu",
+    "maintenanceMessage": "Mesaj",
+    "maintenanceSend": "Trimite notificarea",
+    "maintenanceSent": "Notificare trimisă către {count} utilizatori"
   },
   "spend": {
     "eyebrow": "Promovare în feed",
@@ -2103,16 +2132,9 @@
     "filterAllTypes": "Toate tipurile",
     "noneMatch": "Nicio tranzacție nu corespunde filtrelor alese.",
     "clearFilters": "Șterge filtrele",
-    "requestRefund": "Cere rambursare",
-    "refundRequested": "Rambursare cerută.",
     "refundCanceled": "Rambursarea a fost anulată.",
     "refundProcessesIn": "Se procesează în {d} zile · poți anula până atunci",
-    "refundFeeNote": "taxă reținută {fee} cr",
-    "confirmRefundTitle": "Ceri rambursarea acestei achiziții?",
-    "confirmRefundText": "Se vor scădea {credits} credite din portofel. Ai 7 zile în care poți anula cererea.",
-    "confirmRefundFee": "Se reține o taxă de procesare de {pct}% ({fee} credite) — restul se returnează prin Stripe pe cardul folosit la plată.",
-    "confirmRefundHold": "Suma este blocată imediat, dar nu se trimite nimic către Stripe decât după ce trec cele 7 zile — poți anula oricând până atunci.",
-    "confirmRefundCta": "Cere rambursarea"
+    "refundFeeNote": "taxă reținută {fee} cr"
   },
   "affiliate": {
     "badge": "Program de afiliere",
@@ -2137,6 +2159,12 @@
     "adHeadline": "Adu un client, primești",
     "adHeadlineTail": "credite",
     "adSub": "Trimite linkul tău — când prietenul își face un site și pornește o campanie, creditele sunt ale tale."
+  },
+  "discountBanner": {
+    "badge": "Ofertă limitată",
+    "headline": "reducere la achiziția de credite",
+    "sub": "Profită acum de prețul redus la credite — plătești mai puțin pentru același număr de credite.",
+    "cta": "Cumpără credite"
   },
   "onboarding": {
     "aria": "Progres creare afacere",

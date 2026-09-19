@@ -10,6 +10,7 @@ import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
 import { useWalletStore } from '@/stores/wallet'
 import { useToastStore } from '@/stores/toast'
+import { fetchPricing } from '@/services/platform'
 
 const { t, n } = useI18n()
 const route = useRoute()
@@ -25,7 +26,13 @@ const unbilledCount = computed(() => summary.value?.unbilledPurchases ?? 0)
 
 const CURRENCIES = ['EUR', 'RON'] as const
 
-const KNOWN_ERRORS = ['wallet_blocked', 'insufficient_credits', 'billing_profile_incomplete']
+const KNOWN_ERRORS = [
+  'wallet_blocked',
+  'insufficient_credits',
+  'billing_profile_incomplete',
+  'insufficient_balance_for_refund',
+  'insufficient_refundable_purchases',
+]
 const errorText = computed<string>(() => {
   const code = error.value
   if (!code) return ''
@@ -48,11 +55,16 @@ const amount = ref(50)
 const rate = computed(() => summary.value?.eurRonRate ?? 5.05)
 const consumers = computed(() => overview.value.filter((c) => c.consumedCredits > 0))
 
+const discountPct = ref(0)
+
 function eur(v: number): string {
   return '€' + n(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 function ron(eurValue: number): string {
   return n(eurValue * rate.value, { maximumFractionDigits: 0 }) + ' RON'
+}
+function discounted(v: number): number {
+  return discountPct.value > 0 ? v * (1 - discountPct.value / 100) : v
 }
 function credits(v: number): string {
   return n(v, { maximumFractionDigits: 2 })
@@ -75,8 +87,46 @@ async function confirm(): Promise<void> {
   await wallet.confirmPending()
 }
 
+// --- Refund the wallet balance ---------------------------------------
+// Every user can ask for the unspent part of their balance back — not tied
+// to any one purchase (the balance is a fungible pool; WalletService
+// allocates the request across whichever purchases still have refundable
+// capacity). `refundable` is the practical ceiling: it can be less than the
+// raw balance if part of it isn't backed by a real Stripe charge.
+const showRefundConfirm = ref(false)
+const refundAmount = ref(0)
+const refundableCredits = computed(() => summary.value?.refundable.credits ?? 0)
+const refundFeePct = computed(() => summary.value?.refundFeePct ?? 0)
+const refundFeeCredits = computed(() => (refundAmount.value * refundFeePct.value) / 100)
+const refundAmountValid = computed(
+  () =>
+    Number.isFinite(refundAmount.value) &&
+    refundAmount.value > 0 &&
+    refundAmount.value <= refundableCredits.value,
+)
+
+function openRefundConfirm(): void {
+  refundAmount.value = refundableCredits.value
+  showRefundConfirm.value = true
+}
+
+async function confirmRefund(): Promise<void> {
+  if (!refundAmountValid.value) return
+  // A failure sets `wallet.error` — the watcher above already turns that
+  // into a toast via `errorText`, so only the success case needs one here.
+  const ok = await wallet.requestRefund(refundAmount.value)
+  showRefundConfirm.value = false
+  if (ok) toasts.success(t('wallet.refundRequested'))
+}
+
 onMounted(async () => {
   await Promise.all([wallet.load(), companies.fetchOverview().catch(() => {})])
+  try {
+    const pricing = await fetchPricing()
+    if (pricing.creditsDiscountEnabled) discountPct.value = pricing.creditsDiscountPct
+  } catch {
+    /* no discount banner if this fails — purchase still works at full price */
+  }
 
   // Back from a Stripe Checkout redirect — the whole SPA reloaded, so this
   // reads entirely from the URL rather than any in-memory `pending` state.
@@ -235,7 +285,16 @@ onMounted(async () => {
               :label="t('wallet.customAmount')"
             />
           </div>
-          <p class="wal__preview">
+          <p v-if="discountPct > 0" class="wal__preview wal__preview--discount">
+            <span class="wal__strike">{{ eur(amount || 0) }}</span>
+            {{ t('wallet.previewLine', {
+              credits: amount || 0,
+              eur: eur(discounted(amount || 0)),
+              ron: ron(discounted(amount || 0)),
+            }) }}
+            <span class="wal__discountTag">-{{ discountPct }}%</span>
+          </p>
+          <p v-else class="wal__preview">
             {{ t('wallet.previewLine', { credits: amount || 0, eur: eur(amount || 0), ron: ron(amount || 0) }) }}
           </p>
           <v-btn
@@ -273,6 +332,20 @@ onMounted(async () => {
         </div>
       </section>
 
+      <!-- Refund the wallet balance -->
+      <section v-if="refundableCredits > 0" class="wal__refund">
+        <h2>
+          {{ t('wallet.refundTitle') }}
+          <InfoHint :text="t('wallet.refundHint')" />
+        </h2>
+        <p class="wal__refundLine">
+          {{ t('wallet.refundAvailable', { credits: credits(refundableCredits) }) }}
+        </p>
+        <v-btn variant="tonal" prepend-icon="mdi-cash-refund" @click="openRefundConfirm">
+          {{ t('wallet.refundCta') }}
+        </v-btn>
+      </section>
+
       <!-- Consumption per business -->
       <section v-if="consumers.length" class="wal__bybiz">
         <h2>{{ t('wallet.byBusinessTitle') }}</h2>
@@ -297,6 +370,48 @@ onMounted(async () => {
         </v-btn>
       </section>
     </template>
+
+    <v-dialog v-model="showRefundConfirm" max-width="440">
+      <v-card>
+        <v-card-title class="text-h6">{{ t('wallet.refundConfirmTitle') }}</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model.number="refundAmount"
+            type="number"
+            :min="0.01"
+            :max="refundableCredits"
+            step="0.01"
+            variant="outlined"
+            density="compact"
+            :label="t('wallet.refundAmountLabel')"
+            :suffix="t('wallet.credits')"
+            :error="!refundAmountValid"
+          />
+          <p class="wal__refundNote">
+            {{ t('wallet.refundAvailable', { credits: credits(refundableCredits) }) }}
+          </p>
+          <p v-if="refundFeePct > 0" class="wal__refundNote">
+            {{ t('wallet.refundConfirmFee', { pct: refundFeePct, fee: credits(refundFeeCredits) }) }}
+          </p>
+          <p class="wal__refundHoldNote">{{ t('wallet.refundConfirmHold') }}</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" :disabled="working" @click="showRefundConfirm = false">
+            {{ t('common.cancel') }}
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            :disabled="!refundAmountValid"
+            :loading="working"
+            @click="confirmRefund"
+          >
+            {{ t('wallet.refundCta') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -476,10 +591,12 @@ onMounted(async () => {
 }
 
 .wal__buy,
+.wal__refund,
 .wal__history {
   margin-top: 1.75rem;
 }
 .wal__buy h2,
+.wal__refund h2,
 .wal__history h2 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-size: 1.1rem;
@@ -514,6 +631,25 @@ onMounted(async () => {
   margin: 0.9rem 0;
   font-size: 0.95rem;
   font-weight: 500;
+}
+.wal__preview--discount {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.wal__strike {
+  text-decoration: line-through;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+  font-weight: 400;
+}
+.wal__discountTag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(var(--v-theme-success), 0.16);
+  color: rgb(var(--v-theme-success));
 }
 .wal__confirm {
   padding: 1.1rem;
@@ -610,5 +746,20 @@ onMounted(async () => {
 .wal__invoiceNote a {
   font-weight: 600;
   text-decoration: underline;
+}
+.wal__refundLine {
+  margin: 0 0 0.9rem;
+  font-size: 0.88rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.wal__refundNote {
+  margin: 0.7rem 0 0;
+  font-size: 0.85rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.wal__refundHoldNote {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 </style>

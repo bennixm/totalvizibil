@@ -154,6 +154,7 @@ export class AdminUsersService {
         blocked: walletSummary.blocked,
         blockedAt: walletSummary.blockedAt,
         blockedReason: walletSummary.blockedReason,
+        refundable: walletSummary.refundable,
       },
       companies: u.companyMembers.map((m) => {
         const c = m.company;
@@ -328,12 +329,13 @@ export class AdminUsersService {
     return this.detail(id);
   }
 
-  /** Admin-initiated refund — same 7-day hold + customer-cancelable flow as
-   *  a self-service request (see WalletService.requestRefund). */
-  async refundTransaction(id: string, transactionId: string, adminUserId: string) {
+  /** Admin-initiated refund of up to the user's current wallet balance — same
+   *  7-day hold + customer-cancelable flow as a self-service request (see
+   *  WalletService.requestRefund). */
+  async refundBalance(id: string, credits: number, adminUserId: string) {
     const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
     if (!target) throw new NotFoundException('User not found');
-    await this.wallet.requestRefund(id, transactionId, { initiatedByAdminId: adminUserId });
+    await this.wallet.requestRefund(id, credits, { initiatedByAdminId: adminUserId });
     return this.detail(id);
   }
 

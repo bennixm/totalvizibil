@@ -95,6 +95,7 @@ function hydrate(u: AdminUserDetail) {
   form.email = u.email
   form.status = u.status
   form.roles = [...u.platformRoles]
+  if (refundAmount.value == null) refundAmount.value = u.wallet.refundable.credits || null
 }
 
 async function load() {
@@ -196,11 +197,25 @@ function submitAdjust() {
   })
 }
 
-function refundTxn(txnId: string) {
+const refundAmount = ref<number | null>(null)
+const refundAmountValid = computed(
+  () =>
+    typeof refundAmount.value === 'number' &&
+    refundAmount.value > 0 &&
+    refundAmount.value <= (user.value?.wallet.refundable.credits ?? 0),
+)
+function submitRefund() {
+  if (!refundAmountValid.value) return
+  const credits = refundAmount.value as number
   askConfirm(
     t('admin.refundConfirmTitle'),
     t('admin.refundConfirmText'),
-    () => run(`refund-${txnId}`, () => admin.refundTransaction(id.value, txnId), t('admin.refundRequested')),
+    () =>
+      run('refund', () => admin.refundBalance(id.value, credits), t('admin.refundRequested')).then(
+        () => {
+          refundAmount.value = null
+        },
+      ),
     false,
   )
 }
@@ -557,6 +572,37 @@ const txnColor: Record<string, string> = {
                 </v-btn>
               </div>
             </AdminSection>
+
+            <AdminSection
+              v-if="user.wallet.refundable.credits > 0"
+              :title="t('admin.refundTitle')"
+              icon="mdi-cash-refund"
+            >
+              <p class="ud__note mt-0 mb-3">
+                {{ t('wallet.refundAvailable', { credits: fmtCr(user.wallet.refundable.credits) }) }}
+              </p>
+              <div class="ud__adjust">
+                <v-text-field
+                  v-model.number="refundAmount"
+                  type="number"
+                  :max="user.wallet.refundable.credits"
+                  :label="t('admin.refundAmountLabel')"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="ud__adjustCredits"
+                />
+                <v-btn
+                  variant="flat"
+                  color="primary"
+                  :loading="busy === 'refund'"
+                  :disabled="!refundAmountValid"
+                  @click="submitRefund"
+                >
+                  {{ t('admin.refund') }}
+                </v-btn>
+              </div>
+            </AdminSection>
           </div>
         </v-window-item>
 
@@ -684,16 +730,7 @@ const txnColor: Record<string, string> = {
                       <td class="num ud__date">{{ dt(tx.createdAt) }}</td>
                       <td class="ud__txnAction">
                         <v-btn
-                          v-if="tx.type === 'purchase' && tx.refundEligible"
-                          size="x-small"
-                          variant="text"
-                          :loading="busy === `refund-${tx.id}`"
-                          @click="refundTxn(tx.id)"
-                        >
-                          {{ t('admin.refund') }}
-                        </v-btn>
-                        <v-btn
-                          v-else-if="tx.type === 'refund' && tx.status === 'pending'"
+                          v-if="tx.type === 'refund' && tx.status === 'pending'"
                           size="x-small"
                           variant="text"
                           color="warning"
