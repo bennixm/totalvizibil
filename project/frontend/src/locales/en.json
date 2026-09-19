@@ -569,7 +569,14 @@
       "wallet_blocked": "Your wallet has been frozen by an administrator. You cannot top up or spend credits.",
       "wallet_blocked_reason": "Your wallet has been frozen by an administrator. Reason: {reason}. You cannot top up or spend credits.",
       "insufficient_credits": "Not enough credits in your wallet.",
-      "billing_profile_incomplete": "You need to complete your billing details before depositing money."
+      "billing_profile_incomplete": "You need to complete your billing details before depositing money.",
+      "purchase_not_refundable": "This purchase can't be refunded.",
+      "only_completed_purchases_can_be_refunded": "Only completed purchases can be refunded.",
+      "refund_already_requested": "A refund has already been requested for this purchase.",
+      "insufficient_balance_for_refund": "Your remaining balance doesn't cover the refund amount.",
+      "refund_not_cancelable": "This refund can no longer be canceled.",
+      "refund_hold_expired": "The cancel window has expired.",
+      "payment_not_completed": "The payment hasn't completed yet."
     },
     "blockedReason": "Reason: {reason}",
     "blockedHelp": "Contact support if you think this is a mistake.",
@@ -581,7 +588,9 @@
     "unbilledCta": "Issue missing invoices",
     "invoiceIssued": "Invoice {number} was issued.",
     "invoiceView": "View invoice",
-    "viewTransactionsCta": "View all transactions"
+    "viewTransactionsCta": "View all transactions",
+    "checkoutSuccess": "Payment successful — credits have been added to your wallet.",
+    "checkoutCanceled": "The payment was canceled."
   },
   "auth": {
     "loginTitle": "Log in",
@@ -766,6 +775,12 @@
     "adjustHint": "Can be negative",
     "apply": "Apply",
     "walletAdjusted": "Balance adjusted",
+    "refund": "Refund",
+    "refundConfirmTitle": "Request a refund for this purchase?",
+    "refundConfirmText": "Starts the 7-day cancel window — the customer can still cancel the request until then.",
+    "refundRequested": "Refund requested",
+    "refundCanceled": "Refund canceled",
+    "refundProcessesIn": "processes in {d} days",
     "banUser": "Ban user",
     "unbanUser": "Lift the ban",
     "banUserConfirm": "The account is suspended, sessions revoked, and their campaigns pulled from the feed.",
@@ -1636,6 +1651,8 @@
     "extraBizPriceHint": "Cost to create a business beyond the first, in credits.",
     "vatRate": "Invoice VAT rate",
     "vatRateHint": "0% if the company is not VAT-registered.",
+    "refundFee": "Refund fee",
+    "refundFeeHint": "Percentage withheld from the amount refunded to the customer on a refund request.",
     "issuerTitle": "Invoicing — issuer details",
     "issuerNote": "These details appear as the issuer on every invoice issued to clients.",
     "issuerName": "Legal company name",
@@ -2085,7 +2102,17 @@
     "filterType": "Type",
     "filterAllTypes": "All types",
     "noneMatch": "No transactions match the selected filters.",
-    "clearFilters": "Clear filters"
+    "clearFilters": "Clear filters",
+    "requestRefund": "Request refund",
+    "refundRequested": "Refund requested.",
+    "refundCanceled": "The refund was canceled.",
+    "refundProcessesIn": "Processes in {d} days · you can still cancel",
+    "refundFeeNote": "{fee} cr fee withheld",
+    "confirmRefundTitle": "Request a refund for this purchase?",
+    "confirmRefundText": "{credits} credits will be deducted from your wallet. You have 7 days to cancel the request.",
+    "confirmRefundFee": "A {pct}% processing fee ({fee} credits) is withheld — the rest is sent back via Stripe to the card used for payment.",
+    "confirmRefundHold": "The amount is held immediately, but nothing is sent to Stripe until the 7 days pass — you can cancel any time before then.",
+    "confirmRefundCta": "Request refund"
   },
   "affiliate": {
     "badge": "Affiliate program",

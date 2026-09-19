@@ -6,6 +6,7 @@ import { loadConfig } from './config/env';
 import { AiModule } from './ai/ai.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
+import { StripeModule } from './stripe/stripe.module';
 import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
@@ -30,6 +31,7 @@ import { HealthModule } from './health/health.module';
     AiModule,
     PrismaModule,
     PlatformSettingsModule,
+    StripeModule,
     MailModule,
     AuthModule,
     CompaniesModule,

@@ -76,6 +76,7 @@ export class AdminController {
       affiliateEnabled,
       affiliateRewardCredits,
       affiliateMinDepositCredits,
+      refundFeePct,
     ] = await Promise.all([
       this.settings.eurRonRate(),
       this.settings.advancedBuilderPriceCredits(),
@@ -86,6 +87,7 @@ export class AdminController {
       this.settings.affiliateEnabled(),
       this.settings.affiliateRewardCredits(),
       this.settings.affiliateMinDepositCredits(),
+      this.settings.refundFeePct(),
     ]);
     return {
       eurRonRate,
@@ -96,6 +98,7 @@ export class AdminController {
       affiliateEnabled,
       affiliateRewardCredits,
       affiliateMinDepositCredits,
+      refundFeePct,
       invoiceIssuerName: invoiceIssuer.name,
       invoiceIssuerTaxId: invoiceIssuer.taxId,
       invoiceIssuerRegCom: invoiceIssuer.regCom,
@@ -130,6 +133,9 @@ export class AdminController {
     }
     if (dto.affiliateMinDepositCredits !== undefined) {
       await this.settings.setAffiliateMinDepositCredits(dto.affiliateMinDepositCredits);
+    }
+    if (dto.refundFeePct !== undefined) {
+      await this.settings.setRefundFeePct(dto.refundFeePct);
     }
     const {
       invoiceIssuerName: name,
@@ -179,6 +185,23 @@ export class AdminController {
   @Post('users/:id/wallet/adjust')
   adjustWallet(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AdjustWalletDto) {
     return this.users.adjustWallet(id, dto);
+  }
+
+  @Post('users/:id/wallet/transactions/:txnId/refund')
+  refundTransaction(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('txnId', ParseUUIDPipe) txnId: string,
+  ) {
+    return this.users.refundTransaction(id, txnId, caller.id);
+  }
+
+  @Post('users/:id/wallet/refunds/:refundId/cancel')
+  cancelWalletRefund(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('refundId', ParseUUIDPipe) refundId: string,
+  ) {
+    return this.users.cancelRefund(id, refundId);
   }
 
   // --- businesses --------------------------------------------------

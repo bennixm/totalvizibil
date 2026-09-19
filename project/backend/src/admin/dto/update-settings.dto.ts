@@ -39,6 +39,15 @@ export class UpdateSettingsDto {
   @Max(30)
   invoiceVatRatePct?: number;
 
+  // --- refunds (see WalletModule) ---
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  refundFeePct?: number;
+
   // --- affiliate program (see AffiliateModule) ---
 
   @IsOptional()

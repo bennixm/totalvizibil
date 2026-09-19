@@ -61,9 +61,25 @@ export class WalletController {
     return this.wallet.startPurchase(user.id, dto.credits);
   }
 
-  /** Confirm a pending purchase (dev/stub stands in for the provider webhook). */
+  /** Confirm a pending purchase — verifies with Stripe when applicable, else
+   *  the dev stub stands in for the provider webhook. */
   @Post('purchases/:txnId/confirm')
   confirm(@CurrentUser() user: AuthPrincipal, @Param('txnId', ParseUUIDPipe) txnId: string) {
     return this.wallet.confirmPurchase(user.id, txnId);
+  }
+
+  /** Request a refund of a completed Stripe purchase — starts the 7-day hold. */
+  @Post('transactions/:txnId/refund')
+  requestRefund(@CurrentUser() user: AuthPrincipal, @Param('txnId', ParseUUIDPipe) txnId: string) {
+    return this.wallet.requestRefund(user.id, txnId);
+  }
+
+  /** Cancel a still-pending refund before its 7-day hold elapses. */
+  @Post('refunds/:refundId/cancel')
+  cancelRefund(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('refundId', ParseUUIDPipe) refundId: string,
+  ) {
+    return this.wallet.cancelRefund(user.id, refundId);
   }
 }

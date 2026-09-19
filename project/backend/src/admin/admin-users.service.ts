@@ -109,24 +109,24 @@ export class AdminUsersService {
     const now = new Date();
     const companyIds = u.companyMembers.map((m) => m.company.id);
 
-    const [sessions, walletSummary, transactions, invoices, spendByCompany] = await Promise.all([
-      this.sessions.listActiveForUser(id),
-      this.wallet.getSummary(id),
-      this.prisma.walletTransaction.findMany({
-        where: { wallet: { userId: id } },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-        include: { company: { select: { displayName: true } } },
-      }),
-      this.billing.listForUser(id),
-      companyIds.length
-        ? this.prisma.walletTransaction.groupBy({
-            by: ['companyId'],
-            where: { companyId: { in: companyIds }, type: 'spend', status: 'completed' },
-            _sum: { amountMinor: true },
-          })
-        : Promise.resolve([]),
-    ]);
+    const [sessions, walletSummary, transactionsPage, invoices, spendByCompany] = await Promise.all(
+      [
+        this.sessions.listActiveForUser(id),
+        this.wallet.getSummary(id),
+        // Reuses the same row shape (+ refund eligibility/state) the
+        // customer's own transactions page gets — one source of truth
+        // instead of a second hand-rolled mapping here.
+        this.wallet.listTransactions(id, { limit: 20 }),
+        this.billing.listForUser(id),
+        companyIds.length
+          ? this.prisma.walletTransaction.groupBy({
+              by: ['companyId'],
+              where: { companyId: { in: companyIds }, type: 'spend', status: 'completed' },
+              _sum: { amountMinor: true },
+            })
+          : Promise.resolve([]),
+      ],
+    );
 
     const consumedBy = new Map(
       spendByCompany
@@ -190,17 +190,7 @@ export class AdminUsersService {
             : null,
         };
       }),
-      transactions: transactions.map((t) => ({
-        id: t.id,
-        type: t.type,
-        status: t.status,
-        amount: money(t.amountMinor),
-        balanceAfter: t.balanceAfterMinor != null ? money(t.balanceAfterMinor) : null,
-        description: t.description,
-        companyName: t.company?.displayName ?? null,
-        clicks: t.provider === 'cpc' ? (t.clickCount ?? null) : null,
-        createdAt: t.createdAt,
-      })),
+      transactions: transactionsPage.items,
       invoices: invoices.map((inv) => ({
         id: inv.id,
         number: inv.number,
@@ -335,6 +325,22 @@ export class AdminUsersService {
     const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
     if (!target) throw new NotFoundException('User not found');
     await this.wallet.adjust(id, dto.credits, dto.reason);
+    return this.detail(id);
+  }
+
+  /** Admin-initiated refund — same 7-day hold + customer-cancelable flow as
+   *  a self-service request (see WalletService.requestRefund). */
+  async refundTransaction(id: string, transactionId: string, adminUserId: string) {
+    const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
+    if (!target) throw new NotFoundException('User not found');
+    await this.wallet.requestRefund(id, transactionId, { initiatedByAdminId: adminUserId });
+    return this.detail(id);
+  }
+
+  async cancelRefund(id: string, refundId: string) {
+    const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
+    if (!target) throw new NotFoundException('User not found');
+    await this.wallet.cancelRefund(id, refundId);
     return this.detail(id);
   }
 }

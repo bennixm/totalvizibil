@@ -16,6 +16,7 @@ export const SETTING_KEYS = {
   affiliateEnabled: 'affiliate_enabled',
   affiliateRewardCredits: 'affiliate_reward_credits',
   affiliateMinDepositCredits: 'affiliate_min_deposit_credits',
+  refundFeePct: 'refund_fee_pct',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -55,6 +56,11 @@ const MAX_AFFILIATE_REWARD = 10_000;
 const DEFAULT_AFFILIATE_MIN_DEPOSIT = 50;
 const MIN_AFFILIATE_MIN_DEPOSIT = 0;
 const MAX_AFFILIATE_MIN_DEPOSIT = 100_000;
+
+/** Processing fee withheld from a wallet-purchase refund, as a whole percent. */
+const DEFAULT_REFUND_FEE_PCT = 5;
+const MIN_REFUND_FEE_PCT = 0;
+const MAX_REFUND_FEE_PCT = 100;
 
 export interface InvoiceIssuer {
   name: string;
@@ -272,6 +278,27 @@ export class PlatformSettingsService {
     }
     const rounded = Math.round(credits);
     await this.set(SETTING_KEYS.affiliateMinDepositCredits, String(rounded));
+    return rounded;
+  }
+
+  // --- refunds -------------------------------------------------------
+
+  /** Processing fee withheld from a wallet-purchase refund (whole percent). */
+  async refundFeePct(): Promise<number> {
+    const raw = await this.get(SETTING_KEYS.refundFeePct);
+    const parsed = raw != null ? Number(raw) : NaN;
+    if (!Number.isFinite(parsed) || parsed < MIN_REFUND_FEE_PCT || parsed > MAX_REFUND_FEE_PCT) {
+      if (raw != null) this.logger.warn(`Ignoring invalid ${SETTING_KEYS.refundFeePct}=${raw}`);
+      return DEFAULT_REFUND_FEE_PCT;
+    }
+    return Math.round(parsed);
+  }
+  async setRefundFeePct(pct: number): Promise<number> {
+    if (!Number.isFinite(pct) || pct < MIN_REFUND_FEE_PCT || pct > MAX_REFUND_FEE_PCT) {
+      throw new BadRequestException('refund_fee_pct out of range');
+    }
+    const rounded = Math.round(pct);
+    await this.set(SETTING_KEYS.refundFeePct, String(rounded));
     return rounded;
   }
 

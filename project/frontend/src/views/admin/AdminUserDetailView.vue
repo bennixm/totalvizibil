@@ -196,6 +196,25 @@ function submitAdjust() {
   })
 }
 
+function refundTxn(txnId: string) {
+  askConfirm(
+    t('admin.refundConfirmTitle'),
+    t('admin.refundConfirmText'),
+    () => run(`refund-${txnId}`, () => admin.refundTransaction(id.value, txnId), t('admin.refundRequested')),
+    false,
+  )
+}
+function cancelWalletRefund(refundId: string) {
+  void run(
+    `cancelRefund-${refundId}`,
+    () => admin.cancelWalletRefund(id.value, refundId),
+    t('admin.refundCanceled'),
+  )
+}
+function daysLeft(processAt: string): number {
+  return Math.max(0, Math.ceil((new Date(processAt).getTime() - Date.now()) / 86_400_000))
+}
+
 function companyStatus(c: AdminUserCompany, status: 'active' | 'suspended') {
   const go = () =>
     run(
@@ -634,6 +653,7 @@ const txnColor: Record<string, string> = {
                       <th>{{ t('invoice.colDescription') }}</th>
                       <th class="num">{{ t('admin.colTotal') }}</th>
                       <th class="num">{{ t('admin.colDate') }}</th>
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
@@ -649,6 +669,9 @@ const txnColor: Record<string, string> = {
                         <span v-if="tx.clicks != null" class="ud__muted">
                           · {{ t('wallet.nClicks', { n: tx.clicks }) }}
                         </span>
+                        <span v-if="tx.type === 'refund' && tx.status === 'pending'" class="ud__muted">
+                          · {{ t('admin.refundProcessesIn', { d: tx.processAt ? daysLeft(tx.processAt) : 0 }) }}
+                        </span>
                       </td>
                       <td class="num">
                         <CreditsValue
@@ -659,6 +682,27 @@ const txnColor: Record<string, string> = {
                         />
                       </td>
                       <td class="num ud__date">{{ dt(tx.createdAt) }}</td>
+                      <td class="ud__txnAction">
+                        <v-btn
+                          v-if="tx.type === 'purchase' && tx.refundEligible"
+                          size="x-small"
+                          variant="text"
+                          :loading="busy === `refund-${tx.id}`"
+                          @click="refundTxn(tx.id)"
+                        >
+                          {{ t('admin.refund') }}
+                        </v-btn>
+                        <v-btn
+                          v-else-if="tx.type === 'refund' && tx.status === 'pending'"
+                          size="x-small"
+                          variant="text"
+                          color="warning"
+                          :loading="busy === `cancelRefund-${tx.id}`"
+                          @click="cancelWalletRefund(tx.id)"
+                        >
+                          {{ t('common.cancel') }}
+                        </v-btn>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -1011,6 +1055,10 @@ const txnColor: Record<string, string> = {
 .ud__date {
   color: rgba(var(--v-theme-on-surface), 0.45);
   font-size: 0.74rem;
+}
+.ud__txnAction {
+  white-space: nowrap;
+  text-align: right;
 }
 .ud__link {
   font-size: 0.8rem;

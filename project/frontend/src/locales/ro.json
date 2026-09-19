@@ -569,7 +569,14 @@
       "wallet_blocked": "Portofelul tău este blocat de administrator. Nu poți adăuga sau consuma credite.",
       "wallet_blocked_reason": "Portofelul tău este blocat de administrator. Motiv: {reason}. Nu poți adăuga sau consuma credite.",
       "insufficient_credits": "Credite insuficiente în portofel.",
-      "billing_profile_incomplete": "Trebuie să completezi datele de facturare înainte de a depune bani."
+      "billing_profile_incomplete": "Trebuie să completezi datele de facturare înainte de a depune bani.",
+      "purchase_not_refundable": "Această achiziție nu poate fi rambursată.",
+      "only_completed_purchases_can_be_refunded": "Doar achizițiile finalizate pot fi rambursate.",
+      "refund_already_requested": "Există deja o cerere de rambursare pentru această achiziție.",
+      "insufficient_balance_for_refund": "Soldul rămas din portofel nu acoperă suma de rambursat.",
+      "refund_not_cancelable": "Această rambursare nu mai poate fi anulată.",
+      "refund_hold_expired": "Perioada de anulare a expirat.",
+      "payment_not_completed": "Plata nu a fost finalizată încă."
     },
     "blockedReason": "Motiv: {reason}",
     "blockedHelp": "Contactează suportul dacă crezi că este o greșeală.",
@@ -581,7 +588,9 @@
     "unbilledCta": "Emite facturile lipsă",
     "invoiceIssued": "Factura {number} a fost emisă.",
     "invoiceView": "Vezi factura",
-    "viewTransactionsCta": "Vezi toate tranzacțiile"
+    "viewTransactionsCta": "Vezi toate tranzacțiile",
+    "checkoutSuccess": "Plată reușită — creditele au fost adăugate în portofel.",
+    "checkoutCanceled": "Plata a fost anulată."
   },
   "auth": {
     "loginTitle": "Autentificare",
@@ -766,6 +775,12 @@
     "adjustHint": "Poate fi negativ",
     "apply": "Aplică",
     "walletAdjusted": "Sold ajustat",
+    "refund": "Rambursează",
+    "refundConfirmTitle": "Cereri rambursarea acestei achiziții?",
+    "refundConfirmText": "Pornește perioada de așteptare de 7 zile — clientul poate anula cererea până atunci.",
+    "refundRequested": "Rambursare cerută",
+    "refundCanceled": "Rambursare anulată",
+    "refundProcessesIn": "se procesează în {d} zile",
     "banUser": "Banează utilizatorul",
     "unbanUser": "Ridică banul",
     "banUserConfirm": "Contul este suspendat, sesiunile revocate, iar campaniile lui scoase din feed.",
@@ -1636,6 +1651,8 @@
     "extraBizPriceHint": "Costul creării unei afaceri peste prima, în credite.",
     "vatRate": "Cotă TVA facturare",
     "vatRateHint": "0% dacă firma nu este plătitoare de TVA.",
+    "refundFee": "Taxă de rambursare",
+    "refundFeeHint": "Procentul reținut din suma rambursată clientului la o cerere de refund.",
     "issuerTitle": "Facturare — date emitent",
     "issuerNote": "Aceste date apar ca furnizor pe fiecare factură emisă clienților.",
     "issuerName": "Denumire firmă",
@@ -2085,7 +2102,17 @@
     "filterType": "Tip",
     "filterAllTypes": "Toate tipurile",
     "noneMatch": "Nicio tranzacție nu corespunde filtrelor alese.",
-    "clearFilters": "Șterge filtrele"
+    "clearFilters": "Șterge filtrele",
+    "requestRefund": "Cere rambursare",
+    "refundRequested": "Rambursare cerută.",
+    "refundCanceled": "Rambursarea a fost anulată.",
+    "refundProcessesIn": "Se procesează în {d} zile · poți anula până atunci",
+    "refundFeeNote": "taxă reținută {fee} cr",
+    "confirmRefundTitle": "Ceri rambursarea acestei achiziții?",
+    "confirmRefundText": "Se vor scădea {credits} credite din portofel. Ai 7 zile în care poți anula cererea.",
+    "confirmRefundFee": "Se reține o taxă de procesare de {pct}% ({fee} credite) — restul se returnează prin Stripe pe cardul folosit la plată.",
+    "confirmRefundHold": "Suma este blocată imediat, dar nu se trimite nimic către Stripe decât după ce trec cele 7 zile — poți anula oricând până atunci.",
+    "confirmRefundCta": "Cere rambursarea"
   },
   "affiliate": {
     "badge": "Program de afiliere",

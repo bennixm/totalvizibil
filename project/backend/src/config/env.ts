@@ -27,6 +27,10 @@ export interface AppConfig {
   visualQa: boolean;
   /** Dev-only URL of a screenshot service (`?url=` → PNG). Empty ⇒ visual QA no-ops. */
   screenshotUrl: string;
+  /** Stripe secret key (test mode, `sk_test_...`). Empty ⇒ purchases keep using
+   *  the dev stub confirm flow and refunds are unavailable (nothing real to
+   *  refund). */
+  stripeSecretKey: string;
 }
 
 // Matches project/docker-compose.yml. Used only as a dev fallback when .env is
@@ -64,6 +68,7 @@ export function loadConfig(): AppConfig {
     deepseekModelPro: process.env.DEEPSEEK_MODEL_PRO?.trim() || 'deepseek-reasoner',
     visualQa: (process.env.VISUAL_QA?.trim().toLowerCase() ?? '') === 'on',
     screenshotUrl: process.env.SCREENSHOT_URL?.trim() ?? '',
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY?.trim() ?? '',
   };
 }
 

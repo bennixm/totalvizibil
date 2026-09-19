@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 import CreditsValue from '@/components/CreditsValue.vue'
@@ -11,6 +12,8 @@ import { useWalletStore } from '@/stores/wallet'
 import { useToastStore } from '@/stores/toast'
 
 const { t, n } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const companies = useCompaniesStore()
 const wallet = useWalletStore()
 const money = useMoney()
@@ -60,6 +63,13 @@ const previewValid = computed(() => Number.isInteger(amount.value) && amount.val
 async function buy(): Promise<void> {
   if (!previewValid.value) return
   await wallet.startPurchase(amount.value)
+  // Stripe configured: the pending purchase carries a real Checkout Session
+  // URL — leave the app entirely and let Stripe host the payment form. With
+  // no Stripe key, `checkoutUrl` is null and the existing dev-stub "confirm"
+  // panel below renders instead, unchanged.
+  if (wallet.pending?.checkoutUrl) {
+    window.location.href = wallet.pending.checkoutUrl
+  }
 }
 async function confirm(): Promise<void> {
   await wallet.confirmPending()
@@ -67,6 +77,19 @@ async function confirm(): Promise<void> {
 
 onMounted(async () => {
   await Promise.all([wallet.load(), companies.fetchOverview().catch(() => {})])
+
+  // Back from a Stripe Checkout redirect — the whole SPA reloaded, so this
+  // reads entirely from the URL rather than any in-memory `pending` state.
+  const checkout = route.query.checkout
+  const txn = typeof route.query.txn === 'string' ? route.query.txn : null
+  if (checkout === 'success' && txn) {
+    const ok = await wallet.confirmTransaction(txn)
+    toasts[ok ? 'success' : 'error'](ok ? t('wallet.checkoutSuccess') : errorText.value)
+    void router.replace({ query: {} })
+  } else if (checkout === 'cancel') {
+    toasts.error(t('wallet.checkoutCanceled'))
+    void router.replace({ query: {} })
+  }
 })
 </script>
 

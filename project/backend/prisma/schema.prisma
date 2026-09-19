@@ -653,6 +653,20 @@ model WalletTransaction {
   spendDay   DateTime? @map("spend_day") @db.Date
   clickCount Int?      @map("click_count")
 
+  // --- Refunds (type = 'refund' rows only) ---------------------------
+  // The original `purchase` row being reversed. `amountMinor` on THIS row is
+  // the full negative reversal of that purchase; `feeMinor` is withheld from
+  // what actually goes back to the card (see WalletService.requestRefund).
+  refundOf   WalletTransaction?  @relation("RefundOf", fields: [refundOfId], references: [id])
+  refundOfId String?             @map("refund_of_id") @db.Uuid
+  refunds    WalletTransaction[] @relation("RefundOf")
+  feePct     Int?                @map("fee_pct")
+  feeMinor   Int?                @map("fee_minor")
+  // When the 7-day cancel window elapses and the sweep may execute the
+  // refund. Only set while status = 'pending' on a refund row.
+  processAt         DateTime? @map("process_at")
+  initiatedByAdminId String?  @map("initiated_by_admin_id") @db.Uuid
+
   description String?
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -662,6 +676,8 @@ model WalletTransaction {
   @@unique([walletId, companyId, provider, spendDay])
   @@index([walletId, createdAt])
   @@index([companyId])
+  @@index([refundOfId])
+  @@index([status, processAt])
   @@map("wallet_transactions")
 }
 

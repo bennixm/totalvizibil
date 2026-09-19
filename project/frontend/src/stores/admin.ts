@@ -66,6 +66,7 @@ export interface AdminSettings {
   affiliateEnabled: boolean
   affiliateRewardCredits: number
   affiliateMinDepositCredits: number
+  refundFeePct: number
   invoiceIssuerName: string
   invoiceIssuerTaxId: string
   invoiceIssuerRegCom: string
@@ -123,10 +124,17 @@ export interface AdminUserTxn {
   status: string
   amount: Money
   balanceAfter: Money | null
+  provider: string | null
   description: string | null
   companyName: string | null
   clicks: number | null
   createdAt: string
+  refundOfId: string | null
+  feePct: number | null
+  feeMinor: Money | null
+  processAt: string | null
+  refundEligible: boolean
+  activeRefundId: string | null
 }
 
 export interface AdminUserDetail {
@@ -565,6 +573,19 @@ export const useAdminStore = defineStore('admin', {
       return apiFetch<AdminUserDetail>(`/admin/users/${id}/wallet/adjust`, {
         method: 'POST',
         body: { credits, reason },
+      })
+    },
+
+    refundTransaction(id: string, transactionId: string): Promise<AdminUserDetail> {
+      return apiFetch<AdminUserDetail>(
+        `/admin/users/${id}/wallet/transactions/${transactionId}/refund`,
+        { method: 'POST' },
+      )
+    },
+
+    cancelWalletRefund(id: string, refundId: string): Promise<AdminUserDetail> {
+      return apiFetch<AdminUserDetail>(`/admin/users/${id}/wallet/refunds/${refundId}/cancel`, {
+        method: 'POST',
       })
     },
 

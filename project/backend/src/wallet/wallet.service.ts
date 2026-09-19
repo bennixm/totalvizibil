@@ -2,22 +2,35 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { BillingService, isProfileComplete } from '../billing/billing.service';
 import { AffiliateService } from '../affiliate/affiliate.service';
+import { StripeService } from '../stripe/stripe.service';
+import { AppConfig } from '../config/env';
 import { CREDIT_MINOR, eurCentsToRonBani, minorToCredits, money } from './money';
 import { WALLET_CURRENCIES, WalletCurrency } from './dto/set-currency.dto';
 
 const MAX_PURCHASE_CREDITS = 100_000;
 const STUB_PROVIDER = 'stub-dev';
+/** Real payments — Stripe Checkout, test mode key or not. */
+const STRIPE_PROVIDER = 'stripe';
 /** Marks the one rolling "Ad clicks" spend row per company per UTC day. */
 const CPC_PROVIDER = 'cpc';
 const WALLET_TXN_TYPES = ['purchase', 'spend', 'refund', 'adjustment'] as const;
 type WalletTxnTypeFilter = (typeof WALLET_TXN_TYPES)[number];
+
+/** A refund can be canceled up to this long after it's requested — see
+ *  WalletService.requestRefund/cancelRefund. Same shape as the company
+ *  deletion grace window (COMPANY_DELETE_GRACE_MS). */
+const REFUND_HOLD_MS = 7 * 24 * 60 * 60 * 1000;
+const REFUND_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
  * One wallet per user. It funds every business the user owns; campaigns have no
@@ -25,13 +38,26 @@ type WalletTxnTypeFilter = (typeof WALLET_TXN_TYPES)[number];
  * exactly how much each business/campaign has consumed.
  */
 @Injectable()
-export class WalletService {
+export class WalletService implements OnModuleInit {
+  private readonly logger = new Logger(WalletService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: PlatformSettingsService,
     private readonly billing: BillingService,
     private readonly affiliate: AffiliateService,
+    private readonly stripe: StripeService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
+
+  /** Same "no cron dependency, a plain timer" approach as
+   *  CompaniesService.sweepStaleDrafts — skipped under Jest so test runs
+   *  don't pick up a background interval. */
+  onModuleInit(): void {
+    if (process.env.NODE_ENV === 'test') return;
+    setTimeout(() => void this.sweepDueRefunds(), 90_000);
+    setInterval(() => void this.sweepDueRefunds(), REFUND_SWEEP_INTERVAL_MS);
+  }
 
   // --- helpers ---------------------------------------------------------
 
@@ -79,19 +105,21 @@ export class WalletService {
   /** Wallet summary for a user. No auth check — callers guard access. */
   async getSummary(userId: string) {
     const wallet = await this.ensureWallet(userId);
-    const [purchases, spends, eurRonRate, billingProfile, unbilled] = await Promise.all([
-      this.prisma.walletTransaction.aggregate({
-        where: { walletId: wallet.id, type: 'purchase', status: 'completed' },
-        _sum: { amountMinor: true, eurCents: true },
-      }),
-      this.prisma.walletTransaction.aggregate({
-        where: { walletId: wallet.id, type: 'spend', status: 'completed' },
-        _sum: { amountMinor: true },
-      }),
-      this.settings.eurRonRate(),
-      this.billing.getProfile(userId),
-      this.billing.unbilledPurchases(userId),
-    ]);
+    const [purchases, spends, eurRonRate, billingProfile, unbilled, refundFeePct] =
+      await Promise.all([
+        this.prisma.walletTransaction.aggregate({
+          where: { walletId: wallet.id, type: 'purchase', status: 'completed' },
+          _sum: { amountMinor: true, eurCents: true },
+        }),
+        this.prisma.walletTransaction.aggregate({
+          where: { walletId: wallet.id, type: 'spend', status: 'completed' },
+          _sum: { amountMinor: true },
+        }),
+        this.settings.eurRonRate(),
+        this.billing.getProfile(userId),
+        this.billing.unbilledPurchases(userId),
+        this.settings.refundFeePct(),
+      ]);
 
     const purchasedMinor = purchases._sum.amountMinor ?? 0;
     const spentMinor = Math.abs(spends._sum.amountMinor ?? 0);
@@ -112,6 +140,10 @@ export class WalletService {
       // gate/alert without a second round-trip.
       billingProfileComplete: isProfileComplete(billingProfile),
       unbilledPurchases: unbilled.count,
+      // Shown in the refund confirm dialog before the customer commits —
+      // the actual rate applied is whatever's current when they request it,
+      // same source (`PlatformSettingsService`), just read again there.
+      refundFeePct,
     };
   }
 
@@ -252,34 +284,67 @@ export class WalletService {
     });
 
     const hasMore = rows.length > take;
-    const items = (hasMore ? rows.slice(0, take) : rows).map((t) => ({
-      id: t.id,
-      type: t.type,
-      status: t.status,
-      amount: money(t.amountMinor),
-      balanceAfter: t.balanceAfterMinor != null ? money(t.balanceAfterMinor) : null,
-      eurCents: t.eurCents,
-      ronBani: t.ronBani,
-      fxRate: t.fxRate ? Number(t.fxRate) : null,
-      provider: t.provider,
-      description: t.description,
-      companyId: t.companyId,
-      companyName: t.company?.displayName ?? null,
-      // Rolled-up ad-click count for the daily CPC row (else null).
-      clicks: t.provider === CPC_PROVIDER ? (t.clickCount ?? null) : null,
-      createdAt: t.createdAt,
-    }));
+    const pageRows = hasMore ? rows.slice(0, take) : rows;
 
-    return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
+    // For each `purchase` row on this page, is there already an active
+    // (pending or completed) refund against it? One extra indexed query
+    // instead of guessing client-side across pagination boundaries.
+    const purchaseIds = pageRows.filter((t) => t.type === 'purchase').map((t) => t.id);
+    const activeRefunds = purchaseIds.length
+      ? await this.prisma.walletTransaction.findMany({
+          where: { refundOfId: { in: purchaseIds }, status: { in: ['pending', 'completed'] } },
+          select: { id: true, refundOfId: true, status: true, processAt: true },
+        })
+      : [];
+    const refundByPurchase = new Map(activeRefunds.map((r) => [r.refundOfId as string, r]));
+
+    const items = pageRows.map((t) => {
+      const activeRefund = t.type === 'purchase' ? (refundByPurchase.get(t.id) ?? null) : null;
+      return {
+        id: t.id,
+        type: t.type,
+        status: t.status,
+        amount: money(t.amountMinor),
+        balanceAfter: t.balanceAfterMinor != null ? money(t.balanceAfterMinor) : null,
+        eurCents: t.eurCents,
+        ronBani: t.ronBani,
+        fxRate: t.fxRate ? Number(t.fxRate) : null,
+        provider: t.provider,
+        description: t.description,
+        companyId: t.companyId,
+        companyName: t.company?.displayName ?? null,
+        // Rolled-up ad-click count for the daily CPC row (else null).
+        clicks: t.provider === CPC_PROVIDER ? (t.clickCount ?? null) : null,
+        createdAt: t.createdAt,
+        // Refund context — populated only where relevant (see comments).
+        refundOfId: t.refundOfId,
+        feePct: t.feePct,
+        feeMinor: t.feeMinor != null ? money(t.feeMinor) : null,
+        // A `refund` row's own cancel-window deadline.
+        processAt: t.type === 'refund' ? t.processAt : null,
+        // A `purchase` row's own eligibility: only a completed Stripe
+        // purchase with no active refund already on it can be refunded.
+        refundEligible:
+          t.type === 'purchase' &&
+          t.status === 'completed' &&
+          t.provider === STRIPE_PROVIDER &&
+          !activeRefund,
+        activeRefundId: activeRefund?.id ?? null,
+      };
+    });
+
+    return { items, nextCursor: hasMore ? pageRows[pageRows.length - 1].id : null };
   }
 
   // --- purchases -----------------------------------------------------
 
   /**
    * Start a credit purchase. Creates a `pending` transaction and returns the
-   * amounts (EUR + RON at the current rate). The balance is not moved until the
-   * payment is confirmed — in prod by the provider webhook, here by a manual
-   * dev confirm.
+   * amounts (EUR + RON at the current rate). When Stripe is configured, this
+   * also opens a real (test-mode) Checkout Session and returns its URL for
+   * the client to redirect to; the balance moves only once `confirmPurchase`
+   * verifies the session actually paid. With no Stripe key, behaviour is
+   * unchanged: a dev stub the client confirms directly (PRD §17).
    */
   async startPurchase(userId: string, credits: number) {
     if (!Number.isInteger(credits) || credits < 1 || credits > MAX_PURCHASE_CREDITS) {
@@ -293,6 +358,17 @@ export class WalletService {
     const rate = await this.settings.eurRonRate();
     const ronBani = eurCentsToRonBani(eurCents, rate);
 
+    // A real charge needs a billing profile to actually deliver on (every
+    // deposit must produce an invoice) — the stub flow only checks this at
+    // confirm time, but that would mean a customer pays via Stripe first and
+    // only THEN learns their profile is incomplete. Check upfront instead.
+    if (this.stripe.configured) {
+      const profile = await this.billing.getProfile(userId);
+      if (!isProfileComplete(profile)) {
+        throw new BadRequestException('billing_profile_incomplete');
+      }
+    }
+
     const txn = await this.prisma.walletTransaction.create({
       data: {
         walletId: wallet.id,
@@ -302,10 +378,27 @@ export class WalletService {
         eurCents,
         ronBani,
         fxRate: new Prisma.Decimal(rate),
-        provider: STUB_PROVIDER,
+        provider: this.stripe.configured ? STRIPE_PROVIDER : STUB_PROVIDER,
         description: `Buy ${credits} credits`,
       },
     });
+
+    let checkoutUrl: string | null = null;
+    if (this.stripe.configured) {
+      const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
+      const session = await this.stripe.createCheckoutSession({
+        amountMinor: eurCents,
+        credits,
+        successUrl: `${frontendOrigin}/wallet?checkout=success&txn=${txn.id}`,
+        cancelUrl: `${frontendOrigin}/wallet?checkout=cancel&txn=${txn.id}`,
+        metadata: { walletTransactionId: txn.id, userId },
+      });
+      await this.prisma.walletTransaction.update({
+        where: { id: txn.id },
+        data: { providerRef: session.id },
+      });
+      checkoutUrl = session.url;
+    }
 
     return {
       transactionId: txn.id,
@@ -314,8 +407,8 @@ export class WalletService {
       eurCents,
       ronBani,
       fxRate: rate,
-      provider: STUB_PROVIDER,
-      // No real PSP wired yet — the client confirms directly (PRD §17).
+      provider: this.stripe.configured ? STRIPE_PROVIDER : STUB_PROVIDER,
+      checkoutUrl,
       requiresConfirmation: true,
     };
   }
@@ -324,12 +417,43 @@ export class WalletService {
    * Confirm a pending purchase and apply the credits to the balance. Atomic.
    * Every deposit must produce an invoice, so a client with no complete billing
    * profile is rejected up front — no balance change, nothing to undo.
+   *
+   * When the purchase went through Stripe, this is where the payment is
+   * actually verified: the Checkout Session is retrieved server-side and its
+   * `payment_status` checked before a single credit moves — the redirect back
+   * from Stripe is just a hint to check, never trusted on its own. The
+   * session's real PaymentIntent id replaces the pending session id in
+   * `providerRef`, so a later refund targets the actual charge.
    */
   async confirmPurchase(userId: string, transactionId: string) {
     const wallet = await this.ensureWallet(userId);
     const profile = await this.billing.getProfile(userId);
     if (!isProfileComplete(profile)) {
       throw new BadRequestException('billing_profile_incomplete');
+    }
+
+    // Stripe purchases: verify with Stripe's own API BEFORE touching the
+    // balance — a call to this endpoint (via the success-page redirect) is
+    // only ever a hint to go check, never trusted on its own. A network call
+    // has no place inside the DB transaction below, so it happens first.
+    let stripePaymentIntentId: string | null = null;
+    const preTxn = await this.prisma.walletTransaction.findUnique({
+      where: { id: transactionId },
+    });
+    if (!preTxn || preTxn.walletId !== wallet.id || preTxn.type !== 'purchase') {
+      throw new NotFoundException('Transaction not found');
+    }
+    if (preTxn.provider === STRIPE_PROVIDER && preTxn.status === 'pending') {
+      if (!preTxn.providerRef) throw new BadRequestException('missing_checkout_session');
+      const session = await this.stripe.retrieveCheckoutSession(preTxn.providerRef);
+      if (session.payment_status !== 'paid') {
+        throw new BadRequestException('payment_not_completed');
+      }
+      const pi = session.payment_intent;
+      stripePaymentIntentId = typeof pi === 'string' ? pi : (pi?.id ?? null);
+      if (!stripePaymentIntentId) {
+        throw new BadRequestException('missing_payment_intent');
+      }
     }
 
     const invoice = await this.prisma.$transaction(async (tx) => {
@@ -350,7 +474,7 @@ export class WalletService {
         data: {
           status: 'completed',
           balanceAfterMinor: updated.balanceMinor,
-          providerRef: `dev-${Date.now()}`,
+          providerRef: stripePaymentIntentId ?? `dev-${Date.now()}`,
         },
       });
 
@@ -530,5 +654,201 @@ export class WalletService {
     );
     if (!result) throw new BadRequestException('insufficient_credits');
     return result;
+  }
+
+  // --- refunds --------------------------------------------------------
+
+  /**
+   * Request a refund of a completed Stripe purchase. Places an immediate
+   * hold: the full purchase amount leaves the balance right away (a `refund`
+   * transaction, status `pending`) so the customer can't spend money they've
+   * asked back — same "prepaid, never negative" spirit as the rest of this
+   * service. Nothing is actually sent to Stripe yet: `processAt` (now + 7
+   * days) is when `sweepDueRefunds` may execute it, and the customer can
+   * `cancelRefund` any time before then to release the hold. `initiatedBy
+   * AdminId` records an admin-initiated refund — the SAME hold/cancel/sweep
+   * path either way (see `CampaignSpendView`-style deletion grace window
+   * this mirrors: `COMPANY_DELETE_GRACE_MS`).
+   */
+  async requestRefund(
+    userId: string,
+    transactionId: string,
+    opts: { initiatedByAdminId?: string } = {},
+  ) {
+    const feePct = await this.settings.refundFeePct();
+
+    await this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.wallet.upsert({
+        where: { userId },
+        create: { userId },
+        update: {},
+      });
+      const txn = await tx.walletTransaction.findUnique({ where: { id: transactionId } });
+      if (!txn || txn.walletId !== wallet.id || txn.type !== 'purchase') {
+        throw new NotFoundException('Transaction not found');
+      }
+      if (txn.status !== 'completed') {
+        throw new BadRequestException('only_completed_purchases_can_be_refunded');
+      }
+      if (txn.provider !== STRIPE_PROVIDER || !txn.providerRef) {
+        throw new BadRequestException('purchase_not_refundable');
+      }
+      const already = await tx.walletTransaction.findFirst({
+        where: { refundOfId: txn.id, status: { in: ['pending', 'completed'] } },
+      });
+      if (already) throw new BadRequestException('refund_already_requested');
+
+      const amountMinor = Math.abs(txn.amountMinor);
+      if (wallet.balanceMinor < amountMinor) {
+        throw new BadRequestException('insufficient_balance_for_refund');
+      }
+      const feeMinor = Math.round((amountMinor * feePct) / 100);
+
+      const updated = await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balanceMinor: { decrement: amountMinor } },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: 'refund',
+          status: 'pending',
+          amountMinor: -amountMinor,
+          balanceAfterMinor: updated.balanceMinor,
+          refundOfId: txn.id,
+          feePct,
+          feeMinor,
+          processAt: new Date(Date.now() + REFUND_HOLD_MS),
+          initiatedByAdminId: opts.initiatedByAdminId ?? null,
+          description: `Refund — ${txn.description ?? 'Purchase'}`,
+        },
+      });
+    });
+
+    return this.getSummary(userId);
+  }
+
+  /** Cancel a still-pending refund within its 7-day hold — releases the hold
+   *  (credits the balance back) and marks the refund `canceled`. Works the
+   *  same whether the refund was customer- or admin-initiated: it's still
+   *  the customer's own wallet. */
+  async cancelRefund(userId: string, refundTransactionId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.wallet.upsert({
+        where: { userId },
+        create: { userId },
+        update: {},
+      });
+      const refund = await tx.walletTransaction.findUnique({
+        where: { id: refundTransactionId },
+      });
+      if (!refund || refund.walletId !== wallet.id || refund.type !== 'refund') {
+        throw new NotFoundException('Refund not found');
+      }
+      if (refund.status !== 'pending') {
+        throw new BadRequestException('refund_not_cancelable');
+      }
+      if (refund.processAt && refund.processAt.getTime() <= Date.now()) {
+        throw new BadRequestException('refund_hold_expired');
+      }
+
+      const updated = await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balanceMinor: { increment: Math.abs(refund.amountMinor) } },
+      });
+      await tx.walletTransaction.update({
+        where: { id: refund.id },
+        data: { status: 'canceled', balanceAfterMinor: updated.balanceMinor },
+      });
+    });
+
+    return this.getSummary(userId);
+  }
+
+  /** Runs hourly (see `onModuleInit`): executes every refund whose 7-day hold
+   *  has elapsed and that nobody canceled. No cron dependency, same pattern
+   *  as `CompaniesService.sweepStaleDrafts`. */
+  private async sweepDueRefunds(): Promise<void> {
+    try {
+      const due = await this.prisma.walletTransaction.findMany({
+        where: { type: 'refund', status: 'pending', processAt: { lte: new Date() } },
+        select: { id: true },
+      });
+      for (const { id } of due) {
+        await this.executeRefund(id).catch((err) => {
+          this.logger.error(`Refund ${id} failed`, err instanceof Error ? err.stack : err);
+        });
+      }
+      if (due.length > 0) {
+        this.logger.log(`Processed ${due.length} due refund(s)`);
+      }
+    } catch (err) {
+      this.logger.error('Refund sweep failed', err instanceof Error ? err.stack : err);
+    }
+  }
+
+  /** Actually sends the refund to Stripe (or, with no Stripe key configured,
+   *  completes it as a no-op — same "empty key ⇒ deterministic fallback"
+   *  idiom as every other optional integration in this app, so the whole
+   *  request → wait → execute flow is fully testable without real
+   *  credentials). A Stripe failure releases the hold rather than leaving
+   *  the customer's credits stuck in limbo. */
+  private async executeRefund(refundTransactionId: string): Promise<void> {
+    const refund = await this.prisma.walletTransaction.findUnique({
+      where: { id: refundTransactionId },
+      include: { refundOf: true },
+    });
+    // Already handled (e.g. raced with a cancel) — nothing to do.
+    if (!refund || refund.status !== 'pending') return;
+
+    if (!this.stripe.configured) {
+      await this.prisma.walletTransaction.update({
+        where: { id: refund.id },
+        data: { status: 'completed', providerRef: `dev-refund-${Date.now()}` },
+      });
+      return;
+    }
+
+    const original = refund.refundOf;
+    if (!original?.providerRef) {
+      await this.markRefundFailed(refund.id, 'missing_original_payment_reference');
+      return;
+    }
+
+    const refundAmountMinor = Math.abs(refund.amountMinor) - (refund.feeMinor ?? 0);
+    try {
+      const stripeRefund = await this.stripe.createRefund({
+        paymentIntentId: original.providerRef,
+        amountMinor: refundAmountMinor,
+      });
+      await this.prisma.walletTransaction.update({
+        where: { id: refund.id },
+        data: { status: 'completed', providerRef: stripeRefund.id },
+      });
+    } catch (err) {
+      await this.markRefundFailed(refund.id, err instanceof Error ? err.message : 'stripe_error');
+    }
+  }
+
+  /** A refund Stripe couldn't actually execute releases its hold — the
+   *  customer keeps the credits rather than losing them to a failed call,
+   *  and the failure is visible in their history for support to follow up. */
+  private async markRefundFailed(refundTransactionId: string, reason: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const refund = await tx.walletTransaction.findUnique({ where: { id: refundTransactionId } });
+      if (!refund || refund.status !== 'pending') return;
+      const updated = await tx.wallet.update({
+        where: { id: refund.walletId },
+        data: { balanceMinor: { increment: Math.abs(refund.amountMinor) } },
+      });
+      await tx.walletTransaction.update({
+        where: { id: refund.id },
+        data: {
+          status: 'failed',
+          balanceAfterMinor: updated.balanceMinor,
+          description: `${refund.description ?? 'Refund'} — failed: ${reason.slice(0, 200)}`,
+        },
+      });
+    });
   }
 }

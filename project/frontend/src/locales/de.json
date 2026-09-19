@@ -569,7 +569,14 @@
       "wallet_blocked": "Ihr Wallet wurde von einem Administrator gesperrt. Sie können keine Credits aufladen oder ausgeben.",
       "wallet_blocked_reason": "Ihr Wallet wurde von einem Administrator gesperrt. Grund: {reason}. Sie können keine Credits aufladen oder ausgeben.",
       "insufficient_credits": "Nicht genug Credits im Wallet.",
-      "billing_profile_incomplete": "Du musst deine Rechnungsdaten vervollständigen, bevor du Geld einzahlst."
+      "billing_profile_incomplete": "Du musst deine Rechnungsdaten vervollständigen, bevor du Geld einzahlst.",
+      "purchase_not_refundable": "Dieser Kauf kann nicht erstattet werden.",
+      "only_completed_purchases_can_be_refunded": "Nur abgeschlossene Käufe können erstattet werden.",
+      "refund_already_requested": "Für diesen Kauf wurde bereits eine Rückerstattung beantragt.",
+      "insufficient_balance_for_refund": "Dein verbleibendes Guthaben deckt den Erstattungsbetrag nicht.",
+      "refund_not_cancelable": "Diese Rückerstattung kann nicht mehr storniert werden.",
+      "refund_hold_expired": "Das Stornierungsfenster ist abgelaufen.",
+      "payment_not_completed": "Die Zahlung ist noch nicht abgeschlossen."
     },
     "blockedReason": "Grund: {reason}",
     "blockedHelp": "Wenden Sie sich an den Support, falls dies ein Fehler ist.",
@@ -581,7 +588,9 @@
     "unbilledCta": "Fehlende Rechnungen ausstellen",
     "invoiceIssued": "Rechnung {number} wurde ausgestellt.",
     "invoiceView": "Rechnung ansehen",
-    "viewTransactionsCta": "Alle Transaktionen ansehen"
+    "viewTransactionsCta": "Alle Transaktionen ansehen",
+    "checkoutSuccess": "Zahlung erfolgreich — die Credits wurden deinem Wallet gutgeschrieben.",
+    "checkoutCanceled": "Die Zahlung wurde abgebrochen."
   },
   "auth": {
     "loginTitle": "Anmelden",
@@ -766,6 +775,12 @@
     "adjustHint": "Kann negativ sein",
     "apply": "Anwenden",
     "walletAdjusted": "Guthaben angepasst",
+    "refund": "Erstatten",
+    "refundConfirmTitle": "Rückerstattung für diesen Kauf anfordern?",
+    "refundConfirmText": "Startet das 7-tägige Stornierungsfenster — der Kunde kann die Anfrage bis dahin noch stornieren.",
+    "refundRequested": "Rückerstattung angefordert",
+    "refundCanceled": "Rückerstattung storniert",
+    "refundProcessesIn": "wird in {d} Tagen bearbeitet",
     "banUser": "Benutzer sperren",
     "unbanUser": "Sperre aufheben",
     "banUserConfirm": "Das Konto wird gesperrt, Sitzungen werden widerrufen und Kampagnen aus dem Feed genommen.",
@@ -1636,6 +1651,8 @@
     "extraBizPriceHint": "Kosten für ein Unternehmen über das erste hinaus, in Credits.",
     "vatRate": "USt.-Satz für Rechnungen",
     "vatRateHint": "0%, wenn das Unternehmen nicht umsatzsteuerpflichtig ist.",
+    "refundFee": "Rückerstattungsgebühr",
+    "refundFeeHint": "Prozentsatz, der bei einer Rückerstattungsanfrage vom erstatteten Betrag einbehalten wird.",
     "issuerTitle": "Rechnungsstellung — Ausstellerdaten",
     "issuerNote": "Diese Angaben erscheinen als Aussteller auf jeder an Kunden ausgestellten Rechnung.",
     "issuerName": "Firmenname",
@@ -2085,7 +2102,17 @@
     "filterType": "Typ",
     "filterAllTypes": "Alle Typen",
     "noneMatch": "Keine Transaktionen entsprechen den gewählten Filtern.",
-    "clearFilters": "Filter zurücksetzen"
+    "clearFilters": "Filter zurücksetzen",
+    "requestRefund": "Rückerstattung anfordern",
+    "refundRequested": "Rückerstattung angefordert.",
+    "refundCanceled": "Die Rückerstattung wurde storniert.",
+    "refundProcessesIn": "Wird in {d} Tagen bearbeitet · du kannst noch stornieren",
+    "refundFeeNote": "{fee} cr Gebühr einbehalten",
+    "confirmRefundTitle": "Rückerstattung für diesen Kauf anfordern?",
+    "confirmRefundText": "{credits} Credits werden von deinem Wallet abgezogen. Du hast 7 Tage Zeit, die Anfrage zu stornieren.",
+    "confirmRefundFee": "Es wird eine Bearbeitungsgebühr von {pct}% ({fee} Credits) einbehalten — der Rest wird über Stripe an die verwendete Karte zurückgesendet.",
+    "confirmRefundHold": "Der Betrag wird sofort einbehalten, aber erst nach Ablauf der 7 Tage an Stripe gesendet — du kannst bis dahin jederzeit stornieren.",
+    "confirmRefundCta": "Rückerstattung anfordern"
   },
   "affiliate": {
     "badge": "Partnerprogramm",

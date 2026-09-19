@@ -25,6 +25,7 @@ const form = reactive({
   advancedBuilderUnlockBonusCredits: 0,
   additionalBusinessPriceCredits: 0,
   invoiceVatRatePct: 0,
+  refundFeePct: 0,
 })
 const affiliate = reactive({ enabled: false, rewardCredits: 20, minDeposit: 50 })
 const REWARD_MIN = 1
@@ -100,6 +101,16 @@ const fields = [
     step: 1,
     suffix: '%',
   },
+  {
+    key: 'refundFeePct' as const,
+    label: 'adminSettings.refundFee',
+    hint: 'adminSettings.refundFeeHint',
+    icon: 'mdi-cash-refund',
+    min: 0,
+    max: 100,
+    step: 1,
+    suffix: '%',
+  },
 ]
 
 function hydrate() {
@@ -109,6 +120,7 @@ function hydrate() {
   form.advancedBuilderUnlockBonusCredits = admin.settings.advancedBuilderUnlockBonusCredits
   form.additionalBusinessPriceCredits = admin.settings.additionalBusinessPriceCredits
   form.invoiceVatRatePct = admin.settings.invoiceVatRatePct
+  form.refundFeePct = admin.settings.refundFeePct
   affiliate.enabled = admin.settings.affiliateEnabled
   affiliate.rewardCredits = admin.settings.affiliateRewardCredits
   affiliate.minDeposit = admin.settings.affiliateMinDepositCredits
@@ -136,6 +148,7 @@ const dirty = computed(
       form.advancedBuilderUnlockBonusCredits !== admin.settings.advancedBuilderUnlockBonusCredits ||
       form.additionalBusinessPriceCredits !== admin.settings.additionalBusinessPriceCredits ||
       form.invoiceVatRatePct !== admin.settings.invoiceVatRatePct ||
+      form.refundFeePct !== admin.settings.refundFeePct ||
       affiliate.enabled !== admin.settings.affiliateEnabled ||
       affiliate.rewardCredits !== admin.settings.affiliateRewardCredits ||
       affiliate.minDeposit !== admin.settings.affiliateMinDepositCredits ||
