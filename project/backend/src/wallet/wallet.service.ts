@@ -16,6 +16,8 @@ const MAX_PURCHASE_CREDITS = 100_000;
 const STUB_PROVIDER = 'stub-dev';
 /** Marks the one rolling "Ad clicks" spend row per company per UTC day. */
 const CPC_PROVIDER = 'cpc';
+const WALLET_TXN_TYPES = ['purchase', 'spend', 'refund', 'adjustment'] as const;
+type WalletTxnTypeFilter = (typeof WALLET_TXN_TYPES)[number];
 
 /**
  * One wallet per user. It funds every business the user owns; campaigns have no
@@ -229,15 +231,19 @@ export class WalletService {
 
   async listTransactions(
     userId: string,
-    opts: { limit?: number; cursor?: string; companyId?: string } = {},
+    opts: { limit?: number; cursor?: string; companyId?: string; type?: string } = {},
   ) {
     const wallet = await this.ensureWallet(userId);
     const take = Math.min(Math.max(opts.limit ?? 20, 1), 100);
+    const type = WALLET_TXN_TYPES.includes(opts.type as WalletTxnTypeFilter)
+      ? (opts.type as WalletTxnTypeFilter)
+      : undefined;
 
     const rows = await this.prisma.walletTransaction.findMany({
       where: {
         walletId: wallet.id,
         ...(opts.companyId ? { companyId: opts.companyId } : {}),
+        ...(type ? { type } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: take + 1,

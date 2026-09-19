@@ -192,7 +192,7 @@ function doPrint(): void {
   gap: 1rem;
   padding-bottom: 1.1rem;
   margin-bottom: 1.3rem;
-  border-bottom: 2px solid #17181c;
+  border-bottom: 2px solid #0f52ba;
 }
 .doc__head h1 {
   margin: 0;
@@ -274,8 +274,11 @@ function doPrint(): void {
   gap: 1rem;
 }
 .doc__grandTotal {
-  padding-top: 0.5rem;
-  border-top: 2px solid #17181c;
+  margin-top: 0.15rem;
+  padding: 0.6rem 0.7rem;
+  border-top: 2px solid #0f52ba;
+  border-radius: 6px;
+  background: #f0f4fc;
   font-size: 1.1rem;
 }
 .doc__foot {

@@ -439,7 +439,10 @@
     "invoicesNone": "Nicio factură încă",
     "invoicesLast": "Ultima: {number}",
     "invoicesCta": "Vezi facturile",
-    "editSite": "Editează site-ul"
+    "editSite": "Editează site-ul",
+    "transactionsTitle": "Tranzacții",
+    "transactionsNone": "Nicio tranzacție încă.",
+    "transactionsCta": "Vezi toate tranzacțiile"
   },
   "campaign": {
     "eyebrow": "Promovare în feed",
@@ -546,6 +549,11 @@
       "spend": "Consum",
       "refund": "Rambursare",
       "adjustment": "Ajustare"
+    },
+    "txnLabel": {
+      "aiPrompt": "Prompt AI",
+      "unlock": "Deblocare builder avansat",
+      "additionalBusiness": "Afacere suplimentară"
     },
     "txnStatus": {
       "pending": "În așteptare",
@@ -1653,6 +1661,7 @@
     "title": "Campanie",
     "back": "Înapoi la panou",
     "finishSetup": "Finalizează",
+    "finishSetupHint": "Activează campania mai sus ca afacerea ta să apară în feed înainte de a finaliza.",
     "lead": "Cum se cheltuie bugetul: click-uri, cost, ritm și cât mai ține portofelul.",
     "noCampaign": "Nu ai încă o campanie",
     "noCampaignHint": "Setează un buget zilnic și un CPC ca să apari în feed și să vezi consumul aici.",
@@ -2070,7 +2079,13 @@
   "transactions": {
     "eyebrow": "Portofel",
     "title": "Tranzacții",
-    "back": "Înapoi la portofel"
+    "back": "Înapoi la portofel",
+    "filterBusiness": "Afacere",
+    "filterAllBusinesses": "Toate afacerile",
+    "filterType": "Tip",
+    "filterAllTypes": "Toate tipurile",
+    "noneMatch": "Nicio tranzacție nu corespunde filtrelor alese.",
+    "clearFilters": "Șterge filtrele"
   },
   "affiliate": {
     "badge": "Program de afiliere",

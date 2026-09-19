@@ -439,7 +439,10 @@
     "invoicesNone": "No invoices yet",
     "invoicesLast": "Last: {number}",
     "invoicesCta": "View invoices",
-    "editSite": "Edit site"
+    "editSite": "Edit site",
+    "transactionsTitle": "Transactions",
+    "transactionsNone": "No transactions yet.",
+    "transactionsCta": "View all transactions"
   },
   "campaign": {
     "eyebrow": "Feed promotion",
@@ -546,6 +549,11 @@
       "spend": "Spend",
       "refund": "Refund",
       "adjustment": "Adjustment"
+    },
+    "txnLabel": {
+      "aiPrompt": "AI prompt",
+      "unlock": "Advanced builder unlock",
+      "additionalBusiness": "Additional business"
     },
     "txnStatus": {
       "pending": "Pending",
@@ -1653,6 +1661,7 @@
     "title": "Campaign",
     "back": "Back to dashboard",
     "finishSetup": "Finish",
+    "finishSetupHint": "Activate the campaign above so your business appears in the feed before finishing.",
     "lead": "Where the budget goes: clicks, cost, pace, and how long your wallet lasts.",
     "noCampaign": "No campaign yet",
     "noCampaignHint": "Set a daily budget and CPC to appear in the feed and see spend here.",
@@ -2070,7 +2079,13 @@
   "transactions": {
     "eyebrow": "Wallet",
     "title": "Transactions",
-    "back": "Back to wallet"
+    "back": "Back to wallet",
+    "filterBusiness": "Business",
+    "filterAllBusinesses": "All businesses",
+    "filterType": "Type",
+    "filterAllTypes": "All types",
+    "noneMatch": "No transactions match the selected filters.",
+    "clearFilters": "Clear filters"
   },
   "affiliate": {
     "badge": "Affiliate program",

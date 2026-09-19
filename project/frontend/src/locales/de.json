@@ -439,7 +439,10 @@
     "invoicesNone": "Noch keine Rechnungen",
     "invoicesLast": "Letzte: {number}",
     "invoicesCta": "Rechnungen ansehen",
-    "editSite": "Website bearbeiten"
+    "editSite": "Website bearbeiten",
+    "transactionsTitle": "Transaktionen",
+    "transactionsNone": "Noch keine Transaktionen.",
+    "transactionsCta": "Alle Transaktionen ansehen"
   },
   "campaign": {
     "eyebrow": "Feed-Werbung",
@@ -546,6 +549,11 @@
       "spend": "Ausgabe",
       "refund": "Erstattung",
       "adjustment": "Anpassung"
+    },
+    "txnLabel": {
+      "aiPrompt": "KI-Prompt",
+      "unlock": "Freischaltung erweiterter Builder",
+      "additionalBusiness": "Zusätzliches Unternehmen"
     },
     "txnStatus": {
       "pending": "Ausstehend",
@@ -1653,6 +1661,7 @@
     "title": "Kampagne",
     "back": "Zurück zum Dashboard",
     "finishSetup": "Fertigstellen",
+    "finishSetupHint": "Aktiviere die Kampagne oben, damit dein Unternehmen im Feed erscheint, bevor du abschließt.",
     "lead": "Wohin das Budget fließt: Klicks, Kosten, Tempo und wie lange dein Guthaben reicht.",
     "noCampaign": "Noch keine Kampagne",
     "noCampaignHint": "Lege ein Tagesbudget und einen CPC fest, um im Feed zu erscheinen und den Verbrauch hier zu sehen.",
@@ -2070,7 +2079,13 @@
   "transactions": {
     "eyebrow": "Wallet",
     "title": "Transaktionen",
-    "back": "Zurück zum Wallet"
+    "back": "Zurück zum Wallet",
+    "filterBusiness": "Unternehmen",
+    "filterAllBusinesses": "Alle Unternehmen",
+    "filterType": "Typ",
+    "filterAllTypes": "Alle Typen",
+    "noneMatch": "Keine Transaktionen entsprechen den gewählten Filtern.",
+    "clearFilters": "Filter zurücksetzen"
   },
   "affiliate": {
     "badge": "Partnerprogramm",

@@ -35,6 +35,15 @@ export class PublicCompanyController {
     const { mime, bytes } = await this.svc.bundleFile(companyId, path);
     res.setHeader('Content-Type', mime);
     res.setHeader('Content-Length', bytes.length);
+    // Every app page carries Cross-Origin-Embedder-Policy: credentialless
+    // (needed for the Website Builder's WebContainer sandbox — see
+    // deploy/nginx/website-builder-headers.conf), which makes those pages
+    // cross-origin-isolated. A cross-origin-isolated document can only embed
+    // an iframe whose OWN response also declares a compatible COEP — even
+    // for a same-origin frame — otherwise the browser blocks it outright.
+    // This is that frame: the published-site preview in CompanyPublicView
+    // and the dashboard's "View site" dialog.
+    res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
     // `index.html` can change on every publish; hashed asset filenames never
     // change content under the same name, so they can cache hard.
     res.setHeader(

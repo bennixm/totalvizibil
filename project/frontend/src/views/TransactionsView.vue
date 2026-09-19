@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
 import CreditsValue from '@/components/CreditsValue.vue'
-import { useWalletStore } from '@/stores/wallet'
+import { useWalletStore, type WalletTxnType } from '@/stores/wallet'
+import { useCompaniesStore } from '@/stores/companies'
 import { useToastStore } from '@/stores/toast'
+import { txnLabel, txnIcon } from '@/composables/useTxnLabel'
 
 const { t } = useI18n()
 const wallet = useWalletStore()
+const companies = useCompaniesStore()
 const toasts = useToastStore()
 const { transactions, nextCursor } = storeToRefs(wallet)
+const { overview } = storeToRefs(companies)
 
 // `loadTransactions()` doesn't manage its own loading flags (its other two
 // callers — `wallet.load()`/`confirmPending()` — already wrap it in their
@@ -23,10 +27,17 @@ const { transactions, nextCursor } = storeToRefs(wallet)
 const loading = ref(true)
 const loadingMore = ref(false)
 
+const filterCompany = ref<string | null>(null)
+const filterType = ref<WalletTxnType | null>(null)
+const hasFilters = computed(() => !!filterCompany.value || !!filterType.value)
+
+const TYPE_OPTIONS: WalletTxnType[] = ['purchase', 'spend', 'refund', 'adjustment']
+
 async function loadInitial(): Promise<void> {
   loading.value = true
   try {
-    await wallet.loadTransactions(false)
+    await companies.fetchOverview().catch(() => {})
+    await wallet.loadTransactions(false, { companyId: filterCompany.value, type: filterType.value })
   } catch {
     toasts.error(t('wallet.historyError'))
   } finally {
@@ -46,6 +57,22 @@ async function loadMore(): Promise<void> {
   }
 }
 
+function clearFilters(): void {
+  filterCompany.value = null
+  filterType.value = null
+}
+
+watch([filterCompany, filterType], async () => {
+  loading.value = true
+  try {
+    await wallet.loadTransactions(false, { companyId: filterCompany.value, type: filterType.value })
+  } catch {
+    toasts.error(t('wallet.historyError'))
+  } finally {
+    loading.value = false
+  }
+})
+
 onMounted(loadInitial)
 </script>
 
@@ -61,43 +88,74 @@ onMounted(loadInitial)
       </v-btn>
     </header>
 
+    <div class="txn__filters">
+      <v-select
+        v-if="overview.length > 1"
+        v-model="filterCompany"
+        :items="[
+          { title: t('transactions.filterAllBusinesses'), value: null },
+          ...overview.map((c) => ({ title: c.displayName, value: c.id })),
+        ]"
+        :label="t('transactions.filterBusiness')"
+        density="compact"
+        variant="outlined"
+        hide-details
+        class="txn__filter"
+      />
+      <v-select
+        v-model="filterType"
+        :items="[
+          { title: t('transactions.filterAllTypes'), value: null },
+          ...TYPE_OPTIONS.map((v) => ({ title: t('wallet.txnType.' + v), value: v })),
+        ]"
+        :label="t('transactions.filterType')"
+        density="compact"
+        variant="outlined"
+        hide-details
+        class="txn__filter"
+      />
+      <v-btn v-if="hasFilters" variant="text" size="small" @click="clearFilters">
+        {{ t('transactions.clearFilters') }}
+      </v-btn>
+    </div>
+
     <div v-if="loading && !transactions.length" class="txn__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
 
     <template v-else>
       <section class="txn__list">
-        <p v-if="!transactions.length" class="txn__empty">{{ t('wallet.historyEmpty') }}</p>
-        <table v-else class="txn__table">
-          <thead>
-            <tr>
-              <th>{{ t('wallet.colType') }}</th>
-              <th>{{ t('wallet.colAmount') }}</th>
-              <th>{{ t('wallet.colStatus') }}</th>
-              <th>{{ t('wallet.colDate') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="txn in transactions" :key="txn.id">
-              <td>
-                {{ txn.clicks != null ? t('wallet.adClicks') : t('wallet.txnType.' + txn.type) }}
-                <span v-if="txn.clicks != null" class="txn__biz">
+        <p v-if="!transactions.length && hasFilters" class="txn__empty">
+          {{ t('transactions.noneMatch') }}
+        </p>
+        <p v-else-if="!transactions.length" class="txn__empty">{{ t('wallet.historyEmpty') }}</p>
+
+        <ul v-else class="txn__rows">
+          <li v-for="txn in transactions" :key="txn.id" class="trow">
+            <span class="trow__icon" :class="{ 'is-in': txn.amount.minor >= 0 }">
+              <v-icon :icon="txnIcon(txn)" size="18" />
+            </span>
+            <div class="trow__main">
+              <p class="trow__label">
+                {{ txnLabel(txn, t) }}
+                <span v-if="txn.clicks != null" class="trow__sub">
                   · {{ t('wallet.nClicks', { n: txn.clicks }) }}
                 </span>
-                <span v-if="txn.companyName" class="txn__biz">· {{ txn.companyName }}</span>
-              </td>
-              <td :class="txn.amount.minor < 0 ? 'is-out' : 'is-in'">
+                <span v-if="txn.companyName" class="trow__sub"> · {{ txn.companyName }}</span>
+              </p>
+              <p class="trow__date">{{ new Date(txn.createdAt).toLocaleDateString() }}</p>
+            </div>
+            <div class="trow__end">
+              <span class="trow__amount" :class="txn.amount.minor < 0 ? 'is-out' : 'is-in'">
                 <CreditsValue :credits="txn.amount.credits" signed stacked />
-              </td>
-              <td>
-                <span class="txn__badge" :class="'txn__badge--' + txn.status">
-                  {{ t('wallet.txnStatus.' + txn.status) }}
-                </span>
-              </td>
-              <td>{{ new Date(txn.createdAt).toLocaleDateString() }}</td>
-            </tr>
-          </tbody>
-        </table>
+              </span>
+              <span class="trow__badge" :class="'trow__badge--' + txn.status">
+                {{ t('wallet.txnStatus.' + txn.status) }}
+              </span>
+            </div>
+          </li>
+        </ul>
+
         <v-btn
           v-if="nextCursor"
           variant="text"
@@ -127,7 +185,7 @@ onMounted(loadInitial)
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 .txn__eyebrow {
   text-transform: uppercase;
@@ -144,52 +202,102 @@ onMounted(loadInitial)
   letter-spacing: -0.02em;
   margin: 0;
 }
+.txn__filters {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.1rem;
+}
+.txn__filter {
+  max-width: 220px;
+}
 .txn__empty {
   padding: 2.5rem 1rem;
   text-align: center;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
-.txn__biz {
+
+.txn__rows {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: var(--tvz-radius-md);
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface));
+}
+.trow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+.trow + .trow {
+  border-top: 1px solid var(--tvz-hairline);
+}
+.trow__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(var(--v-theme-error), 0.1);
+  color: rgb(var(--v-theme-error));
+}
+.trow__icon.is-in {
+  background: rgba(var(--v-theme-success), 0.12);
+  color: rgb(var(--v-theme-success));
+}
+.trow__main {
+  flex: 1;
+  min-width: 0;
+}
+.trow__label {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trow__sub {
+  font-weight: 400;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.trow__date {
+  margin: 0.1rem 0 0;
+  font-size: 0.76rem;
   color: rgba(var(--v-theme-on-surface), 0.5);
-  font-size: 0.8rem;
 }
-.txn__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.88rem;
+.trow__end {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
 }
-.txn__table th {
-  text-align: left;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-  padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid var(--tvz-hairline);
-}
-.txn__table td {
-  padding: 0.6rem;
-  border-bottom: 1px solid var(--tvz-hairline);
-}
-.txn__table .is-in {
+.trow__amount.is-in {
   color: rgb(var(--v-theme-success));
   font-weight: 600;
 }
-.txn__table .is-out {
+.trow__amount.is-out {
   color: rgb(var(--v-theme-error));
   font-weight: 600;
 }
-.txn__badge {
-  font-size: 0.72rem;
-  padding: 0.15rem 0.5rem;
+.trow__badge {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.5rem;
   border-radius: 999px;
   background: rgba(var(--v-theme-on-surface), 0.08);
 }
-.txn__badge--completed {
+.trow__badge--completed {
   background: rgba(var(--v-theme-success), 0.16);
   color: rgb(var(--v-theme-success));
 }
-.txn__badge--pending {
+.trow__badge--pending {
   background: rgba(var(--v-theme-warning), 0.16);
   color: rgb(var(--v-theme-warning));
 }

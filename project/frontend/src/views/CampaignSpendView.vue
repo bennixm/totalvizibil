@@ -227,8 +227,11 @@ async function removeCampaign(): Promise<void> {
   if (ok) void router.push({ name: 'dashboard', query: { c: companyId.value } })
 }
 
-// Last onboarding step: close out the setup and land in the dashboard.
+// Last onboarding step: close out the setup and land in the dashboard — but
+// only once the campaign is actually live, otherwise the business would never
+// show up in the feed despite the flow reading as "done".
 function finishSetup(): void {
+  if (!isLive.value) return
   void router.push({ name: 'dashboard', query: { c: companyId.value } })
 }
 
@@ -573,17 +576,23 @@ watch(
         </v-btn>
       </section>
 
-      <!-- Onboarding only: close the setup and go to the dashboard. -->
+      <!-- Onboarding only: close the setup and go to the dashboard — gated on
+           the campaign actually being live, so the business is guaranteed to
+           show up in the feed once the flow says "done". -->
       <div v-if="inFlow" class="ov__finish">
         <v-btn
           color="primary"
           size="large"
           block
+          :disabled="!isLive"
           append-icon="mdi-check"
           @click="finishSetup"
         >
           {{ t('spend.finishSetup') }}
         </v-btn>
+        <p v-if="!isLive" class="ov__finishHint">
+          <v-icon icon="mdi-information-outline" size="14" /> {{ t('spend.finishSetupHint') }}
+        </p>
       </div>
     </template>
 
@@ -828,6 +837,15 @@ watch(
   margin-top: 1.5rem;
   padding-top: 1.25rem;
   border-top: 1px solid var(--tvz-hairline);
+}
+.ov__finishHint {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  justify-content: center;
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 /* Principal info ---------------------------------------------------- */

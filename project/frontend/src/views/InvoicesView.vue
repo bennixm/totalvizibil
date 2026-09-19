@@ -65,18 +65,13 @@ async function issueMissing(): Promise<void> {
 
       <section class="inv__list">
         <p v-if="!invoices.length" class="inv__empty">{{ t('invoices.empty') }}</p>
-        <table v-else class="inv__table">
-          <thead>
-            <tr>
-              <th>{{ t('invoices.colNumber') }}</th>
-              <th>{{ t('invoices.colDate') }}</th>
-              <th>{{ t('invoices.colTotal') }}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="inv in invoices" :key="inv.id">
-              <td>
+        <ul v-else class="inv__rows">
+          <li v-for="inv in invoices" :key="inv.id" class="irow">
+            <span class="irow__icon">
+              <v-icon icon="mdi-receipt-text-outline" size="18" />
+            </span>
+            <div class="irow__main">
+              <p class="irow__label">
                 {{ inv.number }}
                 <v-chip
                   v-if="inv.kind === 'affiliate_reward'"
@@ -87,18 +82,22 @@ async function issueMissing(): Promise<void> {
                 >
                   {{ t('invoices.kindReward') }}
                 </v-chip>
-              </td>
-              <td>{{ new Date(inv.issuedAt).toLocaleDateString() }}</td>
-              <td>{{ total(inv.totalMinor) }}</td>
-              <td class="text-right">
-                <a :href="`/account/invoices/${inv.id}`" target="_blank" rel="noopener" class="inv__link">
-                  {{ t('invoices.view') }}
-                  <v-icon icon="mdi-open-in-new" size="13" />
-                </a>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </p>
+              <p class="irow__date">{{ new Date(inv.issuedAt).toLocaleDateString() }}</p>
+            </div>
+            <div class="irow__end">
+              <span class="irow__total">{{ total(inv.totalMinor) }}</span>
+              <a
+                :href="`/account/invoices/${inv.id}`"
+                target="_blank"
+                rel="noopener"
+                class="irow__link"
+              >
+                {{ t('invoices.view') }} <v-icon icon="mdi-open-in-new" size="13" />
+              </a>
+            </div>
+          </li>
+        </ul>
       </section>
 
       <p v-if="profile" class="inv__foot">
@@ -168,29 +167,66 @@ async function issueMissing(): Promise<void> {
   text-align: center;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
-.inv__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.88rem;
+.inv__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: var(--tvz-radius-md);
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface));
 }
-.inv__table th {
-  text-align: left;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.irow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+.irow + .irow {
+  border-top: 1px solid var(--tvz-hairline);
+}
+.irow__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(var(--v-theme-primary), 0.1);
+  color: rgb(var(--v-theme-primary));
+}
+.irow__main {
+  flex: 1;
+  min-width: 0;
+}
+.irow__label {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.irow__date {
+  margin: 0.1rem 0 0;
+  font-size: 0.76rem;
   color: rgba(var(--v-theme-on-surface), 0.5);
-  padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid var(--tvz-hairline);
 }
-.inv__table td {
-  padding: 0.7rem 0.6rem;
-  border-bottom: 1px solid var(--tvz-hairline);
+.irow__end {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
 }
-.inv__link {
+.irow__total {
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.irow__link {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
   white-space: nowrap;

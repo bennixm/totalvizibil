@@ -74,6 +74,8 @@ interface State {
   errorReason: string | null
   /** The invoice issued by the most recent confirmed deposit, if any. */
   lastInvoice: IssuedInvoice | null
+  /** Active transaction-list filters, kept so "load more" continues the same query. */
+  txnFilters: { companyId: string | null; type: WalletTxnType | null }
 }
 
 /** The user's single wallet — funds every business they own. */
@@ -88,6 +90,7 @@ export const useWalletStore = defineStore('wallet', {
     error: '',
     errorReason: null,
     lastInvoice: null,
+    txnFilters: { companyId: null, type: null },
   }),
 
   actions: {
@@ -131,8 +134,18 @@ export const useWalletStore = defineStore('wallet', {
       }
     },
 
-    async loadTransactions(append = true): Promise<void> {
-      const q = append && this.nextCursor ? `?cursor=${this.nextCursor}` : ''
+    async loadTransactions(
+      append = true,
+      filters?: { companyId?: string | null; type?: WalletTxnType | null },
+    ): Promise<void> {
+      if (filters !== undefined) {
+        this.txnFilters = { companyId: filters.companyId ?? null, type: filters.type ?? null }
+      }
+      const params = new URLSearchParams()
+      if (append && this.nextCursor) params.set('cursor', this.nextCursor)
+      if (this.txnFilters.companyId) params.set('companyId', this.txnFilters.companyId)
+      if (this.txnFilters.type) params.set('type', this.txnFilters.type)
+      const q = params.toString() ? `?${params.toString()}` : ''
       const res = await apiFetch<{ items: WalletTxn[]; nextCursor: string | null }>(
         `/wallet/transactions${q}`,
       )

@@ -11,9 +11,11 @@ import TrendChart from '@/components/TrendChart.vue'
 import CreditsValue from '@/components/CreditsValue.vue'
 import VisibilityMeter from '@/components/VisibilityMeter.vue'
 import { useMoney } from '@/composables/useMoney'
+import { txnLabel, txnIcon } from '@/composables/useTxnLabel'
 import { fetchPricing } from '@/services/platform'
 import { useCompaniesStore, type DashboardPayload } from '@/stores/companies'
 import { useBillingStore } from '@/stores/billing'
+import { useWalletStore } from '@/stores/wallet'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -81,6 +83,11 @@ const location = computed(() => dash.value?.company.primaryLocation ?? null)
 const wallet = computed(() => dash.value?.wallet ?? null)
 const a = computed(() => dash.value?.analytics ?? null)
 const money = useMoney()
+
+// Transactions card: a small, read-only peek at the wallet's own history —
+// the full page (with filters) lives at `wallet-transactions`.
+const walletStore = useWalletStore()
+const recentTxns = computed(() => walletStore.transactions.slice(0, 4))
 
 // An easy-plan (or not-yet-built) site keeps the Website/Cereri cards exactly
 // as before. Only an advanced-plan business that hasn't unlocked/configured
@@ -303,6 +310,7 @@ onMounted(async () => {
     .then((p) => (advancedPrice.value = p.advancedBuilderPriceCredits))
     .catch(() => {})
   void billing.load()
+  void walletStore.loadTransactions(false).catch(() => {})
   try {
     await companies.fetchOverview()
   } catch {
@@ -460,7 +468,6 @@ watch(
 
       <!-- Upgrade to the advanced plan -->
       <section v-if="canUpgrade" class="dupgrade">
-        <div class="dupgrade__glow" />
         <div class="dupgrade__ic"><v-icon icon="mdi-creation" size="22" /></div>
         <div class="dupgrade__body">
           <strong>{{ t('dashboard.upgradeTitle') }}</strong>
@@ -568,6 +575,25 @@ watch(
             <p class="dcard__sub">{{ money.approx(wallet.balance.credits) }}</p>
             <router-link class="dcard__go" :to="{ name: 'wallet' }">
               {{ t('dashboard.walletCta') }} <v-icon icon="mdi-arrow-right" size="15" />
+            </router-link>
+          </div>
+        </article>
+
+        <!-- Transactions -->
+        <article class="dcard dcard--txns">          <p class="dcard__k">{{ t('dashboard.transactionsTitle') }}</p>
+          <div class="dcard__body">
+            <ul v-if="recentTxns.length" class="dcard__txns">
+              <li v-for="txn in recentTxns" :key="txn.id" class="dcard__txn">
+                <v-icon :icon="txnIcon(txn)" size="14" class="dcard__txnIcon" />
+                <span class="dcard__txnLabel">{{ txnLabel(txn, t) }}</span>
+                <span class="dcard__txnAmount" :class="txn.amount.minor < 0 ? 'is-out' : 'is-in'">
+                  <CreditsValue :credits="txn.amount.credits" signed :approx="false" />
+                </span>
+              </li>
+            </ul>
+            <p v-else class="dcard__sub">{{ t('dashboard.transactionsNone') }}</p>
+            <router-link class="dcard__go" :to="{ name: 'wallet-transactions' }">
+              {{ t('dashboard.transactionsCta') }} <v-icon icon="mdi-arrow-right" size="15" />
             </router-link>
           </div>
         </article>
@@ -868,7 +894,6 @@ watch(
 /* --- Upgrade banner --- */
 .dupgrade {
   position: relative;
-  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -876,19 +901,8 @@ watch(
   margin-top: 1.5rem;
   padding: 1.1rem 1.3rem;
   border-radius: 12px;
-  border: 1px solid rgba(var(--v-theme-primary), 0.4);
-  background:
-    radial-gradient(120% 140% at 0% 0%, rgba(var(--v-theme-primary), 0.16), transparent 55%),
-    linear-gradient(120deg, rgba(var(--v-theme-primary), 0.08), rgba(var(--v-theme-secondary), 0.06));
-}
-.dupgrade__glow {
-  position: absolute;
-  inset: -40% -10% auto auto;
-  width: 320px;
-  height: 320px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(var(--v-theme-secondary), 0.28), transparent 70%);
-  pointer-events: none;
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
+  background: rgba(var(--v-theme-primary), 0.05);
 }
 .dupgrade__ic {
   position: relative;
@@ -898,9 +912,8 @@ watch(
   height: 42px;
   flex: none;
   border-radius: 12px;
-  color: #fff;
-  background: var(--tvz-gradient-brand);
-  box-shadow: var(--tvz-shadow-sm);
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.14);
 }
 .dupgrade__body {
   position: relative;
@@ -939,9 +952,10 @@ watch(
   margin-top: 1.75rem;
 }
 .dcard {
-  /* Every card wears the site's own accent (primary — the violet→blue). The
-     gradient / edge-bar / glow are all keyed off `--acc`, so a problem card
-     just swaps `--acc` to the error colour and everything re-tints. */
+  /* Every card wears the site's own accent (primary — the violet→blue) as a
+     thin left edge + heading colour. A problem card swaps `--acc` to the
+     error colour and both re-tint — flat surface otherwise, no gradient
+     wash or coloured glow. */
   --acc: var(--v-theme-primary);
   --acc-c: rgb(var(--acc));
   position: relative;
@@ -950,11 +964,9 @@ watch(
   flex-direction: column;
   min-height: 134px;
   padding: 1.25rem 1.35rem 1.3rem;
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--acc-c) 26%, transparent);
-  background:
-    linear-gradient(150deg, color-mix(in srgb, var(--acc-c) 13%, transparent), transparent 44%),
-    rgb(var(--v-theme-surface));
+  border-radius: 14px;
+  border: 1px solid var(--tvz-hairline);
+  background: rgb(var(--v-theme-surface));
   transition:
     transform 0.16s var(--tvz-ease-out),
     box-shadow 0.16s var(--tvz-ease-out),
@@ -965,12 +977,12 @@ watch(
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: linear-gradient(var(--acc-c), color-mix(in srgb, var(--acc-c) 25%, transparent));
+  background: var(--acc-c);
 }
 .dcard:hover {
-  transform: translateY(-3px);
-  border-color: color-mix(in srgb, var(--acc-c) 55%, transparent);
-  box-shadow: 0 16px 34px color-mix(in srgb, var(--acc-c) 18%, transparent);
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--acc-c) 40%, var(--tvz-hairline));
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.07);
 }
 .dcard--alert {
   --acc: var(--v-theme-error);
@@ -1099,6 +1111,52 @@ watch(
   cursor: not-allowed;
   pointer-events: none;
 }
+.dcard--txns {
+  grid-column: span 2;
+}
+.dcard__txns {
+  list-style: none;
+  margin: 0 0 0.2rem;
+  padding: 0;
+  width: 100%;
+}
+.dcard__txn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+}
+.dcard__txn + .dcard__txn {
+  border-top: 1px solid var(--tvz-hairline);
+}
+.dcard__txnIcon {
+  flex: none;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.dcard__txnLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.84rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dcard__txnAmount {
+  flex: none;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+.dcard__txnAmount.is-in {
+  color: rgb(var(--v-theme-success));
+}
+.dcard__txnAmount.is-out {
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+@media (max-width: 620px) {
+  .dcard--txns {
+    grid-column: span 1;
+  }
+}
 
 /* --- Analiză --- */
 .ana {
@@ -1108,11 +1166,9 @@ watch(
 }
 .ana__hero {
   padding: 1.5rem 1.6rem;
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid var(--tvz-glass-border);
-  background:
-    radial-gradient(150% 110% at 100% 0%, rgba(var(--v-theme-primary), 0.08), transparent 55%),
-    rgb(var(--v-theme-surface));
+  background: rgb(var(--v-theme-surface));
 }
 .ana__rank {
   display: flex;
@@ -1164,6 +1220,10 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 0.12rem;
+  transition: background-color 0.14s var(--tvz-ease-out);
+}
+.astat:hover {
+  background: rgba(var(--v-theme-primary), 0.04);
 }
 .astat__k {
   font-size: 0.8125rem;
