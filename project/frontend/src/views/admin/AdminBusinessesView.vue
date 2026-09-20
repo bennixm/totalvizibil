@@ -337,12 +337,23 @@ function open(id: string): void {
 }
 
 @media (max-width: 1000px) {
+  .brow {
+    flex-wrap: wrap;
+  }
   .brow__mid {
-    display: none;
+    width: auto;
+    flex-basis: 100%;
+    padding-left: calc(38px + 1rem);
   }
 }
 @media (max-width: 780px) {
   .brow__stats {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    gap: 1.1rem;
+    padding-left: calc(38px + 1rem);
+  }
+  .brow__chev {
     display: none;
   }
 }

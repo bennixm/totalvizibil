@@ -310,7 +310,16 @@ function open(id: string): void {
 }
 
 @media (max-width: 780px) {
+  .urow {
+    flex-wrap: wrap;
+  }
   .urow__stats {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    gap: 1.1rem;
+    padding-left: calc(40px + 1rem);
+  }
+  .urow__chev {
     display: none;
   }
 }

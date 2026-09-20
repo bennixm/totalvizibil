@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import {
   useAdminStore,
   type AdminCategory,
@@ -153,15 +154,17 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
 
 <template>
   <div class="ac">
-    <header class="ac__head">
-      <div>
-        <h1>{{ t('admin.navCategories') }}</h1>
-        <p>{{ t('adminCat.lead') }}</p>
-      </div>
-      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate()">
-        {{ t('adminCat.addGroup') }}
-      </v-btn>
-    </header>
+    <AdminPageHeader
+      :title="t('admin.navCategories')"
+      :eyebrow="t('admin.navGroupManage')"
+      :sub="t('adminCat.lead')"
+    >
+      <template #actions>
+        <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate()">
+          {{ t('adminCat.addGroup') }}
+        </v-btn>
+      </template>
+    </AdminPageHeader>
 
     <div v-if="admin.loadingCategories && !admin.categories.length" class="d-flex justify-center py-16">
       <v-progress-circular indeterminate color="primary" />
@@ -285,26 +288,6 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
 </template>
 
 <style scoped>
-.ac__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-bottom: 1.4rem;
-}
-.ac__head h1 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  font-size: clamp(1.4rem, 3.5vw, 1.9rem);
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-.ac__head p {
-  margin: 0.3rem 0 0;
-  font-size: 0.85rem;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
 .ac__tree {
   display: flex;
   flex-direction: column;

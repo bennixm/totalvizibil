@@ -180,6 +180,7 @@ export type InvoiceStatusFilter = 'issued' | 'void'
 export interface AdminInvoiceRow {
   id: string
   number: string
+  kind: 'topup' | 'affiliate_reward'
   issuedAt: string
   buyerKind: 'individual' | 'company'
   buyerName: string
@@ -195,6 +196,42 @@ export interface InvoicesFilters {
   status: InvoiceStatusFilter | null
   page: number
   pageSize: number
+}
+
+/** Full invoice record for the admin detail view — the raw fiscal document,
+ *  unlike the trimmed `AdminInvoiceRow` used for the list. */
+export interface AdminInvoiceDetail {
+  id: string
+  number: string
+  kind: 'topup' | 'affiliate_reward'
+  issuedAt: string
+  buyerKind: 'individual' | 'company'
+  buyerName: string
+  buyerTaxId: string | null
+  buyerRegCom: string | null
+  buyerVatPayer: boolean
+  buyerAddress: string
+  buyerCity: string
+  buyerCounty: string | null
+  buyerPostalCode: string | null
+  buyerCountry: string
+  buyerEmail: string | null
+  issuerName: string
+  issuerTaxId: string | null
+  issuerRegCom: string | null
+  issuerAddress: string
+  issuerIban: string | null
+  issuerBank: string | null
+  currency: string
+  description: string
+  subtotalMinor: number
+  vatRatePct: number
+  vatMinor: number
+  totalMinor: number
+  eurCents: number | null
+  voidedAt: string | null
+  voidReason: string | null
+  user: { id: string; email: string; name: string }
 }
 
 export interface UsersFilters {
@@ -513,6 +550,10 @@ export const useAdminStore = defineStore('admin', {
       this.invoiceFilters[key] = value
       if (key !== 'page') this.invoiceFilters.page = 1
       void this.fetchInvoices()
+    },
+
+    fetchInvoiceDetail(id: string): Promise<AdminInvoiceDetail> {
+      return apiFetch<AdminInvoiceDetail>(`/admin/invoices/${id}`)
     },
 
     async voidInvoice(id: string, reason: string): Promise<void> {

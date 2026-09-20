@@ -4,7 +4,13 @@ import { useI18n } from 'vue-i18n'
 
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
-import { useAdminStore, type AdminInvoiceRow, type InvoiceStatusFilter } from '@/stores/admin'
+import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
+import {
+  useAdminStore,
+  type AdminInvoiceDetail,
+  type AdminInvoiceRow,
+  type InvoiceStatusFilter,
+} from '@/stores/admin'
 import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
 
@@ -39,37 +45,67 @@ function errText(e: unknown, fb: string) {
   return e instanceof ApiError ? e.message : fb
 }
 
-const voidTarget = ref<AdminInvoiceRow | null>(null)
+const voidTarget = ref<{ id: string; number: string } | null>(null)
 const voidReason = ref('')
 const busy = ref<string | null>(null)
 
-function openVoid(inv: AdminInvoiceRow): void {
+function openVoid(inv: { id: string; number: string }): void {
   voidTarget.value = inv
   voidReason.value = ''
 }
 async function confirmVoid(): Promise<void> {
   if (!voidTarget.value || voidReason.value.trim().length < 3) return
-  busy.value = 'void-' + voidTarget.value.id
+  const id = voidTarget.value.id
+  busy.value = 'void-' + id
   try {
-    await admin.voidInvoice(voidTarget.value.id, voidReason.value.trim())
+    await admin.voidInvoice(id, voidReason.value.trim())
     flash(t('admin.invVoided'))
     voidTarget.value = null
+    if (detail.value?.id === id) detail.value = null
   } catch (e) {
     flash(errText(e, t('admin.genericError')), 'error')
   } finally {
     busy.value = null
   }
 }
-async function unvoid(inv: AdminInvoiceRow): Promise<void> {
+async function unvoid(inv: { id: string; number: string }): Promise<void> {
   busy.value = 'unvoid-' + inv.id
   try {
     await admin.unvoidInvoice(inv.id)
     flash(t('admin.invUnvoided'))
+    if (detail.value?.id === inv.id) detail.value = null
   } catch (e) {
     flash(errText(e, t('admin.genericError')), 'error')
   } finally {
     busy.value = null
   }
+}
+
+// --- detail dialog -----------------------------------------------------
+const detailOpen = ref(false)
+const detailLoading = ref(false)
+const detail = ref<AdminInvoiceDetail | null>(null)
+
+async function openDetail(inv: AdminInvoiceRow): Promise<void> {
+  detailOpen.value = true
+  detailLoading.value = true
+  detail.value = null
+  try {
+    detail.value = await admin.fetchInvoiceDetail(inv.id)
+  } catch (e) {
+    flash(errText(e, t('admin.genericError')), 'error')
+    detailOpen.value = false
+  } finally {
+    detailLoading.value = false
+  }
+}
+function buyerAddressLine(d: AdminInvoiceDetail): string {
+  return [d.buyerAddress, d.buyerCity, d.buyerCounty, d.buyerPostalCode, d.buyerCountry]
+    .filter(Boolean)
+    .join(', ')
+}
+function kindLabel(kind: AdminInvoiceDetail['kind']): string {
+  return kind === 'affiliate_reward' ? t('admin.invKindAffiliateReward') : t('admin.invKindTopup')
 }
 
 onMounted(() => admin.fetchInvoices())
@@ -108,58 +144,90 @@ onMounted(() => admin.fetchInvoices())
     <div v-if="admin.loadingInvoices && !admin.invoices.length" class="ai__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
-    <p v-else-if="!admin.invoices.length" class="ai__empty">{{ t('admin.invoicesNone') }}</p>
+    <AdminEmptyState
+      v-else-if="!admin.invoices.length"
+      icon="mdi-receipt-text-outline"
+      :text="admin.invoiceFilters.search || admin.invoiceFilters.status ? t('admin.invNoResultsHint') : t('admin.invoicesNone')"
+    />
 
-    <ul v-else class="ai__list">
-      <li v-for="inv in admin.invoices" :key="inv.id" class="irow" :class="{ 'irow--void': inv.voidedAt }">
-        <div class="irow__id">
-          <span class="irow__number">
-            {{ inv.number }}
-            <span v-if="inv.voidedAt" class="tag tag--err">{{ t('admin.invStatusVoid') }}</span>
-          </span>
-          <span class="irow__buyer">{{ inv.buyerName }} · {{ buyerKindLabel(inv.buyerKind) }}</span>
-          <router-link :to="{ name: 'admin-user', params: { id: inv.user.id } }" class="irow__user">
-            {{ inv.user.email }}
-          </router-link>
-        </div>
-        <div class="irow__stats">
-          <span class="irow__stat">
+    <div v-else class="itable">
+      <div class="itable__head" aria-hidden="true">
+        <span>{{ t('admin.invColInvoice') }}</span>
+        <span>{{ t('admin.colTotal') }}</span>
+        <span>{{ t('admin.colDate') }}</span>
+        <span>{{ t('admin.colStatus') }}</span>
+        <span class="itable__headActions">{{ t('admin.invColActions') }}</span>
+      </div>
+
+      <ul class="ai__list">
+        <li v-for="inv in admin.invoices" :key="inv.id" class="irow" :class="{ 'irow--void': inv.voidedAt }">
+          <button type="button" class="irow__id" @click="openDetail(inv)">
+            <span class="irow__number">
+              {{ inv.number }}
+              <span v-if="inv.kind === 'affiliate_reward'" class="tag tag--role">{{ t('admin.invKindAffiliateReward') }}</span>
+            </span>
+            <span class="irow__buyer">{{ inv.buyerName }} · {{ buyerKindLabel(inv.buyerKind) }}</span>
+            <router-link
+              :to="{ name: 'admin-user', params: { id: inv.user.id } }"
+              class="irow__user"
+              @click.stop
+            >
+              {{ inv.user.email }}
+            </router-link>
+          </button>
+
+          <span class="irow__cell irow__cell--total">
+            <span class="irow__cellLbl">{{ t('admin.colTotal') }}</span>
             <b>{{ total(inv.totalMinor) }}</b>
-            <em>{{ t('admin.colTotal') }}</em>
           </span>
-          <span class="irow__stat irow__stat--wide">
-            <b class="irow__date">{{ new Date(inv.issuedAt).toLocaleDateString() }}</b>
-            <em>{{ t('admin.colDate') }}</em>
+          <span class="irow__cell">
+            <span class="irow__cellLbl">{{ t('admin.colDate') }}</span>
+            {{ new Date(inv.issuedAt).toLocaleDateString() }}
           </span>
-        </div>
-        <div class="irow__actions">
-          <a :href="`/account/invoices/${inv.id}`" target="_blank" rel="noopener" class="irow__view">
-            {{ t('invoices.view') }}
-            <v-icon icon="mdi-open-in-new" size="13" />
-          </a>
-          <v-btn
-            v-if="!inv.voidedAt"
-            size="small"
-            variant="text"
-            color="error"
-            :loading="busy === 'void-' + inv.id"
-            @click="openVoid(inv)"
-          >
-            {{ t('admin.invVoid') }}
-          </v-btn>
-          <v-btn
-            v-else
-            size="small"
-            variant="text"
-            color="success"
-            :loading="busy === 'unvoid-' + inv.id"
-            @click="unvoid(inv)"
-          >
-            {{ t('admin.invUnvoid') }}
-          </v-btn>
-        </div>
-      </li>
-    </ul>
+          <span class="irow__cell">
+            <span class="irow__cellLbl">{{ t('admin.colStatus') }}</span>
+            <span class="chip" :class="inv.voidedAt ? 'chip--err' : 'chip--ok'">
+              {{ inv.voidedAt ? t('admin.invStatusVoid') : t('admin.invStatusIssued') }}
+            </span>
+          </span>
+
+          <div class="irow__actions">
+            <v-btn size="small" variant="tonal" @click="openDetail(inv)">
+              {{ t('admin.invDetail') }}
+            </v-btn>
+            <v-btn
+              :href="`/account/invoices/${inv.id}`"
+              target="_blank"
+              rel="noopener"
+              size="small"
+              variant="text"
+              icon="mdi-open-in-new"
+              :title="t('admin.invOpenPdf')"
+            />
+            <v-btn
+              v-if="!inv.voidedAt"
+              size="small"
+              variant="text"
+              color="error"
+              :loading="busy === 'void-' + inv.id"
+              @click="openVoid(inv)"
+            >
+              {{ t('admin.invVoid') }}
+            </v-btn>
+            <v-btn
+              v-else
+              size="small"
+              variant="text"
+              color="success"
+              :loading="busy === 'unvoid-' + inv.id"
+              @click="unvoid(inv)"
+            >
+              {{ t('admin.invUnvoid') }}
+            </v-btn>
+          </div>
+        </li>
+      </ul>
+    </div>
 
     <AdminPager
       :page="admin.invoiceFilters.page"
@@ -167,6 +235,86 @@ onMounted(() => admin.fetchInvoices())
       :total="admin.invoicesTotal"
       @update:page="admin.setInvoiceFilter('page', $event)"
     />
+
+    <!-- Detail dialog -->
+    <v-dialog v-model="detailOpen" max-width="560">
+      <v-card rounded="lg">
+        <div v-if="detailLoading" class="ai__dCenter">
+          <v-progress-circular indeterminate color="primary" />
+        </div>
+        <template v-else-if="detail">
+          <v-card-title class="ai__dTitle">
+            {{ t('admin.invDetailTitle', { number: detail.number }) }}
+            <span class="chip" :class="detail.voidedAt ? 'chip--err' : 'chip--ok'">
+              {{ detail.voidedAt ? t('admin.invStatusVoid') : t('admin.invStatusIssued') }}
+            </span>
+          </v-card-title>
+          <v-card-subtitle v-if="detail.kind === 'affiliate_reward'">
+            {{ kindLabel(detail.kind) }}
+          </v-card-subtitle>
+
+          <v-card-text class="ai__dBody">
+            <div v-if="detail.voidedAt" class="ai__dVoidNote">
+              <v-icon icon="mdi-cancel" size="16" />
+              <div>
+                <strong>{{ t('admin.invVoidedOn', { date: new Date(detail.voidedAt).toLocaleDateString() }) }}</strong>
+                <p v-if="detail.voidReason">{{ t('admin.invVoidReasonLabel') }}: {{ detail.voidReason }}</p>
+              </div>
+            </div>
+
+            <section class="ai__dSection">
+              <h3>{{ t('admin.invSectionBuyer') }}</h3>
+              <p class="ai__dName">{{ detail.buyerName }} · {{ buyerKindLabel(detail.buyerKind) }}</p>
+              <p class="ai__dLine">{{ buyerAddressLine(detail) }}</p>
+              <p v-if="detail.buyerTaxId" class="ai__dLine">CUI {{ detail.buyerTaxId }}<template v-if="detail.buyerRegCom"> · {{ detail.buyerRegCom }}</template></p>
+              <router-link :to="{ name: 'admin-user', params: { id: detail.user.id } }" class="ai__dUserLink">
+                <v-icon icon="mdi-account-outline" size="14" />
+                {{ detail.user.email }}
+                <span class="ai__dUserCta">{{ t('admin.invViewUser') }}</span>
+              </router-link>
+            </section>
+
+            <section class="ai__dSection">
+              <h3>{{ t('admin.invSectionIssuer') }}</h3>
+              <p class="ai__dName">{{ detail.issuerName }}</p>
+              <p class="ai__dLine">{{ detail.issuerAddress }}</p>
+            </section>
+
+            <section class="ai__dSection">
+              <h3>{{ t('admin.invSectionAmounts') }}</h3>
+              <div class="ai__dAmounts">
+                <span>{{ t('admin.invSubtotal') }}</span>
+                <b>{{ total(detail.subtotalMinor) }}</b>
+                <span>{{ t('admin.invVatLine', { pct: detail.vatRatePct }) }}</span>
+                <b>{{ total(detail.vatMinor) }}</b>
+                <span class="ai__dTotalLbl">{{ t('admin.colTotal') }}</span>
+                <b class="ai__dTotalVal">{{ total(detail.totalMinor) }}</b>
+              </div>
+            </section>
+          </v-card-text>
+
+          <v-card-actions>
+            <v-btn
+              variant="text"
+              :href="`/account/invoices/${detail.id}`"
+              target="_blank"
+              rel="noopener"
+              prepend-icon="mdi-open-in-new"
+            >
+              {{ t('admin.invOpenPdf') }}
+            </v-btn>
+            <v-spacer />
+            <v-btn v-if="!detail.voidedAt" variant="text" color="error" @click="openVoid(detail)">
+              {{ t('admin.invVoid') }}
+            </v-btn>
+            <v-btn v-else variant="text" color="success" @click="unvoid(detail)">
+              {{ t('admin.invUnvoid') }}
+            </v-btn>
+            <v-btn variant="tonal" @click="detailOpen = false">{{ t('common.close') }}</v-btn>
+          </v-card-actions>
+        </template>
+      </v-card>
+    </v-dialog>
 
     <v-dialog :model-value="!!voidTarget" max-width="440" @update:model-value="voidTarget = null">
       <v-card v-if="voidTarget" rounded="lg">
@@ -204,7 +352,11 @@ onMounted(() => admin.fetchInvoices())
   display: flex;
   gap: 0.6rem;
   flex-wrap: wrap;
+  padding: 0.7rem;
   margin-bottom: 1.1rem;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: var(--tvz-radius-md);
+  background: rgba(var(--v-theme-on-surface), 0.015);
 }
 .ai__search {
   flex: 1 1 240px;
@@ -217,44 +369,69 @@ onMounted(() => admin.fetchInvoices())
   place-items: center;
   min-height: 200px;
 }
-.ai__empty {
-  padding: 3rem 1rem;
-  text-align: center;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
 .ai__voidNote {
   margin: 0 0 0.8rem;
   font-size: 0.85rem;
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
+
+/* Table shell — a real header row + rows sharing the same column template,
+   so amounts/dates/status actually line up like a table. */
+.itable {
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: var(--tvz-radius-md);
+  overflow: hidden;
+}
+.itable__head,
+.irow {
+  display: grid;
+  grid-template-columns: minmax(0, 2.3fr) minmax(0, 0.9fr) minmax(0, 0.85fr) minmax(0, 0.75fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+.itable__head {
+  padding: 0.65rem 1.1rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+  background: rgba(var(--v-theme-on-surface), 0.03);
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.itable__headActions {
+  text-align: right;
+}
 .ai__list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
 }
 .irow {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.9rem 1.1rem;
-  border: 1px solid var(--tvz-hairline);
-  border-left: 3px solid transparent;
-  border-radius: 10px;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--tvz-hairline);
   background: rgb(var(--v-theme-surface));
+  transition: background var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
+}
+.irow:last-child {
+  border-bottom: none;
+}
+.irow:hover {
+  background: rgba(var(--v-theme-on-surface), 0.02);
 }
 .irow--void {
-  border-left-color: rgba(var(--v-theme-error), 0.6);
-  opacity: 0.85;
+  opacity: 0.78;
 }
 .irow__id {
-  flex: 1;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 .irow__number {
   display: flex;
@@ -263,6 +440,7 @@ onMounted(() => admin.fetchInvoices())
   font-weight: 700;
   font-size: 0.92rem;
   font-family: 'Space Grotesk Variable', sans-serif;
+  color: rgb(var(--v-theme-on-surface));
 }
 .irow__buyer {
   font-size: 0.8rem;
@@ -271,50 +449,36 @@ onMounted(() => admin.fetchInvoices())
 .irow__user {
   font-size: 0.76rem;
   color: rgba(var(--v-theme-on-surface), 0.5);
+  align-self: flex-start;
 }
-.irow__stats {
-  display: flex;
-  align-items: center;
-  gap: 1.4rem;
-  flex: none;
-}
-.irow__stat {
+.irow__cell {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 0.1rem;
-  min-width: 4rem;
+  font-size: 0.86rem;
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
-.irow__stat b {
+.irow__cell--total b {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: 0.92rem;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
-.irow__stat em {
-  font-style: normal;
+.irow__cellLbl {
+  display: none;
   font-size: 0.6rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: rgba(var(--v-theme-on-surface), 0.45);
+  color: rgba(var(--v-theme-on-surface), 0.4);
 }
 .irow__actions {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  flex: none;
+  justify-content: flex-end;
+  gap: 0.2rem;
+  flex-wrap: wrap;
 }
-.irow__view {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0 0.6rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: rgb(var(--v-theme-primary));
-  white-space: nowrap;
-}
+
 .tag {
   font-size: 0.58rem;
   font-weight: 700;
@@ -325,14 +489,133 @@ onMounted(() => admin.fetchInvoices())
   background: rgba(var(--v-theme-on-surface), 0.08);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
-.tag--err {
-  background: rgba(var(--v-theme-error), 0.16);
+.tag--role {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.chip--ok {
+  background: rgba(var(--v-theme-success), 0.15);
+  color: rgb(var(--v-theme-success));
+}
+.chip--err {
+  background: rgba(var(--v-theme-error), 0.15);
   color: rgb(var(--v-theme-error));
 }
 
-@media (max-width: 780px) {
-  .irow__stats {
+/* Detail dialog */
+.ai__dCenter {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+}
+.ai__dTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.ai__dBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+.ai__dVoidNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-error), 0.08);
+  color: rgb(var(--v-theme-error));
+  font-size: 0.85rem;
+}
+.ai__dVoidNote p {
+  margin: 0.2rem 0 0;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.ai__dSection h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.ai__dName {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.ai__dLine {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.ai__dUserLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.ai__dUserCta {
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+}
+.ai__dAmounts {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.3rem 1rem;
+  font-size: 0.85rem;
+}
+.ai__dAmounts b {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ai__dTotalLbl {
+  margin-top: 0.3rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--tvz-hairline);
+  font-weight: 700;
+}
+.ai__dTotalVal {
+  margin-top: 0.3rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--tvz-hairline);
+  font-size: 1rem;
+}
+
+@media (max-width: 860px) {
+  .itable__head {
     display: none;
+  }
+  .irow {
+    grid-template-columns: 1fr;
+    row-gap: 0.5rem;
+  }
+  .irow__actions {
+    justify-content: flex-start;
+  }
+  .irow__cell {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 0;
+    border-top: 1px dashed var(--tvz-hairline);
+  }
+  .irow__cellLbl {
+    display: inline;
   }
 }
 </style>
