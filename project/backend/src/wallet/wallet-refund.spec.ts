@@ -47,6 +47,11 @@ function fakePrisma() {
         const w = where.id ? walletsById.get(where.id) : wallets.get(where.userId as string);
         return w ? { ...w } : null;
       }),
+      findUniqueOrThrow: jest.fn(async ({ where }: { where: { userId?: string; id?: string } }) => {
+        const w = where.id ? walletsById.get(where.id) : wallets.get(where.userId as string);
+        if (!w) throw new Error('not found');
+        return { ...w };
+      }),
     },
     walletTransaction: {
       findUnique: jest.fn(async ({ where }: { where: { id: string } }) => {

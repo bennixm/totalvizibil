@@ -12,6 +12,7 @@ import { TotpService } from './totp.service';
 import { AuthPrincipal, AuthUserView } from './auth.types';
 import { ChangePasswordDto, UpdateProfileDto } from './dto/account.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class AccountService {
@@ -23,6 +24,7 @@ export class AccountService {
     private readonly sessions: SessionService,
     private readonly totp: TotpService,
     private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
   ) {}
 
   private async requireUser(userId: string) {
@@ -67,6 +69,43 @@ export class AccountService {
       data,
       include: { platformRoles: true },
     });
+
+    // Already committed — a notification hiccup must never mask this.
+    // Standard security practice: both addresses get told, so if an
+    // attacker changes the email, the rightful owner's OLD inbox still
+    // hears about it. `notify()` always mails the account's CURRENT
+    // (already-updated) address, so the old one gets a direct, one-off
+    // send instead — it's no longer tied to this account.
+    if (data.email) {
+      const oldEmail = user.email;
+      const newEmail = data.email;
+      void this.mail
+        .send({
+          to: oldEmail,
+          subject: 'Adresa de email a contului a fost schimbată',
+          text: `Adresa de email a contului tău a fost schimbată din ${oldEmail} în ${newEmail}.\n\nDacă nu ai fost tu, contactează-ne imediat.`,
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Email-changed (old address) notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+      void this.notifications
+        .notify({
+          userId,
+          type: 'email_changed',
+          title: 'Adresa de email a contului a fost schimbată',
+          body: `Adresa de email a contului a fost schimbată în ${newEmail}. Dacă nu ai fost tu, contactează-ne imediat.`,
+          channels: { email: true },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Email-changed notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
     return this.view(updated);
   }
 
@@ -138,6 +177,20 @@ export class AccountService {
       where: { id: userId },
       data: { totpEnabledAt: new Date() },
     });
+    void this.notifications
+      .notify({
+        userId,
+        type: 'totp_enabled',
+        title: 'Autentificarea în doi pași a fost activată',
+        body: 'Autentificarea în doi pași a fost activată pe contul tău.',
+        channels: { email: true },
+      })
+      .catch((err) =>
+        this.logger.error(
+          '2FA-enabled notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
     return { ok: true };
   }
 
@@ -153,6 +206,20 @@ export class AccountService {
       where: { id: userId },
       data: { totpSecret: null, totpEnabledAt: null },
     });
+    void this.notifications
+      .notify({
+        userId,
+        type: 'totp_disabled',
+        title: 'Autentificarea în doi pași a fost dezactivată',
+        body: 'Autentificarea în doi pași a fost dezactivată pe contul tău. Dacă nu ai fost tu, schimbă-ți parola imediat.',
+        channels: { email: true },
+      })
+      .catch((err) =>
+        this.logger.error(
+          '2FA-disabled notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
     return { ok: true };
   }
 

@@ -13,6 +13,11 @@ function fakeWallet() {
   };
 }
 
+const fakeNotifications = {
+  notify: jest.fn(async () => undefined),
+  notifyAll: jest.fn(async () => 0),
+};
+
 /** Minimal fake Prisma — same shape as the main spec file's, trimmed to what
  *  these tests touch (project/file CRUD + usage recording). */
 function fakePrisma() {
@@ -211,10 +216,15 @@ describe('ProV2AgentService — cross-provider escalation (DeepSeek configured)'
 
     const router = new ModelRouter(claude as never, deepseek as never, fakeConfig());
     const usage = new AiUsageService(prisma as never, fakeWallet() as never);
-    const svc = new ProV2AgentService(projects, claude as never, router, usage, {
-      configured: false,
-      search: jest.fn(async () => []),
-    } as never);
+    const svc = new ProV2AgentService(
+      projects,
+      claude as never,
+      router,
+      usage,
+      { configured: false, search: jest.fn(async () => []) } as never,
+      prisma as never,
+      fakeNotifications as never,
+    );
 
     // Seed a "second message" scenario (not the first message, since first
     // message = initial_generation, which always starts on Claude and would
@@ -290,10 +300,15 @@ describe('ProV2AgentService — cross-provider escalation (DeepSeek configured)'
 
     const router = new ModelRouter(claude as never, deepseek as never, fakeConfig());
     const usage = new AiUsageService(prisma as never, fakeWallet() as never);
-    const svc = new ProV2AgentService(projects, claude as never, router, usage, {
-      configured: false,
-      search: jest.fn(async () => []),
-    } as never);
+    const svc = new ProV2AgentService(
+      projects,
+      claude as never,
+      router,
+      usage,
+      { configured: false, search: jest.fn(async () => []) } as never,
+      prisma as never,
+      fakeNotifications as never,
+    );
 
     const result = await svc.sendMessage('u1', 'c1', 'Rename the button to Start now');
 

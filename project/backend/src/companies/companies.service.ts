@@ -21,7 +21,11 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { companyInclude, toCompanyView, CompanyView } from './company.view';
-import { COMPANY_DELETE_GRACE_MS, STALE_DRAFT_AGE_MS } from './companies.constants';
+import {
+  COMPANY_DELETE_GRACE_MS,
+  DELETION_REMINDER_LEAD_MS,
+  STALE_DRAFT_AGE_MS,
+} from './companies.constants';
 
 const ROLES_THAT_CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager];
 const SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -74,6 +78,8 @@ export class CompaniesService implements OnModuleInit {
     if (process.env.NODE_ENV === 'test') return;
     setTimeout(() => void this.sweepStaleDrafts(), 60_000);
     setInterval(() => void this.sweepStaleDrafts(), SWEEP_INTERVAL_MS);
+    setTimeout(() => void this.sweepDeletionReminders(), 90_000);
+    setInterval(() => void this.sweepDeletionReminders(), SWEEP_INTERVAL_MS);
   }
 
   /**
@@ -104,6 +110,52 @@ export class CompaniesService implements OnModuleInit {
       }
     } catch (err) {
       this.logger.error('Stale-draft sweep failed', err instanceof Error ? err.stack : err);
+    }
+  }
+
+  /**
+   * Last-chance email, `DELETION_REMINDER_LEAD_MS` before a scheduled
+   * deletion actually wipes the business — whether the owner asked for it or
+   * the stale-draft sweep did. `deletionReminderSentAt` dedupes so this only
+   * ever fires once per grace window (cleared on cancel or a fresh schedule).
+   */
+  private async sweepDeletionReminders(): Promise<void> {
+    try {
+      const dueBy = new Date(Date.now() - (COMPANY_DELETE_GRACE_MS - DELETION_REMINDER_LEAD_MS));
+      const due = await this.prisma.company.findMany({
+        where: {
+          deletionScheduledAt: { lte: dueBy },
+          deletionReminderSentAt: null,
+        },
+        select: { id: true, displayName: true, ownerUserId: true, deletionScheduledAt: true },
+      });
+      for (const c of due) {
+        try {
+          const effectiveAt = new Date(c.deletionScheduledAt!.getTime() + COMPANY_DELETE_GRACE_MS);
+          await this.notifications.notify({
+            userId: c.ownerUserId,
+            type: 'business_deletion_reminder',
+            title: `Afacerea „${c.displayName}" va fi ștearsă definitiv în curând`,
+            body: `Mai ai puțin timp să anulezi — datele afacerii „${c.displayName}" sunt șterse definitiv pe ${effectiveAt.toLocaleDateString('ro-RO')}.`,
+            channels: { email: true },
+            data: { companyId: c.id },
+          });
+          await this.prisma.company.update({
+            where: { id: c.id },
+            data: { deletionReminderSentAt: new Date() },
+          });
+        } catch (err) {
+          this.logger.error(
+            `Deletion-reminder failed for company ${c.id}`,
+            err instanceof Error ? err.stack : err,
+          );
+        }
+      }
+      if (due.length > 0) {
+        this.logger.log(`Sent ${due.length} pre-deletion reminder(s)`);
+      }
+    } catch (err) {
+      this.logger.error('Deletion-reminder sweep failed', err instanceof Error ? err.stack : err);
     }
   }
 
@@ -616,7 +668,7 @@ export class CompaniesService implements OnModuleInit {
   private async scheduleDeletion(companyId: string): Promise<void> {
     const company = await this.prisma.company.findUniqueOrThrow({
       where: { id: companyId },
-      select: { deletionScheduledAt: true },
+      select: { deletionScheduledAt: true, displayName: true, ownerUserId: true },
     });
     if (company.deletionScheduledAt) return;
 
@@ -624,7 +676,12 @@ export class CompaniesService implements OnModuleInit {
     await this.prisma.$transaction([
       this.prisma.company.update({
         where: { id: companyId },
-        data: { deletionScheduledAt: now, status: 'draft', featured: false },
+        data: {
+          deletionScheduledAt: now,
+          deletionReminderSentAt: null,
+          status: 'draft',
+          featured: false,
+        },
       }),
       this.prisma.website.updateMany({
         where: { companyId },
@@ -635,6 +692,28 @@ export class CompaniesService implements OnModuleInit {
         data: { status: 'paused', pausedAt: now, autoOptimize: false },
       }),
     ]);
+
+    // The takedown is already committed by this point — a notification
+    // hiccup must never make this look like it failed. Fires the same for
+    // both the owner's own request and the automatic stale-draft sweep: the
+    // sweep case especially needs it, since the owner was never in the app
+    // when it happened.
+    const effectiveAt = new Date(now.getTime() + COMPANY_DELETE_GRACE_MS);
+    void this.notifications
+      .notify({
+        userId: company.ownerUserId,
+        type: 'business_deletion_scheduled',
+        title: `Afacerea „${company.displayName}" a fost programată pentru ștergere`,
+        body: `Anunțul a fost dat jos acum. Datele sunt șterse definitiv pe ${effectiveAt.toLocaleDateString('ro-RO')} — poți anula oricând până atunci.`,
+        channels: { panel: true, email: true },
+        data: { companyId },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Deletion-scheduled notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
   }
 
   /** Call off a pending deletion — only while still inside the grace window. */
@@ -646,7 +725,7 @@ export class CompaniesService implements OnModuleInit {
     }
     const company = await this.prisma.company.findUniqueOrThrow({
       where: { id: companyId },
-      select: { deletionScheduledAt: true },
+      select: { deletionScheduledAt: true, displayName: true },
     });
     if (!company.deletionScheduledAt) return;
     if (Date.now() - company.deletionScheduledAt.getTime() >= COMPANY_DELETE_GRACE_MS) {
@@ -654,8 +733,24 @@ export class CompaniesService implements OnModuleInit {
     }
     await this.prisma.company.update({
       where: { id: companyId },
-      data: { deletionScheduledAt: null },
+      data: { deletionScheduledAt: null, deletionReminderSentAt: null },
     });
+
+    void this.notifications
+      .notify({
+        userId,
+        type: 'business_deletion_canceled',
+        title: `Ștergerea afacerii „${company.displayName}" a fost anulată`,
+        body: `Afacerea „${company.displayName}" este din nou activă.`,
+        channels: { panel: true },
+        data: { companyId },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Deletion-canceled notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
   }
 
   /**

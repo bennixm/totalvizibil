@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Campaign, CampaignStatus, CompanyRole, Prisma } from '@prisma/client';
@@ -9,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AffiliateService } from '../affiliate/affiliate.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { DEFAULT_REFS, RUN_SCORE_GRACE_MS, effectiveActiveSeconds } from '../analytics/visibility';
 import { creditsToMinor, minorToCredits, money } from '../wallet/money';
 import { CampaignSuggestions, CampaignTier, suggestCampaign } from './campaign-advisor';
@@ -28,11 +30,14 @@ export type ClickResult = { billed: boolean; reason?: string };
 
 @Injectable()
 export class CampaignService {
+  private readonly logger = new Logger(CampaignService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly analytics: AnalyticsService,
     private readonly affiliate: AffiliateService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // --- membership -------------------------------------------------------
@@ -807,7 +812,35 @@ export class CampaignService {
     // Any edit to a configured campaign takes it out of the feed until the owner
     // re-activates it — except an AUTO campaign, which is meant to keep running.
     if (existing && existing.status !== CampaignStatus.draft && !auto) {
+      const wasLive =
+        existing.status === CampaignStatus.active || existing.status === CampaignStatus.depleted;
       await this.setLive(companyId, saved, CampaignStatus.paused);
+      if (wasLive) {
+        // Already committed — a notification hiccup must never mask this.
+        // The owner just made this edit themselves, so a quiet panel entry
+        // is enough — not an alarming email like an admin-initiated pause.
+        const company = await this.prisma.company.findUnique({
+          where: { id: companyId },
+          select: { displayName: true, ownerUserId: true },
+        });
+        if (company) {
+          void this.notifications
+            .notify({
+              userId: company.ownerUserId,
+              type: 'campaign_paused_on_edit',
+              title: `Campania „${company.displayName}" a fost pusă pe pauză`,
+              body: 'Editarea bugetului/CPC-ului a scos campania din feed — reactivează-o din panou când ești gata.',
+              channels: { panel: true },
+              data: { companyId },
+            })
+            .catch((err) =>
+              this.logger.error(
+                'Campaign-paused-on-edit notification failed',
+                err instanceof Error ? err.stack : err,
+              ),
+            );
+        }
+      }
     }
 
     return this.getFor(companyId);
@@ -847,7 +880,7 @@ export class CampaignService {
       this.prisma.campaign.findUnique({ where: { companyId } }),
       this.prisma.company.findUnique({
         where: { id: companyId },
-        select: { status: true },
+        select: { status: true, displayName: true },
       }),
     ]);
     if (!campaign) throw new BadRequestException('set_budget_first');
@@ -861,12 +894,33 @@ export class CampaignService {
       throw new BadRequestException('insufficient_credits');
     }
 
+    const firstEverActivation = !campaign.activatedAt;
     await this.setLive(companyId, campaign, CampaignStatus.active);
 
     // If this owner was brought in through the affiliate program and has funded
     // their account, their referrer earns the reward now. Fire-and-forget — a
     // reward failure must never block the activation.
     void this.affiliate.maybeReward(owner);
+
+    if (firstEverActivation && company) {
+      // Already committed — a notification hiccup must never mask this.
+      // A one-time "you're live" moment, not repeated on later re-activations.
+      void this.notifications
+        .notify({
+          userId: owner,
+          type: 'campaign_activated',
+          title: `Campania „${company.displayName}" este acum live`,
+          body: `Afacerea „${company.displayName}" a apărut în feed — campania ta rulează acum.`,
+          channels: { panel: true },
+          data: { companyId },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Campaign-activated notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
 
     return this.get(userId, companyId);
   }

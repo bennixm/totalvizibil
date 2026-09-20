@@ -24,6 +24,8 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type Anthropic from '@anthropic-ai/sdk';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { NotificationsService } from '../../../notifications/notifications.service';
 import { assertClean } from '../../drafts/content-filter';
 import { ProV2Service } from './pro-v2.service';
 import { ClaudeProvider } from '../../../ai/claude.provider';
@@ -217,6 +219,8 @@ export class ProV2AgentService {
     private readonly router: ModelRouter,
     private readonly usage: AiUsageService,
     private readonly pexels: PexelsSearchTool,
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async getView(companyId: string, userId: string) {
@@ -465,6 +469,20 @@ export class ProV2AgentService {
         : "I've made the changes I could within this request's step budget — tell me if you'd like me to keep going.";
     }
 
+    // Every escalation tier hard-failed (including the last, Claude — no
+    // further hop possible) — the turn genuinely didn't go through. Notify
+    // in case the owner has already navigated away from a turn that can run
+    // for minutes; a routine successful turn stays silent, since the
+    // synchronous reply already tells whoever's still watching.
+    if (result.hardFailure) {
+      void this.notifyBuildFailed(userId, companyId).catch((err) =>
+        this.logger.error(
+          'PRO V2 build-failed notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+    }
+
     const durationMs = Date.now() - startedAt;
     const totalCostUsd = await this.usage.costForRequest(requestId);
 
@@ -497,6 +515,21 @@ export class ProV2AgentService {
         escalations: hops,
       },
     };
+  }
+
+  private async notifyBuildFailed(userId: string, companyId: string): Promise<void> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { displayName: true },
+    });
+    await this.notifications.notify({
+      userId,
+      type: 'pro_build_failed',
+      title: 'Nu am putut finaliza modificarea site-ului',
+      body: `Ultima cerere pentru „${company?.displayName ?? 'site-ul tău'}" nu a putut fi procesată. Încearcă din nou sau reformulează cererea.`,
+      channels: { panel: true, email: true },
+      data: { companyId },
+    });
   }
 
   private async snapshotFiles(projectId: string): Promise<{ path: string; content: string }[]> {

@@ -205,6 +205,10 @@ model Company {
   // the listing is taken down immediately, and the row (site, campaign, leads…)
   // is purged only after the grace window. The owner can cancel until then.
   deletionScheduledAt DateTime? @map("deletion_scheduled_at")
+  // Stamped once the pre-deletion reminder email goes out, so the sweep never
+  // sends it twice — cleared automatically whenever `deletionScheduledAt` is
+  // (re)set to null or a new value, since that's a fresh grace window.
+  deletionReminderSentAt DateTime? @map("deletion_reminder_sent_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

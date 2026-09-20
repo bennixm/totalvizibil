@@ -194,6 +194,25 @@ export class WalletService implements OnModuleInit {
         blockedReason: blocked ? (reason ?? wallet.blockedReason ?? null) : null,
       },
     });
+
+    // Already committed — a notification hiccup must never mask this.
+    void this.notifications
+      .notify({
+        userId,
+        type: blocked ? 'wallet_blocked' : 'wallet_unblocked',
+        title: blocked ? 'Portofelul tău a fost blocat' : 'Portofelul tău a fost deblocat',
+        body: blocked
+          ? `Nu mai poți cumpăra sau folosi credite momentan.${reason ? ` Motiv: ${reason}` : ''}`
+          : 'Poți din nou cumpăra și folosi credite normal.',
+        channels: { panel: true, email: true },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Wallet-block notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return this.getSummary(userId);
   }
 
@@ -226,6 +245,27 @@ export class WalletService implements OnModuleInit {
         },
       });
     });
+
+    // Already committed — a notification hiccup must never mask this.
+    void this.notifications
+      .notify({
+        userId,
+        type: 'wallet_adjusted',
+        title:
+          deltaMinor > 0 ? 'Ai primit credite în portofel' : 'Soldul portofelului a fost ajustat',
+        body:
+          deltaMinor > 0
+            ? `Ai primit ${minorToCredits(deltaMinor)} credite în portofel.`
+            : `Din portofelul tău au fost retrase ${minorToCredits(-deltaMinor)} credite.`,
+        channels: { panel: true },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Wallet-adjusted notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return this.getSummary(userId);
   }
 
@@ -922,12 +962,17 @@ export class WalletService implements OnModuleInit {
     // Already handled (e.g. raced with a cancel) — nothing to do.
     if (!refund || refund.status !== 'pending') return;
     const sources = this.parseSources(refund.refundSources);
+    const wallet = await this.prisma.wallet.findUniqueOrThrow({
+      where: { id: refund.walletId },
+      select: { userId: true },
+    });
 
     if (!this.stripe.configured) {
       await this.prisma.walletTransaction.update({
         where: { id: refund.id },
         data: { status: 'completed', providerRef: `dev-refund-${Date.now()}` },
       });
+      this.notifyRefundCompleted(wallet.userId, refund.id);
       return;
     }
 
@@ -964,8 +1009,13 @@ export class WalletService implements OnModuleInit {
           refundSources: executed,
         },
       });
+      this.notifyRefundCompleted(wallet.userId, refund.id);
     } catch (err) {
-      await this.markRefundFailed(refund.id, err instanceof Error ? err.message : 'stripe_error');
+      await this.markRefundFailed(
+        refund.id,
+        wallet.userId,
+        err instanceof Error ? err.message : 'stripe_error',
+      );
     }
   }
 
@@ -973,7 +1023,11 @@ export class WalletService implements OnModuleInit {
    *  the customer keeps the credits rather than losing them to a failed
    *  call, and the failure is visible in their history for support to
    *  follow up. */
-  private async markRefundFailed(refundTransactionId: string, reason: string): Promise<void> {
+  private async markRefundFailed(
+    refundTransactionId: string,
+    userId: string,
+    reason: string,
+  ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const refund = await tx.walletTransaction.findUnique({ where: { id: refundTransactionId } });
       if (!refund || refund.status !== 'pending') return;
@@ -991,5 +1045,42 @@ export class WalletService implements OnModuleInit {
         },
       });
     });
+
+    // Credits are already back in the balance by this point — a notification
+    // hiccup must never make this look like anything other than what it is.
+    void this.notifications
+      .notify({
+        userId,
+        type: 'refund_failed',
+        title: 'Cererea de refund nu a putut fi procesată',
+        body: 'Cererea ta de refund a eșuat — creditele au fost puse înapoi în portofel. Contactează suportul dacă ai nevoie de ajutor.',
+        channels: { panel: true, email: true },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Refund-failed notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+  }
+
+  private notifyRefundCompleted(userId: string, refundId: string): void {
+    // Days may have passed since the request — the completion itself
+    // deserves its own confirmation, separate from the "requested" one.
+    void this.notifications
+      .notify({
+        userId,
+        type: 'refund_completed',
+        title: 'Refund-ul tău a fost finalizat',
+        body: 'Banii au fost trimiși înapoi — ar trebui să apară în contul tău în câteva zile lucrătoare, în funcție de bancă.',
+        channels: { panel: true, email: true },
+        data: { refundId },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Refund-completed notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
   }
 }

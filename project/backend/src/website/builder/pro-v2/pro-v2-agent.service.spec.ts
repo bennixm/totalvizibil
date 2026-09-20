@@ -224,6 +224,10 @@ function fakeConfig(overrides: Record<string, unknown> = {}) {
 }
 
 const fakePexels = { configured: false, search: jest.fn(async () => []) };
+const fakeNotifications = {
+  notify: jest.fn(async () => undefined),
+  notifyAll: jest.fn(async () => 0),
+};
 
 /** A wallet with a comfortably large balance — these tests exercise the
  *  agent loop itself, not billing, so nothing here should ever be blocked
@@ -255,6 +259,8 @@ function setup(claudeScript: AiProvider, wallet = fakeWallet()) {
     router,
     usageSvc,
     fakePexels as never,
+    prisma as never,
+    fakeNotifications as never,
   );
   return { prisma, projects, svc };
 }

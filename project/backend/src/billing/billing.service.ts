@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { BillingProfile, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { minorToCredits } from '../wallet/money';
 import { BillingProfileDto } from './dto/billing-profile.dto';
 
@@ -42,9 +43,12 @@ export function isProfileComplete(
 
 @Injectable()
 export class BillingService {
+  private readonly logger = new Logger(BillingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: PlatformSettingsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // --- profile ---------------------------------------------------------
@@ -364,6 +368,23 @@ export class BillingService {
       where: { id },
       data: { voidedAt: new Date(), voidReason: reason.trim().slice(0, 300) },
     });
+
+    // Already committed — a notification hiccup must never mask this.
+    void this.notifications
+      .notify({
+        userId: invoice.userId,
+        type: 'invoice_voided',
+        title: `Factura ${invoice.number} a fost anulată`,
+        body: `Factura ${invoice.number} a fost anulată.${reason ? ` Motiv: ${reason.trim()}` : ''}`,
+        channels: { email: true },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Invoice-voided notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return this.adminGetInvoice(id);
   }
 
@@ -374,6 +395,23 @@ export class BillingService {
       where: { id },
       data: { voidedAt: null, voidReason: null },
     });
+
+    void this.notifications
+      .notify({
+        userId: invoice.userId,
+        type: 'invoice_voided',
+        title: `Factura ${invoice.number} a fost restaurată`,
+        body: `Factura ${invoice.number} este din nou validă.`,
+        channels: { panel: true },
+        data: { invoiceId: id },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Invoice-restored notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return this.adminGetInvoice(id);
   }
 }

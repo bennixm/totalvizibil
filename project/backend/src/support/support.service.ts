@@ -2,11 +2,12 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OPEN_STATUSES, SUPPORT_STAFF_ROLES } from './support.constants';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { ListTicketsQuery } from './dto/list-tickets.query';
@@ -29,9 +30,11 @@ const LIST_LIMIT = 100;
 
 @Injectable()
 export class SupportService {
+  private readonly logger = new Logger(SupportService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mail: MailService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // --- queries -------------------------------------------------------------
@@ -124,6 +127,17 @@ export class SupportService {
       },
       include: ticketDetailInclude,
     });
+
+    // Already committed — a notification hiccup must never mask this. A new
+    // ticket has no assignee yet, so the whole staff queue gets it.
+    void this.notifyStaff(
+      null,
+      'ticket_created',
+      `Ticket nou: #${ticket.number}`,
+      `${ticket.subject}`,
+      ticket.id,
+    );
+
     return ticketDetailView(ticket, actor);
   }
 
@@ -168,8 +182,20 @@ export class SupportService {
 
     if (staffReply) {
       void this.notifyRequester(
-        { number: ticket.number, subject: ticket.subject, email: ticket.requester.email },
+        ticket.requesterId,
+        ticket.id,
+        ticket.number,
+        ticket.subject,
         'A support agent replied to your ticket.',
+      );
+    } else if (requesterReply && !actor.staff) {
+      // Already committed — a notification hiccup must never mask this.
+      void this.notifyStaff(
+        ticket.assigneeId,
+        'ticket_reply',
+        `Răspuns nou pe ticketul #${ticket.number}`,
+        ticket.subject,
+        ticket.id,
       );
     }
     return this.get(actor, id);
@@ -197,6 +223,7 @@ export class SupportService {
     const data: Prisma.SupportTicketUpdateInput = {};
     const events: string[] = [];
     const now = new Date();
+    let newAssigneeId: string | null | undefined;
 
     if (dto.status && dto.status !== ticket.status) {
       data.status = dto.status;
@@ -226,6 +253,7 @@ export class SupportService {
             select: { name: true },
           });
           events.push(`assigned:${who?.name ?? ''}`);
+          newAssigneeId = next;
         } else {
           data.assignee = { disconnect: true };
           events.push('unassigned');
@@ -250,23 +278,105 @@ export class SupportService {
 
     if (dto.status === 'resolved' || dto.status === 'closed') {
       void this.notifyRequester(
-        { number: ticket.number, subject: ticket.subject, email: ticket.requester.email },
+        ticket.requesterId,
+        ticket.id,
+        ticket.number,
+        ticket.subject,
         `Your ticket was marked ${dto.status}.`,
       );
+    }
+    // Already committed — a notification hiccup must never mask this. Only
+    // fires when the NEW assignee is someone other than the actor doing the
+    // assigning (no need to notify yourself that you picked up a ticket).
+    if (newAssigneeId && newAssigneeId !== actor.id) {
+      void this.notifications
+        .notify({
+          userId: newAssigneeId,
+          type: 'ticket_assigned',
+          title: `Ți-a fost alocat ticketul #${ticket.number}`,
+          body: ticket.subject,
+          channels: { panel: true },
+          data: { ticketId: ticket.id },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Ticket-assigned notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
     }
     return this.get(actor, id);
   }
 
+  /** Panel + email — migrated off a raw `MailService.send` so ticket updates
+   *  go through the same central system as every other notification. */
   private async notifyRequester(
-    ticket: { number: number; subject: string; email: string },
+    requesterId: string,
+    ticketId: string,
+    ticketNumber: number,
+    subject: string,
     line: string,
-  ) {
-    await this.mail
-      .send({
-        to: ticket.email,
-        subject: `[#${ticket.number}] ${ticket.subject}`,
-        text: `${line}\n\nOpen the ticket in your Totalvizibil support inbox to reply.`,
+  ): Promise<void> {
+    await this.notifications
+      .notify({
+        userId: requesterId,
+        type: 'support_ticket_update',
+        title: `[#${ticketNumber}] ${subject}`,
+        body: line,
+        channels: { panel: true, email: true },
+        data: { ticketId },
+        email: {
+          text: `${line}\n\nOpen the ticket in your Totalvizibil support inbox to reply.`,
+        },
       })
-      .catch(() => undefined);
+      .catch((err) =>
+        this.logger.error(
+          'Support-ticket-update notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+  }
+
+  /** Notify one staff member (the ticket's assignee) or, if unassigned, every
+   *  support/admin staff member — the whole queue owns an unassigned ticket. */
+  private async notifyStaff(
+    assigneeId: string | null,
+    type: string,
+    title: string,
+    body: string,
+    ticketId: string,
+  ): Promise<void> {
+    try {
+      let staffIds: string[];
+      if (assigneeId) {
+        staffIds = [assigneeId];
+      } else {
+        const rows = await this.prisma.platformRoleAssignment.findMany({
+          where: { role: { in: SUPPORT_STAFF_ROLES } },
+          select: { userId: true },
+          distinct: ['userId'],
+        });
+        staffIds = rows.map((r) => r.userId);
+      }
+      for (const userId of staffIds) {
+        await this.notifications
+          .notify({
+            userId,
+            type,
+            title,
+            body,
+            channels: { panel: true },
+            data: { ticketId },
+          })
+          .catch((err) =>
+            this.logger.error(
+              `Staff notification (${type}) failed for ${userId}`,
+              err instanceof Error ? err.stack : err,
+            ),
+          );
+      }
+    } catch (err) {
+      this.logger.error(`notifyStaff (${type}) failed`, err instanceof Error ? err.stack : err);
+    }
   }
 }

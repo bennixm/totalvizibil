@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -10,6 +11,7 @@ import { PasswordService } from '../auth/password.service';
 import { SessionService } from '../auth/session.service';
 import { WalletService } from '../wallet/wallet.service';
 import { BillingService } from '../billing/billing.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { money } from '../wallet/money';
 import { effectiveActiveSeconds } from '../analytics/visibility';
 import { ListUsersQuery } from './dto/list-users.query';
@@ -19,12 +21,15 @@ import { BlockWalletDto } from './dto/block-wallet.dto';
 
 @Injectable()
 export class AdminUsersService {
+  private readonly logger = new Logger(AdminUsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
     private readonly wallet: WalletService,
     private readonly billing: BillingService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(query: ListUsersQuery) {
@@ -273,6 +278,26 @@ export class AdminUsersService {
       await this.sessions.revokeAllForUser(id, isSelf ? callerId : undefined);
     }
 
+    if (dto.status && dto.status !== target.status) {
+      const suspended = dto.status === 'suspended';
+      void this.notifications
+        .notify({
+          userId: id,
+          type: suspended ? 'account_suspended' : 'account_reactivated',
+          title: suspended ? 'Contul tău a fost suspendat' : 'Contul tău a fost reactivat',
+          body: suspended
+            ? 'Contul tău a fost suspendat de un administrator. Afacerile tale au fost oprite din feed.'
+            : 'Contul tău a fost reactivat — te poți conecta din nou normal.',
+          channels: { email: true },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Account status-change notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
+
     return this.detail(id);
   }
 
@@ -312,6 +337,22 @@ export class AdminUsersService {
       },
     });
     await this.sessions.revokeAllForUser(id);
+
+    void this.notifications
+      .notify({
+        userId: id,
+        type: 'password_changed',
+        title: 'Parola contului a fost schimbată',
+        body: 'Un administrator a setat o nouă parolă pentru contul tău. Dacă nu te aștepți la asta, contactează suportul.',
+        channels: { email: true },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Admin-set-password notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return { ok: true as const };
   }
 

@@ -13,3 +13,9 @@ export const COMPANY_DELETE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
  * `CompaniesService.sweepStaleDrafts`.
  */
 export const STALE_DRAFT_AGE_MS = 60 * 24 * 60 * 60 * 1000;
+
+/**
+ * How long before a scheduled deletion actually takes effect the owner gets a
+ * last-chance reminder email — see `CompaniesService.sweepDeletionReminders`.
+ */
+export const DELETION_REMINDER_LEAD_MS = 48 * 60 * 60 * 1000;

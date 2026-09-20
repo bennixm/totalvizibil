@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
-import { useNotificationsStore } from '@/stores/notifications'
+import { routeForNotification, useNotificationsStore, type NotificationItem } from '@/stores/notifications'
 
 const { t, locale } = useI18n()
+const router = useRouter()
 const store = useNotificationsStore()
 const { items, unreadCount, nextCursor, loading } = storeToRefs(store)
 
@@ -25,6 +27,15 @@ function ago(iso: string): string {
 
 async function onOpen(open: boolean): Promise<void> {
   if (open) await store.load(false)
+}
+
+function openNotification(n: NotificationItem): void {
+  store.markRead(n.id)
+  const to = routeForNotification(n)
+  if (to) {
+    menuOpen.value = false
+    void router.push(to)
+  }
 }
 </script>
 
@@ -68,7 +79,7 @@ async function onOpen(open: boolean): Promise<void> {
           type="button"
           class="notifrow"
           :class="{ 'is-unread': !n.readAt }"
-          @click="store.markRead(n.id)"
+          @click="openNotification(n)"
         >
           <span class="notifrow__dot" />
           <span class="notifrow__body">

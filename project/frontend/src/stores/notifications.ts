@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { io, type Socket } from 'socket.io-client'
+import type { RouteLocationRaw } from 'vue-router'
 
 import { apiFetch, BASE_URL } from '@/services/api'
 import { useToastStore } from '@/stores/toast'
@@ -12,6 +13,62 @@ export interface NotificationItem {
   data: Record<string, unknown> | null
   createdAt: string
   readAt: string | null
+}
+
+const COMPANY_TYPES = new Set([
+  'lead_received',
+  'business_created',
+  'business_deletion_scheduled',
+  'business_deletion_canceled',
+  'business_deletion_reminder',
+  'business_suspended',
+  'business_reactivated',
+  'campaign_depleted',
+  'wallet_low_balance',
+  'campaign_activated',
+  'campaign_paused_on_edit',
+])
+const WALLET_TYPES = new Set([
+  'refund_requested',
+  'refund_completed',
+  'refund_failed',
+  'discount_updated',
+  'wallet_blocked',
+  'wallet_unblocked',
+  'wallet_adjusted',
+])
+const TICKET_TYPES = new Set(['ticket_created', 'ticket_reply', 'ticket_assigned', 'support_ticket_update'])
+
+/** Where clicking a notification should take the user — `null` when there's
+ *  nowhere to go (a broadcast, or an email-only type that never really
+ *  surfaces here anyway). */
+export function routeForNotification(n: Pick<NotificationItem, 'type' | 'data'>): RouteLocationRaw | null {
+  const companyId = n.data?.companyId
+  const invoiceId = n.data?.invoiceId
+  const ticketId = n.data?.ticketId
+
+  if (n.type === 'lead_received' && typeof companyId === 'string') {
+    return { name: 'leads', query: { c: companyId } }
+  }
+  if (COMPANY_TYPES.has(n.type) && typeof companyId === 'string') {
+    return { name: 'dashboard', query: { c: companyId } }
+  }
+  if (n.type === 'pro_build_failed' && typeof companyId === 'string') {
+    return { name: 'website-builder', query: { c: companyId } }
+  }
+  if (n.type === 'payment_succeeded' && typeof invoiceId === 'string') {
+    return { name: 'invoice-print', params: { id: invoiceId } }
+  }
+  if (n.type === 'invoice_voided' && typeof invoiceId === 'string') {
+    return { name: 'invoice-print', params: { id: invoiceId } }
+  }
+  if (WALLET_TYPES.has(n.type)) {
+    return { name: 'wallet' }
+  }
+  if (TICKET_TYPES.has(n.type) && typeof ticketId === 'string') {
+    return { name: 'support-ticket', params: { id: ticketId } }
+  }
+  return null
 }
 
 interface State {

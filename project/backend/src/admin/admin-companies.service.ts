@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CampaignStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -7,6 +7,7 @@ import { LeadsService } from '../leads/leads.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { ProV2Service } from '../website/builder/pro-v2/pro-v2.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RUN_SCORE_GRACE_MS } from '../analytics/visibility';
 import { money } from '../wallet/money';
 import { SaveCampaignDto } from '../campaigns/dto/save-campaign.dto';
@@ -25,6 +26,8 @@ import { SetCompanyLocationDto } from './dto/set-company-location.dto';
  */
 @Injectable()
 export class AdminCompaniesService {
+  private readonly logger = new Logger(AdminCompaniesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
@@ -33,6 +36,7 @@ export class AdminCompaniesService {
     private readonly analytics: AnalyticsService,
     private readonly builder: ProV2Service,
     private readonly settings: PlatformSettingsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private async loadCompany(companyId: string) {
@@ -430,6 +434,24 @@ export class AdminCompaniesService {
           data: { status: 'unpublished' },
         }),
       ]);
+
+      // Already committed — a notification hiccup must never mask this.
+      void this.notifications
+        .notify({
+          userId: company.ownerUserId,
+          type: 'business_suspended',
+          title: `Afacerea „${company.displayName}" a fost suspendată`,
+          body: `Afacerea „${company.displayName}" a fost suspendată de un administrator și a fost dată jos din feed.`,
+          channels: { email: true, panel: true },
+          data: { companyId },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Business-suspended notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+
       return { ok: true as const, status: 'suspended' as const };
     }
 
@@ -439,6 +461,23 @@ export class AdminCompaniesService {
       where: { id: companyId },
       data: { status: 'draft' },
     });
+
+    void this.notifications
+      .notify({
+        userId: company.ownerUserId,
+        type: 'business_reactivated',
+        title: `Afacerea „${company.displayName}" a fost reactivată`,
+        body: `Suspendarea afacerii „${company.displayName}" a fost ridicată — o poți republica din panou.`,
+        channels: { email: true, panel: true },
+        data: { companyId },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Business-reactivated notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return { ok: true as const, status: 'draft' as const };
   }
 }
