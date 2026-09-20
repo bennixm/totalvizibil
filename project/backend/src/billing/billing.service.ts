@@ -399,7 +399,7 @@ export class BillingService {
     void this.notifications
       .notify({
         userId: invoice.userId,
-        type: 'invoice_voided',
+        type: 'invoice_restored',
         title: `Factura ${invoice.number} a fost restaurată`,
         body: `Factura ${invoice.number} este din nou validă.`,
         channels: { panel: true },

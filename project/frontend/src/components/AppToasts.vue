@@ -14,6 +14,17 @@ const ICON: Record<ToastKind, string> = {
   info: 'mdi-information-outline',
   warning: 'mdi-alert-outline',
 }
+
+/** A notification pop-up's text is `title\nbody` — bold just the first line,
+ *  like the panel does, without changing the plain-string `Toast` shape. A
+ *  one-line toast (every existing call site) has no second segment. */
+function heading(text: string): string {
+  return text.split('\n', 1)[0]
+}
+function rest(text: string): string {
+  const i = text.indexOf('\n')
+  return i === -1 ? '' : text.slice(i + 1)
+}
 </script>
 
 <template>
@@ -29,7 +40,10 @@ const ICON: Record<ToastKind, string> = {
         >
           <v-icon :icon="ICON[tt.kind]" size="20" class="toast__ic" />
           <div class="toast__body">
-            <p class="toast__text">{{ tt.text }}</p>
+            <p class="toast__text" :class="{ 'toast__text--heading': rest(tt.text) }">
+              {{ heading(tt.text) }}
+            </p>
+            <p v-if="rest(tt.text)" class="toast__sub">{{ rest(tt.text) }}</p>
             <RouterLink
               v-if="tt.action"
               class="toast__action"
@@ -115,6 +129,13 @@ const ICON: Record<ToastKind, string> = {
 }
 .toast__text {
   margin: 0;
+}
+.toast__text--heading {
+  font-weight: 700;
+}
+.toast__sub {
+  margin: 0.2rem 0 0;
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .toast__action {
   display: inline-block;

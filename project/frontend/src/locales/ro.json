@@ -41,7 +41,11 @@
     "bell": "Notificări",
     "empty": "Nicio notificare",
     "markAllRead": "Marchează toate ca citite",
-    "loadMore": "Încarcă mai multe"
+    "loadMore": "Încarcă mai multe",
+    "dismiss": "Șterge",
+    "open": "Deschide",
+    "loadError": "Nu am putut încărca notificările",
+    "retry": "Încearcă din nou"
   },
   "theme": {
     "label": "Temă",

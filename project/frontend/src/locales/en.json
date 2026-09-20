@@ -41,7 +41,11 @@
     "bell": "Notifications",
     "empty": "No notifications",
     "markAllRead": "Mark all as read",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "dismiss": "Dismiss",
+    "open": "Open",
+    "loadError": "Couldn't load notifications",
+    "retry": "Try again"
   },
   "theme": {
     "label": "Theme",

@@ -143,11 +143,11 @@ export class NotificationsService {
     return users.length;
   }
 
-  /** Panel history — only rows sent to the panel show here. */
+  /** Panel history — only rows sent to the panel, and not dismissed, show here. */
   async list(userId: string, opts: { limit?: number; cursor?: string } = {}) {
     const take = Math.min(Math.max(opts.limit ?? 20, 1), 100);
     const rows = await this.prisma.notification.findMany({
-      where: { userId, channels: { has: NotificationChannel.panel } },
+      where: { userId, channels: { has: NotificationChannel.panel }, dismissedAt: null },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
@@ -159,7 +159,12 @@ export class NotificationsService {
 
   unreadCount(userId: string): Promise<number> {
     return this.prisma.notification.count({
-      where: { userId, channels: { has: NotificationChannel.panel }, readAt: null },
+      where: {
+        userId,
+        channels: { has: NotificationChannel.panel },
+        readAt: null,
+        dismissedAt: null,
+      },
     });
   }
 
@@ -169,6 +174,9 @@ export class NotificationsService {
     if (!row.readAt) {
       await this.prisma.notification.update({ where: { id }, data: { readAt: new Date() } });
     }
+    // Every open tab/device — including this one, harmlessly, since the
+    // client applies this idempotently — hears about it.
+    this.gateway.syncUser(userId, { kind: 'read', id });
   }
 
   async markAllRead(userId: string): Promise<void> {
@@ -176,5 +184,18 @@ export class NotificationsService {
       where: { userId, channels: { has: NotificationChannel.panel }, readAt: null },
       data: { readAt: new Date() },
     });
+    this.gateway.syncUser(userId, { kind: 'read-all' });
+  }
+
+  /** Removes one notification from the user's OWN panel — the row itself is
+   *  kept (the audit trail this whole system is built around), just excluded
+   *  from `list()`/`unreadCount()` from here on. */
+  async dismiss(userId: string, id: string): Promise<void> {
+    const row = await this.prisma.notification.findUnique({ where: { id } });
+    if (!row || row.userId !== userId) throw new NotFoundException('Notification not found');
+    if (!row.dismissedAt) {
+      await this.prisma.notification.update({ where: { id }, data: { dismissedAt: new Date() } });
+    }
+    this.gateway.syncUser(userId, { kind: 'dismissed', id });
   }
 }

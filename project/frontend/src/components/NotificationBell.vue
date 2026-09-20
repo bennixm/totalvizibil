@@ -4,15 +4,21 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
-import { routeForNotification, useNotificationsStore, type NotificationItem } from '@/stores/notifications'
+import {
+  routeForNotification,
+  useNotificationsStore,
+  visualForNotification,
+  type NotificationItem,
+} from '@/stores/notifications'
 
 const { t, locale } = useI18n()
 const router = useRouter()
 const store = useNotificationsStore()
-const { items, unreadCount, nextCursor, loading } = storeToRefs(store)
+const { items, unreadCount, nextCursor, loading, loadError } = storeToRefs(store)
 
 const menuOpen = ref(false)
 const badgeText = computed(() => (unreadCount.value > 9 ? '9+' : String(unreadCount.value)))
+const initialLoading = computed(() => loading.value && items.value.length === 0)
 
 const rtf = computed(() => new Intl.RelativeTimeFormat(locale.value, { numeric: 'auto' }))
 function ago(iso: string): string {
@@ -30,11 +36,23 @@ async function onOpen(open: boolean): Promise<void> {
 }
 
 function openNotification(n: NotificationItem): void {
-  store.markRead(n.id)
+  void store.markRead(n.id)
   const to = routeForNotification(n)
   if (to) {
     menuOpen.value = false
     void router.push(to)
+  }
+}
+
+function dismiss(event: Event, id: string): void {
+  event.stopPropagation()
+  void store.dismiss(id)
+}
+
+function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    openNotification(n)
   }
 }
 </script>
@@ -70,33 +88,62 @@ function openNotification(n: NotificationItem): void {
       </header>
 
       <div class="notiflist__scroll">
-        <p v-if="!loading && !items.length" class="notiflist__empty">
-          {{ t('notifications.empty') }}
-        </p>
-        <button
-          v-for="n in items"
-          :key="n.id"
-          type="button"
-          class="notifrow"
-          :class="{ 'is-unread': !n.readAt }"
-          @click="openNotification(n)"
-        >
-          <span class="notifrow__dot" />
-          <span class="notifrow__body">
-            <strong>{{ n.title }}</strong>
-            <span class="notifrow__text">{{ n.body }}</span>
-            <span class="notifrow__time">{{ ago(n.createdAt) }}</span>
-          </span>
-        </button>
-        <button
-          v-if="nextCursor"
-          type="button"
-          class="notiflist__more"
-          :disabled="loading"
-          @click="store.load(true)"
-        >
-          {{ t('notifications.loadMore') }}
-        </button>
+        <div v-if="initialLoading" class="notiflist__center">
+          <v-progress-circular indeterminate size="22" width="2" color="primary" />
+        </div>
+
+        <div v-else-if="loadError" class="notiflist__center notiflist__center--error">
+          <v-icon icon="mdi-cloud-alert-outline" size="22" />
+          <span>{{ t('notifications.loadError') }}</span>
+          <button type="button" class="notiflist__retry" @click="store.load(false)">
+            {{ t('notifications.retry') }}
+          </button>
+        </div>
+
+        <div v-else-if="!items.length" class="notiflist__empty">
+          <v-icon icon="mdi-bell-off-outline" size="22" />
+          <span>{{ t('notifications.empty') }}</span>
+        </div>
+
+        <template v-else>
+          <div
+            v-for="n in items"
+            :key="n.id"
+            class="notifrow"
+            :class="[`notifrow--${visualForNotification(n.type).tone}`, { 'is-unread': !n.readAt }]"
+            role="button"
+            tabindex="0"
+            @click="openNotification(n)"
+            @keydown="onRowKeydown($event, n)"
+          >
+            <span class="notifrow__ic">
+              <v-icon :icon="visualForNotification(n.type).icon" size="16" />
+            </span>
+            <span class="notifrow__body">
+              <strong>{{ n.title }}</strong>
+              <span class="notifrow__text">{{ n.body }}</span>
+              <span class="notifrow__time">{{ ago(n.createdAt) }}</span>
+            </span>
+            <button
+              type="button"
+              class="notifrow__x"
+              :aria-label="t('notifications.dismiss')"
+              @click="dismiss($event, n.id)"
+            >
+              <v-icon icon="mdi-close" size="14" />
+            </button>
+          </div>
+          <button
+            v-if="nextCursor"
+            type="button"
+            class="notiflist__more"
+            :disabled="loading"
+            @click="store.load(true)"
+          >
+            <v-progress-circular v-if="loading" indeterminate size="14" width="2" />
+            <template v-else>{{ t('notifications.loadMore') }}</template>
+          </button>
+        </template>
       </div>
     </v-card>
   </v-menu>
@@ -137,7 +184,7 @@ function openNotification(n: NotificationItem): void {
 }
 
 .notiflist {
-  width: min(23rem, calc(100vw - 1.5rem));
+  width: min(24rem, calc(100vw - 1.5rem));
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
   border: 1px solid rgba(var(--v-theme-on-surface), 0.1);
@@ -166,13 +213,40 @@ function openNotification(n: NotificationItem): void {
   overflow-y: auto;
   padding: 0.4rem;
 }
+.notiflist__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 0.6rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.notiflist__center--error {
+  color: rgb(var(--v-theme-error));
+}
+.notiflist__retry {
+  border: 0;
+  background: transparent;
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
 .notiflist__empty {
-  margin: 1.5rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0.6rem;
+  padding: 1rem 0;
   text-align: center;
   font-size: 0.85rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .notiflist__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   padding: 0.6rem;
   margin-top: 0.2rem;
@@ -184,36 +258,73 @@ function openNotification(n: NotificationItem): void {
   font-weight: 600;
   cursor: pointer;
 }
-.notiflist__more:hover {
+.notiflist__more:hover:not(:disabled) {
   background: rgba(var(--v-theme-on-surface), 0.05);
+}
+.notiflist__more:disabled {
+  cursor: default;
 }
 
 .notifrow {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
   width: 100%;
-  padding: 0.65rem 0.6rem;
+  padding: 0.65rem 2rem 0.65rem 0.6rem;
   border-radius: 8px;
-  border: 0;
+  border-left: 2px solid transparent;
   background: transparent;
   text-align: left;
   cursor: pointer;
   transition: background 0.14s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.notifrow:hover {
+.notifrow:hover,
+.notifrow:focus-visible {
+  outline: none;
   background: rgba(var(--v-theme-on-surface), 0.05);
 }
-.notifrow__dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  margin-top: 0.4rem;
-  border-radius: 50%;
-  background: transparent;
+.notifrow.is-unread {
+  background: rgba(var(--v-theme-on-surface), 0.025);
 }
-.notifrow.is-unread .notifrow__dot {
-  background: rgb(var(--v-theme-primary));
+.notifrow--primary.is-unread {
+  border-left-color: rgb(var(--v-theme-primary));
+}
+.notifrow--success.is-unread {
+  border-left-color: rgb(var(--v-theme-success));
+}
+.notifrow--warning.is-unread {
+  border-left-color: rgb(var(--v-theme-warning));
+}
+.notifrow--error.is-unread {
+  border-left-color: rgb(var(--v-theme-error));
+}
+.notifrow__ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 0.1rem;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.notifrow--primary .notifrow__ic {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.notifrow--success .notifrow__ic {
+  background: rgba(var(--v-theme-success), 0.14);
+  color: rgb(var(--v-theme-success));
+}
+.notifrow--warning .notifrow__ic {
+  background: rgba(var(--v-theme-warning), 0.16);
+  color: rgb(var(--v-theme-warning));
+}
+.notifrow--error .notifrow__ic {
+  background: rgba(var(--v-theme-error), 0.14);
+  color: rgb(var(--v-theme-error));
 }
 .notifrow__body {
   display: flex;
@@ -235,6 +346,39 @@ function openNotification(n: NotificationItem): void {
 .notifrow__time {
   font-size: 0.68rem;
   color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.notifrow__x {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.4rem;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: rgba(var(--v-theme-on-surface), 0.35);
+  opacity: 0;
+  transition:
+    opacity var(--tvz-dur-fast) var(--tvz-ease-out),
+    background var(--tvz-dur-fast) var(--tvz-ease-out),
+    color var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.notifrow:hover .notifrow__x,
+.notifrow:focus-within .notifrow__x {
+  opacity: 1;
+}
+.notifrow__x:hover {
+  background: rgba(var(--v-theme-error), 0.12);
+  color: rgb(var(--v-theme-error));
+}
+
+/* No hover on touch devices — the X must stay reachable without one. */
+@media (hover: none) {
+  .notifrow__x {
+    opacity: 0.6;
+  }
 }
 </style>
 

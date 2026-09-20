@@ -1099,6 +1099,10 @@ model Notification {
   data     Json?
   channels NotificationChannel[]
   readAt      DateTime? @map("read_at")
+  /** User removed it from their own panel — the row is kept (audit trail,
+   *  matches every other "soft" state in this schema) but excluded from
+   *  `list()`/`unreadCount()` from this point on. */
+  dismissedAt DateTime? @map("dismissed_at")
   emailSentAt DateTime? @map("email_sent_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 

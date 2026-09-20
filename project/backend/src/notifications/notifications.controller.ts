@@ -1,4 +1,14 @@
-import { Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
@@ -33,6 +43,13 @@ export class NotificationsController {
   @Post('read-all')
   async markAllRead(@CurrentUser() user: AuthPrincipal) {
     await this.notifications.markAllRead(user.id);
+    return { ok: true };
+  }
+
+  @Delete(':id')
+  @HttpCode(200)
+  async dismiss(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    await this.notifications.dismiss(user.id, id);
     return { ok: true };
   }
 }

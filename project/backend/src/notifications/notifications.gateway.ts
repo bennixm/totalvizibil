@@ -68,4 +68,13 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
   broadcast(payload: unknown): void {
     this.server?.emit('notification', payload);
   }
+
+  /** Cross-tab/cross-device state sync — a separate event from `notification`
+   *  (a brand-new item) so the client never confuses "mark this read" with
+   *  "here's something new". Every subscriber (including the tab that made
+   *  the change) applies it idempotently, so the acting tab's own optimistic
+   *  update and this echo never double-apply. */
+  syncUser(userId: string, event: { kind: 'read' | 'read-all' | 'dismissed'; id?: string }): void {
+    this.server?.to(userId).emit('notification:sync', event);
+  }
 }

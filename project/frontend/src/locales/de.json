@@ -41,7 +41,11 @@
     "bell": "Benachrichtigungen",
     "empty": "Keine Benachrichtigungen",
     "markAllRead": "Alle als gelesen markieren",
-    "loadMore": "Mehr laden"
+    "loadMore": "Mehr laden",
+    "dismiss": "Entfernen",
+    "open": "Öffnen",
+    "loadError": "Benachrichtigungen konnten nicht geladen werden",
+    "retry": "Erneut versuchen"
   },
   "theme": {
     "label": "Design",

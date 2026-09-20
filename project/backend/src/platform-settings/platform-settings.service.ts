@@ -387,7 +387,7 @@ export class PlatformSettingsService {
     } else if (!after.enabled && before.enabled) {
       void this.notifications
         .notifyAll({
-          type: 'discount_updated',
+          type: 'discount_ended',
           title: 'Reducerea la achiziția de credite s-a încheiat',
           body: 'Reducerea la achiziția de credite nu mai este activă.',
           channels: { panel: true, email: true },
