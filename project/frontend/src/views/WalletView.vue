@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
+import AdminSection from '@/components/admin/AdminSection.vue'
 import CreditsValue from '@/components/CreditsValue.vue'
 import InfoHint from '@/components/InfoHint.vue'
 import { useMoney } from '@/composables/useMoney'
@@ -145,72 +147,76 @@ onMounted(async () => {
 
 <template>
   <v-container class="wal">
-    <header class="wal__head">
-      <div>
-        <p class="wal__eyebrow">{{ t('wallet.eyebrow') }}</p>
-        <h1>{{ t('wallet.title') }}</h1>
-      </div>
-      <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="{ name: 'dashboard' }">
-        {{ t('wallet.backToDashboard') }}
-      </v-btn>
-    </header>
+    <AdminPageHeader :eyebrow="t('wallet.eyebrow')" :title="t('wallet.title')">
+      <template #actions>
+        <v-btn
+          variant="tonal"
+          size="small"
+          append-icon="mdi-arrow-right"
+          :to="{ name: 'wallet-transactions' }"
+        >
+          {{ t('wallet.viewTransactionsCta') }}
+        </v-btn>
+      </template>
+    </AdminPageHeader>
 
     <div v-if="loading" class="wal__center"><v-progress-circular indeterminate color="primary" /></div>
 
     <template v-else-if="summary">
-      <!-- Balance -->
-      <section class="wal__balance">
-        <p class="wal__balanceLabel">
-          {{ t('wallet.balance') }}
-          <InfoHint
-            :text="`${t('wallet.mainNote')} ${t('wallet.rateNote', { rate: n(rate, { maximumFractionDigits: 4 }) })}`"
-          />
-        </p>
-        <p class="wal__balanceValue">
-          {{ credits(summary.balance.credits) }} <span>{{ t('wallet.credits') }}</span>
-        </p>
-        <p class="wal__balanceEq">{{ money.approx(summary.balance.credits) }}</p>
+      <!-- Balance + at-a-glance figures, unified into one panel -->
+      <section class="wal__overview">
+        <div class="wal__balance">
+          <p class="wal__balanceLabel">
+            {{ t('wallet.balance') }}
+            <InfoHint
+              :text="`${t('wallet.mainNote')} ${t('wallet.rateNote', { rate: n(rate, { maximumFractionDigits: 4 }) })}`"
+            />
+          </p>
+          <p class="wal__balanceValue">
+            {{ credits(summary.balance.credits) }} <span>{{ t('wallet.credits') }}</span>
+          </p>
+          <p class="wal__balanceEq">{{ money.approx(summary.balance.credits) }}</p>
 
-        <div class="wal__currency" role="group" :aria-label="t('wallet.currencyLabel')">
-          <span class="wal__currencyLabel">{{ t('wallet.currencyLabel') }}</span>
-          <div class="wal__currencyBtns">
-            <button
-              v-for="c in CURRENCIES"
-              :key="c"
-              type="button"
-              :class="{ 'is-on': summary.currency === c }"
-              :disabled="working"
-              @click="wallet.setCurrency(c)"
-            >
-              {{ t('wallet.currency' + c) }}
-            </button>
+          <div class="wal__currency" role="group" :aria-label="t('wallet.currencyLabel')">
+            <span class="wal__currencyLabel">{{ t('wallet.currencyLabel') }}</span>
+            <div class="wal__currencyBtns">
+              <button
+                v-for="c in CURRENCIES"
+                :key="c"
+                type="button"
+                :class="{ 'is-on': summary.currency === c }"
+                :disabled="working"
+                @click="wallet.setCurrency(c)"
+              >
+                {{ t('wallet.currency' + c) }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="wal__stats">
+          <div>
+            <span>{{ t('wallet.deposited') }}</span>
+            <strong>{{ eur(summary.depositedEurCents / 100) }}</strong>
+          </div>
+          <div>
+            <span>{{ t('wallet.purchased') }}</span>
+            <strong>{{ credits(summary.purchased.credits) }}</strong>
+            <em class="wal__statEq">{{ money.approx(summary.purchased.credits) }}</em>
+          </div>
+          <div>
+            <span>{{ t('wallet.spent') }}</span>
+            <strong>{{ credits(summary.spent.credits) }}</strong>
+            <em class="wal__statEq">{{ money.approx(summary.spent.credits) }}</em>
           </div>
         </div>
       </section>
 
-      <div class="wal__stats">
-        <div>
-          <span>{{ t('wallet.deposited') }}</span>
-          <strong>{{ eur(summary.depositedEurCents / 100) }}</strong>
-        </div>
-        <div>
-          <span>{{ t('wallet.purchased') }}</span>
-          <strong>{{ credits(summary.purchased.credits) }}</strong>
-          <em class="wal__statEq">{{ money.approx(summary.purchased.credits) }}</em>
-        </div>
-        <div>
-          <span>{{ t('wallet.spent') }}</span>
-          <strong>{{ credits(summary.spent.credits) }}</strong>
-          <em class="wal__statEq">{{ money.approx(summary.spent.credits) }}</em>
-        </div>
-      </div>
-
       <!-- Buy credits -->
-      <section class="wal__buy">
-        <h2>
-          {{ t('wallet.buyTitle') }}
+      <AdminSection class="wal__section" :title="t('wallet.buyTitle')" icon="mdi-cart-plus-outline">
+        <template #actions>
           <InfoHint :text="t('wallet.prepaidNote')" />
-        </h2>
+        </template>
 
         <div v-if="!billingBlocked && unbilledCount > 0" class="wal__unbilled">
           <v-icon icon="mdi-receipt-text-remove-outline" size="18" />
@@ -330,45 +336,40 @@ onMounted(async () => {
             </v-btn>
           </div>
         </div>
-      </section>
+      </AdminSection>
 
       <!-- Refund the wallet balance -->
-      <section v-if="refundableCredits > 0" class="wal__refund">
-        <h2>
-          {{ t('wallet.refundTitle') }}
+      <AdminSection
+        v-if="refundableCredits > 0"
+        class="wal__section"
+        :title="t('wallet.refundTitle')"
+        icon="mdi-cash-refund"
+      >
+        <template #actions>
           <InfoHint :text="t('wallet.refundHint')" />
-        </h2>
+        </template>
         <p class="wal__refundLine">
           {{ t('wallet.refundAvailable', { credits: credits(refundableCredits) }) }}
         </p>
         <v-btn variant="tonal" prepend-icon="mdi-cash-refund" @click="openRefundConfirm">
           {{ t('wallet.refundCta') }}
         </v-btn>
-      </section>
+      </AdminSection>
 
       <!-- Consumption per business -->
-      <section v-if="consumers.length" class="wal__bybiz">
-        <h2>{{ t('wallet.byBusinessTitle') }}</h2>
-        <ul>
+      <AdminSection
+        v-if="consumers.length"
+        class="wal__section"
+        :title="t('wallet.byBusinessTitle')"
+        icon="mdi-domain"
+      >
+        <ul class="wal__bybiz">
           <li v-for="c in consumers" :key="c.id">
             <span class="wal__bybizName">{{ c.displayName }}</span>
             <span class="wal__bybizVal"><CreditsValue :credits="c.consumedCredits" /></span>
           </li>
         </ul>
-      </section>
-
-      <!-- History -->
-      <section class="wal__history">
-        <h2>{{ t('wallet.historyTitle') }}</h2>
-        <v-btn
-          variant="tonal"
-          size="small"
-          append-icon="mdi-arrow-right"
-          :to="{ name: 'wallet-transactions' }"
-        >
-          {{ t('wallet.viewTransactionsCta') }}
-        </v-btn>
-      </section>
+      </AdminSection>
     </template>
 
     <v-dialog v-model="showRefundConfirm" max-width="440">
@@ -417,7 +418,7 @@ onMounted(async () => {
 
 <style scoped>
 .wal {
-  max-width: 780px;
+  max-width: 820px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
 }
 .wal__center {
@@ -425,34 +426,17 @@ onMounted(async () => {
   place-items: center;
   min-height: 200px;
 }
-.wal__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.wal__eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-size: 10px;
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.45);
-  margin: 0 0 0.3rem;
-}
-.wal__head h1 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
-  letter-spacing: -0.02em;
-  margin: 0;
-}
 
-.wal__balance {
-  padding: 1.5rem;
+/* Balance + at-a-glance figures — one unified panel instead of two
+   separately-floating blocks. */
+.wal__overview {
   border-radius: var(--tvz-radius-lg);
   border: 1px solid var(--tvz-glass-border);
   background: var(--tvz-ai-soft);
+  overflow: hidden;
+}
+.wal__balance {
+  padding: 1.6rem 1.5rem 1.4rem;
   text-align: center;
 }
 .wal__balanceLabel {
@@ -521,14 +505,6 @@ onMounted(async () => {
 }
 
 .wal__bybiz {
-  margin-top: 1.75rem;
-}
-.wal__bybiz h2 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.1rem;
-  margin: 0 0 0.75rem;
-}
-.wal__bybiz ul {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -561,14 +537,14 @@ onMounted(async () => {
 .wal__stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-  margin: 1rem 0 1.5rem;
+  border-top: 1px solid var(--tvz-glass-border);
 }
 .wal__stats > div {
-  padding: 0.9rem;
-  border-radius: var(--tvz-radius-md);
-  border: 1px solid var(--tvz-hairline);
+  padding: 0.9rem 1rem 1rem;
   text-align: center;
+}
+.wal__stats > div + div {
+  border-left: 1px solid var(--tvz-glass-border);
 }
 .wal__stats span {
   display: block;
@@ -590,20 +566,8 @@ onMounted(async () => {
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
-.wal__buy,
-.wal__refund,
-.wal__history {
-  margin-top: 1.75rem;
-}
-.wal__buy h2,
-.wal__refund h2,
-.wal__history h2 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.1rem;
-  margin: 0 0 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+.wal__section {
+  margin-top: 1.25rem;
 }
 .wal__presets {
   display: flex;
@@ -761,5 +725,15 @@ onMounted(async () => {
   margin: 0.6rem 0 0;
   font-size: 0.8rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+@media (max-width: 480px) {
+  .wal__stats {
+    grid-template-columns: 1fr;
+  }
+  .wal__stats > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--tvz-glass-border);
+  }
 }
 </style>

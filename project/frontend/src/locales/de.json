@@ -17,6 +17,10 @@
   "nav": {
     "discover": "Entdecken",
     "account": "Konto",
+    "openMenu": "Menü öffnen",
+    "modeSwitch": "Bereich wechseln",
+    "modeUser": "Dashboard",
+    "modeAdmin": "Admin",
     "dashboard": "Dashboard",
     "wallet": "Wallet",
     "admin": "Verwaltung",
@@ -30,6 +34,7 @@
     "addBusiness": "Unternehmen hinzufügen",
     "noBusinesses": "Noch kein Unternehmen",
     "leads": "Anfragen",
+    "campaign": "Kampagne",
     "support": "Support",
     "supportQueue": "Support-Warteschlange",
     "staff": "Team",
@@ -710,6 +715,7 @@
   },
   "admin": {
     "title": "Admin-Panel",
+    "backToDashboard": "Zurück zu deinem Dashboard",
     "navDashboard": "Dashboard",
     "navUsers": "Nutzer",
     "updated": "Aktualisiert",
@@ -751,6 +757,7 @@
     "searchUsers": "Nach Name oder E-Mail suchen",
     "filterAnyStatus": "Beliebiger Status",
     "filterAnyRole": "Beliebige Rolle",
+    "invFilterAnyKind": "Beliebiger Typ",
     "colUser": "Nutzer",
     "colStatus": "Status",
     "colRoles": "Rollen",
@@ -777,6 +784,7 @@
     "saved": "Änderungen gespeichert",
     "genericError": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
     "navCategories": "Kategorien",
+    "navSupport": "Support",
     "colWallet": "Wallet",
     "walletTitle": "Wallet",
     "walletPurchased": "Gekauft",
@@ -2149,7 +2157,11 @@
     "view": "Rechnung ansehen",
     "profileNote": "Rechnungen werden ausgestellt auf: {name}.",
     "editProfile": "Rechnungsdaten bearbeiten",
-    "kindReward": "Belohnung"
+    "kindReward": "Belohnung",
+    "searchPlaceholder": "Nach Nummer suchen",
+    "filterAnyKind": "Beliebiger Typ",
+    "filterTopup": "Aufladungen",
+    "noResults": "Keine Rechnung entspricht diesen Filtern."
   },
   "transactions": {
     "eyebrow": "Wallet",

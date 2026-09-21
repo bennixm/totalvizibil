@@ -263,14 +263,6 @@ watch(
         <p class="ov__eyebrow">{{ t('spend.eyebrow') }}</p>
         <h1>{{ t('spend.title') }}</h1>
       </div>
-      <v-btn
-        variant="text"
-        size="small"
-        prepend-icon="mdi-arrow-left"
-        :to="{ name: 'dashboard' }"
-      >
-        {{ t('spend.back') }}
-      </v-btn>
     </header>
 
     <div v-if="loading && !s" class="ov__center">

@@ -1,164 +1,85 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppSidebar, { type SidebarNavGroup } from '@/components/AppSidebar.vue'
+import SidebarModeSwitch from '@/components/SidebarModeSwitch.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const { t } = useI18n()
 const auth = useAuthStore()
 
-const groups = [
+const groups = computed<SidebarNavGroup[]>(() => [
   {
-    key: 'admin.navGroupOverview',
+    label: t('admin.navGroupOverview'),
     items: [
-      { to: { name: 'admin-dashboard' }, key: 'admin.navDashboard', icon: 'mdi-view-dashboard-outline' },
+      { to: { name: 'admin-dashboard' }, label: t('admin.navDashboard'), icon: 'mdi-view-dashboard-outline' },
     ],
   },
   {
-    key: 'admin.navGroupManage',
+    label: t('admin.navGroupManage'),
     items: [
-      { to: { name: 'admin-users' }, key: 'admin.navUsers', icon: 'mdi-account-multiple-outline' },
-      { to: { name: 'admin-businesses' }, key: 'admin.navBusinesses', icon: 'mdi-domain' },
-      { to: { name: 'admin-invoices' }, key: 'admin.navInvoices', icon: 'mdi-receipt-text-outline' },
-      { to: { name: 'admin-categories' }, key: 'admin.navCategories', icon: 'mdi-shape-outline' },
+      { to: { name: 'admin-users' }, label: t('admin.navUsers'), icon: 'mdi-account-multiple-outline' },
+      { to: { name: 'admin-businesses' }, label: t('admin.navBusinesses'), icon: 'mdi-domain' },
+      { to: { name: 'admin-invoices' }, label: t('admin.navInvoices'), icon: 'mdi-receipt-text-outline' },
+      { to: { name: 'admin-categories' }, label: t('admin.navCategories'), icon: 'mdi-shape-outline' },
+      { to: { name: 'support' }, label: t('admin.navSupport'), icon: 'mdi-face-agent' },
     ],
   },
   {
-    key: 'admin.navGroupConfig',
+    label: t('admin.navGroupConfig'),
     items: [
-      { to: { name: 'admin-settings' }, key: 'admin.navSettings', icon: 'mdi-tune-variant' },
+      { to: { name: 'admin-settings' }, label: t('admin.navSettings'), icon: 'mdi-tune-variant' },
     ],
   },
-]
+])
 </script>
 
 <template>
-  <div class="admin">
-    <aside class="admin__rail">
-      <div class="admin__brand">
-        <span class="admin__brand-mark"><v-icon icon="mdi-shield-crown-outline" size="18" /></span>
-        <span>{{ t('admin.title') }}</span>
-      </div>
-
-      <nav class="admin__nav">
-        <div v-for="g in groups" :key="g.key" class="admin__group">
-          <span class="admin__group-label">{{ t(g.key) }}</span>
-          <router-link
-            v-for="item in g.items"
-            :key="item.key"
-            :to="item.to"
-            class="admin__link"
-          >
-            <v-icon :icon="item.icon" size="18" />
-            <span>{{ t(item.key) }}</span>
-          </router-link>
+  <v-layout class="admin">
+    <AppSidebar :groups="groups">
+      <template #top>
+        <SidebarModeSwitch />
+      </template>
+      <template #footer>
+        <div class="admin__me">
+          <span class="admin__me-roles">
+            <v-chip
+              v-for="r in auth.user?.platformRoles ?? []"
+              :key="r"
+              size="x-small"
+              color="primary"
+              variant="tonal"
+            >
+              {{ r }}
+            </v-chip>
+          </span>
+          <span class="admin__me-email">{{ auth.user?.email }}</span>
         </div>
-      </nav>
+      </template>
+    </AppSidebar>
 
-      <div class="admin__me">
-        <span class="admin__me-roles">
-          <v-chip
-            v-for="r in auth.user?.platformRoles ?? []"
-            :key="r"
-            size="x-small"
-            color="primary"
-            variant="tonal"
-          >
-            {{ r }}
-          </v-chip>
-        </span>
-        <span class="admin__me-email">{{ auth.user?.email }}</span>
+    <v-main>
+      <div class="admin__content">
+        <router-view />
       </div>
-    </aside>
-
-    <main class="admin__content">
-      <router-view />
-    </main>
-  </div>
+    </v-main>
+  </v-layout>
 </template>
 
 <style scoped>
 .admin {
-  display: grid;
-  grid-template-columns: 236px minmax(0, 1fr);
   min-height: calc(100vh - var(--tvz-topbar-h));
 }
-.admin__rail {
-  border-right: 1px solid var(--tvz-hairline);
-  padding: 1.4rem 0.9rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.4rem;
-  position: sticky;
-  top: var(--tvz-topbar-h);
-  align-self: start;
-  height: calc(100vh - var(--tvz-topbar-h));
-}
-.admin__brand {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  font-size: 0.95rem;
-  letter-spacing: -0.01em;
-  padding-inline: 0.3rem;
-}
-.admin__brand-mark {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  color: #fff;
-  background: var(--tvz-gradient-brand, linear-gradient(135deg, rgb(var(--v-theme-primary)), rgb(var(--v-theme-secondary))));
-}
-.admin__nav {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.admin__group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-.admin__group-label {
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(var(--v-theme-on-surface), 0.4);
-  padding: 0 0.7rem 0.35rem;
-}
-.admin__link {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0.7rem;
-  border-radius: 10px;
-  color: rgba(var(--v-theme-on-surface), 0.66);
-  text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: background var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
-}
-.admin__link:hover {
-  background: rgba(var(--v-theme-on-surface), 0.05);
-  color: rgb(var(--v-theme-on-surface));
-}
-.admin__link.router-link-active {
-  background: rgba(var(--v-theme-primary), 0.12);
-  color: rgb(var(--v-theme-primary));
-  font-weight: 600;
+.admin__content {
+  padding: clamp(1.2rem, 3vw, 2.2rem);
+  min-width: 0;
 }
 .admin__me {
-  margin-top: auto;
-  padding: 0.7rem;
-  border-radius: 10px;
-  background: rgba(var(--v-theme-on-surface), 0.04);
+  padding: 0 0.7rem;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.35rem;
   font-size: 0.72rem;
 }
 .admin__me-roles {
@@ -167,50 +88,9 @@ const groups = [
   flex-wrap: wrap;
 }
 .admin__me-email {
-  color: rgba(var(--v-theme-on-surface), 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.5);
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.admin__content {
-  padding: clamp(1.2rem, 3vw, 2.2rem);
-  min-width: 0;
-}
-
-@media (max-width: 860px) {
-  .admin {
-    grid-template-columns: 1fr;
-  }
-  .admin__rail {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.8rem;
-    border-right: none;
-    border-bottom: 1px solid var(--tvz-hairline);
-    overflow-x: auto;
-    padding: 0.8rem;
-  }
-  .admin__brand {
-    flex-shrink: 0;
-  }
-  .admin__nav {
-    flex-direction: row;
-    gap: 0.8rem;
-  }
-  .admin__group {
-    flex-direction: row;
-    align-items: center;
-    gap: 0.3rem;
-  }
-  .admin__group-label {
-    display: none;
-  }
-  .admin__link {
-    white-space: nowrap;
-  }
-  .admin__me {
-    display: none;
-  }
+  white-space: nowrap;
 }
 </style>

@@ -17,6 +17,10 @@
   "nav": {
     "discover": "Discover",
     "account": "Account",
+    "openMenu": "Open menu",
+    "modeSwitch": "Switch area",
+    "modeUser": "Dashboard",
+    "modeAdmin": "Admin",
     "dashboard": "Dashboard",
     "wallet": "Wallet",
     "admin": "Admin",
@@ -30,6 +34,7 @@
     "addBusiness": "Add a business",
     "noBusinesses": "No business yet",
     "leads": "Requests",
+    "campaign": "Campaign",
     "support": "Support",
     "supportQueue": "Support queue",
     "staff": "Staff",
@@ -710,6 +715,7 @@
   },
   "admin": {
     "title": "Admin panel",
+    "backToDashboard": "Back to your dashboard",
     "navDashboard": "Dashboard",
     "navUsers": "Users",
     "updated": "Updated",
@@ -751,6 +757,7 @@
     "searchUsers": "Search by name or email",
     "filterAnyStatus": "Any status",
     "filterAnyRole": "Any role",
+    "invFilterAnyKind": "Any type",
     "colUser": "User",
     "colStatus": "Status",
     "colRoles": "Roles",
@@ -777,6 +784,7 @@
     "saved": "Changes saved",
     "genericError": "Something went wrong. Please try again.",
     "navCategories": "Categories",
+    "navSupport": "Support",
     "colWallet": "Wallet",
     "walletTitle": "Wallet",
     "walletPurchased": "Purchased",
@@ -2149,7 +2157,11 @@
     "view": "View invoice",
     "profileNote": "Invoices are issued to: {name}.",
     "editProfile": "Edit billing details",
-    "kindReward": "Reward"
+    "kindReward": "Reward",
+    "searchPlaceholder": "Search by number",
+    "filterAnyKind": "Any type",
+    "filterTopup": "Top-ups",
+    "noResults": "No invoice matches these filters."
   },
   "transactions": {
     "eyebrow": "Wallet",

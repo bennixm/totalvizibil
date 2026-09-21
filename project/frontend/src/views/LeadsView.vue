@@ -138,9 +138,6 @@ onMounted(async () => {
         <p class="lds__eyebrow">{{ t('leads.eyebrow') }}</p>
         <h1>{{ t('leads.title') }}</h1>
       </div>
-      <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="{ name: 'dashboard' }">
-        {{ t('leads.back') }}
-      </v-btn>
     </header>
 
     <div v-if="loading && !summary" class="lds__center">

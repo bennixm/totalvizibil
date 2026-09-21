@@ -315,6 +315,7 @@ export class BillingService {
   async adminList(query: {
     search?: string;
     status?: 'issued' | 'void';
+    kind?: 'topup' | 'affiliate_reward';
     page?: number;
     pageSize?: number;
   }) {
@@ -325,6 +326,7 @@ export class BillingService {
     const where: Prisma.InvoiceWhereInput = {
       ...(query.status === 'void' ? { voidedAt: { not: null } } : {}),
       ...(query.status === 'issued' ? { voidedAt: null } : {}),
+      ...(query.kind ? { kind: query.kind } : {}),
       ...(search
         ? {
             OR: [

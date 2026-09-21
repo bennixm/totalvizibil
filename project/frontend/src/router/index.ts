@@ -66,19 +66,19 @@ const routes: RouteRecordRaw[] = [
     path: '/dashboard',
     name: 'dashboard',
     component: () => import('@/views/DashboardView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   {
     path: '/wallet',
     name: 'wallet',
     component: () => import('@/views/WalletView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   {
     path: '/wallet/transactions',
     name: 'wallet-transactions',
     component: () => import('@/views/TransactionsView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   {
     // The campaign hub — consumption stats + status + activate/stop, with links
@@ -86,19 +86,19 @@ const routes: RouteRecordRaw[] = [
     path: '/campaign',
     name: 'campaign',
     component: () => import('@/views/CampaignSpendView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   {
     path: '/campaign/budget',
     name: 'campaign-budget',
     component: () => import('@/views/CampaignView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   {
     path: '/campaign/optimize',
     name: 'campaign-optimize',
     component: () => import('@/views/CampaignOptimizeView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   // The old dedicated spend page is now the hub itself.
   {
@@ -110,13 +110,13 @@ const routes: RouteRecordRaw[] = [
     path: '/leads',
     name: 'leads',
     component: () => import('@/views/LeadsView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   {
     path: '/invoices',
     name: 'invoices',
     component: () => import('@/views/InvoicesView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
 
   // --- Support ---
@@ -124,19 +124,19 @@ const routes: RouteRecordRaw[] = [
     path: '/support',
     name: 'support',
     component: () => import('@/views/SupportView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   {
     path: '/support/new',
     name: 'support-new',
     component: () => import('@/views/SupportNewView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   {
     path: '/support/:id',
     name: 'support-ticket',
     component: () => import('@/views/SupportTicketView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   {
     // The Website Builder: an AI chat that writes a real Vue/Vite project and
@@ -162,7 +162,7 @@ const routes: RouteRecordRaw[] = [
     path: '/account',
     name: 'account',
     component: () => import('@/views/AccountView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, panel: true },
   },
   {
     path: '/account/invoices/:id',

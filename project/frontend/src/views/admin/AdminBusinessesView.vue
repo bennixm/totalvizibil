@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import AdminFilterChip from '@/components/admin/AdminFilterChip.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import { useAdminStore } from '@/stores/admin'
@@ -19,6 +20,14 @@ watch(search, (v) => {
   clearTimeout(deb)
   deb = setTimeout(() => admin.setBusinessFilter('search', v), 300)
 })
+
+// Quick-glance counts, independent of the current filter — reuses the same
+// aggregate the admin dashboard already fetches.
+void admin.fetchStats()
+const s = computed(() => admin.stats?.companies)
+function toggleStatus(status: BusinessStatus | null): void {
+  admin.setBusinessFilter('status', admin.businessFilters.status === status ? null : status)
+}
 
 const statusItems = computed(() => [
   { value: null, title: t('admin.filterAnyStatus') },
@@ -65,6 +74,44 @@ function open(id: string): void {
       :count="admin.businessesTotal"
       :sub="t('adminBiz.lead')"
     />
+
+    <div v-if="s" class="ab__chips">
+      <AdminFilterChip
+        :label="t('admin.filterAnyStatus')"
+        :value="n(s.total)"
+        icon="mdi-domain"
+        :active="admin.businessFilters.status === null"
+        @click="toggleStatus(null)"
+      />
+      <AdminFilterChip
+        :label="t('dashboard.statusActive')"
+        :value="n(s.active)"
+        icon="mdi-check-circle-outline"
+        tone="success"
+        :active="admin.businessFilters.status === 'active'"
+        @click="toggleStatus('active')"
+      />
+      <AdminFilterChip
+        :label="t('dashboard.statusDraft')"
+        :value="n(s.draft)"
+        icon="mdi-file-outline"
+        :active="admin.businessFilters.status === 'draft'"
+        @click="toggleStatus('draft')"
+      />
+      <AdminFilterChip
+        :label="t('dashboard.statusSuspended')"
+        :value="n(s.suspended)"
+        icon="mdi-cancel"
+        tone="error"
+        :active="admin.businessFilters.status === 'suspended'"
+        @click="toggleStatus('suspended')"
+      />
+      <AdminFilterChip
+        :label="t('admin.stat.coWebsites')"
+        :value="n(s.websitesPublished)"
+        icon="mdi-web"
+      />
+    </div>
 
     <div class="ab__filters">
       <v-text-field
@@ -174,6 +221,12 @@ function open(id: string): void {
 </template>
 
 <style scoped>
+.ab__chips {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.1rem;
+}
 .ab__filters {
   display: flex;
   gap: 0.6rem;

@@ -175,6 +175,7 @@ export interface AdminUserInvoice {
 }
 
 export type InvoiceStatusFilter = 'issued' | 'void'
+export type InvoiceKindFilter = 'topup' | 'affiliate_reward'
 
 /** One row in the global admin invoices list. */
 export interface AdminInvoiceRow {
@@ -194,6 +195,7 @@ export interface AdminInvoiceRow {
 export interface InvoicesFilters {
   search: string
   status: InvoiceStatusFilter | null
+  kind: InvoiceKindFilter | null
   page: number
   pageSize: number
 }
@@ -467,7 +469,7 @@ export const useAdminStore = defineStore('admin', {
     loadingCategories: false,
     invoices: [],
     invoicesTotal: 0,
-    invoiceFilters: { search: '', status: null, page: 1, pageSize: 20 },
+    invoiceFilters: { search: '', status: null, kind: null, page: 1, pageSize: 20 },
     loadingInvoices: false,
   }),
 
@@ -534,6 +536,7 @@ export const useAdminStore = defineStore('admin', {
         const p = new URLSearchParams()
         if (f.search.trim()) p.set('search', f.search.trim())
         if (f.status) p.set('status', f.status)
+        if (f.kind) p.set('kind', f.kind)
         p.set('page', String(f.page))
         p.set('pageSize', String(f.pageSize))
         const res = await apiFetch<{ items: AdminInvoiceRow[]; total: number }>(

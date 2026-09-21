@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { useBillingStore } from '@/stores/billing'
 
 const { t, n } = useI18n()
@@ -17,19 +18,33 @@ function total(minor: number): string {
 async function issueMissing(): Promise<void> {
   await billing.backfill()
 }
+
+// Everything loads in one page-load — filtering happens client-side, no
+// extra requests needed.
+const search = ref('')
+const kind = ref<'topup' | 'affiliate_reward' | null>(null)
+const kindItems = computed(() => [
+  { value: null, title: t('invoices.filterAnyKind') },
+  { value: 'topup', title: t('invoices.filterTopup') },
+  { value: 'affiliate_reward', title: t('invoices.kindReward') },
+])
+const filteredInvoices = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  return invoices.value.filter((inv) => {
+    if (kind.value && inv.kind !== kind.value) return false
+    if (q && !inv.number.toLowerCase().includes(q)) return false
+    return true
+  })
+})
 </script>
 
 <template>
   <v-container class="inv">
-    <header class="inv__head">
-      <div>
-        <p class="inv__eyebrow">{{ t('invoices.eyebrow') }}</p>
-        <h1>{{ t('invoices.title') }}</h1>
-      </div>
-      <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="{ name: 'dashboard' }">
-        {{ t('wallet.backToDashboard') }}
-      </v-btn>
-    </header>
+    <AdminPageHeader
+      :eyebrow="t('invoices.eyebrow')"
+      :title="t('invoices.title')"
+      :count="invoices.length || undefined"
+    />
 
     <div v-if="loading" class="inv__center"><v-progress-circular indeterminate color="primary" /></div>
 
@@ -63,10 +78,32 @@ async function issueMissing(): Promise<void> {
         </div>
       </div>
 
+      <div v-if="invoices.length" class="inv__filters">
+        <v-text-field
+          v-model="search"
+          :placeholder="t('invoices.searchPlaceholder')"
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          density="compact"
+          hide-details
+          clearable
+          class="inv__search"
+        />
+        <v-select
+          v-model="kind"
+          :items="kindItems"
+          variant="outlined"
+          density="compact"
+          hide-details
+          class="inv__sel"
+        />
+      </div>
+
       <section class="inv__list">
         <p v-if="!invoices.length" class="inv__empty">{{ t('invoices.empty') }}</p>
+        <p v-else-if="!filteredInvoices.length" class="inv__empty">{{ t('invoices.noResults') }}</p>
         <ul v-else class="inv__rows">
-          <li v-for="inv in invoices" :key="inv.id" class="irow">
+          <li v-for="inv in filteredInvoices" :key="inv.id" class="irow">
             <span class="irow__icon">
               <v-icon icon="mdi-receipt-text-outline" size="18" />
             </span>
@@ -112,7 +149,7 @@ async function issueMissing(): Promise<void> {
 
 <style scoped>
 .inv {
-  max-width: 780px;
+  max-width: 820px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
 }
 .inv__center {
@@ -120,27 +157,17 @@ async function issueMissing(): Promise<void> {
   place-items: center;
   min-height: 200px;
 }
-.inv__head {
+.inv__filters {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.1rem;
 }
-.inv__eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-size: 10px;
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.45);
-  margin: 0 0 0.3rem;
+.inv__search {
+  flex: 1 1 220px;
 }
-.inv__head h1 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
-  letter-spacing: -0.02em;
-  margin: 0;
+.inv__sel {
+  max-width: 12rem;
 }
 .inv__notice {
   display: flex;
@@ -181,6 +208,10 @@ async function issueMissing(): Promise<void> {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
+  transition: background var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
+}
+.irow:hover {
+  background: rgba(var(--v-theme-on-surface), 0.02);
 }
 .irow + .irow {
   border-top: 1px solid var(--tvz-hairline);

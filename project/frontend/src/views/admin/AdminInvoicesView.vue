@@ -5,10 +5,12 @@ import { useI18n } from 'vue-i18n'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
+import InvoiceDocument from '@/components/InvoiceDocument.vue'
 import {
   useAdminStore,
   type AdminInvoiceDetail,
   type AdminInvoiceRow,
+  type InvoiceKindFilter,
   type InvoiceStatusFilter,
 } from '@/stores/admin'
 import { useToastStore } from '@/stores/toast'
@@ -28,6 +30,11 @@ const statusItems = computed(() => [
   { value: null, title: t('admin.filterAnyStatus') },
   { value: 'issued', title: t('admin.invStatusIssued') },
   { value: 'void', title: t('admin.invStatusVoid') },
+])
+const kindItems = computed(() => [
+  { value: null, title: t('admin.invFilterAnyKind') },
+  { value: 'topup', title: t('admin.invKindTopup') },
+  { value: 'affiliate_reward', title: t('admin.invKindAffiliateReward') },
 ])
 
 function total(minor: number): string {
@@ -99,11 +106,6 @@ async function openDetail(inv: AdminInvoiceRow): Promise<void> {
     detailLoading.value = false
   }
 }
-function buyerAddressLine(d: AdminInvoiceDetail): string {
-  return [d.buyerAddress, d.buyerCity, d.buyerCounty, d.buyerPostalCode, d.buyerCountry]
-    .filter(Boolean)
-    .join(', ')
-}
 function kindLabel(kind: AdminInvoiceDetail['kind']): string {
   return kind === 'affiliate_reward' ? t('admin.invKindAffiliateReward') : t('admin.invKindTopup')
 }
@@ -133,11 +135,22 @@ onMounted(() => admin.fetchInvoices())
       <v-select
         :model-value="admin.invoiceFilters.status"
         :items="statusItems"
+        prepend-inner-icon="mdi-tag-outline"
         variant="outlined"
         density="compact"
         hide-details
         class="ai__sel"
         @update:model-value="admin.setInvoiceFilter('status', $event as InvoiceStatusFilter | null)"
+      />
+      <v-select
+        :model-value="admin.invoiceFilters.kind"
+        :items="kindItems"
+        prepend-inner-icon="mdi-shape-outline"
+        variant="outlined"
+        density="compact"
+        hide-details
+        class="ai__sel"
+        @update:model-value="admin.setInvoiceFilter('kind', $event as InvoiceKindFilter | null)"
       />
     </div>
 
@@ -236,22 +249,27 @@ onMounted(() => admin.fetchInvoices())
       @update:page="admin.setInvoiceFilter('page', $event)"
     />
 
-    <!-- Detail dialog -->
-    <v-dialog v-model="detailOpen" max-width="560">
+    <!-- Detail dialog — the real invoice document, large enough to actually read -->
+    <v-dialog v-model="detailOpen" max-width="920" scrollable>
       <v-card rounded="lg">
         <div v-if="detailLoading" class="ai__dCenter">
           <v-progress-circular indeterminate color="primary" />
         </div>
         <template v-else-if="detail">
           <v-card-title class="ai__dTitle">
-            {{ t('admin.invDetailTitle', { number: detail.number }) }}
+            <span>{{ t('admin.invDetailTitle', { number: detail.number }) }}</span>
             <span class="chip" :class="detail.voidedAt ? 'chip--err' : 'chip--ok'">
               {{ detail.voidedAt ? t('admin.invStatusVoid') : t('admin.invStatusIssued') }}
             </span>
+            <span v-if="detail.kind === 'affiliate_reward'" class="tag tag--role">
+              {{ kindLabel(detail.kind) }}
+            </span>
+            <v-spacer />
+            <router-link :to="{ name: 'admin-user', params: { id: detail.user.id } }" class="ai__dUserLink">
+              <v-icon icon="mdi-account-outline" size="14" />
+              {{ detail.user.email }}
+            </router-link>
           </v-card-title>
-          <v-card-subtitle v-if="detail.kind === 'affiliate_reward'">
-            {{ kindLabel(detail.kind) }}
-          </v-card-subtitle>
 
           <v-card-text class="ai__dBody">
             <div v-if="detail.voidedAt" class="ai__dVoidNote">
@@ -262,35 +280,7 @@ onMounted(() => admin.fetchInvoices())
               </div>
             </div>
 
-            <section class="ai__dSection">
-              <h3>{{ t('admin.invSectionBuyer') }}</h3>
-              <p class="ai__dName">{{ detail.buyerName }} · {{ buyerKindLabel(detail.buyerKind) }}</p>
-              <p class="ai__dLine">{{ buyerAddressLine(detail) }}</p>
-              <p v-if="detail.buyerTaxId" class="ai__dLine">CUI {{ detail.buyerTaxId }}<template v-if="detail.buyerRegCom"> · {{ detail.buyerRegCom }}</template></p>
-              <router-link :to="{ name: 'admin-user', params: { id: detail.user.id } }" class="ai__dUserLink">
-                <v-icon icon="mdi-account-outline" size="14" />
-                {{ detail.user.email }}
-                <span class="ai__dUserCta">{{ t('admin.invViewUser') }}</span>
-              </router-link>
-            </section>
-
-            <section class="ai__dSection">
-              <h3>{{ t('admin.invSectionIssuer') }}</h3>
-              <p class="ai__dName">{{ detail.issuerName }}</p>
-              <p class="ai__dLine">{{ detail.issuerAddress }}</p>
-            </section>
-
-            <section class="ai__dSection">
-              <h3>{{ t('admin.invSectionAmounts') }}</h3>
-              <div class="ai__dAmounts">
-                <span>{{ t('admin.invSubtotal') }}</span>
-                <b>{{ total(detail.subtotalMinor) }}</b>
-                <span>{{ t('admin.invVatLine', { pct: detail.vatRatePct }) }}</span>
-                <b>{{ total(detail.vatMinor) }}</b>
-                <span class="ai__dTotalLbl">{{ t('admin.colTotal') }}</span>
-                <b class="ai__dTotalVal">{{ total(detail.totalMinor) }}</b>
-              </div>
-            </section>
+            <InvoiceDocument :invoice="detail" />
           </v-card-text>
 
           <v-card-actions>
@@ -496,6 +486,8 @@ onMounted(() => admin.fetchInvoices())
 .chip {
   display: inline-flex;
   align-items: center;
+  align-self: flex-start;
+  flex: none;
   font-size: 0.68rem;
   font-weight: 700;
   padding: 0.18rem 0.55rem;
@@ -528,6 +520,7 @@ onMounted(() => admin.fetchInvoices())
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
+  background: rgba(var(--v-theme-on-surface), 0.02);
 }
 .ai__dVoidNote {
   display: flex;
@@ -543,57 +536,16 @@ onMounted(() => admin.fetchInvoices())
   margin: 0.2rem 0 0;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
-.ai__dSection h3 {
-  margin: 0 0 0.4rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: rgba(var(--v-theme-on-surface), 0.45);
-}
-.ai__dName {
-  margin: 0;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-.ai__dLine {
-  margin: 0.15rem 0 0;
-  font-size: 0.82rem;
-  color: rgba(var(--v-theme-on-surface), 0.65);
-}
 .ai__dUserLink {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  margin-top: 0.5rem;
   font-size: 0.82rem;
   color: rgba(var(--v-theme-on-surface), 0.7);
+  text-decoration: none;
 }
-.ai__dUserCta {
+.ai__dUserLink:hover {
   color: rgb(var(--v-theme-primary));
-  font-weight: 600;
-}
-.ai__dAmounts {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.3rem 1rem;
-  font-size: 0.85rem;
-}
-.ai__dAmounts b {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.ai__dTotalLbl {
-  margin-top: 0.3rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--tvz-hairline);
-  font-weight: 700;
-}
-.ai__dTotalVal {
-  margin-top: 0.3rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--tvz-hairline);
-  font-size: 1rem;
 }
 
 @media (max-width: 860px) {

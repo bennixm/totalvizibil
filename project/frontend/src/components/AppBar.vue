@@ -8,19 +8,22 @@ import { storeToRefs } from 'pinia'
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import ThemeQuickToggle from '@/components/ThemeQuickToggle.vue'
+import { useSignOut } from '@/composables/useSignOut'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
-import { useMoneyStore } from '@/stores/money'
 import { useNotificationsStore } from '@/stores/notifications'
+
+const props = defineProps<{ showMenuToggle?: boolean }>()
+const emit = defineEmits<{ 'toggle-menu': [] }>()
 
 const { t } = useI18n()
 const { mdAndUp } = useDisplay()
 const router = useRouter()
 const auth = useAuthStore()
 const companies = useCompaniesStore()
-const money = useMoneyStore()
 const notifications = useNotificationsStore()
 const { overview, currentId } = storeToRefs(companies)
+const { signOut: doSignOut } = useSignOut()
 
 const menuOpen = ref(false)
 
@@ -31,25 +34,6 @@ const navLinks = computed(() => {
   }
   return items
 })
-
-// "Go to" — the everyday destinations, one roomy row each.
-const goLinks = [
-  { to: { name: 'dashboard' }, key: 'nav.dashboard', icon: 'mdi-view-dashboard-outline' },
-  { to: { name: 'leads' }, key: 'nav.leads', icon: 'mdi-inbox-arrow-down-outline' },
-  { to: { name: 'wallet' }, key: 'nav.wallet', icon: 'mdi-wallet-outline' },
-  { to: { name: 'invoices' }, key: 'nav.invoices', icon: 'mdi-receipt-text-outline' },
-  { to: { name: 'support' }, key: 'nav.support', icon: 'mdi-lifebuoy' },
-]
-
-// Staff-only tools.
-const staffLinks = computed(() =>
-  auth.isPlatformStaff
-    ? [
-        { to: { name: 'support' }, key: 'nav.supportQueue', icon: 'mdi-face-agent' },
-        { to: { name: 'admin-dashboard' }, key: 'nav.admin', icon: 'mdi-shield-crown-outline' },
-      ]
-    : [],
-)
 
 const initials = computed(() =>
   (auth.user?.name ?? '?')
@@ -78,11 +62,7 @@ function go(to: { name: string }): void {
 
 function signOut(): void {
   menuOpen.value = false
-  auth.logout()
-  companies.reset()
-  money.reset()
-  notifications.reset()
-  void router.push({ name: 'feed' })
+  doSignOut()
 }
 
 async function loadCompanies(): Promise<void> {
@@ -107,6 +87,16 @@ watch(() => auth.isAuthenticated, syncNotifications)
 <template>
   <v-app-bar :height="64" color="transparent" flat class="topbar" :class="{ 'topbar--mobile': !mdAndUp }">
     <div class="topbar__inner">
+      <button
+        v-if="props.showMenuToggle"
+        type="button"
+        class="menu-toggle"
+        :aria-label="t('nav.openMenu')"
+        @click="emit('toggle-menu')"
+      >
+        <v-icon icon="mdi-menu" size="22" />
+      </button>
+
       <router-link :to="{ name: 'feed' }" class="brand" aria-label="Totalvizibil">
         <span class="brand__mark"><v-icon icon="mdi-compass-outline" size="19" /></span>
         <span class="brand__word">dev.{{ t('app.name') }}</span>
@@ -194,43 +184,13 @@ watch(() => auth.isAuthenticated, syncNotifications)
                   <span class="menu__bizName">{{ t('nav.addBusiness') }}</span>
                 </button>
               </section>
-
-              <div class="menu__rule" />
-
-              <!-- Go to -->
-              <section class="menu__sec">
-                <p class="menu__label">{{ t('nav.manage') }}</p>
-                <button
-                  v-for="link in goLinks"
-                  :key="link.key"
-                  type="button"
-                  class="menu__row"
-                  @click="go(link.to)"
-                >
-                  <span class="menu__ic"><v-icon :icon="link.icon" size="17" /></span>
-                  <span>{{ t(link.key) }}</span>
-                </button>
-              </section>
-
-              <template v-if="staffLinks.length">
-                <div class="menu__rule" />
-                <section class="menu__sec">
-                  <p class="menu__label">{{ t('nav.staff') }}</p>
-                  <button
-                    v-for="link in staffLinks"
-                    :key="link.key"
-                    type="button"
-                    class="menu__row"
-                    @click="go(link.to)"
-                  >
-                    <span class="menu__ic menu__ic--staff"><v-icon :icon="link.icon" size="17" /></span>
-                    <span>{{ t(link.key) }}</span>
-                  </button>
-                </section>
-              </template>
             </div>
 
             <footer class="menu__foot">
+              <button type="button" class="menu__row" @click="go({ name: 'dashboard' })">
+                <span class="menu__ic"><v-icon icon="mdi-view-dashboard-outline" size="17" /></span>
+                <span>{{ t('nav.dashboard') }}</span>
+              </button>
               <button type="button" class="menu__row" @click="go({ name: 'account' })">
                 <span class="menu__ic"><v-icon icon="mdi-account-cog-outline" size="17" /></span>
                 <span>{{ t('nav.account') }}</span>
@@ -285,6 +245,24 @@ watch(() => auth.isAuthenticated, syncNotifications)
 }
 .topbar__spacer {
   flex: 1;
+}
+
+.menu-toggle {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  margin-right: 0.35rem;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: rgba(var(--v-theme-on-surface), 0.75);
+  cursor: pointer;
+  transition: background var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.menu-toggle:hover {
+  background: rgba(var(--v-theme-on-surface), 0.06);
 }
 
 .brand {

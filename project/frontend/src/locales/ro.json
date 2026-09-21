@@ -17,6 +17,10 @@
   "nav": {
     "discover": "Descoperă",
     "account": "Cont",
+    "openMenu": "Deschide meniul",
+    "modeSwitch": "Comută zona",
+    "modeUser": "Panou",
+    "modeAdmin": "Admin",
     "dashboard": "Panou",
     "wallet": "Portofel",
     "admin": "Administrare",
@@ -30,6 +34,7 @@
     "addBusiness": "Adaugă o afacere",
     "noBusinesses": "Nicio afacere încă",
     "leads": "Cereri",
+    "campaign": "Campanie",
     "support": "Suport",
     "supportQueue": "Coadă suport",
     "staff": "Echipă",
@@ -710,6 +715,7 @@
   },
   "admin": {
     "title": "Panou admin",
+    "backToDashboard": "Înapoi la panoul tău",
     "navDashboard": "Panou",
     "navUsers": "Utilizatori",
     "updated": "Actualizat",
@@ -751,6 +757,7 @@
     "searchUsers": "Caută după nume sau email",
     "filterAnyStatus": "Orice stare",
     "filterAnyRole": "Orice rol",
+    "invFilterAnyKind": "Orice tip",
     "colUser": "Utilizator",
     "colStatus": "Stare",
     "colRoles": "Roluri",
@@ -777,6 +784,7 @@
     "saved": "Modificări salvate",
     "genericError": "Ceva nu a mers. Încearcă din nou.",
     "navCategories": "Categorii",
+    "navSupport": "Suport",
     "colWallet": "Portofel",
     "walletTitle": "Portofel",
     "walletPurchased": "Cumpărat",
@@ -2149,7 +2157,11 @@
     "view": "Vezi factura",
     "profileNote": "Facturile sunt emise pe numele: {name}.",
     "editProfile": "Editează datele de facturare",
-    "kindReward": "Recompensă"
+    "kindReward": "Recompensă",
+    "searchPlaceholder": "Caută după număr",
+    "filterAnyKind": "Orice tip",
+    "filterTopup": "Reîncărcări",
+    "noResults": "Nicio factură nu corespunde filtrelor."
   },
   "transactions": {
     "eyebrow": "Portofel",

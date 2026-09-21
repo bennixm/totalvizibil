@@ -14,6 +14,10 @@ export class ListInvoicesQuery {
   status?: 'issued' | 'void';
 
   @IsOptional()
+  @IsIn(['topup', 'affiliate_reward'])
+  kind?: 'topup' | 'affiliate_reward';
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
