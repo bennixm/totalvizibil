@@ -9,6 +9,7 @@ import AppSidebar from '@/components/AppSidebar.vue'
 import AppToasts from '@/components/AppToasts.vue'
 import MobileTabBar from '@/components/MobileTabBar.vue'
 import SidebarModeSwitch from '@/components/SidebarModeSwitch.vue'
+import { useAdminNavGroups } from '@/composables/useAdminNavGroups'
 import { useLocaleSync } from '@/composables/useLocaleSync'
 import { useSignOut } from '@/composables/useSignOut'
 import { useThemeSync } from '@/composables/useThemeSync'
@@ -25,18 +26,20 @@ const route = useRoute()
 const auth = useAuthStore()
 const ui = useUiStore()
 const { groups: userNavGroups } = useUserNavGroups()
+const { groups: adminNavGroups } = useAdminNavGroups()
 const { signOut } = useSignOut()
 
-// Only the "signed-in workspace" routes (dashboard, wallet, leads…) get the
-// left sidebar — public/marketing pages and the full-screen create/builder
-// flows stay chrome-light. Docked open on desktop, closed by default on
-// mobile (the AppBar hamburger toggles it there).
-const showPanel = computed(() => Boolean(route.meta.panel) && auth.isAuthenticated)
-// Admin has its own nested sidebar (AdminLayout.vue) sharing the same
-// `ui.sidebarOpen` store, so the hamburger here also drives it on mobile.
-const showMenuToggle = computed(
-  () => (showPanel.value || route.path.startsWith('/admin')) && !mdAndUp.value,
+// One persistent sidebar for the whole signed-in app, admin included — it
+// never unmounts when moving between "your workspace" and "admin", only its
+// `groups` content swaps. Two separate AppSidebar instances (one per area)
+// used to cause a visible flash of the old sidebar while the new route
+// chunk loaded; a single instance patches in place instead.
+const isAdminRoute = computed(() => route.path.startsWith('/admin'))
+const showSidebar = computed(
+  () => (Boolean(route.meta.panel) && auth.isAuthenticated) || isAdminRoute.value,
 )
+const sidebarGroups = computed(() => (isAdminRoute.value ? adminNavGroups.value : userNavGroups.value))
+const showMenuToggle = computed(() => showSidebar.value && !mdAndUp.value)
 watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
 </script>
 
@@ -45,8 +48,8 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
     <AppBar :show-menu-toggle="showMenuToggle" @toggle-menu="ui.toggleSidebar" />
 
     <v-main class="shell" :class="{ 'shell--mobile': !mdAndUp }">
-      <v-layout v-if="showPanel" class="panel-layout">
-        <AppSidebar :groups="userNavGroups">
+      <v-layout v-if="showSidebar" class="panel-layout">
+        <AppSidebar :groups="sidebarGroups">
           <template v-if="auth.isPlatformStaff" #top>
             <SidebarModeSwitch />
           </template>
