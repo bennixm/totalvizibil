@@ -306,7 +306,13 @@ export class CampaignService {
         return free('budget');
       }
 
-      const paid = await this.wallet.chargeClickWithin(tx, company.ownerUserId, cpc, companyId, today);
+      const paid = await this.wallet.chargeClickWithin(
+        tx,
+        company.ownerUserId,
+        cpc,
+        companyId,
+        today,
+      );
       if (!paid) {
         // The wallet couldn't cover it — release the budget slot reserved
         // above so it isn't silently lost from the day's remaining room.
