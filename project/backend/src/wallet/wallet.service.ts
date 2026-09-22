@@ -32,6 +32,10 @@ type WalletTxnTypeFilter = (typeof WALLET_TXN_TYPES)[number];
  *  deletion grace window (COMPANY_DELETE_GRACE_MS). */
 const REFUND_HOLD_MS = 7 * 24 * 60 * 60 * 1000;
 const REFUND_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+/** A pending Stripe purchase isn't reconciled until it's had this long for the
+ *  client's own success-page confirm to do it first — see
+ *  sweepPendingStripePurchases. */
+const PENDING_PURCHASE_GRACE_MS = 30 * 60 * 1000;
 
 /**
  * One wallet per user. It funds every business the user owns; campaigns have no
@@ -59,6 +63,10 @@ export class WalletService implements OnModuleInit {
     if (process.env.NODE_ENV === 'test') return;
     setTimeout(() => void this.sweepDueRefunds(), 90_000);
     setInterval(() => void this.sweepDueRefunds(), REFUND_SWEEP_INTERVAL_MS);
+    if (this.stripe.configured) {
+      setTimeout(() => void this.sweepPendingStripePurchases(), 150_000);
+      setInterval(() => void this.sweepPendingStripePurchases(), REFUND_SWEEP_INTERVAL_MS);
+    }
   }
 
   // --- helpers ---------------------------------------------------------
@@ -90,6 +98,63 @@ export class WalletService implements OnModuleInit {
       create: { userId },
       update: {},
     });
+  }
+
+  /**
+   * Atomically decrement a wallet by `amountMinor` — a single conditional
+   * `UPDATE ... WHERE balance_minor >= $amount`, not a read-then-write.
+   * Two concurrent debits against the same wallet serialize on Postgres's
+   * row lock: whichever commits second re-evaluates this WHERE clause
+   * against the already-decremented balance, so the balance can never be
+   * driven negative by a race. Returns null (no throw) if it can't cover
+   * the amount (or, with `requireUnblocked`, if the wallet is frozen) so
+   * callers decide what "can't afford it" means for them.
+   */
+  private async debitAtomic(
+    tx: Prisma.TransactionClient,
+    walletId: string,
+    amountMinor: number,
+    opts: { requireUnblocked?: boolean } = {},
+  ): Promise<{ balanceMinor: number } | null> {
+    const result = await tx.wallet.updateMany({
+      where: {
+        id: walletId,
+        balanceMinor: { gte: amountMinor },
+        ...(opts.requireUnblocked ? { blockedAt: null } : {}),
+      },
+      data: { balanceMinor: { decrement: amountMinor } },
+    });
+    if (result.count === 0) return null;
+    const wallet = await tx.wallet.findUniqueOrThrow({ where: { id: walletId } });
+    return { balanceMinor: wallet.balanceMinor };
+  }
+
+  /**
+   * Atomically decrement a wallet by up to `amountMinor`, clamped so the
+   * balance never goes below zero — for charges where the cost is already
+   * incurred and there's nothing to reject (chargeAiUsage/adjust's debit
+   * branch). A single `UPDATE ... SET balance = GREATEST(balance - $amount,
+   * 0)` against the row locked by the CTE below, so concurrent clamped
+   * debits against the same wallet can't each read the same stale balance
+   * and jointly clamp past zero.
+   */
+  private async debitClamped(
+    tx: Prisma.TransactionClient,
+    walletId: string,
+    amountMinor: number,
+  ): Promise<{ deltaMinor: number; balanceMinor: number }> {
+    const rows = await tx.$queryRaw<{ balanceMinor: number; before: number }[]>`
+      WITH old AS (
+        SELECT balance_minor FROM wallets WHERE id = ${walletId}::uuid FOR UPDATE
+      )
+      UPDATE wallets w
+      SET balance_minor = GREATEST(old.balance_minor - ${amountMinor}, 0)
+      FROM old
+      WHERE w.id = ${walletId}::uuid
+      RETURNING w.balance_minor AS "balanceMinor", old.balance_minor AS "before"
+    `;
+    const row = rows[0];
+    return { deltaMinor: row.before - row.balanceMinor, balanceMinor: row.balanceMinor };
   }
 
   /** Resolve the wallet owner for a business (its owner's single wallet). */
@@ -226,24 +291,46 @@ export class WalletService implements OnModuleInit {
       throw new BadRequestException('credits must be a non-zero number');
     }
     const wallet = await this.ensureWallet(userId);
-    let deltaMinor = Math.round(credits * CREDIT_MINOR);
-    if (wallet.balanceMinor + deltaMinor < 0) deltaMinor = -wallet.balanceMinor;
+    const requestedDeltaMinor = Math.round(credits * CREDIT_MINOR);
 
-    await this.prisma.$transaction(async (tx) => {
+    // A debit is clamped atomically (debitClamped) so it can't be raced past
+    // zero by a concurrent spend; a credit is a plain atomic increment, no
+    // clamp needed.
+    const deltaMinor = await this.prisma.$transaction(async (tx) => {
+      if (requestedDeltaMinor < 0) {
+        const { deltaMinor: debited, balanceMinor } = await this.debitClamped(
+          tx,
+          wallet.id,
+          -requestedDeltaMinor,
+        );
+        const applied = -debited;
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: 'adjustment',
+            status: 'completed',
+            amountMinor: applied,
+            balanceAfterMinor: balanceMinor,
+            description: reason.trim() || 'Admin adjustment',
+          },
+        });
+        return applied;
+      }
       const updated = await tx.wallet.update({
         where: { id: wallet.id },
-        data: { balanceMinor: { increment: deltaMinor } },
+        data: { balanceMinor: { increment: requestedDeltaMinor } },
       });
       await tx.walletTransaction.create({
         data: {
           walletId: wallet.id,
           type: 'adjustment',
           status: 'completed',
-          amountMinor: deltaMinor,
+          amountMinor: requestedDeltaMinor,
           balanceAfterMinor: updated.balanceMinor,
           description: reason.trim() || 'Admin adjustment',
         },
       });
+      return requestedDeltaMinor;
     });
 
     // Already committed — a notification hiccup must never mask this.
@@ -578,12 +665,9 @@ export class WalletService implements OnModuleInit {
       create: { userId },
       update: {},
     });
-    if (wallet.blockedAt || wallet.balanceMinor < amountMinor) return null;
+    const debited = await this.debitAtomic(tx, wallet.id, amountMinor, { requireUnblocked: true });
+    if (!debited) return null;
 
-    const updated = await tx.wallet.update({
-      where: { id: wallet.id },
-      data: { balanceMinor: { decrement: amountMinor } },
-    });
     const txn = await tx.walletTransaction.create({
       data: {
         walletId: wallet.id,
@@ -591,11 +675,11 @@ export class WalletService implements OnModuleInit {
         type: 'spend',
         status: 'completed',
         amountMinor: -amountMinor,
-        balanceAfterMinor: updated.balanceMinor,
+        balanceAfterMinor: debited.balanceMinor,
         description: opts.description,
       },
     });
-    return { balanceMinor: updated.balanceMinor, transactionId: txn.id };
+    return { balanceMinor: debited.balanceMinor, transactionId: txn.id };
   }
 
   /**
@@ -620,12 +704,8 @@ export class WalletService implements OnModuleInit {
       create: { userId },
       update: {},
     });
-    if (wallet.blockedAt || wallet.balanceMinor < amountMinor) return null;
-
-    const updated = await tx.wallet.update({
-      where: { id: wallet.id },
-      data: { balanceMinor: { decrement: amountMinor } },
-    });
+    const debited = await this.debitAtomic(tx, wallet.id, amountMinor, { requireUnblocked: true });
+    if (!debited) return null;
 
     await tx.walletTransaction.upsert({
       where: {
@@ -645,16 +725,16 @@ export class WalletService implements OnModuleInit {
         spendDay: dayStart,
         clickCount: 1,
         amountMinor: -amountMinor,
-        balanceAfterMinor: updated.balanceMinor,
+        balanceAfterMinor: debited.balanceMinor,
         description: 'Ad clicks',
       },
       update: {
         amountMinor: { decrement: amountMinor },
-        balanceAfterMinor: updated.balanceMinor,
+        balanceAfterMinor: debited.balanceMinor,
         clickCount: { increment: 1 },
       },
     });
-    return { balanceMinor: updated.balanceMinor };
+    return { balanceMinor: debited.balanceMinor };
   }
 
   /**
@@ -671,13 +751,9 @@ export class WalletService implements OnModuleInit {
   async chargeAiUsage(userId: string, minor: number, companyId: string): Promise<void> {
     if (minor <= 0) return;
     const wallet = await this.ensureWallet(userId);
-    const deltaMinor = Math.min(minor, Math.max(0, wallet.balanceMinor));
-    if (deltaMinor <= 0) return;
     await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balanceMinor: { decrement: deltaMinor } },
-      });
+      const { deltaMinor, balanceMinor } = await this.debitClamped(tx, wallet.id, minor);
+      if (deltaMinor <= 0) return;
       await tx.walletTransaction.create({
         data: {
           walletId: wallet.id,
@@ -686,7 +762,7 @@ export class WalletService implements OnModuleInit {
           status: 'completed',
           provider: 'ai-usage',
           amountMinor: -deltaMinor,
-          balanceAfterMinor: updated.balanceMinor,
+          balanceAfterMinor: balanceMinor,
           description: 'Website Builder usage',
         },
       });
@@ -814,17 +890,19 @@ export class WalletService implements OnModuleInit {
       // value — a discounted purchase never had that much money to begin with.
       const totalMoneyMinor = sources.reduce((sum, s) => sum + s.moneyMinor, 0);
       const feeMinor = Math.round((totalMoneyMinor * feePct) / 100);
-      const updated = await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balanceMinor: { decrement: amountMinor } },
-      });
+      // The authoritative check — the plain read above is just a fast-fail
+      // for the common case; this atomic conditional decrement is what
+      // actually prevents two concurrent refund requests from jointly
+      // taking the wallet negative.
+      const debited = await this.debitAtomic(tx, wallet.id, amountMinor);
+      if (!debited) throw new BadRequestException('insufficient_balance_for_refund');
       await tx.walletTransaction.create({
         data: {
           walletId: wallet.id,
           type: 'refund',
           status: 'pending',
           amountMinor: -amountMinor,
-          balanceAfterMinor: updated.balanceMinor,
+          balanceAfterMinor: debited.balanceMinor,
           refundSources: sources,
           feePct,
           feeMinor,
@@ -954,13 +1032,28 @@ export class WalletService implements OnModuleInit {
    * marked `failed` and every reservation is released — a partial success
    * followed by a failure on a later source is a rare edge case this
    * doesn't try to reconcile automatically; it would need a manual look.
+   *
+   * Claims the refund with an atomic `pending -> processing` UPDATE before
+   * ever calling Stripe. Without this, two overlapping sweeps (the hourly
+   * timer firing twice back-to-back, or — more realistically once there's
+   * more than one app instance — each instance running its own independent
+   * sweep) could both read `status === 'pending'` and both call
+   * `stripe.refunds.create` for the same refund, sending the customer's
+   * money back twice. The claim is a single conditional UPDATE, not a
+   * read-then-write, so only one caller can ever win it; a second caller
+   * (or a stray retry) gets `count === 0` and returns immediately.
    */
   private async executeRefund(refundTransactionId: string): Promise<void> {
+    const claim = await this.prisma.walletTransaction.updateMany({
+      where: { id: refundTransactionId, status: 'pending' },
+      data: { status: 'processing' },
+    });
+    if (claim.count === 0) return; // already claimed/canceled/handled elsewhere
+
     const refund = await this.prisma.walletTransaction.findUnique({
       where: { id: refundTransactionId },
     });
-    // Already handled (e.g. raced with a cancel) — nothing to do.
-    if (!refund || refund.status !== 'pending') return;
+    if (!refund) return;
     const sources = this.parseSources(refund.refundSources);
     const wallet = await this.prisma.wallet.findUniqueOrThrow({
       where: { id: refund.walletId },
@@ -1022,7 +1115,9 @@ export class WalletService implements OnModuleInit {
   /** A refund Stripe couldn't actually execute releases every reservation —
    *  the customer keeps the credits rather than losing them to a failed
    *  call, and the failure is visible in their history for support to
-   *  follow up. */
+   *  follow up. Only ever reached from `executeRefund`'s catch, after the
+   *  `pending -> processing` claim already succeeded — so the guard here is
+   *  `processing`, not `pending`. */
   private async markRefundFailed(
     refundTransactionId: string,
     userId: string,
@@ -1030,7 +1125,7 @@ export class WalletService implements OnModuleInit {
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const refund = await tx.walletTransaction.findUnique({ where: { id: refundTransactionId } });
-      if (!refund || refund.status !== 'pending') return;
+      if (!refund || refund.status !== 'processing') return;
       await this.releaseSources(tx, refund.refundSources);
       const updated = await tx.wallet.update({
         where: { id: refund.walletId },
@@ -1082,5 +1177,80 @@ export class WalletService implements OnModuleInit {
           err instanceof Error ? err.stack : err,
         ),
       );
+  }
+
+  // --- pending-purchase reconciliation --------------------------------
+
+  /**
+   * There is no Stripe webhook in this app (see StripeService/confirmPurchase
+   * doc) — a purchase is normally confirmed by the client itself, from the
+   * success-page redirect. If the customer pays but never comes back to that
+   * page (closed tab, network drop, crash), Stripe has the money and the
+   * transaction sits `pending` forever with nothing to notice it. This sweep
+   * is that missing reconciliation: for any `pending` Stripe purchase old
+   * enough that the client had a fair chance to confirm it itself, ask
+   * Stripe directly what actually happened and settle it one way or the
+   * other. Runs hourly, same pattern as `sweepDueRefunds`; skipped entirely
+   * when Stripe isn't configured (see `onModuleInit`).
+   */
+  private async sweepPendingStripePurchases(): Promise<void> {
+    try {
+      const cutoff = new Date(Date.now() - PENDING_PURCHASE_GRACE_MS);
+      const pending = await this.prisma.walletTransaction.findMany({
+        where: {
+          type: 'purchase',
+          status: 'pending',
+          provider: STRIPE_PROVIDER,
+          createdAt: { lte: cutoff },
+        },
+        select: { id: true, wallet: { select: { userId: true } } },
+      });
+      for (const txn of pending) {
+        await this.reconcilePendingPurchase(txn.id, txn.wallet.userId).catch((err) => {
+          this.logger.error(
+            `Pending purchase ${txn.id} reconciliation failed`,
+            err instanceof Error ? err.stack : err,
+          );
+        });
+      }
+      if (pending.length > 0) {
+        this.logger.log(`Reconciled ${pending.length} pending Stripe purchase(s)`);
+      }
+    } catch (err) {
+      this.logger.error('Pending-purchase sweep failed', err instanceof Error ? err.stack : err);
+    }
+  }
+
+  /**
+   * Ask Stripe what actually happened to one pending purchase's Checkout
+   * Session and settle it: paid ⇒ run it through the exact same
+   * `confirmPurchase` path the client's own return-to-success-page call
+   * uses (so it's one credited-and-invoiced code path, not two); a Session
+   * Stripe now reports `expired` (its own ~24h unpaid TTL) ⇒ nothing to ever
+   * reconcile toward, so it's marked `canceled` instead of sitting pending
+   * forever. Anything else (still `open`) is left alone — too soon to tell.
+   */
+  private async reconcilePendingPurchase(transactionId: string, userId: string): Promise<void> {
+    const txn = await this.prisma.walletTransaction.findUnique({ where: { id: transactionId } });
+    if (!txn || txn.status !== 'pending' || !txn.providerRef) return;
+
+    const session = await this.stripe.retrieveCheckoutSession(txn.providerRef);
+    if (session.payment_status === 'paid') {
+      // A billing-profile gap etc. would also block the customer's own
+      // confirm — leave the transaction pending for support to look at
+      // rather than silently losing a paid purchase.
+      await this.confirmPurchase(userId, transactionId).catch((err) => {
+        this.logger.warn(
+          `Could not auto-confirm paid purchase ${transactionId}: ${err instanceof Error ? err.message : err}`,
+        );
+      });
+      return;
+    }
+    if (session.status === 'expired') {
+      await this.prisma.walletTransaction.updateMany({
+        where: { id: transactionId, status: 'pending' },
+        data: { status: 'canceled', description: 'Buy credits — checkout session expired unpaid' },
+      });
+    }
   }
 }

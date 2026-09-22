@@ -277,41 +277,55 @@ export class CampaignService {
       }
 
       const today = startOfUtcDay();
-      const dayRolled = !campaign.spendDay || campaign.spendDay.getTime() !== today.getTime();
-      const spentToday = dayRolled ? 0 : campaign.spentTodayMinor;
+      const cpc = campaign.cpcMinor;
 
-      if (spentToday + campaign.cpcMinor > campaign.dailyBudgetMinor) {
+      // Reserve today's budget for this click with a single atomic UPDATE —
+      // the day-roll check, the "is there still room" check and the spend
+      // increment all happen in the same statement Postgres evaluates under
+      // the row's write lock. Two clicks landing on the same company at the
+      // same instant used to each read the same `spentTodayMinor`, both pass
+      // the budget check in JS, then overwrite (not add to) each other's
+      // write — silently losing one click's contribution and letting the
+      // campaign bill past its daily cap. This can't happen here: whichever
+      // transaction commits second re-evaluates the WHERE clause against the
+      // already-updated row, so it correctly sees less (or no) room left.
+      const reserved = await tx.$queryRaw<{ spentTodayMinor: number }[]>`
+        UPDATE campaigns
+        SET spent_today_minor = CASE WHEN spend_day = ${today}::date
+              THEN spent_today_minor + ${cpc}
+              ELSE ${cpc}
+            END,
+            spend_day = ${today}::date
+        WHERE id = ${campaign.id}::uuid
+          AND (CASE WHEN spend_day = ${today}::date THEN spent_today_minor ELSE 0 END) + ${cpc}
+              <= daily_budget_minor
+        RETURNING spent_today_minor AS "spentTodayMinor"
+      `;
+      if (reserved.length === 0) {
         await this.setDepletedWithin(tx, companyId, campaign);
         return free('budget');
       }
 
-      const paid = await this.wallet.chargeClickWithin(
-        tx,
-        company.ownerUserId,
-        campaign.cpcMinor,
-        companyId,
-        today,
-      );
+      const paid = await this.wallet.chargeClickWithin(tx, company.ownerUserId, cpc, companyId, today);
       if (!paid) {
+        // The wallet couldn't cover it — release the budget slot reserved
+        // above so it isn't silently lost from the day's remaining room.
+        await tx.campaign.update({
+          where: { id: campaign.id },
+          data: { spentTodayMinor: { decrement: cpc } },
+        });
         await this.setDepletedWithin(tx, companyId, campaign);
         return free('insufficient');
       }
 
-      const newSpent = spentToday + campaign.cpcMinor;
-      await tx.campaign.update({
-        where: { id: campaign.id },
-        data: { spentTodayMinor: newSpent, spendDay: today },
-      });
       await tx.adClick.update({
         where: { id: clickId },
-        data: { billed: true, costMinor: campaign.cpcMinor },
+        data: { billed: true, costMinor: cpc },
       });
 
       // This click may have used up the budget or the wallet — drop out now.
-      if (
-        newSpent + campaign.cpcMinor > campaign.dailyBudgetMinor ||
-        paid.balanceMinor < campaign.cpcMinor
-      ) {
+      const newSpent = reserved[0].spentTodayMinor;
+      if (newSpent + cpc > campaign.dailyBudgetMinor || paid.balanceMinor < cpc) {
         await this.setDepletedWithin(tx, companyId, campaign);
       }
       return { billed: true };

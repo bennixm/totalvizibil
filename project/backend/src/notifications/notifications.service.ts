@@ -133,14 +133,29 @@ export class NotificationsService {
     if (input.channels.email) {
       const subject = input.email?.subject ?? input.title;
       const text = input.email?.text ?? input.body;
-      // Sequential, deliberately — a burst of concurrent SMTP connections to
-      // Gmail is exactly the kind of thing that gets a dev account throttled.
-      for (const u of users) {
-        await this.mail.send({ to: u.email, subject, text }).catch(() => undefined);
-      }
+      // Backgrounded, not awaited: the DB rows + panel push above are
+      // already committed by the time this starts, so a slow or failing
+      // email leg can never undo or mask that. Without this, a broadcast to
+      // thousands of active users would hold the caller's HTTP request open
+      // for as long as the sequential email loop below takes to finish.
+      void this.sendBroadcastEmails(users, subject, text);
     }
 
     return users.length;
+  }
+
+  /** Sequential, deliberately — a burst of concurrent SMTP connections to
+   *  Gmail is exactly the kind of thing that gets a dev account throttled.
+   *  Called fire-and-forget from `notifyAll` once its DB/panel work is
+   *  already committed. */
+  private async sendBroadcastEmails(
+    users: { email: string }[],
+    subject: string,
+    text: string,
+  ): Promise<void> {
+    for (const u of users) {
+      await this.mail.send({ to: u.email, subject, text }).catch(() => undefined);
+    }
   }
 
   /** Panel history — only rows sent to the panel, and not dismissed, show here. */

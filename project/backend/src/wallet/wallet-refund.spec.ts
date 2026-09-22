@@ -52,6 +52,37 @@ function fakePrisma() {
         if (!w) throw new Error('not found');
         return { ...w };
       }),
+      // Mirrors debitAtomic's conditional decrement: a single atomic
+      // check-and-write, returning `{ count: 0 }` (not a throw/negative
+      // balance) when the WHERE clause doesn't match.
+      updateMany: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string; balanceMinor?: { gte: number }; blockedAt?: null };
+          data: { balanceMinor?: { increment?: number; decrement?: number } };
+        }) => {
+          const w = walletsById.get(where.id) as Record<string, unknown> | undefined;
+          if (!w) return { count: 0 };
+          if (
+            where.balanceMinor?.gte != null &&
+            (w.balanceMinor as number) < where.balanceMinor.gte
+          ) {
+            return { count: 0 };
+          }
+          if ('blockedAt' in where && where.blockedAt === null && w.blockedAt != null) {
+            return { count: 0 };
+          }
+          if (data.balanceMinor?.increment != null) {
+            (w as Record<string, number>).balanceMinor += data.balanceMinor.increment;
+          }
+          if (data.balanceMinor?.decrement != null) {
+            (w as Record<string, number>).balanceMinor -= data.balanceMinor.decrement;
+          }
+          return { count: 1 };
+        },
+      ),
     },
     walletTransaction: {
       findUnique: jest.fn(async ({ where }: { where: { id: string } }) => {
@@ -117,6 +148,22 @@ function fakePrisma() {
         },
       ),
       aggregate: jest.fn(async () => ({ _sum: { amountMinor: 0, eurCents: 0 } })),
+      // Mirrors executeRefund's atomic `pending -> processing` claim.
+      updateMany: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string; status?: string };
+          data: Record<string, unknown>;
+        }) => {
+          const t = txns.get(where.id) as Record<string, unknown> | undefined;
+          if (!t) return { count: 0 };
+          if (where.status != null && t.status !== where.status) return { count: 0 };
+          Object.assign(t, data);
+          return { count: 1 };
+        },
+      ),
     },
     // Real Postgres rolls back everything done via `tx.*` if the callback
     // throws — snapshot + restore here so a fake mid-transaction failure

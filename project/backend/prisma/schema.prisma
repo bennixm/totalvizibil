@@ -628,6 +628,11 @@ enum WalletTxnType {
 
 enum WalletTxnStatus {
   pending
+  /// Claimed by sweepDueRefunds/executeRefund — the Stripe call is in
+  /// flight. Exists so an overlapping sweep (or a second app instance)
+  /// can't also execute the same refund: the claim is a single atomic
+  /// `pending -> processing` UPDATE, not a read-then-write.
+  processing
   completed
   failed
   canceled

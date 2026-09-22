@@ -28,12 +28,17 @@ export class MailService {
     this.from = config.get('smtpFrom', { infer: true });
     const user = config.get('smtpUser', { infer: true });
     const pass = config.get('smtpPass', { infer: true });
+    const port = config.get('smtpPort', { infer: true });
     this.transporter =
       user && pass
         ? createTransport({
             host: config.get('smtpHost', { infer: true }),
-            port: config.get('smtpPort', { infer: true }),
-            secure: false, // STARTTLS on 587, the standard Gmail submission port
+            port,
+            // 465 is implicit TLS from the first byte (`secure: true`); every
+            // other port (587 standard submission, 25) starts plaintext and
+            // upgrades via STARTTLS (`secure: false`) — nodemailer doesn't
+            // infer this from the port itself.
+            secure: port === 465,
             auth: { user, pass },
           })
         : null;
