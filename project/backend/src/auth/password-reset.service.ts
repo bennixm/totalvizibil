@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { PasswordService } from './password.service';
 import { SessionService } from './session.service';
+import { MailService } from '../mail/mail.service';
 import { AppConfig } from '../config/env';
 
 const TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -18,6 +19,7 @@ export class PasswordResetService {
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
+    private readonly mail: MailService,
     config: ConfigService<AppConfig, true>,
   ) {
     this.isProd = config.get('nodeEnv', { infer: true }) === 'production';
@@ -55,10 +57,32 @@ export class PasswordResetService {
     });
 
     const url = `${this.frontendOrigin}/reset-password?token=${token}`;
+
+    // The token is already committed by this point — a mail hiccup must
+    // never turn an already-valid reset link into a hung request. Not tied
+    // to `notify()`/the user's own panel: they're not logged in, so the only
+    // channel that can reach them at all is a direct email to the address
+    // they typed, same pattern as the old-address notice in
+    // AccountService.updateProfile.
+    void this.mail
+      .send({
+        to: user.email,
+        subject: 'Resetează-ți parola',
+        text:
+          `Am primit o cerere de resetare a parolei pentru contul tău.\n\n` +
+          `Apasă pe linkul de mai jos pentru a-ți alege o parolă nouă (valabil o oră):\n${url}\n\n` +
+          `Dacă nu ai cerut tu resetarea, poți ignora acest email — parola ta rămâne neschimbată.`,
+      })
+      .catch((err) =>
+        this.logger.error('Password-reset email failed', err instanceof Error ? err.stack : err),
+      );
+
     if (this.isProd) {
-      this.logger.log(`Password reset requested for ${user.id} (email dispatch not implemented)`);
       return { ok: true };
     }
+    // Dev convenience only — MailService already dev-logs the full text
+    // (including this same link) when SMTP isn't configured, so this just
+    // saves digging through logs when it is.
     this.logger.warn(`DEV password reset link: ${url}`);
     return { ok: true, devResetUrl: url };
   }
