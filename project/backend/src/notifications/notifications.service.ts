@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { NotificationChannel, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailService } from '../mail/mail.service';
+import { MailAttachment, MailService } from '../mail/mail.service';
+import { ctaButton, detailsTable, renderEmailLayout, textToHtml } from '../mail/templates/layout';
 import { NotificationsGateway } from './notifications.gateway';
 
 export interface NotifyChannels {
@@ -23,10 +24,31 @@ export interface NotifyInput {
   channels: NotifyChannels;
   /** Structured extra for the panel to build a "go there" link. */
   data?: Record<string, unknown>;
-  /** Override the email's own subject/text/reply-to when it needs more detail
-   *  than the terse panel copy (e.g. a full receipt). Ignored unless
-   *  `channels.email` is set. */
-  email?: { subject?: string; text?: string; replyTo?: string };
+  /** Override the email's own subject/text/reply-to, and add the richer
+   *  content the shared HTML layout knows how to render — a receipt table,
+   *  a single call-to-action button, file attachments (e.g. an invoice PDF).
+   *  Ignored unless `channels.email` is set. Every email — this or the plain
+   *  title/body default — renders through the same branded layout
+   *  (mail/templates/layout.ts), so "custom" only ever means "extra
+   *  content", never a one-off template. */
+  email?: {
+    subject?: string;
+    text?: string;
+    replyTo?: string;
+    details?: { label: string; value: string }[];
+    cta?: { label: string; url: string };
+    attachments?: MailAttachment[];
+  };
+}
+
+/** Builds the HTML alternative for one notification — shared by notify() and
+ *  notifyAll() so a broadcast renders through the exact same layout as a
+ *  per-user email, never a second code path. */
+function buildHtml(heading: string, text: string, email: NotifyInput['email']): string {
+  const parts = [textToHtml(text)];
+  if (email?.details?.length) parts.push(detailsTable(email.details));
+  if (email?.cta) parts.push(ctaButton(email.cta.label, email.cta.url));
+  return renderEmailLayout({ heading, preheader: text.slice(0, 140), bodyHtml: parts.join('') });
 }
 
 /**
@@ -83,11 +105,14 @@ export class NotificationsService {
         select: { email: true },
       });
       if (user?.email) {
+        const text = input.email?.text ?? input.body;
         const { dispatched } = await this.mail.send({
           to: user.email,
           subject: input.email?.subject ?? input.title,
-          text: input.email?.text ?? input.body,
+          text,
+          html: buildHtml(input.email?.subject ?? input.title, text, input.email),
           replyTo: input.email?.replyTo,
+          attachments: input.email?.attachments,
         });
         if (dispatched) {
           await this.prisma.notification.update({
@@ -133,12 +158,13 @@ export class NotificationsService {
     if (input.channels.email) {
       const subject = input.email?.subject ?? input.title;
       const text = input.email?.text ?? input.body;
+      const html = buildHtml(subject, text, input.email);
       // Backgrounded, not awaited: the DB rows + panel push above are
       // already committed by the time this starts, so a slow or failing
       // email leg can never undo or mask that. Without this, a broadcast to
       // thousands of active users would hold the caller's HTTP request open
       // for as long as the sequential email loop below takes to finish.
-      void this.sendBroadcastEmails(users, subject, text);
+      void this.sendBroadcastEmails(users, subject, text, html);
     }
 
     return users.length;
@@ -152,9 +178,10 @@ export class NotificationsService {
     users: { email: string }[],
     subject: string,
     text: string,
+    html: string,
   ): Promise<void> {
     for (const u of users) {
-      await this.mail.send({ to: u.email, subject, text }).catch(() => undefined);
+      await this.mail.send({ to: u.email, subject, text, html }).catch(() => undefined);
     }
   }
 

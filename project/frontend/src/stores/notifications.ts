@@ -66,7 +66,10 @@ export function routeForNotification(n: Pick<NotificationItem, 'type' | 'data'>)
   if (n.type === 'pro_build_failed' && typeof companyId === 'string') {
     return { name: 'website-builder', query: { c: companyId } }
   }
-  if (n.type === 'payment_succeeded' && typeof invoiceId === 'string') {
+  if (
+    (n.type === 'payment_succeeded' || n.type === 'referral_rewarded') &&
+    typeof invoiceId === 'string'
+  ) {
     return { name: 'invoice-print', params: { id: invoiceId } }
   }
   if ((n.type === 'invoice_voided' || n.type === 'invoice_restored') && typeof invoiceId === 'string') {
@@ -103,6 +106,7 @@ const VISUALS: Record<string, NotificationVisual> = {
   campaign_depleted: { icon: 'mdi-battery-alert-variant-outline', tone: 'warning' },
   wallet_low_balance: { icon: 'mdi-wallet-outline', tone: 'warning' },
   payment_succeeded: { icon: 'mdi-check-decagram-outline', tone: 'success' },
+  referral_rewarded: { icon: 'mdi-account-cash-outline', tone: 'success' },
   refund_requested: { icon: 'mdi-cash-refund', tone: 'warning' },
   refund_completed: { icon: 'mdi-cash-check', tone: 'success' },
   refund_failed: { icon: 'mdi-alert-circle-outline', tone: 'error' },

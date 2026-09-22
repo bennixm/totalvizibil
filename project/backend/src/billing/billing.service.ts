@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { BillingProfile, Prisma } from '@prisma/client';
+import { BillingProfile, Invoice, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -129,7 +129,7 @@ export class BillingService {
       fxRate: Prisma.Decimal | null;
       credits: number;
     },
-  ): Promise<{ id: string; number: string }> {
+  ): Promise<Invoice> {
     const profile = await tx.billingProfile.findUnique({ where: { userId: params.userId } });
     if (!profile || !isProfileComplete(profile)) {
       throw new BadRequestException('billing_profile_incomplete');
@@ -173,7 +173,6 @@ export class BillingService {
         eurCents: params.eurCents,
         fxRate: params.fxRate,
       },
-      select: { id: true, number: true },
     });
   }
 
@@ -193,7 +192,7 @@ export class BillingService {
       credits: number;
       referredName?: string | null;
     },
-  ): Promise<{ id: string; number: string }> {
+  ): Promise<Invoice> {
     const [issuer, eurRonRate, profile, user] = await Promise.all([
       this.settings.invoiceIssuer(),
       this.settings.eurRonRate(),
@@ -241,7 +240,6 @@ export class BillingService {
         eurCents,
         fxRate: new Prisma.Decimal(eurRonRate),
       },
-      select: { id: true, number: true },
     });
   }
 

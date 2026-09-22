@@ -63,6 +63,23 @@ export class NotificationsSweepService implements OnModuleInit {
       // must not stop the rest of this batch from being notified — each
       // gets its own error boundary rather than aborting the whole loop.
       try {
+        // Claim the day's notification slot FIRST, with an atomic conditional
+        // UPDATE — not a plain read-then-write — before calling notify(). If
+        // this were ordered the other way (notify, then flag), a process
+        // restart landing between the two (a deploy, for instance — this app
+        // redeploys often) would leave the flag unset despite the email/panel
+        // row already being sent, and the NEXT sweep tick would notify the
+        // same campaign again. Claiming first means the worst case is the
+        // opposite — a silent skip on a rare mid-flight DB hiccup — which is
+        // the safe direction to fail in for a user-visible notification.
+        // `updateMany`'s WHERE re-checks the same condition the outer SELECT
+        // used, so two overlapping sweeps can't both claim the same campaign.
+        const claimed = await this.prisma.campaign.updateMany({
+          where: { id: c.id, NOT: { depletedNotifiedForDay: today } },
+          data: { depletedNotifiedForDay: today },
+        });
+        if (claimed.count === 0) continue;
+
         await this.notifications.notify({
           userId: c.company.ownerUserId,
           type: 'campaign_depleted',
@@ -70,10 +87,6 @@ export class NotificationsSweepService implements OnModuleInit {
           body: `Anunțul nu mai apare în feed pentru "${c.company.displayName}" până mâine — bugetul zilnic a fost consumat integral.`,
           channels: { panel: true },
           data: { companyId: c.company.id },
-        });
-        await this.prisma.campaign.update({
-          where: { id: c.id },
-          data: { depletedNotifiedForDay: today },
         });
         notified++;
       } catch (err) {
@@ -118,16 +131,26 @@ export class NotificationsSweepService implements OnModuleInit {
       }
 
       try {
+        // Same claim-before-notify ordering as sweepDepletedCampaigns above,
+        // and for the same reason — see that method's comment.
+        const claimed = await this.prisma.wallet.updateMany({
+          where: {
+            id: w.id,
+            OR: [
+              { lowBalanceNotifiedAt: null },
+              { lowBalanceNotifiedAt: { lt: new Date(now - LOW_BALANCE_COOLDOWN_MS) } },
+            ],
+          },
+          data: { lowBalanceNotifiedAt: new Date() },
+        });
+        if (claimed.count === 0) continue;
+
         await this.notifications.notify({
           userId: w.userId,
           type: 'wallet_low_balance',
           title: 'Soldul din portofel este aproape epuizat',
           body: 'Soldul nu mai acoperă bugetul zilnic al campaniilor tale active. Adaugă credite ca acestea să nu se oprească.',
           channels: { panel: true, email: true },
-        });
-        await this.prisma.wallet.update({
-          where: { id: w.id },
-          data: { lowBalanceNotifiedAt: new Date() },
         });
         notified++;
       } catch (err) {

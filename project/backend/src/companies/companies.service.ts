@@ -131,6 +131,17 @@ export class CompaniesService implements OnModuleInit {
       });
       for (const c of due) {
         try {
+          // Claim before notify — an atomic conditional UPDATE, not a plain
+          // read-then-write — so a process restart (deploy) landing between
+          // the send and the flag-write can't leave this company to be
+          // reminded a second time on the next sweep tick. Same reasoning as
+          // NotificationsSweepService's two sweeps.
+          const claimed = await this.prisma.company.updateMany({
+            where: { id: c.id, deletionReminderSentAt: null },
+            data: { deletionReminderSentAt: new Date() },
+          });
+          if (claimed.count === 0) continue;
+
           const effectiveAt = new Date(c.deletionScheduledAt!.getTime() + COMPANY_DELETE_GRACE_MS);
           await this.notifications.notify({
             userId: c.ownerUserId,
@@ -139,10 +150,6 @@ export class CompaniesService implements OnModuleInit {
             body: `Mai ai puțin timp să anulezi — datele afacerii „${c.displayName}" sunt șterse definitiv pe ${effectiveAt.toLocaleDateString('ro-RO')}.`,
             channels: { email: true },
             data: { companyId: c.id },
-          });
-          await this.prisma.company.update({
-            where: { id: c.id },
-            data: { deletionReminderSentAt: new Date() },
           });
         } catch (err) {
           this.logger.error(

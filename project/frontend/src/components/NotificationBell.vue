@@ -120,7 +120,10 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
               <v-icon :icon="visualForNotification(n.type).icon" size="16" />
             </span>
             <span class="notifrow__body">
-              <strong>{{ n.title }}</strong>
+              <span class="notifrow__title">
+                <strong>{{ n.title }}</strong>
+                <span v-if="!n.readAt" class="notifrow__dot" aria-hidden="true" />
+              </span>
               <span class="notifrow__text">{{ n.body }}</span>
               <span class="notifrow__time">{{ ago(n.createdAt) }}</span>
             </span>
@@ -273,7 +276,6 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
   width: 100%;
   padding: 0.65rem 2rem 0.65rem 0.6rem;
   border-radius: 8px;
-  border-left: 2px solid transparent;
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -285,19 +287,28 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
   background: rgba(var(--v-theme-on-surface), 0.05);
 }
 .notifrow.is-unread {
-  background: rgba(var(--v-theme-on-surface), 0.025);
+  background: rgba(var(--v-theme-on-surface), 0.04);
 }
-.notifrow--primary.is-unread {
-  border-left-color: rgb(var(--v-theme-primary));
+.notifrow__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
-.notifrow--success.is-unread {
-  border-left-color: rgb(var(--v-theme-success));
+.notifrow__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--v-theme-primary));
 }
-.notifrow--warning.is-unread {
-  border-left-color: rgb(var(--v-theme-warning));
+.notifrow--success .notifrow__dot {
+  background: rgb(var(--v-theme-success));
 }
-.notifrow--error.is-unread {
-  border-left-color: rgb(var(--v-theme-error));
+.notifrow--warning .notifrow__dot {
+  background: rgb(var(--v-theme-warning));
+}
+.notifrow--error .notifrow__dot {
+  background: rgb(var(--v-theme-error));
 }
 .notifrow__ic {
   flex: none;

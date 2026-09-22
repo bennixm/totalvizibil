@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { BillingService, isProfileComplete } from '../billing/billing.service';
+import { generateInvoicePdf } from '../billing/invoice-pdf';
 import { AffiliateService } from '../affiliate/affiliate.service';
 import { StripeService } from '../stripe/stripe.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -572,7 +573,7 @@ export class WalletService implements OnModuleInit {
       }
     }
 
-    const invoice = await this.prisma.$transaction(async (tx) => {
+    const { invoice, credits } = await this.prisma.$transaction(async (tx) => {
       const txn = await tx.walletTransaction.findUnique({ where: { id: transactionId } });
       if (!txn || txn.walletId !== wallet.id || txn.type !== 'purchase') {
         throw new NotFoundException('Transaction not found');
@@ -594,14 +595,16 @@ export class WalletService implements OnModuleInit {
         },
       });
 
-      return this.billing.issueInvoice(tx, {
+      const credits = minorToCredits(txn.amountMinor);
+      const invoice = await this.billing.issueInvoice(tx, {
         userId,
         walletTransactionId: txn.id,
         ronBani: txn.ronBani ?? txn.amountMinor,
         eurCents: txn.eurCents,
         fxRate: txn.fxRate,
-        credits: minorToCredits(txn.amountMinor),
+        credits,
       });
+      return { invoice, credits };
     });
 
     // A top-up may be the event that lifts a referred user over the affiliate
@@ -610,9 +613,23 @@ export class WalletService implements OnModuleInit {
 
     // The money has already moved and the invoice is already issued by this
     // point — a notification hiccup must NEVER make a successful payment
-    // look like it failed to the customer.
+    // look like it failed to the customer. That includes the PDF itself: a
+    // generation failure loses the attachment, never the email.
     const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
     const invoiceUrl = `${frontendOrigin}/account/invoices/${invoice.id}`;
+    let invoicePdf: { filename: string; content: Buffer; contentType: string }[] | undefined;
+    try {
+      const pdf = await generateInvoicePdf(invoice);
+      invoicePdf = [
+        { filename: `${invoice.number}.pdf`, content: pdf, contentType: 'application/pdf' },
+      ];
+    } catch (err) {
+      this.logger.error(
+        `Invoice PDF generation failed for ${invoice.number}`,
+        err instanceof Error ? err.stack : err,
+      );
+    }
+
     void this.notifications
       .notify({
         userId,
@@ -622,9 +639,18 @@ export class WalletService implements OnModuleInit {
         channels: { panel: true, email: true },
         data: { invoiceId: invoice.id },
         email: {
-          text:
-            `Plata ta a fost procesată cu succes.\n\n` +
-            `Factura ${invoice.number} este disponibilă aici:\n${invoiceUrl}`,
+          text: `Plata ta a fost procesată cu succes. Factura ${invoice.number} este atașată acestui email și disponibilă oricând în cont.`,
+          details: [
+            { label: 'Factură', value: invoice.number },
+            { label: 'Data', value: invoice.issuedAt.toLocaleDateString('ro-RO') },
+            { label: 'Credite achiziționate', value: `${credits} credite` },
+            {
+              label: 'Sumă plătită',
+              value: `${(invoice.totalMinor / 100).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} RON`,
+            },
+          ],
+          cta: { label: 'Vezi factura', url: invoiceUrl },
+          attachments: invoicePdf,
         },
       })
       .catch((err) =>
@@ -1065,7 +1091,7 @@ export class WalletService implements OnModuleInit {
         where: { id: refund.id },
         data: { status: 'completed', providerRef: `dev-refund-${Date.now()}` },
       });
-      this.notifyRefundCompleted(wallet.userId, refund.id);
+      this.notifyRefundCompleted(wallet.userId, refund.id, Math.abs(refund.amountMinor));
       return;
     }
 
@@ -1102,7 +1128,7 @@ export class WalletService implements OnModuleInit {
           refundSources: executed,
         },
       });
-      this.notifyRefundCompleted(wallet.userId, refund.id);
+      this.notifyRefundCompleted(wallet.userId, refund.id, Math.abs(refund.amountMinor));
     } catch (err) {
       await this.markRefundFailed(
         refund.id,
@@ -1159,7 +1185,7 @@ export class WalletService implements OnModuleInit {
       );
   }
 
-  private notifyRefundCompleted(userId: string, refundId: string): void {
+  private notifyRefundCompleted(userId: string, refundId: string, amountMinor: number): void {
     // Days may have passed since the request — the completion itself
     // deserves its own confirmation, separate from the "requested" one.
     void this.notifications
@@ -1167,7 +1193,7 @@ export class WalletService implements OnModuleInit {
         userId,
         type: 'refund_completed',
         title: 'Refund-ul tău a fost finalizat',
-        body: 'Banii au fost trimiși înapoi — ar trebui să apară în contul tău în câteva zile lucrătoare, în funcție de bancă.',
+        body: `${minorToCredits(amountMinor)} credite au fost rambursate — banii ar trebui să apară în contul tău în câteva zile lucrătoare, în funcție de bancă.`,
         channels: { panel: true, email: true },
         data: { refundId },
       })

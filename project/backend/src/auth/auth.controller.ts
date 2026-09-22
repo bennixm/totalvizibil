@@ -93,12 +93,47 @@ export class AuthController {
   private async notifyIfNewDevice(userId: string, userAgent: string | undefined): Promise<void> {
     const priorSessions = await this.sessions.listActiveForUser(userId);
     if (priorSessions.length === 0 || priorSessions.some((s) => s.userAgent === userAgent)) return;
+    const device = describeUserAgent(userAgent);
+    const when = new Date().toLocaleString('ro-RO', { dateStyle: 'medium', timeStyle: 'short' });
     await this.notifications.notify({
       userId,
       type: 'new_session',
       title: 'Conectare nouă detectată',
-      body: 'Contul tău a fost accesat de pe un dispozitiv nou. Dacă nu ai fost tu, schimbă-ți parola imediat.',
+      body: `Contul tău a fost accesat de pe un dispozitiv nou (${device}) pe ${when}. Dacă nu ai fost tu, schimbă-ți parola imediat.`,
       channels: { email: true },
     });
   }
+}
+
+/**
+ * A rough, dependency-free "what device was this" hint for the new-session
+ * security email — enough for the recipient to judge "yes that's my phone"
+ * vs "I don't recognize this" without pulling in a full UA-parsing library
+ * for one string. Deliberately coarse: exact browser/OS versions aren't the
+ * point, recognizability is.
+ */
+function describeUserAgent(ua: string | undefined): string {
+  if (!ua) return 'dispozitiv necunoscut';
+  const os = /windows/i.test(ua)
+    ? 'Windows'
+    : /iphone|ipad/i.test(ua)
+      ? 'iOS'
+      : /android/i.test(ua)
+        ? 'Android'
+        : /mac os/i.test(ua)
+          ? 'macOS'
+          : /linux/i.test(ua)
+            ? 'Linux'
+            : null;
+  const browser = /edg\//i.test(ua)
+    ? 'Edge'
+    : /chrome\//i.test(ua)
+      ? 'Chrome'
+      : /firefox\//i.test(ua)
+        ? 'Firefox'
+        : /safari\//i.test(ua)
+          ? 'Safari'
+          : null;
+  const parts = [browser, os].filter(Boolean);
+  return parts.length ? parts.join(' pe ') : 'dispozitiv necunoscut';
 }

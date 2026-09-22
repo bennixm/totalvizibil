@@ -5,9 +5,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AppConfig } from '../config/env';
 import { OPEN_STATUSES, SUPPORT_STAFF_ROLES } from './support.constants';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { ListTicketsQuery } from './dto/list-tickets.query';
@@ -35,6 +37,7 @@ export class SupportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
   // --- queries -------------------------------------------------------------
@@ -186,7 +189,7 @@ export class SupportService {
         ticket.id,
         ticket.number,
         ticket.subject,
-        'A support agent replied to your ticket.',
+        'Un agent de suport a răspuns la ticketul tău.',
       );
     } else if (requesterReply && !actor.staff) {
       // Already committed — a notification hiccup must never mask this.
@@ -277,12 +280,13 @@ export class SupportService {
     }
 
     if (dto.status === 'resolved' || dto.status === 'closed') {
+      const statusRo = dto.status === 'resolved' ? 'rezolvat' : 'închis';
       void this.notifyRequester(
         ticket.requesterId,
         ticket.id,
         ticket.number,
         ticket.subject,
-        `Your ticket was marked ${dto.status}.`,
+        `Ticketul tău a fost marcat ca ${statusRo}.`,
       );
     }
     // Already committed — a notification hiccup must never mask this. Only
@@ -317,6 +321,7 @@ export class SupportService {
     subject: string,
     line: string,
   ): Promise<void> {
+    const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
     await this.notifications
       .notify({
         userId: requesterId,
@@ -326,7 +331,8 @@ export class SupportService {
         channels: { panel: true, email: true },
         data: { ticketId },
         email: {
-          text: `${line}\n\nOpen the ticket in your Totalvizibil support inbox to reply.`,
+          text: `${line}\n\nDeschide ticketul din contul tău Totalvizibil ca să răspunzi.`,
+          cta: { label: 'Deschide ticketul', url: `${frontendOrigin}/support/${ticketId}` },
         },
       })
       .catch((err) =>

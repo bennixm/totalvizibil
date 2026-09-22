@@ -3,11 +3,22 @@ import { ConfigService } from '@nestjs/config';
 import { createTransport, Transporter } from 'nodemailer';
 import { AppConfig } from '../config/env';
 
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
 export interface MailMessage {
   to: string;
   subject: string;
   text: string;
+  /** Rendered HTML alternative — see mail/templates/layout.ts. `text` is
+   *  always sent alongside it (nodemailer multipart/alternative) so plain-text
+   *  clients and spam filters still see real content, not an empty fallback. */
+  html?: string;
   replyTo?: string;
+  attachments?: MailAttachment[];
 }
 
 /**
@@ -59,7 +70,13 @@ export class MailService {
           to: msg.to,
           subject: msg.subject,
           text: msg.text,
+          html: msg.html,
           replyTo: msg.replyTo,
+          attachments: msg.attachments?.map((a) => ({
+            filename: a.filename,
+            content: a.content,
+            contentType: a.contentType,
+          })),
         });
         return { dispatched: true };
       } catch (err) {
@@ -75,8 +92,11 @@ export class MailService {
       this.logger.warn(`Email to ${msg.to} not sent — no transport configured ("${msg.subject}")`);
       return { dispatched: false };
     }
+    const meta =
+      (msg.html ? ' [+html]' : '') +
+      (msg.attachments?.length ? ` [+${msg.attachments.length} attachment(s)]` : '');
     this.logger.log(
-      `[DEV MAIL] to=${msg.to}${msg.replyTo ? ` reply-to=${msg.replyTo}` : ''}\n` +
+      `[DEV MAIL] to=${msg.to}${msg.replyTo ? ` reply-to=${msg.replyTo}` : ''}${meta}\n` +
         `  subject: ${msg.subject}\n` +
         msg.text
           .split('\n')

@@ -130,25 +130,20 @@ export class LeadsService {
       .notify({
         userId: ownerId,
         type: 'lead_received',
-        title: 'Ai primit o cerere pe platformă - conectează-te',
+        title: 'Ai primit o cerere nouă — conectează-te',
         body: `Cerere nouă pentru ${companyName}, de la ${who}.`,
         channels: { panel: true, email: true },
         data: { companyId },
         email: {
           replyTo: lead.email ?? undefined,
           subject: `Cerere nouă pentru ${companyName} — de la ${who}`,
-          text: [
-            `Ai o cerere nouă din formularul de contact al site-ului "${companyName}".`,
-            '',
-            `De la:     ${lead.name ?? '—'}`,
-            `Email:     ${lead.email ?? '—'}`,
-            `Telefon:   ${lead.phone ?? '—'}`,
-            '',
-            'Mesaj:',
-            lead.message ?? '',
-            '',
-            `Deschide în panou: ${link}`,
-          ].join('\n'),
+          text: `Ai o cerere nouă din formularul de contact al site-ului „${companyName}".\n\n${lead.message ?? ''}`,
+          details: [
+            { label: 'De la', value: lead.name ?? '—' },
+            { label: 'Email', value: lead.email ?? '—' },
+            { label: 'Telefon', value: lead.phone ?? '—' },
+          ],
+          cta: { label: 'Deschide în panou', url: link },
         },
       })
       .catch((err) => this.logger.error(`lead notification failed: ${String(err)}`));

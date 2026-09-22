@@ -1,10 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { CREDIT_MINOR } from '../wallet/money';
 import { BillingService } from '../billing/billing.service';
+import { generateInvoicePdf } from '../billing/invoice-pdf';
+import { NotificationsService } from '../notifications/notifications.service';
+import { AppConfig } from '../config/env';
 
 /** A referred account can still claim its `?ref=` code within this window. */
 const CLAIM_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -56,6 +60,8 @@ export class AffiliateService {
     private readonly prisma: PrismaService,
     private readonly settings: PlatformSettingsService,
     private readonly billing: BillingService,
+    private readonly notifications: NotificationsService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
   /** Get the user's referral code, generating + persisting one on first use. */
@@ -159,13 +165,13 @@ export class AffiliateService {
       });
       const note = `Referral reward — ${referred?.name ?? 'client'}`.slice(0, 200);
 
-      await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         // Re-check status inside the tx to serialise concurrent triggers.
         const locked = await tx.referral.updateMany({
           where: { id: referral.id, status: 'pending' },
           data: { status: 'rewarded', rewardCredits: reward, rewardedAt: new Date() },
         });
-        if (locked.count === 0) return;
+        if (locked.count === 0) return null;
         const txnId = await this.creditReferrer(tx, referral.referrerId, reward, note);
         // A payout document for the reward — every reward gets one. If this
         // throws, the whole reward rolls back and retries on the next trigger.
@@ -179,11 +185,59 @@ export class AffiliateService {
           where: { id: referral.id },
           data: { rewardInvoiceId: invoice.id },
         });
+        return { invoice };
       });
+      if (!result) return; // a concurrent trigger already claimed this reward
 
       this.logger.log(
         `Referral rewarded: ${reward} credits to ${referral.referrerId} for ${referredUserId}`,
       );
+
+      // The credit + invoice are already committed by this point — a
+      // notification hiccup must never mask that, same rule as everywhere
+      // else money moves in this app.
+      const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
+      const invoiceUrl = `${frontendOrigin}/account/invoices/${result.invoice.id}`;
+      let attachments: { filename: string; content: Buffer; contentType: string }[] | undefined;
+      try {
+        const pdf = await generateInvoicePdf(result.invoice);
+        attachments = [
+          {
+            filename: `${result.invoice.number}.pdf`,
+            content: pdf,
+            contentType: 'application/pdf',
+          },
+        ];
+      } catch (err) {
+        this.logger.error(
+          `Reward invoice PDF generation failed for ${result.invoice.number}`,
+          err instanceof Error ? err.stack : err,
+        );
+      }
+      void this.notifications
+        .notify({
+          userId: referral.referrerId,
+          type: 'referral_rewarded',
+          title: 'Ai primit o recompensă din programul de afiliere',
+          body: `Ai primit ${reward} credite pentru un client adus prin programul de afiliere.`,
+          channels: { panel: true, email: true },
+          data: { invoiceId: result.invoice.id },
+          email: {
+            text: `Ai primit ${reward} credite pentru un client adus prin programul de afiliere. Documentul de recompensă ${result.invoice.number} este atașat acestui email și disponibil oricând în cont.`,
+            details: [
+              { label: 'Document', value: result.invoice.number },
+              { label: 'Credite primite', value: `${reward} credite` },
+            ],
+            cta: { label: 'Vezi documentul', url: invoiceUrl },
+            attachments,
+          },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Referral-rewarded notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
     } catch (err) {
       this.logger.error(
         `maybeReward failed for ${referredUserId}`,
