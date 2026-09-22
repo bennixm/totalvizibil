@@ -85,6 +85,12 @@ jobs:
             cd /var/www/totalvizibil
 
             echo "==> Pulling latest code"
+            # .env.example is a committed template — it should never hold real
+            # values (those belong in the separate, gitignored .env this never
+            # touches). If someone edits it by hand directly on the server, the
+            # local diff blocks every future pull until it's cleared, so this
+            # deploy always self-heals it rather than aborting on drift here.
+            git checkout -- project/backend/.env.example 2>/dev/null || true
             git pull origin main
 
             echo "==> Building backend"
