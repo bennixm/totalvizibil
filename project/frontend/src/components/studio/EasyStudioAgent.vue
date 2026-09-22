@@ -1288,16 +1288,18 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   justify-content: flex-start;
   padding: 1.9rem 1rem 1.25rem;
   color: #fff;
+  /* Same "always-dark AI moment" surface used elsewhere (--tvz-night), one
+     brand-colour highlight — sapphire, not an off-system purple/cyan. */
   background:
-    radial-gradient(120% 80% at 30% 0%, #3b3ec9, transparent 60%),
-    linear-gradient(180deg, #241f6b, #14123a);
+    radial-gradient(120% 80% at 30% 0%, var(--tvz-brand-2), transparent 60%),
+    linear-gradient(180deg, var(--tvz-night), #060a14);
   border-right: 1px solid var(--tvz-hairline);
 }
 .ag__blob {
   position: absolute;
   border-radius: 50%;
   filter: blur(24px);
-  opacity: 0.55;
+  opacity: 0.5;
   pointer-events: none;
 }
 .ag__blob--1 {
@@ -1305,7 +1307,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   height: 180px;
   top: -40px;
   left: -50px;
-  background: #6d5cff;
+  background: var(--tvz-brand-3);
   animation: blob 14s ease-in-out infinite alternate;
 }
 .ag__blob--2 {
@@ -1313,7 +1315,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   height: 150px;
   bottom: -40px;
   right: -40px;
-  background: #22d3ee;
+  background: var(--tvz-brand-1);
   animation: blob 18s ease-in-out infinite alternate-reverse;
 }
 @keyframes blob {
@@ -1368,7 +1370,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #7cf9ff, #a97bff);
+  background: var(--tvz-brand-3);
   transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ag__status {
@@ -1446,7 +1448,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   font-size: 0.72rem;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, #6d5cff, #22d3ee);
+  background: var(--tvz-gradient-brand);
 }
 .msg__av--ghost {
   background: none;
@@ -1544,7 +1546,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   flex: none;
   border-radius: 50%;
   color: #fff;
-  background: linear-gradient(135deg, #6d5cff, #22d3ee);
+  background: var(--tvz-gradient-brand);
 }
 .ready__tx strong {
   display: block;
@@ -2209,7 +2211,7 @@ textarea.fld {
     border-right: 0;
     border-bottom: 1px solid var(--tvz-hairline);
     padding: 0.65rem 0.9rem;
-    background: linear-gradient(110deg, #241f6b, #14123a);
+    background: linear-gradient(110deg, var(--tvz-brand-2), var(--tvz-night));
   }
   .ag__blob {
     display: none;

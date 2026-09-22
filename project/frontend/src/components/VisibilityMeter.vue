@@ -70,14 +70,7 @@ const clamped = computed(() => Math.max(0, Math.min(100, Math.round(props.score)
   font-size: 3rem;
   font-weight: 700;
   line-height: 1;
-  background: linear-gradient(
-    135deg,
-    rgb(var(--v-theme-primary)),
-    rgb(var(--v-theme-secondary))
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: rgb(var(--v-theme-primary));
 }
 .vm__score span {
   font-size: 0.82rem;
@@ -119,11 +112,7 @@ const clamped = computed(() => Math.max(0, Math.min(100, Math.round(props.score)
 .vm__fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    rgb(var(--v-theme-primary)),
-    rgb(var(--v-theme-secondary))
-  );
+  background: rgb(var(--v-theme-primary));
   transition: width var(--tvz-dur-med) var(--tvz-ease-out);
 }
 @media (prefers-reduced-motion: reduce) {

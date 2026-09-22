@@ -7,6 +7,7 @@ import AppBar from '@/components/AppBar.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppToasts from '@/components/AppToasts.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import MobileTabBar from '@/components/MobileTabBar.vue'
 import SidebarModeSwitch from '@/components/SidebarModeSwitch.vue'
 import { useAdminNavGroups } from '@/composables/useAdminNavGroups'
@@ -75,6 +76,7 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
     <MobileTabBar v-else />
 
     <AppToasts />
+    <ConfirmDialog />
   </v-app>
 </template>
 

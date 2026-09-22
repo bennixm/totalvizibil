@@ -6,6 +6,7 @@ import { storeToRefs } from 'pinia'
 
 import InfoHint from '@/components/InfoHint.vue'
 import { useCompaniesStore } from '@/stores/companies'
+import { useConfirmStore } from '@/stores/confirm'
 import { useLeadsStore, type Lead, type LeadStatus } from '@/stores/leads'
 import { useToastStore } from '@/stores/toast'
 
@@ -16,13 +17,13 @@ const companies = useCompaniesStore()
 const leads = useLeadsStore()
 const { items, summary, filters, loading, working, nextCursor, error } = storeToRefs(leads)
 const toasts = useToastStore()
+const confirm = useConfirmStore()
 watch(error, (v) => {
   if (v) toasts.error(v)
 })
 
 const companyId = ref<string | null>(null)
 const expanded = ref<string | null>(null)
-const toDelete = ref<Lead | null>(null)
 
 // `leads.loadMore()` has no internal error handling AND never touches
 // `working` (that flag is only ever set by `mutate`/`reply`/`remove`, used
@@ -113,10 +114,10 @@ async function sendReply(lead: Lead): Promise<void> {
   }
 }
 
-async function confirmDelete(): Promise<void> {
-  if (!toDelete.value) return
-  await leads.remove(toDelete.value.id)
-  toDelete.value = null
+function askDeleteLead(lead: Lead): void {
+  confirm.ask(t('leads.deleteConfirmTitle'), t('leads.deleteConfirmText'), () => leads.remove(lead.id), {
+    confirmLabel: t('leads.delete'),
+  })
 }
 
 onMounted(async () => {
@@ -376,7 +377,7 @@ onMounted(async () => {
               :disabled="working"
               icon="mdi-trash-can-outline"
               :aria-label="t('leads.delete')"
-              @click="toDelete = lead"
+              @click="askDeleteLead(lead)"
             />
           </div>
         </li>
@@ -393,22 +394,6 @@ onMounted(async () => {
         {{ t('leads.loadMore') }}
       </v-btn>
     </template>
-
-    <v-dialog :model-value="!!toDelete" max-width="400" @update:model-value="toDelete = null">
-      <v-card>
-        <v-card-title class="text-h6">{{ t('leads.deleteConfirmTitle') }}</v-card-title>
-        <v-card-text>{{ t('leads.deleteConfirmText') }}</v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" :disabled="working" @click="toDelete = null">
-            {{ t('common.cancel') }}
-          </v-btn>
-          <v-btn color="error" variant="flat" :loading="working" @click="confirmDelete">
-            {{ t('leads.delete') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
 
   </v-container>
 </template>

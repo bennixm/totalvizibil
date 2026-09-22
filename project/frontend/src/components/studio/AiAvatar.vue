@@ -115,10 +115,12 @@ withDefaults(
   position: absolute;
   inset: -12%;
   border-radius: 50%;
+  /* One hue (matches the character's own shirt blue) instead of a second,
+     unrelated cyan accent. */
   background: radial-gradient(
     circle at 50% 42%,
-    rgba(99, 230, 230, 0.32),
-    rgba(71, 99, 230, 0.2) 48%,
+    rgba(71, 99, 230, 0.34),
+    rgba(71, 99, 230, 0.16) 48%,
     transparent 72%
   );
   filter: blur(5px);
@@ -163,7 +165,7 @@ withDefaults(
   animation-duration: 1.8s;
   background: radial-gradient(
     circle at 50% 42%,
-    rgba(99, 230, 230, 0.5),
+    rgba(71, 99, 230, 0.5),
     rgba(71, 99, 230, 0.28) 48%,
     transparent 72%
   );

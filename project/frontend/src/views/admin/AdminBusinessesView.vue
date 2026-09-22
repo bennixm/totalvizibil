@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminFilterChip from '@/components/admin/AdminFilterChip.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
@@ -147,7 +148,11 @@ function open(id: string): void {
     <div v-if="admin.loadingBusinesses && !admin.businesses.length" class="ab__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
-    <p v-else-if="!admin.businesses.length" class="ab__empty">{{ t('adminBiz.none') }}</p>
+    <AdminEmptyState
+      v-else-if="!admin.businesses.length"
+      icon="mdi-domain"
+      :text="t('adminBiz.none')"
+    />
 
     <ul v-else class="ab__list">
       <li
@@ -243,11 +248,6 @@ function open(id: string): void {
   display: grid;
   place-items: center;
   min-height: 200px;
-}
-.ab__empty {
-  padding: 3rem 1rem;
-  text-align: center;
-  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .ab__list {
   list-style: none;

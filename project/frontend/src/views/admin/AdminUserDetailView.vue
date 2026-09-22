@@ -12,6 +12,7 @@ import CreditsValue from '@/components/CreditsValue.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useAuthStore, type PlatformRole } from '@/stores/auth'
 import { useAdminStore, type AdminUserDetail, type AdminUserCompany } from '@/stores/admin'
+import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
 
@@ -20,6 +21,7 @@ const route = useRoute()
 const auth = useAuthStore()
 const admin = useAdminStore()
 const money = useMoney()
+const confirm = useConfirmStore()
 
 const id = computed(() => String(route.params.id))
 const user = ref<AdminUserDetail | null>(null)
@@ -72,22 +74,6 @@ const blockReason = ref('')
 const savingDetails = ref(false)
 const savingPassword = ref(false)
 const busy = ref<string | null>(null)
-
-const confirmState = reactive({
-  show: false,
-  title: '',
-  text: '',
-  danger: true,
-  run: async () => {},
-})
-function askConfirm(title: string, text: string, run: () => Promise<void>, danger = true) {
-  Object.assign(confirmState, { show: true, title, text, danger, run })
-}
-async function doConfirm() {
-  const fn = confirmState.run
-  confirmState.show = false
-  await fn()
-}
 
 function hydrate(u: AdminUserDetail) {
   user.value = u
@@ -153,7 +139,7 @@ function setBan(suspend: boolean) {
       () => admin.updateUser(id.value, { status: suspend ? 'suspended' : 'active' }),
       t(suspend ? 'admin.userBanned' : 'admin.userUnbanned'),
     )
-  if (suspend) askConfirm(t('admin.banUser'), t('admin.banUserConfirm'), doIt)
+  if (suspend) confirm.ask(t('admin.banUser'), t('admin.banUserConfirm'), doIt)
   else void doIt()
 }
 
@@ -207,7 +193,7 @@ const refundAmountValid = computed(
 function submitRefund() {
   if (!refundAmountValid.value) return
   const credits = refundAmount.value as number
-  askConfirm(
+  confirm.ask(
     t('admin.refundConfirmTitle'),
     t('admin.refundConfirmText'),
     () =>
@@ -216,7 +202,7 @@ function submitRefund() {
           refundAmount.value = null
         },
       ),
-    false,
+    { danger: false },
   )
 }
 function cancelWalletRefund(refundId: string) {
@@ -238,7 +224,7 @@ function companyStatus(c: AdminUserCompany, status: 'active' | 'suspended') {
       t(status === 'suspended' ? 'admin.bizSuspended' : 'admin.bizUnsuspended'),
     )
   if (status === 'suspended') {
-    askConfirm(t('admin.suspendBiz'), t('admin.suspendBizConfirm', { name: c.displayName }), go)
+    confirm.ask(t('admin.suspendBiz'), t('admin.suspendBizConfirm', { name: c.displayName }), go)
   } else {
     void go()
   }
@@ -819,24 +805,6 @@ const txnColor: Record<string, string> = {
         </v-window-item>
       </v-window>
     </template>
-
-    <v-dialog v-model="confirmState.show" max-width="420">
-      <v-card rounded="lg">
-        <v-card-title>{{ confirmState.title }}</v-card-title>
-        <v-card-text>{{ confirmState.text }}</v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="confirmState.show = false">{{ t('common.cancel') }}</v-btn>
-          <v-btn
-            :color="confirmState.danger ? 'error' : 'primary'"
-            variant="flat"
-            @click="doConfirm"
-          >
-            {{ t('admin.confirm') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
 
   </div>
 </template>

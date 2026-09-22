@@ -15,6 +15,7 @@ import { companyRoute } from '@/services/routes'
 import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
 import { useCampaignStore } from '@/stores/campaign'
+import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 
 const { t, n, locale } = useI18n()
@@ -22,6 +23,7 @@ const route = useRoute()
 const router = useRouter()
 const companies = useCompaniesStore()
 const campaign = useCampaignStore()
+const confirm = useConfirmStore()
 const money = useMoney()
 const { overview } = storeToRefs(companies)
 const { spend, loading, error } = storeToRefs(campaign)
@@ -199,10 +201,13 @@ async function activate(): Promise<void> {
 // Pausing for over 24h drops the banked "run time" (Age Score) back to zero
 // (see `effectiveActiveSeconds`/`RUN_SCORE_GRACE_MS` server-side) — worth a
 // heads-up before stopping a campaign that's actually banked some run time.
-const showPauseDialog = ref(false)
 function askStop(): void {
   if ((s.value?.lifetime.activeSeconds ?? 0) > 0) {
-    showPauseDialog.value = true
+    confirm.ask(t('campaign.pauseConfirmTitle'), t('campaign.pauseConfirmText'), stop, {
+      tone: 'warning',
+      confirmLabel: t('campaign.pause'),
+      cancelLabel: t('campaign.pauseKeep'),
+    })
   } else {
     void stop()
   }
@@ -210,20 +215,23 @@ function askStop(): void {
 async function stop(): Promise<void> {
   if (!companyId.value || busy.value) return
   busy.value = true
-  showPauseDialog.value = false
   if (await campaign.pause(companyId.value)) await campaign.loadSpend(companyId.value)
   busy.value = false
 }
 
 // --- Delete campaign (immediate) -------------------------------------------
-const showDeleteDialog = ref(false)
+function askDeleteCampaign(): void {
+  confirm.ask(t('spend.deleteConfirmTitle'), t('spend.deleteConfirmText'), removeCampaign, {
+    confirmLabel: t('spend.deleteConfirmCta'),
+    cancelLabel: t('spend.deleteKeep'),
+  })
+}
 
 async function removeCampaign(): Promise<void> {
   if (!companyId.value || busy.value) return
   busy.value = true
   const ok = await campaign.remove(companyId.value)
   busy.value = false
-  showDeleteDialog.value = false
   if (ok) void router.push({ name: 'dashboard', query: { c: companyId.value } })
 }
 
@@ -562,7 +570,7 @@ watch(
           size="small"
           :disabled="pendingDeletion"
           prepend-icon="mdi-trash-can-outline"
-          @click="showDeleteDialog = true"
+          @click="askDeleteCampaign"
         >
           {{ t('spend.deleteBtn') }}
         </v-btn>
@@ -588,37 +596,6 @@ watch(
       </div>
     </template>
 
-    <v-dialog v-model="showDeleteDialog" max-width="420">
-      <v-card>
-        <v-card-title class="text-h6">{{ t('spend.deleteConfirmTitle') }}</v-card-title>
-        <v-card-text>{{ t('spend.deleteConfirmText') }}</v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" :disabled="busy" @click="showDeleteDialog = false">
-            {{ t('spend.deleteKeep') }}
-          </v-btn>
-          <v-btn color="error" variant="flat" :loading="busy" @click="removeCampaign">
-            {{ t('spend.deleteConfirmCta') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="showPauseDialog" max-width="420">
-      <v-card>
-        <v-card-title class="text-h6">{{ t('campaign.pauseConfirmTitle') }}</v-card-title>
-        <v-card-text>{{ t('campaign.pauseConfirmText') }}</v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" :disabled="busy" @click="showPauseDialog = false">
-            {{ t('campaign.pauseKeep') }}
-          </v-btn>
-          <v-btn color="warning" variant="flat" :loading="busy" @click="stop">
-            {{ t('campaign.pause') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 

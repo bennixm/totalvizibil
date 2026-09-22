@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminFilterChip from '@/components/admin/AdminFilterChip.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
@@ -137,7 +138,11 @@ function open(id: string): void {
     <div v-if="admin.loadingUsers && !admin.users.length" class="au__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
-    <p v-else-if="!admin.users.length" class="au__empty">{{ t('admin.usersNone') }}</p>
+    <AdminEmptyState
+      v-else-if="!admin.users.length"
+      icon="mdi-account-search-outline"
+      :text="t('admin.usersNone')"
+    />
 
     <ul v-else class="au__grid">
       <li
@@ -230,11 +235,6 @@ function open(id: string): void {
   display: grid;
   place-items: center;
   min-height: 200px;
-}
-.au__empty {
-  padding: 3rem 1rem;
-  text-align: center;
-  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .au__grid {
   list-style: none;

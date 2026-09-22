@@ -13,6 +13,7 @@ import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useAdminStore, type AdminCompanyDetail, type AdminCompanyLead } from '@/stores/admin'
+import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import type { CampaignTier, CampaignStatus } from '@/stores/campaign'
 import type { LocalizedName } from '@/stores/companies'
@@ -23,6 +24,7 @@ const { t, n, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const admin = useAdminStore()
+const confirm = useConfirmStore()
 
 const id = computed(() => String(route.params.id))
 const data = ref<AdminCompanyDetail | null>(null)
@@ -448,10 +450,11 @@ function campaignAction(action: 'pause' | 'activate' | 'delete') {
   const go = () =>
     act('camp-' + action, () => admin.campaignAction(id.value, action), t('admin.campaign_' + action + 'd'))
   if (action === 'delete') {
-    confirmState.title = t('admin.deleteCampaign')
-    confirmState.text = t('admin.deleteCampaignConfirm', { name: data.value?.company.displayName ?? '' })
-    confirmState.run = go
-    confirmState.show = true
+    confirm.ask(
+      t('admin.deleteCampaign'),
+      t('admin.deleteCampaignConfirm', { name: data.value?.company.displayName ?? '' }),
+      go,
+    )
   } else {
     void go()
   }
@@ -465,20 +468,10 @@ function toggleSuspend() {
       t(suspend ? 'admin.bizSuspended' : 'admin.bizUnsuspended'),
     )
   if (suspend) {
-    confirmState.title = t('admin.suspendBiz')
-    confirmState.text = t('admin.suspendBizConfirm', { name: data.value?.company.displayName ?? '' })
-    confirmState.run = go
-    confirmState.show = true
+    confirm.ask(t('admin.suspendBiz'), t('admin.suspendBizConfirm', { name: data.value?.company.displayName ?? '' }), go)
   } else {
     void go()
   }
-}
-
-const confirmState = reactive({ show: false, title: '', text: '', run: async () => {} })
-async function doConfirm() {
-  const fn = confirmState.run
-  confirmState.show = false
-  await fn()
 }
 
 // --- leads ---
@@ -1092,18 +1085,6 @@ const leadStatusItems = computed(() => [
         </v-window-item>
       </v-window>
     </template>
-
-    <v-dialog v-model="confirmState.show" max-width="420">
-      <v-card rounded="lg">
-        <v-card-title>{{ confirmState.title }}</v-card-title>
-        <v-card-text>{{ confirmState.text }}</v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="confirmState.show = false">{{ t('common.cancel') }}</v-btn>
-          <v-btn color="error" variant="flat" @click="doConfirm">{{ t('admin.confirm') }}</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
 
     <!-- In-app site preview — the public URL 404s for non-active businesses,
          so admins view the rendered site here regardless of publish state. -->

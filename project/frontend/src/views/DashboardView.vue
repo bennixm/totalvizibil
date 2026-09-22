@@ -15,6 +15,7 @@ import { txnLabel, txnIcon } from '@/composables/useTxnLabel'
 import { fetchPricing } from '@/services/platform'
 import { useCompaniesStore, type DashboardPayload } from '@/stores/companies'
 import { useBillingStore } from '@/stores/billing'
+import { useConfirmStore } from '@/stores/confirm'
 import { useWalletStore } from '@/stores/wallet'
 
 const { t, locale } = useI18n()
@@ -25,13 +26,13 @@ const { overview } = storeToRefs(companies)
 const billing = useBillingStore()
 const { isComplete: billingComplete, unbilledCount, invoices, loading: billingLoading } =
   storeToRefs(billing)
+const confirm = useConfirmStore()
 
 const loading = ref(true)
 const error = ref('')
 const companyId = ref<string | null>(null)
 const dash = ref<DashboardPayload | null>(null)
 const showSite = ref(false)
-const showDelete = ref(false)
 const deleting = ref(false)
 
 const company = computed(() => dash.value?.company ?? null)
@@ -276,6 +277,11 @@ function switchCompany(id: string): void {
   void loadDashboard(id)
 }
 
+function askDelete(): void {
+  confirm.ask(t('dashboard.deleteConfirmTitle'), t('dashboard.deleteConfirmText', { name: company.value?.displayName }), confirmDelete, {
+    confirmLabel: t('dashboard.deleteConfirmCta'),
+  })
+}
 async function confirmDelete(): Promise<void> {
   if (!companyId.value || deleting.value) return
   deleting.value = true
@@ -283,7 +289,6 @@ async function confirmDelete(): Promise<void> {
     // Schedules the deletion — the business stays until the grace window ends,
     // so we reload the dashboard to surface the "scheduled" banner + Undo.
     await companies.remove(companyId.value)
-    showDelete.value = false
     await loadDashboard(companyId.value)
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'error'
@@ -762,30 +767,12 @@ watch(
           color="error"
           size="small"
           prepend-icon="mdi-trash-can-outline"
-          @click="showDelete = true"
+          @click="askDelete"
         >
           {{ t('dashboard.deleteCta') }}
         </v-btn>
       </div>
     </template>
-
-    <v-dialog v-model="showDelete" max-width="440">
-      <v-card>
-        <v-card-title class="text-h6">{{ t('dashboard.deleteConfirmTitle') }}</v-card-title>
-        <v-card-text>
-          {{ t('dashboard.deleteConfirmText', { name: company?.displayName }) }}
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" :disabled="deleting" @click="showDelete = false">
-            {{ t('common.cancel') }}
-          </v-btn>
-          <v-btn color="error" variant="flat" :loading="deleting" @click="confirmDelete">
-            {{ t('dashboard.deleteConfirmCta') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
 
     <v-dialog v-model="showSite" max-width="960" scrollable>
       <v-card>

@@ -9,11 +9,13 @@ import {
   type AdminCategoryGroup,
   type CreateCategoryInput,
 } from '@/stores/admin'
+import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
 
 const { t, locale } = useI18n()
 const admin = useAdminStore()
+const confirm = useConfirmStore()
 
 const toasts = useToastStore()
 function flash(text: string, color: 'success' | 'error' = 'success') {
@@ -125,10 +127,8 @@ async function toggleActive(c: AdminCategory) {
   }
 }
 
-const confirmState = reactive({ show: false, name: '', run: async () => {} })
 function askDelete(c: AdminCategory) {
-  confirmState.name = nm(c)
-  confirmState.run = async () => {
+  const run = async () => {
     busy.value = c.id
     try {
       await admin.deleteCategory(c.id)
@@ -139,12 +139,7 @@ function askDelete(c: AdminCategory) {
       busy.value = null
     }
   }
-  confirmState.show = true
-}
-async function doDelete() {
-  const fn = confirmState.run
-  confirmState.show = false
-  await fn()
+  confirm.ask(t('adminCat.deleteTitle'), t('adminCat.deleteConfirm', { name: nm(c) }), run)
 }
 
 function groupCompanyTotal(g: AdminCategoryGroup) {
@@ -268,18 +263,6 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
           <v-btn color="primary" variant="flat" :loading="busy === 'save'" :disabled="!canSave" @click="save">
             {{ t('common.save') }}
           </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="confirmState.show" max-width="400">
-      <v-card rounded="lg">
-        <v-card-title>{{ t('adminCat.deleteTitle') }}</v-card-title>
-        <v-card-text>{{ t('adminCat.deleteConfirm', { name: confirmState.name }) }}</v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="confirmState.show = false">{{ t('common.cancel') }}</v-btn>
-          <v-btn color="error" variant="flat" @click="doDelete">{{ t('admin.confirm') }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
