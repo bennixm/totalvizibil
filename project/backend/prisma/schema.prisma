@@ -262,10 +262,6 @@ model Website {
   // { pages: [{ slug, title, isHome, sections: [{ type, ...content }] }], seo: {...} }
   content      Json
   generator    String        @default("rule-based-v1")
-  // Advanced builder inputs (AdvancedInput), so re-opening the builder restores state.
-  builderSpec  Json?         @map("builder_spec")
-  // Scripted advanced-builder conversation transcript.
-  builderChat  Json?         @map("builder_chat")
   // Simple-site guided answers (EasyAnswers), so the owner can re-open the studio editor after claiming.
   easyConfig   Json?         @map("easy_config")
   // Last time the Website Builder's live-code project was built and published

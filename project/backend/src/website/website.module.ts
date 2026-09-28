@@ -7,7 +7,6 @@ import { WebsiteAssetController } from './assets/website-asset.controller';
 import { WebsiteAssetService } from './assets/website-asset.service';
 import { EasySiteController } from './easy-site/easy-site.controller';
 import { EasySiteService } from './easy-site/easy-site.service';
-import { RuleBasedWebsiteGenerator } from './website-generator';
 import { ProV2Controller } from './builder/pro-v2/pro-v2.controller';
 import { ProV2AgentService } from './builder/pro-v2/pro-v2-agent.service';
 import { ProV2Service } from './builder/pro-v2/pro-v2.service';
@@ -27,13 +26,12 @@ import { PexelsSearchTool } from './builder/pro-v2/pexels-search-tool';
     WebsiteDraftService,
     WebsiteAssetService,
     EasySiteService,
-    RuleBasedWebsiteGenerator,
     ProV2Service,
     ProV2AgentService,
     ModelRouter,
     AiUsageService,
     PexelsSearchTool,
   ],
-  exports: [RuleBasedWebsiteGenerator, WebsiteDraftService, ProV2Service],
+  exports: [WebsiteDraftService, ProV2Service],
 })
 export class WebsiteModule {}

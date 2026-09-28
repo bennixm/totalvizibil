@@ -572,48 +572,6 @@ export interface WebsiteTheme {
 
 export type ToneOfVoice = 'professional' | 'friendly' | 'premium' | 'bold' | 'calm';
 
-export interface EasyInput {
-  mode: 'easy';
-  businessName: string;
-  businessType: string; // free text, e.g. "construction company"
-  city: string;
-  services: string[];
-  shortDescription: string;
-  // Optional tone tweak from the studio's "refine" step (free plan).
-  tone?: ToneOfVoice;
-  phone?: string;
-  email?: string;
-}
-
-/** Pages the advanced builder can compose. `home` is always present and first. */
-export type AdvancedPage = 'home' | 'about' | 'services' | 'portfolio' | 'faq' | 'contact';
-
-export interface AdvancedInput {
-  mode: 'advanced';
-  businessName: string;
-  businessType: string;
-  city: string;
-  region?: string;
-  services: string[];
-  shortDescription: string;
-  targetAudience?: string;
-  toneOfVoice?: ToneOfVoice;
-  palette?: WebsiteTheme['palette'];
-  fontPair?: WebsiteTheme['fontPair'];
-  radius?: WebsiteTheme['radius'];
-  primaryCta?: string;
-  includeFaq?: boolean;
-  includeTestimonials?: boolean;
-  seoKeywords?: string[];
-  phone?: string;
-  email?: string;
-  // Advanced builder (M7)
-  pages?: AdvancedPage[];
-  portfolio?: GalleryItem[];
-}
-
-export type GeneratorInput = EasyInput | AdvancedInput;
-
 export interface GeneratedWebsite {
   theme: WebsiteTheme;
   content: WebsiteContent;

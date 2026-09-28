@@ -868,26 +868,18 @@ export class CampaignService {
 
   /**
    * A campaign may only be listed once the business has a real website. Easy-plan
-   * sites are fully generated during onboarding, so they always pass. An
-   * advanced-plan site is ready once its (paid) component builder holds a real
-   * page tree:
-   *  - the current builder stores a `{ v: 2, pages: [...] }` doc — ready as soon
-   *    as it has pages (unlock already seeds a full 3-page starter);
-   *  - the legacy scripted builder used `builderSpec.step === 'done'`;
-   *  - failing both, a non-empty composed `content.pages` also counts.
+   * sites are fully generated during onboarding, so they always pass. A PRO V2
+   * site (still stored as `mode: 'advanced'` internally) is ready once its
+   * composed `content.pages` is non-empty.
    */
   async isListingWebsiteReady(companyId: string): Promise<boolean> {
     const website = await this.prisma.website.findUnique({
       where: { companyId },
-      select: { mode: true, builderSpec: true, content: true },
+      select: { mode: true, content: true },
     });
     // No website at all → not ready (a company must have a site to be listed).
     if (!website) return false;
     if (website.mode !== 'advanced') return true;
-
-    const spec = website.builderSpec as { v?: number; step?: string; pages?: unknown[] } | null;
-    if (spec?.v === 2) return Array.isArray(spec.pages) && spec.pages.length > 0;
-    if (typeof spec?.step === 'string') return spec.step === 'done';
 
     const content = website.content as { pages?: unknown[] } | null;
     return Array.isArray(content?.pages) && content!.pages!.length > 0;

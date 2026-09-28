@@ -1,10 +1,96 @@
+import { randomUUID } from 'node:crypto';
 import { PrismaClient, Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { RuleBasedWebsiteGenerator } from '../src/website/website-generator';
-import { GeneratorInput } from '../src/website/website.types';
+import { GeneratedWebsite, Section, WebsiteTheme } from '../src/website/website.types';
 
 const prisma = new PrismaClient();
-const generator = new RuleBasedWebsiteGenerator();
+
+/**
+ * Minimal deterministic demo-site generator — just enough content (hero,
+ * about, services, contact, cta) to seed a browsable placeholder site for
+ * demo companies. Inlined here since this is now the only remaining caller;
+ * the old shared `RuleBasedWebsiteGenerator` was dead code (Easy Studio's
+ * real flow — and its own deterministic fallback — has lived in
+ * `drafts/easy-compose.ts` for a while) and was removed.
+ */
+function generateDemoWebsite(input: {
+  businessName: string;
+  businessType: string;
+  city: string;
+  services: string[];
+  shortDescription: string;
+}): GeneratedWebsite {
+  const type = input.businessType.toLowerCase();
+  const palette: WebsiteTheme['palette'] = /(garden|clean|eco|green|plumb)/.test(type)
+    ? 'emerald'
+    : /(food|restaurant|bakery|cafe|caf)/.test(type)
+      ? 'amber'
+      : /(law|finance|consult|account|dental|clinic)/.test(type)
+        ? 'slate'
+        : /(beauty|salon|hair|spa|studio)/.test(type)
+          ? 'rose'
+          : 'indigo';
+  const theme: WebsiteTheme = {
+    palette,
+    fontPair: 'grotesk-inter',
+    radius: 'rounded',
+    density: 'comfortable',
+  };
+
+  const services = (input.services.length ? input.services : ['Consultation', 'Support']).map(
+    (name) => ({
+      name,
+      description: `Professional ${name.toLowerCase()} for ${type} clients, handled end to end.`,
+    }),
+  );
+
+  const sections: Section[] = [
+    {
+      id: randomUUID(),
+      type: 'hero',
+      visible: true,
+      headline: `${input.businessType} in ${input.city}, done properly`,
+      subheadline: input.shortDescription,
+      primaryCta: 'Get a quote',
+      secondaryCta: 'See our work',
+    },
+    {
+      id: randomUUID(),
+      type: 'about',
+      visible: true,
+      title: `About ${input.businessName}`,
+      body: input.shortDescription,
+    },
+    { id: randomUUID(), type: 'services', visible: true, title: 'What we do', items: services },
+    {
+      id: randomUUID(),
+      type: 'contact',
+      visible: true,
+      title: 'Get in touch',
+      city: input.city,
+    },
+    {
+      id: randomUUID(),
+      type: 'cta',
+      visible: true,
+      headline: `Ready to start with ${input.businessName}?`,
+      buttonLabel: 'Get a quote',
+    },
+  ];
+
+  return {
+    generator: 'seed-demo-v1',
+    theme,
+    content: {
+      pages: [{ slug: 'home', title: input.businessName, isHome: true, sections }],
+      seo: {
+        title: `${input.businessName} — ${input.businessType} in ${input.city}`,
+        description: input.shortDescription.slice(0, 160),
+        schemaType: 'LocalBusiness',
+      },
+    },
+  };
+}
 
 /**
  * Category taxonomy: parent group -> exact service niches (PRD §6.2).
@@ -421,15 +507,13 @@ async function seedCompanies() {
   const catId = (slug: string) => categories.find((c) => c.slug === slug)?.id;
 
   for (const d of DEMO) {
-    const input: GeneratorInput = {
-      mode: 'easy',
+    const generated = generateDemoWebsite({
       businessName: d.name,
       businessType: d.type,
       city: d.city,
       services: d.services,
       shortDescription: d.description,
-    };
-    const generated = generator.generate(input);
+    });
     const createdAt = new Date(Date.now() - d.ageDays * 86_400_000);
 
     const existing = await prisma.company.findUnique({ where: { slug: d.slug } });

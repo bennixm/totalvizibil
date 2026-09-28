@@ -17,22 +17,11 @@ const props = defineProps<{
    * and the phone link is tracked as a "call". Absent in previews.
    */
   leadSlug?: string
-  /** Advanced builder: clicking a section selects it (emits `select`). */
-  editable?: boolean
-  /** Advanced builder: id of the section drawn with a selection outline.
-   *  `__nav__` / `__footer__` select the site chrome. */
-  selectedId?: string | null
-  /**
-   * Advanced builder previews render one page at a time. Pass the real page
-   * list so the navbar shows every page (not just the previewed one).
-   */
-  navPreview?: { slug: string; title: string }[]
 }>()
 
 const emit = defineEmits<{
   (e: 'lead-sent'): void
   (e: 'call'): void
-  (e: 'select', id: string): void
 }>()
 
 /** Variant CSS hook, e.g. `s--hero--split`. */
@@ -204,14 +193,12 @@ const legalPages = computed(() => pages.value.filter((p) => !!(p as { system?: s
 const usesPexels = computed(() =>
   JSON.stringify(props.content.pages ?? []).includes('images.pexels.com'),
 )
-/** Pages shown in the multi-page top nav. In the builder preview `navPreview`
- *  carries the real list (the preview itself renders one page at a time). */
-const navPages = computed<{ slug: string; title: string }[]>(() => {
-  if (props.editable && props.navPreview?.length) return props.navPreview
-  return pages.value
+/** Pages shown in the multi-page top nav. */
+const navPages = computed<{ slug: string; title: string }[]>(() =>
+  pages.value
     .filter((p) => (p as { nav?: boolean }).nav !== false && !(p as { system?: string }).system)
-    .map((p) => ({ slug: p.slug, title: p.title }))
-})
+    .map((p) => ({ slug: p.slug, title: p.title })),
+)
 
 // --- site chrome (owner-editable navbar + footer) --------------------
 const navCfg = computed(() => ({
@@ -227,9 +214,6 @@ const footerCfg = computed(() => ({
   showContact: props.content.footer?.showContact !== false,
   socials: props.content.footer?.socials ?? [],
 }))
-function selectChrome(id: '__nav__' | '__footer__'): void {
-  if (props.editable) emit('select', id)
-}
 function chromeCtaGo(): void {
   goToTarget(navCfg.value.cta?.target || 'contact')
 }
@@ -385,10 +369,6 @@ function tabIdx(id: string): number {
   return tabState[id] ?? 0
 }
 function setTab(s: Section, i: number): void {
-  if (props.editable) {
-    emit('select', s.id)
-    return
-  }
   tabState[s.id] = i
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -516,27 +496,6 @@ const footContact = computed(() => {
 const scrollEl = ref<HTMLElement | null>(null)
 const navOpen = ref(false)
 
-// --- editable preview (Advanced builder) ---------------------------
-function onScrollClick(e: MouseEvent): void {
-  if (!props.editable) return
-  const el = (e.target as HTMLElement | null)?.closest('.s') as HTMLElement | null
-  if (el?.id) emit('select', el.id)
-}
-function paintSelection(): void {
-  const root = scrollEl.value
-  if (!root) return
-  root.querySelectorAll('.s--sel').forEach((el) => el.classList.remove('s--sel'))
-  if (props.selectedId) {
-    const esc =
-      typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(props.selectedId) : props.selectedId
-    root.querySelector(`[id="${esc}"]`)?.classList.add('s--sel')
-  }
-}
-watch(
-  () => [props.selectedId, props.editable, sections.value.map((s) => s.id).join('|')],
-  () => void nextTick(paintSelection),
-)
-
 // --- scroll-progress rail on the floating navbar ----------------------
 const prog = ref(0)
 let progRaf = 0
@@ -595,10 +554,9 @@ function goToContact(): void {
 function goToWork(): void {
   jumpTo(findSection('gallery') ? 'gallery' : 'contact')
 }
-/** In the builder preview a CTA click selects its section instead of navigating. */
 function ctaClick(s: Section, fn: () => void): void {
-  if (props.editable) emit('select', s.id)
-  else fn()
+  void s
+  fn()
 }
 
 // --- reveal-on-scroll ----------------------------------------------------
@@ -715,19 +673,15 @@ watch(
     </div>
 
     <nav
-      v-if="navPages.length > 1 || editable"
-      :id="editable ? '__nav__' : undefined"
+      v-if="navPages.length > 1"
       class="site__nav"
       :class="[
         `site__nav--links-${navCfg.linkStyle}`,
         {
           'site__nav--open': navOpen,
-          'site__nav--sticky': navCfg.sticky && !editable,
-          'site__nav--sel': editable && selectedId === '__nav__',
-          'site__nav--pick': editable,
+          'site__nav--sticky': navCfg.sticky,
         },
       ]"
-      @click.stop="selectChrome('__nav__')"
     >
       <span v-if="navCfg.logo !== 'hide'" class="site__nav-brand">
         <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="site__logo" />
@@ -768,12 +722,11 @@ watch(
     <div
       ref="scrollEl"
       class="site__scroll"
-      :class="{ 'site__scroll--anim': animate, 'site__scroll--edit': editable }"
-      @click="onScrollClick"
+      :class="{ 'site__scroll--anim': animate }"
     >
-      <!-- one-page anchor navbar (real single-page sites only, not the builder preview) -->
+      <!-- one-page anchor navbar (single-page sites only) -->
       <header
-        v-if="singlePage && !editable"
+        v-if="singlePage"
         class="site__bar"
         :class="{ 'site__bar--open': navOpen }"
       >
@@ -1167,7 +1120,7 @@ watch(
           :class="[vclass(s), `s--mrq--${f(s, 'speed') || 'normal'}`]"
         >
           <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
-          <div class="mrq" :class="{ 'mrq--static': editable }">
+          <div class="mrq">
             <div class="mrq__track">
               <span v-for="(it, i) in marqueeLoop(f(s, 'items'))" :key="i" class="mrq__i">
                 {{ it }}
@@ -1355,7 +1308,7 @@ watch(
           <h2 v-if="f(s, 'title')" class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
           <div
             class="vid"
-            :class="{ 'vid--photo': !!f(s, 'posterImage'), 'vid--live': !!f(s, 'videoUrl') || editable }"
+            :class="{ 'vid--photo': !!f(s, 'posterImage'), 'vid--live': !!f(s, 'videoUrl') }"
             :style="
               f(s, 'posterImage')
                 ? {
@@ -1363,13 +1316,9 @@ watch(
                   }
                 : undefined
             "
-            @click="
-              editable
-                ? emit('select', s.id)
-                : f(s, 'videoUrl') && customBlockGo(f(s, 'videoUrl'))
-            "
+            @click="f(s, 'videoUrl') && customBlockGo(f(s, 'videoUrl'))"
           >
-            <span v-if="f(s, 'videoUrl') || editable" class="vid__play" aria-hidden="true">
+            <span v-if="f(s, 'videoUrl')" class="vid__play" aria-hidden="true">
               <v-icon icon="mdi-play" size="32" />
             </span>
           </div>
@@ -1584,12 +1533,7 @@ watch(
         </section>
       </template>
 
-      <footer
-        :id="editable ? '__footer__' : undefined"
-        class="site__foot"
-        :class="{ 'site__foot--sel': editable && selectedId === '__footer__', 'site__foot--pick': editable }"
-        @click.stop="selectChrome('__footer__')"
-      >
+      <footer class="site__foot">
         <div class="site__foot-in">
           <div class="site__foot-col site__foot-col--brand">
             <span class="site__foot-brand">
@@ -1713,18 +1657,6 @@ watch(
 }
 .site__nav--sticky {
   position: sticky;
-}
-.site__nav--pick {
-  cursor: pointer;
-  outline-offset: -2px;
-  transition: outline-color 0.12s ease;
-  outline: 2px solid transparent;
-}
-.site__nav--pick:hover {
-  outline-color: color-mix(in srgb, var(--site-accent) 55%, transparent);
-}
-.site__nav--sel {
-  outline-color: var(--site-accent) !important;
 }
 /* Brand logo image (any brand slot). Height-capped, width auto — keeps a
    wordmark or an icon-mark legible without dominating the bar. */
@@ -3091,18 +3023,6 @@ a.ccard:hover {
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.88rem;
 }
-.site__foot--pick {
-  cursor: pointer;
-  outline: 2px solid transparent;
-  outline-offset: -2px;
-  transition: outline-color 0.12s ease;
-}
-.site__foot--pick:hover {
-  outline-color: color-mix(in srgb, var(--site-accent) 55%, transparent);
-}
-.site__foot--sel {
-  outline-color: var(--site-accent) !important;
-}
 .site__foot-social {
   display: flex;
   flex-wrap: wrap;
@@ -3185,28 +3105,6 @@ a.ccard:hover {
   .site__foot-col--brand {
     grid-column: 1 / -1;
   }
-}
-
-/* ============ Advanced builder: editable preview ============ */
-.site__scroll--edit .s {
-  cursor: pointer;
-}
-.site__scroll--edit .s::after {
-  content: '';
-  position: absolute;
-  inset: 3px;
-  border: 1.5px dashed transparent;
-  border-radius: 10px;
-  pointer-events: none;
-  transition: border-color 0.12s ease;
-}
-.site__scroll--edit .s:hover::after {
-  border-color: color-mix(in srgb, var(--site-accent) 55%, transparent);
-}
-.site__scroll--edit .s.s--sel::after {
-  border-style: solid;
-  border-color: var(--site-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--site-accent) 22%, transparent);
 }
 
 /* ============ ABOUT variants (image beside the text) ============ */
@@ -4253,9 +4151,6 @@ a.ccard:hover {
 }
 .s--mrq--fast .mrq__track {
   animation-duration: 15s;
-}
-.mrq--static .mrq__track {
-  animation: none;
 }
 .mrq__i {
   font-family: var(--site-display);
