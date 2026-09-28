@@ -13,6 +13,7 @@ const router = useRouter()
 const draftStore = useWebsiteDraftStore()
 
 const priceCredits = ref<number | null>(null)
+const bonusCredits = ref<number | null>(null)
 const eurRonRate = ref(5.05)
 const busy = ref(false)
 const error = ref('')
@@ -26,7 +27,10 @@ const ronApprox = computed(() =>
   priceCredits.value ? Math.round(priceCredits.value * eurRonRate.value) : null,
 )
 
-const perks = ['pages', 'sections', 'design', 'unlimited', 'ai'] as const
+const BASE_PERKS = ['real', 'ai', 'design', 'forms', 'seo'] as const
+/** Only shown once the real (admin-configurable) bonus amount has loaded —
+ *  never render a placeholder/guessed number. */
+const perks = computed(() => (bonusCredits.value != null ? [...BASE_PERKS, 'bonus'] : BASE_PERKS))
 
 async function start(): Promise<void> {
   if (!canStart.value || busy.value) return
@@ -44,6 +48,7 @@ onMounted(async () => {
   try {
     const p = await fetchPricing()
     priceCredits.value = p.advancedBuilderPriceCredits
+    bonusCredits.value = p.advancedBuilderUnlockBonusCredits
     eurRonRate.value = p.eurRonRate
   } catch {
     priceCredits.value = null
@@ -77,7 +82,7 @@ onMounted(async () => {
 
     <ul class="adv__perks">
       <li v-for="p in perks" :key="p">
-        <v-icon icon="mdi-check" size="16" /> {{ t('advanced.perk.' + p) }}
+        <v-icon icon="mdi-check" size="16" /> {{ t('advanced.perk.' + p, { credits: bonusCredits }) }}
       </li>
     </ul>
 
