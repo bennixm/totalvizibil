@@ -175,6 +175,7 @@ export class ProV2Service {
     const email = company.contacts.find((c) => c.type === 'email')?.value;
     const lines = [
       `Name: ${company.displayName}`,
+      `Slug: ${company.slug}`,
       company.category
         ? `Category: ${(company.category.nameI18n as Record<string, string>).en ?? company.category.slug}`
         : '',

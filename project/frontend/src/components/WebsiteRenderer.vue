@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useI18n } from 'vue-i18n'
 
 import { submitLead, trackCall } from '@/services/leads'
+import AppointmentBookingWidget from '@/components/AppointmentBookingWidget.vue'
 import { pickServiceIcon } from '@/utils/serviceIcon'
 import type { Section, WebsiteContent, WebsiteTheme } from '@/types/website'
 
@@ -1043,6 +1044,13 @@ watch(
           <p v-else class="cform__ok">
             <span aria-hidden="true">✓</span> {{ t('site.formThanks') }}
           </p>
+        </section>
+
+        <!-- APPOINTMENT -->
+        <section v-else-if="s.type === 'appointment'" :id="s.id" class="s s--appointment">
+          <h2 class="s__h" :style="hOv(s)">{{ f(s, 'title') }}</h2>
+          <p v-if="f(s, 'subtitle')" class="s--appointment__sub">{{ f(s, 'subtitle') }}</p>
+          <AppointmentBookingWidget :slug="leadSlug" />
         </section>
 
         <!-- LOGOS -->
@@ -2848,6 +2856,10 @@ a.ccard:hover {
 .cform__lead {
   margin: 0 0 0.2rem;
   font-weight: 600;
+}
+.s--appointment__sub {
+  margin: -0.5rem 0 1.25rem;
+  opacity: 0.7;
 }
 .cform__row {
   display: grid;

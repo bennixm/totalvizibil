@@ -204,7 +204,7 @@ model Company {
   // Whole-business deletion is deferred: this is stamped on a delete request,
   // the listing is taken down immediately, and the row (site, campaign, leads…)
   // is purged only after the grace window. The owner can cancel until then.
-  deletionScheduledAt DateTime? @map("deletion_scheduled_at")
+  deletionScheduledAt    DateTime? @map("deletion_scheduled_at")
   // Stamped once the pre-deletion reminder email goes out, so the sweep never
   // sends it twice — cleared automatically whenever `deletionScheduledAt` is
   // (re)set to null or a new value, since that's a fresh grace window.
@@ -213,19 +213,22 @@ model Company {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  category           Category?           @relation(fields: [categoryId], references: [id])
-  owner              User                @relation("CompanyOwner", fields: [ownerUserId], references: [id])
-  members            CompanyUser[]
-  locations          CompanyLocation[]
-  contacts           CompanyContact[]
-  services           CompanyService[]
-  website            Website?
-  proV2Project       ProV2Project?
-  campaign           Campaign?
-  walletTransactions WalletTransaction[]
-  adClicks           AdClick[]
-  leads              Lead[]
-  supportTickets     SupportTicket[]
+  category                Category?                 @relation(fields: [categoryId], references: [id])
+  owner                   User                      @relation("CompanyOwner", fields: [ownerUserId], references: [id])
+  members                 CompanyUser[]
+  locations               CompanyLocation[]
+  contacts                CompanyContact[]
+  services                CompanyService[]
+  website                 Website?
+  proV2Project            ProV2Project?
+  campaign                Campaign?
+  walletTransactions      WalletTransaction[]
+  adClicks                AdClick[]
+  leads                   Lead[]
+  supportTickets          SupportTicket[]
+  appointmentSettings     AppointmentSettings?
+  appointmentAvailability AppointmentAvailability[]
+  appointments            Appointment[]
 
   @@index([ownerUserId])
   @@index([categoryId])
@@ -250,33 +253,33 @@ enum WebsiteStatus {
 }
 
 model Website {
-  id          String        @id @default(uuid()) @db.Uuid
-  companyId   String        @unique @map("company_id") @db.Uuid
-  mode        WebsiteMode   @default(easy)
-  status      WebsiteStatus @default(draft)
+  id           String        @id @default(uuid()) @db.Uuid
+  companyId    String        @unique @map("company_id") @db.Uuid
+  mode         WebsiteMode   @default(easy)
+  status       WebsiteStatus @default(draft)
   // { palette, fontPair, radius, density }
-  theme       Json
+  theme        Json
   // { pages: [{ slug, title, isHome, sections: [{ type, ...content }] }], seo: {...} }
-  content     Json
-  generator   String        @default("rule-based-v1")
+  content      Json
+  generator    String        @default("rule-based-v1")
   // Advanced builder inputs (AdvancedInput), so re-opening the builder restores state.
-  builderSpec Json?         @map("builder_spec")
+  builderSpec  Json?         @map("builder_spec")
   // Scripted advanced-builder conversation transcript.
-  builderChat Json?         @map("builder_chat")
+  builderChat  Json?         @map("builder_chat")
   // Simple-site guided answers (EasyAnswers), so the owner can re-open the studio editor after claiming.
-  easyConfig  Json?         @map("easy_config")
+  easyConfig   Json?         @map("easy_config")
   // Last time the Website Builder's live-code project was built and published
   // as a static bundle (see WebsiteBundleFile). Null = never published — the
   // public page falls back to `content`/`theme` (or the identity-only page).
-  publishedAt DateTime?     @map("published_at")
+  publishedAt  DateTime?     @map("published_at")
   // The Website Builder (PRO V2) never touches `content`/`theme` (see
   // `generator`), so those columns can't supply a feed-card image for a
   // bundle-based site — this is the first real image actually found in the
   // built bundle at publish time (a Pexels or uploaded-asset URL), so the
   // feed ad's background can show what the site really looks like.
-  heroImageUrl String?      @map("hero_image_url")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  heroImageUrl String?       @map("hero_image_url")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
 
   company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bundleFiles WebsiteBundleFile[]
@@ -323,10 +326,10 @@ model ProV2Project {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  company       Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  files         ProV2File[]
-  messages      ProV2Message[]
-  usageRecords  AiUsageRecord[]
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  files        ProV2File[]
+  messages     ProV2Message[]
+  usageRecords AiUsageRecord[]
 
   @@map("pro_v2_projects")
 }
@@ -347,10 +350,10 @@ model ProV2File {
 }
 
 model ProV2Message {
-  id        String   @id @default(uuid()) @db.Uuid
-  projectId String   @map("project_id") @db.Uuid
-  role      String // "user" | "assistant"
-  content   String   @db.Text
+  id           String   @id @default(uuid()) @db.Uuid
+  projectId    String   @map("project_id") @db.Uuid
+  role         String // "user" | "assistant"
+  content      String   @db.Text
   // Assistant turns only — the tool-call log for this turn, for the "what
   // changed" UI (same shape/purpose as ProMessage.toolCalls).
   toolCalls    Json?    @map("tool_calls")
@@ -376,34 +379,46 @@ model ProV2Message {
 // ProV2Message, which only has the WINNING provider's numbers.
 // ---------------------------------------------------------------------------
 model AiUsageRecord {
-  id      String @id @default(uuid()) @db.Uuid
-  userId  String @map("user_id") @db.Uuid
+  id        String @id @default(uuid()) @db.Uuid
+  userId    String @map("user_id") @db.Uuid
   projectId String @map("project_id") @db.Uuid
-  /** Groups every hop of one logical turn together (incl. escalation retries). */
+  /**
+   * Groups every hop of one logical turn together (incl. escalation retries).
+   */
   requestId String @map("request_id") @db.Uuid
 
   provider     String // "claude" | "deepseek"
   model        String
-  /** "initial_generation" | "simple_edit" | "multi_file" | "repair" | "review" */
+  /**
+   * "initial_generation" | "simple_edit" | "multi_file" | "repair" | "review"
+   */
   taskCategory String @map("task_category")
 
-  inputTokens      Int @default(0) @map("input_tokens")
-  outputTokens     Int @default(0) @map("output_tokens")
-  cacheReadTokens  Int @default(0) @map("cache_read_tokens")
-  toolCalls        Int @default(0) @map("tool_calls")
-  iterations       Int @default(0) @map("iterations")
-  pexelsSearches   Int @default(0) @map("pexels_searches")
-  /** Captured at write time, from that call's own provider/model price —
-   *  never recomputed later so a historical total stays accurate even if a
-   *  price table changes. Still just an estimate, never used for real billing. */
+  inputTokens      Int   @default(0) @map("input_tokens")
+  outputTokens     Int   @default(0) @map("output_tokens")
+  cacheReadTokens  Int   @default(0) @map("cache_read_tokens")
+  toolCalls        Int   @default(0) @map("tool_calls")
+  iterations       Int   @default(0) @map("iterations")
+  pexelsSearches   Int   @default(0) @map("pexels_searches")
+  /**
+   * Captured at write time, from that call's own provider/model price —
+   * never recomputed later so a historical total stays accurate even if a
+   * price table changes. Still just an estimate, never used for real billing.
+   */
   estimatedCostUsd Float @default(0) @map("estimated_cost_usd")
 
-  /** Which repair attempt this was (1-3), or null for a normal message/generation. */
-  repairAttempt Int? @map("repair_attempt")
-  /** "provider:model" this hop escalated FROM, if it's an escalation retry. */
+  /**
+   * Which repair attempt this was (1-3), or null for a normal message/generation.
+   */
+  repairAttempt Int?    @map("repair_attempt")
+  /**
+   * "provider:model" this hop escalated FROM, if it's an escalation retry.
+   */
   escalatedFrom String? @map("escalated_from")
-  /** Did THIS hop's static quality check pass? (Not "did the whole turn succeed".) */
-  succeeded Boolean @default(true)
+  /**
+   * Did THIS hop's static quality check pass? (Not "did the whole turn succeed".)
+   */
+  succeeded     Boolean @default(true)
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -596,15 +611,15 @@ model CompanyService {
 // ---------------------------------------------------------------------------
 
 model Wallet {
-  id            String    @id @default(uuid()) @db.Uuid
-  userId        String    @unique @map("user_id") @db.Uuid
+  id                   String    @id @default(uuid()) @db.Uuid
+  userId               String    @unique @map("user_id") @db.Uuid
   // Hundredths of a credit. 1 Credit = 1 EUR, so this is also euro cents.
-  balanceMinor  Int       @default(0) @map("balance_minor")
-  currency      String    @default("EUR")
+  balanceMinor         Int       @default(0) @map("balance_minor")
+  currency             String    @default("EUR")
   // Admin freeze: while set, the wallet cannot be topped up or spent from
   // (campaigns can't activate, clicks aren't billed). Balance is preserved.
-  blockedAt     DateTime? @map("blocked_at")
-  blockedReason String?   @map("blocked_reason")
+  blockedAt            DateTime? @map("blocked_at")
+  blockedReason        String?   @map("blocked_reason")
   // Cooldown for the "balance almost depleted" notification sweep — set when
   // sent, so a persistently-low balance doesn't re-notify every sweep tick.
   // Not cleared on top-up; the cooldown alone (see NotificationsSweepService)
@@ -685,14 +700,14 @@ model WalletTransaction {
   //     behind it (can be less than `amountMinor` if a discount was active
   //     at purchase time) and is what's actually sent to Stripe. Filled in
   //     with each source's Stripe refund id once `sweepDueRefunds` executes it.
-  refundReservedMinor Int   @default(0) @map("refund_reserved_minor")
-  refundSources       Json? @map("refund_sources")
-  feePct              Int?  @map("fee_pct")
-  feeMinor            Int?  @map("fee_minor")
+  refundReservedMinor Int       @default(0) @map("refund_reserved_minor")
+  refundSources       Json?     @map("refund_sources")
+  feePct              Int?      @map("fee_pct")
+  feeMinor            Int?      @map("fee_minor")
   // When the 7-day cancel window elapses and the sweep may execute the
   // refund. Only set while status = 'pending' on a refund row.
-  processAt         DateTime? @map("process_at")
-  initiatedByAdminId String?  @map("initiated_by_admin_id") @db.Uuid
+  processAt           DateTime? @map("process_at")
+  initiatedByAdminId  String?   @map("initiated_by_admin_id") @db.Uuid
 
   description String?
   createdAt   DateTime @default(now()) @map("created_at")
@@ -762,9 +777,13 @@ model InvoiceCounter {
 }
 
 enum InvoiceKind {
-  /** A wallet top-up the user paid for. */
+  /**
+   * A wallet top-up the user paid for.
+   */
   topup
-  /** A payout document for an affiliate-program reward (no money due, VAT-exempt). */
+  /**
+   * A payout document for an affiliate-program reward (no money due, VAT-exempt).
+   */
   affiliate_reward
 }
 
@@ -849,15 +868,15 @@ model Campaign {
 
   // CPC metering. `spentTodayMinor` is the credits burned on clicks for the UTC
   // day `spendDay`; both reset lazily when the day rolls over.
-  spentTodayMinor      Int       @default(0) @map("spent_today_minor")
-  spendDay             DateTime? @map("spend_day") @db.Date
+  spentTodayMinor        Int       @default(0) @map("spent_today_minor")
+  spendDay               DateTime? @map("spend_day") @db.Date
   // `activatedAt` marks the start of the CURRENT active run (re-stamped on every
   // activation). `activeSecondsAccrued` banks the duration of all past runs, so
   // the Age Score counts only time the campaign was actually live — not
   // wall-clock time since it was first switched on.
-  activatedAt          DateTime? @map("activated_at")
-  activeSecondsAccrued Int       @default(0) @map("active_seconds_accrued")
-  pausedAt             DateTime? @map("paused_at")
+  activatedAt            DateTime? @map("activated_at")
+  activeSecondsAccrued   Int       @default(0) @map("active_seconds_accrued")
+  pausedAt               DateTime? @map("paused_at")
   // Which `spendDay` the "budget depleted" notification was last sent for —
   // a day-keyed dedup so the alert fires once per day it actually happens,
   // reusing the same day bucket `spentTodayMinor` already resets on.
@@ -950,6 +969,98 @@ model Lead {
   @@index([companyId, status, createdAt])
   @@index([companyId, channel])
   @@map("leads")
+}
+
+// ---------------------------------------------------------------------------
+// Appointments — a business turns this on, defines a weekly recurring
+// availability schedule, and the generated website's booking widget offers
+// only the real remaining slots (computed live: template minus already-booked
+// minus past times — nothing is precomputed/cached, same "compute on read"
+// approach as the Feed's own ranking). Single fixed business timezone
+// (Europe/Bucharest), consistent with the rest of the platform having no
+// timezone handling anywhere (RO-only).
+// ---------------------------------------------------------------------------
+
+/**
+ * One row per company. Off by default — nothing appears on the public site
+ * (and the AI builder has nothing to wire a booking form to) until the owner
+ * explicitly enables it, same spirit as a campaign needing to be activated.
+ */
+model AppointmentSettings {
+  companyId   String   @id @map("company_id") @db.Uuid
+  enabled     Boolean  @default(false)
+  /**
+   * Booking granularity in minutes (15/30/60…) — also the duration snapshotted
+   * onto each new Appointment at booking time, so a later change here never
+   * resizes an already-booked slot.
+   */
+  slotMinutes Int      @default(30) @map("slot_minutes")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("appointment_settings")
+}
+
+/**
+ * One weekly-recurring open window (e.g. Mon 09:00-17:00). Slots for a given
+ * calendar date are derived from whichever rows match that date's weekday.
+ */
+model AppointmentAvailability {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  /**
+   * 0 = Sunday … 6 = Saturday (JS `Date#getDay()` convention).
+   */
+  weekday     Int
+  /**
+   * Minutes since local midnight — 540 = 09:00, 1020 = 17:00.
+   */
+  startMinute Int      @map("start_minute")
+  endMinute   Int      @map("end_minute")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, weekday])
+  @@map("appointment_availabilities")
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  canceled
+  completed
+}
+
+model Appointment {
+  id        String            @id @default(uuid()) @db.Uuid
+  companyId String            @map("company_id") @db.Uuid
+  status    AppointmentStatus @default(pending)
+
+  startsAt        DateTime @map("starts_at")
+  /**
+   * Snapshotted from AppointmentSettings.slotMinutes at booking time.
+   */
+  durationMinutes Int      @map("duration_minutes")
+
+  // Visitor-supplied (public booking form) — same shape as Lead's visitor fields.
+  name  String
+  email String?
+  phone String?
+  notes String?
+
+  // Privacy-safe dedupe / spam key, same construction as Lead.visitorHash.
+  visitorHash String? @map("visitor_hash")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, startsAt])
+  @@index([companyId, status])
+  @@map("appointments")
 }
 
 // ---------------------------------------------------------------------------
@@ -1082,34 +1193,42 @@ model PexelsCacheEntry {
 // "which channels" is decided in one place per notification `type`.
 // ---------------------------------------------------------------------------
 
-/** Which channels a notification was actually dispatched to. A row with only
- *  `email` never shows in the bell/panel — it's still stored, as the one
- *  audit trail for every notification the platform has ever sent. */
+/**
+ * Which channels a notification was actually dispatched to. A row with only
+ * `email` never shows in the bell/panel — it's still stored, as the one
+ * audit trail for every notification the platform has ever sent.
+ */
 enum NotificationChannel {
   panel
   email
 }
 
 model Notification {
-  id       String                @id @default(uuid()) @db.Uuid
-  userId   String                @map("user_id") @db.Uuid
-  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /** A short machine key, e.g. "lead_received", "payment_success" — lets the
-   *  frontend pick an icon and lets a future feature filter by kind. */
-  type     String
-  title    String
-  body     String
-  /** Optional structured payload (e.g. `{ "companyId": "..." }`) for the
-   *  panel to build a "go there" link — never used to decide routing. */
-  data     Json?
-  channels NotificationChannel[]
-  readAt      DateTime? @map("read_at")
-  /** User removed it from their own panel — the row is kept (audit trail,
-   *  matches every other "soft" state in this schema) but excluded from
-   *  `list()`/`unreadCount()` from this point on. */
-  dismissedAt DateTime? @map("dismissed_at")
-  emailSentAt DateTime? @map("email_sent_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id          String                @id @default(uuid()) @db.Uuid
+  userId      String                @map("user_id") @db.Uuid
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /**
+   * A short machine key, e.g. "lead_received", "payment_success" — lets the
+   * frontend pick an icon and lets a future feature filter by kind.
+   */
+  type        String
+  title       String
+  body        String
+  /**
+   * Optional structured payload (e.g. `{ "companyId": "..." }`) for the
+   * panel to build a "go there" link — never used to decide routing.
+   */
+  data        Json?
+  channels    NotificationChannel[]
+  readAt      DateTime?             @map("read_at")
+  /**
+   * User removed it from their own panel — the row is kept (audit trail,
+   * matches every other "soft" state in this schema) but excluded from
+   * `list()`/`unreadCount()` from this point on.
+   */
+  dismissedAt DateTime?             @map("dismissed_at")
+  emailSentAt DateTime?             @map("email_sent_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
 
   @@index([userId, createdAt])
   @@index([userId, readAt])

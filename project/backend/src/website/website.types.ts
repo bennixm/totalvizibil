@@ -19,6 +19,7 @@ export type SectionType =
   | 'faq'
   | 'richText'
   | 'contact'
+  | 'appointment'
   | 'cta'
   | 'marquee'
   | 'bento'
@@ -196,6 +197,19 @@ export interface ContactSection extends BaseSection {
   addressLine?: string;
   /** Opening hours, free text (Simple-site builder). */
   hours?: string;
+}
+
+/** Renders the live booking widget (real slots fetched from
+ *  AppointmentsService, never authored/static content) — same "AI only
+ *  controls copy, never structure or data" property as ContactSection. Shown
+ *  by WebsiteRenderer only when the company has appointments enabled; the
+ *  builder may still add this section speculatively (e.g. before the owner
+ *  has turned it on) since it degrades to nothing rendered until they do. */
+export interface AppointmentSection extends BaseSection {
+  type: 'appointment';
+  title: string;
+  /** Short supporting copy above the picker, e.g. "Book a free consultation". */
+  subtitle?: string;
 }
 
 export interface CtaSection extends BaseSection {
@@ -422,6 +436,7 @@ export type Section =
   | FaqSection
   | RichTextSection
   | ContactSection
+  | AppointmentSection
   | CtaSection
   | MarqueeSection
   | BentoSection

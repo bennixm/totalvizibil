@@ -24,6 +24,11 @@ export function useUserNavGroups() {
       label: t('nav.manage'),
       items: [
         { to: { name: 'leads' }, label: t('nav.leads'), icon: 'mdi-inbox-arrow-down-outline' },
+        {
+          to: { name: 'appointments' },
+          label: t('nav.appointments'),
+          icon: 'mdi-calendar-check-outline',
+        },
         { to: { name: 'campaign' }, label: t('nav.campaign'), icon: 'mdi-bullhorn-outline' },
         { to: { name: 'wallet' }, label: t('nav.wallet'), icon: 'mdi-wallet-outline' },
         { to: { name: 'invoices' }, label: t('nav.invoices'), icon: 'mdi-receipt-text-outline' },

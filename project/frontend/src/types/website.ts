@@ -17,6 +17,7 @@ export type SectionType =
   | 'faq'
   | 'richText'
   | 'contact'
+  | 'appointment'
   | 'cta'
   | 'marquee'
   | 'bento'

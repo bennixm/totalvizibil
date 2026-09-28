@@ -60,6 +60,9 @@ export function routeForNotification(n: Pick<NotificationItem, 'type' | 'data'>)
   if (n.type === 'lead_received' && typeof companyId === 'string') {
     return { name: 'leads', query: { c: companyId } }
   }
+  if (n.type === 'appointment_received' && typeof companyId === 'string') {
+    return { name: 'appointments', query: { c: companyId } }
+  }
   if (COMPANY_TYPES.has(n.type) && typeof companyId === 'string') {
     return { name: 'dashboard', query: { c: companyId } }
   }
@@ -95,6 +98,7 @@ export interface NotificationVisual {
 
 const VISUALS: Record<string, NotificationVisual> = {
   lead_received: { icon: 'mdi-inbox-arrow-down-outline', tone: 'primary' },
+  appointment_received: { icon: 'mdi-calendar-check-outline', tone: 'primary' },
   business_created: { icon: 'mdi-domain', tone: 'success' },
   business_deletion_scheduled: { icon: 'mdi-domain-off', tone: 'warning' },
   business_deletion_reminder: { icon: 'mdi-alert-outline', tone: 'warning' },
