@@ -322,7 +322,7 @@ watch(
       </div>
 
       <div v-if="pendingDeletion" class="camp__builder">
-        <v-icon icon="mdi-trash-clock-outline" size="18" />
+        <v-icon icon="mdi-delete-clock-outline" size="18" />
         <div>
           <strong>{{ t('campaign.deletionPendingTitle') }}</strong>
           <p>{{ t('campaign.deletionPendingNote') }}</p>

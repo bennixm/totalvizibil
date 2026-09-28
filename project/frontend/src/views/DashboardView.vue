@@ -399,7 +399,7 @@ watch(
 
       <!-- Whole-business deletion scheduled — everything is offline; Undo until the date -->
       <div v-if="pendingDeletion" class="dash__deleteBanner">
-        <v-icon icon="mdi-trash-clock-outline" size="20" />
+        <v-icon icon="mdi-delete-clock-outline" size="20" />
         <div class="dash__deleteBody">
           <strong>{{ t('dashboard.pendingDeleteTitle') }}</strong>
           <p>

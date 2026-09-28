@@ -213,7 +213,7 @@ onMounted(async () => {
       </section>
 
       <!-- Buy credits -->
-      <AdminSection class="wal__section" :title="t('wallet.buyTitle')" icon="mdi-cart-plus-outline">
+      <AdminSection class="wal__section" :title="t('wallet.buyTitle')" icon="mdi-cart-plus">
         <template #actions>
           <InfoHint :text="t('wallet.prepaidNote')" />
         </template>

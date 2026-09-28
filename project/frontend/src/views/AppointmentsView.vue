@@ -187,7 +187,7 @@ onMounted(async () => {
       <!-- Schedule -->
       <section class="apt__schedule">
         <button type="button" class="apt__scheduleToggle" @click="scheduleOpen = !scheduleOpen">
-          <v-icon icon="mdi-calendar-cog-outline" size="18" />
+          <v-icon icon="mdi-calendar-edit-outline" size="18" />
           {{ t('appointments.scheduleTitle') }}
           <v-icon :icon="scheduleOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="18" class="apt__chev" />
         </button>
