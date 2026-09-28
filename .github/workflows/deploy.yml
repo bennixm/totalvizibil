@@ -101,10 +101,16 @@ jobs:
             npm run build
 
             echo "==> Restarting backend"
+            # NODE_ENV=production gates real behavior (FRONTEND_ORIGIN is
+            # required instead of silently falling back to localhost, cookie
+            # security flags, etc.) — explicit here because pm2 caches the
+            # env a process was FIRST started with and ignores the current
+            # shell on a plain `restart`. `--update-env` forces it to
+            # recapture this every deploy, not just the first one ever.
             if pm2 describe tvz-api > /dev/null 2>&1; then
-              pm2 restart tvz-api
+              NODE_ENV=production pm2 restart tvz-api --update-env
             else
-              pm2 start dist/main.js --name tvz-api
+              NODE_ENV=production pm2 start dist/main.js --name tvz-api
             fi
 
             pm2 save

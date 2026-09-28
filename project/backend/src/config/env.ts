@@ -58,6 +58,19 @@ export function loadConfig(): AppConfig {
     process.env.DATABASE_URL = databaseUrl;
   }
 
+  // Every link in every email (password reset, invoices, lead alerts, ticket
+  // replies…) is built from this one value. A silent `localhost` fallback in
+  // production means every one of those links is broken for real recipients
+  // with no visible error anywhere — same failure class as a missing
+  // DATABASE_URL, so it gets the same fail-fast treatment.
+  const frontendOrigin = process.env.FRONTEND_ORIGIN?.trim();
+  if (!frontendOrigin) {
+    if (nodeEnv === 'production') {
+      throw new Error('Missing required environment variable: FRONTEND_ORIGIN');
+    }
+    console.warn('[config] FRONTEND_ORIGIN not set — falling back to the local dev server');
+  }
+
   return {
     nodeEnv,
     port: Number(process.env.PORT ?? 3000),
@@ -65,7 +78,7 @@ export function loadConfig(): AppConfig {
     sessionCookieName: process.env.SESSION_COOKIE_NAME ?? 'tvz_session',
     sessionTtlDays: Number(process.env.SESSION_TTL_DAYS ?? 30),
     sessionCookieSecure: process.env.SESSION_COOKIE_SECURE === 'true',
-    frontendOrigin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173',
+    frontendOrigin: frontendOrigin || 'http://localhost:5173',
     anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() ?? '',
     anthropicModel: process.env.ANTHROPIC_MODEL?.trim() || 'claude-opus-5',
     anthropicModelFast: process.env.ANTHROPIC_MODEL_FAST?.trim() ?? '',

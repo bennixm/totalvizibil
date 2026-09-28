@@ -644,8 +644,6 @@
     "forgotSubtitle": "Introdu emailul și îți trimitem un link de resetare.",
     "sendLink": "Trimite linkul",
     "sentText": "Dacă emailul are un cont, linkul de resetare este pe drum.",
-    "devNote": "Mod dev — nu se trimite email, folosește linkul:",
-    "devOpen": "Deschide pagina de resetare",
     "backToLogin": "Înapoi la autentificare",
     "title": "Alege o parolă nouă",
     "subtitle": "Setează o parolă nouă pentru contul tău.",

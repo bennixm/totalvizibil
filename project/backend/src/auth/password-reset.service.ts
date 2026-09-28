@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PasswordService } from './password.service';
 import { SessionService } from './session.service';
 import { MailService } from '../mail/mail.service';
+import { ctaButton, renderEmailLayout, textToHtml } from '../mail/templates/layout';
 import { AppConfig } from '../config/env';
 
 const TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -12,7 +13,6 @@ const TTL_MS = 60 * 60 * 1000; // 1 hour
 @Injectable()
 export class PasswordResetService {
   private readonly logger = new Logger('PasswordReset');
-  private readonly isProd: boolean;
   private readonly frontendOrigin: string;
 
   constructor(
@@ -22,7 +22,6 @@ export class PasswordResetService {
     private readonly mail: MailService,
     config: ConfigService<AppConfig, true>,
   ) {
-    this.isProd = config.get('nodeEnv', { infer: true }) === 'production';
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
   }
 
@@ -32,10 +31,13 @@ export class PasswordResetService {
 
   /**
    * Always resolves the same way regardless of whether the email exists, to
-   * avoid account enumeration. In non-production the reset link is returned in
-   * the response and logged (no email provider is wired yet — PRD §17).
+   * avoid account enumeration. One real path, no environment branching: the
+   * link only ever reaches the customer through a real email. Locally, with
+   * no SMTP configured, MailService's own dev-log fallback prints the full
+   * message (link included) to the console — that's a property of
+   * MailService, not a special case here.
    */
-  async request(email: string): Promise<{ ok: true; devResetUrl?: string }> {
+  async request(email: string): Promise<{ ok: true }> {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || user.status !== 'active') {
       return { ok: true };
@@ -57,6 +59,18 @@ export class PasswordResetService {
     });
 
     const url = `${this.frontendOrigin}/reset-password?token=${token}`;
+    const text =
+      `Am primit o cerere de resetare a parolei pentru contul tău.\n\n` +
+      `Apasă pe linkul de mai jos pentru a-ți alege o parolă nouă (valabil o oră):\n${url}\n\n` +
+      `Dacă nu ai cerut tu resetarea, poți ignora acest email — parola ta rămâne neschimbată.`;
+    const html = renderEmailLayout({
+      heading: 'Resetează-ți parola',
+      preheader: 'Cererea ta de resetare a parolei — linkul e valabil o oră.',
+      bodyHtml:
+        textToHtml(
+          'Am primit o cerere de resetare a parolei pentru contul tău. Apasă butonul de mai jos pentru a-ți alege o parolă nouă — linkul este valabil o oră.\n\nDacă nu ai cerut tu resetarea, poți ignora acest email — parola ta rămâne neschimbată.',
+        ) + ctaButton('Resetează parola', url),
+    });
 
     // The token is already committed by this point — a mail hiccup must
     // never turn an already-valid reset link into a hung request. Not tied
@@ -65,26 +79,12 @@ export class PasswordResetService {
     // they typed, same pattern as the old-address notice in
     // AccountService.updateProfile.
     void this.mail
-      .send({
-        to: user.email,
-        subject: 'Resetează-ți parola',
-        text:
-          `Am primit o cerere de resetare a parolei pentru contul tău.\n\n` +
-          `Apasă pe linkul de mai jos pentru a-ți alege o parolă nouă (valabil o oră):\n${url}\n\n` +
-          `Dacă nu ai cerut tu resetarea, poți ignora acest email — parola ta rămâne neschimbată.`,
-      })
+      .send({ to: user.email, subject: 'Resetează-ți parola', text, html })
       .catch((err) =>
         this.logger.error('Password-reset email failed', err instanceof Error ? err.stack : err),
       );
 
-    if (this.isProd) {
-      return { ok: true };
-    }
-    // Dev convenience only — MailService already dev-logs the full text
-    // (including this same link) when SMTP isn't configured, so this just
-    // saves digging through logs when it is.
-    this.logger.warn(`DEV password reset link: ${url}`);
-    return { ok: true, devResetUrl: url };
+    return { ok: true };
   }
 
   async reset(token: string, newPassword: string): Promise<{ ok: true }> {

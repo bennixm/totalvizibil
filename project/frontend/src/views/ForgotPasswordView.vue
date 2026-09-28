@@ -13,7 +13,6 @@ useSeo(() => ({ title: t('reset.forgotTitle'), noindex: true }))
 const email = ref('')
 const loading = ref(false)
 const sent = ref(false)
-const devUrl = ref<string | null>(null)
 const error = ref<string | null>(null)
 const toasts = useToastStore()
 watch(error, (v) => {
@@ -24,12 +23,11 @@ async function submit() {
   loading.value = true
   error.value = null
   try {
-    const res = await apiFetch<{ ok: true; devResetUrl?: string }>('/auth/password/forgot', {
+    await apiFetch<{ ok: true }>('/auth/password/forgot', {
       method: 'POST',
       body: { email: email.value.trim() },
     })
     sent.value = true
-    devUrl.value = res.devResetUrl ?? null
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : t('auth.genericError')
   } finally {
@@ -79,18 +77,6 @@ async function submit() {
             <template v-else>
               <v-alert type="success" variant="tonal" density="comfortable" class="mb-3">
                 {{ t('reset.sentText') }}
-              </v-alert>
-              <v-alert
-                v-if="devUrl"
-                type="info"
-                variant="tonal"
-                density="comfortable"
-                icon="mdi-flask-outline"
-              >
-                <div class="text-caption mb-1">{{ t('reset.devNote') }}</div>
-                <router-link :to="devUrl.replace(/^https?:\/\/[^/]+/, '')" class="text-body-2">
-                  {{ t('reset.devOpen') }}
-                </router-link>
               </v-alert>
             </template>
           </v-card-text>

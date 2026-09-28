@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { LeadChannel, LeadStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { renderEmailLayout, textToHtml } from '../mail/templates/layout';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AppConfig } from '../config/env';
 import { isLikelyBot } from '../campaigns/ad-click';
@@ -320,21 +321,30 @@ export class LeadsService {
     if (!company) throw new NotFoundException('Company not found');
 
     const now = new Date();
+    const greeting = lead.name ? `Bună, ${lead.name},` : 'Bună,';
+    const text = [
+      greeting,
+      '',
+      message,
+      '',
+      '—',
+      company.displayName,
+      '',
+      lead.message ? `Mesajul tău:\n"${lead.message}"` : '',
+    ].join('\n');
+    const html = renderEmailLayout({
+      heading: `Răspuns de la ${company.displayName}`,
+      bodyHtml:
+        textToHtml(`${greeting}\n\n${message}\n\n— ${company.displayName}`) +
+        (lead.message ? textToHtml(`Mesajul tău:\n„${lead.message}"`) : ''),
+    });
     await this.mail
       .send({
         to: lead.email,
         replyTo: company.owner.email,
         subject: `Răspuns de la ${company.displayName}`,
-        text: [
-          `${lead.name ? `Bună, ${lead.name},` : 'Bună,'}`,
-          '',
-          message,
-          '',
-          '—',
-          company.displayName,
-          '',
-          lead.message ? `Mesajul tău:\n"${lead.message}"` : '',
-        ].join('\n'),
+        text,
+        html,
       })
       .catch((err) => this.logger.error(`lead reply email failed: ${String(err)}`));
 

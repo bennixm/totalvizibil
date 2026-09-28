@@ -644,8 +644,6 @@
     "forgotSubtitle": "Geben Sie Ihre E-Mail ein und wir senden einen Link zum Zurücksetzen.",
     "sendLink": "Link senden",
     "sentText": "Falls zu dieser E-Mail ein Konto besteht, ist ein Link unterwegs.",
-    "devNote": "Dev-Modus — es wird keine E-Mail gesendet, nutzen Sie diesen Link:",
-    "devOpen": "Zurücksetzen-Seite öffnen",
     "backToLogin": "Zurück zur Anmeldung",
     "title": "Neues Passwort wählen",
     "subtitle": "Legen Sie ein neues Passwort für Ihr Konto fest.",

@@ -13,6 +13,7 @@ import { AuthPrincipal, AuthUserView } from './auth.types';
 import { ChangePasswordDto, UpdateProfileDto } from './dto/account.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
+import { renderEmailLayout, textToHtml } from '../mail/templates/layout';
 
 @Injectable()
 export class AccountService {
@@ -79,11 +80,16 @@ export class AccountService {
     if (data.email) {
       const oldEmail = user.email;
       const newEmail = data.email;
+      const oldEmailText = `Adresa de email a contului tău a fost schimbată din ${oldEmail} în ${newEmail}.\n\nDacă nu ai fost tu, contactează-ne imediat.`;
       void this.mail
         .send({
           to: oldEmail,
           subject: 'Adresa de email a contului a fost schimbată',
-          text: `Adresa de email a contului tău a fost schimbată din ${oldEmail} în ${newEmail}.\n\nDacă nu ai fost tu, contactează-ne imediat.`,
+          text: oldEmailText,
+          html: renderEmailLayout({
+            heading: 'Adresa de email a contului a fost schimbată',
+            bodyHtml: textToHtml(oldEmailText),
+          }),
         })
         .catch((err) =>
           this.logger.error(

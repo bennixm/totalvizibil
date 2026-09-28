@@ -644,8 +644,6 @@
     "forgotSubtitle": "Enter your email and we'll send a reset link.",
     "sendLink": "Send reset link",
     "sentText": "If that email has an account, a reset link is on its way.",
-    "devNote": "Dev mode — no email is sent, use this link:",
-    "devOpen": "Open the reset page",
     "backToLogin": "Back to log in",
     "title": "Choose a new password",
     "subtitle": "Set a new password for your account.",

@@ -50,12 +50,35 @@ export class MailService {
             // upgrades via STARTTLS (`secure: false`) — nodemailer doesn't
             // infer this from the port itself.
             secure: port === 465,
+            // Refuse to ever silently fall back to plaintext if the STARTTLS
+            // upgrade fails — better a loud send failure (logged, caught,
+            // retried by the user) than mail quietly leaving unencrypted.
+            requireTLS: port !== 465,
+            // A hung TCP/TLS handshake against a misconfigured or
+            // unreachable host must fail within seconds, not block whatever
+            // request triggered it indefinitely.
+            connectionTimeout: 10_000,
+            greetingTimeout: 10_000,
+            socketTimeout: 10_000,
             auth: { user, pass },
           })
         : null;
     if (!this.transporter) {
       this.logger.log('SMTP_USER/SMTP_PASS not set — outgoing mail is dev-logged only');
+      return;
     }
+    // Verify the connection + auth at boot, not on the first real send — a
+    // bad host/port/credential is then a loud, immediate startup log line
+    // instead of a silent "no email ever arrived" support mystery days later.
+    this.transporter.verify().then(
+      () =>
+        this.logger.log(`SMTP connection verified (${config.get('smtpHost', { infer: true })})`),
+      (err) =>
+        this.logger.error(
+          `SMTP verification failed — outgoing mail will NOT be delivered until this is fixed (${config.get('smtpHost', { infer: true })}:${port})`,
+          err instanceof Error ? err.stack : err,
+        ),
+    );
   }
 
   get configured(): boolean {
