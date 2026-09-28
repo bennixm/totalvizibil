@@ -428,10 +428,15 @@ onMounted(async () => {
 }
 .apt__week {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.75rem;
 }
 .apt__day {
+  /* Grid items default to min-width: auto — without this, a day whose rows
+     can't shrink below their content (two time inputs side by side) refuses
+     to shrink with its track and spills out over the neighboring column
+     instead of wrapping inside its own. */
+  min-width: 0;
   padding: 0.6rem 0.7rem;
   border-radius: 10px;
   background: rgba(var(--v-theme-on-surface), 0.03);
@@ -453,13 +458,17 @@ onMounted(async () => {
 }
 .apt__windowRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
   margin-bottom: 0.3rem;
   font-size: 0.8rem;
 }
 .apt__windowRow input[type='time'] {
-  padding: 0.2rem 0.35rem;
+  flex: 1 1 76px;
+  min-width: 0;
+  max-width: 92px;
+  padding: 0.2rem 0.3rem;
   border: 1px solid var(--tvz-hairline, rgba(var(--v-theme-on-surface), 0.15));
   border-radius: 6px;
   background: rgb(var(--v-theme-surface));

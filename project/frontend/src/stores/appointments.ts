@@ -186,9 +186,18 @@ export const useAppointmentsStore = defineStore('appointments', {
       this.working = true
       this.error = ''
       try {
+        // The backend replaces the whole weekly template in one call and
+        // never reads a per-window id — strip it (present on windows loaded
+        // from settings) so the strict-whitelist validator doesn't reject
+        // the request for an unrecognized field.
+        const payload = windows.map(({ weekday, startMinute, endMinute }) => ({
+          weekday,
+          startMinute,
+          endMinute,
+        }))
         this.settings = await apiFetch<AppointmentSettings>(
           `/companies/${this.companyId}/appointments/availability`,
-          { method: 'PUT', body: { windows } },
+          { method: 'PUT', body: { windows: payload } },
         )
       } catch (err) {
         this.error = err instanceof Error ? err.message : 'error'

@@ -353,7 +353,7 @@ export class ProV2AgentService {
     if (!opts.isRepair) {
       const scope = checkScope(userContent);
       if (!scope.inScope) {
-        const reply = scopeRefusalMessage();
+        const reply = scopeRefusalMessage(scope.reason);
         const durationMs = Date.now() - startedAt;
         await this.projects.appendMessage(projectId, 'assistant', reply, {
           toolCalls: [],

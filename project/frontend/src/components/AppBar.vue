@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { storeToRefs } from 'pinia'
 
@@ -18,6 +18,7 @@ const emit = defineEmits<{ 'toggle-menu': [] }>()
 
 const { t } = useI18n()
 const { mdAndUp } = useDisplay()
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const companies = useCompaniesStore()
@@ -49,10 +50,40 @@ const STATUS_TONE: Record<string, string> = {
   suspended: 'error',
 }
 
+/** The business the account menu currently acts on — same "sticky selection,
+ *  else the first" resolution every company-scoped page already uses (see
+ *  `companies.resolveId`), so this always matches what Requests/Appointments/
+ *  Campaign/etc. would resolve to right now. */
+const currentCompany = computed(() => companies.currentOverview)
+
+/** Routes that read `?c=` for their active company (see `resolveId` callers
+ *  across the app) — switching business from the menu on one of these stays
+ *  on the same page and just swaps the company, so it's obvious the page's
+ *  content (requests, appointments, campaign, ...) follows the selection.
+ *  Anywhere else (feed, account, support, ...) falls back to the dashboard. */
+const COMPANY_SCOPED_ROUTES = new Set([
+  'dashboard',
+  'wallet',
+  'wallet-transactions',
+  'campaign',
+  'campaign-budget',
+  'campaign-optimize',
+  'campaign-spend',
+  'leads',
+  'appointments',
+  'invoices',
+  'website-builder',
+  'easy-site-editor',
+])
+
 function pickCompany(id: string): void {
   companies.select(id)
   menuOpen.value = false
-  void router.push({ name: 'dashboard', query: { c: id } })
+  const name =
+    typeof route.name === 'string' && COMPANY_SCOPED_ROUTES.has(route.name)
+      ? route.name
+      : 'dashboard'
+  void router.push({ name, query: { ...route.query, c: id } })
 }
 
 function go(to: { name: string }): void {
@@ -154,6 +185,25 @@ watch(() => auth.isAuthenticated, syncNotifications)
               <span v-if="auth.isPlatformStaff" class="menu__staffTag">{{ t('nav.staff') }}</span>
             </header>
 
+            <!-- Active campaign — which business Requests/Appointments/Campaign/etc.
+                 below currently act on, so switching it is never a guess. -->
+            <div v-if="currentCompany" class="menu__active">
+              <span class="menu__activeLabel">{{ t('nav.activeCampaign') }}</span>
+              <div class="menu__activeRow">
+                <span class="menu__bizDot" :class="`t-${STATUS_TONE[currentCompany.status] || 'idle'}`" />
+                <span class="menu__activeName">{{ currentCompany.displayName }}</span>
+                <span
+                  v-if="currentCompany.deletionScheduledAt"
+                  class="menu__chip menu__chip--del"
+                >{{ t('nav.bizDeleting') }}</span>
+                <span
+                  v-else-if="currentCompany.campaignStatus === 'active'"
+                  class="menu__chip menu__chip--live"
+                >{{ t('nav.bizLive') }}</span>
+                <span v-else class="menu__chip">{{ t('nav.bizDraft') }}</span>
+              </div>
+            </div>
+
             <div class="menu__scroll">
               <!-- Businesses -->
               <section class="menu__sec">
@@ -177,6 +227,7 @@ watch(() => auth.isAuthenticated, syncNotifications)
                     class="menu__chip menu__chip--live"
                   >{{ t('nav.bizLive') }}</span>
                   <span v-else class="menu__chip">{{ t('nav.bizDraft') }}</span>
+                  <v-icon v-if="c.id === currentId" icon="mdi-check" size="15" class="menu__bizCheck" />
                 </button>
                 <p v-if="!overview.length" class="menu__empty">{{ t('nav.noBusinesses') }}</p>
                 <button type="button" class="menu__biz menu__biz--add" @click="go({ name: 'create' })">
@@ -435,6 +486,37 @@ watch(() => auth.isAuthenticated, syncNotifications)
   color: rgb(var(--v-theme-primary));
 }
 
+/* Active campaign strip -------------------------------------------- */
+.menu__active {
+  padding: 0.75rem 1.35rem;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.1);
+  background: rgba(var(--v-theme-primary), 0.05);
+}
+.menu__activeLabel {
+  display: block;
+  margin-bottom: 0.32rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.menu__activeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.menu__activeName {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 0.94rem;
+  font-weight: 600;
+}
+
 /* Body ---------------------------------------------------------------- */
 .menu__scroll {
   max-height: min(68vh, 34rem);
@@ -579,6 +661,10 @@ watch(() => auth.isAuthenticated, syncNotifications)
   text-overflow: ellipsis;
   font-size: 0.92rem;
   font-weight: 500;
+}
+.menu__bizCheck {
+  flex: none;
+  color: rgb(var(--v-theme-primary));
 }
 .menu__chip {
   flex: none;

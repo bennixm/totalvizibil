@@ -11,9 +11,7 @@ describe('checkScope', () => {
       'Build a landing page for my plumbing business in Cluj.',
       'Create a portfolio site for a freelance photographer with a gallery.',
       'Make a business website for a dental clinic with a booking form.',
-      'Set up an e-commerce store with a product grid and cart.',
       'Add a booking system so clients can reserve a time slot.',
-      "Build a dashboard page showing the client's recent orders.",
       'Add a subtle fade-in animation when sections scroll into view.',
       'Add a contact form with name, email, and message fields.',
       'Add an image gallery for our recent projects.',
@@ -61,12 +59,73 @@ describe('checkScope', () => {
       expect(result.reason).toBe('prompt_injection');
     });
   });
+
+  describe('e-commerce requests are blocked (not a supported site type)', () => {
+    const requests = [
+      'Set up an e-commerce store with a product grid and cart.',
+      'Build me an online shop for my clothing brand.',
+      'Add a shopping cart and checkout flow to the site.',
+      'I need an add to cart button on every product.',
+      'Can you build a payment gateway so people can buy directly?',
+    ];
+    it.each(requests)('%s', (text) => {
+      const result = checkScope(text);
+      expect(result.inScope).toBe(false);
+      expect(result.reason).toBe('ecommerce');
+    });
+  });
+
+  describe('login/auth requests are blocked (not a supported site type)', () => {
+    const requests = [
+      'Add a login page so returning customers can sign in.',
+      'Build a user registration form with email and password.',
+      'I need a members-only area for paying subscribers.',
+      'Set up an authentication system for the site.',
+      'Add a password reset flow.',
+    ];
+    it.each(requests)('%s', (text) => {
+      const result = checkScope(text);
+      expect(result.inScope).toBe(false);
+      expect(result.reason).toBe('auth');
+    });
+  });
+
+  describe('general web-app / admin requests are blocked (not a supported site type)', () => {
+    const requests = [
+      "Build a dashboard page showing the client's recent orders.",
+      'I want a full web application, not just a website.',
+      'Build an admin dashboard to manage everything.',
+      'Set up an internal tool for our staff to track tasks.',
+      'Build a management system for our inventory.',
+    ];
+    it.each(requests)('%s', (text) => {
+      const result = checkScope(text);
+      expect(result.inScope).toBe(false);
+      expect(result.reason).toBe('webapp');
+    });
+  });
 });
 
 describe('scopeRefusalMessage', () => {
-  it('is short and does not leak internals', () => {
-    const msg = scopeRefusalMessage();
-    expect(msg.length).toBeLessThan(300);
-    expect(msg).not.toMatch(/stack|error|exception/i);
+  it('is short and does not leak internals for every reason (including none)', () => {
+    const reasons = [
+      undefined,
+      'malicious_intent',
+      'prompt_injection',
+      'ecommerce',
+      'auth',
+      'webapp',
+    ] as const;
+    for (const reason of reasons) {
+      const msg = scopeRefusalMessage(reason);
+      expect(msg.length).toBeLessThan(300);
+      expect(msg).not.toMatch(/stack|error|exception/i);
+    }
+  });
+
+  it('is reason-specific, not a generic catch-all, for capability rejections', () => {
+    expect(scopeRefusalMessage('ecommerce')).toMatch(/shop|cart|checkout/i);
+    expect(scopeRefusalMessage('auth')).toMatch(/login|registration|member/i);
+    expect(scopeRefusalMessage('webapp')).toMatch(/dashboard|application/i);
   });
 });
