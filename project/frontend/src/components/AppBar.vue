@@ -218,6 +218,10 @@ watch(() => auth.isAuthenticated, syncNotifications)
                 <span class="menu__ic"><v-icon icon="mdi-view-dashboard-outline" size="17" /></span>
                 <span>{{ t('nav.dashboard') }}</span>
               </button>
+              <button type="button" class="menu__row" @click="go({ name: 'wallet-transactions' })">
+                <span class="menu__ic"><v-icon icon="mdi-swap-horizontal" size="17" /></span>
+                <span>{{ t('nav.payments') }}</span>
+              </button>
               <button type="button" class="menu__row" @click="go({ name: 'account' })">
                 <span class="menu__ic"><v-icon icon="mdi-account-cog-outline" size="17" /></span>
                 <span>{{ t('nav.account') }}</span>

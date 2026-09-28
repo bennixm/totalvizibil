@@ -31,6 +31,11 @@ export function useUserNavGroups() {
         },
         { to: { name: 'campaign' }, label: t('nav.campaign'), icon: 'mdi-bullhorn-outline' },
         { to: { name: 'wallet' }, label: t('nav.wallet'), icon: 'mdi-wallet-outline' },
+        {
+          to: { name: 'wallet-transactions' },
+          label: t('nav.payments'),
+          icon: 'mdi-swap-horizontal',
+        },
         { to: { name: 'invoices' }, label: t('nav.invoices'), icon: 'mdi-receipt-text-outline' },
         { to: { name: 'support' }, label: t('nav.support'), icon: 'mdi-lifebuoy' },
       ],
