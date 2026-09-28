@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Appointment, AppointmentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MailService } from '../mail/mail.service';
+import { detailsTable, renderEmailLayout, textToHtml } from '../mail/templates/layout';
 import { AppConfig } from '../config/env';
 import { isLikelyBot } from '../campaigns/ad-click';
 import { SubmitAppointmentDto } from './dto/submit-appointment.dto';
@@ -30,6 +32,7 @@ export class AppointmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
     config: ConfigService<AppConfig, true>,
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
@@ -117,7 +120,14 @@ export class AppointmentsService {
   async list(
     userId: string,
     companyId: string,
-    opts: { status?: string; upcomingOnly?: boolean; cursor?: string; limit?: number } = {},
+    opts: {
+      status?: string;
+      upcomingOnly?: boolean;
+      from?: string;
+      to?: string;
+      cursor?: string;
+      limit?: number;
+    } = {},
   ) {
     await this.assertMember(companyId, userId);
     const take = Math.min(Math.max(opts.limit ?? 20, 1), PAGE_MAX);
@@ -126,9 +136,20 @@ export class AppointmentsService {
     if (opts.status && ['pending', 'confirmed', 'canceled', 'completed'].includes(opts.status)) {
       where.status = opts.status as AppointmentStatus;
     }
-    if (opts.upcomingOnly) {
-      where.startsAt = { gte: new Date() };
+    // Bucharest calendar-day bounds (not UTC midnight — see appointment.util.ts)
+    // so a picked date range matches what the owner actually sees on the
+    // clock, same convention `availableSlotsFor` already uses for a single
+    // day. An explicit `from` is a more specific lower bound than the plain
+    // "upcoming" toggle, so it takes precedence when both are set.
+    const startsAt: Prisma.DateTimeFilter = {};
+    if (opts.upcomingOnly) startsAt.gte = new Date();
+    if (opts.from && /^\d{4}-\d{2}-\d{2}$/.test(opts.from)) {
+      startsAt.gte = bucharestWallClockToUtc(opts.from, 0);
     }
+    if (opts.to && /^\d{4}-\d{2}-\d{2}$/.test(opts.to)) {
+      startsAt.lt = bucharestWallClockToUtc(opts.to, 24 * 60);
+    }
+    if (Object.keys(startsAt).length) where.startsAt = startsAt;
 
     const rows = await this.prisma.appointment.findMany({
       where,
@@ -172,12 +193,21 @@ export class AppointmentsService {
     await this.assertMember(companyId, userId);
     const appt = await this.prisma.appointment.findFirst({
       where: { id: appointmentId, companyId },
+      include: { company: { select: { displayName: true } } },
     });
     if (!appt) throw new NotFoundException('Appointment not found');
     const updated = await this.prisma.appointment.update({
       where: { id: appt.id },
       data: { status: status as AppointmentStatus },
     });
+    if (status === 'confirmed' || status === 'canceled') {
+      void this.notifyClient(updated, appt.company.displayName, status).catch((err) =>
+        this.logger.error(
+          `Appointment ${status} client email failed`,
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+    }
     return this.view(updated);
   }
 
@@ -313,6 +343,12 @@ export class AppointmentsService {
     void this.notifyOwner(company.owner.id, company.displayName, company.id, appt).catch((err) =>
       this.logger.error('Appointment notification failed', err instanceof Error ? err.stack : err),
     );
+    void this.notifyClient(appt, company.displayName, 'pending').catch((err) =>
+      this.logger.error(
+        'Appointment pending client email failed',
+        err instanceof Error ? err.stack : err,
+      ),
+    );
     return { ok: true };
   }
 
@@ -353,6 +389,76 @@ export class AppointmentsService {
       .catch((err) =>
         this.logger.error(
           'Appointment-received notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+  }
+
+  /**
+   * The VISITOR who booked — not a platform account, so this goes straight
+   * through MailService/the shared layout (same pattern as LeadsService's
+   * `reply()`, the other place this app emails someone who isn't a `userId`)
+   * rather than NotificationsService, which is user-panel-notification
+   * shaped. Silently a no-op when the visitor didn't leave an email — it's
+   * an optional field on the booking form.
+   */
+  private async notifyClient(
+    appt: AppointmentRow,
+    companyName: string,
+    status: 'pending' | 'confirmed' | 'canceled',
+  ): Promise<void> {
+    if (!appt.email) return;
+
+    const when = appt.startsAt.toLocaleString('ro-RO', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Europe/Bucharest',
+    });
+    const greeting = appt.name ? `Bună, ${appt.name},` : 'Bună,';
+    const COPY_BY_STATUS: Record<
+      'pending' | 'confirmed' | 'canceled',
+      { subject: string; heading: string; lead: string }
+    > = {
+      pending: {
+        subject: `Programarea ta la ${companyName} așteaptă confirmare`,
+        heading: 'Programarea ta așteaptă confirmare',
+        lead: `Am primit cererea ta de programare la ${companyName}. Îți vom trimite un email de îndată ce este confirmată.`,
+      },
+      confirmed: {
+        subject: `Programarea ta la ${companyName} a fost confirmată`,
+        heading: 'Programarea ta a fost confirmată',
+        lead: `Programarea ta la ${companyName} a fost confirmată. Te așteptăm la data și ora de mai jos.`,
+      },
+      canceled: {
+        subject: `Programarea ta la ${companyName} a fost anulată`,
+        heading: 'Programarea ta a fost anulată',
+        lead: `Programarea ta la ${companyName} a fost anulată. Dacă dorești o altă dată, te rugăm să faci o nouă programare pe site.`,
+      },
+    };
+    const COPY = COPY_BY_STATUS[status];
+
+    const bodyHtml =
+      textToHtml(`${greeting}\n\n${COPY.lead}`) +
+      detailsTable([
+        { label: 'Afacere', value: companyName },
+        { label: 'Data și ora', value: when },
+        { label: 'Durată', value: `${appt.durationMinutes} min` },
+      ]);
+
+    await this.mail
+      .send({
+        to: appt.email,
+        subject: COPY.subject,
+        text: `${greeting}\n\n${COPY.lead}\n\nAfacere: ${companyName}\nData și ora: ${when}\nDurată: ${appt.durationMinutes} min`,
+        html: renderEmailLayout({
+          heading: COPY.heading,
+          preheader: COPY.lead,
+          bodyHtml,
+        }),
+      })
+      .catch((err) =>
+        this.logger.error(
+          `Appointment ${status} client email failed`,
           err instanceof Error ? err.stack : err,
         ),
       );

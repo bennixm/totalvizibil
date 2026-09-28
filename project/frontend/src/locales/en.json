@@ -13,7 +13,8 @@
     "search": "Search",
     "learnMore": "Learn more",
     "moreInfo": "More info",
-    "close": "Close"
+    "close": "Close",
+    "delete": "Delete"
   },
   "nav": {
     "discover": "Discover",
@@ -1530,6 +1531,9 @@
     "filterCompleted": "Completed",
     "filterCanceled": "Canceled",
     "upcomingOnly": "Upcoming only",
+    "filterFrom": "From",
+    "filterTo": "To",
+    "filterClearDates": "Clear dates",
     "empty": "No appointments yet",
     "emptyHint": "Bookings made from your site's booking form appear here.",
     "status": {

@@ -41,6 +41,9 @@ export interface AppointmentSettings {
 interface Filters {
   status: '' | AppointmentStatus
   upcomingOnly: boolean
+  /** YYYY-MM-DD, Bucharest calendar day — inclusive range, either end optional. */
+  from: string
+  to: string
 }
 
 interface State {
@@ -62,7 +65,7 @@ export const useAppointmentsStore = defineStore('appointments', {
     nextCursor: null,
     summary: null,
     settings: null,
-    filters: { status: '', upcomingOnly: true },
+    filters: { status: '', upcomingOnly: true, from: '', to: '' },
     loading: false,
     working: false,
     error: '',
@@ -73,6 +76,8 @@ export const useAppointmentsStore = defineStore('appointments', {
       const p = new URLSearchParams()
       if (this.filters.status) p.set('status', this.filters.status)
       if (this.filters.upcomingOnly) p.set('upcomingOnly', 'true')
+      if (this.filters.from) p.set('from', this.filters.from)
+      if (this.filters.to) p.set('to', this.filters.to)
       const s = p.toString()
       return s ? `?${s}` : ''
     },

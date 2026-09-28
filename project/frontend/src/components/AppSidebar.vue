@@ -118,6 +118,9 @@ function onNavigate(): void {
 
 .sbar__top {
   flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .sbar__nav {

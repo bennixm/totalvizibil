@@ -13,7 +13,8 @@
     "search": "Suchen",
     "learnMore": "Mehr erfahren",
     "moreInfo": "Mehr Infos",
-    "close": "Schließen"
+    "close": "Schließen",
+    "delete": "Löschen"
   },
   "nav": {
     "discover": "Entdecken",
@@ -1530,6 +1531,9 @@
     "filterCompleted": "Abgeschlossen",
     "filterCanceled": "Storniert",
     "upcomingOnly": "Nur bevorstehende",
+    "filterFrom": "Von",
+    "filterTo": "Bis",
+    "filterClearDates": "Daten löschen",
     "empty": "Noch keine Termine",
     "emptyHint": "Über das Buchungsformular deiner Website vereinbarte Termine erscheinen hier.",
     "status": {

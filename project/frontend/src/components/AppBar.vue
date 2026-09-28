@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { storeToRefs } from 'pinia'
 
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import ThemeQuickToggle from '@/components/ThemeQuickToggle.vue'
+import { useCompanySwitch } from '@/composables/useCompanySwitch'
 import { useSignOut } from '@/composables/useSignOut'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
@@ -18,13 +19,13 @@ const emit = defineEmits<{ 'toggle-menu': [] }>()
 
 const { t } = useI18n()
 const { mdAndUp } = useDisplay()
-const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const companies = useCompaniesStore()
 const notifications = useNotificationsStore()
 const { overview, currentId } = storeToRefs(companies)
 const { signOut: doSignOut } = useSignOut()
+const { pickCompany: switchCompany } = useCompanySwitch()
 
 const menuOpen = ref(false)
 
@@ -56,34 +57,9 @@ const STATUS_TONE: Record<string, string> = {
  *  Campaign/etc. would resolve to right now. */
 const currentCompany = computed(() => companies.currentOverview)
 
-/** Routes that read `?c=` for their active company (see `resolveId` callers
- *  across the app) — switching business from the menu on one of these stays
- *  on the same page and just swaps the company, so it's obvious the page's
- *  content (requests, appointments, campaign, ...) follows the selection.
- *  Anywhere else (feed, account, support, ...) falls back to the dashboard. */
-const COMPANY_SCOPED_ROUTES = new Set([
-  'dashboard',
-  'wallet',
-  'wallet-transactions',
-  'campaign',
-  'campaign-budget',
-  'campaign-optimize',
-  'campaign-spend',
-  'leads',
-  'appointments',
-  'invoices',
-  'website-builder',
-  'easy-site-editor',
-])
-
 function pickCompany(id: string): void {
-  companies.select(id)
   menuOpen.value = false
-  const name =
-    typeof route.name === 'string' && COMPANY_SCOPED_ROUTES.has(route.name)
-      ? route.name
-      : 'dashboard'
-  void router.push({ name, query: { ...route.query, c: id } })
+  switchCompany(id)
 }
 
 function go(to: { name: string }): void {

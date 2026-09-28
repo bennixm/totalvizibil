@@ -9,6 +9,7 @@ import AppSidebar from '@/components/AppSidebar.vue'
 import AppToasts from '@/components/AppToasts.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import MobileTabBar from '@/components/MobileTabBar.vue'
+import SidebarCampaignSwitch from '@/components/SidebarCampaignSwitch.vue'
 import SidebarModeSwitch from '@/components/SidebarModeSwitch.vue'
 import { useAdminNavGroups } from '@/composables/useAdminNavGroups'
 import { useLocaleSync } from '@/composables/useLocaleSync'
@@ -51,8 +52,9 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
     <v-main class="shell" :class="{ 'shell--mobile': !mdAndUp }">
       <v-layout v-if="showSidebar" class="panel-layout">
         <AppSidebar :groups="sidebarGroups">
-          <template v-if="auth.isPlatformStaff" #top>
-            <SidebarModeSwitch />
+          <template v-if="auth.isPlatformStaff || !isAdminRoute" #top>
+            <SidebarModeSwitch v-if="auth.isPlatformStaff" />
+            <SidebarCampaignSwitch v-if="!isAdminRoute" />
           </template>
           <template #footer>
             <RouterLink :to="{ name: 'account' }" class="sfoot__row">

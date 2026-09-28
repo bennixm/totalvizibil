@@ -13,7 +13,8 @@
     "search": "Caută",
     "learnMore": "Află mai multe",
     "moreInfo": "Mai multe informații",
-    "close": "Închide"
+    "close": "Închide",
+    "delete": "Șterge"
   },
   "nav": {
     "discover": "Descoperă",
@@ -1530,6 +1531,9 @@
     "filterCompleted": "Finalizate",
     "filterCanceled": "Anulate",
     "upcomingOnly": "Doar viitoare",
+    "filterFrom": "De la",
+    "filterTo": "Până la",
+    "filterClearDates": "Șterge datele",
     "empty": "Nicio programare încă",
     "emptyHint": "Programările făcute din formularul de pe site apar aici.",
     "status": {

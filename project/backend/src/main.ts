@@ -16,7 +16,25 @@ async function bootstrap(): Promise<void> {
   app.use(json({ limit: '12mb' }));
   app.use(urlencoded({ extended: true, limit: '12mb' }));
   app.use(cookieParser());
-  app.use(helmet());
+  app.use(
+    helmet({
+      // Only the published-bundle HTML (`/public/companies/:id/site/index.html`,
+      // rendered inside an <iframe> on the public company page and the
+      // dashboard preview) is actually an HTML document subject to this —
+      // every other route is a JSON API response CSP doesn't apply to.
+      // Helmet's own default `img-src 'self' data:` blocked the Pexels
+      // photos the Website Builder (PRO V2) embeds via `search_images`,
+      // even though the SAME image loaded fine in the builder's own preview
+      // (a different, unrestricted origin) — extend it with Pexels' CDN
+      // rather than dropping the directive entirely.
+      contentSecurityPolicy: {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          'img-src': ["'self'", 'data:', 'https://images.pexels.com'],
+        },
+      },
+    }),
+  );
   app.enableCors({
     origin: config.get('frontendOrigin', { infer: true }),
     credentials: true,

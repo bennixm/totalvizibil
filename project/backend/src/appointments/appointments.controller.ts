@@ -56,12 +56,16 @@ export class AppointmentsController {
     @Param('companyId', ParseUUIDPipe) companyId: string,
     @Query('status') status?: string,
     @Query('upcomingOnly') upcomingOnly?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
     return this.appointments.list(user.id, companyId, {
       status,
       upcomingOnly: upcomingOnly === 'true',
+      from,
+      to,
       cursor,
       limit: limit ? Number(limit) : undefined,
     });

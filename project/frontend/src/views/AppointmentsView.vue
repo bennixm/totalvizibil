@@ -79,6 +79,14 @@ const STATUS_TONE: Record<AppointmentStatus, string> = {
   completed: 'primary',
 }
 
+const hasDateFilter = computed(() => !!filters.value.from || !!filters.value.to)
+async function clearDateFilter(): Promise<void> {
+  if (!companyId.value) return
+  appointments.filters.from = ''
+  appointments.filters.to = ''
+  await appointments.load(companyId.value)
+}
+
 async function loadMore(): Promise<void> {
   if (!nextCursor.value) return
   await appointments.loadMore()
@@ -270,6 +278,29 @@ onMounted(async () => {
           />
           {{ t('appointments.upcomingOnly') }}
         </label>
+      </div>
+
+      <!-- Date range filter -->
+      <div class="apt__dateFilter">
+        <label class="apt__dateField">
+          <span>{{ t('appointments.filterFrom') }}</span>
+          <input
+            type="date"
+            :value="filters.from"
+            @change="appointments.setFilter('from', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+        <label class="apt__dateField">
+          <span>{{ t('appointments.filterTo') }}</span>
+          <input
+            type="date"
+            :value="filters.to"
+            @change="appointments.setFilter('to', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+        <button v-if="hasDateFilter" type="button" class="apt__dateClear" @click="clearDateFilter">
+          <v-icon icon="mdi-close" size="14" /> {{ t('appointments.filterClearDates') }}
+        </button>
       </div>
 
       <!-- Empty -->
@@ -522,6 +553,43 @@ onMounted(async () => {
   gap: 0.4rem;
   font-size: 0.8rem;
   color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.apt__dateFilter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.apt__dateField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.apt__dateField input[type='date'] {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--tvz-hairline, rgba(var(--v-theme-on-surface), 0.15));
+  border-radius: 8px;
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+  font-size: 0.82rem;
+}
+.apt__dateClear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.apt__dateClear:hover {
+  background: rgba(var(--v-theme-on-surface), 0.06);
 }
 
 .apt__empty {
