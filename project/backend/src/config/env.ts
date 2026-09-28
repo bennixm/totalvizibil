@@ -59,16 +59,30 @@ export function loadConfig(): AppConfig {
   }
 
   // Every link in every email (password reset, invoices, lead alerts, ticket
-  // replies…) is built from this one value. A silent `localhost` fallback in
-  // production means every one of those links is broken for real recipients
-  // with no visible error anywhere — same failure class as a missing
-  // DATABASE_URL, so it gets the same fail-fast treatment.
+  // replies…) AND every Stripe Checkout redirect is built from this one
+  // value. A `localhost` value in production means every one of those is
+  // broken for real recipients with no visible error anywhere — same
+  // failure class as a missing DATABASE_URL, so it gets the same fail-fast
+  // treatment. Checking "is it set" alone isn't enough: a `.env` created by
+  // copying `.env.example` without changing this line would have it set to
+  // exactly `http://localhost:5173` and pass a presence-only check while
+  // still being wrong — so a dev-looking value is rejected the same as a
+  // missing one.
   const frontendOrigin = process.env.FRONTEND_ORIGIN?.trim();
-  if (!frontendOrigin) {
+  const looksLikeDevUrl =
+    !!frontendOrigin &&
+    /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:|\/|$)/i.test(frontendOrigin);
+  if (!frontendOrigin || looksLikeDevUrl) {
     if (nodeEnv === 'production') {
-      throw new Error('Missing required environment variable: FRONTEND_ORIGIN');
+      throw new Error(
+        !frontendOrigin
+          ? 'Missing required environment variable: FRONTEND_ORIGIN'
+          : `FRONTEND_ORIGIN is set to a local/dev URL (${frontendOrigin}) in production — set it to the real platform domain (e.g. https://totalvizibil.ro)`,
+      );
     }
-    console.warn('[config] FRONTEND_ORIGIN not set — falling back to the local dev server');
+    if (!frontendOrigin) {
+      console.warn('[config] FRONTEND_ORIGIN not set — falling back to the local dev server');
+    }
   }
 
   return {
