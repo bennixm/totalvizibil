@@ -294,6 +294,21 @@ onBeforeUnmount(() => {
   // "unboot"; it's released when the tab/navigation actually discards it.
   clearAttachments()
 })
+
+// A notification or the nav dropdown can change ?c=/?companyId= to a
+// DIFFERENT company while this view stays mounted (same route, only the
+// query differs) — unlike the simpler list pages, this view can't just
+// reload its data in place: only one WebContainer may ever boot per tab (see
+// the note above), so re-running the boot for a new company here would try
+// to boot a second one. A full page reload gives it the same clean slate a
+// manual refresh already does, without touching the sandbox/boot logic.
+watch(
+  () => (adminMode.value ? route.query.companyId : route.query.c),
+  (raw) => {
+    const next = typeof raw === 'string' ? raw : null
+    if (next && next !== companyId.value) window.location.reload()
+  },
+)
 </script>
 
 <template>

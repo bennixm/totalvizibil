@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -38,6 +38,19 @@ onMounted(async () => {
   companyId.value = id
   await store.load(id)
 })
+
+// A notification or the nav dropdown can change ?c= while this view stays
+// mounted (same route, only the query differs) — reload for the new company.
+watch(
+  () => route.query.c,
+  (raw) => {
+    const next = typeof raw === 'string' ? raw : null
+    if (next && next !== companyId.value) {
+      companyId.value = next
+      void store.load(next)
+    }
+  },
+)
 </script>
 
 <template>

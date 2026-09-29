@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
@@ -14,15 +14,31 @@ const invoice = ref<Invoice | null>(null)
 const loading = ref(true)
 const error = ref('')
 
-onMounted(async () => {
+async function loadInvoice(id: string): Promise<void> {
+  loading.value = true
+  error.value = ''
   try {
-    invoice.value = await apiFetch<Invoice>(`/account/billing/invoices/${route.params.id}`)
+    invoice.value = await apiFetch<Invoice>(`/account/billing/invoices/${id}`)
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : t('invoice.loadError')
   } finally {
     loading.value = false
   }
+}
+
+onMounted(() => {
+  void loadInvoice(String(route.params.id))
 })
+
+// A notification (e.g. a new payment/refund) can link to a DIFFERENT
+// invoice while this view stays mounted (same route, only the :id param
+// differs) — reload for the new invoice.
+watch(
+  () => route.params.id,
+  (id) => {
+    if (typeof id === 'string' && id) void loadInvoice(id)
+  },
+)
 
 function doPrint(): void {
   window.print()

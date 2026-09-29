@@ -159,6 +159,19 @@ onMounted(async () => {
   companyId.value = id
   await appointments.load(id)
 })
+
+// A notification or the nav dropdown can change ?c= while this view stays
+// mounted (same route, only the query differs) — reload for the new company.
+watch(
+  () => route.query.c,
+  (raw) => {
+    const next = typeof raw === 'string' ? raw : null
+    if (next && next !== companyId.value) {
+      companyId.value = next
+      void appointments.load(next)
+    }
+  },
+)
 </script>
 
 <template>
