@@ -202,7 +202,7 @@ function fmtNum(v: number, maxFractionDigits = 2): string {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: maxFractionDigits }).format(v)
 }
 function fmtMinutes(m: number | null): string {
-  if (m == null) return '—'
+  if (m == null) return 'N/A'
   if (m < 60) return `${m} min`
   if (m < 60 * 24) return `${Math.round(m / 60)} h`
   return `${Math.round(m / 1440)} ${t('dashboard.days')}`
@@ -745,7 +745,8 @@ watch(
               <CreditsValue :credits="a.campaign.consumedTotal.credits" stacked />
             </strong>
             <span class="astat__x">
-              {{ t('analytics.today', { n: fmtNum(a.campaign.consumedToday.credits) + ' cr' }) }}
+              {{ t('analytics.today', { n: fmtNum(a.campaign.consumedToday.credits) }) }}
+              <v-icon icon="mdi-poker-chip" size="0.7em" class="astat__unit" />
             </span>
           </div>
           <div class="astat">
@@ -774,9 +775,14 @@ watch(
       </div>
     </template>
 
-    <v-dialog v-model="showSite" max-width="960" scrollable>
-      <v-card>
-        <v-card-text class="pa-2">
+    <v-dialog v-model="showSite" fullscreen scrollable>
+      <v-card rounded="0">
+        <div class="dsite__head">
+          <span class="dsite__headLabel">{{ t('dashboard.viewSite') }}</span>
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" size="small" @click="showSite = false" />
+        </div>
+        <v-card-text class="pa-2 dsite__body">
           <iframe
             v-if="hasBundle"
             :src="bundleUrl"
@@ -790,22 +796,36 @@ watch(
             framed
           />
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="showSite = false">{{ t('common.cancel') }}</v-btn>
-        </v-card-actions>
       </v-card>
     </v-dialog>
   </v-container>
 </template>
 
 <style scoped>
+.dsite__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.dsite__headLabel {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.dsite__body {
+  height: calc(100vh - 3rem);
+}
+.dsite__body :deep(.site--framed .site__scroll) {
+  max-height: none;
+  height: 100%;
+}
 .dsite__bundleFrame {
   display: block;
   width: 100%;
-  height: 620px;
+  height: 100%;
   border: 0;
-  border-radius: 8px;
 }
 .dash {
   max-width: 960px;
@@ -1228,6 +1248,10 @@ watch(
 .astat__x {
   font-size: 0.72rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.astat__unit {
+  margin-left: 0.1em;
+  opacity: 0.7;
 }
 
 .dash__danger {

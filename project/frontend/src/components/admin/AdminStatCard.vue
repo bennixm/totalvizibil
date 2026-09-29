@@ -10,6 +10,9 @@ const props = defineProps<{
   tone?: 'primary' | 'success' | 'error' | 'warning'
   sub?: string
   to?: RouteLocationRaw
+  /** Shows the dedicated credits-unit icon right after `value`, instead of
+   *  spelling out "Credite"/"cr" in the string itself. */
+  valueIsCredits?: boolean
 }>()
 
 const router = useRouter()
@@ -31,7 +34,10 @@ function go() {
       <span class="asc__label">{{ label }}</span>
       <v-icon v-if="icon" :icon="icon" size="18" class="asc__icon" />
     </div>
-    <div class="asc__value">{{ value }}</div>
+    <div class="asc__value">
+      {{ value }}
+      <v-icon v-if="valueIsCredits" icon="mdi-poker-chip" size="0.6em" class="asc__unit" />
+    </div>
     <div v-if="sub" class="asc__sub">{{ sub }}</div>
   </component>
 </template>
@@ -96,5 +102,9 @@ function go() {
 .asc__sub {
   font-size: 0.72rem;
   color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.asc__unit {
+  margin-left: 0.15em;
+  opacity: 0.75;
 }
 </style>

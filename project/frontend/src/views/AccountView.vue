@@ -8,8 +8,10 @@ import { useAuthStore } from '@/stores/auth'
 import { useAccountStore } from '@/stores/account'
 import { useBillingStore, type BillingKind } from '@/stores/billing'
 import { useAffiliateStore } from '@/stores/affiliate'
+import { useWalletStore } from '@/stores/wallet'
 import { ApiError } from '@/services/api'
 import { useToastStore } from '@/stores/toast'
+import { storeToRefs } from 'pinia'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -17,6 +19,9 @@ const auth = useAuthStore()
 const account = useAccountStore()
 const billing = useBillingStore()
 const affiliate = useAffiliateStore()
+const wallet = useWalletStore()
+const { summary: walletSummary, working: walletWorking } = storeToRefs(wallet)
+const CURRENCIES = ['EUR', 'RON'] as const
 
 const TABS = ['profile', 'security', 'sessions', 'billing', 'affiliate'] as const
 const tab = ref<(typeof TABS)[number]>(
@@ -38,6 +43,7 @@ onMounted(async () => {
       account.loadSessions(),
       billing.load(),
       affiliate.load(),
+      wallet.ensureSummary(),
     ])
   } finally {
     loading.value = false
@@ -323,6 +329,23 @@ function shortDate(iso: string): string {
               </v-btn>
             </v-form>
           </v-card>
+
+          <v-card border flat class="tvz-card pa-5 mt-4">
+            <h2 class="acc__h2">{{ t('account.preferencesTitle') }}</h2>
+            <p class="acc__note">{{ t('wallet.currencyLabel') }}</p>
+            <div class="acc__currencyBtns" role="group" :aria-label="t('wallet.currencyLabel')">
+              <button
+                v-for="c in CURRENCIES"
+                :key="c"
+                type="button"
+                :class="{ 'is-on': walletSummary?.currency === c }"
+                :disabled="walletWorking"
+                @click="wallet.setCurrency(c)"
+              >
+                {{ t('wallet.currency' + c) }}
+              </button>
+            </div>
+          </v-card>
         </v-window-item>
 
         <!-- SECURITY -->
@@ -478,7 +501,7 @@ function shortDate(iso: string): string {
                   </v-chip>
                 </v-list-item-title>
                 <v-list-item-subtitle>
-                  {{ s.ip || '—' }} · {{ new Date(s.createdAt).toLocaleString() }}
+                  {{ s.ip || 'N/A' }} · {{ new Date(s.createdAt).toLocaleString() }}
                 </v-list-item-subtitle>
               </v-list-item>
             </v-list>
@@ -654,7 +677,7 @@ function shortDate(iso: string): string {
                         {{ r.status === 'rewarded' ? t('affiliate.statusRewarded') : t('affiliate.statusPending') }}
                       </v-chip>
                     </td>
-                    <td class="num">{{ r.rewardCredits != null ? `${r.rewardCredits} cr` : '—' }}</td>
+                    <td class="num">{{ r.rewardCredits != null ? `${r.rewardCredits} cr` : 'N/A' }}</td>
                     <td class="num">
                       <router-link
                         v-if="r.invoiceId"
@@ -741,6 +764,32 @@ function shortDate(iso: string): string {
   font-size: 0.83rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
   margin: 0 0 1rem;
+}
+.acc__currencyBtns {
+  display: inline-flex;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface));
+}
+.acc__currencyBtns button {
+  padding: 0.4rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  transition:
+    background var(--tvz-dur-fast) var(--tvz-ease-out),
+    color var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.acc__currencyBtns button + button {
+  border-left: 1px solid var(--tvz-glass-border);
+}
+.acc__currencyBtns button.is-on {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.acc__currencyBtns button:disabled {
+  opacity: 0.5;
 }
 .totp-setup {
   display: flex;

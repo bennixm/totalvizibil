@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { BillingService, isProfileComplete } from '../billing/billing.service';
 import { generateInvoicePdf } from '../billing/invoice-pdf';
+import { generatePaymentsPdf } from './payments-pdf';
 import { AffiliateService } from '../affiliate/affiliate.service';
 import { StripeService } from '../stripe/stripe.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -551,6 +552,103 @@ export class WalletService implements OnModuleInit {
     }));
 
     return { items, nextCursor: hasMore ? pageRows[pageRows.length - 1].id : null };
+  }
+
+  /** Shared date-range filter builder for listPayments/listPaymentsForExport
+   *  — same "inclusive UTC calendar-day bounds" convention `listTransactions`
+   *  already uses. */
+  private paymentsDateFilter(from?: string, to?: string): Prisma.DateTimeFilter {
+    const createdAt: Prisma.DateTimeFilter = {};
+    if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
+      createdAt.gte = new Date(`${from}T00:00:00.000Z`);
+    }
+    if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      createdAt.lt = new Date(new Date(`${to}T00:00:00.000Z`).getTime() + 86_400_000);
+    }
+    return createdAt;
+  }
+
+  /** The `where` clause for "Payments" (real money the owner actually paid —
+   *  a completed Stripe purchase, not a dev-stub test row or an admin/
+   *  affiliate credit grant) vs "Refunds" (any status — pending/completed/
+   *  failed are all meaningful to see in a statement). */
+  private paymentsWhere(
+    walletId: string,
+    kind: 'purchase' | 'refund',
+  ): Prisma.WalletTransactionWhereInput {
+    return {
+      walletId,
+      type: kind,
+      ...(kind === 'purchase' ? { provider: STRIPE_PROVIDER, status: 'completed' } : {}),
+    };
+  }
+
+  /** Paginated list backing the Wallet page's own Payments/Refunds table —
+   *  see paymentsWhere for exactly what each tab includes. */
+  async listPayments(
+    userId: string,
+    opts: {
+      kind: 'purchase' | 'refund';
+      limit?: number;
+      cursor?: string;
+      from?: string;
+      to?: string;
+    },
+  ) {
+    const wallet = await this.ensureWallet(userId);
+    const take = Math.min(Math.max(opts.limit ?? 20, 1), 100);
+    const createdAt = this.paymentsDateFilter(opts.from, opts.to);
+    const rows = await this.prisma.walletTransaction.findMany({
+      where: {
+        ...this.paymentsWhere(wallet.id, opts.kind),
+        ...(Object.keys(createdAt).length ? { createdAt } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: take + 1,
+      ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+    });
+    const hasMore = rows.length > take;
+    const pageRows = hasMore ? rows.slice(0, take) : rows;
+    const items = pageRows.map((t) => ({
+      id: t.id,
+      status: t.status,
+      amount: money(t.amountMinor),
+      createdAt: t.createdAt,
+      feePct: t.type === 'refund' ? t.feePct : null,
+      feeMinor: t.type === 'refund' && t.feeMinor != null ? money(t.feeMinor) : null,
+      processAt: t.type === 'refund' ? t.processAt : null,
+    }));
+    return { items, nextCursor: hasMore ? pageRows[pageRows.length - 1].id : null };
+  }
+
+  /** Same filter as listPayments, unpaginated (capped) — feeds the PDF export. */
+  async exportPaymentsPdf(
+    userId: string,
+    userName: string,
+    opts: { kind: 'purchase' | 'refund'; from?: string; to?: string },
+  ): Promise<Buffer> {
+    const wallet = await this.ensureWallet(userId);
+    const createdAt = this.paymentsDateFilter(opts.from, opts.to);
+    const rows = await this.prisma.walletTransaction.findMany({
+      where: {
+        ...this.paymentsWhere(wallet.id, opts.kind),
+        ...(Object.keys(createdAt).length ? { createdAt } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 1000,
+    });
+    return generatePaymentsPdf({
+      kind: opts.kind,
+      ownerName: userName,
+      from: opts.from ?? null,
+      to: opts.to ?? null,
+      rows: rows.map((t) => ({
+        id: t.id,
+        status: t.status,
+        amountMinor: t.amountMinor,
+        createdAt: t.createdAt,
+      })),
+    });
   }
 
   /**

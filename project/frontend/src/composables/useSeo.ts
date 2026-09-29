@@ -1,9 +1,9 @@
 import { onScopeDispose, toValue, watchEffect, type MaybeRefOrGetter } from 'vue'
 
 const SITE_NAME = 'Totalvizibil'
-const DEFAULT_TITLE = 'Totalvizibil — afaceri locale, găsite rapid'
+const DEFAULT_TITLE = 'Totalvizibil · afaceri locale, găsite rapid'
 const DEFAULT_DESCRIPTION =
-  'Totalvizibil — descoperă afaceri locale pe categorii și zonă. Site web construit cu AI, listare în feed și campanii CPC.'
+  'Totalvizibil · descoperă afaceri locale pe categorii și zonă. Site web construit cu AI, listare în feed și campanii CPC.'
 /** Shipped in `public/` — swap for a per-page render later if wanted. */
 const DEFAULT_OG_IMAGE = '/og-image.svg'
 const OG_LOCALE: Record<string, string> = { ro: 'ro_RO', en: 'en_US', de: 'de_DE' }

@@ -5,6 +5,8 @@ import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { storeToRefs } from 'pinia'
 
+import CreditsValue from '@/components/CreditsValue.vue'
+import CurrencyQuickToggle from '@/components/CurrencyQuickToggle.vue'
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import ThemeQuickToggle from '@/components/ThemeQuickToggle.vue'
@@ -13,6 +15,7 @@ import { useSignOut } from '@/composables/useSignOut'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useWalletStore } from '@/stores/wallet'
 
 const props = defineProps<{ showMenuToggle?: boolean }>()
 const emit = defineEmits<{ 'toggle-menu': [] }>()
@@ -23,9 +26,13 @@ const router = useRouter()
 const auth = useAuthStore()
 const companies = useCompaniesStore()
 const notifications = useNotificationsStore()
+const wallet = useWalletStore()
 const { overview, currentId } = storeToRefs(companies)
+const { summary: walletSummary } = storeToRefs(wallet)
 const { signOut: doSignOut } = useSignOut()
 const { pickCompany: switchCompany } = useCompanySwitch()
+
+const walletCredits = computed(() => walletSummary.value?.balance.credits ?? 0)
 
 const menuOpen = ref(false)
 
@@ -83,16 +90,32 @@ function syncNotifications(): void {
     notifications.reset()
   }
 }
+function syncWallet(): void {
+  if (auth.isAuthenticated) void wallet.ensureSummary().catch(() => {})
+}
 onMounted(() => {
   void loadCompanies()
   syncNotifications()
+  syncWallet()
 })
 watch(() => auth.isAuthenticated, loadCompanies)
 watch(() => auth.isAuthenticated, syncNotifications)
+watch(() => auth.isAuthenticated, syncWallet)
 </script>
 
 <template>
-  <v-app-bar :height="64" color="transparent" flat class="topbar" :class="{ 'topbar--mobile': !mdAndUp }">
+  <v-app-bar
+    color="transparent"
+    flat
+    :height="112"
+    class="topbar"
+    :class="{ 'topbar--mobile': !mdAndUp }"
+  >
+    <div class="topbar__upper__inner">
+      <CurrencyQuickToggle v-if="auth.isAuthenticated" />
+      <ThemeQuickToggle />
+      <LocaleSwitcher />
+    </div>
     <div class="topbar__inner">
       <button
         v-if="props.showMenuToggle"
@@ -132,8 +155,15 @@ watch(() => auth.isAuthenticated, syncNotifications)
         </v-btn>
 
         <NotificationBell v-if="auth.isAuthenticated" />
-        <ThemeQuickToggle />
-        <LocaleSwitcher />
+
+        <router-link
+          v-if="auth.isAuthenticated"
+          :to="{ name: 'wallet' }"
+          class="wallet-chip"
+          :aria-label="t('wallet.title')"
+        >
+          <CreditsValue :credits="walletCredits" :approx="false" />
+        </router-link>
 
         <!-- Account menu -->
         <v-menu
@@ -254,26 +284,52 @@ watch(() => auth.isAuthenticated, syncNotifications)
 </template>
 
 <style scoped>
+
 .topbar {
-  background: var(--tvz-glass-bg-strong) !important;
-  border-bottom: 1px solid var(--tvz-hairline);
+  width:100%;
+  display:flex;
+  flex-direction:column !important;
 }
+/* Vuetify lays its slotted content out inside its own .v-toolbar__content,
+   not the <header> this class sits on — the column direction above never
+   reached the two stacked rows without this, so they rendered side by side
+   instead of one above the other. */
 .topbar :deep(.v-toolbar__content) {
   padding-inline: 0;
+  height: 100% !important;
+  flex-direction: column;
+  align-items: stretch;
 }
 .topbar__inner {
+  background: var(--tvz-glass-bg-strong) !important;
+  border-bottom: 1px solid var(--tvz-hairline);
   width: 100%;
-  max-width: var(--tvz-content-width);
-  margin-inline: auto;
-  padding-inline: clamp(0.9rem, 3vw, 1.5rem);
+  max-width: 1800px;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin:0 auto;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+/* A quiet utility strip above the main bar, no background of its own — just
+   the less-important controls (locale, theme) tucked out of the primary row. */
+.topbar__upper__inner {
+  flex: none;
+  height: 40px;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
   align-items: center;
   gap: 0.5rem;
+  padding-inline: 1rem;
+  background: transparent;
 }
 .topbar__spacer {
   flex: 1;
 }
-
 .menu-toggle {
   display: grid;
   place-items: center;
@@ -291,7 +347,6 @@ watch(() => auth.isAuthenticated, syncNotifications)
 .menu-toggle:hover {
   background: rgba(var(--v-theme-on-surface), 0.06);
 }
-
 .brand {
   display: inline-flex;
   align-items: center;
@@ -318,6 +373,17 @@ watch(() => auth.isAuthenticated, syncNotifications)
 }
 .topbar--mobile .brand__word {
   font-size: 1rem;
+}
+/* The wallet chip added a genuinely new element to an already-tight mobile
+   row — past this width the wordmark is the first thing to give, not the
+   functional controls (bell, balance, avatar). */
+@media (max-width: 430px) {
+  .brand__word {
+    display: none;
+  }
+  .brand {
+    margin-right: 0;
+  }
 }
 
 .navlinks {
@@ -368,6 +434,29 @@ watch(() => auth.isAuthenticated, syncNotifications)
 .create-btn {
   box-shadow: var(--tvz-shadow-sm);
   margin-right: 0.4rem;
+}
+
+.wallet-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding-inline: 0.6rem;
+  border-radius: 10px;
+  color: var(--tvz-accept-green-darker);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  transition: background var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.wallet-chip:hover {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+}
+@media (max-width: 400px) {
+  .wallet-chip {
+    padding-inline: 0.4rem;
+    font-size: 0.84rem;
+  }
 }
 
 .avatar-btn {

@@ -71,7 +71,7 @@ onMounted(async () => {
         <strong v-if="priceCredits != null">
           {{ t('advanced.priceValue', { credits: priceCredits }) }}
         </strong>
-        <strong v-else>—</strong>
+        <strong v-else>…</strong>
         <span v-if="priceCredits != null" class="adv__priceEq">
           ≈ €{{ n(priceCredits, { maximumFractionDigits: 0 }) }} /
           ~{{ n(ronApprox ?? 0, { maximumFractionDigits: 0 }) }} RON

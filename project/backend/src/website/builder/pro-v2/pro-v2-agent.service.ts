@@ -465,8 +465,8 @@ export class ProV2AgentService {
     let finalText = result.finalText;
     if (!finalText) {
       finalText = result.hardFailure
-        ? "I couldn't reach the AI provider for this request — please try again."
-        : "I've made the changes I could within this request's step budget — tell me if you'd like me to keep going.";
+        ? "I couldn't reach the AI provider for this request. Please try again."
+        : "I've made the changes I could within this request's step budget. Tell me if you'd like me to keep going.";
     }
 
     // Every escalation tier hard-failed (including the last, Claude — no

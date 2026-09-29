@@ -50,7 +50,7 @@ function ownerEq(v: number): string {
   return money.approx(v, cur)
 }
 function dt(s: string | null) {
-  return s ? new Date(s).toLocaleString() : '—'
+  return s ? new Date(s).toLocaleString() : 'N/A'
 }
 function d(s: string | null) {
   return s ? new Date(s).toLocaleDateString() : t('admin.never')
@@ -379,7 +379,8 @@ const txnColor: Record<string, string> = {
           <AdminMetaItem :label="t('admin.navBusinesses')" :value="user.companies.length" />
           <AdminMetaItem
             :label="t('admin.walletTitle')"
-            :value="`${fmtCr(user.wallet.balance.credits)} ${t('wallet.credits')}`"
+            :value="fmtCr(user.wallet.balance.credits)"
+            value-is-credits
           />
         </template>
       </AdminDetailHeader>
@@ -790,7 +791,7 @@ const txnColor: Record<string, string> = {
                         </v-chip>
                       </td>
                       <td class="ud__desc">
-                        {{ tx.description || '—' }}
+                        {{ tx.description || 'N/A' }}
                         <span v-if="tx.companyName" class="ud__muted">· {{ tx.companyName }}</span>
                         <span v-if="tx.clicks != null" class="ud__muted">
                           · {{ t('wallet.nClicks', { n: tx.clicks }) }}
@@ -901,7 +902,7 @@ const txnColor: Record<string, string> = {
               <ul v-else class="ud__sessions">
                 <li v-for="s in user.sessions" :key="s.id">
                   <span>{{ (s.userAgent || t('account.unknownDevice')).slice(0, 60) }}</span>
-                  <span class="ud__muted">{{ s.ip || '—' }} · {{ dt(s.createdAt) }}</span>
+                  <span class="ud__muted">{{ s.ip || 'N/A' }} · {{ dt(s.createdAt) }}</span>
                 </li>
               </ul>
             </AdminSection>

@@ -56,14 +56,16 @@ const heroKpis = computed(() => {
     },
     {
       key: 'ecoSold',
-      value: cr(economy.creditsSold30d.credits) + ' cr',
+      value: cr(economy.creditsSold30d.credits),
+      unit: 'credits' as const,
       sub: ronEq(economy.creditsSold30d.credits),
       tone: 'success' as const,
       icon: 'mdi-cart-outline',
     },
     {
       key: 'ecoConsumed',
-      value: cr(economy.cpcConsumed30d.credits) + ' cr',
+      value: cr(economy.cpcConsumed30d.credits),
+      unit: 'credits' as const,
       sub: ronEq(economy.cpcConsumed30d.credits),
       tone: 'warning' as const,
       icon: 'mdi-fire',
@@ -98,13 +100,23 @@ const economyRows = computed(() => {
   const e = s.value.economy
   const c = s.value.campaigns
   return [
-    { k: 'soldAll', v: cr(e.creditsSold.credits) + ' cr', sub: t('admin.stat.allTimeShort') },
+    {
+      k: 'soldAll',
+      v: cr(e.creditsSold.credits),
+      unit: 'credits' as const,
+      sub: t('admin.stat.allTimeShort'),
+    },
     { k: 'revenueAll', v: ron(e.ronCollected), sub: t('admin.stat.allTimeShort') },
-    { k: 'ecoCommitted', v: cr(c.committedDailyBudget.credits) + ' cr', sub: t('admin.stat.perDay') },
+    {
+      k: 'ecoCommitted',
+      v: cr(c.committedDailyBudget.credits),
+      unit: 'credits' as const,
+      sub: t('admin.stat.perDay'),
+    },
     { k: 'ecoActive', v: int(c.active), sub: t('admin.stat.autoN', { n: c.autoOptimize }) },
     { k: 'ecoPending', v: int(e.pendingPurchases), sub: '' },
     { k: 'blockedWallets', v: int(e.walletsBlocked), sub: '' },
-  ]
+  ] as Array<{ k: string; v: string; unit?: 'credits'; sub: string }>
 })
 
 const campaignMix = computed(() => {
@@ -162,7 +174,10 @@ const economyChart = computed(() => {
             <span class="kpi__label">{{ t('admin.stat.' + k.key) }}</span>
             <span class="kpi__ic"><v-icon :icon="k.icon" size="17" /></span>
           </div>
-          <strong class="kpi__value">{{ k.value }}</strong>
+          <strong class="kpi__value">
+            {{ k.value }}
+            <v-icon v-if="k.unit === 'credits'" icon="mdi-poker-chip" size="0.6em" class="kpi__unit" />
+          </strong>
           <span v-if="k.delta !== undefined" class="kpi__delta" :class="{ 'is-up': k.delta > 0 }">
             <v-icon :icon="k.delta > 0 ? 'mdi-trending-up' : 'mdi-trending-neutral'" size="14" />
             {{ t('admin.new30', { n: k.delta }) }}
@@ -236,7 +251,10 @@ const economyChart = computed(() => {
           <div class="figs">
             <div v-for="r in economyRows" :key="r.k" class="fig">
               <span class="fig__k">{{ t('admin.stat.' + r.k) }}</span>
-              <strong class="fig__v">{{ r.v }}</strong>
+              <strong class="fig__v">
+                {{ r.v }}
+                <v-icon v-if="r.unit === 'credits'" icon="mdi-poker-chip" size="0.55em" class="fig__unit" />
+              </strong>
               <span v-if="r.sub" class="fig__s">{{ r.sub }}</span>
             </div>
           </div>
@@ -315,6 +333,10 @@ const economyChart = computed(() => {
   letter-spacing: -0.02em;
   margin-top: 0.45rem;
   font-variant-numeric: tabular-nums;
+}
+.kpi__unit {
+  margin-left: 0.15em;
+  opacity: 0.7;
 }
 .kpi__delta,
 .kpi__sub {
@@ -478,6 +500,10 @@ const economyChart = computed(() => {
   font-weight: 700;
   font-size: 1.1rem;
   font-variant-numeric: tabular-nums;
+}
+.fig__unit {
+  margin-left: 0.15em;
+  opacity: 0.7;
 }
 .fig__s {
   font-size: 0.7rem;

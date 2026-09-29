@@ -144,7 +144,18 @@ watch(
   { immediate: true },
 )
 
+/** A real cap, not just a click-debounce — beyond this many blocks in a
+ *  single day the schedule stops being meaningfully more expressive (the
+ *  slot picker already handles gaps within a block), so there's nothing
+ *  legitimate past it, only accidental double-clicks. Matches the backend's
+ *  own per-weekday check in appointments.service.ts. */
+const MAX_WINDOWS_PER_DAY = 6
+
 function addWindow(weekday: number): void {
+  if (windowsFor(weekday).length >= MAX_WINDOWS_PER_DAY) {
+    toasts.error(t('appointments.windowLimitReached', { n: MAX_WINDOWS_PER_DAY }))
+    return
+  }
   draftWindows.value.push({ weekday, startMinute: 9 * 60, endMinute: 17 * 60 })
 }
 function removeWindow(index: number): void {
@@ -259,7 +270,12 @@ watch(
             <div v-for="wd in 7" :key="wd" class="apt__day">
               <div class="apt__dayHead">
                 <strong>{{ t(WEEKDAY_KEYS[wd - 1]) }}</strong>
-                <button type="button" class="apt__addWindow" @click="addWindow(wd - 1)">
+                <button
+                  type="button"
+                  class="apt__addWindow"
+                  :disabled="windowsFor(wd - 1).length >= MAX_WINDOWS_PER_DAY"
+                  @click="addWindow(wd - 1)"
+                >
                   <v-icon icon="mdi-plus" size="14" /> {{ t('appointments.addWindow') }}
                 </button>
               </div>
@@ -273,7 +289,7 @@ watch(
                   :value="minutesToHHMM(w.startMinute)"
                   @change="w.startMinute = hhmmToMinutes(($event.target as HTMLInputElement).value)"
                 />
-                <span>—</span>
+                <v-icon icon="mdi-arrow-right" size="13" class="apt__windowArrow" />
                 <input
                   type="time"
                   :value="minutesToHHMM(w.endMinute)"
@@ -524,6 +540,13 @@ watch(
   font-size: 0.72rem;
   color: rgb(var(--v-theme-primary));
   font-weight: 600;
+}
+.apt__addWindow:disabled {
+  color: rgba(var(--v-theme-on-surface), 0.35);
+  cursor: not-allowed;
+}
+.apt__windowArrow {
+  color: rgba(var(--v-theme-on-surface), 0.4);
 }
 .apt__windowRow {
   display: flex;

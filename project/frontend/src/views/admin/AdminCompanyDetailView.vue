@@ -72,10 +72,10 @@ function nm(x: LocalizedName) {
   return x[locale.value as keyof LocalizedName] ?? x.en
 }
 function dt(s: string | null) {
-  return s ? new Date(s).toLocaleString() : '—'
+  return s ? new Date(s).toLocaleString() : 'N/A'
 }
 function dOnly(s: string | null) {
-  return s ? new Date(s).toLocaleDateString() : '—'
+  return s ? new Date(s).toLocaleDateString() : 'N/A'
 }
 const statusLabel = computed(() => {
   const s = data.value?.company.status ?? 'draft'
@@ -87,19 +87,19 @@ const statusLabel = computed(() => {
 })
 const categoryLabel = computed(() => {
   const c = data.value?.company.category
-  if (!c) return '—'
+  if (!c) return 'N/A'
   return c.parent ? `${nm(c.parent.name)} › ${nm(c.name)}` : nm(c.name)
 })
 const locationLabel = computed(() => {
   const l = data.value?.company.location
-  if (!l) return '—'
+  if (!l) return 'N/A'
   if (l.nationwide) return t('feed.coverageCountry')
   return l.radiusKm
-    ? `${l.city ?? '—'} · ${t('feed.coverageKm', { n: l.radiusKm })}`
-    : l.city ?? '—'
+    ? `${l.city ?? 'N/A'} · ${t('feed.coverageKm', { n: l.radiusKm })}`
+    : l.city ?? 'N/A'
 })
 function fmtMinutes(m: number | null): string {
-  if (m == null) return '—'
+  if (m == null) return 'N/A'
   if (m < 60) return `${m} min`
   if (m < 60 * 24) return `${Math.round(m / 60)} h`
   return `${Math.round(m / 1440)} ${t('dashboard.days')}`
@@ -995,7 +995,7 @@ const leadStatusItems = computed(() => [
                         <span v-if="l.email || l.phone" class="ac__muted">{{ l.email || l.phone }}</span>
                       </span>
                     </td>
-                    <td class="ac__leadMsg">{{ l.message || '—' }}</td>
+                    <td class="ac__leadMsg">{{ l.message || 'N/A' }}</td>
                     <td class="ac__muted">
                       {{ l.responseMinutes != null ? fmtMinutes(l.responseMinutes) : t('adminCo.leadNoResp') }}
                     </td>
@@ -1088,8 +1088,8 @@ const leadStatusItems = computed(() => [
 
     <!-- In-app site preview — the public URL 404s for non-active businesses,
          so admins view the rendered site here regardless of publish state. -->
-    <v-dialog v-model="showSite" max-width="1040" scrollable>
-      <v-card rounded="lg">
+    <v-dialog v-model="showSite" fullscreen scrollable>
+      <v-card rounded="0">
         <div class="ac__siteHead">
           <span class="ac__muted">
             {{ t('adminCo.previewOf', { name: data?.company.displayName ?? '' }) }} ·
@@ -1108,7 +1108,7 @@ const leadStatusItems = computed(() => [
           </v-btn>
           <v-btn icon="mdi-close" variant="text" size="small" @click="showSite = false" />
         </div>
-        <v-card-text class="pa-2">
+        <v-card-text class="pa-2 ac__siteBody">
           <WebsiteRenderer
             v-if="data?.company.website"
             :content="data.company.website.content"
@@ -1247,6 +1247,13 @@ const leadStatusItems = computed(() => [
   gap: 0.5rem;
   flex-wrap: wrap;
   margin: 0.7rem 0 0.3rem;
+}
+.ac__siteBody {
+  height: calc(100vh - 3rem);
+}
+.ac__siteBody :deep(.site--framed .site__scroll) {
+  max-height: none;
+  height: 100%;
 }
 .ac__siteHead {
   display: flex;

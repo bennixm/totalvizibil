@@ -40,7 +40,7 @@ function fmt(v: number): string {
 }
 
 function fmtMinutes(m: number | null): string {
-  if (m == null) return '—'
+  if (m == null) return 'N/A'
   if (m < 60) return `${m} min`
   if (m < 60 * 24) return `${Math.round(m / 60)} h`
   return `${Math.round(m / 1440)} ${t('dashboard.days')}`

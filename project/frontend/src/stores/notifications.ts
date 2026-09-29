@@ -157,6 +157,12 @@ interface State {
    *  genuinely empty list, so the UI never claims "no notifications" when it
    *  actually just couldn't reach the server. */
   loadError: boolean
+  /** The full-height notifications drawer's open state — lives here (rather
+   *  than as local component state) because the bell button (in AppBar) and
+   *  the drawer itself (rendered at the App.vue root, so Vuetify's layout
+   *  system positions it correctly instead of nesting it inside the app-bar)
+   *  are two separate components that both need to read/write it. */
+  drawerOpen: boolean
 }
 
 let socket: Socket | null = null
@@ -184,6 +190,7 @@ export const useNotificationsStore = defineStore('notifications', {
     unreadCount: 0,
     loading: false,
     loadError: false,
+    drawerOpen: false,
   }),
 
   actions: {

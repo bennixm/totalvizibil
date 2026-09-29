@@ -164,7 +164,7 @@ useSeo(() => {
 
   return {
     title: city ? `${c.displayName} · ${city}` : c.displayName,
-    description: descParts.join(' — ') || undefined,
+    description: descParts.join(' · ') || undefined,
     canonicalPath: path,
     jsonLd: [
       business,

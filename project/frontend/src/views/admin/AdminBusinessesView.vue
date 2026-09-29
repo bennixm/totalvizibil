@@ -53,8 +53,8 @@ const campTone: Record<string, string> = {
   draft: '',
 }
 function nm(x: LocalizedName | null): string {
-  if (!x) return '—'
-  return x[locale.value as keyof LocalizedName] ?? x.en ?? '—'
+  if (!x) return 'N/A'
+  return x[locale.value as keyof LocalizedName] ?? x.en ?? 'N/A'
 }
 function cr(v: number) {
   return n(v, { maximumFractionDigits: v >= 100 ? 0 : 2 })

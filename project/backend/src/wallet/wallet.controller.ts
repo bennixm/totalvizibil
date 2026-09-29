@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
@@ -16,6 +17,12 @@ import { WalletService } from './wallet.service';
 import { BuyCreditsDto } from './dto/buy-credits.dto';
 import { RequestRefundDto } from './dto/request-refund.dto';
 import { SetWalletCurrencyDto } from './dto/set-currency.dto';
+
+/** The Payments/Refunds table only ever asks for one of these two — an
+ *  unrecognized value falls back to 'purchase' rather than 500ing. */
+function paymentKind(v: string | undefined): 'purchase' | 'refund' {
+  return v === 'refund' ? 'refund' : 'purchase';
+}
 
 /** The user's single wallet — it funds every business they own. */
 @UseGuards(AuthGuard)
@@ -69,6 +76,47 @@ export class WalletController {
   @Get('spend-breakdown')
   spendBreakdown(@CurrentUser() user: AuthPrincipal, @Query('companyId') companyId: string) {
     return this.wallet.spendBreakdownFor(user.id, companyId);
+  }
+
+  /** Backs the Wallet page's own Payments/Refunds table (below Refund). */
+  @Get('payments')
+  payments(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('kind') kind?: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.wallet.listPayments(user.id, {
+      kind: paymentKind(kind),
+      limit: limit ? Number(limit) : undefined,
+      cursor,
+      from,
+      to,
+    });
+  }
+
+  /** Same Payments/Refunds list as a downloadable PDF for the selected range. */
+  @Get('payments/export')
+  async exportPayments(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('kind') kind?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const resolvedKind = paymentKind(kind);
+    const buffer = await this.wallet.exportPaymentsPdf(user.id, user.name, {
+      kind: resolvedKind,
+      from,
+      to,
+    });
+    const filename =
+      resolvedKind === 'purchase' ? 'plati-totalvizibil.pdf' : 'rambursari-totalvizibil.pdf';
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 
   /** Start a credit purchase — returns a pending transaction + EUR/RON amounts. */

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 
-import { apiFetch, errorReason } from '@/services/api'
+import { apiFetch, errorReason, BASE_URL } from '@/services/api'
 import { useMoneyStore } from '@/stores/money'
 
 export interface Money {
@@ -66,6 +66,20 @@ export interface WalletTxn {
   processAt: string | null
 }
 
+export type PaymentKind = 'purchase' | 'refund'
+
+/** One row of the Wallet page's own Payments/Refunds statement — the same
+ *  shape the PDF export mirrors. */
+export interface PaymentRow {
+  id: string
+  status: WalletTxnStatus
+  amount: Money
+  createdAt: string
+  feePct: number | null
+  feeMinor: Money | null
+  processAt: string | null
+}
+
 export interface PendingPurchase {
   transactionId: string
   credits: number
@@ -104,6 +118,14 @@ interface State {
      *  filters to rows whose full id starts with this. */
     search: string | null
   }
+  payments: PaymentRow[]
+  paymentsNextCursor: string | null
+  /** Active Payments/Refunds statement filters, kept so "load more" continues the same query. */
+  paymentsFilters: {
+    kind: PaymentKind
+    from: string | null
+    to: string | null
+  }
 }
 
 /** The user's single wallet — funds every business they own. */
@@ -119,6 +141,9 @@ export const useWalletStore = defineStore('wallet', {
     errorReason: null,
     lastInvoice: null,
     txnFilters: { companyId: null, type: null, category: null, from: null, to: null, search: null },
+    payments: [],
+    paymentsNextCursor: null,
+    paymentsFilters: { kind: 'purchase', from: null, to: null },
   }),
 
   actions: {
@@ -206,6 +231,41 @@ export const useWalletStore = defineStore('wallet', {
       )
       this.transactions = append ? [...this.transactions, ...res.items] : res.items
       this.nextCursor = res.nextCursor
+    },
+
+    /** Backs the Wallet page's own Payments/Refunds statement. */
+    async loadPayments(
+      append = true,
+      filters?: { kind?: PaymentKind; from?: string | null; to?: string | null },
+    ): Promise<void> {
+      if (filters !== undefined) {
+        this.paymentsFilters = {
+          kind: filters.kind ?? this.paymentsFilters.kind,
+          from: filters.from ?? null,
+          to: filters.to ?? null,
+        }
+      }
+      const params = new URLSearchParams()
+      params.set('kind', this.paymentsFilters.kind)
+      if (append && this.paymentsNextCursor) params.set('cursor', this.paymentsNextCursor)
+      if (this.paymentsFilters.from) params.set('from', this.paymentsFilters.from)
+      if (this.paymentsFilters.to) params.set('to', this.paymentsFilters.to)
+      const res = await apiFetch<{ items: PaymentRow[]; nextCursor: string | null }>(
+        `/wallet/payments?${params.toString()}`,
+      )
+      this.payments = append ? [...this.payments, ...res.items] : res.items
+      this.paymentsNextCursor = res.nextCursor
+    },
+
+    /** URL for the same statement as a downloadable PDF, scoped to the
+     *  currently active kind/date filters. The session cookie rides along
+     *  on a plain navigation, so a direct href is enough — no fetch/blob dance. */
+    paymentsExportUrl(): string {
+      const params = new URLSearchParams()
+      params.set('kind', this.paymentsFilters.kind)
+      if (this.paymentsFilters.from) params.set('from', this.paymentsFilters.from)
+      if (this.paymentsFilters.to) params.set('to', this.paymentsFilters.to)
+      return `${BASE_URL}/wallet/payments/export?${params.toString()}`
     },
 
     async startPurchase(credits: number): Promise<void> {

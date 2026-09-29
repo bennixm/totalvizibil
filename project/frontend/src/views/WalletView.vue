@@ -11,7 +11,7 @@ import InfoHint from '@/components/InfoHint.vue'
 import TopUpDialog from '@/components/wallet/TopUpDialog.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
-import { useWalletStore } from '@/stores/wallet'
+import { useWalletStore, type PaymentKind } from '@/stores/wallet'
 import { useToastStore } from '@/stores/toast'
 import { fetchPricing } from '@/services/platform'
 
@@ -23,10 +23,9 @@ const wallet = useWalletStore()
 const money = useMoney()
 const { summary, loading, working, error } = storeToRefs(wallet)
 const { overview } = storeToRefs(companies)
+const { payments, paymentsNextCursor } = storeToRefs(wallet)
 
 const showTopUp = ref(false)
-
-const CURRENCIES = ['EUR', 'RON'] as const
 
 const KNOWN_ERRORS = [
   'wallet_blocked',
@@ -96,8 +95,54 @@ async function confirmRefund(): Promise<void> {
   if (ok) toasts.success(t('wallet.refundRequested'))
 }
 
+// --- Payments/Refunds statement (below Refund) ------------------------
+const paymentsKind = ref<PaymentKind>('purchase')
+const paymentsFrom = ref('')
+const paymentsTo = ref('')
+const paymentsLoading = ref(true)
+const paymentsLoadingMore = ref(false)
+const hasDateFilters = computed(() => !!paymentsFrom.value || !!paymentsTo.value)
+
+async function loadPaymentsInitial(): Promise<void> {
+  paymentsLoading.value = true
+  try {
+    await wallet.loadPayments(false, {
+      kind: paymentsKind.value,
+      from: paymentsFrom.value || null,
+      to: paymentsTo.value || null,
+    })
+  } catch {
+    toasts.error(t('wallet.historyError'))
+  } finally {
+    paymentsLoading.value = false
+  }
+}
+
+async function loadPaymentsMore(): Promise<void> {
+  if (paymentsLoadingMore.value || !paymentsNextCursor.value) return
+  paymentsLoadingMore.value = true
+  try {
+    await wallet.loadPayments(true)
+  } catch {
+    toasts.error(t('wallet.historyError'))
+  } finally {
+    paymentsLoadingMore.value = false
+  }
+}
+
+function clearPaymentsDates(): void {
+  paymentsFrom.value = ''
+  paymentsTo.value = ''
+}
+
+watch([paymentsKind, paymentsFrom, paymentsTo], loadPaymentsInitial)
+
 onMounted(async () => {
-  await Promise.all([wallet.load(), companies.fetchOverview().catch(() => {})])
+  await Promise.all([
+    wallet.load(),
+    companies.fetchOverview().catch(() => {}),
+    loadPaymentsInitial(),
+  ])
   try {
     const pricing = await fetchPricing()
     if (pricing.creditsDiscountEnabled) discountPct.value = pricing.creditsDiscountPct
@@ -159,22 +204,6 @@ onMounted(async () => {
           </p>
           <p class="wal__balanceEq">{{ money.approx(summary.balance.credits) }}</p>
 
-          <div class="wal__currency" role="group" :aria-label="t('wallet.currencyLabel')">
-            <span class="wal__currencyLabel">{{ t('wallet.currencyLabel') }}</span>
-            <div class="wal__currencyBtns">
-              <button
-                v-for="c in CURRENCIES"
-                :key="c"
-                type="button"
-                :class="{ 'is-on': summary.currency === c }"
-                :disabled="working"
-                @click="wallet.setCurrency(c)"
-              >
-                {{ t('wallet.currency' + c) }}
-              </button>
-            </div>
-          </div>
-
           <v-btn
             color="primary"
             size="large"
@@ -211,6 +240,100 @@ onMounted(async () => {
         <v-btn variant="tonal" prepend-icon="mdi-cash-refund" @click="openRefundConfirm">
           {{ t('wallet.refundCta') }}
         </v-btn>
+      </AdminSection>
+
+      <!-- Payments/Refunds statement -->
+      <AdminSection class="wal__section" :title="t('wallet.paymentsTitle')" icon="mdi-receipt-text-outline">
+        <template #actions>
+          <v-btn
+            variant="tonal"
+            size="small"
+            prepend-icon="mdi-download"
+            :href="wallet.paymentsExportUrl()"
+          >
+            {{ t('wallet.paymentsDownloadPdf') }}
+          </v-btn>
+        </template>
+
+        <div class="wal__payToolbar">
+          <div class="wal__payTabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="paymentsKind === 'purchase'"
+              :class="{ 'is-on': paymentsKind === 'purchase' }"
+              @click="paymentsKind = 'purchase'"
+            >
+              {{ t('wallet.paymentsTabPayments') }}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="paymentsKind === 'refund'"
+              :class="{ 'is-on': paymentsKind === 'refund' }"
+              @click="paymentsKind = 'refund'"
+            >
+              {{ t('wallet.paymentsTabRefunds') }}
+            </button>
+          </div>
+          <div class="wal__payDates">
+            <label class="wal__payDateField">
+              <span>{{ t('wallet.paymentsFromLabel') }}</span>
+              <input type="date" v-model="paymentsFrom" />
+            </label>
+            <label class="wal__payDateField">
+              <span>{{ t('wallet.paymentsToLabel') }}</span>
+              <input type="date" v-model="paymentsTo" />
+            </label>
+            <button v-if="hasDateFilters" type="button" class="wal__payDateClear" @click="clearPaymentsDates">
+              <v-icon icon="mdi-close" size="14" /> {{ t('wallet.paymentsClearDates') }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="paymentsLoading && !payments.length" class="wal__center">
+          <v-progress-circular indeterminate color="primary" />
+        </div>
+        <p v-else-if="!payments.length" class="wal__payEmpty">{{ t('wallet.paymentsEmpty') }}</p>
+        <template v-else>
+          <div class="wal__payTableWrap">
+            <table class="wal__payTable">
+              <thead>
+                <tr>
+                  <th>{{ t('wallet.colId') }}</th>
+                  <th class="num">{{ t('wallet.colAmount') }}</th>
+                  <th class="end">{{ t('wallet.colDate') }}</th>
+                  <th class="end">{{ t('wallet.colStatus') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="p in payments" :key="p.id" class="payrow">
+                  <td class="payrow__id">#{{ p.id.slice(0, 8) }}</td>
+                  <td class="num">
+                    <span class="payrow__amount" :class="p.amount.minor < 0 ? 'is-out' : 'is-in'">
+                      <CreditsValue :credits="p.amount.credits" signed stacked />
+                    </span>
+                  </td>
+                  <td class="end payrow__date">{{ new Date(p.createdAt).toLocaleDateString() }}</td>
+                  <td class="end">
+                    <span class="payrow__badge" :class="'payrow__badge--' + p.status">
+                      {{ t('wallet.txnStatus.' + p.status) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <button
+            v-if="paymentsNextCursor"
+            type="button"
+            class="wal__payMore"
+            :disabled="paymentsLoadingMore"
+            @click="loadPaymentsMore"
+          >
+            <v-icon icon="mdi-reload" size="15" /> {{ t('wallet.loadMore') }}
+          </button>
+        </template>
       </AdminSection>
 
       <!-- Consumption per business -->
@@ -349,46 +472,6 @@ onMounted(async () => {
   margin: 0;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
-.wal__currency {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  margin-top: 1rem;
-}
-.wal__currencyLabel {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-.wal__currencyBtns {
-  display: inline-flex;
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: 999px;
-  overflow: hidden;
-  background: rgb(var(--v-theme-surface));
-}
-.wal__currencyBtns button {
-  padding: 0.35rem 1rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  transition:
-    background var(--tvz-dur-fast) var(--tvz-ease-out),
-    color var(--tvz-dur-fast) var(--tvz-ease-out);
-}
-.wal__currencyBtns button + button {
-  border-left: 1px solid var(--tvz-glass-border);
-}
-.wal__currencyBtns button.is-on {
-  background: rgba(var(--v-theme-primary), 0.14);
-  color: rgb(var(--v-theme-primary));
-}
-.wal__currencyBtns button:disabled {
-  opacity: 0.5;
-}
 .wal__topUpBtn {
   margin-top: 1.1rem;
   background-color: var(--tvz-accept-green) !important;
@@ -453,6 +536,170 @@ onMounted(async () => {
   margin: 0.6rem 0 0;
   font-size: 0.8rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+/* Payments/Refunds statement */
+.wal__payToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.wal__payTabs {
+  display: inline-flex;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface));
+}
+.wal__payTabs button {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  transition:
+    background var(--tvz-dur-fast) var(--tvz-ease-out),
+    color var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.wal__payTabs button + button {
+  border-left: 1px solid var(--tvz-glass-border);
+}
+.wal__payTabs button.is-on {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.wal__payDates {
+  display: flex;
+  align-items: end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.wal__payDateField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.wal__payDateField input[type='date'] {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--tvz-hairline, rgba(var(--v-theme-on-surface), 0.15));
+  border-radius: 8px;
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+  font-size: 0.82rem;
+}
+.wal__payDateClear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.wal__payDateClear:hover {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+}
+.wal__payEmpty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.wal__payTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: var(--tvz-radius-md);
+  background: rgb(var(--v-theme-surface));
+}
+.wal__payTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.wal__payTable thead th {
+  text-align: left;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--tvz-glass-border);
+  white-space: nowrap;
+}
+.wal__payTable th.num,
+.wal__payTable td.num,
+.wal__payTable th.end,
+.wal__payTable td.end {
+  text-align: right;
+}
+.wal__payTable td {
+  padding: 0.65rem 1rem;
+  vertical-align: middle;
+}
+.payrow + .payrow td {
+  border-top: 1px solid var(--tvz-hairline);
+}
+.payrow:hover {
+  background: rgba(var(--v-theme-on-surface), 0.02);
+}
+.payrow__id {
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  white-space: nowrap;
+}
+.payrow__amount.is-in {
+  color: rgb(var(--v-theme-success));
+  font-weight: 600;
+}
+.payrow__amount.is-out {
+  color: rgb(var(--v-theme-error));
+  font-weight: 600;
+}
+.payrow__date {
+  white-space: nowrap;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.payrow__badge {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  white-space: nowrap;
+}
+.payrow__badge--completed {
+  background: rgba(var(--v-theme-success), 0.16);
+  color: rgb(var(--v-theme-success));
+}
+.payrow__badge--pending {
+  background: rgba(var(--v-theme-warning), 0.16);
+  color: rgb(var(--v-theme-warning));
+}
+.payrow__badge--failed {
+  background: rgba(var(--v-theme-error), 0.16);
+  color: rgb(var(--v-theme-error));
+}
+.wal__payMore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.6rem;
+  border-radius: var(--tvz-radius-md);
+  border: 1px solid var(--tvz-glass-border);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.wal__payMore:hover {
+  background: rgba(var(--v-theme-on-surface), 0.03);
 }
 
 @media (max-width: 620px) {

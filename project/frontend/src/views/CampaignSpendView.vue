@@ -129,15 +129,20 @@ const keyTiles = computed(() => {
       main: `${n(d.today.spent.credits, { maximumFractionDigits: 2 })} / ${n(d.dailyBudget.credits, { maximumFractionDigits: 2 })}`,
       sub: `${d.today.pct}%`,
     },
-    { k: 'kCpc', main: cr(d.cpcSet.credits), sub: money.approx(d.cpcSet.credits) },
+    {
+      k: 'kCpc',
+      main: n(d.cpcSet.credits, { maximumFractionDigits: 2 }),
+      unit: 'credits' as const,
+      sub: money.approx(d.cpcSet.credits),
+    },
     {
       k: 'kFeedRank',
       main: d.feedRank
         ? t('spend.feedRankValue', { n: d.feedRank.position, total: d.feedRank.total })
-        : '—',
+        : t('spend.feedRankNone'),
       sub: d.feedRank ? t('spend.feedRankOf') : t('spend.feedRankIdle'),
     },
-  ]
+  ] as Array<{ k: string; main: string; unit?: 'credits'; sub: string }>
 })
 
 const lifetime = computed(() => {
@@ -399,7 +404,10 @@ watch(
         <div class="ktiles">
           <div v-for="tile in keyTiles" :key="tile.k" class="kt">
             <span class="kt__k">{{ t('spend.' + tile.k) }}</span>
-            <strong class="kt__v">{{ tile.main }}</strong>
+            <strong class="kt__v">
+              {{ tile.main }}
+              <v-icon v-if="tile.unit === 'credits'" icon="mdi-poker-chip" size="0.6em" class="kt__unit" />
+            </strong>
             <span v-if="tile.sub" class="kt__x">{{ tile.sub }}</span>
           </div>
         </div>
@@ -819,6 +827,10 @@ watch(
   font-family: 'Space Grotesk Variable', sans-serif;
   font-size: 1rem;
   font-variant-numeric: tabular-nums;
+}
+.kt__unit {
+  margin-left: 0.15em;
+  opacity: 0.7;
 }
 .kt__x {
   display: block;

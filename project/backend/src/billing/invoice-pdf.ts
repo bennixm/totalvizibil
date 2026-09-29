@@ -66,7 +66,7 @@ export function generateInvoicePdf(invoice: Invoice): Promise<Buffer> {
       .fontSize(8)
       .text(
         (isReward
-          ? 'DOCUMENT DE RECOMPENSĂ — PROGRAM DE AFILIERE'
+          ? 'DOCUMENT DE RECOMPENSĂ · PROGRAM DE AFILIERE'
           : 'FACTURĂ FISCALĂ'
         ).toUpperCase(),
         left,
@@ -237,7 +237,7 @@ export function generateInvoicePdf(invoice: Invoice): Promise<Buffer> {
       fy += 12;
     } else if (invoice.eurCents != null && invoice.fxRate != null) {
       doc.text(
-        `Plătit din portofel Totalvizibil — ${(invoice.eurCents / 100).toFixed(2)} EUR convertiți la cursul ${invoice.fxRate.toString()} RON/EUR.`,
+        `Plătit din portofel Totalvizibil, ${(invoice.eurCents / 100).toFixed(2)} EUR convertiți la cursul ${invoice.fxRate.toString()} RON/EUR.`,
         left,
         fy,
         { width: pageWidth },

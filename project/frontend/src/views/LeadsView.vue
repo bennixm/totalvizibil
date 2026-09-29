@@ -80,7 +80,7 @@ function responseText(min: number): string {
   return t('leads.respondedIn', { v: duration(min) })
 }
 function avgText(min: number | null): string {
-  return min == null ? '—' : duration(min)
+  return min == null ? 'N/A' : duration(min)
 }
 function leadName(lead: Lead): string {
   return lead.name || (lead.channel === 'call' ? t('leads.aCall') : t('leads.aMessage'))

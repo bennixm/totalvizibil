@@ -9,6 +9,7 @@ import AppSidebar from '@/components/AppSidebar.vue'
 import AppToasts from '@/components/AppToasts.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import MobileTabBar from '@/components/MobileTabBar.vue'
+import NotificationDrawer from '@/components/NotificationDrawer.vue'
 import SidebarCampaignSwitch from '@/components/SidebarCampaignSwitch.vue'
 import SidebarModeSwitch from '@/components/SidebarModeSwitch.vue'
 import { useAdminNavGroups } from '@/composables/useAdminNavGroups'
@@ -48,6 +49,7 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
 <template>
   <v-app>
     <AppBar :show-menu-toggle="showMenuToggle" @toggle-menu="ui.toggleSidebar" />
+    <NotificationDrawer v-if="auth.isAuthenticated" />
 
     <v-main class="shell" :class="{ 'shell--mobile': !mdAndUp }">
       <v-layout v-if="showSidebar" class="panel-layout">

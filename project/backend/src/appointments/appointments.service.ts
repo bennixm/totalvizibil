@@ -21,6 +21,10 @@ const PAGE_MAX = 50;
 /** How many days ahead the public widget may ever query — keeps a single
  *  request cheap and matches a realistic booking horizon. */
 const MAX_LOOKAHEAD_DAYS = 60;
+/** Same cap the schedule editor UI already enforces client-side (see
+ *  AppointmentsView.vue MAX_WINDOWS_PER_DAY) — checked again here so a
+ *  direct API call can't bypass it. */
+const MAX_WINDOWS_PER_WEEKDAY = 6;
 
 type AppointmentRow = Prisma.AppointmentGetPayload<Record<string, never>>;
 
@@ -96,9 +100,16 @@ export class AppointmentsService {
    *  that a delete-then-recreate in one transaction is the clearest option. */
   async setAvailability(userId: string, companyId: string, dto: SetAvailabilityDto) {
     await this.assertMember(companyId, userId);
+    const perWeekday = new Map<number, number>();
     for (const w of dto.windows) {
       if (w.endMinute <= w.startMinute) {
         throw new BadRequestException('window_end_before_start');
+      }
+      perWeekday.set(w.weekday, (perWeekday.get(w.weekday) ?? 0) + 1);
+    }
+    for (const count of perWeekday.values()) {
+      if (count > MAX_WINDOWS_PER_WEEKDAY) {
+        throw new BadRequestException('too_many_windows_per_day');
       }
     }
     await this.prisma.$transaction([
@@ -380,8 +391,8 @@ export class AppointmentsService {
           details: [
             { label: 'Data și ora', value: when },
             { label: 'Nume', value: appt.name },
-            { label: 'Email', value: appt.email ?? '—' },
-            { label: 'Telefon', value: appt.phone ?? '—' },
+            { label: 'Email', value: appt.email ?? 'N/A' },
+            { label: 'Telefon', value: appt.phone ?? 'N/A' },
           ],
           cta: { label: 'Vezi programările', url: link },
         },

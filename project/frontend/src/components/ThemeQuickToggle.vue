@@ -30,7 +30,7 @@ function cycle() {
     :icon="icon"
     :size="size"
     variant="text"
-    :aria-label="`${t('theme.toggle')} — ${label}`"
+    :aria-label="`${t('theme.toggle')}: ${label}`"
     :title="label"
     @click="cycle"
   />
