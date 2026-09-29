@@ -92,8 +92,9 @@ const CATEGORY_FILTER_ITEMS = computed(() => [
 const filterCategory = ref<'' | SpendCategory>('')
 const filterFrom = ref('')
 const filterTo = ref('')
+const filterSearch = ref('')
 const hasActiveFilters = computed(
-  () => !!filterCategory.value || !!filterFrom.value || !!filterTo.value,
+  () => !!filterCategory.value || !!filterFrom.value || !!filterTo.value || !!filterSearch.value,
 )
 
 async function applyFilters(): Promise<void> {
@@ -104,13 +105,28 @@ async function applyFilters(): Promise<void> {
     category: filterCategory.value || null,
     from: filterFrom.value || null,
     to: filterTo.value || null,
+    search: filterSearch.value || null,
   })
 }
 function clearFilters(): void {
   filterCategory.value = ''
   filterFrom.value = ''
   filterTo.value = ''
+  filterSearch.value = ''
   void applyFilters()
+}
+// Typing a search term shouldn't fire a request per keystroke.
+let searchDebounce: ReturnType<typeof setTimeout> | undefined
+watch(filterSearch, () => {
+  clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(applyFilters, 300)
+})
+
+/** A short, stable per-row reference — the underlying id is a full UUID.
+ *  Matches what the id-search filter accepts (paste this back in, `#`
+ *  included or not, and it matches). */
+function shortId(id: string): string {
+  return '#' + id.slice(0, 8)
 }
 /** Jump the list straight to one category — the summary cards double as filter shortcuts. */
 function filterByCategory(key: SpendCategory): void {
@@ -125,6 +141,7 @@ async function loadFor(id: string): Promise<void> {
   filterCategory.value = ''
   filterFrom.value = ''
   filterTo.value = ''
+  filterSearch.value = ''
   try {
     const [b] = await Promise.all([
       apiFetch<Breakdown>(`/wallet/spend-breakdown?companyId=${id}`),
@@ -270,6 +287,17 @@ watch(
         </div>
 
         <div class="cons__filters">
+          <v-text-field
+            v-model="filterSearch"
+            :label="t('transactions.filterId')"
+            :placeholder="t('transactions.filterIdPlaceholder')"
+            prepend-inner-icon="mdi-magnify"
+            density="compact"
+            variant="outlined"
+            hide-details
+            clearable
+            class="cons__filterId"
+          />
           <v-select
             v-model="filterCategory"
             :items="CATEGORY_FILTER_ITEMS"
@@ -307,7 +335,9 @@ watch(
         <ul v-else class="cons__rows">
           <li v-for="txn in transactions" :key="txn.id" class="crow">
             <div class="crow__main">
-              <p class="crow__label">{{ txnLabel(txn) }}</p>
+              <p class="crow__label">
+                <span class="crow__id">{{ shortId(txn.id) }}</span> {{ txnLabel(txn) }}
+              </p>
               <p class="crow__date">{{ new Date(txn.createdAt).toLocaleString() }}</p>
             </div>
             <span class="crow__amount">{{ cr(Math.abs(txn.amount.credits)) }}</span>
@@ -529,6 +559,9 @@ watch(
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--tvz-hairline);
 }
+.cons__filterId {
+  max-width: 12rem;
+}
 .cons__filterType {
   max-width: 12rem;
 }
@@ -590,6 +623,12 @@ watch(
   margin: 0;
   font-size: 0.86rem;
   font-weight: 500;
+}
+.crow__id {
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+  margin-right: 0.3rem;
 }
 .crow__date {
   margin: 0.1rem 0 0;

@@ -50,6 +50,7 @@ export class WalletController {
     @Query('category') category?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('search') search?: string,
   ) {
     return this.wallet.listTransactions(user.id, {
       limit: limit ? Number(limit) : undefined,
@@ -59,6 +60,7 @@ export class WalletController {
       category,
       from,
       to,
+      search,
     });
   }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
@@ -11,7 +11,12 @@ import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import CreditsValue from '@/components/CreditsValue.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useAuthStore, type PlatformRole } from '@/stores/auth'
-import { useAdminStore, type AdminUserDetail, type AdminUserCompany } from '@/stores/admin'
+import {
+  useAdminStore,
+  type AdminUserDetail,
+  type AdminUserCompany,
+  type AdminUserTxn,
+} from '@/stores/admin'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
@@ -210,11 +215,66 @@ function cancelWalletRefund(refundId: string) {
     `cancelRefund-${refundId}`,
     () => admin.cancelWalletRefund(id.value, refundId),
     t('admin.refundCanceled'),
-  )
+  ).then(() => {
+    // `run()` already re-hydrates `user.value.transactions` — only the
+    // Activity tab's OWN paginated/filtered view (once it's been used)
+    // needs its own refresh on top of that.
+    if (activityOverride.value !== null) void loadActivity(false)
+  })
 }
 function daysLeft(processAt: string): number {
   return Math.max(0, Math.ceil((new Date(processAt).getTime() - Date.now()) / 86_400_000))
 }
+
+// --- Activity tab: paginated/filterable, on top of the ≤20 unfiltered rows
+// already embedded in the user-detail payload above. `activityOverride`
+// stays null (falling back to that embedded snapshot) until a filter is
+// used or the tab is opened for the first time, at which point it takes
+// over so "load more" has a real cursor to continue from. -----------------
+type ActivityType = '' | AdminUserTxn['type']
+const activityOverride = ref<AdminUserTxn[] | null>(null)
+const activityCursor = ref<string | null>(null)
+const activityLoading = ref(false)
+const activityFilterType = ref<ActivityType>('')
+const activitySearch = ref('')
+const activityTxns = computed(() => activityOverride.value ?? user.value?.transactions ?? [])
+const activityHasFilters = computed(() => !!activityFilterType.value || !!activitySearch.value)
+const ACTIVITY_TYPE_OPTIONS: AdminUserTxn['type'][] = ['purchase', 'spend', 'refund', 'adjustment']
+
+async function loadActivity(append: boolean): Promise<void> {
+  activityLoading.value = true
+  try {
+    const res = await admin.listUserTransactions(id.value, {
+      cursor: append ? (activityCursor.value ?? undefined) : undefined,
+      type: activityFilterType.value || undefined,
+      search: activitySearch.value || undefined,
+    })
+    activityOverride.value = append ? [...(activityOverride.value ?? []), ...res.items] : res.items
+    activityCursor.value = res.nextCursor
+  } catch (e) {
+    flash(errText(e, t('admin.genericError')), 'error')
+  } finally {
+    activityLoading.value = false
+  }
+}
+function clearActivityFilters(): void {
+  activityFilterType.value = ''
+  activitySearch.value = ''
+  activityOverride.value = null
+  activityCursor.value = null
+}
+watch(activityFilterType, () => void loadActivity(false))
+// Typing a search term shouldn't fire a request per keystroke.
+let activitySearchDebounce: ReturnType<typeof setTimeout> | undefined
+watch(activitySearch, () => {
+  clearTimeout(activitySearchDebounce)
+  activitySearchDebounce = setTimeout(() => void loadActivity(false), 300)
+})
+// First time the tab is actually opened, switch from the embedded snapshot
+// to the real paginated endpoint so "load more" has a cursor to work with.
+watch(tab, (v) => {
+  if (v === 'activity' && activityOverride.value === null) void loadActivity(false)
+})
 
 function companyStatus(c: AdminUserCompany, status: 'active' | 'suspended') {
   const go = () =>
@@ -672,15 +732,45 @@ const txnColor: Record<string, string> = {
         <v-window-item value="activity">
           <div class="ud__stack">
             <AdminSection :title="t('admin.txnsTitle')" icon="mdi-swap-vertical">
+              <div class="ud__txnFilters">
+                <v-text-field
+                  v-model="activitySearch"
+                  :label="t('transactions.filterId')"
+                  :placeholder="t('transactions.filterIdPlaceholder')"
+                  prepend-inner-icon="mdi-magnify"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  clearable
+                  class="ud__txnFilterId"
+                />
+                <v-select
+                  v-model="activityFilterType"
+                  :items="[
+                    { title: t('transactions.filterAllTypes'), value: '' },
+                    ...ACTIVITY_TYPE_OPTIONS.map((v) => ({ title: t('wallet.txnType.' + v), value: v })),
+                  ]"
+                  :label="t('transactions.filterType')"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  class="ud__txnFilterType"
+                />
+                <v-btn v-if="activityHasFilters" variant="text" size="small" @click="clearActivityFilters">
+                  {{ t('transactions.clearFilters') }}
+                </v-btn>
+              </div>
+
               <AdminEmptyState
-                v-if="!user.transactions.length"
-                :text="t('admin.noTxns')"
+                v-if="!activityLoading && !activityTxns.length"
+                :text="activityHasFilters ? t('transactions.noneMatch') : t('admin.noTxns')"
                 icon="mdi-swap-vertical"
               />
               <div v-else class="ud__tableWrap">
                 <table class="ud__table">
                   <thead>
                     <tr>
+                      <th>{{ t('wallet.colId') }}</th>
                       <th>{{ t('admin.colType') }}</th>
                       <th>{{ t('invoice.colDescription') }}</th>
                       <th class="num">{{ t('admin.colTotal') }}</th>
@@ -689,7 +779,8 @@ const txnColor: Record<string, string> = {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="tx in user.transactions" :key="tx.id">
+                    <tr v-for="tx in activityTxns" :key="tx.id">
+                      <td class="ud__txnId">#{{ tx.id.slice(0, 8) }}</td>
                       <td>
                         <v-chip size="x-small" :color="txnColor[tx.type]" variant="tonal">
                           {{ t('wallet.txnType.' + tx.type) }}
@@ -730,7 +821,17 @@ const txnColor: Record<string, string> = {
                   </tbody>
                 </table>
               </div>
-              <p v-if="user.transactions.length >= 20" class="ud__note">
+              <v-btn
+                v-if="activityOverride !== null && activityCursor"
+                class="mt-2"
+                variant="text"
+                size="small"
+                :loading="activityLoading"
+                @click="loadActivity(true)"
+              >
+                {{ t('wallet.loadMore') }}
+              </v-btn>
+              <p v-else-if="activityOverride === null && user.transactions.length >= 20" class="ud__note">
                 {{ t('admin.txnsRecentNote') }}
               </p>
             </AdminSection>
@@ -1023,6 +1124,24 @@ const txnColor: Record<string, string> = {
 }
 
 /* tables */
+.ud__txnFilters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+.ud__txnFilterId {
+  max-width: 190px;
+}
+.ud__txnFilterType {
+  max-width: 180px;
+}
+.ud__txnId {
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+  white-space: nowrap;
+}
 .ud__tableWrap {
   overflow-x: auto;
 }

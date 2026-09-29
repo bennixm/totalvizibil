@@ -46,8 +46,10 @@
   --tvz-brand-1: #0f52ba; // main — structure, primary actions
   --tvz-brand-2: #0a3e93; // deep sapphire — ranges / pressed
   --tvz-brand-3: #3b74d6; // bright sapphire — lit / active states
+  --tvz-gradient-wallet : radial-gradient(circle at 50% 0, #379173ba -96%, #ffffff 59%);
+  --tvz-accept-green: #0d7d5b;
+  --tvz-accept-green-darker: #1a674d;
 
-  // "AI" moments — a deeper blue, no glow.
   --tvz-ai: #0a3e93;
   --tvz-ai-soft: rgba(15, 82, 186, 0.1);
 
@@ -91,6 +93,9 @@
   --tvz-brand-1: #3d6fdb; // main, deep enough for white button text
   --tvz-brand-2: #2e56b0;
   --tvz-brand-3: #6e9bf0;
+  --tvz-gradient-wallet : radial-gradient(circle at 50% 0, #0cffac33 -96%, #0c1220 59%);
+  --tvz-accept-green: #26c897;
+  --tvz-accept-green-darker: #4af1b8;
 
   --tvz-ai: #9db4d6;
   --tvz-ai-soft: rgba(61, 111, 219, 0.18);

@@ -205,6 +205,22 @@ export class AdminController {
     return this.users.setPassword(id, dto.newPassword);
   }
 
+  @Get('users/:id/transactions')
+  listUserTransactions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+    @Query('type') type?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.users.listTransactions(id, {
+      limit: limit ? Number(limit) : undefined,
+      cursor,
+      type,
+      search,
+    });
+  }
+
   @Post('users/:id/wallet/block')
   blockWallet(@Param('id', ParseUUIDPipe) id: string, @Body() dto: BlockWalletDto) {
     return this.users.blockWallet(id, dto);

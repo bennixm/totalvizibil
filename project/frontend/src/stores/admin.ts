@@ -599,6 +599,23 @@ export const useAdminStore = defineStore('admin', {
       return apiFetch<AdminUserDetail>(`/admin/users/${id}`)
     },
 
+    /** Paginated/filterable Activity-tab history — the user-detail payload
+     *  above only ever embeds the most recent 20 with no filters; this is
+     *  what "search by id" / "load more" there call into. */
+    listUserTransactions(
+      id: string,
+      opts: { cursor?: string; type?: string; search?: string } = {},
+    ): Promise<{ items: AdminUserTxn[]; nextCursor: string | null }> {
+      const params = new URLSearchParams()
+      if (opts.cursor) params.set('cursor', opts.cursor)
+      if (opts.type) params.set('type', opts.type)
+      if (opts.search) params.set('search', opts.search)
+      const qs = params.toString()
+      return apiFetch<{ items: AdminUserTxn[]; nextCursor: string | null }>(
+        `/admin/users/${id}/transactions${qs ? `?${qs}` : ''}`,
+      )
+    },
+
     updateUser(id: string, input: UpdateUserInput): Promise<AdminUserDetail> {
       return apiFetch<AdminUserDetail>(`/admin/users/${id}`, { method: 'PATCH', body: input })
     },

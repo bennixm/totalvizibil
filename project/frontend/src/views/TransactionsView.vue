@@ -30,7 +30,10 @@ const loadingMore = ref(false)
 
 const filterCompany = ref<string | null>(null)
 const filterType = ref<WalletTxnType | null>(null)
-const hasFilters = computed(() => !!filterCompany.value || !!filterType.value)
+const filterSearch = ref('')
+const hasFilters = computed(
+  () => !!filterCompany.value || !!filterType.value || !!filterSearch.value,
+)
 
 const TYPE_OPTIONS: WalletTxnType[] = ['purchase', 'spend', 'refund', 'adjustment']
 const TYPE_TABS = computed(() => [
@@ -38,11 +41,22 @@ const TYPE_TABS = computed(() => [
   ...TYPE_OPTIONS.map((v) => ({ value: v, title: t('wallet.txnType.' + v) })),
 ])
 
+/** A short, stable per-row reference — the underlying id is a full UUID.
+ *  Matches what the id-search filter accepts (paste this back in and it
+ *  matches, `#` included or not). */
+function shortId(id: string): string {
+  return '#' + id.slice(0, 8)
+}
+
 async function loadInitial(): Promise<void> {
   loading.value = true
   try {
     await companies.fetchOverview().catch(() => {})
-    await wallet.loadTransactions(false, { companyId: filterCompany.value, type: filterType.value })
+    await wallet.loadTransactions(false, {
+      companyId: filterCompany.value,
+      type: filterType.value,
+      search: filterSearch.value || null,
+    })
   } catch {
     toasts.error(t('wallet.historyError'))
   } finally {
@@ -65,17 +79,30 @@ async function loadMore(): Promise<void> {
 function clearFilters(): void {
   filterCompany.value = null
   filterType.value = null
+  filterSearch.value = ''
 }
 
-watch([filterCompany, filterType], async () => {
+async function reload(): Promise<void> {
   loading.value = true
   try {
-    await wallet.loadTransactions(false, { companyId: filterCompany.value, type: filterType.value })
+    await wallet.loadTransactions(false, {
+      companyId: filterCompany.value,
+      type: filterType.value,
+      search: filterSearch.value || null,
+    })
   } catch {
     toasts.error(t('wallet.historyError'))
   } finally {
     loading.value = false
   }
+}
+watch([filterCompany, filterType], reload)
+
+// Typing a search term shouldn't fire a request per keystroke.
+let searchDebounce: ReturnType<typeof setTimeout> | undefined
+watch(filterSearch, () => {
+  clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(reload, 300)
 })
 
 onMounted(loadInitial)
@@ -130,6 +157,17 @@ function daysLeft(processAt: string): number {
         </button>
       </div>
       <div class="txn__toolbarEnd">
+        <v-text-field
+          v-model="filterSearch"
+          :label="t('transactions.filterId')"
+          :placeholder="t('transactions.filterIdPlaceholder')"
+          prepend-inner-icon="mdi-magnify"
+          density="compact"
+          variant="outlined"
+          hide-details
+          clearable
+          class="txn__idFilter"
+        />
         <v-select
           v-if="overview.length > 1"
           v-model="filterCompany"
@@ -164,7 +202,8 @@ function daysLeft(processAt: string): number {
           <table class="txn__table">
             <thead>
               <tr>
-                <th>{{ t('wallet.colType') }}</th>
+                <th>{{ t('wallet.colId') }}</th>
+                <th class="trow__typeCol">{{ t('wallet.colType') }}</th>
                 <th class="num">{{ t('wallet.colAmount') }}</th>
                 <th class="end">{{ t('wallet.colDate') }}</th>
                 <th class="end">{{ t('wallet.colStatus') }}</th>
@@ -173,6 +212,7 @@ function daysLeft(processAt: string): number {
             <tbody>
               <template v-for="txn in transactions" :key="txn.id">
                 <tr class="trow">
+                  <td class="trow__id">{{ shortId(txn.id) }}</td>
                   <td class="trow__type">
                     <span class="trow__icon" :class="{ 'is-in': txn.amount.minor >= 0 }">
                       <v-icon :icon="txnIcon(txn)" size="15" />
@@ -196,7 +236,7 @@ function daysLeft(processAt: string): number {
                   </td>
                 </tr>
                 <tr v-if="txn.type === 'refund' && txn.status === 'pending'" class="trow__detail">
-                  <td colspan="4">
+                  <td colspan="5">
                     <div class="trow__actions">
                       <span class="trow__refundNote">
                         <v-icon icon="mdi-clock-outline" size="13" />
@@ -232,7 +272,7 @@ function daysLeft(processAt: string): number {
 
 <style scoped>
 .txn {
-  max-width: 820px;
+  max-width: 960px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
 }
 .txn__center {
@@ -300,6 +340,9 @@ function daysLeft(processAt: string): number {
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+.txn__idFilter {
+  max-width: 190px;
+}
 .txn__companyFilter {
   max-width: 220px;
 }
@@ -347,11 +390,16 @@ function daysLeft(processAt: string): number {
 .trow:hover {
   background: rgba(var(--v-theme-on-surface), 0.02);
 }
-/* Type is the only free-form column left (label + sub text) — let it take
-   the slack instead of forcing the compact numeric/date/status columns wide. */
-.txn__table th:first-child,
-.txn__table td:first-child {
+/* Type is the only free-form column (label + sub text) — let it take the
+   slack instead of forcing the id/amount/date/status columns wide. */
+.txn__table th.trow__typeCol,
+.txn__table td.trow__type {
   width: 100%;
+}
+.trow__id {
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  white-space: nowrap;
 }
 .trow__type {
   font-weight: 600;

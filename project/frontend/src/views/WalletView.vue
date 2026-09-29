@@ -278,7 +278,7 @@ onMounted(async () => {
 
 <style scoped>
 .wal {
-  max-width: 820px;
+  max-width: 1020px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
 }
 .wal__center {
@@ -295,7 +295,7 @@ onMounted(async () => {
   align-items: center;
   border-radius: var(--tvz-radius-lg);
   border: 1px solid var(--tvz-glass-border);
-  background: var(--tvz-ai-soft);
+  background: var(--tvz-gradient-wallet);
 }
 .wal__side {
   padding: 1.5rem 1rem;
@@ -339,6 +339,7 @@ onMounted(async () => {
   font-weight: 700;
   font-size: clamp(2rem, 6vw, 3rem);
   line-height: 1;
+  color:var(--tvz-accept-green-darker);
 }
 .wal__balanceValue span {
   font-size: 0.9rem;
@@ -391,6 +392,7 @@ onMounted(async () => {
 }
 .wal__topUpBtn {
   margin-top: 1.1rem;
+  background-color: var(--tvz-accept-green) !important;
 }
 
 .wal__bybiz {

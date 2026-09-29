@@ -97,6 +97,9 @@ interface State {
     /** Inclusive UTC calendar-day bounds, `YYYY-MM-DD`. */
     from: string | null
     to: string | null
+    /** Matches the short id shown in every list (`#` + first 8 chars) —
+     *  filters to rows whose full id starts with this. */
+    search: string | null
   }
 }
 
@@ -112,7 +115,7 @@ export const useWalletStore = defineStore('wallet', {
     error: '',
     errorReason: null,
     lastInvoice: null,
-    txnFilters: { companyId: null, type: null, category: null, from: null, to: null },
+    txnFilters: { companyId: null, type: null, category: null, from: null, to: null, search: null },
   }),
 
   actions: {
@@ -173,6 +176,7 @@ export const useWalletStore = defineStore('wallet', {
         category?: SpendCategory | null
         from?: string | null
         to?: string | null
+        search?: string | null
       },
     ): Promise<void> {
       if (filters !== undefined) {
@@ -182,6 +186,7 @@ export const useWalletStore = defineStore('wallet', {
           category: filters.category ?? null,
           from: filters.from ?? null,
           to: filters.to ?? null,
+          search: filters.search ?? null,
         }
       }
       const params = new URLSearchParams()
@@ -191,6 +196,7 @@ export const useWalletStore = defineStore('wallet', {
       if (this.txnFilters.category) params.set('category', this.txnFilters.category)
       if (this.txnFilters.from) params.set('from', this.txnFilters.from)
       if (this.txnFilters.to) params.set('to', this.txnFilters.to)
+      if (this.txnFilters.search) params.set('search', this.txnFilters.search)
       const q = params.toString() ? `?${params.toString()}` : ''
       const res = await apiFetch<{ items: WalletTxn[]; nextCursor: string | null }>(
         `/wallet/transactions${q}`,

@@ -446,6 +446,11 @@ export class WalletService implements OnModuleInit {
       /** Inclusive UTC calendar-day bounds, `YYYY-MM-DD`. */
       from?: string;
       to?: string;
+      /** Matches the short id shown in every list (`#` + the first 8 chars)
+       *  — filters to rows whose full id starts with this (the `#` and any
+       *  surrounding whitespace are stripped, so pasting the displayed
+       *  short id works as-is). */
+      search?: string;
     } = {},
   ) {
     const wallet = await this.ensureWallet(userId);
@@ -463,6 +468,19 @@ export class WalletService implements OnModuleInit {
     if (opts.to && /^\d{4}-\d{2}-\d{2}$/.test(opts.to)) {
       createdAt.lt = new Date(new Date(`${opts.to}T00:00:00.000Z`).getTime() + 86_400_000);
     }
+    const search = opts.search?.trim().replace(/^#/, '');
+    // `id` is a native Postgres `uuid` column — Prisma's typed filters don't
+    // offer `startsWith` on it (only on plain strings), so a prefix match
+    // against its text form has to go through a small raw pre-query instead.
+    let searchIds: string[] | undefined;
+    if (search) {
+      const matched = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "wallet_transactions"
+        WHERE wallet_id = ${wallet.id}::uuid AND id::text ILIKE ${search + '%'}
+      `;
+      searchIds = matched.map((m) => m.id);
+      if (searchIds.length === 0) return { items: [], nextCursor: null };
+    }
 
     const rows = await this.prisma.walletTransaction.findMany({
       where: {
@@ -471,6 +489,7 @@ export class WalletService implements OnModuleInit {
         ...(type ? { type } : {}),
         ...(category ? categoryWhere(category) : {}),
         ...(Object.keys(createdAt).length ? { createdAt } : {}),
+        ...(searchIds ? { id: { in: searchIds } } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: take + 1,

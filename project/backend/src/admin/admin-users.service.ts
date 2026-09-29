@@ -356,6 +356,20 @@ export class AdminUsersService {
     return { ok: true as const };
   }
 
+  /** Paginated/filterable transaction history for the Activity tab — the
+   *  same `listTransactions` the owner's own transactions page uses, just
+   *  scoped to whichever user the admin is looking at instead of the caller.
+   *  The user-detail payload above only ever embeds the most recent 20 (no
+   *  filters); this is what "search by id" / "load more" call into. */
+  async listTransactions(
+    id: string,
+    opts: { limit?: number; cursor?: string; type?: string; search?: string },
+  ) {
+    const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
+    if (!target) throw new NotFoundException('User not found');
+    return this.wallet.listTransactions(id, opts);
+  }
+
   async blockWallet(id: string, dto: BlockWalletDto) {
     const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
     if (!target) throw new NotFoundException('User not found');
