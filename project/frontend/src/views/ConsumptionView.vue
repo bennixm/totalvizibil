@@ -52,6 +52,9 @@ const CATEGORY_META: Record<SpendCategory, { icon: string; labelKey: string }> =
   other: { icon: 'mdi-dots-horizontal', labelKey: 'consumption.other' },
 }
 const CATEGORY_ORDER: SpendCategory[] = ['clicks', 'aiUsage', 'builderUnlock', 'other']
+/** Matches `BUILDER_UNLOCK_DESCRIPTION` in `wallet.service.ts` — the fixed
+ *  English description written to that one-time-fee ledger row. */
+const BUILDER_UNLOCK_DESCRIPTION = 'Advanced website builder'
 
 const categoryByKey = computed(() => {
   const map = new Map<SpendCategory, CategoryRow>()
@@ -145,6 +148,16 @@ function txnLabel(txn: (typeof transactions.value)[number]): string {
   if (txn.provider === 'cpc' && txn.clicks) {
     return t('consumption.txnClicks', { n: txn.clicks })
   }
+  // These two descriptions are fixed English strings written straight to the
+  // ledger row (see `wallet.service.ts` `chargeAiUsage`/`spend`) — never
+  // translated at write time, so show the already-localized category label
+  // instead of the raw value here.
+  if (txn.provider === 'ai-usage') {
+    return t(CATEGORY_META.aiUsage.labelKey)
+  }
+  if (txn.description === BUILDER_UNLOCK_DESCRIPTION) {
+    return t(CATEGORY_META.builderUnlock.labelKey)
+  }
   return txn.description ?? t('consumption.txnOther')
 }
 
@@ -191,17 +204,25 @@ watch(
       <!-- Campaign spend — clicks and whatever else the campaign itself
            consumes. CampaignSpendView links back here instead of repeating it. -->
       <section class="cons__section">
-        <h2 class="cons__sectionTitle">{{ t('consumption.campaignTitle') }}</h2>
-        <div class="cons__campaignRow">
-          <button
-            type="button"
-            class="cons__card cons__card--btn"
-            :class="{ 'is-active': filterCategory === 'clicks' }"
-            @click="filterByCategory('clicks')"
+        <div class="cons__sectionHead">
+          <h2 class="cons__sectionTitle">{{ t('consumption.campaignTitle') }}</h2>
+          <router-link
+            v-if="companyId"
+            :to="{ name: 'campaign', query: { c: companyId } }"
+            class="cons__sectionAction"
           >
-            <span class="cons__cardIcon"><v-icon :icon="CATEGORY_META.clicks.icon" size="18" /></span>
+            {{ t('consumption.viewCampaign') }} <v-icon icon="mdi-arrow-right" size="13" />
+          </router-link>
+        </div>
+        <button
+          type="button"
+          class="cons__card cons__card--btn cons__card--hero"
+          :class="{ 'is-active': filterCategory === 'clicks' }"
+          @click="filterByCategory('clicks')"
+        >
+          <span class="cons__cardIcon"><v-icon :icon="CATEGORY_META.clicks.icon" size="20" /></span>
+          <span class="cons__cardHeroBody">
             <span class="cons__cardLabel">{{ t(CATEGORY_META.clicks.labelKey) }}</span>
-            <strong class="cons__cardValue">{{ cr(campaignCategory?.total.credits ?? 0) }}</strong>
             <span class="cons__cardCount">
               {{
                 campaignCategory?.count
@@ -209,15 +230,9 @@ watch(
                   : t('consumption.none')
               }}
             </span>
-          </button>
-          <router-link
-            v-if="companyId"
-            :to="{ name: 'campaign', query: { c: companyId } }"
-            class="cons__campaignLink"
-          >
-            {{ t('consumption.viewCampaign') }} <v-icon icon="mdi-arrow-right" size="14" />
-          </router-link>
-        </div>
+          </span>
+          <strong class="cons__cardValue">{{ cr(campaignCategory?.total.credits ?? 0) }}</strong>
+        </button>
         <div v-if="hasCampaignHistory" class="card cons__chart">
           <TrendChart :labels="campaignChart.labels" :series="campaignChart.series" />
         </div>
@@ -225,7 +240,9 @@ watch(
 
       <!-- Everything else: Website Builder AI usage, its unlock fee, other. -->
       <section class="cons__section">
-        <h2 class="cons__sectionTitle">{{ t('consumption.otherTitle') }}</h2>
+        <div class="cons__sectionHead">
+          <h2 class="cons__sectionTitle">{{ t('consumption.otherTitle') }}</h2>
+        </div>
         <div class="cons__grid">
           <button
             v-for="c in otherCategories"
@@ -392,8 +409,15 @@ watch(
 .cons__section {
   margin-bottom: 1.5rem;
 }
+.cons__sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 0.65rem;
+}
 .cons__sectionTitle {
-  margin: 0 0 0.65rem;
+  margin: 0;
   font-family: 'Space Grotesk Variable', sans-serif;
   font-size: 0.8rem;
   font-weight: 700;
@@ -401,25 +425,39 @@ watch(
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
-.cons__campaignRow {
-  display: flex;
-  align-items: stretch;
-  gap: 0.7rem;
-  margin-bottom: 0.7rem;
-}
-.cons__campaignRow .cons__card {
-  flex: 1;
-  max-width: 260px;
-}
-.cons__campaignLink {
+.cons__sectionAction {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  align-self: center;
-  font-size: 0.84rem;
+  gap: 0.25rem;
+  flex: none;
+  font-size: 0.78rem;
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
   white-space: nowrap;
+}
+.cons__sectionAction:hover {
+  text-decoration: underline;
+}
+.cons__card--hero {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.7rem;
+}
+.cons__card--hero .cons__cardIcon {
+  margin-bottom: 0;
+}
+.cons__cardHeroBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.cons__card--hero .cons__cardValue {
+  flex: none;
+  font-size: 1.3rem;
 }
 .cons__chart {
   padding: 1rem 1.1rem 0.5rem;
@@ -582,12 +620,6 @@ watch(
 @media (max-width: 620px) {
   .cons__grid {
     grid-template-columns: 1fr 1fr;
-  }
-  .cons__campaignRow {
-    flex-direction: column;
-  }
-  .cons__campaignRow .cons__card {
-    max-width: none;
   }
 }
 </style>
