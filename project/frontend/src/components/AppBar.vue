@@ -111,6 +111,7 @@ watch(() => auth.isAuthenticated, syncWallet)
     class="topbar"
     :class="{ 'topbar--mobile': !mdAndUp }"
   >
+  <div class="topbar_content">
     <div class="topbar__upper__inner">
       <CurrencyQuickToggle v-if="auth.isAuthenticated" />
       <ThemeQuickToggle />
@@ -280,6 +281,7 @@ watch(() => auth.isAuthenticated, syncWallet)
         />
       </div>
     </div>
+    </div>
   </v-app-bar>
 </template>
 
@@ -298,21 +300,22 @@ watch(() => auth.isAuthenticated, syncWallet)
   padding-inline: 0;
   height: 100% !important;
   flex-direction: column;
-  align-items: stretch;
+}
+.topbar_content {
+  display:flex;
+  flex-direction:column;
+  width:90%;
 }
 .topbar__inner {
   background: var(--tvz-glass-bg-strong) !important;
-  border-bottom: 1px solid var(--tvz-hairline);
   width: 100%;
-  max-width: 1800px;
-  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
-  margin:0 auto;
   gap: 0.5rem;
   padding: 1rem;
+  clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
 }
 /* A quiet utility strip above the main bar, no background of its own — just
    the less-important controls (locale, theme) tucked out of the primary row. */
@@ -323,8 +326,6 @@ watch(() => auth.isAuthenticated, syncWallet)
   flex-direction: row;
   justify-content: flex-end;
   align-items: center;
-  gap: 0.5rem;
-  padding-inline: 1rem;
   background: transparent;
 }
 .topbar__spacer {
