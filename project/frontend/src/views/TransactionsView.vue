@@ -33,6 +33,15 @@ const filterType = ref<WalletTxnType | null>(null)
 const hasFilters = computed(() => !!filterCompany.value || !!filterType.value)
 
 const TYPE_OPTIONS: WalletTxnType[] = ['purchase', 'spend', 'refund', 'adjustment']
+const TYPE_TABS = computed(() => [
+  { value: null, title: t('transactions.filterAllTypes') },
+  ...TYPE_OPTIONS.map((v) => ({ value: v, title: t('wallet.txnType.' + v) })),
+])
+
+/** A short, stable per-row reference — the underlying id is a full UUID. */
+function shortId(id: string): string {
+  return '#' + id.slice(0, 8)
+}
 
 async function loadInitial(): Promise<void> {
   loading.value = true
@@ -111,35 +120,38 @@ function daysLeft(processAt: string): number {
       </v-btn>
     </header>
 
-    <div class="txn__filters">
-      <v-select
-        v-if="overview.length > 1"
-        v-model="filterCompany"
-        :items="[
-          { title: t('transactions.filterAllBusinesses'), value: null },
-          ...overview.map((c) => ({ title: c.displayName, value: c.id })),
-        ]"
-        :label="t('transactions.filterBusiness')"
-        density="compact"
-        variant="outlined"
-        hide-details
-        class="txn__filter"
-      />
-      <v-select
-        v-model="filterType"
-        :items="[
-          { title: t('transactions.filterAllTypes'), value: null },
-          ...TYPE_OPTIONS.map((v) => ({ title: t('wallet.txnType.' + v), value: v })),
-        ]"
-        :label="t('transactions.filterType')"
-        density="compact"
-        variant="outlined"
-        hide-details
-        class="txn__filter"
-      />
-      <v-btn v-if="hasFilters" variant="text" size="small" @click="clearFilters">
-        {{ t('transactions.clearFilters') }}
-      </v-btn>
+    <div class="txn__toolbar">
+      <div class="txn__tabs" role="tablist" :aria-label="t('transactions.filterType')">
+        <button
+          v-for="opt in TYPE_TABS"
+          :key="opt.value ?? 'all'"
+          type="button"
+          role="tab"
+          :aria-selected="filterType === opt.value"
+          :class="{ 'is-on': filterType === opt.value }"
+          @click="filterType = opt.value"
+        >
+          {{ opt.title }}
+        </button>
+      </div>
+      <div class="txn__toolbarEnd">
+        <v-select
+          v-if="overview.length > 1"
+          v-model="filterCompany"
+          :items="[
+            { title: t('transactions.filterAllBusinesses'), value: null },
+            ...overview.map((c) => ({ title: c.displayName, value: c.id })),
+          ]"
+          :label="t('transactions.filterBusiness')"
+          density="compact"
+          variant="outlined"
+          hide-details
+          class="txn__companyFilter"
+        />
+        <v-btn v-if="hasFilters" variant="text" size="small" @click="clearFilters">
+          {{ t('transactions.clearFilters') }}
+        </v-btn>
+      </div>
     </div>
 
     <div v-if="loading && !transactions.length" class="txn__center">
@@ -153,65 +165,73 @@ function daysLeft(processAt: string): number {
         </p>
         <p v-else-if="!transactions.length" class="txn__empty">{{ t('wallet.historyEmpty') }}</p>
 
-        <ul v-else class="txn__rows">
-          <li v-for="txn in transactions" :key="txn.id" class="trow">
-            <div class="trow__top">
-              <span class="trow__icon" :class="{ 'is-in': txn.amount.minor >= 0 }">
-                <v-icon :icon="txnIcon(txn)" size="18" />
-              </span>
-              <div class="trow__main">
-                <p class="trow__label">
-                  {{ txnLabel(txn, t) }}
-                  <span v-if="txn.clicks != null" class="trow__sub">
-                    · {{ t('wallet.nClicks', { n: txn.clicks }) }}
-                  </span>
-                  <span v-if="txn.companyName" class="trow__sub"> · {{ txn.companyName }}</span>
-                </p>
-                <p class="trow__date">{{ new Date(txn.createdAt).toLocaleDateString() }}</p>
-              </div>
-              <div class="trow__end">
-                <span class="trow__amount" :class="txn.amount.minor < 0 ? 'is-out' : 'is-in'">
-                  <CreditsValue :credits="txn.amount.credits" signed stacked />
-                </span>
-                <span class="trow__badge" :class="'trow__badge--' + txn.status">
-                  {{ t('wallet.txnStatus.' + txn.status) }}
-                </span>
-              </div>
-            </div>
+        <div v-else class="txn__tableWrap">
+          <table class="txn__table">
+            <thead>
+              <tr>
+                <th>{{ t('wallet.colId') }}</th>
+                <th>{{ t('wallet.colType') }}</th>
+                <th class="num">{{ t('wallet.colAmount') }}</th>
+                <th>{{ t('wallet.colDate') }}</th>
+                <th>{{ t('wallet.colStatus') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="txn in transactions" :key="txn.id">
+                <tr class="trow">
+                  <td class="trow__id">{{ shortId(txn.id) }}</td>
+                  <td class="trow__type">
+                    <span class="trow__icon" :class="{ 'is-in': txn.amount.minor >= 0 }">
+                      <v-icon :icon="txnIcon(txn)" size="15" />
+                    </span>
+                    {{ txnLabel(txn, t) }}
+                    <span v-if="txn.clicks != null" class="trow__sub">
+                      · {{ t('wallet.nClicks', { n: txn.clicks }) }}
+                    </span>
+                    <span v-if="txn.companyName" class="trow__sub"> · {{ txn.companyName }}</span>
+                  </td>
+                  <td class="num">
+                    <span class="trow__amount" :class="txn.amount.minor < 0 ? 'is-out' : 'is-in'">
+                      <CreditsValue :credits="txn.amount.credits" signed stacked />
+                    </span>
+                  </td>
+                  <td class="trow__date">{{ new Date(txn.createdAt).toLocaleDateString() }}</td>
+                  <td>
+                    <span class="trow__badge" :class="'trow__badge--' + txn.status">
+                      {{ t('wallet.txnStatus.' + txn.status) }}
+                    </span>
+                  </td>
+                </tr>
+                <tr v-if="txn.type === 'refund' && txn.status === 'pending'" class="trow__detail">
+                  <td colspan="5">
+                    <div class="trow__actions">
+                      <span class="trow__refundNote">
+                        <v-icon icon="mdi-clock-outline" size="13" />
+                        {{ t('transactions.refundProcessesIn', { d: txn.processAt ? daysLeft(txn.processAt) : 0 }) }}
+                        <template v-if="txn.feeMinor">
+                          · {{ t('transactions.refundFeeNote', { fee: txn.feeMinor.credits }) }}
+                        </template>
+                      </span>
+                      <v-btn
+                        size="x-small"
+                        variant="tonal"
+                        color="warning"
+                        :loading="busyId === txn.id"
+                        @click="doCancelRefund(txn.id)"
+                      >
+                        {{ t('common.cancel') }}
+                      </v-btn>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
 
-            <div
-              v-if="txn.type === 'refund' && txn.status === 'pending'"
-              class="trow__actions trow__actions--pending"
-            >
-              <span class="trow__refundNote">
-                <v-icon icon="mdi-clock-outline" size="13" />
-                {{ t('transactions.refundProcessesIn', { d: txn.processAt ? daysLeft(txn.processAt) : 0 }) }}
-                <template v-if="txn.feeMinor">
-                  · {{ t('transactions.refundFeeNote', { fee: txn.feeMinor.credits }) }}
-                </template>
-              </span>
-              <v-btn
-                size="x-small"
-                variant="tonal"
-                color="warning"
-                :loading="busyId === txn.id"
-                @click="doCancelRefund(txn.id)"
-              >
-                {{ t('common.cancel') }}
-              </v-btn>
-            </div>
-          </li>
-        </ul>
-
-        <v-btn
-          v-if="nextCursor"
-          variant="text"
-          size="small"
-          :loading="loadingMore"
-          @click="loadMore"
-        >
-          {{ t('wallet.loadMore') }}
-        </v-btn>
+        <button v-if="nextCursor" type="button" class="txn__more" :disabled="loadingMore" @click="loadMore">
+          <v-icon icon="mdi-reload" size="15" /> {{ t('wallet.loadMore') }}
+        </button>
       </section>
     </template>
   </v-container>
@@ -219,7 +239,7 @@ function daysLeft(processAt: string): number {
 
 <style scoped>
 .txn {
-  max-width: 780px;
+  max-width: 960px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
 }
 .txn__center {
@@ -249,14 +269,45 @@ function daysLeft(processAt: string): number {
   letter-spacing: -0.02em;
   margin: 0;
 }
-.txn__filters {
+.txn__toolbar {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  justify-content: space-between;
   flex-wrap: wrap;
+  gap: 0.6rem;
   margin-bottom: 1.1rem;
 }
-.txn__filter {
+.txn__tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface));
+}
+.txn__tabs button {
+  padding: 0.45rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  transition:
+    background var(--tvz-dur-fast) var(--tvz-ease-out),
+    color var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.txn__tabs button + button {
+  border-left: 1px solid var(--tvz-glass-border);
+}
+.txn__tabs button.is-on {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.txn__toolbarEnd {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.txn__companyFilter {
   max-width: 220px;
 }
 .txn__empty {
@@ -265,85 +316,77 @@ function daysLeft(processAt: string): number {
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
-.txn__rows {
-  list-style: none;
-  margin: 0 0 0.75rem;
-  padding: 0;
+.txn__tableWrap {
+  overflow-x: auto;
   border: 1px solid var(--tvz-glass-border);
   border-radius: var(--tvz-radius-md);
-  overflow: hidden;
   background: rgb(var(--v-theme-surface));
 }
-.trow {
-  padding: 0.75rem 1rem;
+.txn__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
 }
-.trow + .trow {
+.txn__table thead th {
+  text-align: left;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--tvz-glass-border);
+  white-space: nowrap;
+}
+.txn__table th.num,
+.txn__table td.num {
+  text-align: right;
+}
+.txn__table td {
+  padding: 0.65rem 1rem;
+  vertical-align: middle;
+}
+.trow + .trow td {
   border-top: 1px solid var(--tvz-hairline);
 }
-.trow__top {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.trow:hover {
+  background: rgba(var(--v-theme-on-surface), 0.02);
 }
-.trow__actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.4rem;
+.trow__id {
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  white-space: nowrap;
 }
-.trow__actions--pending {
-  justify-content: space-between;
-}
-.trow__refundNote {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.78rem;
-  color: rgba(var(--v-theme-on-surface), 0.6);
+.trow__type {
+  font-weight: 600;
+  white-space: nowrap;
 }
 .trow__icon {
-  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 22px;
+  height: 22px;
+  margin-right: 0.35rem;
+  border-radius: 7px;
   background: rgba(var(--v-theme-error), 0.1);
   color: rgb(var(--v-theme-error));
+  vertical-align: -6px;
 }
 .trow__icon.is-in {
   background: rgba(var(--v-theme-success), 0.12);
   color: rgb(var(--v-theme-success));
-}
-.trow__main {
-  flex: 1;
-  min-width: 0;
-}
-.trow__label {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .trow__sub {
   font-weight: 400;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .trow__date {
-  margin: 0.1rem 0 0;
-  font-size: 0.76rem;
-  color: rgba(var(--v-theme-on-surface), 0.5);
+  white-space: nowrap;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
-.trow__end {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.25rem;
+.trow__amount {
+  white-space: nowrap;
 }
 .trow__amount.is-in {
   color: rgb(var(--v-theme-success));
@@ -358,6 +401,7 @@ function daysLeft(processAt: string): number {
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
   background: rgba(var(--v-theme-on-surface), 0.08);
+  white-space: nowrap;
 }
 .trow__badge--completed {
   background: rgba(var(--v-theme-success), 0.16);
@@ -370,5 +414,41 @@ function daysLeft(processAt: string): number {
 .trow__badge--failed {
   background: rgba(var(--v-theme-error), 0.16);
   color: rgb(var(--v-theme-error));
+}
+.trow__detail td {
+  padding: 0 1rem 0.7rem;
+  border-top: 0;
+}
+.trow__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.trow__refundNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.txn__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.6rem;
+  border-radius: var(--tvz-radius-md);
+  border: 1px solid var(--tvz-glass-border);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.txn__more:hover {
+  background: rgba(var(--v-theme-on-surface), 0.03);
 }
 </style>

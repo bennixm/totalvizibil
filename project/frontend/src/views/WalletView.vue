@@ -8,6 +8,7 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import CreditsValue from '@/components/CreditsValue.vue'
 import InfoHint from '@/components/InfoHint.vue'
+import TopUpDialog from '@/components/wallet/TopUpDialog.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
 import { useWalletStore } from '@/stores/wallet'
@@ -20,11 +21,10 @@ const router = useRouter()
 const companies = useCompaniesStore()
 const wallet = useWalletStore()
 const money = useMoney()
-const { summary, pending, loading, working, error, lastInvoice } = storeToRefs(wallet)
+const { summary, loading, working, error } = storeToRefs(wallet)
 const { overview } = storeToRefs(companies)
 
-const billingBlocked = computed(() => !!summary.value && !summary.value.billingProfileComplete)
-const unbilledCount = computed(() => summary.value?.unbilledPurchases ?? 0)
+const showTopUp = ref(false)
 
 const CURRENCIES = ['EUR', 'RON'] as const
 
@@ -51,42 +51,17 @@ watch(error, (v) => {
   if (v) toasts.error(errorText.value)
 })
 
-const PRESETS = [10, 25, 50, 100]
-const amount = ref(50)
-
-const rate = computed(() => summary.value?.eurRonRate ?? 5.05)
 const consumers = computed(() => overview.value.filter((c) => c.consumedCredits > 0))
 
+/** Fetched once here (page load) and handed down to the top-up dialog,
+ *  rather than re-fetched every time it opens. */
 const discountPct = ref(0)
 
 function eur(v: number): string {
   return '€' + n(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
-function ron(eurValue: number): string {
-  return n(eurValue * rate.value, { maximumFractionDigits: 0 }) + ' RON'
-}
-function discounted(v: number): number {
-  return discountPct.value > 0 ? v * (1 - discountPct.value / 100) : v
-}
 function credits(v: number): string {
   return n(v, { maximumFractionDigits: 2 })
-}
-
-const previewValid = computed(() => Number.isInteger(amount.value) && amount.value >= 1)
-
-async function buy(): Promise<void> {
-  if (!previewValid.value) return
-  await wallet.startPurchase(amount.value)
-  // Stripe configured: the pending purchase carries a real Checkout Session
-  // URL — leave the app entirely and let Stripe host the payment form. With
-  // no Stripe key, `checkoutUrl` is null and the existing dev-stub "confirm"
-  // panel below renders instead, unchanged.
-  if (wallet.pending?.checkoutUrl) {
-    window.location.href = wallet.pending.checkoutUrl
-  }
-}
-async function confirm(): Promise<void> {
-  await wallet.confirmPending()
 }
 
 // --- Refund the wallet balance ---------------------------------------
@@ -163,13 +138,18 @@ onMounted(async () => {
     <div v-if="loading" class="wal__center"><v-progress-circular indeterminate color="primary" /></div>
 
     <template v-else-if="summary">
-      <!-- Balance + at-a-glance figures, unified into one panel -->
-      <section class="wal__overview">
+      <!-- Balance + at-a-glance figures + top-up trigger, one 3-column panel. -->
+      <section class="wal__card">
+        <div class="wal__side">
+          <span class="wal__sideLabel">{{ t('wallet.deposited') }}</span>
+          <strong class="wal__sideValue">{{ eur(summary.depositedEurCents / 100) }}</strong>
+        </div>
+
         <div class="wal__balance">
           <p class="wal__balanceLabel">
             {{ t('wallet.balance') }}
             <InfoHint
-              :text="`${t('wallet.mainNote')} ${t('wallet.rateNote', { rate: n(rate, { maximumFractionDigits: 4 }) })}`"
+              :text="`${t('wallet.mainNote')} ${t('wallet.rateNote', { rate: n(summary.eurRonRate, { maximumFractionDigits: 4 }) })}`"
             />
           </p>
           <p class="wal__balanceValue">
@@ -192,161 +172,31 @@ onMounted(async () => {
               </button>
             </div>
           </div>
+
+          <v-btn
+            color="primary"
+            size="large"
+            class="wal__topUpBtn"
+            prepend-icon="mdi-plus"
+            @click="showTopUp = true"
+          >
+            {{ t('wallet.topUpCta') }}
+          </v-btn>
         </div>
 
-        <div class="wal__stats">
+        <div class="wal__side wal__side--stack">
           <div>
-            <span>{{ t('wallet.deposited') }}</span>
-            <strong>{{ eur(summary.depositedEurCents / 100) }}</strong>
+            <span class="wal__sideLabel">{{ t('wallet.purchased') }}</span>
+            <strong class="wal__sideValue">{{ credits(summary.purchased.credits) }}</strong>
           </div>
           <div>
-            <span>{{ t('wallet.purchased') }}</span>
-            <strong>{{ credits(summary.purchased.credits) }}</strong>
-            <em class="wal__statEq">{{ money.approx(summary.purchased.credits) }}</em>
-          </div>
-          <div>
-            <span>{{ t('wallet.spent') }}</span>
-            <strong>{{ credits(summary.spent.credits) }}</strong>
-            <em class="wal__statEq">{{ money.approx(summary.spent.credits) }}</em>
+            <span class="wal__sideLabel">{{ t('wallet.spent') }}</span>
+            <strong class="wal__sideValue">{{ credits(summary.spent.credits) }}</strong>
           </div>
         </div>
       </section>
 
-      <!-- Buy credits -->
-      <AdminSection class="wal__section" :title="t('wallet.buyTitle')" icon="mdi-cart-plus">
-        <template #actions>
-          <InfoHint :text="t('wallet.prepaidNote')" />
-        </template>
-
-        <div v-if="!billingBlocked && unbilledCount > 0" class="wal__unbilled">
-          <v-icon icon="mdi-receipt-text-remove-outline" size="18" />
-          <div>
-            <strong>{{ t('wallet.unbilledTitle') }}</strong>
-            <p>{{ t('wallet.unbilledText', { n: unbilledCount }) }}</p>
-            <v-btn
-              class="mt-2"
-              size="small"
-              variant="tonal"
-              :to="{ name: 'account', query: { tab: 'billing' } }"
-            >
-              {{ t('wallet.unbilledCta') }}
-            </v-btn>
-          </div>
-        </div>
-
-        <div v-if="lastInvoice" class="wal__invoiceNote">
-          <v-icon icon="mdi-file-check-outline" size="16" />
-          {{ t('wallet.invoiceIssued', { number: lastInvoice.number }) }}
-          <a :href="`/account/invoices/${lastInvoice.id}`" target="_blank" rel="noopener">
-            {{ t('wallet.invoiceView') }}
-          </a>
-        </div>
-
-        <div v-if="billingBlocked" class="wal__blocked wal__blocked--billing">
-          <v-icon icon="mdi-file-document-alert-outline" size="18" />
-          <div>
-            <strong>{{ t('wallet.billingRequiredTitle') }}</strong>
-            <p>{{ t('wallet.billingRequiredText') }}</p>
-            <v-btn
-              class="mt-2"
-              color="primary"
-              size="small"
-              variant="tonal"
-              append-icon="mdi-arrow-right"
-              :to="{ name: 'account', query: { tab: 'billing' } }"
-            >
-              {{ t('wallet.billingRequiredCta') }}
-            </v-btn>
-          </div>
-        </div>
-
-        <div v-else-if="summary?.blocked" class="wal__blocked">
-          <v-icon icon="mdi-lock" size="18" />
-          <div>
-            <strong>{{ t('wallet.err.wallet_blocked') }}</strong>
-            <p v-if="summary.blockedReason">{{ t('wallet.blockedReason', { reason: summary.blockedReason }) }}</p>
-            <p>{{ t('wallet.blockedHelp') }}</p>
-          </div>
-        </div>
-
-        <div v-else-if="!pending" class="wal__buyForm">
-          <div class="wal__presets">
-            <button
-              v-for="p in PRESETS"
-              :key="p"
-              type="button"
-              :class="{ 'is-on': amount === p }"
-              @click="amount = p"
-            >
-              {{ p }}
-            </button>
-            <v-text-field
-              v-model.number="amount"
-              type="number"
-              :min="1"
-              density="compact"
-              variant="outlined"
-              hide-details
-              class="wal__custom"
-              :label="t('wallet.customAmount')"
-            />
-          </div>
-          <p v-if="discountPct > 0" class="wal__preview wal__preview--discount">
-            <span class="wal__strike">{{ eur(amount || 0) }}</span>
-            {{ t('wallet.previewLine', {
-              credits: amount || 0,
-              eur: eur(discounted(amount || 0)),
-              ron: ron(discounted(amount || 0)),
-            }) }}
-            <span class="wal__discountTag">-{{ discountPct }}%</span>
-          </p>
-          <p v-else class="wal__preview">
-            {{ t('wallet.previewLine', { credits: amount || 0, eur: eur(amount || 0), ron: ron(amount || 0) }) }}
-          </p>
-          <v-btn
-            color="primary"
-            :disabled="!previewValid"
-            :loading="working"
-            append-icon="mdi-arrow-right"
-            @click="buy"
-          >
-            {{ t('wallet.buyCta') }}
-          </v-btn>
-        </div>
-
-        <!-- A real Stripe checkout URL was issued — `buy()` is already
-             navigating the browser away (see the comment there); never let
-             the dev-stub panel below render in the meantime, since
-             `window.location.href` doesn't unload synchronously and this
-             component keeps re-rendering right up until it does. -->
-        <div v-else-if="pending.checkoutUrl" class="wal__redirecting">
-          <v-progress-circular indeterminate color="primary" size="28" />
-          <p>{{ t('wallet.redirectingToStripe') }}</p>
-        </div>
-
-        <!-- Stub payment confirm — only reached with no Stripe key configured. -->
-        <div v-else class="wal__confirm">
-          <p class="wal__confirmHead">
-            <v-icon icon="mdi-credit-card-outline" size="18" /> {{ t('wallet.confirmTitle') }}
-          </p>
-          <p class="wal__confirmSum">
-            {{ t('wallet.previewLine', {
-              credits: pending.credits,
-              eur: eur(pending.eurCents / 100),
-              ron: (pending.ronBani / 100).toLocaleString() + ' RON',
-            }) }}
-          </p>
-          <p class="wal__devNote">{{ t('wallet.devNote') }}</p>
-          <div class="wal__confirmActions">
-            <v-btn variant="text" :disabled="working" @click="wallet.cancelPending()">
-              {{ t('common.cancel') }}
-            </v-btn>
-            <v-btn color="primary" :loading="working" @click="confirm">
-              {{ t('wallet.confirmCta') }}
-            </v-btn>
-          </div>
-        </div>
-      </AdminSection>
+      <TopUpDialog v-model="showTopUp" :discount-pct="discountPct" />
 
       <!-- Refund the wallet balance -->
       <AdminSection
@@ -437,17 +287,43 @@ onMounted(async () => {
   min-height: 200px;
 }
 
-/* Balance + at-a-glance figures — one unified panel instead of two
-   separately-floating blocks. */
-.wal__overview {
+/* Balance + at-a-glance figures + top-up trigger — one 3-column panel,
+   center column carrying the primary action. */
+.wal__card {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr;
+  align-items: center;
   border-radius: var(--tvz-radius-lg);
   border: 1px solid var(--tvz-glass-border);
   background: var(--tvz-ai-soft);
-  overflow: hidden;
+}
+.wal__side {
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+.wal__side--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+.wal__sideLabel {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.wal__sideValue {
+  display: block;
+  margin-top: 0.25rem;
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1.2rem;
 }
 .wal__balance {
-  padding: 1.6rem 1.5rem 1.4rem;
+  padding: 1.6rem 1.5rem;
   text-align: center;
+  border-left: 1px solid var(--tvz-glass-border);
+  border-right: 1px solid var(--tvz-glass-border);
 }
 .wal__balanceLabel {
   margin: 0;
@@ -513,6 +389,9 @@ onMounted(async () => {
 .wal__currencyBtns button:disabled {
   opacity: 0.5;
 }
+.wal__topUpBtn {
+  margin-top: 1.1rem;
+}
 
 .wal__bybiz {
   list-style: none;
@@ -544,123 +423,8 @@ onMounted(async () => {
   flex: none;
 }
 
-.wal__stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid var(--tvz-glass-border);
-}
-.wal__stats > div {
-  padding: 0.9rem 1rem 1rem;
-  text-align: center;
-}
-.wal__stats > div + div {
-  border-left: 1px solid var(--tvz-glass-border);
-}
-.wal__stats span {
-  display: block;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-.wal__stats strong {
-  font-size: 1.1rem;
-}
-.wal__statEq {
-  display: block;
-  margin-top: 0.1rem;
-  font-size: 0.72rem;
-  font-style: normal;
-  text-transform: none;
-  letter-spacing: 0;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-
 .wal__section {
   margin-top: 1.25rem;
-}
-.wal__presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-.wal__presets button {
-  min-width: 54px;
-  padding: 0.5rem 0.75rem;
-  border-radius: 10px;
-  border: 1px solid var(--tvz-glass-border);
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-.wal__presets button.is-on {
-  border-color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.12);
-  color: rgb(var(--v-theme-primary));
-}
-.wal__custom {
-  max-width: 150px;
-}
-.wal__preview {
-  margin: 0.9rem 0;
-  font-size: 0.95rem;
-  font-weight: 500;
-}
-.wal__preview--discount {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-.wal__strike {
-  text-decoration: line-through;
-  color: rgba(var(--v-theme-on-surface), 0.45);
-  font-weight: 400;
-}
-.wal__discountTag {
-  font-size: 0.68rem;
-  font-weight: 800;
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  background: rgba(var(--v-theme-success), 0.16);
-  color: rgb(var(--v-theme-success));
-}
-.wal__redirecting {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 2rem 1rem;
-  text-align: center;
-  color: rgba(var(--v-theme-on-surface), 0.65);
-  font-size: 0.88rem;
-}
-.wal__confirm {
-  padding: 1.1rem;
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-surface));
-}
-.wal__confirmHead {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0 0 0.4rem;
-  font-weight: 600;
-}
-.wal__confirmSum {
-  margin: 0 0 0.3rem;
-  font-size: 1.05rem;
-}
-.wal__devNote {
-  margin: 0 0 0.8rem;
-  font-size: 0.78rem;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-.wal__confirmActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
 }
 
 .wal__error {
@@ -673,63 +437,6 @@ onMounted(async () => {
   background: rgba(var(--v-theme-error), 0.1);
   color: rgb(var(--v-theme-error));
   font-size: 0.82rem;
-}
-.wal__blocked {
-  display: flex;
-  gap: 0.6rem;
-  padding: 0.9rem 1.1rem;
-  border-radius: var(--tvz-radius-md);
-  background: rgba(var(--v-theme-error), 0.1);
-  border: 1px solid rgba(var(--v-theme-error), 0.35);
-  color: rgb(var(--v-theme-error));
-  font-size: 0.85rem;
-}
-.wal__blocked strong {
-  display: block;
-  margin-bottom: 0.15rem;
-}
-.wal__blocked p {
-  margin: 0.1rem 0 0;
-  color: rgba(var(--v-theme-on-surface), 0.75);
-}
-.wal__blocked--billing {
-  background: rgba(var(--v-theme-warning), 0.1);
-  border-color: rgba(var(--v-theme-warning), 0.35);
-  color: rgb(var(--v-theme-warning));
-}
-.wal__unbilled {
-  display: flex;
-  gap: 0.6rem;
-  padding: 0.9rem 1.1rem;
-  margin-bottom: 1rem;
-  border-radius: var(--tvz-radius-md);
-  background: rgba(var(--v-theme-warning), 0.1);
-  border: 1px solid rgba(var(--v-theme-warning), 0.35);
-  color: rgb(var(--v-theme-warning));
-  font-size: 0.85rem;
-}
-.wal__unbilled strong {
-  display: block;
-  margin-bottom: 0.15rem;
-}
-.wal__unbilled p {
-  margin: 0.1rem 0 0;
-  color: rgba(var(--v-theme-on-surface), 0.75);
-}
-.wal__invoiceNote {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 1rem;
-  padding: 0.6rem 0.9rem;
-  border-radius: var(--tvz-radius-md);
-  background: rgba(var(--v-theme-success), 0.1);
-  color: rgb(var(--v-theme-success));
-  font-size: 0.84rem;
-}
-.wal__invoiceNote a {
-  font-weight: 600;
-  text-decoration: underline;
 }
 .wal__refundLine {
   margin: 0 0 0.9rem;
@@ -747,13 +454,20 @@ onMounted(async () => {
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
-@media (max-width: 480px) {
-  .wal__stats {
+@media (max-width: 620px) {
+  .wal__card {
     grid-template-columns: 1fr;
   }
-  .wal__stats > div + div {
+  .wal__balance {
     border-left: 0;
+    border-right: 0;
     border-top: 1px solid var(--tvz-glass-border);
+    border-bottom: 1px solid var(--tvz-glass-border);
+    order: -1;
+  }
+  .wal__side--stack {
+    flex-direction: row;
+    justify-content: space-around;
   }
 }
 </style>
