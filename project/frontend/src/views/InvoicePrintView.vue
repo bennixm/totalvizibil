@@ -32,7 +32,7 @@ function doPrint(): void {
 <template>
   <div class="ip">
     <div class="ip__toolbar no-print">
-      <v-btn variant="text" prepend-icon="mdi-arrow-left" :to="{ name: 'account', query: { tab: 'billing' } }">
+      <v-btn variant="text" prepend-icon="mdi-arrow-left" :to="{ name: 'invoices' }">
         {{ t('invoice.back') }}
       </v-btn>
       <v-btn v-if="invoice" color="primary" prepend-icon="mdi-printer-outline" @click="doPrint">

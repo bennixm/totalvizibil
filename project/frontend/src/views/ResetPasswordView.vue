@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -22,6 +22,28 @@ const error = ref<string | null>(null)
 const toasts = useToastStore()
 watch(error, (v) => {
   if (v) toasts.error(v)
+})
+
+// Checked once against the backend before the form ever renders — a link
+// that's already expired or been used must never show a live password
+// field, only a fail-on-submit error after the user filled it in.
+const checkingToken = ref(true)
+const tokenValid = ref(false)
+onMounted(async () => {
+  if (!token.value) {
+    checkingToken.value = false
+    return
+  }
+  try {
+    const res = await apiFetch<{ valid: boolean }>(
+      `/auth/password/reset/validate?token=${encodeURIComponent(token.value)}`,
+    )
+    tokenValid.value = res.valid
+  } catch {
+    tokenValid.value = false
+  } finally {
+    checkingToken.value = false
+  }
 })
 
 const mismatch = computed(() => confirm.value.length > 0 && password.value !== confirm.value)
@@ -69,6 +91,17 @@ async function submit() {
               density="compact"
               class="mb-2"
               :text="t('reset.noToken')"
+            />
+            <div v-else-if="checkingToken" class="d-flex justify-center py-4">
+              <v-progress-circular indeterminate color="primary" />
+            </div>
+            <v-alert
+              v-else-if="!tokenValid && !done"
+              type="error"
+              variant="tonal"
+              density="compact"
+              class="mb-2"
+              :text="t('reset.invalidToken')"
             />
             <v-alert
               v-else-if="done"

@@ -18,6 +18,7 @@ const COMPANY_SCOPED_ROUTES = new Set([
   'campaign-spend',
   'leads',
   'appointments',
+  'consumption',
   'invoices',
   'website-builder',
   'easy-site-editor',

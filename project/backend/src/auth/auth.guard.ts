@@ -38,6 +38,7 @@ export class AuthGuard implements CanActivate {
       name: session.user.name,
       platformRoles: session.user.platformRoles.map((r) => r.role),
       sessionId: session.id,
+      emailVerifiedAt: session.user.emailVerifiedAt,
     };
     (request as Request & { user: AuthPrincipal }).user = principal;
     return true;

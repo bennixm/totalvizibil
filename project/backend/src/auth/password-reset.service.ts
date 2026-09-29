@@ -87,6 +87,20 @@ export class PasswordResetService {
     return { ok: true };
   }
 
+  /**
+   * Read-only pre-check so the reset-password PAGE never renders a live
+   * form for a token that's already expired or used — it just checks the
+   * same two conditions `reset()` enforces, without touching the row.
+   * Never throws: an invalid/expired/used token is a normal outcome here,
+   * not an error.
+   */
+  async isTokenValid(token: string): Promise<boolean> {
+    const record = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: PasswordResetService.hash(token) },
+    });
+    return !!record && !record.usedAt && record.expiresAt.getTime() >= Date.now();
+  }
+
   async reset(token: string, newPassword: string): Promise<{ ok: true }> {
     const record = await this.prisma.passwordResetToken.findUnique({
       where: { tokenHash: PasswordResetService.hash(token) },

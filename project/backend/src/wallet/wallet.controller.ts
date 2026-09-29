@@ -56,6 +56,13 @@ export class WalletController {
     });
   }
 
+  /** Lifetime spend for one business, split into clicks / AI usage / the
+   *  builder's one-time unlock fee / everything else. */
+  @Get('spend-breakdown')
+  spendBreakdown(@CurrentUser() user: AuthPrincipal, @Query('companyId') companyId: string) {
+    return this.wallet.spendBreakdownFor(user.id, companyId);
+  }
+
   /** Start a credit purchase — returns a pending transaction + EUR/RON amounts. */
   @Post('purchases')
   buy(@CurrentUser() user: AuthPrincipal, @Body() dto: BuyCreditsDto) {

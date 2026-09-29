@@ -28,6 +28,10 @@ model User {
   status            UserStatus @default(active)
   lastLoginAt       DateTime?  @map("last_login_at")
   passwordChangedAt DateTime?  @map("password_changed_at")
+  // Null = hasn't completed the email verification-code step yet. Existing
+  // rows are backfilled to their createdAt by the migration that added this
+  // column, so the new login-time gate never locks out pre-existing accounts.
+  emailVerifiedAt   DateTime?  @map("email_verified_at")
 
   // TOTP (RFC 6238) two-factor. `totpSecret` is set at setup time but 2FA only
   // enforces once `totpEnabledAt` is non-null (i.e. a code was verified).
@@ -46,6 +50,7 @@ model User {
   companyMembers          CompanyUser[]
   ownedCompanies          Company[]                @relation("CompanyOwner")
   passwordResets          PasswordResetToken[]
+  emailVerificationCodes  EmailVerificationCode[]
   wallet                  Wallet?
   billingProfile          BillingProfile?
   invoices                Invoice[]
@@ -108,6 +113,27 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+/**
+ * A 6-digit email-verification code, same shape/lifecycle as
+ * PasswordResetToken (hash-at-rest, expiry, single-use) plus a wrong-guess
+ * counter — a short manually-typed code needs brute-force lockout that a
+ * 32-byte link token doesn't.
+ */
+model EmailVerificationCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  codeHash  String    @map("code_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_codes")
 }
 
 model Session {

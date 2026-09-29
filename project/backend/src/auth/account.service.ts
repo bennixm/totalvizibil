@@ -40,12 +40,14 @@ export class AccountService {
     email: string;
     name: string;
     platformRoles: { role: AuthUserView['platformRoles'][number] }[];
+    emailVerifiedAt?: Date | null;
   }): AuthUserView {
     return {
       id: u.id,
       email: u.email,
       name: u.name,
       platformRoles: u.platformRoles.map((r) => r.role),
+      emailVerifiedAt: u.emailVerifiedAt ? u.emailVerifiedAt.toISOString() : null,
     };
   }
 

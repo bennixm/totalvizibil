@@ -7,6 +7,7 @@ export interface AuthPrincipal {
   name: string;
   platformRoles: PlatformRole[];
   sessionId: string;
+  emailVerifiedAt: Date | null;
 }
 
 /** Shape returned to the client for the current user. */
@@ -15,8 +16,15 @@ export interface AuthUserView {
   email: string;
   name: string;
   platformRoles: PlatformRole[];
+  emailVerifiedAt: string | null;
 }
 
 export function toAuthUserView(p: AuthPrincipal): AuthUserView {
-  return { id: p.id, email: p.email, name: p.name, platformRoles: p.platformRoles };
+  return {
+    id: p.id,
+    email: p.email,
+    name: p.name,
+    platformRoles: p.platformRoles,
+    emailVerifiedAt: p.emailVerifiedAt ? p.emailVerifiedAt.toISOString() : null,
+  };
 }

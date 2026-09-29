@@ -1,8 +1,20 @@
-import { Body, Controller, Get, HttpCode, Logger, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Logger,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { PasswordResetService } from './password-reset.service';
+import { EmailVerificationService } from './email-verification.service';
 import { SessionCookieService } from './session-cookie.service';
 import { SessionService } from './session.service';
 import { AuthGuard } from './auth.guard';
@@ -10,6 +22,7 @@ import { CurrentUser } from './current-user.decorator';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/password-reset.dto';
+import { ResendVerificationDto, VerifyEmailDto } from './dto/email-verification.dto';
 import { AuthPrincipal, AuthUserView, toAuthUserView } from './auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -20,6 +33,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly passwordReset: PasswordResetService,
+    private readonly emailVerification: EmailVerificationService,
     private readonly cookie: SessionCookieService,
     private readonly sessions: SessionService,
     private readonly notifications: NotificationsService,
@@ -34,6 +48,18 @@ export class AuthController {
   ): Promise<{ user: AuthUserView }> {
     const user = await this.auth.register(dto);
     await this.cookie.start(req, res, user.id);
+    // Best-effort: a mail hiccup here must never fail the signup the user is
+    // actively watching complete — the "Resend code" button on the
+    // verification screen is the real recovery path for that case, so a
+    // logged failure here (not surfaced) is the correct amount of handling.
+    this.emailVerification
+      .sendCode(user.id)
+      .catch((err) =>
+        this.logger.error(
+          'Initial verification-code send failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
     return { user };
   }
 
@@ -82,6 +108,35 @@ export class AuthController {
   @Post('password/reset')
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.passwordReset.reset(dto.token, dto.password);
+  }
+
+  /** Lets the reset-password PAGE check the link before showing the form —
+   *  never renders a live password field for an already-expired/used token. */
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Get('password/reset/validate')
+  async validateResetToken(@Query('token') token?: string): Promise<{ valid: boolean }> {
+    const valid = !!token && (await this.passwordReset.isTokenValid(token));
+    return { valid };
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(200)
+  @Post('email/resend')
+  async resendVerification(@Body() dto: ResendVerificationDto): Promise<{ ok: true }> {
+    await this.emailVerification.resendFor(dto.email);
+    return { ok: true };
+  }
+
+  /** Same code mechanism from both entry points: the setup wizard (already
+   *  has a session from `register()`) and the login flow (rejected before a
+   *  session was ever started, so this never itself grants one — it only
+   *  flips `emailVerifiedAt`, and the caller re-submits the login/continues
+   *  the wizard once verified). */
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(200)
+  @Post('email/verify')
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.emailVerification.verify(dto.email, dto.code);
   }
 
   @UseGuards(AuthGuard)

@@ -107,6 +107,12 @@ const routes: RouteRecordRaw[] = [
     redirect: (to) => ({ name: 'campaign', query: to.query }),
   },
   {
+    path: '/consumption',
+    name: 'consumption',
+    component: () => import('@/views/ConsumptionView.vue'),
+    meta: { requiresAuth: true, panel: true },
+  },
+  {
     path: '/leads',
     name: 'leads',
     component: () => import('@/views/LeadsView.vue'),

@@ -40,6 +40,7 @@
     "leads": "Anfragen",
     "appointments": "Termine",
     "campaign": "Kampagne",
+    "consumption": "Verbrauch",
     "support": "Support",
     "supportQueue": "Support-Warteschlange",
     "staff": "Team",
@@ -333,6 +334,21 @@
       "wallet_blocked": "Das gewählte Wallet ist gesperrt. Sie können nicht daraus bezahlen."
     },
     "walletBalance": "Du hast {credits} Credits im Wallet."
+  },
+  "verify": {
+    "sentTo": "Wir haben einen 6-stelligen Code an {email} gesendet.",
+    "codeLabel": "Bestätigungscode",
+    "submit": "Bestätigen und fortfahren",
+    "resend": "Code erneut senden",
+    "resendWait": "Code erneut senden (einen Moment warten)",
+    "resendSent": "Ein neuer Code ist unterwegs.",
+    "err": {
+      "code_invalid": "Dieser Code stimmt nicht. Prüfe dein Postfach und versuche es erneut.",
+      "code_expired": "Dieser Code ist abgelaufen. Fordere einen neuen an.",
+      "code_already_used": "Dieser Code wurde bereits verwendet. Fordere einen neuen an.",
+      "too_many_attempts": "Zu viele falsche Versuche. Fordere einen neuen Code an.",
+      "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+    }
   },
   "easyEditor": {
     "eyebrow": "Editor für einfache Website",
@@ -652,6 +668,7 @@
     "title": "Neues Passwort wählen",
     "subtitle": "Legen Sie ein neues Passwort für Ihr Konto fest.",
     "noToken": "Dem Link fehlt das Token. Fordern Sie eine neue E-Mail an.",
+    "invalidToken": "Dieser Link ist abgelaufen oder wurde bereits verwendet. Fordern Sie einen neuen von der Anmeldeseite an.",
     "doneText": "Passwort aktualisiert. Weiterleitung zur Anmeldung…",
     "newPassword": "Neues Passwort",
     "confirmPassword": "Passwort bestätigen",
@@ -1558,7 +1575,7 @@
     "calls": "Anrufe",
     "messages": "Nachrichten",
     "responseTime": "Antwortzeit",
-    "spend": "Kampagnen-Verbrauch",
+    "spend": "Geschäftsverbrauch",
     "activeDays": "Aktive Tage",
     "today": "heute {n}",
     "fromSite": "von der Website",
@@ -1799,6 +1816,23 @@
     "billingNote": "Steuerliche Angaben auf jeder ausgestellten Rechnung, der angewandte MwSt.-Satz und die bei einer Rückerstattung einbehaltene Gebühr.",
     "refundTitle": "Rückerstattungen",
     "allSaved": "Alle Änderungen gespeichert"
+  },
+  "consumption": {
+    "eyebrow": "Dieses Unternehmen",
+    "title": "Verbrauch",
+    "totalLabel": "Gesamt ausgegeben",
+    "clicks": "Anzeigenklicks",
+    "aiUsage": "Website-Builder-KI",
+    "builderUnlock": "Builder-Freischaltungsgebühr",
+    "other": "Sonstiges",
+    "txnCount": "{n} Transaktionen",
+    "none": "Noch nichts",
+    "recentTitle": "Letzte Transaktionen",
+    "empty": "Noch keine Ausgaben für dieses Unternehmen.",
+    "loadMore": "Mehr laden",
+    "loadError": "Verbrauchsübersicht konnte nicht geladen werden.",
+    "txnClicks": "Anzeigenklicks ({n})",
+    "txnOther": "Ausgabe"
   },
   "spend": {
     "eyebrow": "Feed-Promotion",
@@ -2177,7 +2211,7 @@
     }
   },
   "invoice": {
-    "back": "Zurück zum Konto",
+    "back": "Zurück zu den Rechnungen",
     "print": "Drucken / Als PDF speichern",
     "loadError": "Rechnung konnte nicht geladen werden.",
     "docTitle": "Rechnung",

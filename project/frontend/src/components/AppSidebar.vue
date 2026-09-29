@@ -124,7 +124,12 @@ function onNavigate(): void {
 }
 
 .sbar__nav {
-  flex: 1;
+  /* No flex-grow: sized by its own content, so the footer sits right below
+     the last nav item instead of being pushed to the bottom of a much
+     taller sidebar. Still shrinks (and scrolls internally) if the nav list
+     is ever taller than the available height. */
+  flex: 0 1 auto;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -134,6 +139,13 @@ function onNavigate(): void {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+}
+/* A visual break between groups (e.g. business/campaign pages vs. general
+   account pages) — content-driven, so it only ever appears between actual
+   groups, never before the first one. */
+.sbar__group + .sbar__group {
+  padding-top: 1rem;
+  border-top: 1px solid var(--tvz-hairline);
 }
 .sbar__group-label {
   font-size: 0.62rem;

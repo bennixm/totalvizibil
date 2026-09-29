@@ -40,6 +40,7 @@
     "leads": "Cereri",
     "appointments": "Programări",
     "campaign": "Campanie",
+    "consumption": "Consum afacere",
     "support": "Suport",
     "supportQueue": "Coadă suport",
     "staff": "Echipă",
@@ -333,6 +334,21 @@
       "wallet_blocked": "Portofelul ales este blocat. Nu poți plăti din el."
     },
     "walletBalance": "Ai {credits} credite în portofel."
+  },
+  "verify": {
+    "sentTo": "Am trimis un cod din 6 cifre la {email}.",
+    "codeLabel": "Cod de verificare",
+    "submit": "Verifică și continuă",
+    "resend": "Retrimite codul",
+    "resendWait": "Retrimite codul (așteaptă puțin)",
+    "resendSent": "Un cod nou este pe drum.",
+    "err": {
+      "code_invalid": "Codul nu e corect. Verifică emailul și încearcă din nou.",
+      "code_expired": "Acest cod a expirat. Cere unul nou.",
+      "code_already_used": "Acest cod a fost deja folosit. Cere unul nou.",
+      "too_many_attempts": "Prea multe încercări greșite. Cere un cod nou.",
+      "generic": "Ceva n-a mers. Încearcă din nou."
+    }
   },
   "easyEditor": {
     "eyebrow": "Editor site simplu",
@@ -652,6 +668,7 @@
     "title": "Alege o parolă nouă",
     "subtitle": "Setează o parolă nouă pentru contul tău.",
     "noToken": "Linkului îi lipsește tokenul. Cere un nou email de resetare.",
+    "invalidToken": "Acest link de resetare a expirat sau a fost deja folosit. Cere unul nou din pagina de autentificare.",
     "doneText": "Parola a fost actualizată. Te redirecționăm către autentificare…",
     "newPassword": "Parolă nouă",
     "confirmPassword": "Confirmă parola",
@@ -1558,7 +1575,7 @@
     "calls": "Apeluri",
     "messages": "Mesaje",
     "responseTime": "Timp de răspuns",
-    "spend": "Consum campanie",
+    "spend": "Consum afacere",
     "activeDays": "Zile active",
     "today": "azi {n}",
     "fromSite": "de pe site",
@@ -1799,6 +1816,23 @@
     "billingNote": "Date fiscale afișate pe fiecare factură emisă, cota de TVA aplicată și taxa reținută la o rambursare.",
     "refundTitle": "Rambursări",
     "allSaved": "Toate modificările sunt salvate"
+  },
+  "consumption": {
+    "eyebrow": "Această afacere",
+    "title": "Consum afacere",
+    "totalLabel": "Total consumat",
+    "clicks": "Click-uri anunț",
+    "aiUsage": "AI Website Builder",
+    "builderUnlock": "Taxă deblocare builder",
+    "other": "Altele",
+    "txnCount": "{n} tranzacții",
+    "none": "Nimic încă",
+    "recentTitle": "Tranzacții recente",
+    "empty": "Nicio cheltuială pe această afacere încă.",
+    "loadMore": "Încarcă mai multe",
+    "loadError": "Nu am putut încărca detalierea consumului.",
+    "txnClicks": "Click-uri anunț ({n})",
+    "txnOther": "Consum"
   },
   "spend": {
     "eyebrow": "Promovare în feed",
@@ -2177,7 +2211,7 @@
     }
   },
   "invoice": {
-    "back": "Înapoi la cont",
+    "back": "Înapoi la facturi",
     "print": "Printează / Descarcă PDF",
     "loadError": "Nu am putut încărca factura.",
     "docTitle": "Factură fiscală",

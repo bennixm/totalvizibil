@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth'
 import { ApiError } from '@/services/api'
 import { useSeo } from '@/composables/useSeo'
 import { useToastStore } from '@/stores/toast'
+
+const VERIFY_ERR = ['code_invalid', 'code_expired', 'code_already_used', 'too_many_attempts']
 
 const { t } = useI18n()
 const route = useRoute()
@@ -26,6 +28,15 @@ watch(error, (v) => {
   if (v) toasts.error(v)
 })
 
+// Same code mechanism as the setup wizard's account step — reached here when
+// a login's password checks out but the account never finished verifying.
+const needsEmailVerification = ref(false)
+const verifyCode = ref('')
+const verifyBusy = ref(false)
+const resendBusy = ref(false)
+const resendCooldown = ref(false)
+let resendCooldownTimer: ReturnType<typeof setTimeout> | undefined
+
 async function submit() {
   loading.value = true
   error.value = null
@@ -43,6 +54,11 @@ async function submit() {
       error.value = err.message === 'totp_invalid' ? t('auth.totpInvalid') : null
       await nextTick()
       document.getElementById('totp-input')?.focus()
+    } else if (err instanceof ApiError && err.message === 'email_not_verified') {
+      needsEmailVerification.value = true
+      error.value = null
+      await nextTick()
+      document.getElementById('verify-code-input')?.focus()
     } else if (err instanceof ApiError && err.message === 'account_suspended') {
       error.value = t('auth.accountSuspended')
     } else {
@@ -52,6 +68,45 @@ async function submit() {
     loading.value = false
   }
 }
+
+/** Verifies the code, then re-submits the SAME login — the password was
+ *  already proven correct by the attempt that got us here, so once the code
+ *  checks out this completes it rather than making the user retype anything. */
+async function submitVerifyThenLogin(): Promise<void> {
+  if (verifyBusy.value || verifyCode.value.trim().length !== 6) return
+  verifyBusy.value = true
+  error.value = null
+  try {
+    await auth.verifyEmail(email.value, verifyCode.value.trim())
+    needsEmailVerification.value = false
+    await submit()
+  } catch (err) {
+    error.value = err instanceof ApiError && VERIFY_ERR.includes(err.message)
+      ? t('verify.err.' + err.message)
+      : t('verify.err.generic')
+  } finally {
+    verifyBusy.value = false
+  }
+}
+
+async function resendCode(): Promise<void> {
+  if (resendBusy.value || resendCooldown.value) return
+  resendBusy.value = true
+  try {
+    await auth.resendVerification(email.value)
+    toasts.success(t('verify.resendSent'))
+    resendCooldown.value = true
+    resendCooldownTimer = setTimeout(() => (resendCooldown.value = false), 45_000)
+  } catch {
+    toasts.error(t('verify.err.generic'))
+  } finally {
+    resendBusy.value = false
+  }
+}
+
+onUnmounted(() => {
+  if (resendCooldownTimer) clearTimeout(resendCooldownTimer)
+})
 </script>
 
 <template>
@@ -65,11 +120,54 @@ async function submit() {
               {{ t('auth.loginTitle') }}
             </v-card-title>
             <v-card-subtitle class="text-wrap">
-              {{ needsTotp ? t('auth.totpSubtitle') : t('auth.loginSubtitle') }}
+              {{
+                needsEmailVerification
+                  ? t('verify.sentTo', { email })
+                  : needsTotp
+                    ? t('auth.totpSubtitle')
+                    : t('auth.loginSubtitle')
+              }}
             </v-card-subtitle>
           </v-card-item>
           <v-card-text>
-            <v-form @submit.prevent="submit">
+            <!-- Email verification (login blocked until the code checks out) -->
+            <v-form v-if="needsEmailVerification" @submit.prevent="submitVerifyThenLogin">
+              <v-text-field
+                id="verify-code-input"
+                v-model="verifyCode"
+                :label="t('verify.codeLabel')"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                maxlength="6"
+                prepend-inner-icon="mdi-shield-key-outline"
+                required
+              />
+              <v-btn
+                type="submit"
+                color="primary"
+                variant="flat"
+                rounded="pill"
+                block
+                class="mt-2"
+                :disabled="verifyCode.trim().length !== 6"
+                :loading="verifyBusy"
+              >
+                {{ t('verify.submit') }}
+              </v-btn>
+              <v-btn
+                variant="text"
+                size="small"
+                block
+                class="mt-1"
+                :disabled="resendCooldown"
+                :loading="resendBusy"
+                @click="resendCode"
+              >
+                {{ resendCooldown ? t('verify.resendWait') : t('verify.resend') }}
+              </v-btn>
+            </v-form>
+
+            <v-form v-else @submit.prevent="submit">
               <template v-if="!needsTotp">
                 <v-text-field
                   v-model="email"

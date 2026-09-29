@@ -9,6 +9,7 @@ export interface AuthUser {
   email: string
   name: string
   platformRoles: PlatformRole[]
+  emailVerifiedAt: string | null
 }
 
 interface AuthState {
@@ -99,6 +100,30 @@ export const useAuthStore = defineStore('auth', {
       })
       this.user = user
       this.ready = true
+    },
+
+    /** Resends the email-verification code — enumeration-safe on the backend
+     *  (always resolves the same way), used identically from the setup
+     *  wizard and from a blocked login attempt. */
+    resendVerification(email: string): Promise<{ ok: true }> {
+      return apiFetch('/auth/email/resend', { method: 'POST', body: { email } })
+    },
+
+    /**
+     * Verifies the code. Never itself starts a session — the setup wizard
+     * already has one from `register()`; the login flow re-submits the
+     * login after this resolves. Refreshes `this.user` when there already is
+     * one (the setup-wizard case) so `emailVerifiedAt` flips immediately.
+     */
+    async verifyEmail(email: string, code: string): Promise<{ ok: true }> {
+      const result = await apiFetch<{ ok: true }>('/auth/email/verify', {
+        method: 'POST',
+        body: { email, code },
+      })
+      if (this.user && this.user.email === email) {
+        this.user = { ...this.user, emailVerifiedAt: new Date().toISOString() }
+      }
+      return result
     },
 
     /**

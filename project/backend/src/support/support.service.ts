@@ -218,7 +218,12 @@ export class SupportService {
       if (dto.priority || dto.category || dto.assigneeId !== undefined) {
         throw new ForbiddenException('staff_only');
       }
-      if (dto.status && dto.status !== 'closed' && dto.status !== 'open') {
+      if (
+        dto.status &&
+        dto.status !== 'closed' &&
+        dto.status !== 'open' &&
+        dto.status !== 'resolved'
+      ) {
         throw new ForbiddenException('staff_only');
       }
     }

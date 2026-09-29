@@ -9,6 +9,10 @@ import { AuthUserView } from './auth.types';
 /** Sentinel messages the frontend keys off to show the 2FA code field. */
 export const TOTP_REQUIRED = 'totp_required';
 export const TOTP_INVALID = 'totp_invalid';
+/** Sentinel the frontend keys off to show the email-verification-code step
+ *  instead of a generic login failure — same mechanism as the setup-wizard's
+ *  own verification screen (see EmailVerificationService). */
+export const EMAIL_NOT_VERIFIED = 'email_not_verified';
 
 const DUMMY_HASH =
   '$argon2id$v=19$m=65536,t=3,p=4$0000000000000000$00000000000000000000000000000000';
@@ -56,6 +60,14 @@ export class AuthService {
     if (user.status !== 'active') {
       throw new UnauthorizedException('account_suspended');
     }
+    // Same reasoning: the password already proved this is the real owner, so
+    // it's safe (and helpful) to route them to the verification step instead
+    // of a generic failure. Pre-existing accounts are backfilled with a
+    // non-null emailVerifiedAt by the migration that added this column, so
+    // this only ever gates genuinely new, never-verified signups.
+    if (!user.emailVerifiedAt) {
+      throw new UnauthorizedException(EMAIL_NOT_VERIFIED);
+    }
 
     if (user.totpEnabledAt && user.totpSecret) {
       if (!dto.totpCode) throw new UnauthorizedException(TOTP_REQUIRED);
@@ -83,12 +95,14 @@ export class AuthService {
     email: string;
     name: string;
     platformRoles: { role: AuthUserView['platformRoles'][number] }[];
+    emailVerifiedAt?: Date | null;
   }): AuthUserView {
     return {
       id: user.id,
       email: user.email,
       name: user.name,
       platformRoles: user.platformRoles.map((r) => r.role),
+      emailVerifiedAt: user.emailVerifiedAt ? user.emailVerifiedAt.toISOString() : null,
     };
   }
 }

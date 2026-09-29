@@ -18,11 +18,10 @@ export function useUserNavGroups() {
 
   const groups = computed<SidebarNavGroup[]>(() => [
     {
-      items: [{ to: { name: 'dashboard' }, label: t('nav.dashboard'), icon: 'mdi-view-dashboard-outline' }],
-    },
-    {
-      label: t('nav.manage'),
+      // Business/campaign-specific pages: whichever company the sidebar's own
+      // campaign switcher (SidebarCampaignSwitch) currently has selected.
       items: [
+        { to: { name: 'dashboard' }, label: t('nav.dashboard'), icon: 'mdi-view-dashboard-outline' },
         { to: { name: 'leads' }, label: t('nav.leads'), icon: 'mdi-inbox-arrow-down-outline' },
         {
           to: { name: 'appointments' },
@@ -30,6 +29,17 @@ export function useUserNavGroups() {
           icon: 'mdi-calendar-check-outline',
         },
         { to: { name: 'campaign' }, label: t('nav.campaign'), icon: 'mdi-bullhorn-outline' },
+        {
+          to: { name: 'consumption' },
+          label: t('nav.consumption'),
+          icon: 'mdi-chart-donut',
+        },
+      ],
+    },
+    {
+      // General account pages — not tied to any one business, so they stay
+      // put regardless of which company is active above.
+      items: [
         { to: { name: 'wallet' }, label: t('nav.wallet'), icon: 'mdi-wallet-outline' },
         {
           to: { name: 'wallet-transactions' },

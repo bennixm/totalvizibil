@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { AccountService } from './account.service';
 import { PasswordService } from './password.service';
 import { PasswordResetService } from './password-reset.service';
+import { EmailVerificationService } from './email-verification.service';
 import { SessionService } from './session.service';
 import { SessionCookieService } from './session-cookie.service';
 import { TotpService } from './totp.service';
@@ -18,6 +19,7 @@ import { PlatformRolesGuard } from './platform-roles.guard';
     AccountService,
     PasswordService,
     PasswordResetService,
+    EmailVerificationService,
     SessionService,
     SessionCookieService,
     TotpService,

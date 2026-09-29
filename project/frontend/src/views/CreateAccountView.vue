@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -7,7 +7,7 @@ import { storeToRefs } from 'pinia'
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { useToastStore } from '@/stores/toast'
 import { fetchPricing } from '@/services/platform'
-import { apiFetch } from '@/services/api'
+import { apiFetch, ApiError } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
@@ -118,6 +118,51 @@ async function run(fn: () => Promise<void>): Promise<void> {
   }
 }
 
+// --- email verification (registration must clear this before continuing) ---
+const needsVerification = ref(false)
+const verifyCodeInput = ref('')
+const verifyBusy = ref(false)
+const verifyError = ref('')
+const resendBusy = ref(false)
+const resendCooldown = ref(false)
+let resendCooldownTimer: ReturnType<typeof setTimeout> | undefined
+
+const VERIFY_ERR = ['code_invalid', 'code_expired', 'code_already_used', 'too_many_attempts']
+function verifyErrText(code: string): string {
+  return VERIFY_ERR.includes(code) ? t('verify.err.' + code) : t('verify.err.generic')
+}
+
+async function submitVerify(): Promise<void> {
+  if (verifyBusy.value || verifyCodeInput.value.trim().length !== 6) return
+  verifyBusy.value = true
+  verifyError.value = ''
+  try {
+    await auth.verifyEmail(email.value.trim(), verifyCodeInput.value.trim())
+    needsVerification.value = false
+    await run(finishClaim)
+  } catch (err) {
+    verifyError.value = verifyErrText(err instanceof ApiError ? err.message : '')
+  } finally {
+    verifyBusy.value = false
+  }
+}
+
+async function resendCode(): Promise<void> {
+  if (resendBusy.value || resendCooldown.value) return
+  resendBusy.value = true
+  verifyError.value = ''
+  try {
+    await auth.resendVerification(email.value.trim())
+    toasts.success(t('verify.resendSent'))
+    resendCooldown.value = true
+    resendCooldownTimer = setTimeout(() => (resendCooldown.value = false), 45_000)
+  } catch {
+    toasts.error(t('verify.err.generic'))
+  } finally {
+    resendBusy.value = false
+  }
+}
+
 function submitNew(): void {
   if (!canSubmit.value) return
   void run(async () => {
@@ -126,12 +171,20 @@ function submitNew(): void {
       email: email.value.trim(),
       password: password.value,
     })
+    if (!auth.user?.emailVerifiedAt) {
+      needsVerification.value = true
+      return
+    }
     await finishClaim()
   })
 }
 function claimExisting(): void {
   void run(finishClaim)
 }
+
+onUnmounted(() => {
+  if (resendCooldownTimer) clearTimeout(resendCooldownTimer)
+})
 
 onMounted(async () => {
   const hasDraft = await draftStore.resumeIfAny()
@@ -146,6 +199,16 @@ onMounted(async () => {
   // A business can't be created without its category + service area.
   if (draftMissingLocation()) {
     await router.replace({ name: 'create-location' })
+    return
+  }
+  if (auth.isAuthenticated && !auth.user?.emailVerifiedAt) {
+    // The user registered, left before entering their code (closed the tab,
+    // a slow email, ...), and has now come back — same session, still
+    // unverified. Resume exactly where they left off instead of the
+    // "already signed in" card, which would skip verification entirely.
+    email.value = auth.user?.email ?? ''
+    needsVerification.value = true
+    checking.value = false
     return
   }
   if (auth.isAuthenticated) {
@@ -187,6 +250,44 @@ onMounted(async () => {
     <div v-if="checking" class="acc__loading">
       <v-progress-circular indeterminate color="primary" />
     </div>
+
+    <!-- Email verification (blocks continuing until the code checks out) -->
+    <form v-else-if="needsVerification" class="acc__card" @submit.prevent="submitVerify">
+      <p class="acc__signed">
+        <v-icon icon="mdi-email-check-outline" size="18" />
+        {{ t('verify.sentTo', { email }) }}
+      </p>
+      <v-text-field
+        v-model="verifyCodeInput"
+        :label="t('verify.codeLabel')"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        prepend-inner-icon="mdi-shield-key-outline"
+        :error-messages="verifyError"
+        autofocus
+      />
+      <v-btn
+        type="submit"
+        color="primary"
+        block
+        size="large"
+        :disabled="verifyCodeInput.trim().length !== 6"
+        :loading="verifyBusy"
+        append-icon="mdi-arrow-right"
+      >
+        {{ t('verify.submit') }}
+      </v-btn>
+      <v-btn
+        variant="text"
+        size="small"
+        :disabled="resendCooldown"
+        :loading="resendBusy"
+        @click="resendCode"
+      >
+        {{ resendCooldown ? t('verify.resendWait') : t('verify.resend') }}
+      </v-btn>
+    </form>
 
     <!-- Already signed in -->
     <div v-else-if="auth.isAuthenticated" class="acc__card">

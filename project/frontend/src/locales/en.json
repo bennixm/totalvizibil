@@ -40,6 +40,7 @@
     "leads": "Requests",
     "appointments": "Appointments",
     "campaign": "Campaign",
+    "consumption": "Consumption",
     "support": "Support",
     "supportQueue": "Support queue",
     "staff": "Staff",
@@ -333,6 +334,21 @@
       "wallet_blocked": "The chosen wallet is frozen. You cannot pay from it."
     },
     "walletBalance": "You have {credits} credits in your wallet."
+  },
+  "verify": {
+    "sentTo": "We've sent a 6-digit code to {email}.",
+    "codeLabel": "Verification code",
+    "submit": "Verify and continue",
+    "resend": "Resend code",
+    "resendWait": "Resend code (wait a moment)",
+    "resendSent": "A new code is on its way.",
+    "err": {
+      "code_invalid": "That code isn't right. Check your inbox and try again.",
+      "code_expired": "This code has expired. Request a new one.",
+      "code_already_used": "This code was already used. Request a new one.",
+      "too_many_attempts": "Too many wrong tries. Request a new code.",
+      "generic": "Something went wrong. Please try again."
+    }
   },
   "easyEditor": {
     "eyebrow": "Simple site editor",
@@ -652,6 +668,7 @@
     "title": "Choose a new password",
     "subtitle": "Set a new password for your account.",
     "noToken": "This link is missing its token. Request a new reset email.",
+    "invalidToken": "This reset link has expired or was already used. Request a new one from the login page.",
     "doneText": "Password updated. Redirecting to log in…",
     "newPassword": "New password",
     "confirmPassword": "Confirm password",
@@ -1558,7 +1575,7 @@
     "calls": "Calls",
     "messages": "Messages",
     "responseTime": "Response time",
-    "spend": "Campaign spend",
+    "spend": "Business spend",
     "activeDays": "Active days",
     "today": "today {n}",
     "fromSite": "from the site",
@@ -1799,6 +1816,23 @@
     "billingNote": "Fiscal details shown on every invoice issued, the VAT rate applied, and the fee withheld on a refund.",
     "refundTitle": "Refunds",
     "allSaved": "All changes saved"
+  },
+  "consumption": {
+    "eyebrow": "This business",
+    "title": "Consumption",
+    "totalLabel": "Total spent",
+    "clicks": "Ad clicks",
+    "aiUsage": "Website Builder AI",
+    "builderUnlock": "Builder unlock fee",
+    "other": "Other",
+    "txnCount": "{n} transactions",
+    "none": "Nothing yet",
+    "recentTitle": "Recent transactions",
+    "empty": "No spend on this business yet.",
+    "loadMore": "Load more",
+    "loadError": "Couldn't load the spend breakdown.",
+    "txnClicks": "Ad clicks ({n})",
+    "txnOther": "Spend"
   },
   "spend": {
     "eyebrow": "Feed promotion",
@@ -2177,7 +2211,7 @@
     }
   },
   "invoice": {
-    "back": "Back to account",
+    "back": "Back to invoices",
     "print": "Print / Save as PDF",
     "loadError": "Couldn't load the invoice.",
     "docTitle": "Tax invoice",

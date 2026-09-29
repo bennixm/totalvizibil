@@ -447,6 +447,55 @@ export class WalletService implements OnModuleInit {
     return { items, nextCursor: hasMore ? pageRows[pageRows.length - 1].id : null };
   }
 
+  /**
+   * Lifetime spend for one business, grouped into the categories the owner
+   * actually recognizes — clicks, the Website Builder's AI usage, its
+   * one-time unlock fee, everything else — instead of one opaque total.
+   * `walletId` is always scoped to the CALLER's own wallet (same safety
+   * property `listTransactions` already relies on): passing a companyId
+   * that isn't actually one of the caller's own businesses just yields an
+   * empty/zeroed result, never another user's data.
+   */
+  async spendBreakdownFor(userId: string, companyId: string) {
+    const wallet = await this.ensureWallet(userId);
+    const rows = await this.prisma.walletTransaction.groupBy({
+      by: ['provider', 'description'],
+      where: { walletId: wallet.id, companyId, type: 'spend', status: 'completed' },
+      _sum: { amountMinor: true },
+      _count: { _all: true },
+    });
+
+    const totals: Record<
+      'clicks' | 'aiUsage' | 'builderUnlock' | 'other',
+      { minor: number; count: number }
+    > = {
+      clicks: { minor: 0, count: 0 },
+      aiUsage: { minor: 0, count: 0 },
+      builderUnlock: { minor: 0, count: 0 },
+      other: { minor: 0, count: 0 },
+    };
+    for (const row of rows) {
+      const key =
+        row.provider === CPC_PROVIDER
+          ? 'clicks'
+          : row.provider === 'ai-usage'
+            ? 'aiUsage'
+            : row.description === 'Advanced website builder'
+              ? 'builderUnlock'
+              : 'other';
+      totals[key].minor += Math.abs(row._sum.amountMinor ?? 0);
+      totals[key].count += row._count._all;
+    }
+
+    const categories = (Object.keys(totals) as (keyof typeof totals)[]).map((key) => ({
+      key,
+      total: money(totals[key].minor),
+      count: totals[key].count,
+    }));
+    const totalMinor = categories.reduce((sum, c) => sum + c.total.minor, 0);
+    return { total: money(totalMinor), categories };
+  }
+
   // --- purchases -----------------------------------------------------
 
   /**
