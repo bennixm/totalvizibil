@@ -66,6 +66,10 @@ const REFUND_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
  *  client's own success-page confirm to do it first — see
  *  sweepPendingStripePurchases. */
 const PENDING_PURCHASE_GRACE_MS = 30 * 60 * 1000;
+/** A pending dev-stub purchase (no Stripe configured) has nothing external to
+ *  poll — it's abandoned, not "still processing", once it's sat this long
+ *  with nobody confirming it. See sweepStalePendingStubPurchases. */
+const STUB_PURCHASE_STALE_MS = 2 * 60 * 60 * 1000;
 
 /**
  * One wallet per user. It funds every business the user owns; campaigns have no
@@ -97,6 +101,10 @@ export class WalletService implements OnModuleInit {
       setTimeout(() => void this.sweepPendingStripePurchases(), 150_000);
       setInterval(() => void this.sweepPendingStripePurchases(), REFUND_SWEEP_INTERVAL_MS);
     }
+    // Not gated on `this.stripe.configured` — a stub purchase created before
+    // Stripe was set up on this env would otherwise never be swept.
+    setTimeout(() => void this.sweepStalePendingStubPurchases(), 150_000);
+    setInterval(() => void this.sweepStalePendingStubPurchases(), REFUND_SWEEP_INTERVAL_MS);
   }
 
   // --- helpers ---------------------------------------------------------
@@ -1368,6 +1376,35 @@ export class WalletService implements OnModuleInit {
         where: { id: transactionId, status: 'pending' },
         data: { status: 'canceled', description: 'Buy credits — checkout session expired unpaid' },
       });
+    }
+  }
+
+  /**
+   * The dev-stub purchase flow (STUB_PROVIDER, used when Stripe isn't
+   * configured) has no external payment process to poll like the Stripe
+   * sweep above does — it's only ever confirmed by the client itself
+   * hitting the dev confirm panel. A stub purchase still `pending` after a
+   * generous grace period was simply abandoned (tab closed, dev moved on to
+   * something else): there's nothing left that could ever resolve it, so
+   * it's canceled outright instead of sitting `pending` forever.
+   */
+  private async sweepStalePendingStubPurchases(): Promise<void> {
+    try {
+      const cutoff = new Date(Date.now() - STUB_PURCHASE_STALE_MS);
+      const result = await this.prisma.walletTransaction.updateMany({
+        where: {
+          type: 'purchase',
+          status: 'pending',
+          provider: STUB_PROVIDER,
+          createdAt: { lte: cutoff },
+        },
+        data: { status: 'canceled', description: 'Buy credits — abandoned (never confirmed)' },
+      });
+      if (result.count > 0) {
+        this.logger.log(`Canceled ${result.count} stale pending stub purchase(s)`);
+      }
+    } catch (err) {
+      this.logger.error('Stub-purchase sweep failed', err instanceof Error ? err.stack : err);
     }
   }
 }
