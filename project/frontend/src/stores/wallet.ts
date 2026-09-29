@@ -35,6 +35,9 @@ export interface IssuedInvoice {
 }
 
 export type WalletTxnType = 'purchase' | 'spend' | 'refund' | 'adjustment'
+/** Same categories `/wallet/spend-breakdown` reports — filters the list to
+ *  exactly the rows a category's total is made of. */
+export type SpendCategory = 'clicks' | 'aiUsage' | 'builderUnlock' | 'other'
 export type WalletTxnStatus = 'pending' | 'completed' | 'failed' | 'canceled'
 
 export interface WalletTxn {
@@ -87,7 +90,14 @@ interface State {
   /** The invoice issued by the most recent confirmed deposit, if any. */
   lastInvoice: IssuedInvoice | null
   /** Active transaction-list filters, kept so "load more" continues the same query. */
-  txnFilters: { companyId: string | null; type: WalletTxnType | null }
+  txnFilters: {
+    companyId: string | null
+    type: WalletTxnType | null
+    category: SpendCategory | null
+    /** Inclusive UTC calendar-day bounds, `YYYY-MM-DD`. */
+    from: string | null
+    to: string | null
+  }
 }
 
 /** The user's single wallet — funds every business they own. */
@@ -102,7 +112,7 @@ export const useWalletStore = defineStore('wallet', {
     error: '',
     errorReason: null,
     lastInvoice: null,
-    txnFilters: { companyId: null, type: null },
+    txnFilters: { companyId: null, type: null, category: null, from: null, to: null },
   }),
 
   actions: {
@@ -157,15 +167,30 @@ export const useWalletStore = defineStore('wallet', {
 
     async loadTransactions(
       append = true,
-      filters?: { companyId?: string | null; type?: WalletTxnType | null },
+      filters?: {
+        companyId?: string | null
+        type?: WalletTxnType | null
+        category?: SpendCategory | null
+        from?: string | null
+        to?: string | null
+      },
     ): Promise<void> {
       if (filters !== undefined) {
-        this.txnFilters = { companyId: filters.companyId ?? null, type: filters.type ?? null }
+        this.txnFilters = {
+          companyId: filters.companyId ?? null,
+          type: filters.type ?? null,
+          category: filters.category ?? null,
+          from: filters.from ?? null,
+          to: filters.to ?? null,
+        }
       }
       const params = new URLSearchParams()
       if (append && this.nextCursor) params.set('cursor', this.nextCursor)
       if (this.txnFilters.companyId) params.set('companyId', this.txnFilters.companyId)
       if (this.txnFilters.type) params.set('type', this.txnFilters.type)
+      if (this.txnFilters.category) params.set('category', this.txnFilters.category)
+      if (this.txnFilters.from) params.set('from', this.txnFilters.from)
+      if (this.txnFilters.to) params.set('to', this.txnFilters.to)
       const q = params.toString() ? `?${params.toString()}` : ''
       const res = await apiFetch<{ items: WalletTxn[]; nextCursor: string | null }>(
         `/wallet/transactions${q}`,

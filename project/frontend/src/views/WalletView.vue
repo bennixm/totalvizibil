@@ -314,7 +314,17 @@ onMounted(async () => {
           </v-btn>
         </div>
 
-        <!-- Stub payment confirm -->
+        <!-- A real Stripe checkout URL was issued — `buy()` is already
+             navigating the browser away (see the comment there); never let
+             the dev-stub panel below render in the meantime, since
+             `window.location.href` doesn't unload synchronously and this
+             component keeps re-rendering right up until it does. -->
+        <div v-else-if="pending.checkoutUrl" class="wal__redirecting">
+          <v-progress-circular indeterminate color="primary" size="28" />
+          <p>{{ t('wallet.redirectingToStripe') }}</p>
+        </div>
+
+        <!-- Stub payment confirm — only reached with no Stripe key configured. -->
         <div v-else class="wal__confirm">
           <p class="wal__confirmHead">
             <v-icon icon="mdi-credit-card-outline" size="18" /> {{ t('wallet.confirmTitle') }}
@@ -614,6 +624,16 @@ onMounted(async () => {
   border-radius: 4px;
   background: rgba(var(--v-theme-success), 0.16);
   color: rgb(var(--v-theme-success));
+}
+.wal__redirecting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+  font-size: 0.88rem;
 }
 .wal__confirm {
   padding: 1.1rem;

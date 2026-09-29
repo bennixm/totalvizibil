@@ -144,32 +144,19 @@ const lifetime = computed(() => {
   const d = s.value
   if (!d) return []
   return [
-    { k: 'lSpent', v: cr(d.lifetime.consumed.credits), x: money.approx(d.lifetime.consumed.credits) },
     { k: 'lClicks', v: String(d.lifetime.clicks), x: '' },
     { k: 'lRunning', v: fmtActive(d.lifetime.activeSeconds), x: '' },
   ]
 })
 
-// One chart, toggled between spend and clicks.
-type ChartMode = 'spend' | 'clicks'
-const chartMode = ref<ChartMode>('clicks')
+// Click trend — spend-over-time now lives on the Consumption page instead.
 const chart = computed(() => {
   const pts = s.value?.series ?? []
-  const spendMode = chartMode.value === 'spend'
   return {
     labels: pts.map((p) => p.date.slice(5)),
-    series: [
-      {
-        label: spendMode ? t('spend.legendSpend') : t('spend.legendClicks'),
-        values: pts.map((p) => (spendMode ? p.spent : p.clicks)),
-      },
-    ],
+    series: [{ label: t('spend.legendClicks'), values: pts.map((p) => p.clicks) }],
   }
 })
-
-const tableRows = computed(() =>
-  [...(s.value?.series ?? [])].reverse().filter((p) => p.spent > 0 || p.clicks > 0),
-)
 
 async function loadFor(id: string): Promise<void> {
   companyId.value = id
@@ -483,26 +470,10 @@ watch(
         </div>
       </section>
 
-      <!-- One chart, toggled -->
+      <!-- Click trend -->
       <section class="card ov__chart">
         <div class="ov__chartHead">
           <h3>{{ t('spend.trendTitle') }}</h3>
-          <div class="seg" role="group" :aria-label="t('spend.trendTitle')">
-            <button
-              type="button"
-              :class="{ 'is-on': chartMode === 'clicks' }"
-              @click="chartMode = 'clicks'"
-            >
-              {{ t('spend.legendClicks') }}
-            </button>
-            <button
-              type="button"
-              :class="{ 'is-on': chartMode === 'spend' }"
-              @click="chartMode = 'spend'"
-            >
-              {{ t('spend.legendSpend') }}
-            </button>
-          </div>
         </div>
         <TrendChart :labels="chart.labels" :series="chart.series" />
       </section>
@@ -518,36 +489,6 @@ watch(
           </div>
         </div>
       </section>
-
-      <!-- Daily history (folded) -->
-      <details v-if="tableRows.length" class="ov__fold">
-        <summary>
-          <v-icon icon="mdi-chevron-right" size="18" class="ov__foldChevron" />
-          {{ t('spend.histToggle', { n: tableRows.length }) }}
-        </summary>
-        <div class="ov__foldBody ov__table">
-          <table>
-            <thead>
-              <tr>
-                <th>{{ t('spend.colDay') }}</th>
-                <th class="num">{{ t('spend.colClicks') }}</th>
-                <th class="num">{{ t('spend.colSpend') }}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="p in tableRows" :key="p.date">
-                <td>{{ p.date.slice(5) }}</td>
-                <td class="num">{{ p.clicks }}</td>
-                <td class="num">{{ n(p.spent, { maximumFractionDigits: 2 }) }}</td>
-                <td>
-                  <span v-if="p.capped" class="capchip">{{ t('spend.capYes') }}</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </details>
 
       <!-- Insights -->
       <section v-if="s.insights.length" class="card ov__insights">
@@ -998,25 +939,6 @@ watch(
 .ov__chartHead h3 {
   margin: 0;
 }
-.seg {
-  display: inline-flex;
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.seg button {
-  padding: 0.3rem 0.85rem;
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.seg button + button {
-  border-left: 1px solid var(--tvz-glass-border);
-}
-.seg button.is-on {
-  background: rgba(var(--v-theme-primary), 0.14);
-  color: rgb(var(--v-theme-primary));
-}
 
 /* Lifetime -------------------------------------------------------------- */
 .ov__life {
@@ -1031,7 +953,7 @@ watch(
 }
 .ov__lifeGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.6rem;
 }
 .lf {
@@ -1056,71 +978,6 @@ watch(
   display: block;
   font-size: 0.7rem;
   color: rgba(var(--v-theme-on-surface), 0.5);
-}
-
-/* Folds ------------------------------------------------------------- */
-.ov__fold {
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-surface));
-  margin-bottom: 1rem;
-}
-.ov__fold summary {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.9rem 1.1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  list-style: none;
-}
-.ov__fold summary::-webkit-details-marker {
-  display: none;
-}
-.ov__foldChevron {
-  transition: transform var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-.ov__fold[open] .ov__foldChevron {
-  transform: rotate(90deg);
-}
-.ov__foldBody {
-  padding: 0 1.1rem 1.1rem;
-}
-
-.ov__table {
-  overflow-x: auto;
-}
-.ov__table table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.82rem;
-}
-.ov__table th {
-  text-align: left;
-  font-size: 0.64rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-  padding: 0 0.5rem 0.4rem;
-}
-.ov__table td {
-  padding: 0.42rem 0.5rem;
-  border-top: 1px solid var(--tvz-hairline);
-}
-.ov__table .num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.capchip {
-  font-size: 0.6rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 0.1rem 0.4rem;
-  border-radius: 999px;
-  background: rgba(var(--v-theme-warning), 0.16);
-  color: rgb(var(--v-theme-warning));
 }
 
 .ov__insights {

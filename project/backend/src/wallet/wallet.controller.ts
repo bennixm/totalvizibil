@@ -47,12 +47,18 @@ export class WalletController {
     @Query('cursor') cursor?: string,
     @Query('companyId') companyId?: string,
     @Query('type') type?: string,
+    @Query('category') category?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     return this.wallet.listTransactions(user.id, {
       limit: limit ? Number(limit) : undefined,
       cursor,
       companyId,
       type,
+      category,
+      from,
+      to,
     });
   }
 

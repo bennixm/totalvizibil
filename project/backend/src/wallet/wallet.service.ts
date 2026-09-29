@@ -28,6 +28,35 @@ const CPC_PROVIDER = 'cpc';
 const WALLET_TXN_TYPES = ['purchase', 'spend', 'refund', 'adjustment'] as const;
 type WalletTxnTypeFilter = (typeof WALLET_TXN_TYPES)[number];
 
+/** The spend categories an owner actually recognizes — shared between the
+ *  lifetime breakdown and the transaction-list `category` filter so the two
+ *  can never classify the same row differently. */
+const SPEND_CATEGORIES = ['clicks', 'aiUsage', 'builderUnlock', 'other'] as const;
+type SpendCategory = (typeof SPEND_CATEGORIES)[number];
+const BUILDER_UNLOCK_DESCRIPTION = 'Advanced website builder';
+
+function categoryOf(provider: string | null, description: string | null): SpendCategory {
+  if (provider === CPC_PROVIDER) return 'clicks';
+  if (provider === 'ai-usage') return 'aiUsage';
+  if (provider === null && description === BUILDER_UNLOCK_DESCRIPTION) return 'builderUnlock';
+  return 'other';
+}
+
+/** The `where` clause that selects exactly the rows `categoryOf` would
+ *  classify into `category` — used by the transaction-list filter. */
+function categoryWhere(category: SpendCategory): Prisma.WalletTransactionWhereInput {
+  switch (category) {
+    case 'clicks':
+      return { provider: CPC_PROVIDER };
+    case 'aiUsage':
+      return { provider: 'ai-usage' };
+    case 'builderUnlock':
+      return { provider: null, description: BUILDER_UNLOCK_DESCRIPTION };
+    case 'other':
+      return { provider: null, NOT: { description: BUILDER_UNLOCK_DESCRIPTION } };
+  }
+}
+
 /** A refund can be canceled up to this long after it's requested — see
  *  WalletService.requestRefund/cancelRefund. Same shape as the company
  *  deletion grace window (COMPANY_DELETE_GRACE_MS). */
@@ -398,19 +427,42 @@ export class WalletService implements OnModuleInit {
 
   async listTransactions(
     userId: string,
-    opts: { limit?: number; cursor?: string; companyId?: string; type?: string } = {},
+    opts: {
+      limit?: number;
+      cursor?: string;
+      companyId?: string;
+      type?: string;
+      /** One of the same categories `spendBreakdownFor` reports — filters to
+       *  exactly the rows that category's total is made of. */
+      category?: string;
+      /** Inclusive UTC calendar-day bounds, `YYYY-MM-DD`. */
+      from?: string;
+      to?: string;
+    } = {},
   ) {
     const wallet = await this.ensureWallet(userId);
     const take = Math.min(Math.max(opts.limit ?? 20, 1), 100);
     const type = WALLET_TXN_TYPES.includes(opts.type as WalletTxnTypeFilter)
       ? (opts.type as WalletTxnTypeFilter)
       : undefined;
+    const category = SPEND_CATEGORIES.includes(opts.category as SpendCategory)
+      ? (opts.category as SpendCategory)
+      : undefined;
+    const createdAt: Prisma.DateTimeFilter = {};
+    if (opts.from && /^\d{4}-\d{2}-\d{2}$/.test(opts.from)) {
+      createdAt.gte = new Date(`${opts.from}T00:00:00.000Z`);
+    }
+    if (opts.to && /^\d{4}-\d{2}-\d{2}$/.test(opts.to)) {
+      createdAt.lt = new Date(new Date(`${opts.to}T00:00:00.000Z`).getTime() + 86_400_000);
+    }
 
     const rows = await this.prisma.walletTransaction.findMany({
       where: {
         walletId: wallet.id,
         ...(opts.companyId ? { companyId: opts.companyId } : {}),
         ...(type ? { type } : {}),
+        ...(category ? categoryWhere(category) : {}),
+        ...(Object.keys(createdAt).length ? { createdAt } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
@@ -465,24 +517,14 @@ export class WalletService implements OnModuleInit {
       _count: { _all: true },
     });
 
-    const totals: Record<
-      'clicks' | 'aiUsage' | 'builderUnlock' | 'other',
-      { minor: number; count: number }
-    > = {
+    const totals: Record<SpendCategory, { minor: number; count: number }> = {
       clicks: { minor: 0, count: 0 },
       aiUsage: { minor: 0, count: 0 },
       builderUnlock: { minor: 0, count: 0 },
       other: { minor: 0, count: 0 },
     };
     for (const row of rows) {
-      const key =
-        row.provider === CPC_PROVIDER
-          ? 'clicks'
-          : row.provider === 'ai-usage'
-            ? 'aiUsage'
-            : row.description === 'Advanced website builder'
-              ? 'builderUnlock'
-              : 'other';
+      const key = categoryOf(row.provider, row.description);
       totals[key].minor += Math.abs(row._sum.amountMinor ?? 0);
       totals[key].count += row._count._all;
     }

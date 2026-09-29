@@ -1,25 +1,31 @@
 <script setup lang="ts">
 /**
- * Detailed lifetime spend for ONE business — clicks / AI usage / the
- * builder's one-time unlock fee / everything else, plus the underlying
+ * Detailed lifetime spend for ONE business — the central place to see where
+ * the budget went. Two clearly separated groups: campaign spend (clicks —
+ * see CampaignSpendView, which no longer repeats this reporting) and
+ * everything else (Website Builder AI usage, its one-time unlock fee,
+ * anything not yet categorized) — plus a filterable list of the underlying
  * transactions. The dashboard's own "Business spend" card shows the same
- * total (see `/wallet/spend-breakdown`); this page is the "where did it go"
- * detail view for it.
+ * grand total (see `/wallet/spend-breakdown`); this page is its detail view.
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
+import TrendChart from '@/components/TrendChart.vue'
 import { apiFetch } from '@/services/api'
 import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
-import { useWalletStore } from '@/stores/wallet'
+import { useCampaignStore } from '@/stores/campaign'
+import { useWalletStore, type SpendCategory } from '@/stores/wallet'
 
 const { t, n } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const companies = useCompaniesStore()
+const campaign = useCampaignStore()
+const { spend: campaignSpend } = storeToRefs(campaign)
 const walletStore = useWalletStore()
 const { transactions, nextCursor, loading: txnLoading } = storeToRefs(walletStore)
 const money = useMoney()
@@ -29,7 +35,7 @@ const loading = ref(true)
 const error = ref('')
 
 interface CategoryRow {
-  key: 'clicks' | 'aiUsage' | 'builderUnlock' | 'other'
+  key: SpendCategory
   total: { minor: number; credits: number }
   count: number
 }
@@ -39,25 +45,90 @@ interface Breakdown {
 }
 const breakdown = ref<Breakdown | null>(null)
 
-const CATEGORY_META: Record<CategoryRow['key'], { icon: string; labelKey: string }> = {
+const CATEGORY_META: Record<SpendCategory, { icon: string; labelKey: string }> = {
   clicks: { icon: 'mdi-cursor-default-click-outline', labelKey: 'consumption.clicks' },
   aiUsage: { icon: 'mdi-robot-outline', labelKey: 'consumption.aiUsage' },
   builderUnlock: { icon: 'mdi-rocket-launch-outline', labelKey: 'consumption.builderUnlock' },
   other: { icon: 'mdi-dots-horizontal', labelKey: 'consumption.other' },
 }
-const visibleCategories = computed(() => breakdown.value?.categories ?? [])
+const CATEGORY_ORDER: SpendCategory[] = ['clicks', 'aiUsage', 'builderUnlock', 'other']
+
+const categoryByKey = computed(() => {
+  const map = new Map<SpendCategory, CategoryRow>()
+  for (const c of breakdown.value?.categories ?? []) map.set(c.key, c)
+  return map
+})
+const campaignCategory = computed(() => categoryByKey.value.get('clicks') ?? null)
+/** Everything that isn't campaign/click spend — the "Other spend" section. */
+const otherCategories = computed(() =>
+  CATEGORY_ORDER.filter((k) => k !== 'clicks')
+    .map((k) => categoryByKey.value.get(k))
+    .filter((c): c is CategoryRow => !!c),
+)
+
+// Campaign spend trend — the same daily series CampaignSpendView used to
+// chart itself; shown here instead so it isn't reported in two places.
+const campaignChart = computed(() => {
+  const pts = campaignSpend.value?.series ?? []
+  return {
+    labels: pts.map((p) => p.date.slice(5)),
+    series: [{ label: t('consumption.campaignChartLegend'), values: pts.map((p) => p.spent) }],
+  }
+})
+const hasCampaignHistory = computed(() => (campaignSpend.value?.series ?? []).some((p) => p.spent > 0))
 
 function cr(v: number): string {
   return n(v, { maximumFractionDigits: 2 }) + ' cr'
+}
+
+// --- filters: which category + which date range the transaction list shows ---
+const CATEGORY_FILTER_ITEMS = computed(() => [
+  { value: '', title: t('consumption.filterAllTypes') },
+  ...CATEGORY_ORDER.map((key) => ({ value: key, title: t(CATEGORY_META[key].labelKey) })),
+])
+const filterCategory = ref<'' | SpendCategory>('')
+const filterFrom = ref('')
+const filterTo = ref('')
+const hasActiveFilters = computed(
+  () => !!filterCategory.value || !!filterFrom.value || !!filterTo.value,
+)
+
+async function applyFilters(): Promise<void> {
+  if (!companyId.value) return
+  await walletStore.loadTransactions(false, {
+    companyId: companyId.value,
+    type: 'spend',
+    category: filterCategory.value || null,
+    from: filterFrom.value || null,
+    to: filterTo.value || null,
+  })
+}
+function clearFilters(): void {
+  filterCategory.value = ''
+  filterFrom.value = ''
+  filterTo.value = ''
+  void applyFilters()
+}
+/** Jump the list straight to one category — the summary cards double as filter shortcuts. */
+function filterByCategory(key: SpendCategory): void {
+  filterCategory.value = filterCategory.value === key ? '' : key
+  void applyFilters()
 }
 
 async function loadFor(id: string): Promise<void> {
   companyId.value = id
   loading.value = true
   error.value = ''
+  filterCategory.value = ''
+  filterFrom.value = ''
+  filterTo.value = ''
   try {
-    breakdown.value = await apiFetch<Breakdown>(`/wallet/spend-breakdown?companyId=${id}`)
-    await walletStore.loadTransactions(false, { companyId: id, type: 'spend' })
+    const [b] = await Promise.all([
+      apiFetch<Breakdown>(`/wallet/spend-breakdown?companyId=${id}`),
+      campaign.loadSpend(id),
+      walletStore.loadTransactions(false, { companyId: id, type: 'spend' }),
+    ])
+    breakdown.value = b
   } catch {
     error.value = t('consumption.loadError')
   } finally {
@@ -117,20 +188,105 @@ watch(
         <span class="cons__totalApprox">{{ money.approx(breakdown.total.credits) }}</span>
       </section>
 
-      <section class="cons__grid">
-        <div v-for="c in visibleCategories" :key="c.key" class="cons__card">
-          <span class="cons__cardIcon"><v-icon :icon="CATEGORY_META[c.key].icon" size="18" /></span>
-          <span class="cons__cardLabel">{{ t(CATEGORY_META[c.key].labelKey) }}</span>
-          <strong class="cons__cardValue">{{ cr(c.total.credits) }}</strong>
-          <span class="cons__cardCount">
-            {{ c.count ? t('consumption.txnCount', { n: c.count }) : t('consumption.none') }}
-          </span>
+      <!-- Campaign spend — clicks and whatever else the campaign itself
+           consumes. CampaignSpendView links back here instead of repeating it. -->
+      <section class="cons__section">
+        <h2 class="cons__sectionTitle">{{ t('consumption.campaignTitle') }}</h2>
+        <div class="cons__campaignRow">
+          <button
+            type="button"
+            class="cons__card cons__card--btn"
+            :class="{ 'is-active': filterCategory === 'clicks' }"
+            @click="filterByCategory('clicks')"
+          >
+            <span class="cons__cardIcon"><v-icon :icon="CATEGORY_META.clicks.icon" size="18" /></span>
+            <span class="cons__cardLabel">{{ t(CATEGORY_META.clicks.labelKey) }}</span>
+            <strong class="cons__cardValue">{{ cr(campaignCategory?.total.credits ?? 0) }}</strong>
+            <span class="cons__cardCount">
+              {{
+                campaignCategory?.count
+                  ? t('consumption.txnCount', { n: campaignCategory.count })
+                  : t('consumption.none')
+              }}
+            </span>
+          </button>
+          <router-link
+            v-if="companyId"
+            :to="{ name: 'campaign', query: { c: companyId } }"
+            class="cons__campaignLink"
+          >
+            {{ t('consumption.viewCampaign') }} <v-icon icon="mdi-arrow-right" size="14" />
+          </router-link>
+        </div>
+        <div v-if="hasCampaignHistory" class="card cons__chart">
+          <TrendChart :labels="campaignChart.labels" :series="campaignChart.series" />
         </div>
       </section>
 
+      <!-- Everything else: Website Builder AI usage, its unlock fee, other. -->
+      <section class="cons__section">
+        <h2 class="cons__sectionTitle">{{ t('consumption.otherTitle') }}</h2>
+        <div class="cons__grid">
+          <button
+            v-for="c in otherCategories"
+            :key="c.key"
+            type="button"
+            class="cons__card cons__card--btn"
+            :class="{ 'is-active': filterCategory === c.key }"
+            @click="filterByCategory(c.key)"
+          >
+            <span class="cons__cardIcon"><v-icon :icon="CATEGORY_META[c.key].icon" size="18" /></span>
+            <span class="cons__cardLabel">{{ t(CATEGORY_META[c.key].labelKey) }}</span>
+            <strong class="cons__cardValue">{{ cr(c.total.credits) }}</strong>
+            <span class="cons__cardCount">
+              {{ c.count ? t('consumption.txnCount', { n: c.count }) : t('consumption.none') }}
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Filterable transaction list — every spend type, narrowed by
+           category and/or date range. -->
       <section class="card cons__list">
-        <h3>{{ t('consumption.recentTitle') }}</h3>
-        <p v-if="!transactions.length" class="cons__empty">{{ t('consumption.empty') }}</p>
+        <div class="cons__listHead">
+          <h3>{{ t('consumption.recentTitle') }}</h3>
+        </div>
+
+        <div class="cons__filters">
+          <v-select
+            v-model="filterCategory"
+            :items="CATEGORY_FILTER_ITEMS"
+            :label="t('consumption.filterType')"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="cons__filterType"
+            @update:model-value="applyFilters"
+          />
+          <label class="cons__filterDate">
+            <span>{{ t('consumption.filterFrom') }}</span>
+            <input v-model="filterFrom" type="date" @change="applyFilters" />
+          </label>
+          <label class="cons__filterDate">
+            <span>{{ t('consumption.filterTo') }}</span>
+            <input v-model="filterTo" type="date" @change="applyFilters" />
+          </label>
+          <button
+            v-if="hasActiveFilters"
+            type="button"
+            class="cons__filterClear"
+            @click="clearFilters"
+          >
+            <v-icon icon="mdi-close" size="14" /> {{ t('consumption.filterClear') }}
+          </button>
+        </div>
+
+        <div v-if="txnLoading && !transactions.length" class="cons__center cons__center--sm">
+          <v-progress-circular indeterminate color="primary" size="22" />
+        </div>
+        <p v-else-if="!transactions.length" class="cons__empty">
+          {{ hasActiveFilters ? t('consumption.emptyFiltered') : t('consumption.empty') }}
+        </p>
         <ul v-else class="cons__rows">
           <li v-for="txn in transactions" :key="txn.id" class="crow">
             <div class="crow__main">
@@ -156,7 +312,7 @@ watch(
 
 <style scoped>
 .cons {
-  max-width: 680px;
+  max-width: 760px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
 }
 .cons__head {
@@ -181,6 +337,9 @@ watch(
   display: grid;
   place-items: center;
   min-height: 200px;
+}
+.cons__center--sm {
+  min-height: 80px;
 }
 .cons__error {
   display: flex;
@@ -209,7 +368,7 @@ watch(
   align-items: center;
   text-align: center;
   gap: 0.15rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
   background: rgba(var(--v-theme-primary), 0.06);
   border-color: rgba(var(--v-theme-primary), 0.25);
 }
@@ -230,11 +389,46 @@ watch(
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
+.cons__section {
+  margin-bottom: 1.5rem;
+}
+.cons__sectionTitle {
+  margin: 0 0 0.65rem;
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.cons__campaignRow {
+  display: flex;
+  align-items: stretch;
+  gap: 0.7rem;
+  margin-bottom: 0.7rem;
+}
+.cons__campaignRow .cons__card {
+  flex: 1;
+  max-width: 260px;
+}
+.cons__campaignLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: center;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  white-space: nowrap;
+}
+.cons__chart {
+  padding: 1rem 1.1rem 0.5rem;
+}
+
 .cons__grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.7rem;
-  margin-bottom: 1.25rem;
 }
 .cons__card {
   display: flex;
@@ -245,9 +439,26 @@ watch(
   border-radius: 12px;
   background: rgb(var(--v-theme-surface));
 }
+.cons__card--btn {
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease),
+    background var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
+}
+.cons__card--btn:hover {
+  background: rgba(var(--v-theme-on-surface), 0.02);
+}
+.cons__card--btn.is-active {
+  border-color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.06);
+}
 .cons__cardIcon {
   color: rgba(var(--v-theme-on-surface), 0.5);
   margin-bottom: 0.2rem;
+}
+.cons__card--btn.is-active .cons__cardIcon {
+  color: rgb(var(--v-theme-primary));
 }
 .cons__cardLabel {
   font-size: 0.68rem;
@@ -265,9 +476,54 @@ watch(
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
-.cons__list h3 {
-  margin: 0 0 0.9rem;
+.cons__listHead {
+  margin-bottom: 0.2rem;
 }
+.cons__listHead h3 {
+  margin: 0;
+}
+.cons__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.6rem;
+  margin: 0.9rem 0 1.1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.cons__filterType {
+  max-width: 12rem;
+}
+.cons__filterDate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.cons__filterDate input[type='date'] {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 8px;
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+  font-size: 0.82rem;
+}
+.cons__filterClear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.cons__filterClear:hover {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+}
+
 .cons__empty {
   padding: 1.5rem 0;
   text-align: center;
@@ -323,9 +579,15 @@ watch(
   background: rgba(var(--v-theme-on-surface), 0.03);
 }
 
-@media (max-width: 560px) {
+@media (max-width: 620px) {
   .cons__grid {
     grid-template-columns: 1fr 1fr;
+  }
+  .cons__campaignRow {
+    flex-direction: column;
+  }
+  .cons__campaignRow .cons__card {
+    max-width: none;
   }
 }
 </style>
