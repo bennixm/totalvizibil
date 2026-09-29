@@ -583,7 +583,6 @@
     "historyTitle": "Transaction history",
     "historyEmpty": "No transactions yet.",
     "historyError": "Couldn't load transactions. Please try again.",
-    "colId": "ID",
     "colType": "Type",
     "colAmount": "Amount",
     "colStatus": "Status",

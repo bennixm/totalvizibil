@@ -583,7 +583,6 @@
     "historyTitle": "Istoric tranzacții",
     "historyEmpty": "Nicio tranzacție încă.",
     "historyError": "Nu am putut încărca tranzacțiile. Încearcă din nou.",
-    "colId": "ID",
     "colType": "Tip",
     "colAmount": "Sumă",
     "colStatus": "Stare",

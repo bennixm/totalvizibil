@@ -38,11 +38,6 @@ const TYPE_TABS = computed(() => [
   ...TYPE_OPTIONS.map((v) => ({ value: v, title: t('wallet.txnType.' + v) })),
 ])
 
-/** A short, stable per-row reference — the underlying id is a full UUID. */
-function shortId(id: string): string {
-  return '#' + id.slice(0, 8)
-}
-
 async function loadInitial(): Promise<void> {
   loading.value = true
   try {
@@ -169,17 +164,15 @@ function daysLeft(processAt: string): number {
           <table class="txn__table">
             <thead>
               <tr>
-                <th>{{ t('wallet.colId') }}</th>
                 <th>{{ t('wallet.colType') }}</th>
                 <th class="num">{{ t('wallet.colAmount') }}</th>
-                <th>{{ t('wallet.colDate') }}</th>
-                <th>{{ t('wallet.colStatus') }}</th>
+                <th class="end">{{ t('wallet.colDate') }}</th>
+                <th class="end">{{ t('wallet.colStatus') }}</th>
               </tr>
             </thead>
             <tbody>
               <template v-for="txn in transactions" :key="txn.id">
                 <tr class="trow">
-                  <td class="trow__id">{{ shortId(txn.id) }}</td>
                   <td class="trow__type">
                     <span class="trow__icon" :class="{ 'is-in': txn.amount.minor >= 0 }">
                       <v-icon :icon="txnIcon(txn)" size="15" />
@@ -195,15 +188,15 @@ function daysLeft(processAt: string): number {
                       <CreditsValue :credits="txn.amount.credits" signed stacked />
                     </span>
                   </td>
-                  <td class="trow__date">{{ new Date(txn.createdAt).toLocaleDateString() }}</td>
-                  <td>
+                  <td class="trow__date end">{{ new Date(txn.createdAt).toLocaleDateString() }}</td>
+                  <td class="end">
                     <span class="trow__badge" :class="'trow__badge--' + txn.status">
                       {{ t('wallet.txnStatus.' + txn.status) }}
                     </span>
                   </td>
                 </tr>
                 <tr v-if="txn.type === 'refund' && txn.status === 'pending'" class="trow__detail">
-                  <td colspan="5">
+                  <td colspan="4">
                     <div class="trow__actions">
                       <span class="trow__refundNote">
                         <v-icon icon="mdi-clock-outline" size="13" />
@@ -239,7 +232,7 @@ function daysLeft(processAt: string): number {
 
 <style scoped>
 .txn {
-  max-width: 960px;
+  max-width: 820px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
 }
 .txn__center {
@@ -339,7 +332,9 @@ function daysLeft(processAt: string): number {
   white-space: nowrap;
 }
 .txn__table th.num,
-.txn__table td.num {
+.txn__table td.num,
+.txn__table th.end,
+.txn__table td.end {
   text-align: right;
 }
 .txn__table td {
@@ -352,14 +347,14 @@ function daysLeft(processAt: string): number {
 .trow:hover {
   background: rgba(var(--v-theme-on-surface), 0.02);
 }
-.trow__id {
-  font-variant-numeric: tabular-nums;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-  white-space: nowrap;
+/* Type is the only free-form column left (label + sub text) — let it take
+   the slack instead of forcing the compact numeric/date/status columns wide. */
+.txn__table th:first-child,
+.txn__table td:first-child {
+  width: 100%;
 }
 .trow__type {
   font-weight: 600;
-  white-space: nowrap;
 }
 .trow__icon {
   display: inline-flex;

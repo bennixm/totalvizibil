@@ -583,7 +583,6 @@
     "historyTitle": "Transaktionsverlauf",
     "historyEmpty": "Noch keine Transaktionen.",
     "historyError": "Transaktionen konnten nicht geladen werden. Bitte erneut versuchen.",
-    "colId": "ID",
     "colType": "Typ",
     "colAmount": "Betrag",
     "colStatus": "Status",
