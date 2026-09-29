@@ -551,8 +551,11 @@ const txnColor: Record<string, string> = {
               </template>
 
               <div class="ud__balance">
-                <strong>{{ fmtCr(user.wallet.balance.credits) }}</strong>
-                <span>{{ t('wallet.credits') }} · {{ ownerEq(user.wallet.balance.credits) }}</span>
+                <strong>
+                  {{ fmtCr(user.wallet.balance.credits) }}
+                  <v-icon icon="mdi-poker-chip" size="0.55em" class="ud__balanceUnit" />
+                </strong>
+                <span>{{ ownerEq(user.wallet.balance.credits) }}</span>
               </div>
 
               <div class="ud__wstats">
@@ -1007,6 +1010,11 @@ const txnColor: Record<string, string> = {
   font-size: 0.76rem;
   color: rgba(var(--v-theme-on-surface), 0.5);
   margin-top: 0.3rem;
+}
+.ud__balanceUnit {
+  margin-left: 0.15em;
+  opacity: 0.7;
+  vertical-align: 0.08em;
 }
 .ud__wstats {
   display: grid;

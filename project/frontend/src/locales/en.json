@@ -563,6 +563,7 @@
     "currencyRON": "RON",
     "deposited": "Deposited",
     "purchased": "Credits bought",
+    "obtained": "Credits obtained",
     "spent": "Credits used",
     "buyTitle": "Buy credits",
     "topUpCta": "Top up balance",

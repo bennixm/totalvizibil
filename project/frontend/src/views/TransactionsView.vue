@@ -462,6 +462,11 @@ function daysLeft(processAt: string): number {
   padding: 0 1rem 0.7rem;
   border-top: 0;
 }
+/* The next transaction's row follows a detail row, not another `.trow` —
+   `.trow + .trow` above never matches it, so the separator was missing. */
+.trow__detail + .trow td {
+  border-top: 1px solid var(--tvz-hairline);
+}
 .trow__actions {
   display: flex;
   align-items: center;

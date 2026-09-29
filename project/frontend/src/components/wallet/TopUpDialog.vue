@@ -187,7 +187,10 @@ async function confirm(): Promise<void> {
                 </div>
                 <div class="topup__summaryRow">
                   <span>{{ t('wallet.youGet') }}</span>
-                  <strong>{{ credits(amount || 0) }} {{ t('wallet.credits') }}</strong>
+                  <strong>
+                    {{ credits(amount || 0) }}
+                    <v-icon icon="mdi-poker-chip" size="0.65em" class="topup__unit" />
+                  </strong>
                 </div>
               </div>
 
@@ -376,6 +379,10 @@ async function confirm(): Promise<void> {
 }
 .topup__summaryRow strong {
   font-size: 1rem;
+}
+.topup__unit {
+  margin-left: 0.2em;
+  opacity: 0.75;
 }
 .topup__summaryEq {
   flex-basis: 100%;

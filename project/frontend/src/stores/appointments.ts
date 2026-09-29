@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 
 import { apiFetch } from '@/services/api'
+import { bucharestToday } from '@/utils/bucharestDate'
 
 export type AppointmentStatus = 'pending' | 'confirmed' | 'canceled' | 'completed'
 
@@ -65,7 +66,9 @@ export const useAppointmentsStore = defineStore('appointments', {
     nextCursor: null,
     summary: null,
     settings: null,
-    filters: { status: '', upcomingOnly: true, from: '', to: '' },
+    // "Doar viitoare" defaults on — keep `from` in sync with it from the
+    // start instead of leaving the date field empty while it's checked.
+    filters: { status: '', upcomingOnly: true, from: bucharestToday(), to: '' },
     loading: false,
     working: false,
     error: '',

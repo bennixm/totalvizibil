@@ -13,6 +13,7 @@ import {
   type AvailabilityWindow,
 } from '@/stores/appointments'
 import { useToastStore } from '@/stores/toast'
+import { bucharestToday } from '@/utils/bucharestDate'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -79,10 +80,34 @@ const STATUS_TONE: Record<AppointmentStatus, string> = {
   completed: 'primary',
 }
 
+/** "Doar viitoare" is really just a shorthand for "from = today" — keep the
+ *  date field in sync instead of leaving it blank while the toggle is on,
+ *  which looked like no date filter was applied at all. */
+function toggleUpcomingOnly(checked: boolean): void {
+  if (checked && !appointments.filters.from) {
+    appointments.filters.from = bucharestToday()
+  }
+  void appointments.setFilter('upcomingOnly', checked)
+}
+
+/** Picking a `from` date earlier than today contradicts "upcoming only" —
+ *  turn that off instead of silently overriding it (see appointments.service.ts:
+ *  an explicit `from` already wins server-side, but the checkbox would keep
+ *  reading as checked while no longer describing what's shown). */
+function changeFrom(value: string): void {
+  appointments.filters.from = value
+  if (appointments.filters.upcomingOnly && value && value < bucharestToday()) {
+    appointments.filters.upcomingOnly = false
+  }
+  if (companyId.value) void appointments.load(companyId.value)
+}
+
 const hasDateFilter = computed(() => !!filters.value.from || !!filters.value.to)
 async function clearDateFilter(): Promise<void> {
   if (!companyId.value) return
-  appointments.filters.from = ''
+  // Re-sync rather than go blank if "upcoming only" is still active — an
+  // empty field while that's checked is exactly the inconsistency this fixes.
+  appointments.filters.from = appointments.filters.upcomingOnly ? bucharestToday() : ''
   appointments.filters.to = ''
   await appointments.load(companyId.value)
 }
@@ -287,7 +312,7 @@ watch(
           <input
             type="checkbox"
             :checked="filters.upcomingOnly"
-            @change="appointments.setFilter('upcomingOnly', ($event.target as HTMLInputElement).checked)"
+            @change="toggleUpcomingOnly(($event.target as HTMLInputElement).checked)"
           />
           {{ t('appointments.upcomingOnly') }}
         </label>
@@ -300,7 +325,7 @@ watch(
           <input
             type="date"
             :value="filters.from"
-            @change="appointments.setFilter('from', ($event.target as HTMLInputElement).value)"
+            @change="changeFrom(($event.target as HTMLInputElement).value)"
           />
         </label>
         <label class="apt__dateField">

@@ -14,6 +14,9 @@ export interface WalletSummary {
   eurRonRate: number
   depositedEurCents: number
   purchased: Money
+  /** Every credit that ever reached the wallet, from any source — bought,
+   *  an admin grant, an affiliate reward — not just Stripe purchases. */
+  obtained: Money
   spent: Money
   blocked: boolean
   blockedReason: string | null

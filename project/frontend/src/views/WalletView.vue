@@ -141,6 +141,7 @@ onMounted(async () => {
       <!-- Balance + at-a-glance figures + top-up trigger, one 3-column panel. -->
       <section class="wal__card">
         <div class="wal__side">
+          <v-icon icon="mdi-piggy-bank-outline" size="20" class="wal__sideIcon" />
           <span class="wal__sideLabel">{{ t('wallet.deposited') }}</span>
           <strong class="wal__sideValue">{{ eur(summary.depositedEurCents / 100) }}</strong>
         </div>
@@ -153,7 +154,8 @@ onMounted(async () => {
             />
           </p>
           <p class="wal__balanceValue">
-            {{ credits(summary.balance.credits) }} <span>{{ t('wallet.credits') }}</span>
+            {{ credits(summary.balance.credits) }}
+            <v-icon icon="mdi-poker-chip" size="0.55em" class="wal__balanceUnit" />
           </p>
           <p class="wal__balanceEq">{{ money.approx(summary.balance.credits) }}</p>
 
@@ -184,15 +186,10 @@ onMounted(async () => {
           </v-btn>
         </div>
 
-        <div class="wal__side wal__side--stack">
-          <div>
-            <span class="wal__sideLabel">{{ t('wallet.purchased') }}</span>
-            <strong class="wal__sideValue">{{ credits(summary.purchased.credits) }}</strong>
-          </div>
-          <div>
-            <span class="wal__sideLabel">{{ t('wallet.spent') }}</span>
-            <strong class="wal__sideValue">{{ credits(summary.spent.credits) }}</strong>
-          </div>
+        <div class="wal__side">
+          <v-icon icon="mdi-poker-chip" size="20" class="wal__sideIcon" />
+          <span class="wal__sideLabel">{{ t('wallet.obtained') }}</span>
+          <strong class="wal__sideValue">{{ credits(summary.obtained.credits) }}</strong>
         </div>
       </section>
 
@@ -245,9 +242,12 @@ onMounted(async () => {
             variant="outlined"
             density="compact"
             :label="t('wallet.refundAmountLabel')"
-            :suffix="t('wallet.credits')"
             :error="!refundAmountValid"
-          />
+          >
+            <template #append-inner>
+              <v-icon icon="mdi-poker-chip" size="16" />
+            </template>
+          </v-text-field>
           <p class="wal__refundNote">
             {{ t('wallet.refundAvailable', { credits: credits(refundableCredits) }) }}
           </p>
@@ -301,10 +301,9 @@ onMounted(async () => {
   padding: 1.5rem 1rem;
   text-align: center;
 }
-.wal__side--stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
+.wal__sideIcon {
+  color: rgba(var(--v-theme-on-surface), 0.4);
+  margin-bottom: 0.4rem;
 }
 .wal__sideLabel {
   display: block;
@@ -341,10 +340,10 @@ onMounted(async () => {
   line-height: 1;
   color:var(--tvz-accept-green-darker);
 }
-.wal__balanceValue span {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.6);
+.wal__balanceUnit {
+  margin-left: 0.15em;
+  opacity: 0.7;
+  vertical-align: 0.08em;
 }
 .wal__balanceEq {
   margin: 0;
@@ -466,10 +465,6 @@ onMounted(async () => {
     border-top: 1px solid var(--tvz-glass-border);
     border-bottom: 1px solid var(--tvz-glass-border);
     order: -1;
-  }
-  .wal__side--stack {
-    flex-direction: row;
-    justify-content: space-around;
   }
 }
 </style>

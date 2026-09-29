@@ -5,9 +5,12 @@ import { useI18n } from 'vue-i18n'
 import { useMoney } from '@/composables/useMoney'
 
 /**
- * A credit amount with its currency equivalent — `12.50 cr` and a muted
- * `≈ €12.50` / `≈ 63 lei` beside or beneath it. One place to keep every credit
- * figure in the app formatted the same way.
+ * A credit amount with its currency equivalent — `12.50 [chip icon]` and a
+ * muted `≈ €12.50` / `≈ 63 lei` beside or beneath it. One place to keep every
+ * credit figure in the app formatted the same way. The chip icon is
+ * dedicated to credits — it isn't reused for anything else in the app — so
+ * it doubles as the "cr" unit wherever a bare amount would otherwise need
+ * the word "Credite" spelled out.
  */
 const props = withDefaults(
   defineProps<{
@@ -17,7 +20,7 @@ const props = withDefaults(
     currency?: 'EUR' | 'RON'
     /** Show the "≈ <fiat>" equivalent. */
     approx?: boolean
-    /** Append the " cr" unit to the main figure. */
+    /** Show the credits-unit icon next to the main figure. */
     unit?: boolean
     /** Stack the equivalent under the figure instead of trailing it. */
     stacked?: boolean
@@ -35,14 +38,16 @@ const mainText = computed(() => {
   const body = n(props.signed ? Math.abs(props.credits) : props.credits, {
     maximumFractionDigits: 2,
   })
-  return `${sign}${body}${props.unit ? ' cr' : ''}`
+  return `${sign}${body}`
 })
 const approxText = computed(() => money.approx(Math.abs(props.credits), props.currency))
 </script>
 
 <template>
   <span class="cv" :class="{ 'cv--stacked': stacked }">
-    <span class="cv__main">{{ mainText }}</span>
+    <span class="cv__main">
+      {{ mainText }}<v-icon v-if="unit" icon="mdi-poker-chip" size="0.78em" class="cv__unit" />
+    </span>
     <span v-if="approx" class="cv__x">{{ approxText }}</span>
   </span>
 </template>
@@ -65,6 +70,11 @@ const approxText = computed(() => money.approx(Math.abs(props.credits), props.cu
   display: inline;
   text-transform: none;
   letter-spacing: normal;
+}
+.cv__unit {
+  margin-left: 0.28em;
+  opacity: 0.75;
+  vertical-align: -0.05em;
 }
 .cv__x {
   display: inline;

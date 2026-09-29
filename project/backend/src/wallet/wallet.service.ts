@@ -210,24 +210,46 @@ export class WalletService implements OnModuleInit {
   /** Wallet summary for a user. No auth check — callers guard access. */
   async getSummary(userId: string) {
     const wallet = await this.ensureWallet(userId);
-    const [purchases, spends, eurRonRate, billingProfile, unbilled, refundFeePct, refundableMinor] =
-      await Promise.all([
-        this.prisma.walletTransaction.aggregate({
-          where: { walletId: wallet.id, type: 'purchase', status: 'completed' },
-          _sum: { amountMinor: true, eurCents: true },
-        }),
-        this.prisma.walletTransaction.aggregate({
-          where: { walletId: wallet.id, type: 'spend', status: 'completed' },
-          _sum: { amountMinor: true },
-        }),
-        this.settings.eurRonRate(),
-        this.billing.getProfile(userId),
-        this.billing.unbilledPurchases(userId),
-        this.settings.refundFeePct(),
-        this.refundableMinor(wallet.id, wallet.balanceMinor),
-      ]);
+    const [
+      purchases,
+      bonusAdjustments,
+      spends,
+      eurRonRate,
+      billingProfile,
+      unbilled,
+      refundFeePct,
+      refundableMinor,
+    ] = await Promise.all([
+      this.prisma.walletTransaction.aggregate({
+        where: { walletId: wallet.id, type: 'purchase', status: 'completed' },
+        _sum: { amountMinor: true, eurCents: true },
+      }),
+      // Credits that reached the wallet WITHOUT a purchase — an admin grant
+      // or an affiliate reward, both written as a positive `adjustment` row
+      // (see WalletService.adjust / AffiliateService). A negative adjustment
+      // is a correction/removal, not something "obtained", so it's excluded.
+      this.prisma.walletTransaction.aggregate({
+        where: {
+          walletId: wallet.id,
+          type: 'adjustment',
+          status: 'completed',
+          amountMinor: { gt: 0 },
+        },
+        _sum: { amountMinor: true },
+      }),
+      this.prisma.walletTransaction.aggregate({
+        where: { walletId: wallet.id, type: 'spend', status: 'completed' },
+        _sum: { amountMinor: true },
+      }),
+      this.settings.eurRonRate(),
+      this.billing.getProfile(userId),
+      this.billing.unbilledPurchases(userId),
+      this.settings.refundFeePct(),
+      this.refundableMinor(wallet.id, wallet.balanceMinor),
+    ]);
 
     const purchasedMinor = purchases._sum.amountMinor ?? 0;
+    const obtainedMinor = purchasedMinor + (bonusAdjustments._sum.amountMinor ?? 0);
     const spentMinor = Math.abs(spends._sum.amountMinor ?? 0);
 
     return {
@@ -236,6 +258,11 @@ export class WalletService implements OnModuleInit {
       eurRonRate,
       depositedEurCents: purchases._sum.eurCents ?? 0,
       purchased: money(purchasedMinor),
+      // Every credit that ever reached the wallet, from any source — bought,
+      // an admin grant, an affiliate reward — as opposed to `purchased`,
+      // which is Stripe purchases only (still used as-is elsewhere, e.g. the
+      // admin panel's own "Achiziționat" stat).
+      obtained: money(obtainedMinor),
       spent: money(spentMinor),
       blocked: !!wallet.blockedAt,
       blockedAt: wallet.blockedAt,

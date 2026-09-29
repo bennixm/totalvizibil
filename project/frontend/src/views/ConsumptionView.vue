@@ -81,7 +81,7 @@ const campaignChart = computed(() => {
 const hasCampaignHistory = computed(() => (campaignSpend.value?.series ?? []).some((p) => p.spent > 0))
 
 function cr(v: number): string {
-  return n(v, { maximumFractionDigits: 2 }) + ' cr'
+  return n(v, { maximumFractionDigits: 2 })
 }
 
 // --- filters: which category + which date range the transaction list shows ---
@@ -214,7 +214,10 @@ watch(
     <template v-else-if="breakdown">
       <section class="cons__total card">
         <span class="cons__totalLabel">{{ t('consumption.totalLabel') }}</span>
-        <strong class="cons__totalValue">{{ cr(breakdown.total.credits) }}</strong>
+        <strong class="cons__totalValue">
+          {{ cr(breakdown.total.credits) }}
+          <v-icon icon="mdi-poker-chip" size="0.55em" class="cons__unit" />
+        </strong>
         <span class="cons__totalApprox">{{ money.approx(breakdown.total.credits) }}</span>
       </section>
 
@@ -248,7 +251,10 @@ watch(
               }}
             </span>
           </span>
-          <strong class="cons__cardValue">{{ cr(campaignCategory?.total.credits ?? 0) }}</strong>
+          <strong class="cons__cardValue">
+            {{ cr(campaignCategory?.total.credits ?? 0) }}
+            <v-icon icon="mdi-poker-chip" size="0.6em" class="cons__unit" />
+          </strong>
         </button>
         <div v-if="hasCampaignHistory" class="card cons__chart">
           <TrendChart :labels="campaignChart.labels" :series="campaignChart.series" />
@@ -271,7 +277,10 @@ watch(
           >
             <span class="cons__cardIcon"><v-icon :icon="CATEGORY_META[c.key].icon" size="18" /></span>
             <span class="cons__cardLabel">{{ t(CATEGORY_META[c.key].labelKey) }}</span>
-            <strong class="cons__cardValue">{{ cr(c.total.credits) }}</strong>
+            <strong class="cons__cardValue">
+              {{ cr(c.total.credits) }}
+              <v-icon icon="mdi-poker-chip" size="0.6em" class="cons__unit" />
+            </strong>
             <span class="cons__cardCount">
               {{ c.count ? t('consumption.txnCount', { n: c.count }) : t('consumption.none') }}
             </span>
@@ -340,7 +349,10 @@ watch(
               </p>
               <p class="crow__date">{{ new Date(txn.createdAt).toLocaleString() }}</p>
             </div>
-            <span class="crow__amount">{{ cr(Math.abs(txn.amount.credits)) }}</span>
+            <span class="crow__amount">
+              {{ cr(Math.abs(txn.amount.credits)) }}
+              <v-icon icon="mdi-poker-chip" size="0.65em" class="cons__unit" />
+            </span>
           </li>
         </ul>
         <button
@@ -538,6 +550,10 @@ watch(
   font-family: 'Space Grotesk Variable', sans-serif;
   font-size: 1.15rem;
   font-variant-numeric: tabular-nums;
+}
+.cons__unit {
+  margin-left: 0.2em;
+  opacity: 0.7;
 }
 .cons__cardCount {
   font-size: 0.7rem;
