@@ -69,6 +69,10 @@ function pickCompany(id: string): void {
   switchCompany(id)
 }
 
+function openTopUp(): void {
+  void router.push({ name: 'wallet', query: { topup: '1' } })
+}
+
 function go(to: { name: string }): void {
   menuOpen.value = false
   void router.push(to)
@@ -163,8 +167,18 @@ watch(() => auth.isAuthenticated, syncWallet)
           class="wallet-chip"
           :aria-label="t('wallet.title')"
         >
+          <v-icon icon="mdi-wallet-outline" size="18" class="wallet-chip__ic" />
           <CreditsValue :credits="walletCredits" :approx="false" />
         </router-link>
+        <button
+          v-if="auth.isAuthenticated"
+          type="button"
+          class="wallet-add-btn"
+          :aria-label="t('wallet.topUpCta')"
+          @click="openTopUp"
+        >
+          <v-icon icon="mdi-plus" size="16" />
+        </button>
 
         <!-- Account menu -->
         <v-menu
@@ -377,8 +391,11 @@ watch(() => auth.isAuthenticated, syncWallet)
 }
 /* The wallet chip added a genuinely new element to an already-tight mobile
    row — past this width the wordmark is the first thing to give, not the
-   functional controls (bell, balance, avatar). */
-@media (max-width: 430px) {
+   functional controls (bell, balance, avatar). 430px left a real clipped
+   (non-scrolling, so invisible) overflow window from ~431-455px where the
+   word came back before there was actually room for it — verified clean
+   with margin up to 480px. */
+@media (max-width: 480px) {
   .brand__word {
     display: none;
   }
@@ -440,6 +457,7 @@ watch(() => auth.isAuthenticated, syncWallet)
 .wallet-chip {
   display: inline-flex;
   align-items: center;
+  gap: 0.35rem;
   height: 38px;
   padding-inline: 0.6rem;
   border-radius: 10px;
@@ -453,10 +471,44 @@ watch(() => auth.isAuthenticated, syncWallet)
 .wallet-chip:hover {
   background: rgba(var(--v-theme-on-surface), 0.06);
 }
+.wallet-chip__ic {
+  flex: none;
+  color: var(--tvz-accept-green-darker);
+}
+.wallet-add-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  margin-left: -0.15rem;
+  border-radius: 999px;
+  border: 0;
+  background: var(--tvz-accept-green);
+  color: #fff;
+  cursor: pointer;
+  transition:
+    transform var(--tvz-dur-fast) var(--tvz-ease-out),
+    background var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.wallet-add-btn:hover {
+  background: var(--tvz-accept-green-darker);
+  transform: translateY(-1px);
+}
 @media (max-width: 400px) {
   .wallet-chip {
     padding-inline: 0.4rem;
     font-size: 0.84rem;
+  }
+  /* At this width the row is bell + wallet-chip + "+" + avatar with barely
+     any margin left — the chip's own leading icon is redundant next to the
+     credits-unit icon CreditsValue already renders, so it's the one to
+     drop first (the chip's green color still reads as "this is money"). */
+  .wallet-chip__ic {
+    display: none;
+  }
+  .topbar__actions {
+    gap: 0.2rem;
   }
 }
 

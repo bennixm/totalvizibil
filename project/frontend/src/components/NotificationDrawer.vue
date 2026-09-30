@@ -142,8 +142,35 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
 <style scoped>
 .notifdrawer {
   max-width: 100vw;
+  /* Same 10px gap below the navbar as the side menu — Vuetify sets its own
+     top/height as inline styles from the registered app-bar height, so
+     these need `!important` to win. */
+  top: calc(var(--tvz-topbar-h) + 10px) !important;
+  height: calc(100dvh - var(--tvz-topbar-h) - 10px) !important;
+}
+/* On mobile the fixed bottom tab bar replaces the footer as the persistent
+   nav — without this the drawer's height ran all the way to the bottom of
+   the viewport and sat on top of it (higher z-index), hiding it entirely
+   while the drawer was open. */
+@media (max-width: 959px) {
+  .notifdrawer {
+    height: calc(
+      100dvh - var(--tvz-topbar-h) - 10px - var(--tvz-tabbar-h) - env(safe-area-inset-bottom, 0px)
+    ) !important;
+  }
+}
+/* Vuetify's own internal content wrapper scrolls by default (overflow-y:
+   auto) — with our own `.notiflist__scroll` handling the list's scroll,
+   that left two independent scrollbars stacked on top of each other. Turn
+   this one into a plain flex column instead, so only the list itself
+   scrolls. */
+.notifdrawer :deep(.v-navigation-drawer__content) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .notiflist__head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -180,7 +207,8 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
   background: rgba(var(--v-theme-on-surface), 0.08);
 }
 .notiflist__scroll {
-  height: calc(100% - 4rem);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: 0.6rem;
 }

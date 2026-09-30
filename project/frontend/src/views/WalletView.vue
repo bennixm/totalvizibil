@@ -163,6 +163,21 @@ onMounted(async () => {
     void router.replace({ query: {} })
   }
 })
+
+// Arrived via the navbar's "+" shortcut — open the top-up dialog straight
+// away instead of making them find the button on the page. A `watch`
+// (not just the `onMounted` check above) so clicking "+" while already on
+// this page also opens it — a query-only navigation to the same route
+// doesn't remount the component, so `onMounted` alone would miss it.
+watch(
+  () => route.query.topup,
+  (v) => {
+    if (v !== '1') return
+    showTopUp.value = true
+    void router.replace({ query: {} })
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

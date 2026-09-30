@@ -92,8 +92,44 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
 .panel-layout {
   min-height: 100%;
 }
+/* Vuetify's v-layout clips overflow by default, which silently breaks
+   `position: sticky` on the sidebar inside it (sticky needs every ancestor
+   up to the real scrolling context to allow overflow) — only relevant at
+   the desktop breakpoint where the sidebar is sticky in the first place. */
+@media (min-width: 960px) {
+  .panel-layout {
+    overflow: visible !important;
+    /* Same 90%-of-viewport width as the navbar/footer content (AppBar.vue's
+       `.topbar_content`, AppFooter.vue's `.tvz-footer__inner`), so the whole
+       sidebar+content section lines up with them instead of running edge to
+       edge. The sidebar's own `left: 0` (Vuetify inline style) is relative
+       to this element once it's the positioned ancestor, so centering it
+       here moves the sidebar along with it, not just the content pane. */
+    width: 90%;
+    margin-inline: auto;
+  }
+  .panel-content {
+    /* Vuetify still applies its own padding-left (from --v-layout-left,
+       248px) on top of this — a holdover from when the sidebar was
+       `position: absolute` and needed the content manually offset to avoid
+       an overlap. Now that it's `sticky` (in normal flow), the flex row
+       already places .panel-content right after it, so that padding just
+       doubles the gap. Zero it out and use a plain margin for the gap
+       instead — a single, obvious number instead of two reserves stacked. */
+    padding-left: 0 !important;
+    margin-left: 24px;
+  }
+}
 .panel-content {
   min-width: 0;
+}
+/* Every panel page sets its own root width (.dash, .wal, .txn, …) — override
+   them all to one shared width instead of each page picking its own, using
+   the router-view's rendered root as a wildcard so this doesn't need
+   touching every view file individually. */
+.panel-content > :deep(*) {
+  max-width: 1020px !important;
+  margin-inline: auto !important;
 }
 
 .sfoot__row {

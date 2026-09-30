@@ -78,7 +78,33 @@ function onNavigate(): void {
 <style scoped>
 .app-sidebar {
   background: rgb(var(--v-theme-surface)) !important;
-  border-right: 1px solid var(--tvz-hairline) !important;
+  /* .panel-layout is a flex row — without this, narrowing it (see App.vue's
+     `width: 90%`) let the flex algorithm shrink the sidebar itself below
+     its declared 248px instead of only ever shrinking the content pane. */
+  flex: none !important;
+}
+/* On desktop this drawer sits nested inside a secondary v-layout (for the
+   two-level admin/panel nav), which registers it as `position: absolute`
+   against that layout's own content height — so it scrolls away with the
+   page instead of staying put. `sticky` (not `fixed`) is the fix: fixed
+   pins it to the viewport unconditionally, which kept it floating over
+   the footer even after scrolling past the whole panel section into
+   content that lives outside `.panel-layout` entirely. Sticky naturally
+   releases once its containing block's bottom edge is reached, so it
+   only ever covers the panel area it belongs to. Mobile's `temporary`
+   variant already overlays the viewport by itself, so this only needs to
+   apply at the `mdAndUp` breakpoint the `:permanent` prop switches on. */
+@media (min-width: 960px) {
+  .app-sidebar {
+    position: sticky !important;
+    top: calc(var(--tvz-topbar-h) + 10px) !important;
+    bottom: auto !important;
+    height: calc(100dvh - var(--tvz-topbar-h) - 10px) !important;
+    /* Beside the page now, with a gap (see .panel-content in App.vue) —
+       no boxed panel look, just nav floating on the page's own background.
+       Mobile's temporary overlay keeps its opaque surface above, unrelated. */
+    background: transparent !important;
+  }
 }
 .sbar {
   display: flex;

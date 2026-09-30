@@ -10,7 +10,7 @@ const year = new Date().getFullYear()
 
 <template>
   <v-footer color="transparent" class="tvz-footer pa-0">
-    <v-container class="py-10">
+    <div class="tvz-footer__inner py-10">
       <div class="d-flex flex-column flex-md-row ga-8 justify-space-between">
         <div class="d-flex flex-column ga-3" style="max-width: 32ch">
           <div class="d-flex align-center ga-3">
@@ -45,7 +45,7 @@ const year = new Date().getFullYear()
           </router-link>
         </div>
       </div>
-    </v-container>
+    </div>
   </v-footer>
 </template>
 
@@ -53,6 +53,16 @@ const year = new Date().getFullYear()
 .tvz-footer {
   border-top: 1px solid var(--tvz-hairline);
   background: var(--tvz-glass-bg);
+}
+
+/* Same content width as the navbar (`.topbar_content` in AppBar.vue: 90%
+   of the viewport, uncapped), so the footer's edges line up with the
+   logo/nav above instead of Vuetify's narrower default v-container
+   breakpoints. */
+.tvz-footer__inner {
+  width: 90%;
+  margin: 0 auto;
+  padding-inline: 1rem;
 }
 
 .brand__mark {
