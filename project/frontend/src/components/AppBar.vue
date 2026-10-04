@@ -111,7 +111,7 @@ watch(() => auth.isAuthenticated, syncWallet)
   <v-app-bar
     color="transparent"
     flat
-    :height="112"
+    :height="128"
     class="topbar"
     :class="{ 'topbar--mobile': !mdAndUp }"
   >
@@ -139,7 +139,7 @@ watch(() => auth.isAuthenticated, syncWallet)
 
       <nav v-if="mdAndUp" class="navlinks">
         <router-link v-for="link in navLinks" :key="link.key" :to="link.to" class="navlink">
-          <v-icon :icon="link.icon" size="18" />
+          <v-icon :icon="link.icon" size="24" />
           <span>{{ t(link.key) }}</span>
         </router-link>
       </nav>
@@ -204,6 +204,15 @@ watch(() => auth.isAuthenticated, syncWallet)
                 <span>{{ auth.user?.email }}</span>
               </div>
               <span v-if="auth.isPlatformStaff" class="menu__staffTag">{{ t('nav.staff') }}</span>
+              <button
+                v-if="!mdAndUp"
+                type="button"
+                class="menu__close"
+                :aria-label="t('common.close')"
+                @click="menuOpen = false"
+              >
+                <v-icon icon="mdi-close" size="20" />
+              </button>
             </header>
 
             <!-- Active campaign — which business Requests/Appointments/Campaign/etc.
@@ -302,33 +311,32 @@ watch(() => auth.isAuthenticated, syncWallet)
 <style scoped>
 
 .topbar {
-  width:100%;
-  display:flex;
-  flex-direction:column !important;
+  width: 100%;
+  height: 128px;
+  display: flex;
+  flex-direction: column !important;
 }
-/* Vuetify lays its slotted content out inside its own .v-toolbar__content,
-   not the <header> this class sits on — the column direction above never
-   reached the two stacked rows without this, so they rendered side by side
-   instead of one above the other. */
 .topbar :deep(.v-toolbar__content) {
   padding-inline: 0;
   height: 100% !important;
   flex-direction: column;
 }
 .topbar_content {
-  display:flex;
-  flex-direction:column;
-  width:90%;
+  display: flex;
+  flex-direction: column;
+  width: 90%;
+  height: 100%;
 }
 .topbar__inner {
   background: var(--tvz-glass-bg-strong) !important;
   width: 100%;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 0.5rem;
-  padding: 1rem;
+  padding-inline: 1rem;
   clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
 }
 /* A quiet utility strip above the main bar, no background of its own — just
@@ -406,42 +414,73 @@ watch(() => auth.isAuthenticated, syncWallet)
 
 .navlinks {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  align-self: stretch;
   gap: 0.25rem;
   margin-left: 0.75rem;
 }
 .navlink {
   position: relative;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.42rem 0.9rem;
+  justify-content: center;
+  gap: 0.3rem;
+  height: 100%;
+  padding: 0.3rem 1rem 0.4rem;
   border-radius: 10px;
-  font-size: 0.88rem;
-  font-weight: 500;
+  font-size: 0.64rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   text-decoration: none;
   color: rgba(var(--v-theme-on-surface), 0.66);
+  isolation: isolate;
   transition:
-    background var(--tvz-dur-fast) var(--tvz-ease-out),
-    color var(--tvz-dur-fast) var(--tvz-ease-out);
+    color var(--tvz-dur-slow) var(--tvz-ease-out),
+    transform var(--tvz-dur-slow) var(--tvz-ease-out);
+}
+.navlink::before,
+.navlink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 0;
+  opacity: 0;
+  transition: opacity var(--tvz-dur-slow) var(--tvz-ease-out);
+}
+/* Explicit ellipse sizing (horizontal-radius vertical-radius), not the
+   default farthest-corner shape — that ties width and height together, so
+   widening the stop to spread it out sideways also quietly pushed the
+   glow further down toward the center. Sizing them separately keeps the
+   36% vertical reach (and the waist it leaves) exactly as it was, while
+   the horizontal radius alone goes wide. */
+.navlink::before {
+  background:
+    radial-gradient(ellipse 90% 16% at 50% 0%, rgba(var(--v-theme-on-surface), 0.08), rgba(var(--v-theme-on-surface), 0) 100%),
+    radial-gradient(ellipse 90% 16% at 50% 100%, rgba(var(--v-theme-on-surface), 0.08), rgba(var(--v-theme-on-surface), 0) 100%);
+}
+.navlink::after {
+  background:
+    radial-gradient(ellipse 90% 16% at 50% 0%, rgba(var(--v-theme-primary), 0.14), rgba(var(--v-theme-primary), 0) 100%),
+    radial-gradient(ellipse 90% 16% at 50% 100%, rgba(var(--v-theme-primary), 0.14), rgba(var(--v-theme-primary), 0) 100%);
 }
 .navlink:hover {
   color: rgb(var(--v-theme-on-surface));
-  background: rgba(var(--v-theme-on-surface), 0.05);
+  transform: translateY(-1px);
+}
+.navlink:hover::before {
+  opacity: 1;
 }
 .navlink.router-link-active {
   color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.1);
 }
 .navlink.router-link-active::after {
-  content: '';
-  position: absolute;
-  left: 0.9rem;
-  right: 0.9rem;
-  bottom: 3px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--tvz-gradient-brand);
+  opacity: 1;
+}
+.navlink.router-link-active:hover::before {
+  opacity: 0;
 }
 
 .topbar__actions {
@@ -549,6 +588,29 @@ watch(() => auth.isAuthenticated, syncWallet)
   overflow: hidden;
   box-shadow: var(--tvz-shadow-lg);
 }
+/* Full screen on phone only — desktop keeps the anchored dropdown card.
+   The header/footer stay put and only the middle section scrolls, same
+   sticky-header-and-footer pattern the notifications drawer already uses. */
+@media (max-width: 959px) {
+  .menu {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .menu__head,
+  .menu__active,
+  .menu__foot {
+    flex: none;
+  }
+  .menu__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+}
 
 /* Header --------------------------------------------------------------- */
 .menu__head {
@@ -602,6 +664,23 @@ watch(() => auth.isAuthenticated, syncWallet)
   border-radius: 4px;
   background: rgba(var(--v-theme-primary), 0.16);
   color: rgb(var(--v-theme-primary));
+}
+.menu__close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  margin-left: auto;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  cursor: pointer;
+  transition: background var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.menu__close:hover {
+  background: rgba(var(--v-theme-on-surface), 0.08);
 }
 
 /* Active campaign strip -------------------------------------------- */
@@ -823,5 +902,23 @@ watch(() => auth.isAuthenticated, syncWallet)
   background: transparent;
   box-shadow: none;
   border-radius: 0;
+}
+/* Phone only: pin the whole overlay to fill the viewport instead of the
+   anchored bottom-end dropdown Vuetify positions it at — `.menu` itself
+   (scoped style, same media query) fills this box edge to edge. */
+@media (max-width: 959px) {
+  .acctmenu.v-overlay__content {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
 }
 </style>

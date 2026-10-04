@@ -24,9 +24,10 @@
 
   // App shell dimensions
   // Two stacked rows now: a quiet utility strip (locale/theme, 40px) above
-  // the main bar (72px) — every view below computing "100dvh minus the
-  // topbar" relies on this staying in sync with AppBar.vue's own :height.
-  --tvz-topbar-h: 112px;
+  // the main bar (88px, tall enough for the nav-link hourglass gradient) —
+  // every view below computing "100dvh minus the topbar" relies on this
+  // staying in sync with AppBar.vue's own :height.
+  --tvz-topbar-h: 128px;
   --tvz-tabbar-h: 64px;
 
   // Motion --------------------------------------------------------------
