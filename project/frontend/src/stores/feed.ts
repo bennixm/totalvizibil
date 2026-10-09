@@ -14,7 +14,7 @@ export interface FeedCategoryNode extends FeedCategoryLeaf {
 
 export interface FeedFacets {
   categories: FeedCategoryNode[]
-  cities: string[]
+  counties: string[]
 }
 
 export interface FeedItem {
@@ -31,15 +31,13 @@ export interface FeedItem {
         parent: { slug: string; name: LocalizedName } | null
       }
     | null
-  /**
-   * `radiusKm` = the coverage radius the business set for its own location;
-   * `nationwide` = it serves the whole country (no radius applies).
-   */
+  /** Every subcategory this business is tagged with — shown as tags on the card. */
+  categories: { slug: string; name: LocalizedName; icon: string | null; isPrimary: boolean }[]
+  /** `nationwide` = it serves the whole country (no județ applies). */
   location: {
-    /** Null when `nationwide` — whole-country coverage has no fixed city. */
+    /** Null when `nationwide` — whole-country coverage has no fixed city/județ. */
     city: string | null
-    region: string | null
-    radiusKm: number | null
+    county: string | null
     nationwide: boolean
   } | null
   services: string[]
@@ -63,16 +61,23 @@ interface FeedResponse {
   requiresCategory: boolean
 }
 
-export interface FeedArea {
-  city: string
-  lat: number
-  lng: number
-}
+/** The `"nationwide"` sentinel — only businesses that serve the whole country. */
+export const NATIONWIDE = 'nationwide'
+
+/**
+ * `category` slug prefix for "Servicii complete {group}" — not a real
+ * category (never stored on a business), a feed search-time construct
+ * meaning "every subcategory under this group, all at once". Matches the
+ * backend's `COMPLETE_PREFIX` convention (`feed.service.ts`).
+ */
+export const COMPLETE_PREFIX = 'complete-'
+export const completeServicesSlug = (groupSlug: string): string => `${COMPLETE_PREFIX}${groupSlug}`
+export const isCompleteServicesSlug = (slug: string): boolean => slug.startsWith(COMPLETE_PREFIX)
 
 interface FeedFilters {
   category: string | null
-  /** Selected city — a business shows if that city is inside its coverage radius. */
-  area: FeedArea | null
+  /** A județ name, the `NATIONWIDE` sentinel, or `null` (every județ). */
+  county: string | null
 }
 
 interface FeedState {
@@ -92,8 +97,8 @@ const PAGE_SIZE = 8
 
 export const useFeedStore = defineStore('feed', {
   state: (): FeedState => ({
-    filters: { category: null, area: null },
-    facets: { categories: [], cities: [] },
+    filters: { category: null, county: null },
+    facets: { categories: [], counties: [] },
     facetsLoaded: false,
     items: [],
     page: 1,
@@ -105,7 +110,7 @@ export const useFeedStore = defineStore('feed', {
   }),
 
   getters: {
-    hasActiveFilters: (s): boolean => s.filters.category !== null || s.filters.area !== null,
+    hasActiveFilters: (s): boolean => s.filters.category !== null || s.filters.county !== null,
     pageCount: (s): number => Math.max(1, Math.ceil(s.total / s.pageSize)),
     /** Discovery is category-first — nothing lists until one is picked. */
     requiresCategory: (s): boolean => s.filters.category === null,
@@ -121,11 +126,7 @@ export const useFeedStore = defineStore('feed', {
     query(page: number): string {
       const p = new URLSearchParams()
       if (this.filters.category) p.set('category', this.filters.category)
-      if (this.filters.area) {
-        p.set('city', this.filters.area.city)
-        p.set('lat', String(this.filters.area.lat))
-        p.set('lng', String(this.filters.area.lng))
-      }
+      if (this.filters.county) p.set('county', this.filters.county)
       p.set('page', String(page))
       p.set('pageSize', String(this.pageSize))
       return p.toString()
@@ -170,13 +171,13 @@ export const useFeedStore = defineStore('feed', {
       this.page = 1
     },
 
-    setArea(area: FeedArea | null): void {
-      this.filters.area = area
+    setCounty(county: string | null): void {
+      this.filters.county = county
       this.page = 1
     },
 
     reset(): void {
-      this.filters = { category: null, area: null }
+      this.filters = { category: null, county: null }
       this.page = 1
     },
   },

@@ -38,11 +38,10 @@ export class PublicCompanyService {
         : null,
       locations: company.locations.map((l) => ({
         city: l.city,
-        region: l.region,
+        county: l.county,
         address: l.address,
         country: l.country,
         isPrimary: l.isPrimary,
-        serviceRadiusKm: l.serviceRadiusKm,
         nationwide: l.nationwide,
       })),
       contacts: company.contacts.map((c) => ({ type: c.type, value: c.value })),

@@ -26,7 +26,7 @@ import { storeToRefs } from 'pinia'
 
 import FeedView from '@/views/FeedView.vue'
 import CompanyPublicView from '@/views/CompanyPublicView.vue'
-import { useFeedStore } from '@/stores/feed'
+import { useFeedStore, isCompleteServicesSlug } from '@/stores/feed'
 
 const route = useRoute()
 const feed = useFeedStore()
@@ -48,7 +48,15 @@ const resolved = computed<Resolved>(() => {
   const group = facets.value.categories.find((c) => c.slug === seg1.value)
 
   if (seg2.value) {
-    if (group?.children.some((ch) => ch.slug === seg2.value)) {
+    // "Servicii complete {group}" is a feed search construct, not a real
+    // category — never in the tree, so it needs its own recognised shape.
+    const isComplete = isCompleteServicesSlug(seg2.value) && seg2.value.endsWith(seg1.value)
+    // The feed's multi-select comma-joins several niches into this one
+    // segment — a real company slug never contains a comma.
+    const tokens = seg2.value.split(',')
+    const isNicheSet =
+      !!group && tokens.every((t) => group.children.some((ch) => ch.slug === t))
+    if (group && (isNicheSet || isComplete)) {
       return { kind: 'feed', group: seg1.value, niche: seg2.value }
     }
     return { kind: 'company', crumbs: [seg1.value, seg2.value] }

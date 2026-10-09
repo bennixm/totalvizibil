@@ -22,10 +22,11 @@ export class CompanyLocationInput {
   @MaxLength(200)
   address?: string;
 
+  /** The județ served. */
   @IsOptional()
   @IsString()
-  @MaxLength(120)
-  region?: string;
+  @MaxLength(40)
+  county?: string;
 
   @IsOptional()
   @IsString()

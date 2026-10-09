@@ -72,16 +72,15 @@ export function toDraftView(d: WebsiteDraft) {
       d.mode === 'easy'
         ? easyBlock(((d.answers as unknown as EasyAnswers) ?? {}) as EasyAnswers)
         : null,
-    categorySlug: d.categorySlug ?? null,
+    categorySlugs: d.categorySlugs ?? [],
     location:
-      d.locationNationwide || (d.locationCity && d.locationLat != null && d.locationLng != null)
+      d.locationNationwide || d.locationCounties.length
         ? {
+            counties: d.locationCounties,
             city: d.locationCity,
-            region: d.locationRegion,
             country: d.locationCountry ?? 'RO',
             lat: d.locationLat,
             lng: d.locationLng,
-            radiusKm: d.locationRadiusKm ?? null,
             nationwide: d.locationNationwide,
           }
         : null,

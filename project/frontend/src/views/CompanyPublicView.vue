@@ -25,7 +25,7 @@ interface PublicCompany {
   } | null
   locations: {
     city: string | null
-    region: string | null
+    county: string | null
     address: string | null
     country?: string
     isPrimary: boolean
@@ -145,8 +145,8 @@ useSeo(() => {
           address: {
             '@type': 'PostalAddress',
             addressLocality: primaryLocation.value.city,
-            ...(primaryLocation.value.region
-              ? { addressRegion: primaryLocation.value.region }
+            ...(primaryLocation.value.county
+              ? { addressRegion: primaryLocation.value.county }
               : {}),
             addressCountry: primaryLocation.value.country ?? 'RO',
           },
@@ -245,12 +245,15 @@ useSeo(() => {
           <p v-if="categoryName" class="cp__cat">{{ categoryName }}</p>
           <h1>{{ company.displayName }}</h1>
           <p v-if="company.description" class="cp__desc">{{ company.description }}</p>
-          <p v-if="primaryLocation && (primaryLocation.city || primaryLocation.nationwide)" class="cp__loc">
+          <p
+            v-if="primaryLocation && (primaryLocation.city || primaryLocation.county || primaryLocation.nationwide)"
+            class="cp__loc"
+          >
             <v-icon icon="mdi-map-marker-outline" size="16" />
             <template v-if="primaryLocation.nationwide">{{ t('feed.coverageCountry') }}</template>
             <template v-else
-              >{{ primaryLocation.city
-              }}<span v-if="primaryLocation.region">, {{ primaryLocation.region }}</span></template
+              >{{ primaryLocation.county
+              }}<span v-if="primaryLocation.city">, {{ primaryLocation.city }}</span></template
             >
           </p>
         </div>

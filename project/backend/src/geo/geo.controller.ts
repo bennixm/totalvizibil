@@ -5,7 +5,13 @@ import { GeoService } from './geo.service';
 export class GeoController {
   constructor(private readonly geo: GeoService) {}
 
-  /** Type-ahead city search for the location step. Public. */
+  /** The closed set of județe (+ București) the location step picks from. Public. */
+  @Get('counties')
+  counties() {
+    return { data: this.geo.counties() };
+  }
+
+  /** Type-ahead city search — used only to help pin the map, not for matching. Public. */
   @Get('cities')
   cities(@Query('q') q?: string) {
     return { data: this.geo.searchCities(q ?? '') };
@@ -16,5 +22,12 @@ export class GeoController {
   @Get('nearest')
   nearest(@Query('lat') lat?: string, @Query('lng') lng?: string) {
     return this.geo.nearestCity(Number(lat), Number(lng));
+  }
+
+  /** A representative city for a județ — re-centres the map when it's picked
+   *  from the dropdown directly. Public. */
+  @Get('county-center')
+  countyCenter(@Query('name') name?: string) {
+    return this.geo.countyCenter(name ?? '');
   }
 }

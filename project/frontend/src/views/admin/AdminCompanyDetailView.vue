@@ -18,7 +18,7 @@ import { useToastStore } from '@/stores/toast'
 import type { CampaignTier, CampaignStatus } from '@/stores/campaign'
 import type { LocalizedName } from '@/stores/companies'
 import { ApiError } from '@/services/api'
-import { searchCities, type GeoCity } from '@/services/geo'
+import { searchCities, fetchCounties, type GeoCity } from '@/services/geo'
 
 const { t, n, locale } = useI18n()
 const route = useRoute()
@@ -94,9 +94,7 @@ const locationLabel = computed(() => {
   const l = data.value?.company.location
   if (!l) return 'N/A'
   if (l.nationwide) return t('feed.coverageCountry')
-  return l.radiusKm
-    ? `${l.city ?? 'N/A'} · ${t('feed.coverageKm', { n: l.radiusKm })}`
-    : l.city ?? 'N/A'
+  return l.city ? `${l.county ?? 'N/A'} · ${l.city}` : (l.county ?? 'N/A')
 })
 function fmtMinutes(m: number | null): string {
   if (m == null) return 'N/A'
@@ -122,12 +120,16 @@ const categoryOptions = computed(() =>
 // --- location editor ---
 const loc = reactive({
   nationwide: false,
+  county: '' as string,
   city: '' as string,
-  region: '' as string,
   lat: null as number | null,
   lng: null as number | null,
-  radiusKm: 15,
 })
+const counties = ref<string[]>([])
+void fetchCounties()
+  .then((c) => (counties.value = c))
+  .catch(() => {})
+const countyItems = computed(() => counties.value.map((c) => ({ title: c, value: c })))
 const savingLoc = ref(false)
 const citySearch = ref('')
 const cityResults = ref<GeoCity[]>([])
@@ -148,31 +150,21 @@ watch(citySearch, (q) => {
 function pickCity(c: GeoCity | null) {
   if (!c) return
   loc.city = c.name
-  loc.region = c.county
   loc.lat = c.lat
   loc.lng = c.lng
 }
-const locValid = computed(
-  () =>
-    loc.nationwide ||
-    (!!loc.city.trim() &&
-      loc.lat != null &&
-      loc.lng != null &&
-      loc.radiusKm >= 1 &&
-      loc.radiusKm <= 200),
-)
+const locValid = computed(() => loc.nationwide || !!loc.county.trim())
 async function saveLocation() {
   if (!locValid.value) return
   savingLoc.value = true
   try {
     data.value = await admin.setCompanyLocation(id.value, {
       nationwide: loc.nationwide,
-      city: loc.nationwide ? undefined : loc.city.trim(),
-      region: loc.nationwide ? undefined : loc.region.trim() || undefined,
+      county: loc.nationwide ? undefined : loc.county.trim(),
+      city: loc.nationwide ? undefined : loc.city.trim() || undefined,
       country: data.value?.company.country || 'RO',
       lat: loc.nationwide ? undefined : (loc.lat ?? undefined),
       lng: loc.nationwide ? undefined : (loc.lng ?? undefined),
-      radiusKm: loc.nationwide ? undefined : loc.radiusKm,
     })
     flash(t('adminCo.locSaved'))
   } catch (e) {
@@ -315,10 +307,9 @@ function hydrate() {
   const l = d.company.location
   loc.nationwide = l?.nationwide ?? false
   loc.city = l?.city ?? ''
-  loc.region = l?.region ?? ''
+  loc.county = l?.county ?? ''
   loc.lat = l?.lat ?? null
   loc.lng = l?.lng ?? null
-  loc.radiusKm = l?.radiusKm ?? 15
   const c = d.campaign.campaign
   if (c) {
     budget.value = c.dailyBudget.credits
@@ -658,6 +649,14 @@ const leadStatusItems = computed(() => [
                 </div>
 
                 <template v-if="!loc.nationwide">
+                  <v-select
+                    v-model="loc.county"
+                    :items="countyItems"
+                    :label="t('adminCo.locCounty')"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details
+                  />
                   <v-autocomplete
                     :model-value="null"
                     :items="cityItems"
@@ -673,20 +672,11 @@ const leadStatusItems = computed(() => [
                     @update:model-value="pickCity"
                   />
                   <p v-if="loc.city" class="ac__muted ac__mt0">
-                    {{ loc.city }}<template v-if="loc.region">, {{ loc.region }}</template>
-                    <template v-if="loc.lat != null"> · {{ loc.lat.toFixed(3) }}, {{ loc.lng?.toFixed(3) }}</template>
+                    {{ loc.city
+                    }}<template v-if="loc.lat != null">
+                      · {{ loc.lat.toFixed(3) }}, {{ loc.lng?.toFixed(3) }}</template
+                    >
                   </p>
-                  <v-text-field
-                    v-model.number="loc.radiusKm"
-                    type="number"
-                    :min="1"
-                    :max="200"
-                    :label="t('adminCo.locRadius')"
-                    suffix="km"
-                    variant="outlined"
-                    density="comfortable"
-                    hide-details
-                  />
                 </template>
 
                 <div>

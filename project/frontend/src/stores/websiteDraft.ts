@@ -16,12 +16,12 @@ export interface DraftTurn {
 export interface DraftLocation {
   /** Null when `nationwide` — whole-country coverage has no fixed city. */
   city: string | null
-  region: string | null
+  /** One or several județe — empty while `nationwide`. */
+  counties: string[]
   country: string
   lat: number | null
   lng: number | null
-  radiusKm: number | null
-  /** Serves the whole country — no city or radius applies. */
+  /** Serves the whole country — no județe apply. */
   nationwide: boolean
 }
 
@@ -159,19 +159,18 @@ export interface WebsiteDraftView {
   generator: string | null
   ready: boolean
   easy: EasyBlock | null
-  categorySlug: string | null
+  categorySlugs: string[]
   location: DraftLocation | null
   updatedAt: string
 }
 
 export interface SetLocationInput {
-  categorySlug: string
+  categorySlugs: string[]
+  counties?: string[]
   city?: string
-  region?: string
   country?: string
   lat?: number
   lng?: number
-  radiusKm?: number
   nationwide?: boolean
 }
 
@@ -448,6 +447,30 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       } catch (err) {
         this.error = draftErrorCode(err)
         return false
+      }
+    },
+
+    /**
+     * AI-assisted subcategory suggestion for the location step's picker —
+     * classifies the draft's own services list against the chosen parent
+     * group. Suggestion only; the caller decides whether to apply it.
+     * Empty array on any failure (no key, nothing matched, offline, …).
+     */
+    async suggestCategories(parentSlug: string): Promise<string[]> {
+      const ref = loadRef()
+      if (!ref) return []
+      try {
+        const res = await apiFetch<{ slugs: string[] }>(
+          `/website-drafts/${ref.id}/suggest-categories`,
+          {
+            method: 'POST',
+            headers: { 'X-Draft-Token': ref.token },
+            body: { parentSlug },
+          },
+        )
+        return Array.isArray(res.slugs) ? res.slugs : []
+      } catch {
+        return []
       }
     },
 

@@ -36,6 +36,11 @@ const extraServices = computed(() =>
   Math.max(0, props.item.servicesTotal - shownServices.value.length),
 )
 
+// Formal subcategory tags (the taxonomy, not the owner's free-text service
+// list) — every one the business is tagged with, primary first.
+const shownSubcats = computed(() => props.item.categories.slice(0, 5))
+const extraSubcats = computed(() => Math.max(0, props.item.categories.length - 5))
+
 // Advanced-builder sites get the media-forward "own website" card.
 const featured = computed(() => props.item.builtWithBuilder)
 const accentColor = computed(() => props.item.accent || 'rgb(var(--v-theme-primary))')
@@ -111,13 +116,18 @@ const tagline = computed(() => {
       <p v-if="blurb" class="fc__blurb">{{ blurb }}</p>
 
       <p v-if="item.location" class="fc__loc">
-        <v-icon icon="mdi-map-marker-outline" size="14" />
+        <v-icon icon="mdi-map-marker" size="17" />
         <template v-if="item.location.nationwide">{{ t('feed.coverageCountry') }}</template>
         <template v-else>
-          {{ item.location.city
-          }}<span v-if="item.location.radiusKm"> · {{ t('feed.coverageKm', { n: item.location.radiusKm }) }}</span>
+          {{ item.location.county
+          }}<span v-if="item.location.city"> · {{ item.location.city }}</span>
         </template>
       </p>
+
+      <div v-if="shownSubcats.length" class="subcats">
+        <span v-for="c in shownSubcats" :key="c.slug" class="subcat">{{ loc(c.name) }}</span>
+        <span v-if="extraSubcats" class="subcat subcat--more">+{{ extraSubcats }}</span>
+      </div>
 
       <div v-if="shownServices.length" class="tags">
         <span v-for="s in shownServices" :key="s" class="tag">{{ s }}</span>
@@ -146,13 +156,18 @@ const tagline = computed(() => {
       <p v-if="tagline" class="lst__tagline">{{ tagline }}</p>
 
       <p v-if="item.location" class="lst__loc">
-        <v-icon icon="mdi-map-marker-outline" size="14" />
+        <v-icon icon="mdi-map-marker" size="17" />
         <template v-if="item.location.nationwide">{{ t('feed.coverageCountry') }}</template>
         <template v-else>
-          {{ item.location.city
-          }}<span v-if="item.location.radiusKm"> · {{ t('feed.coverageKm', { n: item.location.radiusKm }) }}</span>
+          {{ item.location.county
+          }}<span v-if="item.location.city"> · {{ item.location.city }}</span>
         </template>
       </p>
+
+      <div v-if="shownSubcats.length" class="subcats">
+        <span v-for="c in shownSubcats" :key="c.slug" class="subcat">{{ loc(c.name) }}</span>
+        <span v-if="extraSubcats" class="subcat subcat--more">+{{ extraSubcats }}</span>
+      </div>
 
       <p v-if="item.description" class="lst__desc">{{ item.description }}</p>
 
@@ -341,10 +356,34 @@ const tagline = computed(() => {
 .fc__loc {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  margin: 0.1rem 0 0;
-  font-size: 0.82rem;
-  color: rgba(var(--v-theme-on-surface), 0.6);
+  gap: 0.35rem;
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+}
+
+/* ---------- subcategory tags ---------- */
+.subcats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+.subcat {
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.24rem 0.65rem;
+  border-radius: 999px;
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.1);
+  border: 1px solid rgba(var(--v-theme-primary), 0.2);
+  white-space: nowrap;
+}
+.subcat--more {
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  border-color: transparent;
 }
 .lst__desc {
   margin: 0.25rem 0 0;

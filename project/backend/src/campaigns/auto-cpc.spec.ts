@@ -3,7 +3,7 @@ import { suggestCampaign } from './campaign-advisor';
 
 /** The recommended (score-maxing) CPC for a given rival market. */
 const recCpc = (marketMaxCpcMinor?: number) =>
-  suggestCampaign({ radiusKm: 20, marketMaxCpcMinor }).appearFirst.cpcMinor;
+  suggestCampaign({ marketMaxCpcMinor }).appearFirst.cpcMinor;
 
 describe('auto-cpc: budget ceiling', () => {
   it('caps AUTO CPC at 10% of the daily budget', () => {

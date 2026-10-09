@@ -3,6 +3,7 @@ import { COMPANY_DELETE_GRACE_MS } from './companies.constants';
 
 export const companyInclude = {
   category: true,
+  categoryAssignments: { include: { category: true }, orderBy: { isPrimary: 'desc' } },
   locations: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
   contacts: { orderBy: { createdAt: 'asc' } },
   services: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
@@ -34,16 +35,23 @@ export function toCompanyView(c: CompanyWithRelations, viewerRole: string | null
     category: c.category
       ? { id: c.category.id, slug: c.category.slug, name: c.category.nameI18n }
       : null,
+    // Full subcategory tagging (one or several real leaves) — `category`
+    // above stays the single primary/display one for not-yet-migrated UI.
+    categories: c.categoryAssignments.map((a) => ({
+      id: a.category.id,
+      slug: a.category.slug,
+      name: a.category.nameI18n,
+      isPrimary: a.isPrimary,
+    })),
     locations: c.locations.map((l) => ({
       id: l.id,
       city: l.city,
       address: l.address,
-      region: l.region,
+      county: l.county,
       country: l.country,
       lat: l.lat,
       lng: l.lng,
       isPrimary: l.isPrimary,
-      serviceRadiusKm: l.serviceRadiusKm,
       nationwide: l.nationwide,
     })),
     contacts: c.contacts.map((ct) => ({

@@ -7,7 +7,13 @@ export interface GeoCity {
   lng: number
 }
 
-/** Type-ahead city search for the location step. */
+/** The closed set of județe (+ București) the location step picks from. */
+export async function fetchCounties(): Promise<string[]> {
+  const { data } = await apiFetch<{ data: string[] }>('/geo/counties')
+  return data
+}
+
+/** Type-ahead city search — used only to help pin the map, not for matching. */
 export async function searchCities(q: string): Promise<GeoCity[]> {
   const query = q.trim()
   const { data } = await apiFetch<{ data: GeoCity[] }>(
@@ -20,4 +26,10 @@ export async function searchCities(q: string): Promise<GeoCity[]> {
  *  location pin is moved manually on the map. */
 export async function nearestCity(lat: number, lng: number): Promise<GeoCity> {
   return apiFetch<GeoCity>(`/geo/nearest?lat=${lat}&lng=${lng}`)
+}
+
+/** A representative city for a județ — re-centres the map when it's picked
+ *  from the dropdown directly (no map click yet to anchor an exact point). */
+export async function countyCenter(name: string): Promise<GeoCity> {
+  return apiFetch<GeoCity>(`/geo/county-center?name=${encodeURIComponent(name)}`)
 }

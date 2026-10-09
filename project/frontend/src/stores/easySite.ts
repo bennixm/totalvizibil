@@ -77,7 +77,7 @@ export const useEasySiteStore = defineStore('easySite', {
             generator: null,
             ready: true,
             easy: s.easy,
-            categorySlug: null,
+            categorySlugs: [],
             location: null,
             updatedAt: '',
           }

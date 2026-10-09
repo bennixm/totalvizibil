@@ -33,8 +33,6 @@ export interface CampaignSuggestions {
 }
 
 export interface AdvisorInput {
-  /** Service radius in km, if the location step was done. */
-  radiusKm?: number | null;
   /** Highest CPC (minor units) among other active campaigns right now. */
   marketMaxCpcMinor?: number | null;
 }
@@ -42,9 +40,7 @@ export interface AdvisorInput {
 const round10 = (n: number) => Math.max(10, Math.round(n / 10) * 10);
 
 export function suggestCampaign(input: AdvisorInput = {}): CampaignSuggestions {
-  // A wider service area implies more competing businesses -> up to +50% CPC.
-  const radiusFactor = 1 + Math.min(Math.max(input.radiusKm ?? 10, 0) / 100, 0.5);
-  const stdCpc = round10(BASE_CPC_MINOR * radiusFactor);
+  const stdCpc = round10(BASE_CPC_MINOR);
 
   // Beat the field: one notch above the current highest active CPC (with a
   // sane floor when the platform has no competing campaigns yet).

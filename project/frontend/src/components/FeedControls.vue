@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
-import { useFeedStore, type FeedCategoryNode } from '@/stores/feed'
+import {
+  useFeedStore,
+  NATIONWIDE,
+  completeServicesSlug,
+  isCompleteServicesSlug,
+  type FeedCategoryNode,
+} from '@/stores/feed'
 import { feedCategoryRoute } from '@/services/routes'
 import type { LocalizedName } from '@/stores/companies'
-import { searchCities, type GeoCity } from '@/services/geo'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -15,44 +20,72 @@ const feed = useFeedStore()
 const catName = (n: LocalizedName) => n[locale.value as keyof LocalizedName] ?? n.en
 const FALLBACK_ICON = 'mdi-shape-outline'
 
-// --- city filter -------------------------------------------------
-const cityItems = ref<GeoCity[]>([])
-const searching = ref(false)
-let debounce: ReturnType<typeof setTimeout> | undefined
-
-function onCitySearch(q: string): void {
-  clearTimeout(debounce)
-  debounce = setTimeout(async () => {
-    searching.value = true
-    try {
-      cityItems.value = await searchCities(q)
-    } catch {
-      cityItems.value = []
-    } finally {
-      searching.value = false
-    }
-  }, 200)
-}
-function onCityPick(name: string | null): void {
-  if (!name) {
-    feed.setArea(null)
+// --- județ filter: multi-select + two exclusive special modes -----
+/** Explicit "no location filter at all" — distinct from `null`/unset only in
+ *  the picker's own display; functionally identical ("every județ" below). */
+const ANY_LOCATION = '__any__'
+const countyItems = computed(() => [
+  { title: t('feed.areaAny'), value: ANY_LOCATION },
+  { title: t('feed.areaNationwide'), value: NATIONWIDE },
+  ...feed.facets.counties.map((c) => ({ title: c, value: c })),
+])
+const countySelections = computed<string[]>(() => {
+  const c = feed.filters.county
+  if (!c) return [ANY_LOCATION]
+  if (c === NATIONWIDE) return [NATIONWIDE]
+  return c
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+})
+/** Picking either sentinel is exclusive — it replaces any specific județe;
+ *  picking a specific județ drops both sentinels. */
+function onCountySelectionsChange(vals: string[]): void {
+  const prev = countySelections.value
+  if (vals.includes(ANY_LOCATION) && !prev.includes(ANY_LOCATION)) {
+    feed.setCounty(null)
     return
   }
-  const c = cityItems.value.find((x) => x.name === name)
-  if (c) feed.setArea({ city: c.name, lat: c.lat, lng: c.lng })
+  if (vals.includes(NATIONWIDE) && !prev.includes(NATIONWIDE)) {
+    feed.setCounty(NATIONWIDE)
+    return
+  }
+  const real = vals.filter((v) => v !== ANY_LOCATION && v !== NATIONWIDE)
+  feed.setCounty(real.length ? real.join(',') : null)
 }
 
-// --- categories: all groups <-> one focused group ---------------
+// --- categories: all groups <-> one focused group ------------------
+/** The group drilled into. `selected` may be a bare group, one or several
+ *  comma-joined niches, or the "Servicii complete" sentinel — the group is
+ *  always resolvable from just the first token. */
 const selected = computed(() => feed.filters.category)
-/** The group drilled into (its own slug, or one of its niches, is picked). */
+const firstToken = computed(() => selected.value?.split(',')[0]?.trim() ?? null)
 const focused = computed<FeedCategoryNode | null>(() => {
-  const sel = selected.value
-  if (!sel) return null
+  const first = firstToken.value
+  if (!first) return null
   return (
     feed.facets.categories.find(
-      (p) => p.slug === sel || p.children.some((c) => c.slug === sel),
+      (p) =>
+        p.slug === first ||
+        p.children.some((c) => c.slug === first) ||
+        (isCompleteServicesSlug(first) && first.endsWith(p.slug)),
     ) ?? null
   )
+})
+type CategoryMode = 'all' | 'complete' | 'specific'
+const categoryMode = computed<CategoryMode>(() => {
+  const group = focused.value
+  if (!group || !selected.value) return 'all'
+  if (selected.value === group.slug) return 'all'
+  if (isCompleteServicesSlug(selected.value)) return 'complete'
+  return 'specific'
+})
+const selectedNiches = computed<string[]>(() => {
+  if (categoryMode.value !== 'specific' || !selected.value) return []
+  return selected.value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
 })
 
 // Category selection lives in the URL (/feed/{group}/{niche}) so it's a real,
@@ -60,52 +93,55 @@ const focused = computed<FeedCategoryNode | null>(() => {
 function openGroup(p: FeedCategoryNode): void {
   void router.push(feedCategoryRoute(p.slug))
 }
-function openGroupRoot(group: FeedCategoryNode): void {
-  void router.push(feedCategoryRoute(group.slug))
-}
-function pickNiche(slug: string): void {
-  const group = focused.value
-  if (!group) return
-  if (selected.value === slug) void router.push(feedCategoryRoute(group.slug))
-  else void router.push(feedCategoryRoute(group.slug, slug))
-}
 function clearCategory(): void {
   void router.push({ name: 'feed' })
+}
+/** "Toate din X" (union, the bare group) or "Servicii complete X" (every
+ *  subcategory at once) — mutually exclusive with specific niche picks. */
+function setCategoryMode(group: FeedCategoryNode, mode: 'all' | 'complete'): void {
+  if (mode === 'all') void router.push(feedCategoryRoute(group.slug))
+  else void router.push(feedCategoryRoute(group.slug, completeServicesSlug(group.slug)))
+}
+/** Toggle one niche in the multi-select; dropping the last one falls back
+ *  to "Toate din X" rather than leaving the search with nothing picked. */
+function toggleNiche(group: FeedCategoryNode, slug: string): void {
+  const current = categoryMode.value === 'specific' ? selectedNiches.value : []
+  const next = current.includes(slug)
+    ? current.filter((s) => s !== slug)
+    : [...current, slug]
+  if (!next.length) void router.push(feedCategoryRoute(group.slug))
+  else void router.push(feedCategoryRoute(group.slug, next.join(',')))
 }
 </script>
 
 <template>
   <div class="fc">
-    <!-- City filter -->
+    <!-- Județ filter -->
     <div class="fc__area">
-      <v-autocomplete
-        :model-value="feed.filters.area?.city ?? null"
-        :items="cityItems"
-        item-title="name"
-        item-value="name"
-        no-filter
-        hide-no-data
+      <v-select
+        :model-value="countySelections"
+        :items="countyItems"
         hide-details
-        clearable
-        :loading="searching"
-        :label="t('feed.areaCity')"
-        :placeholder="t('feed.areaCityPlaceholder')"
-        prepend-inner-icon="mdi-map-marker-radius-outline"
+        multiple
+        chips
+        closable-chips
+        :label="t('feed.areaCounty')"
+        :placeholder="t('feed.areaCountyPlaceholder')"
+        prepend-inner-icon="mdi-map-marker-outline"
         variant="solo-filled"
         flat
         rounded="lg"
         density="comfortable"
         class="fc__city"
-        @update:search="onCitySearch"
-        @update:model-value="onCityPick"
-      >
-        <template #item="{ props: ip, item }">
-          <v-list-item v-bind="ip" :title="item.raw.name" :subtitle="item.raw.county" />
-        </template>
-      </v-autocomplete>
-      <p v-if="feed.filters.area" class="fc__areaNote">
+        @update:model-value="onCountySelectionsChange"
+      />
+      <p v-if="feed.filters.county" class="fc__areaNote">
         <v-icon icon="mdi-map-marker-check-outline" size="14" />
-        {{ t('feed.areaNote', { city: feed.filters.area.city }) }}
+        {{
+          feed.filters.county === NATIONWIDE
+            ? t('feed.areaNoteNationwide')
+            : t('feed.areaNote', { county: countySelections.join(', ') })
+        }}
       </p>
     </div>
 
@@ -128,18 +164,27 @@ function clearCategory(): void {
           <button
             type="button"
             class="niche"
-            :class="{ 'niche--on': selected === focused.slug }"
-            @click="openGroupRoot(focused)"
+            :class="{ 'niche--on': categoryMode === 'all' }"
+            @click="setCategoryMode(focused, 'all')"
           >
             {{ t('feed.allIn', { group: catName(focused.name) }) }}
+          </button>
+          <button
+            type="button"
+            class="niche niche--complete"
+            :class="{ 'niche--on': categoryMode === 'complete' }"
+            @click="setCategoryMode(focused, 'complete')"
+          >
+            {{ t('feed.completeServices', { group: catName(focused.name) }) }}
           </button>
           <button
             v-for="ch in focused.children"
             :key="ch.slug"
             type="button"
             class="niche"
-            :class="{ 'niche--on': selected === ch.slug }"
-            @click="pickNiche(ch.slug)"
+            :class="{ 'niche--on': selectedNiches.includes(ch.slug) }"
+            :disabled="categoryMode === 'complete'"
+            @click="toggleNiche(focused, ch.slug)"
           >
             {{ catName(ch.name) }}
           </button>
@@ -330,6 +375,16 @@ function clearCategory(): void {
 .niche--on {
   background: rgb(var(--v-theme-primary));
   color: #fff;
+}
+.niche--complete {
+  border-color: rgba(var(--v-theme-primary), 0.35);
+}
+.niche--complete:not(.niche--on) {
+  background: transparent;
+}
+.niche:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 @media (prefers-reduced-motion: reduce) {

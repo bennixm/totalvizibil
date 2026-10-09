@@ -23,16 +23,15 @@ export interface CompanyCategory {
 
 export interface CompanyLocation {
   id: string
-  /** Null when `nationwide` — whole-country coverage has no fixed city. */
+  /** Null when `nationwide` — whole-country coverage has no fixed județ/city. */
   city: string | null
   address: string | null
-  region: string | null
+  county: string | null
   country: string
   lat: number | null
   lng: number | null
   isPrimary: boolean
-  serviceRadiusKm: number | null
-  /** Serves the whole country — no radius applies. */
+  /** Serves the whole country — no județ applies. */
   nationwide: boolean
 }
 
@@ -70,6 +69,13 @@ export interface Company {
   updatedAt: string
   viewerRole: CompanyRole | null
   category: { id: string; slug: string; name: LocalizedName } | null
+  /** Full subcategory tagging (one or several real leaves) — `category` above is just the primary. */
+  categories: {
+    id: string
+    slug: string
+    name: LocalizedName
+    isPrimary: boolean
+  }[]
   locations: CompanyLocation[]
   contacts: CompanyContact[]
   services: CompanyService[]
@@ -324,13 +330,12 @@ export const useCompaniesStore = defineStore('companies', {
     async updateLocation(
       companyId: string,
       input: {
-        categorySlug: string
+        categorySlugs: string[]
+        counties?: string[]
         city?: string
-        region?: string
         country?: string
         lat?: number
         lng?: number
-        radiusKm?: number
         nationwide?: boolean
       },
     ): Promise<Company> {

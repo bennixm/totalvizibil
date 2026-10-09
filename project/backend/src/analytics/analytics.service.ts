@@ -97,8 +97,21 @@ export class AnalyticsService {
 
   // --- feed: visibility inputs -------------------------------------
 
-  /** Per-company inputs for the feed Visibility Score. */
-  async visibilityInputsFor(companyIds: string[]): Promise<Map<string, VisibilityInput>> {
+  /**
+   * Per-company inputs for the feed Visibility Score. Without `leafId` the
+   * CPC sub-score reads each company's own CPC maxim recomandat (the max
+   * across every subcategory it is tagged with) — used for the company's own
+   * dashboard, where there is no specific search to score against. With
+   * `leafId` (a specific feed search) the CPC sub-score reads that exact
+   * subcategory's reference instead, so ranking within one search prices
+   * competitiveness against the rivals actually competing there — not a
+   * generalist's inflated best-case number from a niche it isn't searched
+   * under.
+   */
+  async visibilityInputsFor(
+    companyIds: string[],
+    leafId?: string,
+  ): Promise<Map<string, VisibilityInput>> {
     if (!companyIds.length) return new Map();
     const now = new Date();
     const [campaigns, websites, respAgg, cpcRefs] = await Promise.all([
@@ -119,7 +132,7 @@ export class AnalyticsService {
         select: { companyId: true, mode: true },
       }),
       this.responseAggFor(companyIds),
-      this.cpcRefsFor(companyIds),
+      leafId ? this.cpcRefsForLeaf(companyIds, leafId) : this.cpcRefsFor(companyIds),
     ]);
 
     const campBy = new Map(campaigns.map((c) => [c.companyId, c]));
@@ -152,11 +165,14 @@ export class AnalyticsService {
   }
 
   /**
-   * The category-leading ("recommended") CPC for each company — the bid that
-   * tops out its CPC sub-score. It is one notch above the highest CPC any
-   * *other* rival campaign in the same category group is bidding (currently
-   * serving, or `depleted` within the last 48h — see `marketRivalWhere`),
-   * widened a little for a large service radius (same rule the advisor uses).
+   * The "CPC maxim recomandat" for each company — the max, across every
+   * subcategory it is tagged with (via `company_categories`), of the bid
+   * that would top out that one subcategory's CPC sub-score (one notch above
+   * the highest CPC any *other* rival tagged with that same subcategory is
+   * bidding — currently serving, or `depleted` within the last 48h, see
+   * `marketRivalWhere`). Firms now compete subcategory by subcategory, so
+   * a company tagged with several has a different reference in each; this is
+   * the single ceiling that tops out every one of them.
    */
   async cpcRefsFor(companyIds: string[]): Promise<Map<string, number>> {
     const out = new Map<string, number>();
@@ -167,12 +183,7 @@ export class AnalyticsService {
         where: { id: { in: companyIds } },
         select: {
           id: true,
-          category: { select: { slug: true, parent: { select: { slug: true } } } },
-          locations: {
-            where: { isPrimary: true },
-            take: 1,
-            select: { serviceRadiusKm: true },
-          },
+          categoryAssignments: { select: { categoryId: true } },
         },
       }),
       this.prisma.campaign.findMany({
@@ -180,39 +191,56 @@ export class AnalyticsService {
         select: {
           companyId: true,
           cpcMinor: true,
-          company: {
-            select: { category: { select: { slug: true, parent: { select: { slug: true } } } } },
-          },
+          company: { select: { categoryAssignments: { select: { categoryId: true } } } },
         },
       }),
     ]);
 
-    const rootOf = (cat: { slug: string; parent: { slug: string } | null } | null) =>
-      cat?.parent?.slug ?? cat?.slug ?? null;
-
-    const bidsByRoot = new Map<string, Array<{ companyId: string; cpcMinor: number }>>();
+    const bidsByLeaf = new Map<string, Array<{ companyId: string; cpcMinor: number }>>();
     for (const b of rivalBids) {
-      const root = rootOf(b.company.category);
-      if (!root) continue;
-      const list = bidsByRoot.get(root) ?? [];
-      list.push({ companyId: b.companyId, cpcMinor: b.cpcMinor });
-      bidsByRoot.set(root, list);
+      for (const a of b.company.categoryAssignments) {
+        const list = bidsByLeaf.get(a.categoryId) ?? [];
+        list.push({ companyId: b.companyId, cpcMinor: b.cpcMinor });
+        bidsByLeaf.set(a.categoryId, list);
+      }
     }
 
     for (const m of meta) {
-      const root = rootOf(m.category);
-      const rivals = root ? (bidsByRoot.get(root) ?? []) : [];
-      const marketMax = rivals.reduce(
-        (mx, r) => (r.companyId !== m.id && r.cpcMinor > mx ? r.cpcMinor : mx),
+      let marketMax = 0;
+      for (const a of m.categoryAssignments) {
+        for (const r of bidsByLeaf.get(a.categoryId) ?? []) {
+          if (r.companyId !== m.id && r.cpcMinor > marketMax) marketMax = r.cpcMinor;
+        }
+      }
+      out.set(m.id, suggestCampaign({ marketMaxCpcMinor: marketMax }).appearFirst.cpcMinor);
+    }
+    return out;
+  }
+
+  /**
+   * Same as `cpcRefsFor`, but scoped to one specific subcategory — the
+   * reference a feed search for that exact subcategory ranks against, so a
+   * company tagged with several subcategories is scored here against the
+   * rivals actually competing in *this* search, not its own best-case max.
+   */
+  async cpcRefsForLeaf(companyIds: string[], leafId: string): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (!companyIds.length) return out;
+
+    const rivalBids = await this.prisma.campaign.findMany({
+      where: {
+        ...marketRivalWhere(),
+        company: { categoryAssignments: { some: { categoryId: leafId } } },
+      },
+      select: { companyId: true, cpcMinor: true },
+    });
+
+    for (const id of companyIds) {
+      const marketMax = rivalBids.reduce(
+        (mx, r) => (r.companyId !== id && r.cpcMinor > mx ? r.cpcMinor : mx),
         0,
       );
-      out.set(
-        m.id,
-        suggestCampaign({
-          radiusKm: m.locations[0]?.serviceRadiusKm ?? null,
-          marketMaxCpcMinor: marketMax,
-        }).appearFirst.cpcMinor,
-      );
+      out.set(id, suggestCampaign({ marketMaxCpcMinor: marketMax }).appearFirst.cpcMinor);
     }
     return out;
   }
@@ -220,34 +248,35 @@ export class AnalyticsService {
   // --- feed: where does one company rank -------------------------
 
   /**
-   * The company's 1-based position among the active listings in its category
-   * group (parent + siblings), ranked by the same Visibility Score + "appear
-   * first" lift the feed uses. `null` when the campaign is not live (it is not
-   * in the feed at all) or the company has no category.
+   * The company's 1-based position among the active listings tagged with one
+   * of its subcategories, ranked by the same Visibility Score + "appear
+   * first" lift the feed uses. Firms now compete subcategory by subcategory
+   * (PRD restructuring), so this reads the company's *primary* assignment
+   * (`company_categories.isPrimary`, falling back to its first assignment)
+   * as the one pool to report — showing a rank per subcategory is a UI
+   * follow-up, not a backend limitation. `null` when the campaign is not live
+   * or the company has no subcategory at all.
    */
   async feedRankFor(companyId: string): Promise<FeedRank | null> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: {
         status: true,
-        category: { select: { slug: true, parentId: true, parent: { select: { slug: true } } } },
+        categoryAssignments: { select: { categoryId: true, isPrimary: true } },
       },
     });
-    if (!company || company.status !== 'active' || !company.category) return null;
+    if (!company || company.status !== 'active' || !company.categoryAssignments.length) {
+      return null;
+    }
 
-    // The group root is the parent category (or the category itself if it is
-    // already top-level); the competitive set is that root + all its children.
-    const rootSlug = company.category.parent?.slug ?? company.category.slug;
-    const root = await this.prisma.category.findUnique({
-      where: { slug: rootSlug },
-      select: { slug: true, children: { select: { slug: true } } },
-    });
-    const groupSlugs = root ? [root.slug, ...root.children.map((c) => c.slug)] : [];
+    const primary =
+      company.categoryAssignments.find((a) => a.isPrimary) ?? company.categoryAssignments[0];
+    const leafId = primary.categoryId;
 
     const peers = await this.prisma.company.findMany({
       where: {
         status: 'active',
-        ...(groupSlugs.length ? { category: { slug: { in: groupSlugs } } } : {}),
+        categoryAssignments: { some: { categoryId: leafId } },
       },
       select: { id: true },
     });
@@ -255,7 +284,7 @@ export class AnalyticsService {
 
     const ids = peers.map((p) => p.id);
     const [vinputs, boosted] = await Promise.all([
-      this.visibilityInputsFor(ids),
+      this.visibilityInputsFor(ids, leafId),
       this.prisma.campaign.findMany({
         where: { companyId: { in: ids }, status: 'active', appearFirst: true },
         select: { companyId: true },
@@ -287,35 +316,27 @@ export class AnalyticsService {
   }
 
   /**
-   * Highest CPC (minor units) bid by a rival in this company's category group —
-   * the number AUTO mode has to beat for feed position #1. Counts campaigns that
-   * are serving now or `depleted` within the last 48h (see `marketRivalWhere`),
-   * so it does not swing when a big rival spends its daily cap. `0` when the
-   * company has no live rival in its group.
+   * Highest CPC (minor units) bid by a rival across any of this company's own
+   * subcategories — the number the "CPC maxim recomandat" has to beat.
+   * Counts campaigns that are serving now or `depleted` within the last 48h
+   * (see `marketRivalWhere`), so it does not swing when a big rival spends
+   * its daily cap. `0` when the company has no live rival in any of its
+   * subcategories (or is tagged with none at all).
    */
   async marketCpcFor(companyId: string): Promise<number> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: {
-        category: { select: { slug: true, parent: { select: { slug: true } } } },
-      },
+      select: { categoryAssignments: { select: { categoryId: true } } },
     });
-    const rootSlug = company?.category?.parent?.slug ?? company?.category?.slug ?? null;
-    const groupSlugs = rootSlug
-      ? await this.prisma.category
-          .findUnique({
-            where: { slug: rootSlug },
-            select: { slug: true, children: { select: { slug: true } } },
-          })
-          .then((r) => (r ? [r.slug, ...r.children.map((c) => c.slug)] : []))
-      : [];
+    const leafIds = company?.categoryAssignments.map((a) => a.categoryId) ?? [];
+    if (!leafIds.length) return 0;
 
     const agg = await this.prisma.campaign.aggregate({
       _max: { cpcMinor: true },
       where: {
         ...marketRivalWhere(),
         companyId: { not: companyId },
-        ...(groupSlugs.length ? { company: { category: { slug: { in: groupSlugs } } } } : {}),
+        company: { categoryAssignments: { some: { categoryId: { in: leafIds } } } },
       },
     });
     return agg._max.cpcMinor ?? 0;

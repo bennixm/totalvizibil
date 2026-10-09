@@ -1,4 +1,4 @@
-import { IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class FeedQueryDto {
@@ -7,9 +7,17 @@ export class FeedQueryDto {
   @MaxLength(120)
   q?: string;
 
+  /**
+   * Category filter — one of:
+   *  - a bare group slug ("Toate din X") — every subcategory under it, union;
+   *  - the `complete-{group}` sentinel ("Servicii complete X") — only
+   *    businesses tagged with literally every leaf under that group;
+   *  - one or several real leaf slugs, comma-separated — an OR-match across
+   *    exactly those subcategories (the feed's multi-select).
+   */
   @IsOptional()
   @IsString()
-  @MaxLength(60)
+  @MaxLength(400)
   category?: string;
 
   /** Deprecated — the feed is always ordered by the Visibility Score. Ignored. */
@@ -18,35 +26,19 @@ export class FeedQueryDto {
   @MaxLength(20)
   sort?: string;
 
-  /** City name — kept for display / a coarse fallback when no coordinates. */
+  /**
+   * Service-area filter — one of:
+   *  - omitted ("Orice locație") — every business, regardless of area;
+   *  - the `"nationwide"` sentinel ("Toată țara") — only businesses that
+   *    serve the whole country;
+   *  - one or several județ names, comma-separated — an OR-match across
+   *    exactly those counties (plus any nationwide business, which reaches
+   *    everywhere).
+   */
   @IsOptional()
   @IsString()
-  @MaxLength(80)
-  city?: string;
-
-  // Coverage-area filter: the searched point + how far around it to look. A
-  // business shows when its own service circle overlaps this one.
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(-90)
-  @Max(90)
-  lat?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(-180)
-  @Max(180)
-  lng?: number;
-
-  /** Deprecated — coverage is judged by each business's own radius. Ignored. */
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(1000)
-  radiusKm?: number;
+  @MaxLength(500)
+  county?: string;
 
   @IsOptional()
   @Type(() => Number)

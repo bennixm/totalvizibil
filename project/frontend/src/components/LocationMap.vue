@@ -7,7 +7,6 @@ import 'leaflet/dist/leaflet.css'
 const props = defineProps<{
   lat: number
   lng: number
-  radiusKm: number
 }>()
 
 const emit = defineEmits<{ pick: [{ lat: number; lng: number }] }>()
@@ -17,33 +16,11 @@ const el = ref<HTMLElement | null>(null)
 
 let map: L.Map | null = null
 let centre: L.CircleMarker | null = null
-let ring: L.Circle | null = null
 let ro: ResizeObserver | null = null
 
 function render(fit: boolean): void {
   if (!map) return
   const pos: L.LatLngExpression = [props.lat, props.lng]
-  // A non-positive radius means "whole country" — draw only the centre pin.
-  const showRing = props.radiusKm > 0
-  const radius = Math.max(props.radiusKm, 0.5) * 1000
-
-  if (!showRing) {
-    if (ring) {
-      ring.remove()
-      ring = null
-    }
-  } else if (!ring) {
-    ring = L.circle(pos, {
-      radius,
-      color: '#3f63e8',
-      weight: 1,
-      fillColor: '#3f63e8',
-      fillOpacity: 0.12,
-    }).addTo(map)
-  } else {
-    ring.setLatLng(pos)
-    ring.setRadius(radius)
-  }
 
   if (!centre) {
     centre = L.circleMarker(pos, {
@@ -57,10 +34,7 @@ function render(fit: boolean): void {
     centre.setLatLng(pos)
   }
 
-  if (fit) {
-    if (ring) map.fitBounds(ring.getBounds(), { padding: [24, 24], maxZoom: 13 })
-    else map.setView(pos, 11)
-  }
+  if (fit) map.setView(pos, 11)
 }
 
 onMounted(() => {
@@ -90,13 +64,8 @@ onBeforeUnmount(() => {
   map = null
 })
 
-// City change → recentre + fit. Radius change → just resize the ring.
 watch(
   () => [props.lat, props.lng] as const,
-  () => render(true),
-)
-watch(
-  () => props.radiusKm,
   () => render(true),
 )
 </script>

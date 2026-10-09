@@ -273,7 +273,7 @@ interface DemoCompany {
   name: string;
   categorySlug: string;
   city: string;
-  region?: string;
+  county?: string;
   country: string;
   type: string;
   services: string[];
@@ -307,7 +307,7 @@ const DEMO: DemoCompany[] = [
     name: 'Lumina Electric',
     categorySlug: 'instalatii-electrice',
     city: 'Cluj-Napoca',
-    region: 'Cluj',
+    county: 'Cluj',
     country: 'RO',
     type: 'electrical services',
     services: ['Panel upgrades', 'Wiring', 'EV chargers', 'Emergency callouts'],
@@ -339,7 +339,7 @@ const DEMO: DemoCompany[] = [
     name: 'Acoperiș Pro',
     categorySlug: 'acoperisuri',
     city: 'Timișoara',
-    region: 'Timiș',
+    county: 'Timiș',
     country: 'RO',
     type: 'roofing company',
     services: ['Roof repair', 'Full re-roofing', 'Gutters', 'Insulation'],
@@ -385,7 +385,7 @@ const DEMO: DemoCompany[] = [
     name: 'Bistro Nordic',
     categorySlug: 'restaurante',
     city: 'Cluj-Napoca',
-    region: 'Cluj',
+    county: 'Cluj',
     country: 'RO',
     type: 'bistro restaurant',
     services: ['Lunch menu', 'Events & catering', 'Vegetarian menu'],
@@ -547,7 +547,7 @@ async function seedCompanies() {
         createdAt,
         members: { create: { userId: owner.id, role: 'owner', status: 'active' } },
         locations: {
-          create: { city: d.city, region: d.region ?? null, country: d.country, isPrimary: true },
+          create: { city: d.city, county: d.county ?? null, country: d.country, isPrimary: true },
         },
         contacts: {
           createMany: {

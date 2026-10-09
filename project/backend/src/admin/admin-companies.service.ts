@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CampaignStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertCounty } from '../geo/ro-cities';
 import { WalletService } from '../wallet/wallet.service';
 import { CampaignService } from '../campaigns/campaign.service';
 import { LeadsService } from '../leads/leads.service';
@@ -168,8 +169,7 @@ export class AdminCompaniesService {
         location: loc
           ? {
               city: loc.city,
-              region: loc.region,
-              radiusKm: loc.serviceRadiusKm ?? null,
+              county: loc.county,
               nationwide: loc.nationwide,
               lat: loc.lat,
               lng: loc.lng,
@@ -253,29 +253,27 @@ export class AdminCompaniesService {
     return this.detail(companyId);
   }
 
-  /** Admin: set the primary service-area location (city/radius or nationwide). */
+  /**
+   * Admin: replace the company's ENTIRE service area with a single județ (or
+   * nationwide) — a full-replace override, same as the owner-facing flow;
+   * it must not leave other, previously-set județe stranded behind it.
+   */
   async setLocation(companyId: string, dto: SetCompanyLocationDto) {
     await this.loadCompany(companyId);
     const nationwide = !!dto.nationwide;
     const data = {
       city: nationwide ? null : (dto.city?.trim() ?? null),
-      region: nationwide ? null : dto.region?.trim() || null,
+      county: nationwide ? null : assertCounty(dto.county),
       country: (dto.country || 'RO').toUpperCase().slice(0, 2),
       lat: nationwide ? null : (dto.lat ?? null),
       lng: nationwide ? null : (dto.lng ?? null),
-      serviceRadiusKm: nationwide ? null : Math.round(dto.radiusKm ?? 15),
       nationwide,
       isPrimary: true,
     };
-    const existing = await this.prisma.companyLocation.findFirst({
-      where: { companyId, isPrimary: true },
-      orderBy: { createdAt: 'asc' },
-    });
-    if (existing) {
-      await this.prisma.companyLocation.update({ where: { id: existing.id }, data });
-    } else {
-      await this.prisma.companyLocation.create({ data: { ...data, companyId } });
-    }
+    await this.prisma.$transaction([
+      this.prisma.companyLocation.deleteMany({ where: { companyId } }),
+      this.prisma.companyLocation.create({ data: { ...data, companyId } }),
+    ]);
     return this.detail(companyId);
   }
 

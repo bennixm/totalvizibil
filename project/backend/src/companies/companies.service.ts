@@ -10,6 +10,7 @@ import {
 import { CompanyRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { uniqueSlug } from '../common/slug';
+import { assertCounty, resolveLocationInput } from '../geo/ro-cities';
 import { WebsiteDraftService } from '../website/drafts/website-draft.service';
 import { WalletService } from '../wallet/wallet.service';
 import { CREDIT_MINOR } from '../wallet/money';
@@ -198,6 +199,80 @@ export class CompaniesService implements OnModuleInit {
     return role;
   }
 
+  /**
+   * Replaces a company's full `company_categories` set — one real leaf, or
+   * several. `primaryCategoryId` (first in the list when omitted) is the one
+   * mirrored for display purposes and feeds the single `Company.categoryId`
+   * scalar still read by not-yet-migrated call sites.
+   */
+  private async syncCategoryAssignments(
+    tx: Prisma.TransactionClient | PrismaService,
+    companyId: string,
+    categoryIds: string[],
+    primaryCategoryId?: string | null,
+  ): Promise<void> {
+    await tx.companyCategory.deleteMany({ where: { companyId } });
+    const primary = primaryCategoryId ?? categoryIds[0] ?? null;
+    if (categoryIds.length) {
+      await tx.companyCategory.createMany({
+        data: categoryIds.map((categoryId) => ({
+          companyId,
+          categoryId,
+          isPrimary: categoryId === primary,
+        })),
+      });
+    }
+  }
+
+  /** Single-category admin paths (`create`/`update`'s `categoryId` DTO field). */
+  private async syncPrimaryCategory(
+    tx: Prisma.TransactionClient | PrismaService,
+    companyId: string,
+    categoryId: string | null,
+  ): Promise<void> {
+    await this.syncCategoryAssignments(tx, companyId, categoryId ? [categoryId] : []);
+  }
+
+  /**
+   * The row set for a company's service area: one `nationwide` row, or one
+   * row per județ (the first carries the map pin — city/lat/lng — as the
+   * `isPrimary` display row; the rest are tag-only).
+   */
+  private locationCreateInputs(input: {
+    nationwide: boolean;
+    counties: string[];
+    city?: string | null;
+    country?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+  }): Prisma.CompanyLocationCreateManyCompanyInput[] {
+    const country = (input.country || 'RO').toUpperCase().slice(0, 2);
+    if (input.nationwide) {
+      return [{ nationwide: true, country, isPrimary: true }];
+    }
+    return input.counties.map((county, i) => ({
+      county,
+      country,
+      nationwide: false,
+      isPrimary: i === 0,
+      city: i === 0 ? (input.city ?? null) : null,
+      lat: i === 0 ? (input.lat ?? null) : null,
+      lng: i === 0 ? (input.lng ?? null) : null,
+    }));
+  }
+
+  /** Replaces a company's full location set — mirrors `syncCategoryAssignments`. */
+  private async syncLocations(
+    tx: Prisma.TransactionClient | PrismaService,
+    companyId: string,
+    input: Parameters<CompaniesService['locationCreateInputs']>[0],
+  ): Promise<void> {
+    await tx.companyLocation.deleteMany({ where: { companyId } });
+    await tx.companyLocation.createMany({
+      data: this.locationCreateInputs(input).map((row) => ({ ...row, companyId })),
+    });
+  }
+
   async create(userId: string, dto: CreateCompanyDto): Promise<CompanyView> {
     if (dto.categoryId) {
       const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
@@ -233,7 +308,7 @@ export class CompaniesService implements OnModuleInit {
               create: {
                 city: dto.location.city.trim(),
                 address: dto.location.address?.trim() || null,
-                region: dto.location.region?.trim() || null,
+                county: dto.location.county ? assertCounty(dto.location.county) : null,
                 country: (dto.location.country || 'RO').toUpperCase().slice(0, 2),
                 isPrimary: true,
               },
@@ -254,6 +329,7 @@ export class CompaniesService implements OnModuleInit {
       include: companyInclude,
     });
 
+    await this.syncPrimaryCategory(this.prisma, company.id, dto.categoryId ?? null);
     await this.notifyBusinessCreated(userId, company.displayName);
     return toCompanyView(company, CompanyRole.owner);
   }
@@ -289,11 +365,12 @@ export class CompaniesService implements OnModuleInit {
     if (draft.content == null || draft.theme == null) {
       throw new BadRequestException('website_not_generated');
     }
-    // Every business must be filed under a category (niche or whole group) to reach the feed.
-    if (!draft.categorySlug) {
+    // Every business must be filed under at least one subcategory to reach the feed.
+    if (!draft.categorySlugs.length) {
       throw new BadRequestException('category_required');
     }
-    const category = await this.drafts.assertCategory(draft.categorySlug);
+    const categories = await this.drafts.assertCategories(draft.categorySlugs);
+    const primaryCategory = categories[0];
 
     // --- additional-business paywall (charged to the user's single wallet) ---
     // Waived for advanced-plan businesses — they already pay the advanced
@@ -331,9 +408,7 @@ export class CompaniesService implements OnModuleInit {
       contacts.push({ type: 'email', value: answers.email.trim().toLowerCase() });
     }
 
-    const hasLocation =
-      draft.locationNationwide ||
-      (!!draft.locationCity && draft.locationLat != null && draft.locationLng != null);
+    const hasLocation = draft.locationNationwide || draft.locationCounties.length > 0;
 
     const company = await this.prisma.$transaction(async (tx) => {
       const created = await tx.company.create({
@@ -344,7 +419,7 @@ export class CompaniesService implements OnModuleInit {
             answers.businessType?.trim() ||
             answers.about?.trim().slice(0, 240) ||
             null,
-          categoryId: category.id,
+          categoryId: primaryCategory.id,
           ownerUserId: userId,
           slug,
           ...(typeof answers.logoUrl === 'string' && answers.logoUrl.trim()
@@ -354,15 +429,15 @@ export class CompaniesService implements OnModuleInit {
           contacts: contacts.length ? { createMany: { data: contacts } } : undefined,
           locations: hasLocation
             ? {
-                create: {
-                  city: draft.locationNationwide ? null : draft.locationCity,
-                  region: draft.locationNationwide ? null : draft.locationRegion,
-                  country: draft.locationCountry ?? 'RO',
-                  lat: draft.locationNationwide ? null : draft.locationLat,
-                  lng: draft.locationNationwide ? null : draft.locationLng,
-                  serviceRadiusKm: draft.locationNationwide ? null : draft.locationRadiusKm,
-                  nationwide: draft.locationNationwide,
-                  isPrimary: true,
+                createMany: {
+                  data: this.locationCreateInputs({
+                    nationwide: draft.locationNationwide,
+                    counties: draft.locationCounties,
+                    city: draft.locationCity,
+                    country: draft.locationCountry,
+                    lat: draft.locationLat,
+                    lng: draft.locationLng,
+                  }),
                 },
               }
             : undefined,
@@ -383,6 +458,13 @@ export class CompaniesService implements OnModuleInit {
         },
         include: companyInclude,
       });
+
+      await this.syncCategoryAssignments(
+        tx,
+        created.id,
+        categories.map((c) => c.id),
+        primaryCategory.id,
+      );
 
       if (feeMinor > 0) {
         const wallet = await tx.wallet.upsert({
@@ -467,6 +549,9 @@ export class CompaniesService implements OnModuleInit {
       },
       include: companyInclude,
     });
+    if (dto.categoryId !== undefined) {
+      await this.syncPrimaryCategory(this.prisma, companyId, dto.categoryId);
+    }
     return toCompanyView(company, role);
   }
 
@@ -558,54 +643,46 @@ export class CompaniesService implements OnModuleInit {
   }
 
   /**
-   * Set / replace the company's exact-niche category + primary service-area
+   * Set / replace the company's subcategory tagging + primary service-area
    * location (post-account: advanced onboarding, or editing later).
    */
   async setLocation(
     userId: string,
     companyId: string,
     input: {
-      categorySlug: string;
+      categorySlugs: string[];
+      counties?: string[];
       city?: string;
-      region?: string;
       country?: string;
       lat?: number;
       lng?: number;
-      radiusKm?: number;
       nationwide?: boolean;
     },
   ): Promise<CompanyView> {
     const role = await this.assertCanEditCompany(companyId, userId);
-    const category = await this.drafts.assertCategory(input.categorySlug);
-
-    const nationwide = !!input.nationwide;
-    const data = {
-      // Whole-country coverage carries no city, coordinates or radius.
-      city: nationwide ? null : (input.city?.trim() ?? null),
-      region: nationwide ? null : input.region?.trim() || null,
-      country: (input.country || 'RO').toUpperCase().slice(0, 2),
-      lat: nationwide ? null : (input.lat ?? null),
-      lng: nationwide ? null : (input.lng ?? null),
-      serviceRadiusKm: nationwide ? null : Math.round(input.radiusKm ?? 15),
-      nationwide,
-      isPrimary: true,
-    };
-
-    const existing = await this.prisma.companyLocation.findFirst({
-      where: { companyId, isPrimary: true },
-      orderBy: { createdAt: 'asc' },
-    });
+    const categories = await this.drafts.assertCategories(input.categorySlugs);
+    const primaryCategory = categories[0];
+    const { nationwide, counties } = resolveLocationInput(input);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.company.update({
         where: { id: companyId },
-        data: { categoryId: category.id },
+        data: { categoryId: primaryCategory.id },
       });
-      if (existing) {
-        await tx.companyLocation.update({ where: { id: existing.id }, data });
-      } else {
-        await tx.companyLocation.create({ data: { ...data, companyId } });
-      }
+      await this.syncCategoryAssignments(
+        tx,
+        companyId,
+        categories.map((c) => c.id),
+        primaryCategory.id,
+      );
+      await this.syncLocations(tx, companyId, {
+        nationwide,
+        counties,
+        city: input.city,
+        country: input.country,
+        lat: input.lat,
+        lng: input.lng,
+      });
     });
 
     const company = await this.prisma.company.findUniqueOrThrow({

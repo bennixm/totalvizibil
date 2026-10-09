@@ -8,7 +8,7 @@ import FeedControls from '@/components/FeedControls.vue'
 import FeedAdCard from '@/components/FeedAdCard.vue'
 import AffiliateBanner from '@/components/AffiliateBanner.vue'
 import DiscountBanner from '@/components/DiscountBanner.vue'
-import { useFeedStore } from '@/stores/feed'
+import { useFeedStore, isCompleteServicesSlug } from '@/stores/feed'
 import { useSeo } from '@/composables/useSeo'
 import { feedCategoryRoute } from '@/services/routes'
 import type { LocalizedName } from '@/stores/companies'
@@ -36,8 +36,18 @@ const activeNames = computed<{ group: string | null; niche: string | null }>(() 
   const g = routeGroup.value
   if (!g) return { group: null, niche: null }
   const grp = feed.facets.categories.find((p) => p.slug === g)
-  const nch = routeNiche.value ? grp?.children.find((c) => c.slug === routeNiche.value) : null
-  return { group: grp ? catName(grp.name) : g, niche: nch ? catName(nch.name) : routeNiche.value }
+  const groupName = grp ? catName(grp.name) : g
+  if (routeNiche.value && isCompleteServicesSlug(routeNiche.value)) {
+    return { group: groupName, niche: t('feed.completeServices', { group: groupName }) }
+  }
+  if (!routeNiche.value) return { group: groupName, niche: null }
+  // The multi-select comma-joins several niches into one route segment.
+  const slugs = routeNiche.value.split(',')
+  const names = slugs.map((s) => {
+    const ch = grp?.children.find((c) => c.slug === s)
+    return ch ? catName(ch.name) : s
+  })
+  return { group: groupName, niche: names.join(', ') }
 })
 
 const seoTitle = computed(() => {
@@ -120,9 +130,9 @@ onMounted(async () => {
 
 watch([routeGroup, routeNiche], syncCategory)
 
-// City/area changes keep the current category; just refetch (debounced).
+// Județ changes keep the current category; just refetch (debounced).
 watch(
-  () => [feed.filters.area?.lat ?? null, feed.filters.area?.lng ?? null],
+  () => feed.filters.county,
   () => {
     clearTimeout(debounce)
     debounce = setTimeout(() => feed.loadFeed(), 250)

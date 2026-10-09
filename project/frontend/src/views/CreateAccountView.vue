@@ -74,7 +74,7 @@ function errText(code: string): string {
 
 /** The draft is ready to become a company only with a category AND a service area. */
 function draftMissingLocation(): boolean {
-  return !draft.value?.categorySlug || !draft.value?.location
+  return !draft.value?.categorySlugs?.length || !draft.value?.location
 }
 
 async function finishClaim(): Promise<void> {

@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+
 /**
  * Canonical list of Romanian cities with coordinates — static reference data
  * for the location step (M2). Not seeded: it does not change and needs no
@@ -12,6 +14,108 @@ export interface RoCity {
   county: string;
   lat: number;
   lng: number;
+}
+
+/**
+ * Canonical list of Romania's 41 județe + București — the closed set the
+ * location step and the feed's area filter both pick from. Service area is
+ * judged at this granularity, never by city or distance.
+ */
+export const RO_COUNTIES: readonly string[] = [
+  'Alba',
+  'Arad',
+  'Argeș',
+  'Bacău',
+  'Bihor',
+  'Bistrița-Năsăud',
+  'Botoșani',
+  'Brăila',
+  'Brașov',
+  'București',
+  'Buzău',
+  'Călărași',
+  'Caraș-Severin',
+  'Cluj',
+  'Constanța',
+  'Covasna',
+  'Dâmbovița',
+  'Dolj',
+  'Galați',
+  'Giurgiu',
+  'Gorj',
+  'Harghita',
+  'Hunedoara',
+  'Ialomița',
+  'Iași',
+  'Ilfov',
+  'Maramureș',
+  'Mehedinți',
+  'Mureș',
+  'Neamț',
+  'Olt',
+  'Prahova',
+  'Sălaj',
+  'Satu Mare',
+  'Sibiu',
+  'Suceava',
+  'Teleorman',
+  'Timiș',
+  'Tulcea',
+  'Vaslui',
+  'Vâlcea',
+  'Vrancea',
+];
+
+function foldCounty(s: string): string {
+  return (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+/**
+ * Resolve a name to its canonical județ spelling (accent-insensitive), or
+ * `null` if it isn't one of the 42. A plain function (not `GeoService`) so
+ * any service can validate a județ without a DI dependency on the geo module.
+ */
+export function resolveCounty(name: string): string | null {
+  const q = foldCounty(name);
+  return RO_COUNTIES.find((c) => foldCounty(c) === q) ?? null;
+}
+
+/** Assert a name is a known județ and return its canonical spelling. */
+export function assertCounty(name: string | undefined | null): string {
+  const hit = name ? resolveCounty(name) : null;
+  if (!hit) throw new BadRequestException('unknown_county');
+  return hit;
+}
+
+/** Assert a list of names are all known județe and return their canonical,
+ *  de-duplicated spellings. Throws on the first unknown name. */
+export function assertCounties(names: string[]): string[] {
+  const resolved = names.map((n) => assertCounty(n));
+  return Array.from(new Set(resolved));
+}
+
+/** True when a set of (already-canonical) județ names covers all 42 — the
+ *  "picked every county manually" case that auto-promotes to nationwide. */
+export function isEveryCounty(names: string[]): boolean {
+  const set = new Set(names);
+  return RO_COUNTIES.every((c) => set.has(c));
+}
+
+/**
+ * Resolve a location-step input into its stored form: either `nationwide`
+ * (the explicit "Toată țara" shortcut, OR every județ picked by hand — both
+ * collapse to the same thing) or a validated, de-duplicated județ list.
+ * Throws if neither nationwide nor at least one valid județ was given.
+ */
+export function resolveLocationInput(input: { nationwide?: boolean; counties?: string[] }): {
+  nationwide: boolean;
+  counties: string[];
+} {
+  if (input.nationwide) return { nationwide: true, counties: [] };
+  const counties = assertCounties(input.counties ?? []);
+  if (!counties.length) throw new BadRequestException('county_required');
+  if (isEveryCounty(counties)) return { nationwide: true, counties: [] };
+  return { nationwide: false, counties };
 }
 
 export const RO_CITIES: readonly RoCity[] = [

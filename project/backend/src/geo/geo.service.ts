@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { RO_CITIES, RoCity } from './ro-cities';
+import { RO_CITIES, RO_COUNTIES, RoCity } from './ro-cities';
 
 /** Strip diacritics + lowercase for accent-insensitive matching. */
 function fold(s: string): string {
@@ -17,6 +17,11 @@ const FOLDED: { city: RoCity; folded: string }[] = RO_CITIES.map((city) => ({
 
 @Injectable()
 export class GeoService {
+  /** The closed set of județe (+ București) the location step picks from. */
+  counties(): readonly string[] {
+    return RO_COUNTIES;
+  }
+
   /** Type-ahead city search. Empty query returns the largest cities. */
   searchCities(query: string, limit = 12): RoCity[] {
     const q = fold(query ?? '');
@@ -37,6 +42,18 @@ export class GeoService {
     const hit = FOLDED.find((c) => c.folded === q);
     if (!hit) throw new NotFoundException('Unknown city');
     return hit.city;
+  }
+
+  /**
+   * A representative city for a județ — its largest/first-listed town — used
+   * to re-centre the map when the județ is picked from the dropdown directly
+   * (no map click yet to anchor an exact point).
+   */
+  countyCenter(county: string): RoCity {
+    const q = fold(county ?? '');
+    const hit = RO_CITIES.find((c) => fold(c.county) === q);
+    if (!hit) throw new NotFoundException('Unknown county');
+    return hit;
   }
 
   /**

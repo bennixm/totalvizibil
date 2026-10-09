@@ -544,16 +544,9 @@ watch(
               <p class="dcard__hero">
                 <template v-if="location.nationwide">{{ t('dashboard.radiusCountry') }}</template>
                 <template v-else
-                  >{{ location.city
-                  }}<span v-if="location.region">, {{ location.region }}</span></template
+                  >{{ location.county
+                  }}<span v-if="location.city">, {{ location.city }}</span></template
                 >
-              </p>
-              <p v-if="!location.nationwide" class="dcard__sub">
-                {{
-                  location.serviceRadiusKm
-                    ? t('dashboard.radius', { n: location.serviceRadiusKm })
-                    : t('dashboard.radiusUnset')
-                }}
               </p>
               <router-link
                 v-if="!pendingDeletion"

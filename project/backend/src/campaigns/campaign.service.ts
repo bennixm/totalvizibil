@@ -352,17 +352,8 @@ export class CampaignService {
    * uses, so the recommendation and the score agree.
    */
   private async suggestFor(companyId: string): Promise<CampaignSuggestions> {
-    const [location, marketMaxCpcMinor] = await Promise.all([
-      this.prisma.companyLocation.findFirst({
-        where: { companyId, isPrimary: true },
-        select: { serviceRadiusKm: true },
-      }),
-      this.analytics.marketCpcFor(companyId),
-    ]);
-    return suggestCampaign({
-      radiusKm: location?.serviceRadiusKm ?? null,
-      marketMaxCpcMinor,
-    });
+    const marketMaxCpcMinor = await this.analytics.marketCpcFor(companyId);
+    return suggestCampaign({ marketMaxCpcMinor });
   }
 
   async get(userId: string, companyId: string) {

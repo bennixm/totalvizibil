@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
-  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -17,39 +16,34 @@ export class SetCompanyLocationDto {
   @IsBoolean()
   nationwide?: boolean;
 
+  /** The județ served — required unless `nationwide` is set. */
   @ValidateIf((o: SetCompanyLocationDto) => !o.nationwide)
+  @IsString()
+  @MaxLength(40)
+  county?: string;
+
+  /** Optional — the map pin / exact-address display, not used for matching. */
+  @IsOptional()
   @IsString()
   @MaxLength(120)
   city?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(120)
-  region?: string;
-
-  @IsOptional()
-  @IsString()
   @MaxLength(2)
   country?: string;
 
-  @ValidateIf((o: SetCompanyLocationDto) => !o.nationwide)
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(-90)
   @Max(90)
   lat?: number;
 
-  @ValidateIf((o: SetCompanyLocationDto) => !o.nationwide)
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(-180)
   @Max(180)
   lng?: number;
-
-  @ValidateIf((o: SetCompanyLocationDto) => !o.nationwide)
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(200)
-  radiusKm?: number;
 }

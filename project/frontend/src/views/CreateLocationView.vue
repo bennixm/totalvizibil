@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import LocationMap from '@/components/LocationMap.vue'
 import InfoHint from '@/components/InfoHint.vue'
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
-import { searchCities, nearestCity, type GeoCity } from '@/services/geo'
+import { fetchCounties, nearestCity, countyCenter } from '@/services/geo'
 import { fetchCategoryTree, type CategoryGroup } from '@/services/categories'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore, type LocalizedName } from '@/stores/companies'
@@ -20,7 +20,7 @@ const auth = useAuthStore()
 const companies = useCompaniesStore()
 const draftStore = useWebsiteDraftStore()
 
-const DEFAULT = { lat: 44.4268, lng: 26.1025, radiusKm: 15 } // București
+const DEFAULT = { lat: 44.4268, lng: 26.1025 } // București
 
 // 'draft' = pre-account (free flow), 'company' = post-account (advanced flow / edit).
 const mode = ref<'draft' | 'company' | null>(null)
@@ -33,41 +33,38 @@ watch(error, (v) => { if (v) toasts.error(v) })
 // (i.e. not a step in onboarding — just a settings change).
 const editing = ref(false)
 
-// The city input can also hold the synthetic "România" option → whole-country
-// coverage (and no km radius).
-type CityOption = GeoCity & { nationwide?: boolean }
+// Service area is by județ (Romanian county) — one, several, or every one at
+// once (collapsed to "Toată țara", a pickable shortcut either way: choosing
+// it selects every county, and manually ticking every county is recognised
+// as the same thing). Never a radius. The map pin (city/lat/lng) is
+// optional, for the public page's exact-address display only; it plays no
+// part in matching.
+const NATIONWIDE = '__nationwide__'
+const counties = ref<string[]>([])
+const countyItems = computed(() => [
+  { title: t('location.nationwideOption'), value: NATIONWIDE },
+  ...counties.value.map((c) => ({ title: c, value: c })),
+])
+const countySelections = ref<string[]>([])
+const nationwide = computed(() => countySelections.value.includes(NATIONWIDE))
+/** The real județe chosen (excludes the sentinel) — empty while nationwide. */
+const countiesChosen = computed(() => countySelections.value.filter((v) => v !== NATIONWIDE))
 
-const city = ref<CityOption | null>(null)
-const region = ref<string>('')
+const city = ref<string>('')
 const lat = ref(DEFAULT.lat)
 const lng = ref(DEFAULT.lng)
-const radiusKm = ref(DEFAULT.radiusKm)
-// Serves the whole country — hides the km radius entirely.
-const nationwide = ref(false)
 
-const cityItems = ref<GeoCity[]>([])
-const cityQuery = ref('')
-// A picked "România" means whole-country coverage — no map, no radius.
-const nationwideOption = computed<CityOption>(() => ({
-  name: 'România',
-  county: t('location.nationwideOptionHint'),
-  lat: 45.9432,
-  lng: 24.9668,
-  nationwide: true,
-}))
-const cityOptions = computed<CityOption[]>(() => {
-  const q = cityQuery.value.trim().toLowerCase()
-  const showRo = !q || 'romania'.startsWith(q) || 'romania toata tara'.includes(q)
-  return showRo ? [nationwideOption.value, ...cityItems.value] : [...cityItems.value]
-})
-const searching = ref(false)
 const saving = ref(false)
 const saved = ref(false)
 
-// Category (2-level, required): a parent group + an exact-niche subcategory.
+// Category (2-level, required): a parent group + one or more real
+// subcategories. Selecting every subcategory under the group is how a
+// business ends up classified as "Servicii complete {group}" — that's a
+// derived feed-search state, never a separate pickable option here.
 const catTree = ref<CategoryGroup[]>([])
 const groupSlug = ref<string | null>(null)
-const leafSlug = ref<string | null>(null)
+const leafSlugs = ref<string[]>([])
+const suggesting = ref(false)
 
 function catName(n: LocalizedName): string {
   return n[locale.value as keyof LocalizedName] ?? n.en
@@ -75,47 +72,51 @@ function catName(n: LocalizedName): string {
 const groupItems = computed(() =>
   catTree.value.map((g) => ({ title: catName(g.name), value: g.slug })),
 )
-const leafItems = computed(() => {
-  const g = catTree.value.find((x) => x.slug === groupSlug.value)
-  if (!g) return []
-  // First option = the whole group ("all services in this category").
-  return [
-    { title: t('location.categoryAll', { group: catName(g.name) }), value: g.slug },
-    ...g.children.map((c) => ({ title: catName(c.name), value: c.slug })),
-  ]
-})
-function isValidLeaf(g: CategoryGroup | undefined, slug: string | null): boolean {
-  return !!g && (slug === g.slug || g.children.some((c) => c.slug === slug))
-}
-function onGroupChange(): void {
-  const g = catTree.value.find((x) => x.slug === groupSlug.value)
-  if (!isValidLeaf(g, leafSlug.value)) leafSlug.value = null
+const currentGroup = computed(() => catTree.value.find((x) => x.slug === groupSlug.value))
+const leafItems = computed(() =>
+  (currentGroup.value?.children ?? []).map((c) => ({ title: catName(c.name), value: c.slug })),
+)
+
+function onLeafSlugsChange(vals: string[]): void {
+  leafSlugs.value = vals
   saved.value = false
 }
-function preselectCategory(slug: string | null | undefined): void {
-  if (!slug) return
-  const parent = catTree.value.find((x) => x.children.some((c) => c.slug === slug))
+function onGroupChange(): void {
+  leafSlugs.value = []
+  saved.value = false
+}
+function preselectCategory(slugs: string[] | null | undefined): void {
+  if (!slugs?.length) return
+  const first = slugs[0]
+  const parent = catTree.value.find((x) => x.children.some((c) => c.slug === first))
   if (parent) {
     groupSlug.value = parent.slug
-    leafSlug.value = slug
-    return
-  }
-  // A parent-group slug on its own → "all of {group}".
-  const group = catTree.value.find((x) => x.slug === slug)
-  if (group) {
-    groupSlug.value = group.slug
-    leafSlug.value = group.slug
+    leafSlugs.value = slugs.filter((s) => parent.children.some((c) => c.slug === s))
   }
 }
 
-let debounce: ReturnType<typeof setTimeout> | undefined
+/** AI-assisted suggestion from the services already collected in the studio
+ *  flow — pre-fills the picker, fully editable before saving. Draft-only: an
+ *  existing company (editing its area later) already has its tagging set. */
+async function suggestLeaves(): Promise<void> {
+  if (!groupSlug.value || suggesting.value) return
+  suggesting.value = true
+  try {
+    const slugs = await draftStore.suggestCategories(groupSlug.value)
+    if (slugs.length) {
+      leafSlugs.value = slugs
+      saved.value = false
+      toasts.success(t('location.suggestApplied'))
+    } else {
+      toasts.info(t('location.suggestNone'))
+    }
+  } finally {
+    suggesting.value = false
+  }
+}
 
 const canContinue = computed(
-  () =>
-    !!leafSlug.value &&
-    // Whole-country coverage needs no city or map pin.
-    (nationwide.value ||
-      (!!city.value && Number.isFinite(lat.value) && Number.isFinite(lng.value))),
+  () => leafSlugs.value.length > 0 && countySelections.value.length > 0,
 )
 // Where "back" goes in the pre-account flow — the advanced plan started at the
 // advanced info screen, not the easy studio.
@@ -138,79 +139,61 @@ const ctaText = computed(() => {
   return editing.value ? t('location.save') : t('location.continue')
 })
 
-async function runSearch(q: string): Promise<void> {
-  searching.value = true
-  try {
-    cityItems.value = await searchCities(q)
-  } catch {
-    cityItems.value = []
-  } finally {
-    searching.value = false
-  }
-}
-
-function onSearch(q: string): void {
-  cityQuery.value = q
-  clearTimeout(debounce)
-  debounce = setTimeout(() => void runSearch(q), 220)
-}
-
-function onCityPick(picked: CityOption | null): void {
-  if (!picked) {
-    nationwide.value = false
-    return
-  }
-  if (picked.nationwide) {
-    nationwide.value = true
-    saved.value = false
-    return
-  }
-  nationwide.value = false
-  region.value = picked.county
-  lat.value = picked.lat
-  lng.value = picked.lng
+/** Picking "Toată țara" selects every județ (collapsed to just the sentinel
+ *  in the chips); manually ticking every real județ is recognised as the
+ *  same thing and collapses the same way — both directions of the rule. */
+function onCountySelectionsChange(vals: string[]): void {
+  const justPickedNationwide = vals.includes(NATIONWIDE) && !nationwide.value
+  const realPicks = vals.filter((v) => v !== NATIONWIDE)
+  const pickedEveryCounty = counties.value.length > 0 && realPicks.length === counties.value.length
+  countySelections.value = justPickedNationwide || pickedEveryCounty ? [NATIONWIDE] : realPicks
   saved.value = false
+  // Re-centre on the (new) first county's main city — a sensible default pin
+  // the owner can fine-tune by clicking elsewhere on the map.
+  const primary = countiesChosen.value[0]
+  if (primary) {
+    void countyCenter(primary)
+      .then((center) => {
+        lat.value = center.lat
+        lng.value = center.lng
+        city.value = center.name
+      })
+      .catch(() => {
+        /* keep whatever point was already set */
+      })
+  }
 }
 
-// Moving the pin on the map updates the coordinates AND the city input (to the
-// nearest known city) so the two never drift apart.
+// Moving the pin on the map updates the coordinates, fills the city name for
+// display, AND adds that county to the selection (as the primary/first one)
+// if it isn't already there — the map is a precise way to add a județ, not
+// just to fine-tune one already picked.
 function onMapPick(p: { lat: number; lng: number }): void {
   lat.value = Number(p.lat.toFixed(5))
   lng.value = Number(p.lng.toFixed(5))
   saved.value = false
-  void (async () => {
-    try {
-      const near = await nearestCity(lat.value, lng.value)
-      const opt: CityOption = { name: near.name, county: near.county, lat: lat.value, lng: lng.value }
-      cityItems.value = [opt, ...cityItems.value.filter((c) => c.name !== opt.name)]
-      city.value = opt
-      region.value = near.county
-    } catch {
+  void nearestCity(lat.value, lng.value)
+    .then((near) => {
+      city.value = near.name
+      if (counties.value.includes(near.county) && !countiesChosen.value.includes(near.county)) {
+        countySelections.value = [near.county, ...countiesChosen.value]
+      }
+    })
+    .catch(() => {
       /* keep the raw point — the input just won't get a city name */
-    }
-  })()
+    })
 }
 
 function prefill(loc: {
   city: string | null
-  region: string | null
+  counties: string[]
   lat: number | null
   lng: number | null
-  radiusKm: number | null
   nationwide?: boolean
 }): void {
-  nationwide.value = !!loc.nationwide
-  radiusKm.value = loc.radiusKm ?? DEFAULT.radiusKm
-  // Whole-country coverage → show "România" in the input, nothing else to restore.
-  if (loc.nationwide) {
-    city.value = nationwideOption.value
-    return
-  }
-  if (loc.city && loc.lat != null && loc.lng != null) {
-    const p: GeoCity = { name: loc.city, county: loc.region ?? '', lat: loc.lat, lng: loc.lng }
-    cityItems.value = [p]
-    city.value = p
-    region.value = loc.region ?? ''
+  countySelections.value = loc.nationwide ? [NATIONWIDE] : loc.counties
+  city.value = loc.city ?? ''
+  if (loc.lat != null && loc.lng != null) {
     lat.value = loc.lat
     lng.value = loc.lng
   }
@@ -221,14 +204,13 @@ async function save(): Promise<void> {
   saving.value = true
   error.value = ''
   const payload = nationwide.value
-    ? { categorySlug: leafSlug.value!, nationwide: true }
+    ? { categorySlugs: leafSlugs.value, nationwide: true }
     : {
-        categorySlug: leafSlug.value!,
-        city: city.value!.name,
-        region: region.value || undefined,
+        categorySlugs: leafSlugs.value,
+        counties: countiesChosen.value,
+        city: city.value || undefined,
         lat: lat.value,
         lng: lng.value,
-        radiusKm: radiusKm.value,
         nationwide: false,
       }
   try {
@@ -254,7 +236,10 @@ async function save(): Promise<void> {
 }
 
 onMounted(async () => {
-  catTree.value = await fetchCategoryTree().catch(() => [])
+  ;[catTree.value, counties.value] = await Promise.all([
+    fetchCategoryTree().catch(() => []),
+    fetchCounties().catch(() => []),
+  ])
 
   // Arriving with ?c=… while signed in means "edit this business's coverage
   // area" — a plain settings change reached from the dashboard. It must operate
@@ -269,10 +254,9 @@ onMounted(async () => {
   const hasDraft = editingCompany ? false : await draftStore.resumeIfAny()
   if (hasDraft && draftStore.draft?.ready) {
     mode.value = 'draft'
-    preselectCategory(draftStore.draft.categorySlug)
+    preselectCategory(draftStore.draft.categorySlugs)
     const loc = draftStore.draft.location
     if (loc) prefill(loc)
-    await runSearch(loc?.city ?? '')
     ready.value = true
     return
   }
@@ -295,23 +279,24 @@ onMounted(async () => {
       return
     }
     companyId.value = company.id
-    preselectCategory(company.category?.slug)
-    const loc = company.locations.find((l) => l.isPrimary) ?? company.locations[0]
-    // A coverage area is already on file (a city pin, or whole-country) → this
+    preselectCategory(company.categories.map((c) => c.slug))
+    // The full served-area set — every row, not just the primary pin.
+    const primaryLoc = company.locations.find((l) => l.isPrimary) ?? company.locations[0]
+    const isNationwide = company.locations.some((l) => l.nationwide)
+    const countyList = company.locations.map((l) => l.county).filter((c): c is string => !!c)
+    // A coverage area is already on file (a județ, or whole-country) → this
     // is a settings edit, not the onboarding step.
-    const hasCoverage = !!loc && (loc.nationwide || (loc.lat != null && loc.lng != null))
+    const hasCoverage = isNationwide || countyList.length > 0
     editing.value = hasCoverage
-    if (loc && hasCoverage) {
+    if (hasCoverage) {
       prefill({
-        city: loc.city,
-        region: loc.region,
-        lat: loc.lat,
-        lng: loc.lng,
-        radiusKm: loc.serviceRadiusKm,
-        nationwide: loc.nationwide,
+        city: primaryLoc?.city ?? null,
+        counties: countyList,
+        lat: primaryLoc?.lat ?? null,
+        lng: primaryLoc?.lng ?? null,
+        nationwide: isNationwide,
       })
     }
-    await runSearch(loc?.city ?? '')
     ready.value = true
     return
   }
@@ -319,8 +304,6 @@ onMounted(async () => {
   if (hasDraft) void router.replace({ name: draftEntry.value })
   else void router.replace({ name: 'create' })
 })
-
-onBeforeUnmount(() => clearTimeout(debounce))
 </script>
 
 <template>
@@ -358,69 +341,62 @@ onBeforeUnmount(() => clearTimeout(debounce))
           @update:model-value="onGroupChange"
         />
         <v-select
-          v-model="leafSlug"
+          :model-value="leafSlugs"
           :items="leafItems"
           :label="t('location.categoryLeafLabel')"
           :disabled="!groupSlug"
           :placeholder="groupSlug ? '' : t('location.categoryLeafEmpty')"
           variant="outlined"
           density="comfortable"
+          multiple
+          chips
+          closable-chips
           hide-details
-          @update:model-value="saved = false"
+          @update:model-value="onLeafSlugsChange"
         />
+      </div>
+      <div v-if="mode === 'draft' && groupSlug" class="loc__suggest">
+        <v-btn
+          size="small"
+          variant="tonal"
+          color="primary"
+          prepend-icon="mdi-auto-fix"
+          :loading="suggesting"
+          @click="suggestLeaves"
+        >
+          {{ t('location.suggestButton') }}
+        </v-btn>
       </div>
 
       <div class="loc__fieldhead">
         <span>{{ t('location.areaSection') }}</span>
-        <InfoHint :text="`${t('location.feedNote')} ${t('location.mapHint')}`" />
+        <InfoHint :text="t('location.feedNote')" />
       </div>
-      <v-autocomplete
-        v-model="city"
-        :items="cityOptions"
-        item-title="name"
-        return-object
-        no-filter
-        hide-no-data
-        auto-select-first
-        :loading="searching"
-        :label="t('location.cityLabel')"
-        :placeholder="t('location.cityPlaceholder')"
+      <v-select
+        :model-value="countySelections"
+        :items="countyItems"
+        :label="t('location.countyLabel')"
         prepend-inner-icon="mdi-map-marker-outline"
         variant="outlined"
         density="comfortable"
-        @update:search="onSearch"
-        @update:model-value="onCityPick"
-      >
-        <template #item="{ props: itemProps, item }">
-          <v-list-item v-bind="itemProps" :title="item.raw.name" :subtitle="item.raw.county" />
-        </template>
-      </v-autocomplete>
+        multiple
+        chips
+        closable-chips
+        hide-details
+        @update:model-value="onCountySelectionsChange"
+      />
 
       <div v-if="nationwide" class="loc__note">
         <span>{{ t('location.nationwideHint') }}</span>
       </div>
 
       <template v-else>
-        <div class="loc__map">
-          <LocationMap :lat="lat" :lng="lng" :radius-km="radiusKm" @pick="onMapPick" />
+        <div class="loc__fieldhead">
+          <span>{{ t('location.mapLabel') }}</span>
+          <InfoHint :text="t('location.mapHint')" />
         </div>
-
-        <div class="loc__radius">
-          <div class="loc__radiusTop">
-            <label for="loc-radius">{{ t('location.radiusLabel') }}</label>
-            <strong>{{ t('location.radiusValue', { n: radiusKm }) }}</strong>
-          </div>
-          <v-slider
-            id="loc-radius"
-            v-model="radiusKm"
-            :min="1"
-            :max="100"
-            :step="1"
-            color="primary"
-            thumb-label
-            hide-details
-            @update:model-value="saved = false"
-          />
+        <div class="loc__map">
+          <LocationMap :lat="lat" :lng="lng" @pick="onMapPick" />
         </div>
       </template>
 
@@ -508,6 +484,7 @@ onBeforeUnmount(() => clearTimeout(debounce))
 .loc__cat {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: 0.75rem;
 }
 @media (max-width: 560px) {
@@ -515,30 +492,13 @@ onBeforeUnmount(() => clearTimeout(debounce))
     grid-template-columns: 1fr;
   }
 }
+.loc__suggest {
+  margin-top: 0.6rem;
+}
 
 .loc__map {
   height: 340px;
   margin-top: 0.75rem;
-}
-
-.loc__nationwide {
-  margin-top: 1.5rem;
-}
-.loc__radius {
-  margin-top: 1.5rem;
-}
-.loc__radiusTop {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 0.25rem;
-}
-.loc__radiusTop label {
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-.loc__radiusTop strong {
-  color: rgb(var(--v-theme-primary));
 }
 
 .loc__note {

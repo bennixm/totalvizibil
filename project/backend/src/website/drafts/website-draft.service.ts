@@ -8,6 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../../ai/ai.service';
+import { resolveLocationInput } from '../../geo/ro-cities';
 import { ServiceItem } from '../website.types';
 import {
   EasyStep,
@@ -561,17 +562,38 @@ export class WebsiteDraftService {
   // --- location + claim ----------------------------------------------
 
   /**
-   * Assert a slug is an active category and return it. Accepts either an
-   * exact-niche (leaf) subcategory or a whole parent group ("all services in
-   * Construction"). The create flow must pin one so the business is filed in
-   * the feed.
+   * Assert a slug is an active, real leaf subcategory and return it. A bare
+   * parent-group slug is rejected — a business is tagged with real leaves
+   * only; "offers everything in the group" is derived from having all of
+   * them, never a separate tag (see `feed.service.ts`'s "Servicii complete").
    */
   async assertCategory(slug: string): Promise<{ id: string; slug: string }> {
     const category = await this.prisma.category.findUnique({ where: { slug } });
-    if (!category || !category.isActive) {
+    if (!category || !category.isActive || !category.parentId) {
       throw new BadRequestException('unknown_category');
     }
     return { id: category.id, slug: category.slug };
+  }
+
+  /**
+   * Assert a list of subcategory slugs: each must be an active leaf, and all
+   * must share one parent group (multi-group tagging isn't supported yet).
+   */
+  async assertCategories(slugs: string[]): Promise<{ id: string; slug: string }[]> {
+    const unique = Array.from(new Set(slugs.map((s) => s.trim()).filter(Boolean)));
+    if (!unique.length) throw new BadRequestException('category_required');
+
+    const resolved = await Promise.all(unique.map((s) => this.assertCategory(s)));
+
+    const rows = await this.prisma.category.findMany({
+      where: { id: { in: resolved.map((c) => c.id) } },
+      select: { id: true, parentId: true },
+    });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const parentIds = new Set(resolved.map((c) => byId.get(c.id)?.parentId).filter(Boolean));
+    if (parentIds.size > 1) throw new BadRequestException('category_mixed_groups');
+
+    return resolved;
   }
 
   /** Persist the location + category step (M2). Requires the one-pager first. */
@@ -579,13 +601,12 @@ export class WebsiteDraftService {
     id: string,
     token: string,
     input: {
-      categorySlug: string;
+      categorySlugs: string[];
+      counties?: string[];
       city?: string;
-      region?: string;
       country?: string;
       lat?: number;
       lng?: number;
-      radiusKm?: number;
       nationwide?: boolean;
     },
   ): Promise<WebsiteDraftView> {
@@ -593,24 +614,66 @@ export class WebsiteDraftService {
     if (draft.content == null) {
       throw new BadRequestException('generate_website_first');
     }
-    const category = await this.assertCategory(input.categorySlug);
-    const nationwide = !!input.nationwide;
+    const categories = await this.assertCategories(input.categorySlugs);
+    const { nationwide, counties } = resolveLocationInput(input);
 
     const updated = await this.prisma.websiteDraft.update({
       where: { id: draft.id },
       data: {
-        categorySlug: category.slug,
-        // Whole-country coverage carries no city, coordinates or radius.
+        categorySlugs: categories.map((c) => c.slug),
+        // Whole-country coverage carries no județe, city or coordinates.
+        locationCounties: nationwide ? [] : counties,
         locationCity: nationwide ? null : (input.city?.trim() ?? null),
-        locationRegion: nationwide ? null : input.region?.trim() || null,
         locationCountry: (input.country || 'RO').toUpperCase().slice(0, 2),
         locationLat: nationwide ? null : (input.lat ?? null),
         locationLng: nationwide ? null : (input.lng ?? null),
-        locationRadiusKm: nationwide ? null : Math.round(input.radiusKm ?? 15),
         locationNationwide: nationwide,
       },
     });
     return toDraftView(updated);
+  }
+
+  /**
+   * AI-assisted subcategory suggestion for the location step's multi-select:
+   * classifies the draft's own services list (collected earlier in the
+   * studio flow) against one parent group's closed subcategory set. The
+   * picker pre-fills with the result but stays fully editable — this never
+   * writes anything, it only suggests. Empty when there's no AI key, no
+   * services yet, or nothing in the list clearly matches.
+   */
+  async suggestCategories(id: string, token: string, parentSlug: string): Promise<string[]> {
+    const draft = await this.load(id, token);
+    const parent = await this.prisma.category.findUnique({
+      where: { slug: parentSlug },
+      select: { id: true, parentId: true },
+    });
+    if (!parent || parent.parentId) return [];
+
+    const leaves = await this.prisma.category.findMany({
+      where: { parentId: parent.id, isActive: true },
+      select: { slug: true, nameI18n: true },
+    });
+    const answers = (draft.answers ?? {}) as {
+      serviceNames?: string[];
+      businessType?: string;
+      locale?: string;
+    };
+    const services = answers.serviceNames ?? [];
+    if (!services.length || !leaves.length) return [];
+
+    const locale: 'ro' | 'en' | 'de' = ['ro', 'en', 'de'].includes(answers.locale ?? '')
+      ? (answers.locale as 'ro' | 'en' | 'de')
+      : 'ro';
+    const suggested = await this.ai.suggestSubcategories({
+      businessType: answers.businessType,
+      services,
+      leaves: leaves.map((l) => ({
+        slug: l.slug,
+        name: (l.nameI18n as Record<string, string>)[locale] ?? l.slug,
+      })),
+      locale,
+    });
+    return suggested ?? [];
   }
 
   /** Resolve a draft by its opaque token alone (used by the account claim step). */

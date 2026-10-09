@@ -1,64 +1,68 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
-  IsInt,
   IsNumber,
   IsOptional,
   IsString,
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateIf,
 } from 'class-validator';
 
 export class SetCompanyLocationDto {
-  /** Exact-niche category (leaf slug from the taxonomy). Required. */
-  @IsString()
-  @MaxLength(80)
-  categorySlug!: string;
+  /** Subcategory slug(s) from the taxonomy — one or several real leaves. Required. */
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(80, { each: true })
+  categorySlugs!: string[];
 
-  /** Required unless `nationwide` is set — whole-country coverage has no city. */
+  /**
+   * The județe served — one or several; required unless `nationwide` is set
+   * (picking every județ by hand auto-promotes to nationwide server-side too).
+   */
   @ValidateIf((o: SetCompanyLocationDto) => !o.nationwide)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(42)
+  @IsString({ each: true })
+  @MaxLength(40, { each: true })
+  counties?: string[];
+
+  /** Optional — the map pin / exact-address display, not used for matching. */
+  @IsOptional()
   @IsString()
   @MaxLength(120)
   city?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(120)
-  region?: string;
-
-  @IsOptional()
-  @IsString()
   @MaxLength(2)
   country?: string;
 
-  /** Required unless `nationwide` is set. */
-  @ValidateIf((o: SetCompanyLocationDto) => !o.nationwide)
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(-90)
   @Max(90)
   lat?: number;
 
-  /** Required unless `nationwide` is set. */
-  @ValidateIf((o: SetCompanyLocationDto) => !o.nationwide)
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(-180)
   @Max(180)
   lng?: number;
 
-  /** Coverage is the whole country — no city and no radius apply. */
+  /** Coverage is the whole country (the explicit shortcut) — no județe needed. */
   @IsOptional()
   @IsBoolean()
   nationwide?: boolean;
-
-  /** Required unless `nationwide` is set. */
-  @ValidateIf((o: SetCompanyLocationDto) => !o.nationwide)
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(200)
-  radiusKm?: number;
 }

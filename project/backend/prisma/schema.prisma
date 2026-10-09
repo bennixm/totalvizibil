@@ -186,9 +186,10 @@ model Category {
   position  Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")
 
-  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
-  children  Category[] @relation("CategoryTree")
-  companies Company[]
+  parent            Category?         @relation("CategoryTree", fields: [parentId], references: [id])
+  children          Category[]        @relation("CategoryTree")
+  companies         Company[]
+  companyCategories CompanyCategory[]
 
   @@map("categories")
 }
@@ -240,6 +241,12 @@ model Company {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   category                Category?                 @relation(fields: [categoryId], references: [id])
+  // Full multi-category tagging (PRD restructuring): one, several, or the
+  // single "Toate X" synthetic leaf. `categoryId` above stays as the
+  // primary/display category (kept in sync with the `isPrimary` row here) so
+  // every existing single-category call site keeps working untouched; new
+  // per-leaf ranking/billing code reads this relation instead.
+  categoryAssignments     CompanyCategory[]
   owner                   User                      @relation("CompanyOwner", fields: [ownerUserId], references: [id])
   members                 CompanyUser[]
   locations               CompanyLocation[]
@@ -260,6 +267,26 @@ model Company {
   @@index([categoryId])
   @@index([status])
   @@map("companies")
+}
+
+// A company's full subcategory tagging — many-to-many, replacing the old
+// assumption that `Company.categoryId` was the whole story. `isPrimary`
+// marks the one row that mirrors `Company.categoryId` (kept in sync by the
+// service layer), so existing single-category reads stay correct untouched.
+model CompanyCategory {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  categoryId String   @map("category_id") @db.Uuid
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, categoryId])
+  @@index([companyId])
+  @@index([categoryId])
+  @@map("company_categories")
 }
 
 // ---------------------------------------------------------------------------
@@ -506,21 +533,27 @@ model WebsiteDraft {
   content   Json?
   generator String?
 
-  // Exact-niche category (leaf slug from the 2-level taxonomy). Chosen on the
-  // location step; copied onto the Company at claim time. A business must have
-  // one to appear in the feed.
-  categorySlug String? @map("category_slug")
+  // Subcategory tag(s) — real leaf slugs from the 2-level taxonomy, one or
+  // several. Chosen on the location step; copied onto the Company's
+  // `company_categories` at claim time. A business must have at least one to
+  // appear in the feed. "Offers everything in the group" is derived from
+  // having every leaf, never a separate tag.
+  categorySlugs String[] @default([]) @map("category_slugs")
 
   // Location step (M2) — the service area that decides where the company can
-  // surface in the feed. Populated after the one-pager is generated.
-  locationCity       String? @map("location_city")
-  locationRegion     String? @map("location_region")
-  locationCountry    String? @map("location_country")
-  locationLat        Float?  @map("location_lat")
-  locationLng        Float?  @map("location_lng")
-  locationRadiusKm   Int?    @map("location_radius_km")
-  // Serves the whole country — no radius; the feed matches it for any area.
-  locationNationwide Boolean @default(false) @map("location_nationwide")
+  // surface in the feed. Populated after the one-pager is generated. Matching
+  // is by județ (Romanian county), never distance — `locationCounties` is
+  // what the feed compares; `locationCity`/lat/lng (the *first* county's pin)
+  // stay for the map / address display only. Selecting every județ (or the
+  // explicit "Toată țara" shortcut) collapses to `locationNationwide` instead
+  // — mirrors the category rule, but nationwide stays a pickable shortcut
+  // (42 boxes is too many to expect someone to tick one by one).
+  locationCity       String?  @map("location_city")
+  locationCounties   String[] @default([]) @map("location_counties")
+  locationCountry    String?  @map("location_country")
+  locationLat        Float?   @map("location_lat")
+  locationLng        Float?   @map("location_lng")
+  locationNationwide Boolean  @default(false) @map("location_nationwide")
 
   claimedCompanyId String? @unique @map("claimed_company_id") @db.Uuid
 
@@ -562,22 +595,28 @@ model CompanyUser {
   @@map("company_users")
 }
 
+// A company's service area is a SET of these rows — one per served județ —
+// OR exactly one `nationwide` row (selecting every județ collapses to that
+// single row instead of 42 real ones; mutually exclusive, enforced by the
+// service layer). Matching/competition (feed + CPC) is by județ, never by
+// distance — `county` is what the feed compares; `city`/`lat`/`lng` (set only
+// on the one `isPrimary` row — the map pin / exact-address display) play no
+// part in matching.
 model CompanyLocation {
-  id              String   @id @default(uuid()) @db.Uuid
-  companyId       String   @map("company_id") @db.Uuid
-  address         String?
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  address    String?
   // Null when `nationwide` is set — whole-country coverage has no fixed city.
-  city            String?
-  region          String?
-  country         String   @default("RO")
-  lat             Float?
-  lng             Float?
-  isPrimary       Boolean  @default(false) @map("is_primary")
-  serviceRadiusKm Int?     @map("service_radius_km")
-  // Serves the whole country — `serviceRadiusKm` is null and the feed matches it
-  // for any searched area (the km radius no longer applies).
-  nationwide      Boolean  @default(false)
-  createdAt       DateTime @default(now()) @map("created_at")
+  city       String?
+  county     String?
+  country    String   @default("RO")
+  lat        Float?
+  lng        Float?
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  // Serves the whole country — no county; the feed matches it for any
+  // searched județ.
+  nationwide Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 

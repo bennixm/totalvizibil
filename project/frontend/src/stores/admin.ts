@@ -382,8 +382,7 @@ export interface AdminCompanyDetail {
     } | null
     location: {
       city: string | null
-      region: string | null
-      radiusKm: number | null
+      county: string | null
       nationwide: boolean
       lat: number | null
       lng: number | null
@@ -425,11 +424,10 @@ export interface UpdateCompanyInput {
 export interface AdminCompanyLocationInput {
   nationwide?: boolean
   city?: string
-  region?: string
+  county?: string
   country?: string
   lat?: number
   lng?: number
-  radiusKm?: number
 }
 
 // --- affiliate program ------------------------------------------------
