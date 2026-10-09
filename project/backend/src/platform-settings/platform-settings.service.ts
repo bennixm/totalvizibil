@@ -20,6 +20,9 @@ export const SETTING_KEYS = {
   refundFeePct: 'refund_fee_pct',
   creditsDiscountEnabled: 'credits_discount_enabled',
   creditsDiscountPct: 'credits_discount_pct',
+  feedCostPromovareCredits: 'feed_cost_promovare_credits',
+  feedMarjaProfitCredits: 'feed_marja_profit_credits',
+  feedMarjaPozitionareCredits: 'feed_marja_pozitionare_credits',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -69,6 +72,21 @@ const MAX_REFUND_FEE_PCT = 100;
 const DEFAULT_DISCOUNT_PCT = 10;
 const MIN_DISCOUNT_PCT = 1;
 const MAX_DISCOUNT_PCT = 90;
+
+/**
+ * Feed CPC-local pricing (credits, may be fractional — stored with 2-decimal
+ * precision, the same granularity as minor units). `costPromovare` is the one
+ * value meant to eventually come from an external cost API instead of this
+ * static setting — swapping that in only means rewriting
+ * `feedCostPromovareCredits()` below, every caller stays the same.
+ */
+const DEFAULT_FEED_COST_PROMOVARE_CREDITS = 1;
+const DEFAULT_FEED_MARJA_PROFIT_CREDITS = 0.1;
+const DEFAULT_FEED_MARJA_POZITIONARE_CREDITS = 0.1;
+const MIN_FEED_COST_PROMOVARE_CREDITS = 0.01;
+const MAX_FEED_COST_PROMOVARE_CREDITS = 1000;
+const MIN_FEED_MARGIN_CREDITS = 0;
+const MAX_FEED_MARGIN_CREDITS = 1000;
 
 export interface InvoiceIssuer {
   name: string;
@@ -401,6 +419,95 @@ export class PlatformSettingsService {
     }
 
     return after;
+  }
+
+  // --- feed CPC-local pricing -------------------------------------------
+
+  /** Read a fractional-credit setting (2-decimal precision) with a sane fallback. */
+  private async decimalCreditSetting(
+    key: string,
+    fallback: number,
+    min: number,
+    max: number,
+  ): Promise<number> {
+    const raw = await this.get(key);
+    const parsed = raw != null ? Number(raw) : NaN;
+    if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+      if (raw != null) this.logger.warn(`Ignoring invalid ${key}=${raw}`);
+      return fallback;
+    }
+    return parsed;
+  }
+  private async setDecimalCreditSetting(
+    key: string,
+    credits: number,
+    min: number,
+    max: number,
+  ): Promise<number> {
+    if (!Number.isFinite(credits) || credits < min || credits > max) {
+      throw new BadRequestException(`${key} out of range`);
+    }
+    const rounded = Math.round(credits * 100) / 100;
+    await this.set(key, String(rounded));
+    return rounded;
+  }
+
+  /**
+   * Cost promovare — the floor cost of one Feed position, in credits. The one
+   * value meant to be swapped for a live external cost API later; every
+   * caller of this method is unaffected by that future change.
+   */
+  feedCostPromovareCredits(): Promise<number> {
+    return this.decimalCreditSetting(
+      SETTING_KEYS.feedCostPromovareCredits,
+      DEFAULT_FEED_COST_PROMOVARE_CREDITS,
+      MIN_FEED_COST_PROMOVARE_CREDITS,
+      MAX_FEED_COST_PROMOVARE_CREDITS,
+    );
+  }
+  setFeedCostPromovareCredits(credits: number): Promise<number> {
+    return this.setDecimalCreditSetting(
+      SETTING_KEYS.feedCostPromovareCredits,
+      credits,
+      MIN_FEED_COST_PROMOVARE_CREDITS,
+      MAX_FEED_COST_PROMOVARE_CREDITS,
+    );
+  }
+
+  /** Marjă profit — added on top of `costPromovare` to form CPC minim per Feed. */
+  feedMarjaProfitCredits(): Promise<number> {
+    return this.decimalCreditSetting(
+      SETTING_KEYS.feedMarjaProfitCredits,
+      DEFAULT_FEED_MARJA_PROFIT_CREDITS,
+      MIN_FEED_MARGIN_CREDITS,
+      MAX_FEED_MARGIN_CREDITS,
+    );
+  }
+  setFeedMarjaProfitCredits(credits: number): Promise<number> {
+    return this.setDecimalCreditSetting(
+      SETTING_KEYS.feedMarjaProfitCredits,
+      credits,
+      MIN_FEED_MARGIN_CREDITS,
+      MAX_FEED_MARGIN_CREDITS,
+    );
+  }
+
+  /** Marjă poziționare — per-position step in `CPC local = CPC minim + (N-poziție)×marjă`. */
+  feedMarjaPozitionareCredits(): Promise<number> {
+    return this.decimalCreditSetting(
+      SETTING_KEYS.feedMarjaPozitionareCredits,
+      DEFAULT_FEED_MARJA_POZITIONARE_CREDITS,
+      MIN_FEED_MARGIN_CREDITS,
+      MAX_FEED_MARGIN_CREDITS,
+    );
+  }
+  setFeedMarjaPozitionareCredits(credits: number): Promise<number> {
+    return this.setDecimalCreditSetting(
+      SETTING_KEYS.feedMarjaPozitionareCredits,
+      credits,
+      MIN_FEED_MARGIN_CREDITS,
+      MAX_FEED_MARGIN_CREDITS,
+    );
   }
 
   /** The platform's own billing identity, snapshotted onto every invoice issued. */

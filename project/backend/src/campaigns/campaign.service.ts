@@ -12,12 +12,33 @@ import { AnalyticsService } from '../analytics/analytics.service';
 import { AffiliateService } from '../affiliate/affiliate.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { DEFAULT_REFS, RUN_SCORE_GRACE_MS, effectiveActiveSeconds } from '../analytics/visibility';
+import {
+  chargeMinor,
+  cpcLocalMinor,
+  isEligibleForFeed,
+  rankPeersByFeedScore,
+} from '../analytics/feed-pricing';
+import {
+  FeedCompanyLike,
+  FeedId,
+  NATIONWIDE_FEED_COUNTY,
+  SearchCountyMode,
+  feedEligiblePeers,
+  primaryFeedOf,
+  resolveCompanyFeed,
+} from '../analytics/feed-resolver';
 import { creditsToMinor, minorToCredits, money } from '../wallet/money';
 import { CampaignSuggestions, CampaignTier, suggestCampaign } from './campaign-advisor';
 import { analyzeCampaign } from './campaign-optimizer';
 import { autoBudgetCapMinor, autoResolvedCpcMinor } from './auto-cpc';
 import { isLikelyBot, utcDay, visitorFingerprint } from './ad-click';
 import { SaveCampaignDto } from './dto/save-campaign.dto';
+
+/** Hint from the search that produced the impression — which Feed to price this click against. */
+export interface ClickFeedHint {
+  categorySlug?: string;
+  county?: string;
+}
 
 const CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager, CompanyRole.billing];
 
@@ -229,25 +250,67 @@ export class CampaignService {
   }
 
   /**
-   * A visitor accessed the listing. Bills one `cpcMinor` from the owner's wallet
-   * — at most once per (visitor, listing, UTC day) — while the campaign is
-   * `active`. Everything is one transaction: the click row, the wallet debit and
-   * the daily counter move together. Obvious bots and repeat visitors are
-   * recorded but never charged; hitting the daily budget or an empty wallet
-   * depletes the campaign (out of the feed) until it recovers.
+   * Resolve which atomic Feed (județ, subcategorie) a click is priced
+   * against: the hinted leaf/county from the search that produced the
+   * impression, validated against what the company actually competes in —
+   * falling back to the company's own primary Feed when there's no hint, the
+   * hint doesn't resolve to a real leaf, or the company doesn't compete there.
+   */
+  private async resolveClickFeed(
+    tx: Prisma.TransactionClient,
+    company: FeedCompanyLike,
+    hint?: ClickFeedHint,
+  ): Promise<FeedId | null> {
+    if (hint?.categorySlug) {
+      const leaf = await tx.category.findUnique({
+        where: { slug: hint.categorySlug },
+        select: { id: true, parentId: true },
+      });
+      if (leaf?.parentId) {
+        const countyMode: SearchCountyMode = !hint.county
+          ? { kind: 'any' }
+          : hint.county === NATIONWIDE_FEED_COUNTY
+            ? { kind: 'nationwideOnly' }
+            : { kind: 'named', counties: [hint.county] };
+        const resolved = resolveCompanyFeed(company, [leaf.id], countyMode);
+        if (resolved) return resolved;
+      }
+    }
+    return primaryFeedOf(company);
+  }
+
+  /**
+   * A visitor accessed the listing. Bills one click from the owner's wallet —
+   * at most once per (visitor, listing, UTC day) — while the campaign is
+   * `active`. The amount charged is this click's CPC local in its atomic Feed
+   * (CPC minim + Taxă poziție for the company's current position there),
+   * never above the company's own CPC maxim (`chargeMinor`'s hard ceiling).
+   * Everything is one transaction: the click row, the wallet debit and the
+   * daily counter move together. Obvious bots and repeat visitors are
+   * recorded but never charged; hitting the daily budget, an empty wallet, or
+   * the Feed's CPC minim floor depletes/excludes the campaign until it
+   * recovers.
    */
   async registerClick(
     companyId: string,
     ip: string | undefined,
     userAgent: string | undefined,
+    feedHint?: ClickFeedHint,
   ): Promise<ClickResult> {
     const day = utcDay();
     const visitorHash = visitorFingerprint(ip, userAgent, companyId, day);
+    const cfg = await this.analytics.marginConfig();
 
     return this.prisma.$transaction(async (tx): Promise<ClickResult> => {
       const company = await tx.company.findUnique({
         where: { id: companyId },
-        select: { ownerUserId: true },
+        select: {
+          ownerUserId: true,
+          categoryAssignments: { select: { categoryId: true, isPrimary: true, createdAt: true } },
+          locations: {
+            select: { county: true, nationwide: true, isPrimary: true, createdAt: true },
+          },
+        },
       });
       if (!company) return { billed: false, reason: 'no_campaign' };
 
@@ -276,8 +339,32 @@ export class CampaignService {
         return free('no_campaign');
       }
 
+      if (!isEligibleForFeed(campaign.cpcMinor, cfg)) {
+        return free('below_minimum');
+      }
+      const feedId = await this.resolveClickFeed(tx, company, feedHint);
+      if (!feedId) return free('no_feed');
+
+      const peers = await feedEligiblePeers(tx, feedId, cfg);
+      if (!peers.some((p) => p.companyId === companyId)) {
+        return free('below_minimum');
+      }
+      const maxBidMinor = peers.reduce((mx, p) => Math.max(mx, p.cpcMinor), 0);
+      const peerIds = peers.map((p) => p.companyId);
+      const [vinputs, boosted] = await Promise.all([
+        this.analytics.visibilityInputsFor(peerIds),
+        tx.campaign.findMany({
+          where: { companyId: { in: peerIds }, status: CampaignStatus.active, appearFirst: true },
+          select: { companyId: true },
+        }),
+      ]);
+      const boostSet = new Set(boosted.map((b) => b.companyId));
+      const ranked = rankPeersByFeedScore(peerIds, vinputs, maxBidMinor, boostSet);
+      const position = ranked.findIndex((r) => r.companyId === companyId) + 1;
+      const cpcLocal = cpcLocalMinor(position, peers.length, cfg);
+      const cpc = chargeMinor(campaign.cpcMinor, cpcLocal);
+
       const today = startOfUtcDay();
-      const cpc = campaign.cpcMinor;
 
       // Reserve today's budget for this click with a single atomic UPDATE —
       // the day-roll check, the "is there still room" check and the spend
@@ -326,7 +413,12 @@ export class CampaignService {
 
       await tx.adClick.update({
         where: { id: clickId },
-        data: { billed: true, costMinor: cpc },
+        data: {
+          billed: true,
+          costMinor: cpc,
+          feedCounty: feedId.county,
+          feedCategoryId: feedId.leafId,
+        },
       });
 
       // This click may have used up the budget or the wallet — drop out now.
@@ -346,14 +438,20 @@ export class CampaignService {
   // --- API -----------------------------------------------------------
 
   /**
-   * Rule-based tier suggestions for one company. The recommended CPC is set
-   * above the highest CPC any *other* active campaign in the same category
-   * group is bidding — the same market the Visibility Score's CPC reference
-   * uses, so the recommendation and the score agree.
+   * Rule-based tier suggestions for one company. `standard` is the flat,
+   * Feed-independent starting number. `appearFirst` is the re-adapted "CPC
+   * maxim recomandat": the max, across every Feed the company is eligible in,
+   * of the CPC local a position-1 slot there would ask for — falling back to
+   * `suggestCampaign()`'s flat market heuristic only when the company has no
+   * resolvable Feed yet (no category/location set).
    */
   private async suggestFor(companyId: string): Promise<CampaignSuggestions> {
-    const marketMaxCpcMinor = await this.analytics.marketCpcFor(companyId);
-    return suggestCampaign({ marketMaxCpcMinor });
+    const [marketMaxCpcMinor, recommended] = await Promise.all([
+      this.analytics.marketCpcFor(companyId),
+      this.analytics.recommendedCpcFor(companyId),
+    ]);
+    const fallback = suggestCampaign({ marketMaxCpcMinor });
+    return { standard: fallback.standard, appearFirst: recommended ?? fallback.appearFirst };
   }
 
   async get(userId: string, companyId: string) {
@@ -569,7 +667,8 @@ export class CampaignService {
                count(*) FILTER (WHERE "billed")::int AS billed,
                COALESCE(SUM("cost_minor") FILTER (WHERE "billed"), 0)::int AS spent_minor,
                count(*) FILTER (WHERE NOT "billed" AND "reason" = 'bot')::int AS bot,
-               count(*) FILTER (WHERE NOT "billed" AND "reason" IN ('no_campaign', 'budget'))::int AS off,
+               count(*) FILTER (WHERE NOT "billed" AND "reason" IN
+                 ('no_campaign', 'budget', 'no_feed', 'below_minimum'))::int AS off,
                count(*) FILTER (WHERE NOT "billed" AND "reason" = 'insufficient')::int AS broke
         FROM "ad_clicks"
         WHERE "company_id" = ${companyId}::uuid AND "created_at" >= ${q30Start}

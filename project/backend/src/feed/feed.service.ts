@@ -6,21 +6,29 @@ import { AnalyticsService } from '../analytics/analytics.service';
 import {
   APPEAR_FIRST_BOOST,
   DEFAULT_REFS,
+  EMPTY_VISIBILITY_INPUT,
   visibilityScore,
-  type VisibilityInput,
 } from '../analytics/visibility';
 import { FeedQueryDto } from './feed.query';
+import {
+  FeedId,
+  NATIONWIDE_FEED_COUNTY,
+  SearchCountyMode,
+  feedEligiblePeers,
+  resolveCompanyFeed,
+} from '../analytics/feed-resolver';
 
 const RANKING_NOTE =
   'A category (group or niche) must be selected — nothing is listed otherwise. ' +
-  'Only businesses with a funded, active campaign appear. Order is strictly the ' +
-  'Visibility Score: CPC (per-click bid vs the category-leading bid, capped by ' +
-  'daily budget) x0.35 + Response rate/speed x0.30 + Plan (advanced > easy) x0.20 ' +
-  '+ Campaign age x0.15; a funded "appear first" tier adds a fixed lift. Category, ' +
-  'and județ (or "nationwide" businesses only), only filter — never reorder.';
+  'Only businesses with a funded, active campaign, eligible in their own atomic ' +
+  'Feed (județ + subcategorie — CPC maxim ≥ CPC minim), appear. Order is the ' +
+  "combined score: CPC (bid vs that Feed's top bid) x0.50 + Response rate/speed " +
+  'x0.20 + Plan (advanced > easy) x0.15 + Campaign age x0.15; a funded "appear ' +
+  'first" tier adds a fixed lift. Category and județ (or "nationwide" businesses ' +
+  "only) filter and decide each item's atomic Feed — never reorder beyond that.";
 
 /** Sentinel `county` value — "only businesses that serve the whole country". */
-const NATIONWIDE = 'nationwide';
+const NATIONWIDE = NATIONWIDE_FEED_COUNTY;
 
 /**
  * `category` sentinel prefix — "Servicii complete {parent}" ("Servicii
@@ -124,29 +132,20 @@ export function heroBillboard(
   return { title, subtitle, image, builtWithBuilder, accent };
 }
 
-const NO_VISIBILITY: VisibilityInput = {
-  cpcMinor: 0,
-  cpcRefMinor: 0,
-  dailyBudgetMinor: 0,
-  leadsTotal: 0,
-  leadsResponded: 0,
-  avgResponseMinutes: null,
-  planMode: null,
-  activeSeconds: 0,
-};
-
 const feedInclude = {
   category: { include: { parent: { select: { slug: true, nameI18n: true } } } },
   categoryAssignments: {
     include: { category: { select: { slug: true, nameI18n: true, icon: true } } },
     orderBy: { isPrimary: 'desc' },
   },
-  locations: { where: { isPrimary: true }, take: 1 },
+  // All of them, not just the primary — Feed resolution (multi-county firms)
+  // needs the full list; the display mapping below still only shows one.
+  locations: true,
   services: { orderBy: { position: 'asc' }, take: 6 },
   website: {
     select: { content: true, status: true, theme: true, generator: true, heroImageUrl: true },
   },
-  campaign: { select: { appearFirst: true, status: true } },
+  campaign: { select: { appearFirst: true, status: true, cpcMinor: true } },
   _count: { select: { services: true } },
 } satisfies Prisma.CompanyInclude;
 
@@ -179,22 +178,21 @@ export class FeedService {
    * A requested `category` value is one of four things:
    *
    *  - one or several real leaves (exact niches), comma-separated — matches
-   *    companies tagged with *any* of them (the feed's multi-select). A
-   *    single leaf is also the one subcategory CPC ranking prices this
-   *    search's competitiveness against (`effectiveLeafId`); two or more
-   *    leaves have no single pool to price against, so each company's CPC
-   *    sub-score falls back to its own best-case reference (`cpcRefsFor`);
+   *    companies tagged with *any* of them (the feed's multi-select);
    *  - a bare parent group ("Toate din X" — browse the whole category) —
-   *    matches the union of companies tagged with *any* of its leaves; same
-   *    CPC fallback as the multi-leaf case;
+   *    matches the union of companies tagged with *any* of its leaves;
    *  - the `complete-{parentSlug}` sentinel ("Servicii complete X" — not a
    *    real category, never stored on a company) — matches only companies
-   *    tagged with *every single* leaf under that parent; same CPC fallback.
+   *    tagged with *every single* leaf under that parent.
    *
-   * `null` when nothing in the value resolves to a known category.
+   * `leafIds` is always the full resolved leaf set (one or many) — it's what
+   * `resolveCompanyFeed` intersects against each candidate's own leaves to
+   * pick its one atomic Feed. `null` when nothing in the value resolves to a
+   * known category.
    */
   private async resolveCategory(raw: string): Promise<{
-    effectiveLeafId?: string;
+    /** Every leaf this resolves to — the set a company's own Feed must intersect. */
+    leafIds: string[];
     companyWhere: Prisma.CompanyWhereInput;
   } | null> {
     if (raw.startsWith(COMPLETE_PREFIX)) {
@@ -209,7 +207,7 @@ export class FeedService {
         where: { parentId: parent.id },
         select: { id: true },
       });
-      if (!leaves.length) return { companyWhere: { id: { in: [] } } };
+      if (!leaves.length) return { leafIds: [], companyWhere: { id: { in: [] } } };
 
       // "Has every leaf" = exactly N matching assignment rows, counting only
       // within this parent's N leaves (a company can't exceed N that way).
@@ -219,7 +217,10 @@ export class FeedService {
         _count: { categoryId: true },
         having: { categoryId: { _count: { equals: leaves.length } } },
       });
-      return { companyWhere: { id: { in: qualifying.map((r) => r.companyId) } } };
+      return {
+        leafIds: leaves.map((l) => l.id),
+        companyWhere: { id: { in: qualifying.map((r) => r.companyId) } },
+      };
     }
 
     const slugs = Array.from(
@@ -247,6 +248,7 @@ export class FeedService {
           select: { id: true },
         });
         return {
+          leafIds: children.map((c) => c.id),
           companyWhere: {
             categoryAssignments: { some: { categoryId: { in: children.map((c) => c.id) } } },
           },
@@ -254,7 +256,7 @@ export class FeedService {
       }
 
       return {
-        effectiveLeafId: cat.id,
+        leafIds: [cat.id],
         companyWhere: { categoryAssignments: { some: { categoryId: cat.id } } },
       };
     }
@@ -268,6 +270,7 @@ export class FeedService {
     const leafIds = cats.filter((c) => c.parentId).map((c) => c.id);
     if (!leafIds.length) return null;
     return {
+      leafIds,
       companyWhere: { categoryAssignments: { some: { categoryId: { in: leafIds } } } },
     };
   }
@@ -327,29 +330,73 @@ export class FeedService {
 
     const companies = await this.prisma.company.findMany({ where, include: feedInclude });
 
-    const vinputs = await this.analytics.visibilityInputsFor(
-      companies.map((c) => c.id),
-      resolved?.effectiveLeafId,
+    const cfg = await this.analytics.marginConfig();
+    const leafIds = resolved?.leafIds ?? [];
+    const countyMode: SearchCountyMode = counties.includes(NATIONWIDE)
+      ? { kind: 'nationwideOnly' }
+      : counties.length
+        ? { kind: 'named', counties }
+        : { kind: 'any' };
+
+    // Every candidate's exact atomic Feed for *this* search — never the one
+    // that would score it highest, see `resolveCompanyFeed`. A company with
+    // no resolvable Feed (shouldn't happen, the `where` above already
+    // required a match) is dropped.
+    const placed = companies
+      .map((c) => ({ c, feedId: resolveCompanyFeed(c, leafIds, countyMode) }))
+      .filter((p): p is { c: FeedCompany; feedId: FeedId } => p.feedId !== null);
+
+    // Each distinct Feed's TRUE eligible population (not just this page's
+    // candidates) — fetched once per distinct Feed, reused by every company
+    // placed in it.
+    const feedKey = (f: FeedId) => `${f.leafId}|${f.county}`;
+    const feedCache = new Map<
+      string,
+      { peers: { companyId: string; cpcMinor: number }[]; maxBidMinor: number }
+    >();
+    for (const { feedId } of placed) {
+      const key = feedKey(feedId);
+      if (feedCache.has(key)) continue;
+      const peers = await feedEligiblePeers(this.prisma, feedId, cfg);
+      feedCache.set(key, {
+        peers,
+        maxBidMinor: peers.reduce((mx, p) => Math.max(mx, p.cpcMinor), 0),
+      });
+    }
+
+    // Eligibility: a company must itself clear its own Feed's CPC minim —
+    // never shown, never billed below the floor.
+    const eligible = placed.filter(({ c, feedId }) =>
+      feedCache.get(feedKey(feedId))!.peers.some((p) => p.companyId === c.id),
     );
+
+    const vinputs = await this.analytics.visibilityInputsFor(eligible.map(({ c }) => c.id));
     const now = new Date();
 
-    const scored = companies.map((c) => {
+    const scored = eligible.map(({ c, feedId }) => {
       const relevance = this.relevance(c, q);
-      const vis = visibilityScore(vinputs.get(c.id) ?? NO_VISIBILITY, DEFAULT_REFS, now);
+      const maxBidMinor = feedCache.get(feedKey(feedId))!.maxBidMinor;
+      const vis = visibilityScore(
+        { ...(vinputs.get(c.id) ?? EMPTY_VISIBILITY_INPUT), cpcRefMinor: maxBidMinor },
+        DEFAULT_REFS,
+        now,
+      );
       const appearFirst = c.campaign?.appearFirst === true && c.campaign.status === 'active';
-      // A search gates by relevance; browsing is pure Visibility Score.
+      // A search gates by relevance; browsing is pure combined score.
       const score = vis.score * (q ? relevance : 1) + (appearFirst ? APPEAR_FIRST_BOOST : 0);
-      return { c, relevance, vis, appearFirst, score };
+      const feedCategorySlug =
+        c.categoryAssignments.find((a) => a.categoryId === feedId.leafId)?.category.slug ?? null;
+      return { c, feedId, feedCategorySlug, relevance, vis, appearFirst, score };
     });
 
-    // Strictly our ranking — highest Visibility Score (+ appear-first lift) first.
+    // Strictly our ranking — highest combined score (+ appear-first lift) first.
     scored.sort((a, b) => b.score - a.score);
 
     const total = scored.length;
     const start = (page - 1) * pageSize;
     const items = scored.slice(start, start + pageSize).map((row) => {
       const { c } = row;
-      const loc = c.locations[0] ?? null;
+      const loc = c.locations.find((l) => l.isPrimary) ?? c.locations[0] ?? null;
       const hasWebsite = !!c.website && c.website.status !== 'draft';
       const billboard: Billboard = hasWebsite
         ? heroBillboard(
@@ -398,6 +445,9 @@ export class FeedService {
         services: c.services.map((s) => s.name),
         servicesTotal: c._count.services,
         hasWebsite,
+        // Echo back verbatim on `/feed/click` — pins the click to the exact
+        // atomic Feed this listing was ranked in, so billing matches display.
+        clickHint: { category: row.feedCategorySlug, county: row.feedId.county },
         score: Number(row.score.toFixed(4)),
         scoreBreakdown: {
           visibility: Number(row.vis.score.toFixed(3)),

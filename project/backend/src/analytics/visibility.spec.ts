@@ -112,10 +112,10 @@ describe('effectiveActiveSeconds', () => {
 describe('visibilityScore', () => {
   const now = new Date('2026-08-31T00:00:00.000Z');
 
-  it('applies the fixed 0.35 / 0.30 / 0.20 / 0.15 weights', () => {
+  it('applies the 0.50 / 0.20 / 0.15 / 0.15 weights (CPC is the primary ranking criterion)', () => {
     const v = visibilityScore(
       {
-        cpcMinor: 100, // bid at the category-leading bid -> cpc = 1
+        cpcMinor: 100, // bid at the Feed-leading bid -> cpc = 1
         cpcRefMinor: 100,
         dailyBudgetMinor: 2000, // funded past the 20 cr ref
         leadsTotal: 0, // response = 0.5
@@ -131,8 +131,40 @@ describe('visibilityScore', () => {
     expect(v.response).toBe(0.5);
     expect(v.plan).toBe(1);
     expect(v.age).toBe(1);
-    // 0.35*1 + 0.30*0.5 + 0.20*1 + 0.15*1 = 0.85
-    expect(v.score).toBeCloseTo(0.85, 5);
+    // 0.50*1 + 0.20*0.5 + 0.15*1 + 0.15*1 = 0.90
+    expect(v.score).toBeCloseTo(0.9, 5);
+  });
+
+  it('a lower bid with a strong lead on the other three factors can still outrank a higher bid', () => {
+    const higherBidWeakOtherwise = visibilityScore(
+      {
+        cpcMinor: 430,
+        cpcRefMinor: 430, // it's the Feed's top bid
+        dailyBudgetMinor: DEFAULT_REFS.budgetRefMinor,
+        leadsTotal: 0,
+        leadsResponded: 0,
+        avgResponseMinutes: null,
+        planMode: 'easy',
+        activeSeconds: 0,
+      },
+      DEFAULT_REFS,
+      now,
+    );
+    const lowerBidStrongOtherwise = visibilityScore(
+      {
+        cpcMinor: 330,
+        cpcRefMinor: 430,
+        dailyBudgetMinor: DEFAULT_REFS.budgetRefMinor,
+        leadsTotal: 10,
+        leadsResponded: 10,
+        avgResponseMinutes: 5,
+        planMode: 'advanced',
+        activeSeconds: 30 * DAY,
+      },
+      DEFAULT_REFS,
+      now,
+    );
+    expect(lowerBidStrongOtherwise.score).toBeGreaterThan(higherBidWeakOtherwise.score);
   });
 
   it('a fast-responding advanced veteran outranks a fresh low-budget easy listing', () => {

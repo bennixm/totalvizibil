@@ -21,7 +21,7 @@ const to = computed(() =>
 )
 
 function onOpen(): void {
-  pingAdClick(props.item.id)
+  pingAdClick(props.item.id, props.item.clickHint)
 }
 
 function loc(n?: LocalizedName): string | null {

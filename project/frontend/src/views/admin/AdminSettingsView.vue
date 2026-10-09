@@ -27,6 +27,9 @@ const form = reactive({
   additionalBusinessPriceCredits: 0,
   invoiceVatRatePct: 0,
   refundFeePct: 0,
+  feedCostPromovareCredits: 0,
+  feedMarjaProfitCredits: 0,
+  feedMarjaPozitionareCredits: 0,
 })
 const affiliate = reactive({ enabled: false, rewardCredits: 20, minDeposit: 50 })
 const REWARD_MIN = 1
@@ -124,6 +127,38 @@ const pricingFields = [
     suffix: 'cr',
   },
 ]
+const feedPricingFields = [
+  {
+    key: 'feedCostPromovareCredits' as const,
+    label: 'adminSettings.feedCostPromovare',
+    hint: 'adminSettings.feedCostPromovareHint',
+    icon: 'mdi-bullhorn-outline',
+    min: 0.01,
+    max: 1000,
+    step: 0.01,
+    suffix: 'cr',
+  },
+  {
+    key: 'feedMarjaProfitCredits' as const,
+    label: 'adminSettings.feedMarjaProfit',
+    hint: 'adminSettings.feedMarjaProfitHint',
+    icon: 'mdi-percent-outline',
+    min: 0,
+    max: 1000,
+    step: 0.01,
+    suffix: 'cr',
+  },
+  {
+    key: 'feedMarjaPozitionareCredits' as const,
+    label: 'adminSettings.feedMarjaPozitionare',
+    hint: 'adminSettings.feedMarjaPozitionareHint',
+    icon: 'mdi-format-list-numbered',
+    min: 0,
+    max: 1000,
+    step: 0.01,
+    suffix: 'cr',
+  },
+]
 const billingFields = [
   {
     key: 'invoiceVatRatePct' as const,
@@ -149,8 +184,8 @@ const refundFields = [
   },
 ]
 // Combined only for validation/dirty-tracking — the template renders each
-// group in its own tab via the three arrays above.
-const fields = [...pricingFields, ...billingFields, ...refundFields]
+// group in its own tab via the arrays above.
+const fields = [...pricingFields, ...feedPricingFields, ...billingFields, ...refundFields]
 
 function hydrate() {
   if (!admin.settings) return
@@ -160,6 +195,9 @@ function hydrate() {
   form.additionalBusinessPriceCredits = admin.settings.additionalBusinessPriceCredits
   form.invoiceVatRatePct = admin.settings.invoiceVatRatePct
   form.refundFeePct = admin.settings.refundFeePct
+  form.feedCostPromovareCredits = admin.settings.feedCostPromovareCredits
+  form.feedMarjaProfitCredits = admin.settings.feedMarjaProfitCredits
+  form.feedMarjaPozitionareCredits = admin.settings.feedMarjaPozitionareCredits
   affiliate.enabled = admin.settings.affiliateEnabled
   affiliate.rewardCredits = admin.settings.affiliateRewardCredits
   affiliate.minDeposit = admin.settings.affiliateMinDepositCredits
@@ -190,6 +228,9 @@ const dirty = computed(
       form.additionalBusinessPriceCredits !== admin.settings.additionalBusinessPriceCredits ||
       form.invoiceVatRatePct !== admin.settings.invoiceVatRatePct ||
       form.refundFeePct !== admin.settings.refundFeePct ||
+      form.feedCostPromovareCredits !== admin.settings.feedCostPromovareCredits ||
+      form.feedMarjaProfitCredits !== admin.settings.feedMarjaProfitCredits ||
+      form.feedMarjaPozitionareCredits !== admin.settings.feedMarjaPozitionareCredits ||
       affiliate.enabled !== admin.settings.affiliateEnabled ||
       affiliate.rewardCredits !== admin.settings.affiliateRewardCredits ||
       affiliate.minDeposit !== admin.settings.affiliateMinDepositCredits ||
@@ -274,6 +315,32 @@ async function save() {
             <p class="as__sectionNote">{{ t('adminSettings.pricingNote') }}</p>
             <div class="as__fields">
               <div v-for="f in pricingFields" :key="f.key" class="as__field">
+                <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>
+                <div class="as__body">
+                  <label :for="f.key" class="as__label">{{ t(f.label) }}</label>
+                  <p class="as__hint">{{ t(f.hint) }}</p>
+                </div>
+                <v-text-field
+                  :id="f.key"
+                  v-model.number="form[f.key]"
+                  type="number"
+                  :min="f.min"
+                  :max="f.max"
+                  :step="f.step"
+                  :suffix="f.suffix"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="as__input"
+                />
+              </div>
+            </div>
+          </AdminSection>
+
+          <AdminSection :title="t('adminSettings.feedPricingTitle')" icon="mdi-podium-gold" class="mt-4">
+            <p class="as__sectionNote">{{ t('adminSettings.feedPricingNote') }}</p>
+            <div class="as__fields">
+              <div v-for="f in feedPricingFields" :key="f.key" class="as__field">
                 <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>
                 <div class="as__body">
                   <label :for="f.key" class="as__label">{{ t(f.label) }}</label>

@@ -31,6 +31,9 @@ export class FeedController {
   @Throttle({ default: { ttl: 60_000, limit: 40 } })
   @Post('click')
   click(@Body() dto: AdClickDto, @Ip() ip: string, @Headers('user-agent') userAgent?: string) {
-    return this.campaigns.registerClick(dto.companyId, ip, userAgent);
+    return this.campaigns.registerClick(dto.companyId, ip, userAgent, {
+      categorySlug: dto.category,
+      county: dto.county,
+    });
   }
 }

@@ -6,10 +6,13 @@ import { apiFetch } from './api'
  * Fire-and-forget — `keepalive` lets it finish after the page navigates, and
  * any failure is swallowed so it never blocks the click-through.
  */
-export function pingAdClick(companyId: string): void {
+export function pingAdClick(
+  companyId: string,
+  hint?: { category: string | null; county: string },
+): void {
   void apiFetch('/feed/click', {
     method: 'POST',
-    body: { companyId },
+    body: { companyId, category: hint?.category ?? undefined, county: hint?.county },
     keepalive: true,
     timeoutMs: 4000,
   }).catch(() => {})

@@ -965,9 +965,15 @@ model AdClick {
   visitorHash String   @map("visitor_hash")
   billed      Boolean  @default(false)
   costMinor   Int      @default(0) @map("cost_minor")
-  // Why a click was not billed: no_campaign | bot | budget | insufficient
+  // Why a click was not billed: no_campaign | bot | budget | insufficient |
+  // no_feed | below_minimum
   reason      String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  // The atomic Feed (județ, subcategorie) this click was priced against — a
+  // real județ name or the "nationwide" pseudo-county. Null when no Feed
+  // context could be resolved (company has no category/location at all).
+  feedCounty     String?  @map("feed_county")
+  feedCategoryId String?  @db.Uuid @map("feed_category_id")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 

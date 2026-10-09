@@ -110,4 +110,27 @@ export class UpdateSettingsDto {
   @Min(1)
   @Max(90)
   creditsDiscountPct?: number;
+
+  // --- Feed CPC-local pricing (see AnalyticsModule / feed-pricing.ts) ---
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  @Max(1000)
+  feedCostPromovareCredits?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(1000)
+  feedMarjaProfitCredits?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(1000)
+  feedMarjaPozitionareCredits?: number;
 }

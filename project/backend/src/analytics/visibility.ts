@@ -1,16 +1,19 @@
 /**
  * Feed ranking — the Visibility Score.
  *
- *   Visibility Score = CPC×0.35 + ResponseRate×0.30 + Plan×0.20 + Age×0.15
+ *   Visibility Score = CPC×0.50 + ResponseRate×0.20 + Plan×0.15 + Age×0.15
  *
- * Every sub-score is normalised to 0..1 and the weights are fixed (this is the
- * algorithm, not a tuning knob). The normalisation references below ARE knobs
- * and can move to `platform_settings` later.
+ * Every sub-score is normalised to 0..1. The weights (`DEFAULT_WEIGHTS`) are a
+ * deliberate product decision — CPC is the primary ranking criterion for
+ * sponsored Feed position, but a large-enough lead on the other three can
+ * still outrank a higher bid — not an arbitrary tuning knob. The normalisation
+ * references below ARE knobs and can move to `platform_settings` later.
  *
- * The CPC sub-score reads the actual per-click bid against the CPC that would
- * lead the category (the "recommended" bid), then caps that by whether the
- * daily budget is funded enough to sustain it — so dropping the CPC below the
- * recommendation costs feed position straight away.
+ * The CPC sub-score reads the actual per-click bid against the highest bid
+ * among the same Feed's eligible competitors (`cpcRefMinor` — see
+ * `feed-resolver.ts`), then caps that by whether the daily budget is funded
+ * enough to sustain it — so dropping the CPC below the leader costs feed
+ * position straight away.
  */
 
 export interface VisibilityRefs {
@@ -27,6 +30,16 @@ export const DEFAULT_REFS: VisibilityRefs = {
   responseFloorMinutes: 720, // 12 h
   ageFullDays: 30,
 };
+
+export interface ScoreWeights {
+  cpc: number;
+  response: number;
+  plan: number;
+  age: number;
+}
+
+/** CPC is the primary ranking criterion (50%); the rest can still swing a tie. */
+export const DEFAULT_WEIGHTS: ScoreWeights = { cpc: 0.5, response: 0.2, plan: 0.15, age: 0.15 };
 
 /**
  * A funded "appear first" campaign gets this added on top of its Visibility
@@ -138,6 +151,18 @@ export interface VisibilityInput {
   activeSeconds: number;
 }
 
+/** A neutral, zero-signal input — used when a peer's real data isn't available. */
+export const EMPTY_VISIBILITY_INPUT: VisibilityInput = {
+  cpcMinor: 0,
+  cpcRefMinor: 0,
+  dailyBudgetMinor: 0,
+  leadsTotal: 0,
+  leadsResponded: 0,
+  avgResponseMinutes: null,
+  planMode: null,
+  activeSeconds: 0,
+};
+
 export interface VisibilityBreakdown {
   /** Blended score, 0..1. */
   score: number;
@@ -153,6 +178,7 @@ export function visibilityScore(
   // Age is now derived from banked live seconds on `input`, so wall-clock `now`
   // no longer feeds the score. Kept for call-site compatibility.
   _now: Date = new Date(),
+  weights: ScoreWeights = DEFAULT_WEIGHTS,
 ): VisibilityBreakdown {
   const cpc = cpcScore(
     input.cpcMinor,
@@ -168,6 +194,7 @@ export function visibilityScore(
   );
   const plan = planScore(input.planMode);
   const age = campaignAgeScore(input.activeSeconds, refs.ageFullDays);
-  const score = 0.35 * cpc + 0.3 * response + 0.2 * plan + 0.15 * age;
+  const score =
+    weights.cpc * cpc + weights.response * response + weights.plan * plan + weights.age * age;
   return { score: clamp01(score), cpc, response, plan, age };
 }

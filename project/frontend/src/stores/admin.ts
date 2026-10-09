@@ -69,6 +69,9 @@ export interface AdminSettings {
   refundFeePct: number
   creditsDiscountEnabled: boolean
   creditsDiscountPct: number
+  feedCostPromovareCredits: number
+  feedMarjaProfitCredits: number
+  feedMarjaPozitionareCredits: number
   invoiceIssuerName: string
   invoiceIssuerTaxId: string
   invoiceIssuerRegCom: string

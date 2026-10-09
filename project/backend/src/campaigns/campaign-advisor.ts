@@ -2,11 +2,12 @@
  * Rule-based campaign suggestions (spec: "Platforma oferă sugestii automate
  * pentru buget și CPC").
  *
- * Deliberately NOT an auction/ML model — there is no real bid data yet. It
- * produces sane starting numbers the user can accept or override, plus a
- * "recommended" tier tuned to top out the Visibility Score: its daily budget
- * earns a full CPC sub-score and its CPC is set just above the highest CPC any
- * active campaign on the platform is currently bidding.
+ * `standard` is a flat, Feed-independent starting number for a brand new
+ * campaign. `appearFirst` is a *fallback* for when a company has no
+ * resolvable Feed yet (no category/location set) — "beat the market by 15%".
+ * Once a company has at least one Feed, `AnalyticsService.recommendedCpcFor`
+ * supersedes this with the real CPC-minim + Taxă-poziție schedule; this
+ * function stays only as that fallback and as the `standard` tier source.
  */
 
 import { DEFAULT_REFS } from '../analytics/visibility';
@@ -37,7 +38,7 @@ export interface AdvisorInput {
   marketMaxCpcMinor?: number | null;
 }
 
-const round10 = (n: number) => Math.max(10, Math.round(n / 10) * 10);
+export const round10 = (n: number) => Math.max(10, Math.round(n / 10) * 10);
 
 export function suggestCampaign(input: AdvisorInput = {}): CampaignSuggestions {
   const stdCpc = round10(BASE_CPC_MINOR);

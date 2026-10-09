@@ -51,6 +51,8 @@ export interface FeedItem {
   builtWithBuilder: boolean
   accent: string | null
   score: number
+  /** Echo back verbatim on `/feed/click` — pins the click to the exact atomic Feed this listing was ranked in. */
+  clickHint: { category: string | null; county: string }
 }
 
 interface FeedResponse {

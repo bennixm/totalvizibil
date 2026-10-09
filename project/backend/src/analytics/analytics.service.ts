@@ -1,22 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { money } from '../wallet/money';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { money, creditsToMinor } from '../wallet/money';
 import { utcDay } from '../campaigns/ad-click';
-import { suggestCampaign } from '../campaigns/campaign-advisor';
+import { round10 } from '../campaigns/campaign-advisor';
 import {
-  APPEAR_FIRST_BOOST,
   DEFAULT_REFS,
+  DEFAULT_WEIGHTS,
   effectiveActiveSeconds,
   type VisibilityInput,
   visibilityScore,
 } from './visibility';
+import { FeedMarginConfig, rankPeersByFeedScore, recommendedCpcForFeedMinor } from './feed-pricing';
+import { FeedId, enumerateCompanyFeeds, feedEligiblePeers, primaryFeedOf } from './feed-resolver';
 
 export interface FeedRank {
   /** 1-based slot in the company's category group. */
   position: number;
   /** Active listings competing in that group. */
   total: number;
+}
+
+export interface FeedContext {
+  feedId: FeedId;
+  /** Eligible competitors physically present in this Feed, incl. the company itself if eligible. */
+  peers: Array<{ companyId: string; cpcMinor: number }>;
+  /** Highest bid among `peers` — the CPC sub-score's reference inside this Feed. */
+  maxBidMinor: number;
 }
 
 const SERIES_DAYS = 14;
@@ -53,9 +64,35 @@ interface ResponseAgg {
   avgResponseMinutes: number | null;
 }
 
+/** Expected clicks/day used to size the recommended tier's daily budget. */
+const RECOMMENDED_CLICKS = 25;
+
+/** `select` fragment with everything `feed-resolver.ts` needs to place a company into a Feed. */
+const feedContextSelect = {
+  categoryAssignments: { select: { categoryId: true, isPrimary: true, createdAt: true } },
+  locations: { select: { county: true, nationwide: true, isPrimary: true, createdAt: true } },
+} satisfies Prisma.CompanySelect;
+
 @Injectable()
 export class AnalyticsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly platformSettings: PlatformSettingsService,
+  ) {}
+
+  /** Current CPC-local margin configuration, in minor units. */
+  async marginConfig(): Promise<FeedMarginConfig> {
+    const [costPromovareCredits, marjaProfitCredits, marjaPozitionareCredits] = await Promise.all([
+      this.platformSettings.feedCostPromovareCredits(),
+      this.platformSettings.feedMarjaProfitCredits(),
+      this.platformSettings.feedMarjaPozitionareCredits(),
+    ]);
+    return {
+      costPromovareMinor: creditsToMinor(costPromovareCredits),
+      marjaProfitMinor: creditsToMinor(marjaProfitCredits),
+      marjaPozitionareMinor: creditsToMinor(marjaPozitionareCredits),
+    };
+  }
 
   // --- shared: lead response aggregation -----------------------------
 
@@ -98,23 +135,16 @@ export class AnalyticsService {
   // --- feed: visibility inputs -------------------------------------
 
   /**
-   * Per-company inputs for the feed Visibility Score. Without `leafId` the
-   * CPC sub-score reads each company's own CPC maxim recomandat (the max
-   * across every subcategory it is tagged with) — used for the company's own
-   * dashboard, where there is no specific search to score against. With
-   * `leafId` (a specific feed search) the CPC sub-score reads that exact
-   * subcategory's reference instead, so ranking within one search prices
-   * competitiveness against the rivals actually competing there — not a
-   * generalist's inflated best-case number from a niche it isn't searched
-   * under.
+   * Raw per-company inputs for the Visibility Score — everything except the
+   * CPC sub-score's reference, which is Feed-specific (the highest bid among
+   * that exact Feed's eligible competitors, see `feed-resolver.ts`) and must
+   * be supplied by the caller per company after resolving each one's Feed.
+   * `cpcRefMinor` is left at 0 here as a placeholder.
    */
-  async visibilityInputsFor(
-    companyIds: string[],
-    leafId?: string,
-  ): Promise<Map<string, VisibilityInput>> {
+  async visibilityInputsFor(companyIds: string[]): Promise<Map<string, VisibilityInput>> {
     if (!companyIds.length) return new Map();
     const now = new Date();
-    const [campaigns, websites, respAgg, cpcRefs] = await Promise.all([
+    const [campaigns, websites, respAgg] = await Promise.all([
       this.prisma.campaign.findMany({
         where: { companyId: { in: companyIds } },
         select: {
@@ -132,7 +162,6 @@ export class AnalyticsService {
         select: { companyId: true, mode: true },
       }),
       this.responseAggFor(companyIds),
-      leafId ? this.cpcRefsForLeaf(companyIds, leafId) : this.cpcRefsFor(companyIds),
     ]);
 
     const campBy = new Map(campaigns.map((c) => [c.companyId, c]));
@@ -144,7 +173,7 @@ export class AnalyticsService {
       const r = respAgg.get(id) ?? { total: 0, responded: 0, avgResponseMinutes: null };
       out.set(id, {
         cpcMinor: camp?.cpcMinor ?? 0,
-        cpcRefMinor: cpcRefs.get(id) ?? 0,
+        cpcRefMinor: 0,
         dailyBudgetMinor: camp?.dailyBudgetMinor ?? 0,
         activeSeconds: camp
           ? effectiveActiveSeconds(
@@ -164,155 +193,92 @@ export class AnalyticsService {
     return out;
   }
 
-  /**
-   * The "CPC maxim recomandat" for each company — the max, across every
-   * subcategory it is tagged with (via `company_categories`), of the bid
-   * that would top out that one subcategory's CPC sub-score (one notch above
-   * the highest CPC any *other* rival tagged with that same subcategory is
-   * bidding — currently serving, or `depleted` within the last 48h, see
-   * `marketRivalWhere`). Firms now compete subcategory by subcategory, so
-   * a company tagged with several has a different reference in each; this is
-   * the single ceiling that tops out every one of them.
-   */
-  async cpcRefsFor(companyIds: string[]): Promise<Map<string, number>> {
-    const out = new Map<string, number>();
-    if (!companyIds.length) return out;
+  // --- feed: atomic-Feed context (ranking + CPC-local pricing) -----
 
-    const [meta, rivalBids] = await Promise.all([
-      this.prisma.company.findMany({
-        where: { id: { in: companyIds } },
-        select: {
-          id: true,
-          categoryAssignments: { select: { categoryId: true } },
-        },
-      }),
-      this.prisma.campaign.findMany({
-        where: marketRivalWhere(),
-        select: {
-          companyId: true,
-          cpcMinor: true,
-          company: { select: { categoryAssignments: { select: { categoryId: true } } } },
-        },
-      }),
-    ]);
-
-    const bidsByLeaf = new Map<string, Array<{ companyId: string; cpcMinor: number }>>();
-    for (const b of rivalBids) {
-      for (const a of b.company.categoryAssignments) {
-        const list = bidsByLeaf.get(a.categoryId) ?? [];
-        list.push({ companyId: b.companyId, cpcMinor: b.cpcMinor });
-        bidsByLeaf.set(a.categoryId, list);
-      }
-    }
-
-    for (const m of meta) {
-      let marketMax = 0;
-      for (const a of m.categoryAssignments) {
-        for (const r of bidsByLeaf.get(a.categoryId) ?? []) {
-          if (r.companyId !== m.id && r.cpcMinor > marketMax) marketMax = r.cpcMinor;
-        }
-      }
-      out.set(m.id, suggestCampaign({ marketMaxCpcMinor: marketMax }).appearFirst.cpcMinor);
-    }
-    return out;
-  }
-
-  /**
-   * Same as `cpcRefsFor`, but scoped to one specific subcategory — the
-   * reference a feed search for that exact subcategory ranks against, so a
-   * company tagged with several subcategories is scored here against the
-   * rivals actually competing in *this* search, not its own best-case max.
-   */
-  async cpcRefsForLeaf(companyIds: string[], leafId: string): Promise<Map<string, number>> {
-    const out = new Map<string, number>();
-    if (!companyIds.length) return out;
-
-    const rivalBids = await this.prisma.campaign.findMany({
-      where: {
-        ...marketRivalWhere(),
-        company: { categoryAssignments: { some: { categoryId: leafId } } },
-      },
-      select: { companyId: true, cpcMinor: true },
+  /** The company's own primary Feed and who it actually competes against there right now. */
+  async feedContextFor(companyId: string): Promise<FeedContext | null> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: feedContextSelect,
     });
+    if (!company) return null;
+    const feedId = primaryFeedOf(company);
+    if (!feedId) return null;
 
-    for (const id of companyIds) {
-      const marketMax = rivalBids.reduce(
-        (mx, r) => (r.companyId !== id && r.cpcMinor > mx ? r.cpcMinor : mx),
-        0,
-      );
-      out.set(id, suggestCampaign({ marketMaxCpcMinor: marketMax }).appearFirst.cpcMinor);
-    }
-    return out;
+    const cfg = await this.marginConfig();
+    const peers = await feedEligiblePeers(this.prisma, feedId, cfg);
+    const maxBidMinor = peers.reduce((mx, p) => Math.max(mx, p.cpcMinor), 0);
+    return { feedId, peers, maxBidMinor };
   }
 
   // --- feed: where does one company rank -------------------------
 
   /**
-   * The company's 1-based position among the active listings tagged with one
-   * of its subcategories, ranked by the same Visibility Score + "appear
-   * first" lift the feed uses. Firms now compete subcategory by subcategory
-   * (PRD restructuring), so this reads the company's *primary* assignment
-   * (`company_categories.isPrimary`, falling back to its first assignment)
-   * as the one pool to report — showing a rank per subcategory is a UI
-   * follow-up, not a backend limitation. `null` when the campaign is not live
-   * or the company has no subcategory at all.
+   * The company's 1-based position among the other firms eligible in its own
+   * primary Feed (județ + subcategorie primară), ranked by the Visibility
+   * Score (CPC — against that Feed's top bid — at 50%, blended with
+   * response/plan/age) + the "appear first" lift. A company competing in
+   * several Feeds (several counties/subcategories) is reported here only for
+   * its primary one — a per-Feed breakdown is a UI follow-up, not a backend
+   * limitation. `null` when the campaign is not live, the company has no
+   * resolvable Feed, or it isn't itself eligible there (CPC maxim < CPC minim).
    */
   async feedRankFor(companyId: string): Promise<FeedRank | null> {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: {
-        status: true,
-        categoryAssignments: { select: { categoryId: true, isPrimary: true } },
-      },
-    });
-    if (!company || company.status !== 'active' || !company.categoryAssignments.length) {
-      return null;
-    }
+    const ctx = await this.feedContextFor(companyId);
+    if (!ctx || !ctx.peers.some((p) => p.companyId === companyId)) return null;
+    if (ctx.peers.length === 1) return { position: 1, total: 1 };
 
-    const primary =
-      company.categoryAssignments.find((a) => a.isPrimary) ?? company.categoryAssignments[0];
-    const leafId = primary.categoryId;
-
-    const peers = await this.prisma.company.findMany({
-      where: {
-        status: 'active',
-        categoryAssignments: { some: { categoryId: leafId } },
-      },
-      select: { id: true },
-    });
-    if (peers.length <= 1) return peers.length === 1 ? { position: 1, total: 1 } : null;
-
-    const ids = peers.map((p) => p.id);
+    const ids = ctx.peers.map((p) => p.companyId);
     const [vinputs, boosted] = await Promise.all([
-      this.visibilityInputsFor(ids, leafId),
+      this.visibilityInputsFor(ids),
       this.prisma.campaign.findMany({
         where: { companyId: { in: ids }, status: 'active', appearFirst: true },
         select: { companyId: true },
       }),
     ]);
     const boostSet = new Set(boosted.map((b) => b.companyId));
+    const ranked = rankPeersByFeedScore(ids, vinputs, ctx.maxBidMinor, boostSet);
 
-    const ranked = ids
-      .map((id) => {
-        const base = visibilityScore(
-          vinputs.get(id) ?? {
-            cpcMinor: 0,
-            cpcRefMinor: 0,
-            dailyBudgetMinor: 0,
-            leadsTotal: 0,
-            leadsResponded: 0,
-            avgResponseMinutes: null,
-            planMode: null,
-            activeSeconds: 0,
-          },
-        ).score;
-        return { id, score: base + (boostSet.has(id) ? APPEAR_FIRST_BOOST : 0) };
-      })
-      .sort((a, b) => b.score - a.score);
-
-    const idx = ranked.findIndex((r) => r.id === companyId);
+    const idx = ranked.findIndex((r) => r.companyId === companyId);
     if (idx < 0) return null;
     return { position: idx + 1, total: ranked.length };
+  }
+
+  /**
+   * "CPC maxim recomandat", re-adapted per Feed: for every atomic Feed the
+   * company is eligible to compete in (its own leaves × its own counties),
+   * the CPC local a position-1 slot would ask for given that Feed's current
+   * rival count — a flat schedule (CPC minim + rivalCount × marjă poziționare),
+   * independent of what any rival actually bids. The recommendation is the
+   * MAX across all of the company's Feeds. `null` when the company has no
+   * resolvable Feed at all (no category/location set yet) — callers fall
+   * back to `suggestCampaign()`'s flat heuristic in that case.
+   */
+  async recommendedCpcFor(
+    companyId: string,
+  ): Promise<{ cpcMinor: number; dailyBudgetMinor: number } | null> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: feedContextSelect,
+    });
+    if (!company) return null;
+    const feeds = enumerateCompanyFeeds(company);
+    if (!feeds.length) return null;
+
+    const cfg = await this.marginConfig();
+    let best = 0;
+    for (const feedId of feeds) {
+      const rivals = await feedEligiblePeers(this.prisma, feedId, cfg, {
+        excludeCompanyId: companyId,
+      });
+      const recMinor = recommendedCpcForFeedMinor(rivals.length, cfg);
+      if (recMinor > best) best = recMinor;
+    }
+    const dailyBudgetMinor = Math.max(
+      round10(best * RECOMMENDED_CLICKS),
+      DEFAULT_REFS.budgetRefMinor,
+    );
+    return { cpcMinor: best, dailyBudgetMinor };
   }
 
   /**
@@ -362,7 +328,7 @@ export class AnalyticsService {
       respAgg,
       clickSeries,
       msgSeries,
-      cpcRefs,
+      feedCtx,
     ] = await Promise.all([
       this.prisma.adClick.count({ where: { companyId, billed: true } }),
       this.prisma.adClick.count({
@@ -399,7 +365,7 @@ export class AnalyticsService {
       this.responseAggFor([companyId]),
       this.dailySeries('ad_clicks', companyId, since, 'billed = true'),
       this.dailySeries('leads', companyId, since, "channel = 'form'"),
-      this.cpcRefsFor([companyId]),
+      this.feedContextFor(companyId),
     ]);
 
     const r = respAgg.get(companyId) ?? { total: 0, responded: 0, avgResponseMinutes: null };
@@ -416,7 +382,7 @@ export class AnalyticsService {
 
     const vin: VisibilityInput = {
       cpcMinor: campaign?.cpcMinor ?? 0,
-      cpcRefMinor: cpcRefs.get(companyId) ?? 0,
+      cpcRefMinor: feedCtx?.maxBidMinor ?? 0,
       dailyBudgetMinor: campaign?.dailyBudgetMinor ?? 0,
       activeSeconds,
       planMode: website?.mode ?? null,
@@ -454,8 +420,13 @@ export class AnalyticsService {
           plan: pct(v.plan),
           age: pct(v.age),
         },
-        // Fixed formula weights, surfaced so the panel can label the bars.
-        weights: { cpc: 35, response: 30, plan: 20, age: 15 },
+        // Surfaced so the panel can label the bars — see DEFAULT_WEIGHTS.
+        weights: {
+          cpc: pct(DEFAULT_WEIGHTS.cpc),
+          response: pct(DEFAULT_WEIGHTS.response),
+          plan: pct(DEFAULT_WEIGHTS.plan),
+          age: pct(DEFAULT_WEIGHTS.age),
+        },
       },
       series: {
         days: this.denseDays(since, SERIES_DAYS),
