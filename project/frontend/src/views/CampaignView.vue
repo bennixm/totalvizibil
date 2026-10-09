@@ -412,7 +412,7 @@ watch(
           >
             <span class="tier__dot" />
             <span class="tier__name">{{ t('campaign.tierStandard') }}</span>
-            <span class="tier__cpc">CPC {{ fmt(data.suggestions.standard.cpc.credits) }}</span>
+            <span class="tier__cpc">{{ t('campaign.cpcMaxShort') }} {{ fmt(data.suggestions.standard.cpc.credits) }}</span>
             <span class="tier__budget">
               {{ t('campaign.perDay', { n: fmt(data.suggestions.standard.dailyBudget.credits) }) }}
             </span>
@@ -430,7 +430,7 @@ watch(
             <span class="tier__name">
               <v-icon icon="mdi-rocket-launch-outline" size="15" /> {{ t('campaign.tierFirst') }}
             </span>
-            <span class="tier__cpc">CPC {{ fmt(data.suggestions.appearFirst.cpc.credits) }}</span>
+            <span class="tier__cpc">{{ t('campaign.cpcMaxShort') }} {{ fmt(data.suggestions.appearFirst.cpc.credits) }}</span>
             <span class="tier__budget">
               {{ t('campaign.perDay', { n: fmt(data.suggestions.appearFirst.dailyBudget.credits) }) }}
             </span>
@@ -471,6 +471,9 @@ watch(
             persistent-hint
           />
         </div>
+        <p class="camp__cpcNote">
+          <v-icon icon="mdi-information-outline" size="14" /> {{ t('campaign.cpcMaxNote') }}
+        </p>
         <div v-if="!auto" class="camp__first">
           <v-checkbox-btn
             :model-value="appearFirst"
@@ -853,6 +856,14 @@ watch(
   margin: 0.9rem 0 0;
   font-size: 0.8rem;
   color: rgb(var(--v-theme-warning));
+}
+.camp__cpcNote {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.4rem 0 0;
+  font-size: 0.76rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .camp__stats {
   display: grid;

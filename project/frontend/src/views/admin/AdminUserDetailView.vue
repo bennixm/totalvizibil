@@ -916,7 +916,7 @@ const txnColor: Record<string, string> = {
 
 <style scoped>
 .ud {
-  max-width: 1000px;
+  max-width: 1320px;
 }
 .ud__center {
   display: grid;
@@ -936,7 +936,7 @@ const txnColor: Record<string, string> = {
 }
 /* form-heavy tabs read better at a narrower measure */
 .ud__stack--narrow {
-  max-width: 720px;
+  max-width: 880px;
 }
 
 /* forms */

@@ -15,6 +15,7 @@ import { DEFAULT_REFS, RUN_SCORE_GRACE_MS, effectiveActiveSeconds } from '../ana
 import {
   chargeMinor,
   cpcLocalMinor,
+  feedCpcMinMinor,
   isEligibleForFeed,
   rankPeersByFeedScore,
 } from '../analytics/feed-pricing';
@@ -208,8 +209,15 @@ export class CampaignService {
     // each other up without limit. There is no cron, so this rides along with
     // every read.
     if (campaign.autoOptimize && campaign.status !== CampaignStatus.draft) {
-      const s = await this.suggestFor(companyId);
-      const target = autoResolvedCpcMinor(s.appearFirst.cpcMinor, campaign.dailyBudgetMinor);
+      const [s, cfg] = await Promise.all([
+        this.suggestFor(companyId),
+        this.analytics.marginConfig(),
+      ]);
+      const target = autoResolvedCpcMinor(
+        s.appearFirst.cpcMinor,
+        campaign.dailyBudgetMinor,
+        feedCpcMinMinor(cfg),
+      );
       if (target >= 1 && target !== campaign.cpcMinor) {
         campaign = await this.prisma.campaign.update({
           where: { id: campaign.id },
@@ -438,19 +446,21 @@ export class CampaignService {
   // --- API -----------------------------------------------------------
 
   /**
-   * Rule-based tier suggestions for one company. `standard` is the flat,
-   * Feed-independent starting number. `appearFirst` is the re-adapted "CPC
+   * Rule-based tier suggestions for one company. `standard` is the CPC minim
+   * (costPromovare + marjă profit) — the lowest CPC Maxim that still clears
+   * every Feed's eligibility floor. `appearFirst` is the re-adapted "CPC
    * maxim recomandat": the max, across every Feed the company is eligible in,
    * of the CPC local a position-1 slot there would ask for — falling back to
    * `suggestCampaign()`'s flat market heuristic only when the company has no
    * resolvable Feed yet (no category/location set).
    */
   private async suggestFor(companyId: string): Promise<CampaignSuggestions> {
-    const [marketMaxCpcMinor, recommended] = await Promise.all([
+    const [marketMaxCpcMinor, recommended, cfg] = await Promise.all([
       this.analytics.marketCpcFor(companyId),
       this.analytics.recommendedCpcFor(companyId),
+      this.analytics.marginConfig(),
     ]);
-    const fallback = suggestCampaign({ marketMaxCpcMinor });
+    const fallback = suggestCampaign({ marketMaxCpcMinor, cpcMinMinor: feedCpcMinMinor(cfg) });
     return { standard: fallback.standard, appearFirst: recommended ?? fallback.appearFirst };
   }
 
@@ -464,7 +474,7 @@ export class CampaignService {
     const campaign = await this.reconcile(companyId);
     const owner = await this.walletOwner(companyId);
 
-    const [walletSummary, consumedMinor, clicks, s, marketCpcMinor, websiteReady] =
+    const [walletSummary, consumedMinor, clicks, s, marketCpcMinor, websiteReady, cfg] =
       await Promise.all([
         this.wallet.getSummary(owner),
         this.wallet.consumedByCompany(companyId),
@@ -472,6 +482,7 @@ export class CampaignService {
         this.suggestFor(companyId),
         this.analytics.marketCpcFor(companyId),
         this.isListingWebsiteReady(companyId),
+        this.analytics.marginConfig(),
       ]);
 
     // An advanced-plan campaign can't go live until its builder is finished —
@@ -486,7 +497,8 @@ export class CampaignService {
     // to raise it.
     const autoBudgetLimited =
       !!campaign?.autoOptimize &&
-      (s.appearFirst.cpcMinor > autoBudgetCapMinor(campaign.dailyBudgetMinor) ||
+      (s.appearFirst.cpcMinor >
+        autoBudgetCapMinor(campaign.dailyBudgetMinor, feedCpcMinMinor(cfg)) ||
         campaign.dailyBudgetMinor < DEFAULT_REFS.budgetRefMinor);
 
     return {
@@ -534,9 +546,10 @@ export class CampaignService {
   async optimizationFor(companyId: string) {
     const campaign = await this.reconcile(companyId);
 
-    const [analytics, s] = await Promise.all([
+    const [analytics, s, ranks] = await Promise.all([
       this.analytics.companyAnalytics(companyId),
       this.suggestFor(companyId),
+      this.analytics.feedRanksFor(companyId),
     ]);
 
     const findings = analyzeCampaign({
@@ -550,7 +563,7 @@ export class CampaignService {
 
     return {
       status: campaign?.status ?? null,
-      rank: analytics.feedRank,
+      ranks,
       visibility: analytics.visibility,
       response: analytics.response,
       activeDays: analytics.campaign.activeDays,
@@ -564,6 +577,58 @@ export class CampaignService {
       },
       findings,
     };
+  }
+
+  /**
+   * Lifetime spend broken down by atomic Feed (județ + subcategorie) — which
+   * search each billed click actually came from. A company competing on
+   * several Feeds simultaneously gets one row per Feed instead of one opaque
+   * lump sum, each with its own real average CPC (`cpcEffective`), which can
+   * legitimately differ Feed to Feed since the position/CPC-local schedule is
+   * local to each one.
+   */
+  private async spendByFeedFor(companyId: string): Promise<
+    Array<{
+      county: string;
+      categorySlug: string;
+      categoryName: Prisma.JsonValue;
+      clicks: number;
+      spent: ReturnType<typeof money>;
+      cpcEffective: ReturnType<typeof money> | null;
+    }>
+  > {
+    const rows = await this.prisma.adClick.groupBy({
+      by: ['feedCounty', 'feedCategoryId'],
+      where: { companyId, billed: true, feedCounty: { not: null }, feedCategoryId: { not: null } },
+      _sum: { costMinor: true },
+      _count: { _all: true },
+    });
+    if (!rows.length) return [];
+
+    const catIds = Array.from(
+      new Set(rows.map((r) => r.feedCategoryId).filter((id): id is string => !!id)),
+    );
+    const categories = await this.prisma.category.findMany({
+      where: { id: { in: catIds } },
+      select: { id: true, slug: true, nameI18n: true },
+    });
+    const categoryById = new Map(categories.map((c) => [c.id, c]));
+
+    return rows
+      .map((r) => {
+        const spentMinor = r._sum.costMinor ?? 0;
+        const clicks = r._count._all;
+        const cat = r.feedCategoryId ? categoryById.get(r.feedCategoryId) : undefined;
+        return {
+          county: r.feedCounty!,
+          categorySlug: cat?.slug ?? '',
+          categoryName: cat?.nameI18n ?? null,
+          clicks,
+          spent: money(spentMinor),
+          cpcEffective: clicks > 0 ? money(Math.round(spentMinor / clicks)) : null,
+        };
+      })
+      .sort((a, b) => b.spent.minor - a.spent.minor);
   }
 
   /**
@@ -586,13 +651,14 @@ export class CampaignService {
     const DAY_MS = 86_400_000;
     const SERIES_DAYS = 14;
 
-    const [walletSummary, lifetimeConsumedMinor, lifetimeClicks, websiteReady, feedRank] =
+    const [walletSummary, lifetimeConsumedMinor, lifetimeClicks, websiteReady, feedRanks, byFeed] =
       await Promise.all([
         this.wallet.getSummary(owner),
         this.wallet.consumedByCompany(companyId),
         this.prisma.adClick.count({ where: { companyId, billed: true } }),
         this.isListingWebsiteReady(companyId),
-        this.analytics.feedRankFor(companyId),
+        this.analytics.feedRanksFor(companyId),
+        this.spendByFeedFor(companyId),
       ]);
     const requiresWebsiteBuilder = !websiteReady;
 
@@ -603,7 +669,8 @@ export class CampaignService {
         autoOptimize: false,
         requiresWebsiteBuilder,
         canActivate: false,
-        feedRank: null,
+        feedRanks,
+        byFeed,
         now: now.toISOString(),
         cpcSet: money(0),
         dailyBudget: money(0),
@@ -812,7 +879,8 @@ export class CampaignService {
       // Matches the campaign editor's activation gate: a full day funded and,
       // for an advanced site, the builder finished.
       canActivate: walletSummary.balance.minor >= budget && !requiresWebsiteBuilder,
-      feedRank,
+      feedRanks,
+      byFeed,
       now: now.toISOString(),
       cpcSet: money(campaign.cpcMinor),
       dailyBudget: money(budget),

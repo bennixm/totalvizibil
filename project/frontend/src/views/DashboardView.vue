@@ -610,7 +610,7 @@ watch(
               </div>
               <p class="dcard__sub">
                 {{ t('dashboard.campaignBudget', { n: fmtNum(dash.campaign.dailyBudget.credits) }) }} ·
-                CPC {{ fmtNum(dash.campaign.cpc.credits) }}
+                {{ t('dashboard.campaignCpcMax', { n: fmtNum(dash.campaign.cpc.credits) }) }}
               </p>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.campaignNone') }}</p>

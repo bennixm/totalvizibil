@@ -280,6 +280,9 @@ const economyChart = computed(() => {
 </template>
 
 <style scoped>
+.adash {
+  max-width: 1320px;
+}
 /* Hero KPIs -------------------------------------------------------------- */
 .adash__kpis {
   display: grid;

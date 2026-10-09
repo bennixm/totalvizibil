@@ -4,10 +4,10 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
-import { useCompaniesStore } from '@/stores/companies'
-import { useCampaignStore, type OptimizationArea } from '@/stores/campaign'
+import { useCompaniesStore, type LocalizedName } from '@/stores/companies'
+import { useCampaignStore, type FeedRankEntry, type OptimizationArea } from '@/stores/campaign'
 
-const { t, n } = useI18n()
+const { t, n, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const companies = useCompaniesStore()
@@ -37,6 +37,13 @@ const AREA_META: Record<OptimizationArea, { icon: string; to: string | null }> =
 
 function fmt(v: number): string {
   return n(v, { maximumFractionDigits: 2 })
+}
+
+function catName(entry: FeedRankEntry): string {
+  return entry.categoryName[locale.value as keyof LocalizedName] ?? entry.categoryName.en
+}
+function countyLabel(county: string): string {
+  return county === 'nationwide' ? t('feed.coverageCountry') : county
 }
 
 function fmtMinutes(m: number | null): string {
@@ -111,10 +118,15 @@ watch(
 
       <section class="opt__hero">
         <div class="opt__rank">
-          <p v-if="o.rank" class="opt__rankLine">
-            {{ t('optimize.rankLine', { n: o.rank.position, total: o.rank.total }) }}
-            <span>{{ t('optimize.rankScope') }}</span>
-          </p>
+          <template v-if="o.ranks.length">
+            <p class="opt__rankLine">{{ t('optimize.rankScope') }}</p>
+            <ul class="opt__rankList">
+              <li v-for="(r, i) in o.ranks" :key="r.county + r.categorySlug + i">
+                <span class="opt__rankLoc">{{ countyLabel(r.county) }} · {{ catName(r) }}</span>
+                <span class="opt__rankPos">{{ t('optimize.rankLine', { n: r.position, total: r.total }) }}</span>
+              </li>
+            </ul>
+          </template>
           <p v-else-if="o.status !== 'active'" class="opt__rankLine opt__rankLine--muted">
             {{ t('optimize.notInFeed') }}
           </p>
@@ -259,6 +271,26 @@ watch(
   font-weight: 500;
   font-size: 0.95rem;
   color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.opt__rankList {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.opt__rankList li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.opt__rankLoc {
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.opt__rankPos {
+  font-weight: 700;
 }
 .opt__scoreChip {
   flex: none;

@@ -13,8 +13,8 @@ import TrendChart from '@/components/TrendChart.vue'
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { companyRoute } from '@/services/routes'
 import { useMoney } from '@/composables/useMoney'
-import { useCompaniesStore } from '@/stores/companies'
-import { useCampaignStore } from '@/stores/campaign'
+import { useCompaniesStore, type LocalizedName } from '@/stores/companies'
+import { useCampaignStore, type FeedRankEntry } from '@/stores/campaign'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 
@@ -119,7 +119,9 @@ const runwayLow = computed(
   () => status.value === 'active' && runwayDays.value != null && runwayDays.value < 5,
 )
 
-// Supporting tiles beside the clicks hero.
+// Supporting tiles beside the clicks hero. CPC Maxim (the ceiling the owner
+// set) next to CPC efectiv (the real lifetime average charged) — the two are
+// no longer the same number now that billing is per-Feed/per-position.
 const keyTiles = computed(() => {
   const d = s.value
   if (!d) return []
@@ -130,20 +132,32 @@ const keyTiles = computed(() => {
       sub: `${d.today.pct}%`,
     },
     {
-      k: 'kCpc',
+      k: 'kCpcMax',
       main: n(d.cpcSet.credits, { maximumFractionDigits: 2 }),
       unit: 'credits' as const,
       sub: money.approx(d.cpcSet.credits),
     },
     {
-      k: 'kFeedRank',
-      main: d.feedRank
-        ? t('spend.feedRankValue', { n: d.feedRank.position, total: d.feedRank.total })
-        : t('spend.feedRankNone'),
-      sub: d.feedRank ? t('spend.feedRankOf') : t('spend.feedRankIdle'),
+      k: 'kCpcEffective',
+      main:
+        d.lifetime.cpcEffective != null
+          ? n(d.lifetime.cpcEffective.credits, { maximumFractionDigits: 2 })
+          : t('spend.cpcEffectiveNone'),
+      unit: d.lifetime.cpcEffective != null ? ('credits' as const) : undefined,
+      sub: t('spend.cpcEffectiveSub'),
     },
   ] as Array<{ k: string; main: string; unit?: 'credits'; sub: string }>
 })
+
+// Per-Feed ranking — a company competing on several counties/subcategories
+// has a genuinely different position in each, so this is a list, not a tile.
+const feedRanks = computed(() => s.value?.feedRanks ?? [])
+function catName(entry: FeedRankEntry): string {
+  return entry.categoryName[locale.value as keyof LocalizedName] ?? entry.categoryName.en
+}
+function countyLabel(county: string): string {
+  return county === 'nationwide' ? t('feed.coverageCountry') : county
+}
 
 const lifetime = computed(() => {
   const d = s.value
@@ -411,6 +425,19 @@ watch(
             <span v-if="tile.sub" class="kt__x">{{ tile.sub }}</span>
           </div>
         </div>
+      </section>
+
+      <!-- Per-Feed ranking: a company competing on several counties/subcategories
+           has a genuinely different position in each. -->
+      <section v-if="isLive" class="card ov__ranks">
+        <h3>{{ t('spend.ranksTitle') }}</h3>
+        <ul v-if="feedRanks.length" class="ov__ranksList">
+          <li v-for="(r, i) in feedRanks" :key="r.county + r.categorySlug + i" class="rk">
+            <span class="rk__loc">{{ countyLabel(r.county) }} · {{ catName(r) }}</span>
+            <span class="rk__pos">{{ t('spend.feedRankValue', { n: r.position, total: r.total }) }}</span>
+          </li>
+        </ul>
+        <p v-else class="ov__ranksEmpty">{{ t('spend.feedRankNone') }}</p>
       </section>
 
       <!-- Today's budget: progress + projection + runway -->
@@ -805,7 +832,7 @@ watch(
 }
 .ktiles {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.6rem;
 }
 .kt {
@@ -837,6 +864,41 @@ watch(
   margin-top: 0.1rem;
   font-size: 0.68rem;
   color: rgba(var(--v-theme-on-surface), 0.5);
+}
+
+/* Per-Feed ranking -------------------------------------------------- */
+.ov__ranks {
+  margin-bottom: 1rem;
+}
+.ov__ranksList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.rk {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  font-size: 0.85rem;
+}
+.rk + .rk {
+  border-top: 1px solid var(--tvz-hairline);
+}
+.rk__loc {
+  min-width: 0;
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.rk__pos {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ov__ranksEmpty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 /* Today ---------------------------------------------------------- */

@@ -213,6 +213,9 @@ function open(id: string): void {
 </template>
 
 <style scoped>
+.au {
+  max-width: 1320px;
+}
 .au__chips {
   display: flex;
   gap: 0.7rem;

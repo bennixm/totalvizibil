@@ -16,11 +16,11 @@ import { storeToRefs } from 'pinia'
 import TrendChart from '@/components/TrendChart.vue'
 import { apiFetch } from '@/services/api'
 import { useMoney } from '@/composables/useMoney'
-import { useCompaniesStore } from '@/stores/companies'
+import { useCompaniesStore, type LocalizedName } from '@/stores/companies'
 import { useCampaignStore } from '@/stores/campaign'
 import { useWalletStore, type SpendCategory } from '@/stores/wallet'
 
-const { t, n } = useI18n()
+const { t, n, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const companies = useCompaniesStore()
@@ -79,6 +79,17 @@ const campaignChart = computed(() => {
   }
 })
 const hasCampaignHistory = computed(() => (campaignSpend.value?.series ?? []).some((p) => p.spent > 0))
+
+// Which search (județ + subcategorie) each block of clicks actually came
+// from — a company competing on several Feeds has a real, separate cost and
+// average CPC in each, not one opaque lump sum.
+const byFeed = computed(() => campaignSpend.value?.byFeed ?? [])
+function catName(entry: { categoryName: LocalizedName }): string {
+  return entry.categoryName[locale.value as keyof LocalizedName] ?? entry.categoryName.en
+}
+function countyLabel(county: string): string {
+  return county === 'nationwide' ? t('feed.coverageCountry') : county
+}
 
 function cr(v: number): string {
   return n(v, { maximumFractionDigits: 2 })
@@ -258,6 +269,31 @@ watch(
         </button>
         <div v-if="hasCampaignHistory" class="card cons__chart">
           <TrendChart :labels="campaignChart.labels" :series="campaignChart.series" />
+        </div>
+
+        <!-- Per-Feed detail: which search (județ + subcategorie) each block
+             of clicks came from — a company can compete, and be billed
+             differently, on several Feeds at once. -->
+        <div v-if="byFeed.length" class="card cons__byFeed">
+          <h3>{{ t('consumption.byFeedTitle') }}</h3>
+          <table class="cons__byFeedTable">
+            <thead>
+              <tr>
+                <th>{{ t('consumption.byFeedSearch') }}</th>
+                <th>{{ t('consumption.byFeedClicks') }}</th>
+                <th>{{ t('consumption.byFeedCpcEff') }}</th>
+                <th>{{ t('consumption.byFeedSpent') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(f, i) in byFeed" :key="f.county + f.categorySlug + i">
+                <td>{{ countyLabel(f.county) }} · {{ catName(f) }}</td>
+                <td>{{ f.clicks }}</td>
+                <td>{{ f.cpcEffective ? cr(f.cpcEffective.credits) : '—' }}</td>
+                <td>{{ cr(f.spent.credits) }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -503,6 +539,33 @@ watch(
 }
 .cons__chart {
   padding: 1rem 1.1rem 0.5rem;
+}
+.cons__byFeed {
+  margin-top: 0.7rem;
+  overflow-x: auto;
+}
+.cons__byFeedTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.cons__byFeedTable th {
+  text-align: left;
+  padding: 0 0.6rem 0.5rem 0;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-weight: 600;
+}
+.cons__byFeedTable td {
+  padding: 0.45rem 0.6rem 0.45rem 0;
+  border-top: 1px solid var(--tvz-hairline);
+}
+.cons__byFeedTable th:not(:first-child),
+.cons__byFeedTable td:not(:first-child) {
+  text-align: right;
 }
 
 .cons__grid {

@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CampaignStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { assertCounty } from '../geo/ro-cities';
+import { resolveLocationInput } from '../geo/ro-cities';
 import { WalletService } from '../wallet/wallet.service';
 import { CampaignService } from '../campaigns/campaign.service';
 import { LeadsService } from '../leads/leads.service';
@@ -126,7 +126,7 @@ export class AdminCompaniesService {
       where: { id: companyId },
       include: {
         category: { include: { parent: { select: { slug: true, nameI18n: true } } } },
-        locations: { orderBy: { isPrimary: 'desc' }, take: 1 },
+        locations: { orderBy: { isPrimary: 'desc' } },
         website: {
           select: { mode: true, status: true, updatedAt: true, content: true, theme: true },
         },
@@ -144,7 +144,12 @@ export class AdminCompaniesService {
       this.settings.advancedBuilderPriceCredits(),
     ]);
 
-    const loc = company.locations[0] ?? null;
+    // Județ-based coverage only — never mixed, so the first row's `nationwide`
+    // tells the whole story (either one `nationwide` row, or one row per județ).
+    const isNationwide = company.locations[0]?.nationwide ?? false;
+    const counties = company.locations
+      .filter((l) => !l.nationwide && l.county)
+      .map((l) => l.county!);
     return {
       company: {
         id: company.id,
@@ -166,15 +171,7 @@ export class AdminCompaniesService {
                 : null,
             }
           : null,
-        location: loc
-          ? {
-              city: loc.city,
-              county: loc.county,
-              nationwide: loc.nationwide,
-              lat: loc.lat,
-              lng: loc.lng,
-            }
-          : null,
+        location: company.locations.length ? { nationwide: isNationwide, counties } : null,
         website: company.website
           ? {
               mode: company.website.mode,
@@ -254,25 +251,25 @@ export class AdminCompaniesService {
   }
 
   /**
-   * Admin: replace the company's ENTIRE service area with a single județ (or
-   * nationwide) — a full-replace override, same as the owner-facing flow;
+   * Admin: replace the company's ENTIRE service area — one or several județe,
+   * or nationwide — a full-replace override, same as the owner-facing flow;
    * it must not leave other, previously-set județe stranded behind it.
    */
   async setLocation(companyId: string, dto: SetCompanyLocationDto) {
     await this.loadCompany(companyId);
-    const nationwide = !!dto.nationwide;
-    const data = {
-      city: nationwide ? null : (dto.city?.trim() ?? null),
-      county: nationwide ? null : assertCounty(dto.county),
-      country: (dto.country || 'RO').toUpperCase().slice(0, 2),
-      lat: nationwide ? null : (dto.lat ?? null),
-      lng: nationwide ? null : (dto.lng ?? null),
-      nationwide,
-      isPrimary: true,
-    };
+    const { nationwide, counties } = resolveLocationInput(dto);
+    const rows: Prisma.CompanyLocationCreateManyInput[] = nationwide
+      ? [{ companyId, nationwide: true, country: 'RO', isPrimary: true }]
+      : counties.map((county, i) => ({
+          companyId,
+          county,
+          nationwide: false,
+          country: 'RO',
+          isPrimary: i === 0,
+        }));
     await this.prisma.$transaction([
       this.prisma.companyLocation.deleteMany({ where: { companyId } }),
-      this.prisma.companyLocation.create({ data: { ...data, companyId } }),
+      this.prisma.companyLocation.createMany({ data: rows }),
     ]);
     return this.detail(companyId);
   }

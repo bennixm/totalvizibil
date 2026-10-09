@@ -18,7 +18,7 @@ import { useToastStore } from '@/stores/toast'
 import type { CampaignTier, CampaignStatus } from '@/stores/campaign'
 import type { LocalizedName } from '@/stores/companies'
 import { ApiError } from '@/services/api'
-import { searchCities, fetchCounties, type GeoCity } from '@/services/geo'
+import { fetchCounties } from '@/services/geo'
 
 const { t, n, locale } = useI18n()
 const route = useRoute()
@@ -94,7 +94,7 @@ const locationLabel = computed(() => {
   const l = data.value?.company.location
   if (!l) return 'N/A'
   if (l.nationwide) return t('feed.coverageCountry')
-  return l.city ? `${l.county ?? 'N/A'} · ${l.city}` : (l.county ?? 'N/A')
+  return l.counties.length ? l.counties.join(', ') : 'N/A'
 })
 function fmtMinutes(m: number | null): string {
   if (m == null) return 'N/A'
@@ -117,54 +117,39 @@ const categoryOptions = computed(() =>
   ),
 )
 
-// --- location editor ---
-const loc = reactive({
-  nationwide: false,
-  county: '' as string,
-  city: '' as string,
-  lat: null as number | null,
-  lng: null as number | null,
-})
+// --- location editor: județe only, multi-select, no radius ---
+const NATIONWIDE = '__nationwide__'
 const counties = ref<string[]>([])
 void fetchCounties()
   .then((c) => (counties.value = c))
   .catch(() => {})
-const countyItems = computed(() => counties.value.map((c) => ({ title: c, value: c })))
+const countyItems = computed(() => [
+  { title: t('location.nationwideOption'), value: NATIONWIDE },
+  ...counties.value.map((c) => ({ title: c, value: c })),
+])
+/** The raw multi-select model — `[NATIONWIDE]` or one-or-more real județe. */
+const countySelections = ref<string[]>([])
+const nationwide = computed(() => countySelections.value.includes(NATIONWIDE))
 const savingLoc = ref(false)
-const citySearch = ref('')
-const cityResults = ref<GeoCity[]>([])
-const cityItems = computed(() =>
-  cityResults.value.map((c) => ({ title: `${c.name}, ${c.county}`, value: c })),
-)
-let cityDeb: ReturnType<typeof setTimeout> | undefined
-watch(citySearch, (q) => {
-  clearTimeout(cityDeb)
-  if (!q || q.trim().length < 2) {
-    cityResults.value = []
-    return
-  }
-  cityDeb = setTimeout(async () => {
-    cityResults.value = await searchCities(q).catch(() => [])
-  }, 250)
-})
-function pickCity(c: GeoCity | null) {
-  if (!c) return
-  loc.city = c.name
-  loc.lat = c.lat
-  loc.lng = c.lng
+const locValid = computed(() => nationwide.value || countySelections.value.length > 0)
+
+/** Picking "Toată țara" selects every județ (collapsed to the sentinel);
+ *  manually ticking every real județ collapses the same way — both
+ *  directions of the rule, same as the owner-facing location step. */
+function onCountySelectionsChange(vals: string[]): void {
+  const justPickedNationwide = vals.includes(NATIONWIDE) && !nationwide.value
+  const realPicks = vals.filter((v) => v !== NATIONWIDE)
+  const pickedEveryCounty = counties.value.length > 0 && realPicks.length === counties.value.length
+  countySelections.value = justPickedNationwide || pickedEveryCounty ? [NATIONWIDE] : realPicks
 }
-const locValid = computed(() => loc.nationwide || !!loc.county.trim())
+
 async function saveLocation() {
   if (!locValid.value) return
   savingLoc.value = true
   try {
     data.value = await admin.setCompanyLocation(id.value, {
-      nationwide: loc.nationwide,
-      county: loc.nationwide ? undefined : loc.county.trim(),
-      city: loc.nationwide ? undefined : loc.city.trim() || undefined,
-      country: data.value?.company.country || 'RO',
-      lat: loc.nationwide ? undefined : (loc.lat ?? undefined),
-      lng: loc.nationwide ? undefined : (loc.lng ?? undefined),
+      nationwide: nationwide.value,
+      counties: nationwide.value ? undefined : countySelections.value,
     })
     flash(t('adminCo.locSaved'))
   } catch (e) {
@@ -216,8 +201,9 @@ const hasCampaign = computed(() => !!camp.value)
 const isLive = computed(() => status.value === 'active')
 // Advanced-plan site whose builder isn't finished — can't be listed yet.
 const builderPending = computed(() => !!data.value?.campaign.requiresWebsiteBuilder)
-// This campaign competes for the top slot but its saved CPC has fallen behind
-// the current recommended CPC (competitors raised the market).
+// This campaign competes for the top slot but its saved CPC Maxim has fallen
+// behind the current recommended CPC Maxim (the Feed's position-1 threshold
+// moved — more eligible competitors, or an admin margin change).
 const cpcBelowMarket = computed(
   () =>
     !!camp.value &&
@@ -305,11 +291,7 @@ function hydrate() {
         .find((c) => c.slug === d.company.category?.slug)?.id ?? '')
     : ''
   const l = d.company.location
-  loc.nationwide = l?.nationwide ?? false
-  loc.city = l?.city ?? ''
-  loc.county = l?.county ?? ''
-  loc.lat = l?.lat ?? null
-  loc.lng = l?.lng ?? null
+  countySelections.value = l?.nationwide ? [NATIONWIDE] : (l?.counties ?? [])
   const c = d.campaign.campaign
   if (c) {
     budget.value = c.dailyBudget.credits
@@ -638,46 +620,22 @@ const leadStatusItems = computed(() => [
               </div>
             </AdminSection>
 
-            <AdminSection :title="t('adminCo.locTitle')" icon="mdi-map-marker-radius-outline">
+            <AdminSection :title="t('adminCo.locTitle')" icon="mdi-map-marker-outline">
               <div class="ac__form">
-                <div class="ac__locRow">
-                  <div>
-                    <p class="ac__secLabel">{{ t('adminCo.locNationwide') }}</p>
-                    <p class="ac__muted ac__mt0">{{ t('adminCo.locNationwideHint') }}</p>
-                  </div>
-                  <v-switch v-model="loc.nationwide" color="primary" density="compact" hide-details inset />
-                </div>
-
-                <template v-if="!loc.nationwide">
-                  <v-select
-                    v-model="loc.county"
-                    :items="countyItems"
-                    :label="t('adminCo.locCounty')"
-                    variant="outlined"
-                    density="comfortable"
-                    hide-details
-                  />
-                  <v-autocomplete
-                    :model-value="null"
-                    :items="cityItems"
-                    :label="t('adminCo.locCity')"
-                    :placeholder="loc.city || t('adminCo.locCityPlaceholder')"
-                    persistent-placeholder
-                    variant="outlined"
-                    density="comfortable"
-                    hide-details
-                    no-filter
-                    hide-no-data
-                    @update:search="citySearch = $event"
-                    @update:model-value="pickCity"
-                  />
-                  <p v-if="loc.city" class="ac__muted ac__mt0">
-                    {{ loc.city
-                    }}<template v-if="loc.lat != null">
-                      · {{ loc.lat.toFixed(3) }}, {{ loc.lng?.toFixed(3) }}</template
-                    >
-                  </p>
-                </template>
+                <p class="ac__muted ac__mt0">{{ t('adminCo.locHint') }}</p>
+                <v-select
+                  :model-value="countySelections"
+                  :items="countyItems"
+                  :label="t('adminCo.locCounty')"
+                  prepend-inner-icon="mdi-map-marker-outline"
+                  variant="outlined"
+                  density="comfortable"
+                  multiple
+                  chips
+                  closable-chips
+                  hide-details
+                  @update:model-value="onCountySelectionsChange"
+                />
 
                 <div>
                   <v-btn
@@ -859,11 +817,11 @@ const leadStatusItems = computed(() => [
           <div v-if="!auto" class="ac__tiers">
             <button type="button" class="tier" :class="{ 'tier--on': activeTier === 'standard' }" @click="applyTier(data.campaign.suggestions.standard, false)">
               <strong>{{ t('campaign.tierStandard') }}</strong>
-              <span>CPC {{ fmt(data.campaign.suggestions.standard.cpc.credits) }} · {{ t('campaign.perDay', { n: fmt(data.campaign.suggestions.standard.dailyBudget.credits) }) }}</span>
+              <span>{{ t('campaign.cpcMaxShort') }} {{ fmt(data.campaign.suggestions.standard.cpc.credits) }} · {{ t('campaign.perDay', { n: fmt(data.campaign.suggestions.standard.dailyBudget.credits) }) }}</span>
             </button>
             <button type="button" class="tier tier--rec" :class="{ 'tier--on': activeTier === 'first' }" @click="applyTier(data.campaign.suggestions.appearFirst, true)">
               <strong><v-icon icon="mdi-rocket-launch-outline" size="14" /> {{ t('campaign.tierFirst') }}</strong>
-              <span>CPC {{ fmt(data.campaign.suggestions.appearFirst.cpc.credits) }} · {{ t('campaign.perDay', { n: fmt(data.campaign.suggestions.appearFirst.dailyBudget.credits) }) }}</span>
+              <span>{{ t('campaign.cpcMaxShort') }} {{ fmt(data.campaign.suggestions.appearFirst.cpc.credits) }} · {{ t('campaign.perDay', { n: fmt(data.campaign.suggestions.appearFirst.dailyBudget.credits) }) }}</span>
             </button>
           </div>
           <p v-if="!auto && activeTier === 'custom'" class="ac__tierCustom">
@@ -1114,7 +1072,7 @@ const leadStatusItems = computed(() => [
 
 <style scoped>
 .ac {
-  max-width: 1000px;
+  max-width: 1320px;
 }
 .ac__center {
   display: grid;
@@ -1131,7 +1089,7 @@ const leadStatusItems = computed(() => [
   gap: 1rem;
 }
 .ac__stack--narrow {
-  max-width: 720px;
+  max-width: 880px;
 }
 .ac__muted {
   color: rgba(var(--v-theme-on-surface), 0.5);

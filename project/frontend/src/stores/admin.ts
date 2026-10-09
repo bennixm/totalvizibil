@@ -384,11 +384,9 @@ export interface AdminCompanyDetail {
       parent: { slug: string; name: LocalizedName } | null
     } | null
     location: {
-      city: string | null
-      county: string | null
       nationwide: boolean
-      lat: number | null
-      lng: number | null
+      /** One or several județe — empty while `nationwide`. */
+      counties: string[]
     } | null
     website: {
       mode: 'easy' | 'advanced'
@@ -426,11 +424,8 @@ export interface UpdateCompanyInput {
 
 export interface AdminCompanyLocationInput {
   nationwide?: boolean
-  city?: string
-  county?: string
-  country?: string
-  lat?: number
-  lng?: number
+  /** One or several județe — required unless `nationwide` is set. */
+  counties?: string[]
 }
 
 // --- affiliate program ------------------------------------------------

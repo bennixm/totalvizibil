@@ -17,9 +17,12 @@ import {
 import { suggestCampaign } from './campaign-advisor';
 import { autoResolvedCpcMinor, autoBudgetCapMinor } from './auto-cpc';
 
+// Matches the default margin config (cost promovare 1cr + marjă profit 0.1cr).
+const CPC_MIN_MINOR = 110;
+
 /** The score reference / manual ceiling for a company: the advisor's appear-first CPC. */
 const recCpc = (marketMaxCpcMinor = 0) =>
-  suggestCampaign({ marketMaxCpcMinor }).appearFirst.cpcMinor;
+  suggestCampaign({ marketMaxCpcMinor, cpcMinMinor: CPC_MIN_MINOR }).appearFirst.cpcMinor;
 
 // Max CPC the API accepts (SaveCampaignDto: @Max(1000) credits).
 const DTO_MAX_CPC_MINOR = 1000 * 100;
@@ -62,14 +65,14 @@ describe('CPC sub-score — cpcScore()', () => {
 
 describe('Recommended CPC — suggestCampaign().appearFirst.cpcMinor', () => {
   it('solo advertiser (no rivals): recommended CPC is a flat 2.5× the standard tier', () => {
-    // standard 30, recommended 80 (round10(30*2.5)=80)
-    expect(recCpc()).toBe(80);
-    expect(suggestCampaign({}).standard.cpcMinor).toBe(30);
+    // standard = CPC minim (110), recommended 280 (round10(110*2.5)=280)
+    expect(recCpc()).toBe(280);
+    expect(suggestCampaign({ cpcMinMinor: CPC_MIN_MINOR }).standard.cpcMinor).toBe(110);
   });
 
-  it('tracks the market once a rival bids above ~0.57 cr/click', () => {
-    expect(recCpc(50)).toBe(80); // rival below the knee → still the flat 80
-    expect(recCpc(500)).toBe(590); // round10(500*1.15 + 10)
+  it('tracks the market once a rival bids above the standard-tier knee', () => {
+    expect(recCpc(50)).toBe(280); // rival below the knee → still the flat 280
+    expect(recCpc(500)).toBe(590); // round10(500*1.15 + 10) — market dominates regardless of the standard tier
     expect(recCpc(5000)).toBe(5760);
   });
 
@@ -89,7 +92,8 @@ describe('Recommended CPC — suggestCampaign().appearFirst.cpcMinor', () => {
   it('recommended daily budget always clears the CPC-score budget reference', () => {
     for (const m of [0, 100, 1000, 20000]) {
       expect(
-        suggestCampaign({ marketMaxCpcMinor: m }).appearFirst.dailyBudgetMinor,
+        suggestCampaign({ marketMaxCpcMinor: m, cpcMinMinor: CPC_MIN_MINOR }).appearFirst
+          .dailyBudgetMinor,
       ).toBeGreaterThanOrEqual(DEFAULT_REFS.budgetRefMinor);
     }
   });
@@ -104,17 +108,17 @@ describe('Manual-CPC ceiling (saveFor clamp) vs the score reference', () => {
   });
 
   it('BUG #5 — a manual advertiser at 100% silently drops when a rival raises the market', () => {
-    // Day 1: solo. ref = 80, advertiser bids the ceiling (80).
+    // Day 1: solo. ref = 280, advertiser bids the ceiling (280).
     const day1Ref = recCpc(0);
-    const bid = day1Ref; // 80
+    const bid = day1Ref; // 280
     expect(cpcScore(bid, day1Ref, DEFAULT_REFS.budgetRefMinor)).toBe(1);
 
-    // Day 2: a rival activates at 6 cr/click. The advertiser's saved bid is
+    // Day 2: a rival activates at 20 cr/click. The advertiser's saved bid is
     // unchanged, but the reference jumps — and nothing re-clamps or notifies.
-    const day2Ref = recCpc(600);
+    const day2Ref = recCpc(2000);
     expect(day2Ref).toBeGreaterThan(day1Ref);
     const dropped = cpcScore(bid, day2Ref, DEFAULT_REFS.budgetRefMinor);
-    expect(dropped).toBeLessThan(0.2); // 80 / 700 ≈ 0.114 — a silent collapse
+    expect(dropped).toBeLessThan(0.2); // 280 / 2310 ≈ 0.121 — a silent collapse
   });
 
   it('the reference tracks the market input — BUG #8 oscillation is now prevented upstream', () => {
@@ -126,26 +130,26 @@ describe('Manual-CPC ceiling (saveFor clamp) vs the score reference', () => {
     // rival that depleted within the last 48h, so this input no longer flips
     // when a big competitor spends its daily cap.
     expect(withRival).toBeGreaterThan(noRival);
-    expect(noRival).toBe(80);
+    expect(noRival).toBe(280);
   });
 });
 
 describe('AUTO CPC policy — autoResolvedCpcMinor()', () => {
   it('bids exactly the recommended CPC when the 10%-of-budget ceiling allows it', () => {
     const ref = recCpc(400); // ~4.7 cr
-    expect(autoResolvedCpcMinor(ref, 100_00)).toBe(ref); // 100 cr/day budget → 10 cr ceiling
+    expect(autoResolvedCpcMinor(ref, 100_00, CPC_MIN_MINOR)).toBe(ref); // 100 cr/day budget → 10 cr ceiling
   });
 
   it('clamps to 10% of the daily budget when the recommendation is higher', () => {
     const ref = recCpc(5000); // ~58 cr
-    const cap = autoBudgetCapMinor(20_00); // 20 cr/day → 2 cr ceiling
-    expect(autoResolvedCpcMinor(ref, 20_00)).toBe(cap);
+    const cap = autoBudgetCapMinor(20_00, CPC_MIN_MINOR); // 20 cr/day → 2 cr ceiling
+    expect(autoResolvedCpcMinor(ref, 20_00, CPC_MIN_MINOR)).toBe(cap);
   });
 
   it('the resolved bid tracks the market input (kept stable across depletion by analytics)', () => {
     const budget = 500_00; // 500 cr/day → 50 cr ceiling, generous
-    const hotMarket = autoResolvedCpcMinor(recCpc(4000), budget);
-    const coldMarket = autoResolvedCpcMinor(recCpc(0), budget);
+    const hotMarket = autoResolvedCpcMinor(recCpc(4000), budget, CPC_MIN_MINOR);
+    const coldMarket = autoResolvedCpcMinor(recCpc(0), budget, CPC_MIN_MINOR);
     expect(hotMarket).toBeGreaterThan(coldMarket);
     // Previously the market input itself flipped every time a big rival hit its
     // daily cap, so reconcile() (which persists cpcMinor on every read) flapped
@@ -156,7 +160,7 @@ describe('AUTO CPC policy — autoResolvedCpcMinor()', () => {
   it('AUTO can be driven above the manual API max (reconcile writes cpcMinor directly, no DTO check)', () => {
     const ref = recCpc(DTO_MAX_CPC_MINOR); // > 1000 cr
     const hugeBudget = 5_000_000; // 50 000 cr/day → 500 000 minor ceiling
-    const resolved = autoResolvedCpcMinor(ref, hugeBudget);
+    const resolved = autoResolvedCpcMinor(ref, hugeBudget, CPC_MIN_MINOR);
     expect(resolved).toBeGreaterThan(DTO_MAX_CPC_MINOR); // AUTO would persist ~1150 cr
   });
 });

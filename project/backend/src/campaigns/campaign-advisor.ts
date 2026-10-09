@@ -1,19 +1,20 @@
 /**
  * Rule-based campaign suggestions (spec: "Platforma oferă sugestii automate
- * pentru buget și CPC").
+ * pentru buget și CPC Maxim").
  *
- * `standard` is a flat, Feed-independent starting number for a brand new
- * campaign. `appearFirst` is a *fallback* for when a company has no
- * resolvable Feed yet (no category/location set) — "beat the market by 15%".
- * Once a company has at least one Feed, `AnalyticsService.recommendedCpcFor`
- * supersedes this with the real CPC-minim + Taxă-poziție schedule; this
- * function stays only as that fallback and as the `standard` tier source.
+ * `standard` is the CPC minim (costPromovare + marjă profit) for a Feed under
+ * the current admin margins — the lowest CPC Maxim that still clears the
+ * eligibility floor everywhere, same "entry" price regardless of company,
+ * since the margins are platform-wide. `appearFirst` is a *fallback* for when
+ * a company has no resolvable Feed yet (no category/location set) — "beat
+ * the market by 15%". Once a company has at least one Feed,
+ * `AnalyticsService.recommendedCpcFor` supersedes this with the real
+ * CPC-minim + Taxă-poziție schedule; this function stays only as that
+ * fallback and as the `standard` tier source.
  */
 
 import { DEFAULT_REFS } from '../analytics/visibility';
 
-/** Base CPC in minor units (hundredths of a credit) = 0.30 credits. */
-const BASE_CPC_MINOR = 30;
 /** Fallback multiplier for the recommended CPC when there is no market data. */
 const RECOMMENDED_MULT = 2.5;
 /** Headroom over the current market-leading CPC, so "recommended" actually wins. */
@@ -36,12 +37,14 @@ export interface CampaignSuggestions {
 export interface AdvisorInput {
   /** Highest CPC (minor units) among other active campaigns right now. */
   marketMaxCpcMinor?: number | null;
+  /** CPC minim (minor units) for a Feed under the current admin margins — grounds `standard`. */
+  cpcMinMinor: number;
 }
 
 export const round10 = (n: number) => Math.max(10, Math.round(n / 10) * 10);
 
-export function suggestCampaign(input: AdvisorInput = {}): CampaignSuggestions {
-  const stdCpc = round10(BASE_CPC_MINOR);
+export function suggestCampaign(input: AdvisorInput): CampaignSuggestions {
+  const stdCpc = round10(input.cpcMinMinor);
 
   // Beat the field: one notch above the current highest active CPC (with a
   // sane floor when the platform has no competing campaigns yet).

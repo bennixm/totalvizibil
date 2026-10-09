@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 
 import { apiFetch } from '@/services/api'
 import type { Money } from '@/stores/wallet'
+import type { LocalizedName } from '@/stores/companies'
 
 export type CampaignStatus = 'draft' | 'active' | 'paused' | 'depleted'
 
@@ -51,6 +52,28 @@ export interface SaveCampaignInput {
   autoOptimize?: boolean
 }
 
+/** The company's position within ONE atomic Feed (județ + subcategorie). A
+ *  company competing on several counties/subcategories gets one of these per
+ *  Feed — there is no single overall "position" any more. */
+export interface FeedRankEntry {
+  /** Real județ, or the "nationwide" pseudo-county. */
+  county: string
+  categorySlug: string
+  categoryName: LocalizedName
+  position: number
+  total: number
+}
+
+/** Lifetime spend for one atomic Feed — which search a block of clicks came from. */
+export interface FeedSpendEntry {
+  county: string
+  categorySlug: string
+  categoryName: LocalizedName
+  clicks: number
+  spent: Money
+  cpcEffective: Money | null
+}
+
 export type OptimizationArea = 'plan' | 'response' | 'age' | 'cpc'
 
 export interface OptimizationFinding {
@@ -63,7 +86,8 @@ export interface OptimizationFinding {
 
 export interface CampaignOptimization {
   status: CampaignStatus | null
-  rank: { position: number; total: number } | null
+  /** Position in every atomic Feed the company competes in — can be several. */
+  ranks: FeedRankEntry[]
   visibility: {
     score: number
     parts: { cpc: number; response: number; plan: number; age: number }
@@ -99,10 +123,13 @@ export interface CampaignSpend {
   requiresWebsiteBuilder: boolean
   /** Wallet funds a full day and (if advanced) the builder is done. */
   canActivate: boolean
-  /** Position in the category group while live, else null. */
-  feedRank: { position: number; total: number } | null
+  /** Position in every atomic Feed the company competes in — can be several. */
+  feedRanks: FeedRankEntry[]
+  /** Lifetime spend broken down by which Feed (search) each click came from. */
+  byFeed: FeedSpendEntry[]
   /** Server clock at the time of the request — the client ticks projections off this. */
   now: string
+  /** CPC maxim — the bidding ceiling the owner set, never the actual per-click charge. */
   cpcSet: Money
   dailyBudget: Money
   today: {

@@ -610,6 +610,9 @@ async function save() {
 </template>
 
 <style scoped>
+.as {
+  max-width: 1320px;
+}
 .as__tabs {
   border-bottom: 1px solid var(--tvz-hairline);
   margin-bottom: 1.4rem;

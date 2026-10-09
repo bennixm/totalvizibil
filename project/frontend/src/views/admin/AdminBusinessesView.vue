@@ -226,6 +226,9 @@ function open(id: string): void {
 </template>
 
 <style scoped>
+.ab {
+  max-width: 1320px;
+}
 .ab__chips {
   display: flex;
   gap: 0.7rem;

@@ -271,6 +271,9 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
 </template>
 
 <style scoped>
+.ac {
+  max-width: 1320px;
+}
 .ac__tree {
   display: flex;
   flex-direction: column;

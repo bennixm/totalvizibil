@@ -338,6 +338,9 @@ onMounted(() => admin.fetchInvoices())
 </template>
 
 <style scoped>
+.ai {
+  max-width: 1320px;
+}
 .ai__filters {
   display: flex;
   gap: 0.6rem;

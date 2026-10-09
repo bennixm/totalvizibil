@@ -22,6 +22,17 @@ export interface FeedRank {
   total: number;
 }
 
+export interface FeedRankEntry {
+  /** Real județ, or the "nationwide" pseudo-county. */
+  county: string;
+  categorySlug: string;
+  categoryName: Prisma.JsonValue;
+  /** 1-based slot within this one Feed. */
+  position: number;
+  /** Eligible competitors in this Feed. */
+  total: number;
+}
+
 export interface FeedContext {
   feedId: FeedId;
   /** Eligible competitors physically present in this Feed, incl. the company itself if eligible. */
@@ -242,6 +253,64 @@ export class AnalyticsService {
     const idx = ranked.findIndex((r) => r.companyId === companyId);
     if (idx < 0) return null;
     return { position: idx + 1, total: ranked.length };
+  }
+
+  /**
+   * The company's 1-based position in EVERY atomic Feed it's eligible to
+   * compete in — one entry per (județ, subcategorie) it's tagged with. The
+   * multi-Feed-aware counterpart of `feedRankFor`'s single primary-Feed
+   * number: a company competing on several counties/subcategories has a
+   * genuinely different hierarchy in each, so no one number can represent
+   * "its position" overall. A Feed where the company isn't itself eligible
+   * (CPC maxim below that Feed's CPC minim) is skipped entirely — it isn't
+   * ranked there, so there is nothing to report.
+   */
+  async feedRanksFor(companyId: string): Promise<FeedRankEntry[]> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: feedContextSelect,
+    });
+    if (!company) return [];
+    const feeds = enumerateCompanyFeeds(company);
+    if (!feeds.length) return [];
+
+    const cfg = await this.marginConfig();
+    const leafIds = Array.from(new Set(feeds.map((f) => f.leafId)));
+    const categories = await this.prisma.category.findMany({
+      where: { id: { in: leafIds } },
+      select: { id: true, slug: true, nameI18n: true },
+    });
+    const categoryById = new Map(categories.map((c) => [c.id, c]));
+
+    const out: FeedRankEntry[] = [];
+    for (const feedId of feeds) {
+      const peers = await feedEligiblePeers(this.prisma, feedId, cfg);
+      if (!peers.some((p) => p.companyId === companyId)) continue;
+
+      const ids = peers.map((p) => p.companyId);
+      const maxBidMinor = peers.reduce((mx, p) => Math.max(mx, p.cpcMinor), 0);
+      const [vinputs, boosted] = await Promise.all([
+        this.visibilityInputsFor(ids),
+        this.prisma.campaign.findMany({
+          where: { companyId: { in: ids }, status: 'active', appearFirst: true },
+          select: { companyId: true },
+        }),
+      ]);
+      const boostSet = new Set(boosted.map((b) => b.companyId));
+      const ranked = rankPeersByFeedScore(ids, vinputs, maxBidMinor, boostSet);
+      const idx = ranked.findIndex((r) => r.companyId === companyId);
+      if (idx < 0) continue;
+
+      const cat = categoryById.get(feedId.leafId);
+      out.push({
+        county: feedId.county,
+        categorySlug: cat?.slug ?? '',
+        categoryName: cat?.nameI18n ?? null,
+        position: idx + 1,
+        total: ranked.length,
+      });
+    }
+    return out;
   }
 
   /**
