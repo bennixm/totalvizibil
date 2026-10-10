@@ -66,6 +66,24 @@ export interface WalletTxn {
   processAt: string | null
 }
 
+/** One row of the Consumption page's unified ledger — a billed click (its
+ *  own Feed: județ + subcategorie + that click's own cost) or any other
+ *  spend category, merged and sorted together. */
+export interface ConsumptionEntry {
+  id: string
+  kind: 'click' | 'txn'
+  category: SpendCategory
+  amount: Money
+  /** 1 for a click row; the rolled-up count for an aggregate row; else null. */
+  clicks: number | null
+  /** Real județ, or the "nationwide" pseudo-county — click rows only. */
+  county: string | null
+  categorySlug: string | null
+  categoryName: { ro: string; en: string; de: string } | null
+  description: string | null
+  createdAt: string
+}
+
 export type PaymentKind = 'purchase' | 'refund'
 
 /** One row of the Wallet page's own Payments/Refunds statement — the same
@@ -126,6 +144,17 @@ interface State {
     from: string | null
     to: string | null
   }
+  consumption: ConsumptionEntry[]
+  /** A timestamp (not an id) — the merged click/transaction ledger pages by `createdAt`. */
+  consumptionNextCursor: string | null
+  /** Active Consumption-page filters, kept so "load more" continues the same query. */
+  consumptionFilters: {
+    companyId: string | null
+    category: SpendCategory | null
+    from: string | null
+    to: string | null
+    search: string | null
+  }
 }
 
 /** The user's single wallet — funds every business they own. */
@@ -144,6 +173,9 @@ export const useWalletStore = defineStore('wallet', {
     payments: [],
     paymentsNextCursor: null,
     paymentsFilters: { kind: 'purchase', from: null, to: null },
+    consumption: [],
+    consumptionNextCursor: null,
+    consumptionFilters: { companyId: null, category: null, from: null, to: null, search: null },
   }),
 
   actions: {
@@ -231,6 +263,41 @@ export const useWalletStore = defineStore('wallet', {
       )
       this.transactions = append ? [...this.transactions, ...res.items] : res.items
       this.nextCursor = res.nextCursor
+    },
+
+    /** Backs the Consumption page's single merged, filterable, paginated ledger. */
+    async loadConsumption(
+      append = true,
+      filters?: {
+        companyId?: string | null
+        category?: SpendCategory | null
+        from?: string | null
+        to?: string | null
+        search?: string | null
+      },
+    ): Promise<void> {
+      if (filters !== undefined) {
+        this.consumptionFilters = {
+          companyId: filters.companyId ?? null,
+          category: filters.category ?? null,
+          from: filters.from ?? null,
+          to: filters.to ?? null,
+          search: filters.search ?? null,
+        }
+      }
+      const params = new URLSearchParams()
+      if (append && this.consumptionNextCursor) params.set('cursor', this.consumptionNextCursor)
+      if (this.consumptionFilters.companyId) params.set('companyId', this.consumptionFilters.companyId)
+      if (this.consumptionFilters.category) params.set('category', this.consumptionFilters.category)
+      if (this.consumptionFilters.from) params.set('from', this.consumptionFilters.from)
+      if (this.consumptionFilters.to) params.set('to', this.consumptionFilters.to)
+      if (this.consumptionFilters.search) params.set('search', this.consumptionFilters.search)
+      const q = params.toString() ? `?${params.toString()}` : ''
+      const res = await apiFetch<{ items: ConsumptionEntry[]; nextCursor: string | null }>(
+        `/wallet/consumption${q}`,
+      )
+      this.consumption = append ? [...this.consumption, ...res.items] : res.items
+      this.consumptionNextCursor = res.nextCursor
     },
 
     /** Backs the Wallet page's own Payments/Refunds statement. */

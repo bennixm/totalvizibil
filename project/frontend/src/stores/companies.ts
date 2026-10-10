@@ -134,6 +134,7 @@ export interface DashboardPayload {
     status: CompanyStatus
     category: { id: string; slug: string; name: LocalizedName } | null
     primaryLocation: CompanyLocation | null
+    locations: CompanyLocation[]
     contactsCount: number
     servicesCount: number
     createdAt: string

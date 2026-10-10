@@ -78,6 +78,30 @@ export class WalletController {
     return this.wallet.spendBreakdownFor(user.id, companyId);
   }
 
+  /** The Consumption page's single merged, filterable, paginated ledger for
+   *  one business — billed clicks (with their own Feed detail) and every
+   *  other spend category together, newest first. */
+  @Get('consumption')
+  consumption(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('companyId') companyId: string,
+    @Query('category') category?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('search') search?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.wallet.consumptionLedgerFor(user.id, companyId, {
+      category,
+      from,
+      to,
+      search,
+      cursor,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   /** Backs the Wallet page's own Payments/Refunds table (below Refund). */
   @Get('payments')
   payments(

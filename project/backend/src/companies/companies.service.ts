@@ -587,6 +587,7 @@ export class CompaniesService implements OnModuleInit {
         status: company.status,
         category: company.category,
         primaryLocation,
+        locations: company.locations,
         contactsCount: company.contacts.length,
         servicesCount: company.services.length,
         createdAt: company.createdAt,

@@ -2,11 +2,15 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { CampaignStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { utcDay } from '../campaigns/ad-click';
+import { AnalyticsService } from '../analytics/analytics.service';
+import { minorToCredits } from '../wallet/money';
 import { NotificationsService } from './notifications.service';
 
 const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 /** Don't re-notify the same low balance more than once a day. */
 const LOW_BALANCE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+/** Don't re-notify the same "you could reach #1" condition more than once a day. */
+const POSITION_ALERT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Turns the campaign-health conditions already surfaced on the dashboard
@@ -29,6 +33,7 @@ export class NotificationsSweepService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly analytics: AnalyticsService,
   ) {}
 
   onModuleInit(): void {
@@ -43,6 +48,9 @@ export class NotificationsSweepService implements OnModuleInit {
     });
     await this.sweepLowBalances().catch((err) => {
       this.logger.error('Low-balance sweep failed', err instanceof Error ? err.stack : err);
+    });
+    await this.sweepFeedPositionUpgrades().catch((err) => {
+      this.logger.error('Feed-position sweep failed', err instanceof Error ? err.stack : err);
     });
   }
 
@@ -161,5 +169,71 @@ export class NotificationsSweepService implements OnModuleInit {
       }
     }
     if (notified > 0) this.logger.log(`Notified ${notified} low-balance wallet(s)`);
+  }
+
+  /**
+   * The campaign panel no longer lists per-Feed positions (see
+   * CampaignSpendView/CampaignOptimizeView) — instead, a real notification
+   * fires when a live campaign isn't #1 in at least one Feed (județ +
+   * subcategorie) it's eligible in, naming the CPC Maxim needed to fix it.
+   */
+  private async sweepFeedPositionUpgrades(): Promise<void> {
+    const campaigns = await this.prisma.campaign.findMany({
+      where: { status: CampaignStatus.active },
+      select: {
+        id: true,
+        positionAlertNotifiedAt: true,
+        company: { select: { id: true, displayName: true, ownerUserId: true } },
+      },
+    });
+    if (!campaigns.length) return;
+
+    let notified = 0;
+    const now = Date.now();
+    for (const c of campaigns) {
+      if (
+        c.positionAlertNotifiedAt &&
+        now - c.positionAlertNotifiedAt.getTime() < POSITION_ALERT_COOLDOWN_MS
+      ) {
+        continue;
+      }
+      try {
+        const ranks = await this.analytics.feedRanksFor(c.company.id);
+        if (!ranks.some((r) => r.position !== 1)) continue;
+
+        const recommended = await this.analytics.recommendedCpcFor(c.company.id);
+        if (!recommended) continue;
+
+        // Same claim-before-notify ordering as the other sweeps above.
+        const claimed = await this.prisma.campaign.updateMany({
+          where: {
+            id: c.id,
+            OR: [
+              { positionAlertNotifiedAt: null },
+              { positionAlertNotifiedAt: { lt: new Date(now - POSITION_ALERT_COOLDOWN_MS) } },
+            ],
+          },
+          data: { positionAlertNotifiedAt: new Date() },
+        });
+        if (claimed.count === 0) continue;
+
+        const cpcCredits = minorToCredits(recommended.cpcMinor).toFixed(2);
+        await this.notifications.notify({
+          userId: c.company.ownerUserId,
+          type: 'campaign_position_upgrade',
+          title: `Poți ajunge pe locul 1 pentru „${c.company.displayName}"`,
+          body: `Nu ești pe locul 1 în cel puțin un Feed (județ + subcategorie). CPC Maxim recomandat ca să ajungi pe locul 1 peste tot: ${cpcCredits} cr.`,
+          channels: { panel: true },
+          data: { companyId: c.company.id },
+        });
+        notified++;
+      } catch (err) {
+        this.logger.error(
+          `Feed-position notification failed for campaign ${c.id}`,
+          err instanceof Error ? err.stack : err,
+        );
+      }
+    }
+    if (notified > 0) this.logger.log(`Notified ${notified} feed-position upgrade(s)`);
   }
 }

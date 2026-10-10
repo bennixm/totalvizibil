@@ -554,6 +554,198 @@ export class WalletService implements OnModuleInit {
     return { items, nextCursor: hasMore ? pageRows[pageRows.length - 1].id : null };
   }
 
+  /**
+   * One business's consumption, as a single merged, filterable, paginated
+   * ledger — individual billed `AdClick` rows (each carrying its own Feed:
+   * județ + subcategorie + that click's own cost) stand in for the "clicks"
+   * category instead of the daily `WalletTransaction` rollup row, which has
+   * no Feed detail to show. Every other category still comes from
+   * `WalletTransaction` as before. The two sources are merge-sorted by
+   * `createdAt` and paginated with a timestamp cursor — fetching `take + 1`
+   * from each source is always enough to construct the true top `take` of
+   * the union (an item ranked in the overall top `take` can't be preceded,
+   * within its own source, by `take` or more items of that same source).
+   */
+  async consumptionLedgerFor(
+    userId: string,
+    companyId: string,
+    opts: {
+      category?: string;
+      from?: string;
+      to?: string;
+      search?: string;
+      cursor?: string;
+      limit?: number;
+    } = {},
+  ) {
+    const ownerId = await this.ownerIdForCompany(companyId);
+    if (ownerId !== userId) throw new ForbiddenException('not_your_company');
+
+    const take = Math.min(Math.max(opts.limit ?? 20, 1), 100);
+    const category = SPEND_CATEGORIES.includes(opts.category as SpendCategory)
+      ? (opts.category as SpendCategory)
+      : undefined;
+    const wantClicks = !category || category === 'clicks';
+    const wantTxns = !category || category !== 'clicks';
+
+    let gte: Date | undefined;
+    let lt: Date | undefined;
+    if (opts.from && /^\d{4}-\d{2}-\d{2}$/.test(opts.from)) {
+      gte = new Date(`${opts.from}T00:00:00.000Z`);
+    }
+    if (opts.to && /^\d{4}-\d{2}-\d{2}$/.test(opts.to)) {
+      lt = new Date(new Date(`${opts.to}T00:00:00.000Z`).getTime() + 86_400_000);
+    }
+    if (opts.cursor) {
+      const cursorDate = new Date(opts.cursor);
+      if (!isNaN(cursorDate.getTime())) {
+        lt = lt && lt.getTime() < cursorDate.getTime() ? lt : cursorDate;
+      }
+    }
+    const createdAt: Prisma.DateTimeFilter = {
+      ...(gte ? { gte } : {}),
+      ...(lt ? { lt } : {}),
+    };
+    const search = opts.search?.trim().replace(/^#/, '');
+
+    type ClickRow = {
+      id: string;
+      costMinor: number;
+      feedCounty: string | null;
+      feedCategoryId: string | null;
+      createdAt: Date;
+    };
+    let clickRows: ClickRow[] = [];
+    if (wantClicks) {
+      let clickIds: string[] | undefined;
+      if (search) {
+        const matched = await this.prisma.$queryRaw<{ id: string }[]>`
+          SELECT id FROM "ad_clicks"
+          WHERE company_id = ${companyId}::uuid AND billed AND id::text ILIKE ${search + '%'}
+        `;
+        clickIds = matched.map((m) => m.id);
+      }
+      if (!search || (clickIds && clickIds.length)) {
+        clickRows = await this.prisma.adClick.findMany({
+          where: {
+            companyId,
+            billed: true,
+            ...(Object.keys(createdAt).length ? { createdAt } : {}),
+            ...(clickIds ? { id: { in: clickIds } } : {}),
+          },
+          select: { id: true, costMinor: true, feedCounty: true, feedCategoryId: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: take + 1,
+        });
+      }
+    }
+
+    type TxnRow = {
+      id: string;
+      provider: string | null;
+      description: string | null;
+      amountMinor: number;
+      clickCount: number | null;
+      createdAt: Date;
+    };
+    let txnRows: TxnRow[] = [];
+    if (wantTxns) {
+      const wallet = await this.ensureWallet(userId);
+      let txnIds: string[] | undefined;
+      if (search) {
+        const matched = await this.prisma.$queryRaw<{ id: string }[]>`
+          SELECT id FROM "wallet_transactions"
+          WHERE wallet_id = ${wallet.id}::uuid AND id::text ILIKE ${search + '%'}
+        `;
+        txnIds = matched.map((m) => m.id);
+      }
+      if (!search || (txnIds && txnIds.length)) {
+        txnRows = await this.prisma.walletTransaction.findMany({
+          where: {
+            walletId: wallet.id,
+            companyId,
+            type: 'spend',
+            ...(category ? categoryWhere(category) : { NOT: { provider: CPC_PROVIDER } }),
+            ...(Object.keys(createdAt).length ? { createdAt } : {}),
+            ...(txnIds ? { id: { in: txnIds } } : {}),
+          },
+          select: {
+            id: true,
+            provider: true,
+            description: true,
+            amountMinor: true,
+            clickCount: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: take + 1,
+        });
+      }
+    }
+
+    const catIds = Array.from(
+      new Set(clickRows.map((c) => c.feedCategoryId).filter((id): id is string => !!id)),
+    );
+    const categories = catIds.length
+      ? await this.prisma.category.findMany({
+          where: { id: { in: catIds } },
+          select: { id: true, slug: true, nameI18n: true },
+        })
+      : [];
+    const categoryById = new Map(categories.map((c) => [c.id, c]));
+
+    interface Entry {
+      id: string;
+      kind: 'click' | 'txn';
+      category: SpendCategory;
+      amount: ReturnType<typeof money>;
+      clicks: number | null;
+      county: string | null;
+      categorySlug: string | null;
+      categoryName: Prisma.JsonValue | null;
+      description: string | null;
+      createdAt: Date;
+    }
+    const clickEntries: Entry[] = clickRows.map((c) => {
+      const cat = c.feedCategoryId ? categoryById.get(c.feedCategoryId) : undefined;
+      return {
+        id: c.id,
+        kind: 'click' as const,
+        category: 'clicks' as const,
+        amount: money(c.costMinor),
+        clicks: 1,
+        county: c.feedCounty,
+        categorySlug: cat?.slug ?? null,
+        categoryName: cat?.nameI18n ?? null,
+        description: null,
+        createdAt: c.createdAt,
+      };
+    });
+    const txnEntries: Entry[] = txnRows.map((t) => ({
+      id: t.id,
+      kind: 'txn' as const,
+      category: categoryOf(t.provider, t.description),
+      amount: money(t.amountMinor),
+      clicks: t.provider === CPC_PROVIDER ? (t.clickCount ?? null) : null,
+      county: null,
+      categorySlug: null,
+      categoryName: null,
+      description: t.description,
+      createdAt: t.createdAt,
+    }));
+
+    const merged = [...clickEntries, ...txnEntries].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
+    const hasMore = merged.length > take;
+    const page = hasMore ? merged.slice(0, take) : merged;
+
+    return {
+      items: page.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
+      nextCursor: hasMore ? page[page.length - 1].createdAt.toISOString() : null,
+    };
+  }
+
   /** Shared date-range filter builder for listPayments/listPaymentsForExport
    *  — same "inclusive UTC calendar-day bounds" convention `listTransactions`
    *  already uses. */

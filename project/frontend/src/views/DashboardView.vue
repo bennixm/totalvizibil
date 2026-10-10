@@ -81,6 +81,17 @@ const websiteBadge = computed<{ key: string; cls: string }>(() => {
   return { key: built ? 'dashboard.websiteUnpublished' : 'dashboard.websiteIdle', cls: 'is-idle' }
 })
 const location = computed(() => dash.value?.company.primaryLocation ?? null)
+// The card must reflect the whole served area, not just the primary pin —
+// a business can serve several județe (one Location row each).
+const locationCounties = computed(() => {
+  const locs = dash.value?.company.locations ?? []
+  return locs
+    .filter((l) => !l.nationwide && l.county)
+    .map((l) => l.county as string)
+})
+const locationIsNationwide = computed(
+  () => dash.value?.company.locations.some((l) => l.nationwide) ?? false,
+)
 const wallet = computed(() => dash.value?.wallet ?? null)
 const a = computed(() => dash.value?.analytics ?? null)
 const money = useMoney()
@@ -541,12 +552,9 @@ watch(
         <article class="dcard">          <p class="dcard__k">{{ t('dashboard.locationTitle') }}</p>
           <div class="dcard__body">
             <template v-if="location">
-              <p class="dcard__hero">
-                <template v-if="location.nationwide">{{ t('dashboard.radiusCountry') }}</template>
-                <template v-else
-                  >{{ location.county
-                  }}<span v-if="location.city">, {{ location.city }}</span></template
-                >
+              <p class="dcard__hero" :class="{ 'dcard__hero--wrap': locationCounties.length > 1 }">
+                <template v-if="locationIsNationwide">{{ t('dashboard.radiusCountry') }}</template>
+                <template v-else>{{ locationCounties.join(', ') }}</template>
               </p>
               <router-link
                 v-if="!pendingDeletion"
@@ -1016,6 +1024,10 @@ watch(
   letter-spacing: -0.01em;
   line-height: 1.12;
   margin: 0;
+}
+.dcard__hero--wrap {
+  font-size: 1.05rem;
+  line-height: 1.35;
 }
 .dcard__hero small {
   font-size: 0.82rem;

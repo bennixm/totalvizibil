@@ -13,8 +13,8 @@ import TrendChart from '@/components/TrendChart.vue'
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { companyRoute } from '@/services/routes'
 import { useMoney } from '@/composables/useMoney'
-import { useCompaniesStore, type LocalizedName } from '@/stores/companies'
-import { useCampaignStore, type FeedRankEntry } from '@/stores/campaign'
+import { useCompaniesStore } from '@/stores/companies'
+import { useCampaignStore } from '@/stores/campaign'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 
@@ -149,33 +149,42 @@ const keyTiles = computed(() => {
   ] as Array<{ k: string; main: string; unit?: 'credits'; sub: string }>
 })
 
-// Per-Feed ranking — a company competing on several counties/subcategories
-// has a genuinely different position in each, so this is a list, not a tile.
-const feedRanks = computed(() => s.value?.feedRanks ?? [])
-function catName(entry: FeedRankEntry): string {
-  return entry.categoryName[locale.value as keyof LocalizedName] ?? entry.categoryName.en
+const lifetime = computed(() => {
+  const d = s.value
+  if (!d) return []
+  return [{ k: 'lRunning', v: fmtActive(d.lifetime.activeSeconds), x: '' }]
+})
+
+// A partial preview of where the budget goes — the full, filterable,
+// paginated breakdown lives on the consumption page now.
+const spendPreview = computed(() => (s.value?.byFeed ?? []).slice(0, 3))
+function catName(entry: { categoryName: { ro: string; en: string; de: string } }): string {
+  return entry.categoryName[locale.value as 'ro' | 'en' | 'de'] ?? entry.categoryName.en
 }
 function countyLabel(county: string): string {
   return county === 'nationwide' ? t('feed.coverageCountry') : county
 }
 
-const lifetime = computed(() => {
-  const d = s.value
-  if (!d) return []
-  return [
-    { k: 'lClicks', v: String(d.lifetime.clicks), x: '' },
-    { k: 'lRunning', v: fmtActive(d.lifetime.activeSeconds), x: '' },
-  ]
-})
-
-// Click trend — spend-over-time now lives on the Consumption page instead.
-const chart = computed(() => {
+// Two separate small trends, each on its own scale — clicks (small whole
+// numbers) and spend (credit decimals) were previously crammed onto one
+// shared axis, which is what made the old single chart unreadable.
+const chartClicks = computed(() => {
   const pts = s.value?.series ?? []
   return {
     labels: pts.map((p) => p.date.slice(5)),
     series: [{ label: t('spend.legendClicks'), values: pts.map((p) => p.clicks) }],
   }
 })
+const chartSpend = computed(() => {
+  const pts = s.value?.series ?? []
+  return {
+    labels: pts.map((p) => p.date.slice(5)),
+    series: [{ label: t('spend.legendSpent'), values: pts.map((p) => p.spent) }],
+  }
+})
+function fmtCr(v: number): string {
+  return n(v, { maximumFractionDigits: 2 }) + ' cr'
+}
 
 async function loadFor(id: string): Promise<void> {
   companyId.value = id
@@ -337,7 +346,8 @@ watch(
 
         <div class="ov__controlLinks">
           <v-btn
-            variant="text"
+            variant="tonal"
+            color="primary"
             size="small"
             prepend-icon="mdi-tune-variant"
             :to="{ name: 'campaign-optimize', query: { c: companyId } }"
@@ -345,7 +355,8 @@ watch(
             {{ t('dashboard.optimizeCta') }}
           </v-btn>
           <v-btn
-            variant="text"
+            variant="tonal"
+            color="primary"
             size="small"
             prepend-icon="mdi-currency-usd"
             :to="{ name: 'campaign-budget', query: { c: companyId } }"
@@ -408,6 +419,24 @@ watch(
         </v-btn>
       </div>
 
+      <!-- A single alert — no per-Feed position list — when the company could
+           rank #1 somewhere by raising its CPC Maxim. -->
+      <div v-if="isLive && s.needsPositionUpgrade" class="ov__banner ov__banner--warn">
+        <v-icon icon="mdi-trending-up" size="18" />
+        <div>
+          <strong>{{ t('spend.positionUpgradeTitle') }}</strong>
+          <p>{{ t('spend.positionUpgradeText', { cpc: cr(s.recommendedCpc.credits) }) }}</p>
+        </div>
+        <v-btn
+          size="small"
+          variant="flat"
+          color="primary"
+          :to="{ name: 'campaign-budget', query: { c: companyId } }"
+        >
+          {{ t('spend.budgetCta') }}
+        </v-btn>
+      </div>
+
       <!-- Principal info: clicks today (hero) + supporting tiles -->
       <section class="ov__key">
         <div class="khero">
@@ -425,19 +454,6 @@ watch(
             <span v-if="tile.sub" class="kt__x">{{ tile.sub }}</span>
           </div>
         </div>
-      </section>
-
-      <!-- Per-Feed ranking: a company competing on several counties/subcategories
-           has a genuinely different position in each. -->
-      <section v-if="isLive" class="card ov__ranks">
-        <h3>{{ t('spend.ranksTitle') }}</h3>
-        <ul v-if="feedRanks.length" class="ov__ranksList">
-          <li v-for="(r, i) in feedRanks" :key="r.county + r.categorySlug + i" class="rk">
-            <span class="rk__loc">{{ countyLabel(r.county) }} · {{ catName(r) }}</span>
-            <span class="rk__pos">{{ t('spend.feedRankValue', { n: r.position, total: r.total }) }}</span>
-          </li>
-        </ul>
-        <p v-else class="ov__ranksEmpty">{{ t('spend.feedRankNone') }}</p>
       </section>
 
       <!-- Today's budget: progress + projection + runway -->
@@ -505,12 +521,52 @@ watch(
         </div>
       </section>
 
-      <!-- Click trend -->
+      <!-- Trend: clicks and spend each get their own scale, stacked -->
       <section class="card ov__chart">
         <div class="ov__chartHead">
           <h3>{{ t('spend.trendTitle') }}</h3>
         </div>
-        <TrendChart :labels="chart.labels" :series="chart.series" />
+        <div class="ov__chartGroup">
+          <p class="ov__chartLabel">{{ t('spend.legendClicks') }}</p>
+          <TrendChart :labels="chartClicks.labels" :series="chartClicks.series" />
+        </div>
+        <div class="ov__chartGroup">
+          <p class="ov__chartLabel">{{ t('spend.legendSpent') }}</p>
+          <TrendChart :labels="chartSpend.labels" :series="chartSpend.series" :format="fmtCr" />
+        </div>
+      </section>
+
+      <!-- Spend preview: a few rows, "Vezi tot" hands off to the full,
+           filterable, paginated breakdown on the consumption page. -->
+      <section v-if="spendPreview.length" class="card ov__spendPreview">
+        <div class="ov__chartHead">
+          <h3>{{ t('spend.previewTitle') }}</h3>
+          <v-btn
+            size="small"
+            variant="text"
+            color="primary"
+            append-icon="mdi-arrow-right"
+            :to="{ name: 'consumption', query: { c: companyId } }"
+          >
+            {{ t('spend.previewSeeAll') }}
+          </v-btn>
+        </div>
+        <table class="ov__spendTable">
+          <thead>
+            <tr>
+              <th>{{ t('spend.previewColFeed') }}</th>
+              <th>{{ t('spend.previewColClicks') }}</th>
+              <th>{{ t('spend.previewColSpent') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(r, i) in spendPreview" :key="r.county + r.categorySlug + i">
+              <td>{{ countyLabel(r.county) }} · {{ catName(r) }}</td>
+              <td>{{ r.clicks }}</td>
+              <td>{{ n(r.spent.credits, { maximumFractionDigits: 2 }) }} cr</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
 
       <!-- Lifetime strip -->
@@ -866,41 +922,6 @@ watch(
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
-/* Per-Feed ranking -------------------------------------------------- */
-.ov__ranks {
-  margin-bottom: 1rem;
-}
-.ov__ranksList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.rk {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.55rem 0;
-  font-size: 0.85rem;
-}
-.rk + .rk {
-  border-top: 1px solid var(--tvz-hairline);
-}
-.rk__loc {
-  min-width: 0;
-  color: rgba(var(--v-theme-on-surface), 0.75);
-}
-.rk__pos {
-  flex: none;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.ov__ranksEmpty {
-  margin: 0;
-  font-size: 0.85rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-}
-
 /* Today ---------------------------------------------------------- */
 .ov__today {
   margin-bottom: 1rem;
@@ -1013,6 +1034,42 @@ watch(
 .ov__chartHead h3 {
   margin: 0;
 }
+.ov__chartGroup + .ov__chartGroup {
+  margin-top: 1.5rem;
+}
+.ov__chartLabel {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+/* Spend preview ------------------------------------------------------ */
+.ov__spendPreview {
+  margin-bottom: 1rem;
+}
+.ov__spendTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+.ov__spendTable th {
+  text-align: left;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  padding: 0 0 0.5rem;
+}
+.ov__spendTable th:not(:first-child),
+.ov__spendTable td:not(:first-child) {
+  text-align: right;
+}
+.ov__spendTable td {
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--tvz-hairline);
+}
 
 /* Lifetime -------------------------------------------------------------- */
 .ov__life {
@@ -1027,7 +1084,7 @@ watch(
 }
 .ov__lifeGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.6rem;
 }
 .lf {
@@ -1072,9 +1129,6 @@ watch(
 @media (max-width: 620px) {
   .ov__key {
     grid-template-columns: 1fr;
-  }
-  .ov__lifeGrid {
-    grid-template-columns: 1fr 1fr;
   }
 }
 @media (max-width: 420px) {

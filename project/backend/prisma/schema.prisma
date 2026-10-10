@@ -942,6 +942,10 @@ model Campaign {
   // a day-keyed dedup so the alert fires once per day it actually happens,
   // reusing the same day bucket `spentTodayMinor` already resets on.
   depletedNotifiedForDay DateTime? @map("depleted_notified_for_day") @db.Date
+  // Cooldown stamp for the "you could reach #1" notification (see
+  // NotificationsSweepService.sweepFeedPositionUpgrades) — re-notified at
+  // most once a day while the company stays off position #1 in some Feed.
+  positionAlertNotifiedAt DateTime? @map("position_alert_notified_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

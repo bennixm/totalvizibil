@@ -546,10 +546,9 @@ export class CampaignService {
   async optimizationFor(companyId: string) {
     const campaign = await this.reconcile(companyId);
 
-    const [analytics, s, ranks] = await Promise.all([
+    const [analytics, s] = await Promise.all([
       this.analytics.companyAnalytics(companyId),
       this.suggestFor(companyId),
-      this.analytics.feedRanksFor(companyId),
     ]);
 
     const findings = analyzeCampaign({
@@ -563,7 +562,6 @@ export class CampaignService {
 
     return {
       status: campaign?.status ?? null,
-      ranks,
       visibility: analytics.visibility,
       response: analytics.response,
       activeDays: analytics.campaign.activeDays,
@@ -651,7 +649,7 @@ export class CampaignService {
     const DAY_MS = 86_400_000;
     const SERIES_DAYS = 14;
 
-    const [walletSummary, lifetimeConsumedMinor, lifetimeClicks, websiteReady, feedRanks, byFeed] =
+    const [walletSummary, lifetimeConsumedMinor, lifetimeClicks, websiteReady, feedRanks, byFeed, s] =
       await Promise.all([
         this.wallet.getSummary(owner),
         this.wallet.consumedByCompany(companyId),
@@ -659,8 +657,13 @@ export class CampaignService {
         this.isListingWebsiteReady(companyId),
         this.analytics.feedRanksFor(companyId),
         this.spendByFeedFor(companyId),
+        this.suggestFor(companyId),
       ]);
     const requiresWebsiteBuilder = !websiteReady;
+    // Not #1 in at least one Feed the company competes in — the campaign panel
+    // surfaces this as a single alert instead of the old per-Feed position list.
+    const needsPositionUpgrade = feedRanks.some((r) => r.position !== 1);
+    const recommendedCpc = money(s.appearFirst.cpcMinor);
 
     if (!campaign) {
       return {
@@ -671,6 +674,8 @@ export class CampaignService {
         canActivate: false,
         feedRanks,
         byFeed,
+        needsPositionUpgrade,
+        recommendedCpc,
         now: now.toISOString(),
         cpcSet: money(0),
         dailyBudget: money(0),
@@ -881,6 +886,8 @@ export class CampaignService {
       canActivate: walletSummary.balance.minor >= budget && !requiresWebsiteBuilder,
       feedRanks,
       byFeed,
+      needsPositionUpgrade,
+      recommendedCpc,
       now: now.toISOString(),
       cpcSet: money(campaign.cpcMinor),
       dailyBudget: money(budget),

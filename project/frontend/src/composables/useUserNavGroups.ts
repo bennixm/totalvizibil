@@ -34,6 +34,11 @@ export function useUserNavGroups() {
           label: t('nav.consumption'),
           icon: 'mdi-chart-donut',
         },
+        {
+          to: { name: 'create-location' },
+          label: t('nav.location'),
+          icon: 'mdi-map-marker-outline',
+        },
       ],
     },
     {

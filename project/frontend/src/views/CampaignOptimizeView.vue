@@ -4,10 +4,10 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
-import { useCompaniesStore, type LocalizedName } from '@/stores/companies'
-import { useCampaignStore, type FeedRankEntry, type OptimizationArea } from '@/stores/campaign'
+import { useCompaniesStore } from '@/stores/companies'
+import { useCampaignStore, type OptimizationArea } from '@/stores/campaign'
 
-const { t, n, locale } = useI18n()
+const { t, n } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const companies = useCompaniesStore()
@@ -16,17 +16,6 @@ const { loading } = storeToRefs(campaign)
 
 const companyId = ref<string | null>(null)
 const o = computed(() => campaign.optimization)
-
-const partRows = computed(() => {
-  const p = o.value?.visibility.parts
-  if (!p) return []
-  return [
-    { key: 'cpc', label: 'analytics.vsCpc', score: p.cpc },
-    { key: 'response', label: 'analytics.vsResponse', score: p.response },
-    { key: 'plan', label: 'analytics.vsPlan', score: p.plan },
-    { key: 'age', label: 'analytics.vsAge', score: p.age },
-  ]
-})
 
 const AREA_META: Record<OptimizationArea, { icon: string; to: string | null }> = {
   cpc: { icon: 'mdi-cash-multiple', to: 'campaign' },
@@ -37,13 +26,6 @@ const AREA_META: Record<OptimizationArea, { icon: string; to: string | null }> =
 
 function fmt(v: number): string {
   return n(v, { maximumFractionDigits: 2 })
-}
-
-function catName(entry: FeedRankEntry): string {
-  return entry.categoryName[locale.value as keyof LocalizedName] ?? entry.categoryName.en
-}
-function countyLabel(county: string): string {
-  return county === 'nationwide' ? t('feed.coverageCountry') : county
 }
 
 function fmtMinutes(m: number | null): string {
@@ -117,36 +99,17 @@ watch(
       <p class="opt__lead">{{ t('optimize.lead') }}</p>
 
       <section class="opt__hero">
-        <div class="opt__rank">
-          <template v-if="o.ranks.length">
-            <p class="opt__rankLine">{{ t('optimize.rankScope') }}</p>
-            <ul class="opt__rankList">
-              <li v-for="(r, i) in o.ranks" :key="r.county + r.categorySlug + i">
-                <span class="opt__rankLoc">{{ countyLabel(r.county) }} · {{ catName(r) }}</span>
-                <span class="opt__rankPos">{{ t('optimize.rankLine', { n: r.position, total: r.total }) }}</span>
-              </li>
-            </ul>
-          </template>
-          <p v-else-if="o.status !== 'active'" class="opt__rankLine opt__rankLine--muted">
-            {{ t('optimize.notInFeed') }}
-          </p>
-          <p v-else class="opt__rankLine opt__rankLine--muted">
-            {{ t('optimize.rankUnknown') }}
-          </p>
-        </div>
+        <p v-if="o.status !== 'active'" class="opt__rankLine opt__rankLine--muted">
+          {{ t('optimize.notInFeed') }}
+        </p>
+        <p v-else class="opt__rankLine opt__rankLine--muted">
+          {{ t('optimize.scoreLead') }}
+        </p>
         <div class="opt__scoreChip">
           <strong>{{ o.visibility.score }}<span>%</span></strong>
           <span>{{ t('optimize.scoreLabel') }}</span>
         </div>
       </section>
-
-      <div class="opt__bars">
-        <div v-for="p in partRows" :key="p.key" class="obar">
-          <span class="obar__k">{{ t(p.label) }}</span>
-          <span class="obar__track"><span class="obar__fill" :style="{ width: p.score + '%' }" /></span>
-          <span class="obar__v">{{ p.score }}%</span>
-        </div>
-      </div>
 
       <div v-if="o.findings.length" class="opt__list">
         <article
@@ -272,26 +235,6 @@ watch(
   font-size: 0.95rem;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
-.opt__rankList {
-  list-style: none;
-  margin: 0.3rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-.opt__rankList li {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-}
-.opt__rankLoc {
-  color: rgba(var(--v-theme-on-surface), 0.7);
-}
-.opt__rankPos {
-  font-weight: 700;
-}
 .opt__scoreChip {
   flex: none;
   display: flex;
@@ -314,47 +257,6 @@ watch(
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: rgba(var(--v-theme-on-surface), 0.5);
-}
-
-.opt__bars {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  padding: 1.1rem 1.4rem;
-  border-radius: var(--tvz-radius-md);
-  border: 1px solid var(--tvz-glass-border);
-  background: rgb(var(--v-theme-surface));
-}
-.obar {
-  display: grid;
-  grid-template-columns: 8.5rem 1fr 2.6rem;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.8rem;
-}
-.obar__k {
-  color: rgba(var(--v-theme-on-surface), 0.7);
-}
-.obar__track {
-  height: 7px;
-  border-radius: 999px;
-  background: rgba(var(--v-theme-on-surface), 0.1);
-  overflow: hidden;
-}
-.obar__fill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    rgb(var(--v-theme-primary)),
-    rgb(var(--v-theme-secondary, var(--v-theme-primary)))
-  );
-}
-.obar__v {
-  text-align: right;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 .opt__list {

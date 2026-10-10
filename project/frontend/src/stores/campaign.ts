@@ -86,8 +86,6 @@ export interface OptimizationFinding {
 
 export interface CampaignOptimization {
   status: CampaignStatus | null
-  /** Position in every atomic Feed the company competes in — can be several. */
-  ranks: FeedRankEntry[]
   visibility: {
     score: number
     parts: { cpc: number; response: number; plan: number; age: number }
@@ -123,10 +121,15 @@ export interface CampaignSpend {
   requiresWebsiteBuilder: boolean
   /** Wallet funds a full day and (if advanced) the builder is done. */
   canActivate: boolean
-  /** Position in every atomic Feed the company competes in — can be several. */
+  /** Position in every atomic Feed the company competes in — can be several.
+   *  Drives `needsPositionUpgrade` below; not rendered as a list in the UI. */
   feedRanks: FeedRankEntry[]
   /** Lifetime spend broken down by which Feed (search) each click came from. */
   byFeed: FeedSpendEntry[]
+  /** True when the company isn't #1 in at least one Feed it competes in. */
+  needsPositionUpgrade: boolean
+  /** CPC Maxim needed to reach #1 in every Feed the company competes in. */
+  recommendedCpc: Money
   /** Server clock at the time of the request — the client ticks projections off this. */
   now: string
   /** CPC maxim — the bidding ceiling the owner set, never the actual per-click charge. */
