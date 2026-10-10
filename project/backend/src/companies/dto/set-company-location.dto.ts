@@ -10,20 +10,13 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
   ValidateIf,
 } from 'class-validator';
 
+/** Location only — category tagging is a separate endpoint/DTO (see
+ *  SetCompanyCategoriesDto), so editing one never requires re-sending the
+ *  other's current value. */
 export class SetCompanyLocationDto {
-  /** Subcategory slug(s) from the taxonomy — one or several real leaves. Required. */
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(10)
-  @IsString({ each: true })
-  @MinLength(1, { each: true })
-  @MaxLength(80, { each: true })
-  categorySlugs!: string[];
-
   /**
    * The județe served — one or several; required unless `nationwide` is set
    * (picking every județ by hand auto-promotes to nationwide server-side too).

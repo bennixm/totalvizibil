@@ -92,6 +92,10 @@ const locationCounties = computed(() => {
 const locationIsNationwide = computed(
   () => dash.value?.company.locations.some((l) => l.nationwide) ?? false,
 )
+const category = computed(() => dash.value?.company.category ?? null)
+function catName(n: { ro: string; en: string; de: string }): string {
+  return n[locale.value as 'ro' | 'en' | 'de'] ?? n.en
+}
 const wallet = computed(() => dash.value?.wallet ?? null)
 const a = computed(() => dash.value?.analytics ?? null)
 const money = useMoney()
@@ -236,10 +240,16 @@ const TASK_COPY: Record<string, TaskDef> = {
     route: 'website-builder',
     cta: 'dashboard.taskAdvancedCta',
   },
+  set_category: {
+    title: 'dashboard.taskCategoryTitle',
+    text: 'dashboard.taskCategoryText',
+    route: 'category',
+    cta: 'dashboard.taskCategoryCta',
+  },
   set_location: {
     title: 'dashboard.taskLocationTitle',
     text: 'dashboard.taskLocationText',
-    route: 'create-location',
+    route: 'location',
     cta: 'dashboard.taskLocationCta',
   },
   set_campaign_budget: {
@@ -542,6 +552,12 @@ watch(
                 <span v-else-if="website.mode === 'easy'" class="dcard__go dcard__go--disabled">
                   {{ t('dashboard.editSite') }}
                 </span>
+                <router-link
+                  class="dcard__go"
+                  :to="{ name: 'website-settings', query: { c: companyId } }"
+                >
+                  {{ t('dashboard.websiteSettings') }} <v-icon icon="mdi-arrow-right" size="15" />
+                </router-link>
               </div>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.websiteNone') }}</p>
@@ -559,13 +575,31 @@ watch(
               <router-link
                 v-if="!pendingDeletion"
                 class="dcard__go"
-                :to="{ name: 'create-location', query: { c: companyId } }"
+                :to="{ name: 'location', query: { c: companyId } }"
               >
                 {{ t('dashboard.taskEdit') }} <v-icon icon="mdi-arrow-right" size="15" />
               </router-link>
               <span v-else class="dcard__go dcard__go--disabled">{{ t('dashboard.taskEdit') }}</span>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.locationNone') }}</p>
+          </div>
+        </article>
+
+        <!-- Category -->
+        <article class="dcard">          <p class="dcard__k">{{ t('dashboard.categoryTitle') }}</p>
+          <div class="dcard__body">
+            <template v-if="category">
+              <p class="dcard__hero dcard__hero--wrap">{{ catName(category.name) }}</p>
+              <router-link
+                v-if="!pendingDeletion"
+                class="dcard__go"
+                :to="{ name: 'category', query: { c: companyId } }"
+              >
+                {{ t('dashboard.taskEdit') }} <v-icon icon="mdi-arrow-right" size="15" />
+              </router-link>
+              <span v-else class="dcard__go dcard__go--disabled">{{ t('dashboard.taskEdit') }}</span>
+            </template>
+            <p v-else class="dcard__sub">{{ t('dashboard.categoryNone') }}</p>
           </div>
         </article>
 

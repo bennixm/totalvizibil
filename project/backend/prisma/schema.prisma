@@ -262,6 +262,7 @@ model Company {
   appointmentSettings     AppointmentSettings?
   appointmentAvailability AppointmentAvailability[]
   appointments            Appointment[]
+  customDomains           CustomDomain[]
 
   @@index([ownerUserId])
   @@index([categoryId])
@@ -359,6 +360,44 @@ model WebsiteBundleFile {
 
   @@unique([websiteId, path])
   @@map("website_bundle_files")
+}
+
+// ---------------------------------------------------------------------------
+// Custom domain — a company's own domain, bought through a registrar provider
+// and pointed at its site (which also keeps serving on the platform's own
+// subdomain, same as today). `registrarRef` is the provider's own order/domain
+// id, for later renewal/DNS calls. See domains/domain-registrar.ts for the
+// pluggable provider interface — only a dev stub ships until a real
+// registrar account + API key is configured, the same pattern StripeService
+// uses for payments.
+// ---------------------------------------------------------------------------
+enum CustomDomainStatus {
+  pending
+  active
+  failed
+}
+
+model CustomDomain {
+  id                      String             @id @default(uuid()) @db.Uuid
+  companyId               String             @map("company_id") @db.Uuid
+  domain                  String             @unique
+  status                  CustomDomainStatus @default(pending)
+  // What this purchase actually cost, for the record — both charged through
+  // the same wallet, in credit minor units (same convention as every other
+  // charge in the app): the platform fee (admin-set, at the time of
+  // purchase) and the registrar's own domain price, converted to credits.
+  feeCreditsMinor         Int                @map("fee_credits_minor")
+  domainPriceCreditsMinor Int                @map("domain_price_credits_minor")
+  registrarProvider       String             @map("registrar_provider")
+  registrarRef            String?            @map("registrar_ref")
+  dnsConfiguredAt         DateTime?          @map("dns_configured_at")
+  createdAt               DateTime           @default(now()) @map("created_at")
+  updatedAt               DateTime           @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("custom_domains")
 }
 
 // ---------------------------------------------------------------------------
@@ -929,19 +968,19 @@ model Campaign {
 
   // CPC metering. `spentTodayMinor` is the credits burned on clicks for the UTC
   // day `spendDay`; both reset lazily when the day rolls over.
-  spentTodayMinor        Int       @default(0) @map("spent_today_minor")
-  spendDay               DateTime? @map("spend_day") @db.Date
+  spentTodayMinor         Int       @default(0) @map("spent_today_minor")
+  spendDay                DateTime? @map("spend_day") @db.Date
   // `activatedAt` marks the start of the CURRENT active run (re-stamped on every
   // activation). `activeSecondsAccrued` banks the duration of all past runs, so
   // the Age Score counts only time the campaign was actually live — not
   // wall-clock time since it was first switched on.
-  activatedAt            DateTime? @map("activated_at")
-  activeSecondsAccrued   Int       @default(0) @map("active_seconds_accrued")
-  pausedAt               DateTime? @map("paused_at")
+  activatedAt             DateTime? @map("activated_at")
+  activeSecondsAccrued    Int       @default(0) @map("active_seconds_accrued")
+  pausedAt                DateTime? @map("paused_at")
   // Which `spendDay` the "budget depleted" notification was last sent for —
   // a day-keyed dedup so the alert fires once per day it actually happens,
   // reusing the same day bucket `spentTodayMinor` already resets on.
-  depletedNotifiedForDay DateTime? @map("depleted_notified_for_day") @db.Date
+  depletedNotifiedForDay  DateTime? @map("depleted_notified_for_day") @db.Date
   // Cooldown stamp for the "you could reach #1" notification (see
   // NotificationsSweepService.sweepFeedPositionUpgrades) — re-notified at
   // most once a day while the company stays off position #1 in some Feed.
@@ -964,19 +1003,19 @@ model Campaign {
 // ---------------------------------------------------------------------------
 
 model AdClick {
-  id          String   @id @default(uuid()) @db.Uuid
-  companyId   String   @map("company_id") @db.Uuid
-  visitorHash String   @map("visitor_hash")
-  billed      Boolean  @default(false)
-  costMinor   Int      @default(0) @map("cost_minor")
+  id             String   @id @default(uuid()) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  visitorHash    String   @map("visitor_hash")
+  billed         Boolean  @default(false)
+  costMinor      Int      @default(0) @map("cost_minor")
   // Why a click was not billed: no_campaign | bot | budget | insufficient |
   // no_feed | below_minimum
-  reason      String?
+  reason         String?
   // The atomic Feed (județ, subcategorie) this click was priced against — a
   // real județ name or the "nationwide" pseudo-county. Null when no Feed
   // context could be resolved (company has no category/location at all).
   feedCounty     String?  @map("feed_county")
-  feedCategoryId String?  @db.Uuid @map("feed_category_id")
+  feedCategoryId String?  @map("feed_category_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

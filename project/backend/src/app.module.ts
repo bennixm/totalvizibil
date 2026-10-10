@@ -22,6 +22,7 @@ import { AffiliateModule } from './affiliate/affiliate.module';
 import { LeadsModule } from './leads/leads.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { DomainsModule } from './domains/domains.module';
 import { AdminModule } from './admin/admin.module';
 import { SupportModule } from './support/support.module';
 import { HealthModule } from './health/health.module';
@@ -49,6 +50,7 @@ import { HealthModule } from './health/health.module';
     LeadsModule,
     AppointmentsModule,
     AnalyticsModule,
+    DomainsModule,
     AdminModule,
     SupportModule,
     HealthModule,

@@ -331,7 +331,6 @@ export const useCompaniesStore = defineStore('companies', {
     async updateLocation(
       companyId: string,
       input: {
-        categorySlugs: string[]
         counties?: string[]
         city?: string
         country?: string
@@ -343,6 +342,17 @@ export const useCompaniesStore = defineStore('companies', {
       const company = await apiFetch<Company>(`/companies/${companyId}/location`, {
         method: 'PATCH',
         body: input,
+      })
+      const i = this.list.findIndex((c) => c.id === companyId)
+      if (i >= 0) this.list[i] = company
+      return company
+    },
+
+    /** Subcategory tagging only — editable independently of the location. */
+    async updateCategories(companyId: string, categorySlugs: string[]): Promise<Company> {
+      const company = await apiFetch<Company>(`/companies/${companyId}/categories`, {
+        method: 'PATCH',
+        body: { categorySlugs },
       })
       const i = this.list.findIndex((c) => c.id === companyId)
       if (i >= 0) this.list[i] = company

@@ -72,6 +72,7 @@ export interface AdminSettings {
   feedCostPromovareCredits: number
   feedMarjaProfitCredits: number
   feedMarjaPozitionareCredits: number
+  domainPurchaseFeeCredits: number
   invoiceIssuerName: string
   invoiceIssuerTaxId: string
   invoiceIssuerRegCom: string

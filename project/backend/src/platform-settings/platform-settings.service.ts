@@ -23,6 +23,7 @@ export const SETTING_KEYS = {
   feedCostPromovareCredits: 'feed_cost_promovare_credits',
   feedMarjaProfitCredits: 'feed_marja_profit_credits',
   feedMarjaPozitionareCredits: 'feed_marja_pozitionare_credits',
+  domainPurchaseFeeCredits: 'domain_purchase_fee_credits',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -34,6 +35,9 @@ const MAX_EUR_RON = 50;
 const DEFAULT_ADVANCED_PRICE = 49;
 /** Fallback price (credits) for creating an additional business beyond the first. */
 const DEFAULT_ADDITIONAL_BUSINESS_PRICE = 20;
+/** Fallback platform fee (credits) charged on top of the registrar's own
+ *  price when a business buys a custom domain. */
+const DEFAULT_DOMAIN_PURCHASE_FEE = 15;
 const MIN_PRICE = 1;
 const MAX_PRICE = 100_000;
 
@@ -221,6 +225,15 @@ export class PlatformSettingsService {
   }
   setAdditionalBusinessPriceCredits(credits: number): Promise<number> {
     return this.setPriceSetting(SETTING_KEYS.additionalBusinessPriceCredits, credits);
+  }
+
+  /** Platform fee (credits), on top of the registrar's own price, charged
+   *  when a business buys a custom domain. */
+  domainPurchaseFeeCredits(): Promise<number> {
+    return this.priceSetting(SETTING_KEYS.domainPurchaseFeeCredits, DEFAULT_DOMAIN_PURCHASE_FEE);
+  }
+  setDomainPurchaseFeeCredits(credits: number): Promise<number> {
+    return this.setPriceSetting(SETTING_KEYS.domainPurchaseFeeCredits, credits);
   }
 
   /** VAT rate (whole percent) applied to every invoice issued from now on. */

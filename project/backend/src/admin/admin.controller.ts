@@ -86,6 +86,7 @@ export class AdminController {
       feedCostPromovareCredits,
       feedMarjaProfitCredits,
       feedMarjaPozitionareCredits,
+      domainPurchaseFeeCredits,
     ] = await Promise.all([
       this.settings.eurRonRate(),
       this.settings.advancedBuilderPriceCredits(),
@@ -102,6 +103,7 @@ export class AdminController {
       this.settings.feedCostPromovareCredits(),
       this.settings.feedMarjaProfitCredits(),
       this.settings.feedMarjaPozitionareCredits(),
+      this.settings.domainPurchaseFeeCredits(),
     ]);
     return {
       eurRonRate,
@@ -118,6 +120,7 @@ export class AdminController {
       feedCostPromovareCredits,
       feedMarjaProfitCredits,
       feedMarjaPozitionareCredits,
+      domainPurchaseFeeCredits,
       invoiceIssuerName: invoiceIssuer.name,
       invoiceIssuerTaxId: invoiceIssuer.taxId,
       invoiceIssuerRegCom: invoiceIssuer.regCom,
@@ -170,6 +173,9 @@ export class AdminController {
     }
     if (dto.feedMarjaPozitionareCredits !== undefined) {
       await this.settings.setFeedMarjaPozitionareCredits(dto.feedMarjaPozitionareCredits);
+    }
+    if (dto.domainPurchaseFeeCredits !== undefined) {
+      await this.settings.setDomainPurchaseFeeCredits(dto.domainPurchaseFeeCredits);
     }
     const {
       invoiceIssuerName: name,

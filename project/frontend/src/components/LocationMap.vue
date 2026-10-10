@@ -4,22 +4,72 @@ import { useTheme } from 'vuetify'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-const props = defineProps<{
+interface OverviewMarker {
   lat: number
   lng: number
-}>()
+  label: string
+}
+
+const props = withDefaults(
+  defineProps<{
+    lat: number
+    lng: number
+    /** Several counties selected at once — no single address to pick, so the
+     *  map switches to a non-interactive overview: one labelled marker per
+     *  county instead of one draggable pin. */
+    markers?: OverviewMarker[] | null
+  }>(),
+  { markers: null },
+)
 
 const emit = defineEmits<{ pick: [{ lat: number; lng: number }] }>()
 
 const theme = useTheme()
 const el = ref<HTMLElement | null>(null)
 
+const isOverview = (): boolean => !!props.markers && props.markers.length > 0
+
 let map: L.Map | null = null
 let centre: L.CircleMarker | null = null
+let overviewMarkers: L.Layer[] = []
+let clickHandler: ((e: L.LeafletMouseEvent) => void) | null = null
 let ro: ResizeObserver | null = null
 
-function render(fit: boolean): void {
+function clearOverviewMarkers(): void {
+  for (const m of overviewMarkers) m.remove()
+  overviewMarkers = []
+}
+function clearPin(): void {
+  centre?.remove()
+  centre = null
+}
+
+function renderOverview(): void {
+  if (!map || !props.markers) return
+  clearPin()
+  clearOverviewMarkers()
+  const pts: L.LatLngExpression[] = []
+  for (const m of props.markers) {
+    const pos: L.LatLngExpression = [m.lat, m.lng]
+    pts.push(pos)
+    const marker = L.circleMarker(pos, {
+      radius: 6,
+      color: '#fff',
+      weight: 2,
+      fillColor: '#3f63e8',
+      fillOpacity: 1,
+    })
+      .bindTooltip(m.label, { permanent: true, direction: 'top', offset: [0, -6], className: 'map__tip' })
+      .addTo(map)
+    overviewMarkers.push(marker)
+  }
+  if (pts.length === 1) map.setView(pts[0], 9)
+  else if (pts.length > 1) map.fitBounds(L.latLngBounds(pts), { padding: [32, 32], maxZoom: 8 })
+}
+
+function renderPin(fit: boolean): void {
   if (!map) return
+  clearOverviewMarkers()
   const pos: L.LatLngExpression = [props.lat, props.lng]
 
   if (!centre) {
@@ -37,6 +87,23 @@ function render(fit: boolean): void {
   if (fit) map.setView(pos, 11)
 }
 
+function render(fit: boolean): void {
+  if (isOverview()) renderOverview()
+  else renderPin(fit)
+}
+
+function syncInteractivity(): void {
+  if (!map) return
+  if (clickHandler) {
+    map.off('click', clickHandler)
+    clickHandler = null
+  }
+  if (!isOverview()) {
+    clickHandler = (e: L.LeafletMouseEvent) => emit('pick', { lat: e.latlng.lat, lng: e.latlng.lng })
+    map.on('click', clickHandler)
+  }
+}
+
 onMounted(() => {
   if (!el.value) return
   map = L.map(el.value, { attributionControl: true, zoomControl: true }).setView(
@@ -48,10 +115,7 @@ onMounted(() => {
     maxZoom: 19,
   }).addTo(map)
 
-  map.on('click', (e: L.LeafletMouseEvent) => {
-    emit('pick', { lat: e.latlng.lat, lng: e.latlng.lng })
-  })
-
+  syncInteractivity()
   render(true)
 
   ro = new ResizeObserver(() => map?.invalidateSize())
@@ -68,10 +132,21 @@ watch(
   () => [props.lat, props.lng] as const,
   () => render(true),
 )
+watch(
+  () => props.markers,
+  () => {
+    syncInteractivity()
+    render(true)
+  },
+)
 </script>
 
 <template>
-  <div ref="el" class="map" :class="{ 'map--dark': theme.global.current.value.dark }" />
+  <div
+    ref="el"
+    class="map"
+    :class="{ 'map--dark': theme.global.current.value.dark, 'map--overview': isOverview() }"
+  />
 </template>
 
 <style scoped>
@@ -100,5 +175,22 @@ watch(
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
   border-color: var(--tvz-glass-border);
+}
+/* Overview mode (several counties) is read-only — no crosshair pick cursor. */
+.map--overview :deep(.leaflet-container) {
+  cursor: default;
+}
+.map :deep(.leaflet-tooltip.map__tip) {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 6px;
+  box-shadow: none;
+}
+.map :deep(.leaflet-tooltip.map__tip::before) {
+  display: none;
 }
 </style>
