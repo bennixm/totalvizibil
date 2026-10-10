@@ -633,7 +633,13 @@ export class WalletService implements OnModuleInit {
             ...(Object.keys(createdAt).length ? { createdAt } : {}),
             ...(clickIds ? { id: { in: clickIds } } : {}),
           },
-          select: { id: true, costMinor: true, feedCounty: true, feedCategoryId: true, createdAt: true },
+          select: {
+            id: true,
+            costMinor: true,
+            feedCounty: true,
+            feedCategoryId: true,
+            createdAt: true,
+          },
           orderBy: { createdAt: 'desc' },
           take: take + 1,
         });

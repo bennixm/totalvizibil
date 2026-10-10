@@ -649,16 +649,23 @@ export class CampaignService {
     const DAY_MS = 86_400_000;
     const SERIES_DAYS = 14;
 
-    const [walletSummary, lifetimeConsumedMinor, lifetimeClicks, websiteReady, feedRanks, byFeed, s] =
-      await Promise.all([
-        this.wallet.getSummary(owner),
-        this.wallet.consumedByCompany(companyId),
-        this.prisma.adClick.count({ where: { companyId, billed: true } }),
-        this.isListingWebsiteReady(companyId),
-        this.analytics.feedRanksFor(companyId),
-        this.spendByFeedFor(companyId),
-        this.suggestFor(companyId),
-      ]);
+    const [
+      walletSummary,
+      lifetimeConsumedMinor,
+      lifetimeClicks,
+      websiteReady,
+      feedRanks,
+      byFeed,
+      s,
+    ] = await Promise.all([
+      this.wallet.getSummary(owner),
+      this.wallet.consumedByCompany(companyId),
+      this.prisma.adClick.count({ where: { companyId, billed: true } }),
+      this.isListingWebsiteReady(companyId),
+      this.analytics.feedRanksFor(companyId),
+      this.spendByFeedFor(companyId),
+      this.suggestFor(companyId),
+    ]);
     const requiresWebsiteBuilder = !websiteReady;
     // Not #1 in at least one Feed the company competes in — the campaign panel
     // surfaces this as a single alert instead of the old per-Feed position list.
