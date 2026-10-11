@@ -4,9 +4,11 @@ import { CampaignService } from 'src/campaigns/campaign.service';
 
 function fakeAnalytics() {
   return {
-    marginConfig: jest
-      .fn()
-      .mockResolvedValue({ costPromovareMinor: 100, marjaProfitMinor: 100, marjaPozitionareMinor: 50 }),
+    marginConfig: jest.fn().mockResolvedValue({
+      costPromovareMinor: 100,
+      marjaProfitMinor: 100,
+      marjaPozitionareMinor: 50,
+    }),
     marketCpcFor: jest.fn().mockResolvedValue(500),
     recommendedCpcFor: jest.fn().mockResolvedValue({ cpcMinor: 500 }),
     visibilityInputsFor: jest.fn().mockResolvedValue({}),
