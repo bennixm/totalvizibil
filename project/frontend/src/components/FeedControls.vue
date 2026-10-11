@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -9,6 +9,7 @@ import {
   completeServicesSlug,
   isCompleteServicesSlug,
   type FeedCategoryNode,
+  type FeedCategoryLeaf,
 } from '@/stores/feed'
 import { feedCategoryRoute } from '@/services/routes'
 import type { LocalizedName } from '@/stores/companies'
@@ -19,6 +20,53 @@ const feed = useFeedStore()
 
 const catName = (n: LocalizedName) => n[locale.value as keyof LocalizedName] ?? n.en
 const FALLBACK_ICON = 'mdi-shape-outline'
+
+// --- category search: finds the group/subcategory the user meant from free
+// text, so they don't have to know which top-level group it lives under.
+// Matches diacritic-insensitively (Romanian keyboards often skip ă/â/î/ș/ț).
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+interface SearchHit {
+  group: FeedCategoryNode
+  leaf: FeedCategoryLeaf | null
+  label: string
+}
+const searchQuery = ref('')
+const searchFocused = ref(false)
+const searchHits = computed<SearchHit[]>(() => {
+  const q = normalize(searchQuery.value.trim())
+  if (!q) return []
+  const hits: SearchHit[] = []
+  for (const g of feed.facets.categories) {
+    const gName = catName(g.name)
+    if (normalize(gName).includes(q)) hits.push({ group: g, leaf: null, label: gName })
+    for (const c of g.children) {
+      const cName = catName(c.name)
+      if (normalize(cName).includes(q)) hits.push({ group: g, leaf: c, label: cName })
+    }
+  }
+  return hits.slice(0, 8)
+})
+const searchOpen = computed(() => searchFocused.value)
+function selectHit(hit: SearchHit): void {
+  void router.push(
+    hit.leaf ? feedCategoryRoute(hit.group.slug, hit.leaf.slug) : feedCategoryRoute(hit.group.slug),
+  )
+  searchQuery.value = ''
+  searchFocused.value = false
+}
+function closeSearch(): void {
+  searchQuery.value = ''
+  searchFocused.value = false
+}
+function onSearchKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') closeSearch()
+  else if (e.key === 'Enter' && searchHits.value[0]) selectHit(searchHits.value[0])
+}
 
 // --- județ filter: multi-select + two exclusive special modes -----
 /** Explicit "no location filter at all" — distinct from `null`/unset only in
@@ -116,33 +164,78 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
 
 <template>
   <div class="fc">
-    <!-- Județ filter -->
-    <div class="fc__area">
-      <v-select
-        :model-value="countySelections"
-        :items="countyItems"
-        hide-details
-        multiple
-        chips
-        closable-chips
-        :label="t('feed.areaCounty')"
-        :placeholder="t('feed.areaCountyPlaceholder')"
-        prepend-inner-icon="mdi-map-marker-outline"
-        variant="solo-filled"
-        flat
-        rounded="lg"
-        density="comfortable"
-        class="fc__city"
-        @update:model-value="onCountySelectionsChange"
-      />
-      <p v-if="feed.filters.county" class="fc__areaNote">
-        <v-icon icon="mdi-map-marker-check-outline" size="14" />
-        {{
-          feed.filters.county === NATIONWIDE
-            ? t('feed.areaNoteNationwide')
-            : t('feed.areaNote', { county: countySelections.join(', ') })
-        }}
-      </p>
+    <div class="fc__top">
+      <!-- Category search: free text finds the matching category/subcategory
+           directly, without having to browse the group grid below. -->
+      <div class="fc__search" :class="{ 'is-open': searchOpen }">
+        <div class="fc__searchBox">
+          <v-icon icon="mdi-magnify" size="19" class="fc__searchIcon" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="fc__searchInput"
+            :placeholder="t('feed.searchPlaceholder')"
+            @focus="searchFocused = true"
+            @blur="searchFocused = false"
+            @keydown="onSearchKeydown"
+          />
+          <button
+            v-if="searchOpen"
+            type="button"
+            class="fc__searchClose"
+            :aria-label="t('common.close')"
+            @mousedown.prevent="closeSearch"
+          >
+            <v-icon icon="mdi-close" size="18" />
+          </button>
+        </div>
+        <div v-if="searchOpen" class="fc__searchPanel">
+          <p v-if="!searchQuery.trim()" class="fc__searchHint">{{ t('feed.searchHint') }}</p>
+          <p v-else-if="!searchHits.length" class="fc__searchEmpty">{{ t('feed.searchEmpty') }}</p>
+          <button
+            v-for="(hit, i) in searchHits"
+            :key="i"
+            type="button"
+            class="fc__searchHit"
+            @mousedown.prevent="selectHit(hit)"
+          >
+            <v-icon :icon="hit.leaf ? 'mdi-tag-outline' : (hit.group.icon || FALLBACK_ICON)" size="18" />
+            <span class="fc__searchHitText">
+              <span class="fc__searchHitLabel">{{ hit.label }}</span>
+              <span v-if="hit.leaf" class="fc__searchHitGroup">{{ catName(hit.group.name) }}</span>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Județ filter -->
+      <div class="fc__area">
+        <v-select
+          :model-value="countySelections"
+          :items="countyItems"
+          hide-details
+          multiple
+          chips
+          closable-chips
+          :label="t('feed.areaCounty')"
+          :placeholder="t('feed.areaCountyPlaceholder')"
+          prepend-inner-icon="mdi-map-marker-outline"
+          variant="solo-filled"
+          flat
+          rounded="lg"
+          density="comfortable"
+          class="fc__city"
+          @update:model-value="onCountySelectionsChange"
+        />
+        <p v-if="feed.filters.county" class="fc__areaNote">
+          <v-icon icon="mdi-map-marker-check-outline" size="14" />
+          {{
+            feed.filters.county === NATIONWIDE
+              ? t('feed.areaNoteNationwide')
+              : t('feed.areaNote', { county: countySelections.join(', ') })
+          }}
+        </p>
+      </div>
     </div>
 
     <!-- Categories: all groups, or one drilled-in group -->
@@ -219,11 +312,156 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
   gap: 1.5rem;
 }
 
+/* --- search + county, side by side --- */
+.fc__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.fc__search {
+  position: relative;
+  flex: 1 1 320px;
+  min-width: 260px;
+  max-width: 420px;
+}
+.fc__searchBox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 48px;
+  padding: 0 0.9rem;
+  border-radius: var(--tvz-radius-lg);
+  background: rgba(var(--v-theme-on-surface), 0.045);
+  border: 1px solid transparent;
+  transition:
+    border-color 0.16s var(--tvz-ease-out),
+    background 0.16s var(--tvz-ease-out);
+}
+.fc__search.is-open .fc__searchBox {
+  background: rgb(var(--v-theme-surface));
+  border-color: rgba(var(--v-theme-primary), 0.45);
+  box-shadow: var(--tvz-shadow-sm);
+}
+.fc__searchIcon {
+  flex: none;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.fc__searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.9rem;
+  color: rgb(var(--v-theme-on-surface));
+}
+.fc__searchInput::placeholder {
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.fc__searchClose {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.fc__searchClose:hover {
+  background: rgba(var(--v-theme-on-surface), 0.08);
+}
+.fc__searchPanel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 0.4rem;
+  border-radius: var(--tvz-radius-lg);
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid var(--tvz-glass-border);
+  box-shadow: var(--tvz-shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.fc__searchHint,
+.fc__searchEmpty {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.82rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.fc__searchHit {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  text-align: left;
+  color: rgb(var(--v-theme-on-surface));
+}
+.fc__searchHit:hover {
+  background: rgba(var(--v-theme-primary), 0.1);
+}
+.fc__searchHit > .v-icon {
+  flex: none;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.fc__searchHitText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.fc__searchHitLabel {
+  font-size: 0.87rem;
+  font-weight: 600;
+}
+.fc__searchHitGroup {
+  font-size: 0.74rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+
+/* Mobile: the results panel takes over the full screen instead of a cramped
+   dropdown — easier to scan and tap with one hand. */
+@media (max-width: 680px) {
+  .fc__search {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  .fc__search.is-open {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem;
+    background: rgb(var(--v-theme-surface));
+  }
+  .fc__search.is-open .fc__searchBox {
+    flex: none;
+    box-shadow: none;
+  }
+  .fc__search.is-open .fc__searchPanel {
+    position: static;
+    flex: 1 1 auto;
+    margin-top: 0.6rem;
+    max-height: none;
+    box-shadow: none;
+    border: none;
+  }
+}
+
 /* --- city --- */
 .fc__area {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  flex: 1 1 320px;
 }
 .fc__city {
   max-width: 420px;

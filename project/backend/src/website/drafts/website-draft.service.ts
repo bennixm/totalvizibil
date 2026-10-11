@@ -633,49 +633,6 @@ export class WebsiteDraftService {
     return toDraftView(updated);
   }
 
-  /**
-   * AI-assisted subcategory suggestion for the location step's multi-select:
-   * classifies the draft's own services list (collected earlier in the
-   * studio flow) against one parent group's closed subcategory set. The
-   * picker pre-fills with the result but stays fully editable — this never
-   * writes anything, it only suggests. Empty when there's no AI key, no
-   * services yet, or nothing in the list clearly matches.
-   */
-  async suggestCategories(id: string, token: string, parentSlug: string): Promise<string[]> {
-    const draft = await this.load(id, token);
-    const parent = await this.prisma.category.findUnique({
-      where: { slug: parentSlug },
-      select: { id: true, parentId: true },
-    });
-    if (!parent || parent.parentId) return [];
-
-    const leaves = await this.prisma.category.findMany({
-      where: { parentId: parent.id, isActive: true },
-      select: { slug: true, nameI18n: true },
-    });
-    const answers = (draft.answers ?? {}) as {
-      serviceNames?: string[];
-      businessType?: string;
-      locale?: string;
-    };
-    const services = answers.serviceNames ?? [];
-    if (!services.length || !leaves.length) return [];
-
-    const locale: 'ro' | 'en' | 'de' = ['ro', 'en', 'de'].includes(answers.locale ?? '')
-      ? (answers.locale as 'ro' | 'en' | 'de')
-      : 'ro';
-    const suggested = await this.ai.suggestSubcategories({
-      businessType: answers.businessType,
-      services,
-      leaves: leaves.map((l) => ({
-        slug: l.slug,
-        name: (l.nameI18n as Record<string, string>)[locale] ?? l.slug,
-      })),
-      locale,
-    });
-    return suggested ?? [];
-  }
-
   /** Resolve a draft by its opaque token alone (used by the account claim step). */
   async loadByToken(token: string) {
     if (!token) throw new NotFoundException('Draft not found');

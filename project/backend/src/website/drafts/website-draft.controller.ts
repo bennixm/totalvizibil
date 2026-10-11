@@ -7,7 +7,6 @@ import { SetLocationDto } from './dto/set-location.dto';
 import { PatchEasyDto } from './dto/patch-easy.dto';
 import { AddAssetDto } from './dto/add-asset.dto';
 import { RegenerateServicesDto } from './dto/regenerate-services.dto';
-import { SuggestCategoriesDto } from './dto/suggest-categories.dto';
 
 /**
  * Anonymous website-draft studio (free "Site Simplu" one-pager). No auth: a
@@ -100,21 +99,5 @@ export class WebsiteDraftController {
     @Headers('x-draft-token') token?: string,
   ) {
     return this.drafts.setLocation(id, token ?? '', dto);
-  }
-
-  /**
-   * AI-assisted subcategory suggestion for the location step's multi-select
-   * — classifies the draft's own services list against the chosen parent
-   * group's closed set. Suggestion only, never writes anything.
-   */
-  @Throttle({ default: { ttl: 60_000, limit: 20 } })
-  @Post(':id/suggest-categories')
-  async suggestCategories(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: SuggestCategoriesDto,
-    @Headers('x-draft-token') token?: string,
-  ) {
-    const slugs = await this.drafts.suggestCategories(id, token ?? '', dto.parentSlug);
-    return { slugs };
   }
 }

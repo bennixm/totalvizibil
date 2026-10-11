@@ -13,7 +13,13 @@ import {
   visibilityScore,
 } from './visibility';
 import { FeedMarginConfig, rankPeersByFeedScore, recommendedCpcForFeedMinor } from './feed-pricing';
-import { FeedId, enumerateCompanyFeeds, feedEligiblePeers, primaryFeedOf } from './feed-resolver';
+import {
+  FeedId,
+  enumerateCompanyFeeds,
+  feedEligiblePeers,
+  feedWhere,
+  primaryFeedOf,
+} from './feed-resolver';
 
 export interface FeedRank {
   /** 1-based slot in the company's category group. */
@@ -351,27 +357,28 @@ export class AnalyticsService {
   }
 
   /**
-   * Highest CPC (minor units) bid by a rival across any of this company's own
-   * subcategories — the number the "CPC maxim recomandat" has to beat.
-   * Counts campaigns that are serving now or `depleted` within the last 48h
-   * (see `marketRivalWhere`), so it does not swing when a big rival spends
-   * its daily cap. `0` when the company has no live rival in any of its
-   * subcategories (or is tagged with none at all).
+   * Highest CPC (minor units) bid by a rival actually sharing one of this
+   * company's own Feeds (same leaf AND same county/nationwide reach) — the
+   * number the "CPC maxim recomandat" has to beat. Counts campaigns that are
+   * serving now or `depleted` within the last 48h (see `marketRivalWhere`),
+   * so it does not swing when a big rival spends its daily cap. `0` when the
+   * company has no live rival in any of its own Feeds (or has none at all).
    */
   async marketCpcFor(companyId: string): Promise<number> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { categoryAssignments: { select: { categoryId: true } } },
+      select: feedContextSelect,
     });
-    const leafIds = company?.categoryAssignments.map((a) => a.categoryId) ?? [];
-    if (!leafIds.length) return 0;
+    if (!company) return 0;
+    const feeds = enumerateCompanyFeeds(company);
+    if (!feeds.length) return 0;
 
     const agg = await this.prisma.campaign.aggregate({
       _max: { cpcMinor: true },
       where: {
         ...marketRivalWhere(),
         companyId: { not: companyId },
-        company: { categoryAssignments: { some: { categoryId: { in: leafIds } } } },
+        company: { OR: feeds.map((feedId) => feedWhere(feedId)) },
       },
     });
     return agg._max.cpcMinor ?? 0;

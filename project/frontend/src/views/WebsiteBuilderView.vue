@@ -9,6 +9,7 @@ import { useToastStore } from '@/stores/toast'
 import { useWalletStore } from '@/stores/wallet'
 import type { ProV2Usage } from '@/stores/pro-v2'
 import CreditsValue from '@/components/CreditsValue.vue'
+import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import {
   ProV2Sandbox,
   bootContainer,
@@ -39,6 +40,18 @@ const backTarget = computed(() =>
     ? { name: 'admin-company', params: { id: companyId.value } }
     : { name: 'dashboard' },
 )
+
+// First-time setup only — this query flag is only ever present while the
+// business is going through the create-a-business wizard, never on a later
+// edit of an already-configured site. Advancing requires a successful
+// publish first, so the owner never lands on the budget step with the
+// builder-incomplete block that campaign activation already enforces.
+const inFlow = computed(() => route.query.flow === 'onboarding')
+const canContinue = computed(() => inFlow.value && !!v2.publishedAt)
+function continueToBudget(): void {
+  if (!companyId.value) return
+  void router.push({ name: 'campaign-budget', query: { c: companyId.value, flow: 'onboarding' } })
+}
 
 const sandbox = shallowRef<ProV2Sandbox | null>(null)
 const status = ref<SandboxStatus>('booting')
@@ -321,6 +334,7 @@ watch(
 
 <template>
   <div class="v2">
+    <OnboardingSteps v-if="inFlow" mode="advanced" current="build" class="v2__steps" />
     <header class="v2__bar">
       <div class="v2__title">
         <p class="v2__eyebrow"><span class="v2__dot" /> {{ t('proV2.eyebrow') }}</p>
@@ -346,7 +360,18 @@ watch(
         >
           {{ v2.publishedAt ? t('proV2.republish') : t('proV2.publish') }}
         </v-btn>
-        <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="backTarget">
+        <v-btn
+          v-if="inFlow"
+          color="primary"
+          size="small"
+          append-icon="mdi-arrow-right"
+          :disabled="!canContinue"
+          :title="canContinue ? '' : t('proV2.continueNeedsPublish')"
+          @click="continueToBudget"
+        >
+          {{ t('proV2.continueToBudget') }}
+        </v-btn>
+        <v-btn v-if="!inFlow" variant="text" size="small" prepend-icon="mdi-arrow-left" :to="backTarget">
           {{ adminMode ? t('builder.backAdmin') : t('builder.back') }}
         </v-btn>
       </div>
@@ -595,6 +620,9 @@ watch(
   .v2 {
     padding: 0.75rem;
   }
+}
+.v2__steps {
+  margin-bottom: 0.4rem;
 }
 .v2__bar {
   display: flex;

@@ -76,7 +76,6 @@ async function refreshOverview(): Promise<void> {
 const catTree = ref<CategoryGroup[]>([])
 const groupSlug = ref<string | null>(null)
 const leafSlugs = ref<string[]>([])
-const suggesting = ref(false)
 
 function catName(n: { ro: string; en: string; de: string }): string {
   return n[locale.value as 'ro' | 'en' | 'de'] ?? n.en
@@ -104,25 +103,6 @@ function preselectCategory(slugs: string[] | null | undefined): void {
   if (parent) {
     groupSlug.value = parent.slug
     leafSlugs.value = slugs.filter((s) => parent.children.some((c) => c.slug === s))
-  }
-}
-
-/** AI-assisted suggestion from the services already collected in the studio
- *  flow — pre-fills the picker, fully editable before saving. */
-async function suggestLeaves(): Promise<void> {
-  if (!groupSlug.value || suggesting.value) return
-  suggesting.value = true
-  try {
-    const slugs = await draftStore.suggestCategories(groupSlug.value)
-    if (slugs.length) {
-      leafSlugs.value = slugs
-      saved.value = false
-      toasts.success(t('location.suggestApplied'))
-    } else {
-      toasts.info(t('location.suggestNone'))
-    }
-  } finally {
-    suggesting.value = false
   }
 }
 
@@ -297,19 +277,6 @@ onMounted(async () => {
           @update:model-value="onLeafSlugsChange"
         />
       </div>
-      <div v-if="groupSlug" class="loc__suggest">
-        <v-btn
-          size="small"
-          variant="tonal"
-          color="primary"
-          prepend-icon="mdi-auto-fix"
-          :loading="suggesting"
-          @click="suggestLeaves"
-        >
-          {{ t('location.suggestButton') }}
-        </v-btn>
-      </div>
-
       <div class="loc__fieldhead">
         <span>{{ t('location.areaSection') }}</span>
         <InfoHint :text="t('location.feedNote')" />
@@ -465,10 +432,6 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 }
-.loc__suggest {
-  margin-top: 0.6rem;
-}
-
 .loc__selectPlaceholder {
   color: rgba(var(--v-theme-on-surface), 0.75);
 }
