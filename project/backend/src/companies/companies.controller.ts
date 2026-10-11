@@ -17,6 +17,7 @@ import { CompaniesService } from './companies.service';
 import { ClaimDraftDto } from './dto/claim-draft.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { SetCompanyLocationDto } from './dto/set-company-location.dto';
+import { SetCompanyCategoriesDto } from './dto/set-company-categories.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 
 @UseGuards(AuthGuard)
@@ -82,7 +83,7 @@ export class CompaniesController {
     return this.companies.dashboard(user.id, id);
   }
 
-  /** Set / replace the company's primary service-area location (post-account). */
+  /** Set / replace the company's service-area location (post-account). */
   @Patch(':id/location')
   setLocation(
     @CurrentUser() user: AuthPrincipal,
@@ -90,6 +91,16 @@ export class CompaniesController {
     @Body() dto: SetCompanyLocationDto,
   ) {
     return this.companies.setLocation(user.id, id, dto);
+  }
+
+  /** Set / replace the company's subcategory tagging (post-account). */
+  @Patch(':id/categories')
+  setCategories(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetCompanyCategoriesDto,
+  ) {
+    return this.companies.setCategories(user.id, id, dto.categorySlugs);
   }
 
   @Post(':id/publish')

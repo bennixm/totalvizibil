@@ -472,4 +472,63 @@ export class ProV2Service {
 
     return { publishedAt, fileCount: rows.length };
   }
+
+  // --- export --------------------------------------------------------
+
+  /** File listing for the Website Settings page's file viewer — path + size
+   *  only (never content, this isn't an editor). `dist` is null until the
+   *  project has been published at least once. */
+  async listFilesForCompany(companyId: string, userId: string) {
+    await this.assertCanEdit(companyId, userId);
+    const [project, website] = await Promise.all([
+      this.prisma.proV2Project.findUnique({ where: { companyId } }),
+      this.prisma.website.findUnique({ where: { companyId } }),
+    ]);
+    const [source, dist] = await Promise.all([
+      project
+        ? this.prisma.proV2File.findMany({
+            where: { projectId: project.id },
+            select: { path: true, content: true },
+            orderBy: { path: 'asc' },
+          })
+        : [],
+      website?.publishedAt
+        ? this.prisma.websiteBundleFile.findMany({
+            where: { websiteId: website.id },
+            select: { path: true, size: true },
+            orderBy: { path: 'asc' },
+          })
+        : null,
+    ]);
+    return {
+      source: source.map((f) => ({ path: f.path, size: Buffer.byteLength(f.content, 'utf8') })),
+      dist: dist ? dist.map((f) => ({ path: f.path, size: f.size })) : null,
+      publishedAt: website?.publishedAt ?? null,
+    };
+  }
+
+  /** Every source-file row for a zip export — content included, unlike
+   *  `listFiles`. */
+  async sourceFilesForExport(companyId: string, userId: string): Promise<ProV2File[]> {
+    await this.assertCanEdit(companyId, userId);
+    const project = await this.prisma.proV2Project.findUnique({ where: { companyId } });
+    if (!project) return [];
+    return this.prisma.proV2File.findMany({ where: { projectId: project.id } });
+  }
+
+  /** Every built `dist/` row for a zip export — bytes included. Empty until
+   *  the project has been published at least once. */
+  async distFilesForExport(
+    companyId: string,
+    userId: string,
+  ): Promise<{ path: string; bytes: Buffer }[]> {
+    await this.assertCanEdit(companyId, userId);
+    const website = await this.prisma.website.findUnique({ where: { companyId } });
+    if (!website?.publishedAt) return [];
+    const rows = await this.prisma.websiteBundleFile.findMany({
+      where: { websiteId: website.id },
+      select: { path: true, bytes: true },
+    });
+    return rows.map((r) => ({ path: r.path, bytes: Buffer.from(r.bytes) }));
+  }
 }

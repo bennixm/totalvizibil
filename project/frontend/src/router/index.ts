@@ -113,6 +113,22 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, panel: true },
   },
   {
+    // Edit an existing business's service area — a panel page like the rest.
+    // The pre-account onboarding step (/create/location) is a separate flow.
+    path: '/location',
+    name: 'location',
+    component: () => import('@/views/LocationView.vue'),
+    meta: { requiresAuth: true, panel: true },
+  },
+  {
+    // Edit an existing business's category tagging — split out from
+    // location so each is independently editable.
+    path: '/category',
+    name: 'category',
+    component: () => import('@/views/CategoryView.vue'),
+    meta: { requiresAuth: true, panel: true },
+  },
+  {
     path: '/leads',
     name: 'leads',
     component: () => import('@/views/LeadsView.vue'),
@@ -167,6 +183,14 @@ const routes: RouteRecordRaw[] = [
     name: 'easy-site-editor',
     component: () => import('@/views/EasySiteEditorView.vue'),
     meta: { requiresAuth: true },
+  },
+  {
+    // Website settings — NOT the editor: file export, custom domain. Links
+    // out into the real editor instead of embedding it.
+    path: '/website/settings',
+    name: 'website-settings',
+    component: () => import('@/views/WebsiteSettingsView.vue'),
+    meta: { requiresAuth: true, panel: true },
   },
 
   // --- Account & auth ---

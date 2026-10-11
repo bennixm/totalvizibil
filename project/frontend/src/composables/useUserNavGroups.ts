@@ -35,9 +35,19 @@ export function useUserNavGroups() {
           icon: 'mdi-chart-donut',
         },
         {
-          to: { name: 'create-location' },
+          to: { name: 'location' },
           label: t('nav.location'),
           icon: 'mdi-map-marker-outline',
+        },
+        {
+          to: { name: 'category' },
+          label: t('nav.category'),
+          icon: 'mdi-shape-outline',
+        },
+        {
+          to: { name: 'website-settings' },
+          label: t('nav.websiteSettings'),
+          icon: 'mdi-cog-outline',
         },
       ],
     },

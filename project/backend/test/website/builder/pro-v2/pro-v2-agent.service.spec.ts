@@ -218,6 +218,7 @@ function fakeConfig(overrides: Record<string, unknown> = {}) {
     anthropicModel: 'claude-sonnet-5',
     deepseekModelFlash: 'deepseek-chat',
     deepseekModelPro: 'deepseek-reasoner',
+    frontendOrigin: 'http://localhost:5173',
     ...overrides,
   };
   return { get: (key: string) => defaults[key] };
@@ -261,6 +262,7 @@ function setup(claudeScript: AiProvider, wallet = fakeWallet()) {
     fakePexels as never,
     prisma as never,
     fakeNotifications as never,
+    fakeConfig() as never,
   );
   return { prisma, projects, svc };
 }

@@ -133,4 +133,13 @@ export class UpdateSettingsDto {
   @Min(0)
   @Max(1000)
   feedMarjaPozitionareCredits?: number;
+
+  // --- custom domains (see DomainsModule) ---
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(100_000)
+  domainPurchaseFeeCredits?: number;
 }

@@ -206,15 +206,23 @@ async function submit(): Promise<void> {
     // get a real reply (v2.messages already reflects the true server state)
     // — restoring it into the composer would invite a confusing duplicate.
     if (v2.error !== 'resume_timed_out') draft.value = text
-    toasts.error(
-      v2.error === 'ai_not_configured'
-        ? t('pro.noKey')
-        : v2.error === 'insufficient_credits'
-          ? t('pro.insufficientCredits')
+    if (v2.error === 'insufficient_credits') {
+      // Stays up until dismissed (not the usual auto-hide) and hands the
+      // owner straight to the wallet — this is the one AI-editor error that
+      // needs action, not just an acknowledgement.
+      toasts.error(t('pro.insufficientCredits'), {
+        timeout: 0,
+        action: { label: t('wallet.topUpCta'), to: { name: 'wallet' } },
+      })
+    } else {
+      toasts.error(
+        v2.error === 'ai_not_configured'
+          ? t('pro.noKey')
           : v2.error === 'resume_timed_out'
             ? t('proV2.resumeTimedOut')
             : t('pro.sendError'),
-    )
+      )
+    }
     return
   }
   await sandbox.value?.sync(v2.files)

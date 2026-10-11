@@ -30,6 +30,7 @@ const form = reactive({
   feedCostPromovareCredits: 0,
   feedMarjaProfitCredits: 0,
   feedMarjaPozitionareCredits: 0,
+  domainPurchaseFeeCredits: 0,
 })
 const affiliate = reactive({ enabled: false, rewardCredits: 20, minDeposit: 50 })
 const REWARD_MIN = 1
@@ -126,6 +127,16 @@ const pricingFields = [
     step: 1,
     suffix: 'cr',
   },
+  {
+    key: 'domainPurchaseFeeCredits' as const,
+    label: 'adminSettings.domainFee',
+    hint: 'adminSettings.domainFeeHint',
+    icon: 'mdi-web-plus',
+    min: 1,
+    max: 100000,
+    step: 1,
+    suffix: 'cr',
+  },
 ]
 const feedPricingFields = [
   {
@@ -198,6 +209,7 @@ function hydrate() {
   form.feedCostPromovareCredits = admin.settings.feedCostPromovareCredits
   form.feedMarjaProfitCredits = admin.settings.feedMarjaProfitCredits
   form.feedMarjaPozitionareCredits = admin.settings.feedMarjaPozitionareCredits
+  form.domainPurchaseFeeCredits = admin.settings.domainPurchaseFeeCredits
   affiliate.enabled = admin.settings.affiliateEnabled
   affiliate.rewardCredits = admin.settings.affiliateRewardCredits
   affiliate.minDeposit = admin.settings.affiliateMinDepositCredits
@@ -231,6 +243,7 @@ const dirty = computed(
       form.feedCostPromovareCredits !== admin.settings.feedCostPromovareCredits ||
       form.feedMarjaProfitCredits !== admin.settings.feedMarjaProfitCredits ||
       form.feedMarjaPozitionareCredits !== admin.settings.feedMarjaPozitionareCredits ||
+      form.domainPurchaseFeeCredits !== admin.settings.domainPurchaseFeeCredits ||
       affiliate.enabled !== admin.settings.affiliateEnabled ||
       affiliate.rewardCredits !== admin.settings.affiliateRewardCredits ||
       affiliate.minDeposit !== admin.settings.affiliateMinDepositCredits ||

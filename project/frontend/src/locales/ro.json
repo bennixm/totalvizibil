@@ -42,6 +42,8 @@
     "campaign": "Campanie",
     "consumption": "Consum afacere",
     "location": "Locație",
+    "category": "Categorie",
+    "websiteSettings": "Setări website",
     "support": "Suport",
     "supportQueue": "Coadă suport",
     "staff": "Echipă",
@@ -289,7 +291,12 @@
     "nationwideOption": "Toată țara",
     "mapLabel": "Adresă pe hartă (opțional)",
     "mapHint": "Poți da clic pe hartă ca să marchezi adresa exactă — folosită doar pentru afișare, nu influențează unde apari în feed.",
+    "mapOverviewHint": "Ai mai multe județe selectate, așa că nu mai există o singură adresă de marcat — harta arată doar centrul fiecărui județ ales, ca reper.",
     "nationwideHint": "Afacerea apare în feed pentru căutări din orice județ · fără județ fix.",
+    "selectedCount": "{n} județe selectate",
+    "removeCounty": "Elimină {county}",
+    "noneSelected": "Niciun județ selectat încă",
+    "saved": "Locația a fost salvată.",
     "feedNote": "Apari în feed pentru căutări din județul ales.",
     "back": "Înapoi la site",
     "continue": "Salvează și continuă",
@@ -310,6 +317,12 @@
     "suggesting": "Se sugerează…",
     "suggestNone": "Nu am găsit subcategorii potrivite din serviciile tale — alege manual.",
     "suggestApplied": "Am pre-completat subcategoriile pe baza serviciilor tale · poți ajusta."
+  },
+  "category": {
+    "eyebrow": "Categorie",
+    "title": "Editează categoria",
+    "feedNote": "Subcategoriile alese decid la ce căutări din feed apare afacerea ta.",
+    "saved": "Categoria a fost salvată."
   },
   "claim": {
     "eyebrow": "Pasul 4 · Cont",
@@ -385,6 +398,8 @@
     "locationTitle": "Locație",
     "radiusCountry": "Toată țara",
     "locationNone": "Nicio locație setată.",
+    "categoryTitle": "Categorie",
+    "categoryNone": "Nicio categorie setată.",
     "profileTitle": "Profil completat",
     "completeness": "{n}% completat",
     "walletTitle": "Portofel",
@@ -397,8 +412,11 @@
     "taskAdvancedText": "Plătește planul avansat din portofel ca să deblochezi builder-ul complet.",
     "taskLocationTitle": "Setează zona în care apari în feed",
     "taskLocationText": "Alege orașul și raza pe hartă · asta decide unde poate apărea afacerea ta.",
+    "taskCategoryTitle": "Setează categoria afacerii",
+    "taskCategoryText": "Alege subcategoriile exacte ale serviciilor tale · asta decide la ce căutări din feed apari.",
     "taskAdvancedCta": "Activează",
     "taskLocationCta": "Setează locația",
+    "taskCategoryCta": "Setează categoria",
     "taskEdit": "Modifică",
     "addBusiness": "Adaugă o afacere",
     "campaignTitle": "Campanie",
@@ -453,6 +471,8 @@
     "alert": {
       "stoppedTitle": "Campania este oprită",
       "stoppedText": "Nu apari în feed cât timp campania e pe pauză. Repornește-o.",
+      "cpcFloorTitle": "CPC Maxim prea mic · campania a fost oprită automat",
+      "cpcFloorText": "CPC Maxim era sub pragul minim al unui Feed, deci afacerea nu putea apărea în nicio căutare — campania s-a oprit automat. Ridică-l la cel puțin CPC Maxim standard și reactiveaz-o.",
       "budgetTitle": "Bugetul de azi s-a epuizat",
       "budgetText": "Anunțul iese din feed până mâine. Mărește bugetul zilnic dacă se întâmplă des.",
       "walletTitle": "Portofel insuficient",
@@ -464,7 +484,7 @@
       "responseTitle": "Răspunzi prea încet",
       "responseText": "Timpul de răspuns îți trage scorul în jos. Răspunde mai repede la cereri.",
       "feedTitle": "Nu apari în feed",
-      "feedText": "Campania e activă dar afacerea nu apare încă în feed. Verifică optimizarea."
+      "feedText": "Campania e activă dar afacerea nu apare în nicio căutare din feed — verifică CPC Maxim, categoria și locația afacerii."
     },
     "websiteUnpublished": "Nepublicat",
     "invoicesTitle": "Facturi",
@@ -477,6 +497,7 @@
     "invoicesLast": "Ultima: {number}",
     "invoicesCta": "Vezi facturile",
     "editSite": "Editează site-ul",
+    "websiteSettings": "Setări website",
     "transactionsTitle": "Tranzacții",
     "transactionsNone": "Nicio tranzacție încă.",
     "transactionsCta": "Vezi toate tranzacțiile"
@@ -509,7 +530,8 @@
       "wallet_blocked": "Portofelul proprietarului este blocat. Deblochează-l ca să poți activa campania.",
       "company_suspended": "Afacerea este suspendată. Nu poate rula campanii.",
       "website_builder_incomplete": "Finalizează builder-ul site-ului avansat înainte să listezi campania.",
-      "company_pending_deletion": "Afacerea este programată pentru ștergere · nu mai poate fi editată."
+      "company_pending_deletion": "Afacerea este programată pentru ștergere · nu mai poate fi editată.",
+      "cpc_below_feed_minimum": "CPC Maxim este sub pragul minim al unui Feed · la acest nivel afacerea nu poate apărea în nicio căutare. Ridică-l cel puțin la CPC Maxim standard."
     },
     "builderRequiredTitle": "Întâi finalizează site-ul",
     "builderRequiredNote": "Este o afacere pe plan avansat. Construiește și finalizează site-ul înainte ca anunțul să poată fi listat.",
@@ -520,6 +542,7 @@
     "consumedNote": "Consumat de această campanie: {n} credite",
     "pausedNote": "Campania e oprită. Reactiveaz-o ca să reapară în feed. Scorul de rulaj se păstrează 24h, apoi se resetează.",
     "editStopsNote": "Salvarea modificărilor oprește campania până o reactivezi.",
+    "savedPausedNudge": "Modificările au fost salvate · campania e pe pauză până o reactivezi.",
     "saveActivate": "Salvează și reactivează",
     "spentToday": "Consum azi",
     "clicks": "Click-uri plătite",
@@ -1790,6 +1813,8 @@
     "unlockBonusHint": "Credite acordate o singură dată în portofelul proprietarului, imediat după deblocarea Website Builder. 0 dezactivează bonusul.",
     "extraBizPrice": "Preț afacere suplimentară",
     "extraBizPriceHint": "Costul creării unei afaceri peste prima, în credite.",
+    "domainFee": "Taxă platformă domeniu",
+    "domainFeeHint": "Taxa platformei, în credite, peste prețul domeniului de la registrar, la cumpărarea unui domeniu personalizat.",
     "vatRate": "Cotă TVA facturare",
     "vatRateHint": "0% dacă firma nu este plătitoare de TVA.",
     "refundFee": "Taxă de rambursare",
@@ -1872,6 +1897,43 @@
     "filterTo": "Până la",
     "filterClear": "Șterge filtrele",
     "emptyFiltered": "Nicio tranzacție nu corespunde acestor filtre."
+  },
+  "websiteSettings": {
+    "eyebrow": "Website",
+    "title": "Setări website",
+    "none": "Nu ai încă un website.",
+    "editorTitle": "Editează cu AI",
+    "editorText": "Deschide editorul pentru a modifica conținutul, design-ul și textele site-ului.",
+    "editorCta": "Deschide editorul",
+    "filesTitle": "Fișiere",
+    "tabSource": "Sursă",
+    "tabDist": "Build (dist)",
+    "distNone": "Site-ul nu a fost publicat încă — nu există un build.",
+    "filesEmpty": "Niciun fișier încă.",
+    "exportSource": "Exportă sursa (.zip)",
+    "exportDist": "Exportă build-ul (.zip)",
+    "exportNote": "Formularul de contact și programările apelează API-ul public Totalvizibil și funcționează din orice domeniu, inclusiv după ce găzduiești site-ul exportat pe propriul server.",
+    "domainTitle": "Domeniu personalizat",
+    "domainHint": "Cumpără un domeniu propriu pentru afacerea ta — site-ul rămâne și pe Totalvizibil, în paralel.",
+    "domainPlaceholder": "exemplu.ro",
+    "domainCheckCta": "Verifică disponibilitate",
+    "domainAvailable": "{domain} este disponibil.",
+    "domainTaken": "{domain} nu este disponibil.",
+    "domainPriceBreakdown": "Domeniu {domain} cr + taxă platformă {fee} cr = {total} cr",
+    "domainBuyCta": "Cumpără domeniul",
+    "domainConfirmTitle": "Confirmă achiziția domeniului",
+    "domainConfirmText": "Vei plăti {total} credite pentru {domain}, din portofel.",
+    "domainBought": "Domeniul a fost cumpărat. Configurarea DNS este în curs.",
+    "domainStatus": {
+      "pending": "În curs",
+      "active": "Activ",
+      "failed": "Eșuat"
+    },
+    "domainErr": {
+      "insufficient_credits": "Credite insuficiente pentru acest domeniu.",
+      "domain_not_available": "Domeniul nu mai este disponibil.",
+      "domain_already_registered": "Acest domeniu este deja înregistrat la noi."
+    }
   },
   "spend": {
     "eyebrow": "Promovare în feed",

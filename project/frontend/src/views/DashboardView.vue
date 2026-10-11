@@ -92,6 +92,10 @@ const locationCounties = computed(() => {
 const locationIsNationwide = computed(
   () => dash.value?.company.locations.some((l) => l.nationwide) ?? false,
 )
+const category = computed(() => dash.value?.company.category ?? null)
+function catName(n: { ro: string; en: string; de: string }): string {
+  return n[locale.value as 'ro' | 'en' | 'de'] ?? n.en
+}
 const wallet = computed(() => dash.value?.wallet ?? null)
 const a = computed(() => dash.value?.analytics ?? null)
 const money = useMoney()
@@ -161,7 +165,13 @@ const campaignAlerts = computed<Alert[]>(() => {
   const cq = { c: companyId.value }
   const out: Alert[] = []
 
-  if (c.status === 'paused') {
+  if (c.status === 'paused' && c.cpcBelowFeedMinimum) {
+    // A distinct, specific alert instead of the generic "stopped" one below —
+    // this isn't a manual pause, it's CPC Maxim sitting under a Feed's own
+    // minimum, so the campaign was never actually eligible to appear anywhere.
+    out.push({ key: 'cpcFloor', severity: 'high', icon: 'mdi-alert-octagon-outline',
+      to: { name: 'campaign-budget', query: cq }, cta: 'dashboard.taskManage' })
+  } else if (c.status === 'paused') {
     out.push({ key: 'stopped', severity: 'high', icon: 'mdi-pause-octagon-outline',
       to: { name: 'campaign', query: cq }, cta: 'dashboard.campaignCta' })
   }
@@ -190,7 +200,10 @@ const campaignAlerts = computed<Alert[]>(() => {
         to: { name: 'leads', query: cq }, cta: 'dashboard.leadsCta' })
     }
     if (!an.feedRank && c.status === 'active' && !budgetGone) {
-      out.push({ key: 'feed', severity: 'warn', icon: 'mdi-radar',
+      // The campaign reads "Active" but isn't ranked in its own Feed — a real
+      // problem (not a soft suggestion), so it gets the same red treatment as
+      // the other hard-stop alerts above.
+      out.push({ key: 'feed', severity: 'high', icon: 'mdi-radar',
         to: { name: 'campaign-optimize', query: cq }, cta: 'dashboard.optimizeCta' })
     }
   }
@@ -236,10 +249,16 @@ const TASK_COPY: Record<string, TaskDef> = {
     route: 'website-builder',
     cta: 'dashboard.taskAdvancedCta',
   },
+  set_category: {
+    title: 'dashboard.taskCategoryTitle',
+    text: 'dashboard.taskCategoryText',
+    route: 'category',
+    cta: 'dashboard.taskCategoryCta',
+  },
   set_location: {
     title: 'dashboard.taskLocationTitle',
     text: 'dashboard.taskLocationText',
-    route: 'create-location',
+    route: 'location',
     cta: 'dashboard.taskLocationCta',
   },
   set_campaign_budget: {
@@ -542,6 +561,12 @@ watch(
                 <span v-else-if="website.mode === 'easy'" class="dcard__go dcard__go--disabled">
                   {{ t('dashboard.editSite') }}
                 </span>
+                <router-link
+                  class="dcard__go"
+                  :to="{ name: 'website-settings', query: { c: companyId } }"
+                >
+                  {{ t('dashboard.websiteSettings') }} <v-icon icon="mdi-arrow-right" size="15" />
+                </router-link>
               </div>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.websiteNone') }}</p>
@@ -559,13 +584,31 @@ watch(
               <router-link
                 v-if="!pendingDeletion"
                 class="dcard__go"
-                :to="{ name: 'create-location', query: { c: companyId } }"
+                :to="{ name: 'location', query: { c: companyId } }"
               >
                 {{ t('dashboard.taskEdit') }} <v-icon icon="mdi-arrow-right" size="15" />
               </router-link>
               <span v-else class="dcard__go dcard__go--disabled">{{ t('dashboard.taskEdit') }}</span>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.locationNone') }}</p>
+          </div>
+        </article>
+
+        <!-- Category -->
+        <article class="dcard">          <p class="dcard__k">{{ t('dashboard.categoryTitle') }}</p>
+          <div class="dcard__body">
+            <template v-if="category">
+              <p class="dcard__hero dcard__hero--wrap">{{ catName(category.name) }}</p>
+              <router-link
+                v-if="!pendingDeletion"
+                class="dcard__go"
+                :to="{ name: 'category', query: { c: companyId } }"
+              >
+                {{ t('dashboard.taskEdit') }} <v-icon icon="mdi-arrow-right" size="15" />
+              </router-link>
+              <span v-else class="dcard__go dcard__go--disabled">{{ t('dashboard.taskEdit') }}</span>
+            </template>
+            <p v-else class="dcard__sub">{{ t('dashboard.categoryNone') }}</p>
           </div>
         </article>
 

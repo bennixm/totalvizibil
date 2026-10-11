@@ -155,6 +155,7 @@ const KNOWN_ERRORS = [
   'company_suspended',
   'website_builder_incomplete',
   'company_pending_deletion',
+  'cpc_below_feed_minimum',
 ]
 
 function errText(code: string): string {
@@ -219,9 +220,15 @@ function hydrate(): void {
   })
 }
 
-/** Save the numbers. A live campaign is paused by the backend on any edit. */
+/** Save the numbers. A live campaign is paused by the backend on any edit —
+ *  easy to miss outside the onboarding flow (which already redirects to the
+ *  activation step below), so a plain settings edit gets a nudge instead: a
+ *  toast pointing straight back to the campaign page, where "Activate" is
+ *  right there. Never auto-reactivates on its own — this is still the
+ *  owner's own deliberate second click. */
 async function save(): Promise<void> {
   if (!companyId.value || !cpcValid.value) return
+  const wasLive = status.value === 'active' || status.value === 'depleted'
   const ok = await campaign.save(companyId.value, {
     dailyBudget: dailyBudget.value,
     cpc: cpc.value,
@@ -233,6 +240,13 @@ async function save(): Promise<void> {
   // In onboarding, saving the budget advances to the campaign-activation step.
   if (inFlow.value) {
     void router.replace({ name: 'campaign', query: { c: companyId.value, flow: 'onboarding' } })
+    return
+  }
+  if (wasLive && !auto.value && data.value?.campaign?.status === 'paused') {
+    toasts.warning(t('campaign.savedPausedNudge'), {
+      timeout: 0,
+      action: { label: t('campaign.activate'), to: { name: 'campaign', query: { c: companyId.value } } },
+    })
   }
 }
 

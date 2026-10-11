@@ -42,6 +42,8 @@
     "campaign": "Campaign",
     "consumption": "Consumption",
     "location": "Location",
+    "category": "Category",
+    "websiteSettings": "Website settings",
     "support": "Support",
     "supportQueue": "Support queue",
     "staff": "Staff",
@@ -289,7 +291,12 @@
     "nationwideOption": "Whole country",
     "mapLabel": "Address on the map (optional)",
     "mapHint": "Click the map to mark the exact address — display only, it doesn't affect where you appear in the feed.",
+    "mapOverviewHint": "You have several counties selected, so there's no single address to mark anymore — the map just shows each chosen county's center as a reference.",
     "nationwideHint": "The business appears in the feed for searches from any county · no fixed county.",
+    "selectedCount": "{n} counties selected",
+    "removeCounty": "Remove {county}",
+    "noneSelected": "No county selected yet",
+    "saved": "Location saved.",
     "feedNote": "You appear in the feed for searches in the chosen county.",
     "back": "Back to website",
     "continue": "Save and continue",
@@ -310,6 +317,12 @@
     "suggesting": "Suggesting…",
     "suggestNone": "No matching subcategories found from your services — pick them manually.",
     "suggestApplied": "Pre-filled the subcategories from your services · feel free to adjust."
+  },
+  "category": {
+    "eyebrow": "Category",
+    "title": "Edit category",
+    "feedNote": "The chosen subcategories decide which feed searches your business shows up in.",
+    "saved": "Category saved."
   },
   "claim": {
     "eyebrow": "Step 4 · Account",
@@ -385,6 +398,8 @@
     "locationTitle": "Location",
     "radiusCountry": "Whole country",
     "locationNone": "No location set.",
+    "categoryTitle": "Category",
+    "categoryNone": "No category set.",
     "profileTitle": "Profile completeness",
     "completeness": "{n}% complete",
     "walletTitle": "Wallet",
@@ -397,8 +412,11 @@
     "taskAdvancedText": "Pay for the advanced plan from your wallet to unlock the full builder.",
     "taskLocationTitle": "Set the area you appear in the feed",
     "taskLocationText": "Pick your city and radius on the map · it decides where your business can show up.",
+    "taskCategoryTitle": "Set the business's category",
+    "taskCategoryText": "Pick the exact subcategories of your services · it decides which feed searches you show up in.",
     "taskAdvancedCta": "Activate",
     "taskLocationCta": "Set location",
+    "taskCategoryCta": "Set category",
     "taskEdit": "Edit",
     "addBusiness": "Add a business",
     "campaignTitle": "Campaign",
@@ -453,6 +471,8 @@
     "alert": {
       "stoppedTitle": "The campaign is stopped",
       "stoppedText": "You're out of the feed while the campaign is paused. Start it again.",
+      "cpcFloorTitle": "CPC Maxim too low · campaign stopped automatically",
+      "cpcFloorText": "CPC Maxim was under a Feed's own minimum, so the business couldn't appear in any search — the campaign stopped itself. Raise it to at least the standard CPC Maxim and reactivate.",
       "budgetTitle": "Today's budget is spent",
       "budgetText": "The listing leaves the feed until tomorrow. Raise the daily budget if this happens often.",
       "walletTitle": "Wallet too low",
@@ -464,7 +484,7 @@
       "responseTitle": "You reply too slowly",
       "responseText": "Your response time is dragging the score down. Answer requests faster.",
       "feedTitle": "Not in the feed",
-      "feedText": "The campaign is active but the business isn't showing yet. Check the optimiser."
+      "feedText": "The campaign is active but the business isn't showing in any feed search — check CPC Maxim, the category and the location."
     },
     "websiteUnpublished": "Not published",
     "invoicesTitle": "Invoices",
@@ -477,6 +497,7 @@
     "invoicesLast": "Last: {number}",
     "invoicesCta": "View invoices",
     "editSite": "Edit site",
+    "websiteSettings": "Website settings",
     "transactionsTitle": "Transactions",
     "transactionsNone": "No transactions yet.",
     "transactionsCta": "View all transactions"
@@ -509,7 +530,8 @@
       "wallet_blocked": "The owner wallet is frozen. Unblock it to activate the campaign.",
       "company_suspended": "The business is suspended and cannot run campaigns.",
       "website_builder_incomplete": "Finish the advanced website builder before listing the campaign.",
-      "company_pending_deletion": "This business is scheduled for deletion · it can no longer be edited."
+      "company_pending_deletion": "This business is scheduled for deletion · it can no longer be edited.",
+      "cpc_below_feed_minimum": "CPC Maxim is below a Feed's own minimum — at this level the business can't appear in any search. Raise it to at least the standard CPC Maxim."
     },
     "builderRequiredTitle": "Finish your website first",
     "builderRequiredNote": "This is an advanced-plan business. Build and finish its website before the campaign can go live.",
@@ -520,6 +542,7 @@
     "consumedNote": "Consumed by this campaign: {n} credits",
     "pausedNote": "The campaign is stopped. Re-activate it to show in the feed again. Its run-time score is kept for 24h, then it resets.",
     "editStopsNote": "Saving changes stops the campaign until you re-activate it.",
+    "savedPausedNudge": "Changes saved · the campaign is paused until you reactivate it.",
     "saveActivate": "Save & re-activate",
     "spentToday": "Spent today",
     "clicks": "Billed clicks",
@@ -1790,6 +1813,8 @@
     "unlockBonusHint": "Credits granted to the owner's wallet once, right after they unlock the Website Builder. 0 disables the bonus.",
     "extraBizPrice": "Extra business price",
     "extraBizPriceHint": "Cost to create a business beyond the first, in credits.",
+    "domainFee": "Domain platform fee",
+    "domainFeeHint": "The platform's own fee, in credits, on top of the registrar's domain price, when a business buys a custom domain.",
     "vatRate": "Invoice VAT rate",
     "vatRateHint": "0% if the company is not VAT-registered.",
     "refundFee": "Refund fee",
@@ -1872,6 +1897,43 @@
     "filterTo": "To",
     "filterClear": "Clear filters",
     "emptyFiltered": "No transactions match these filters."
+  },
+  "websiteSettings": {
+    "eyebrow": "Website",
+    "title": "Website settings",
+    "none": "You don't have a website yet.",
+    "editorTitle": "Edit with AI",
+    "editorText": "Open the editor to change the site's content, design and copy.",
+    "editorCta": "Open the editor",
+    "filesTitle": "Files",
+    "tabSource": "Source",
+    "tabDist": "Build (dist)",
+    "distNone": "The site hasn't been published yet — there's no build.",
+    "filesEmpty": "No files yet.",
+    "exportSource": "Export source (.zip)",
+    "exportDist": "Export build (.zip)",
+    "exportNote": "The contact form and appointment booking call Totalvizibil's public API and work from any domain, including once you host the exported site on your own server.",
+    "domainTitle": "Custom domain",
+    "domainHint": "Buy your own domain for your business — the site stays on Totalvizibil too, in parallel.",
+    "domainPlaceholder": "example.com",
+    "domainCheckCta": "Check availability",
+    "domainAvailable": "{domain} is available.",
+    "domainTaken": "{domain} is not available.",
+    "domainPriceBreakdown": "Domain {domain} cr + platform fee {fee} cr = {total} cr",
+    "domainBuyCta": "Buy domain",
+    "domainConfirmTitle": "Confirm the domain purchase",
+    "domainConfirmText": "You'll pay {total} credits for {domain}, from your wallet.",
+    "domainBought": "Domain purchased. DNS setup is in progress.",
+    "domainStatus": {
+      "pending": "Pending",
+      "active": "Active",
+      "failed": "Failed"
+    },
+    "domainErr": {
+      "insufficient_credits": "Not enough credits for this domain.",
+      "domain_not_available": "The domain is no longer available.",
+      "domain_already_registered": "This domain is already registered with us."
+    }
   },
   "spend": {
     "eyebrow": "Feed promotion",

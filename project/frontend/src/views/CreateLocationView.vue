@@ -1,37 +1,32 @@
 <script setup lang="ts">
+/**
+ * Pre-account onboarding step only — category + service area together, since
+ * there's no existing company yet to split them against. Editing either one
+ * later (after the business exists) happens on its own dedicated panel page
+ * instead (see LocationView.vue / CategoryView.vue).
+ */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 
 import LocationMap from '@/components/LocationMap.vue'
 import InfoHint from '@/components/InfoHint.vue'
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { fetchCounties, nearestCity, countyCenter } from '@/services/geo'
 import { fetchCategoryTree, type CategoryGroup } from '@/services/categories'
-import { useAuthStore } from '@/stores/auth'
-import { useCompaniesStore, type LocalizedName } from '@/stores/companies'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
 import { useToastStore } from '@/stores/toast'
 
 const { t, locale } = useI18n()
-const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
-const companies = useCompaniesStore()
 const draftStore = useWebsiteDraftStore()
 
 const DEFAULT = { lat: 44.4268, lng: 26.1025 } // București
 
-// 'draft' = pre-account (free flow), 'company' = post-account (advanced flow / edit).
-const mode = ref<'draft' | 'company' | null>(null)
-const companyId = ref<string | null>(null)
 const ready = ref(false)
 const error = ref('')
 const toasts = useToastStore()
 watch(error, (v) => { if (v) toasts.error(v) })
-// True when we're editing the location of a business that already has a campaign
-// (i.e. not a step in onboarding — just a settings change).
-const editing = ref(false)
 
 // Service area is by județ (Romanian county) — one, several, or every one at
 // once (collapsed to "Toată țara", a pickable shortcut either way: choosing
@@ -57,6 +52,23 @@ const lng = ref(DEFAULT.lng)
 const saving = ref(false)
 const saved = ref(false)
 
+/** Several counties selected → the map switches to a read-only overview (one
+ *  labelled marker per county) instead of a single draggable address pin,
+ *  which stops making sense once there's more than one service area. */
+const overviewMarkers = ref<{ lat: number; lng: number; label: string }[] | null>(null)
+async function refreshOverview(): Promise<void> {
+  if (nationwide.value || countiesChosen.value.length <= 1) {
+    overviewMarkers.value = null
+    return
+  }
+  try {
+    const centers = await Promise.all(countiesChosen.value.map((c) => countyCenter(c)))
+    overviewMarkers.value = centers.map((c) => ({ lat: c.lat, lng: c.lng, label: c.county }))
+  } catch {
+    overviewMarkers.value = null
+  }
+}
+
 // Category (2-level, required): a parent group + one or more real
 // subcategories. Selecting every subcategory under the group is how a
 // business ends up classified as "Servicii complete {group}" — that's a
@@ -66,8 +78,8 @@ const groupSlug = ref<string | null>(null)
 const leafSlugs = ref<string[]>([])
 const suggesting = ref(false)
 
-function catName(n: LocalizedName): string {
-  return n[locale.value as keyof LocalizedName] ?? n.en
+function catName(n: { ro: string; en: string; de: string }): string {
+  return n[locale.value as 'ro' | 'en' | 'de'] ?? n.en
 }
 const groupItems = computed(() =>
   catTree.value.map((g) => ({ title: catName(g.name), value: g.slug })),
@@ -96,8 +108,7 @@ function preselectCategory(slugs: string[] | null | undefined): void {
 }
 
 /** AI-assisted suggestion from the services already collected in the studio
- *  flow — pre-fills the picker, fully editable before saving. Draft-only: an
- *  existing company (editing its area later) already has its tagging set. */
+ *  flow — pre-fills the picker, fully editable before saving. */
 async function suggestLeaves(): Promise<void> {
   if (!groupSlug.value || suggesting.value) return
   suggesting.value = true
@@ -118,26 +129,12 @@ async function suggestLeaves(): Promise<void> {
 const canContinue = computed(
   () => leafSlugs.value.length > 0 && countySelections.value.length > 0,
 )
-// Where "back" goes in the pre-account flow — the advanced plan started at the
-// advanced info screen, not the easy studio.
+// Where "back" goes — the advanced plan started at the advanced info screen,
+// not the easy studio.
 const draftEntry = computed(() =>
   draftStore.draft?.mode === 'advanced' ? 'create-advanced' : 'create-easy',
 )
-const backTarget = computed(() =>
-  mode.value === 'company'
-    ? { name: 'dashboard', query: { c: companyId.value } }
-    : { name: draftEntry.value },
-)
-// Header + CTA copy: a step in onboarding vs. a plain settings edit.
-const eyebrowText = computed(() =>
-  editing.value ? t('location.eyebrowEdit') : t('location.eyebrow'),
-)
-const titleText = computed(() => (editing.value ? t('location.titleEdit') : t('location.title')))
-const backText = computed(() => (mode.value === 'company' ? t('location.backDash') : t('location.back')))
-const ctaText = computed(() => {
-  if (saved.value) return t('location.savedContinue')
-  return editing.value ? t('location.save') : t('location.continue')
-})
+const backTarget = computed(() => ({ name: draftEntry.value }))
 
 /** Picking "Toată țara" selects every județ (collapsed to just the sentinel
  *  in the chips); manually ticking every real județ is recognised as the
@@ -148,10 +145,12 @@ function onCountySelectionsChange(vals: string[]): void {
   const pickedEveryCounty = counties.value.length > 0 && realPicks.length === counties.value.length
   countySelections.value = justPickedNationwide || pickedEveryCounty ? [NATIONWIDE] : realPicks
   saved.value = false
-  // Re-centre on the (new) first county's main city — a sensible default pin
-  // the owner can fine-tune by clicking elsewhere on the map.
+  void refreshOverview()
+  // Re-centre on the (new) first county's main city — only meaningful once
+  // we're back down to exactly one real county (the pin becomes an overview
+  // otherwise — see refreshOverview).
   const primary = countiesChosen.value[0]
-  if (primary) {
+  if (primary && countiesChosen.value.length === 1) {
     void countyCenter(primary)
       .then((center) => {
         lat.value = center.lat
@@ -162,6 +161,9 @@ function onCountySelectionsChange(vals: string[]): void {
         /* keep whatever point was already set */
       })
   }
+}
+function removeCounty(c: string): void {
+  onCountySelectionsChange(countySelections.value.filter((v) => v !== c))
 }
 
 // Moving the pin on the map updates the coordinates, fills the city name for
@@ -177,6 +179,7 @@ function onMapPick(p: { lat: number; lng: number }): void {
       city.value = near.name
       if (counties.value.includes(near.county) && !countiesChosen.value.includes(near.county)) {
         countySelections.value = [near.county, ...countiesChosen.value]
+        void refreshOverview()
       }
     })
     .catch(() => {
@@ -214,20 +217,10 @@ async function save(): Promise<void> {
         nationwide: false,
       }
   try {
-    if (mode.value === 'company' && companyId.value) {
-      await companies.updateLocation(companyId.value, payload)
-      saved.value = true
-      // Always return to the dashboard. If the campaign still needs setting up,
-      // the dashboard surfaces that as a task — we never force the campaign /
-      // "publish" screen after a plain settings change (that re-prompted an
-      // already-published business to pay again).
-      void router.push({ name: 'dashboard', query: { c: companyId.value } })
-    } else {
-      const ok = await draftStore.setLocation(payload)
-      if (!ok) throw new Error(draftStore.error || 'error')
-      saved.value = true
-      void router.push({ name: 'create-account' })
-    }
+    const ok = await draftStore.setLocation(payload)
+    if (!ok) throw new Error(draftStore.error || 'error')
+    saved.value = true
+    void router.push({ name: 'create-account' })
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'error'
   } finally {
@@ -241,62 +234,12 @@ onMounted(async () => {
     fetchCounties().catch(() => []),
   ])
 
-  // Arriving with ?c=… while signed in means "edit this business's coverage
-  // area" — a plain settings change reached from the dashboard. It must operate
-  // on the real company and must never be hijacked by a leftover pre-account
-  // draft in localStorage (that dragged an already-published business back into
-  // the "continue → pay" onboarding flow).
-  const editingCompany =
-    auth.isAuthenticated && typeof route.query.c === 'string' && route.query.c.length > 0
-
-  // Otherwise an in-progress draft wins — it's the pre-account (free) flow, even
-  // for a logged-in user building a second site.
-  const hasDraft = editingCompany ? false : await draftStore.resumeIfAny()
+  const hasDraft = await draftStore.resumeIfAny()
   if (hasDraft && draftStore.draft?.ready) {
-    mode.value = 'draft'
     preselectCategory(draftStore.draft.categorySlugs)
     const loc = draftStore.draft.location
     if (loc) prefill(loc)
-    ready.value = true
-    return
-  }
-
-  // Post-account (advanced flow, or editing later): operate on the real company.
-  if (auth.isAuthenticated) {
-    mode.value = 'company'
-    // `ensureLoaded()` (→ `fetchList()`) has no internal error handling — an
-    // unguarded rejection here used to kill this whole `Promise.all` and, with
-    // it, this entire `onMounted`, leaving `ready` stuck at `false` forever
-    // (a permanent spinner, only cleared by a full page refresh).
-    await Promise.all([
-      companies.ensureLoaded().catch(() => {}),
-      companies.fetchOverview().catch(() => {}),
-    ])
-    const id = companies.resolveId(route.query.c)
-    const company = id ? companies.list.find((c) => c.id === id) : null
-    if (!company) {
-      void router.replace({ name: 'dashboard' })
-      return
-    }
-    companyId.value = company.id
-    preselectCategory(company.categories.map((c) => c.slug))
-    // The full served-area set — every row, not just the primary pin.
-    const primaryLoc = company.locations.find((l) => l.isPrimary) ?? company.locations[0]
-    const isNationwide = company.locations.some((l) => l.nationwide)
-    const countyList = company.locations.map((l) => l.county).filter((c): c is string => !!c)
-    // A coverage area is already on file (a județ, or whole-country) → this
-    // is a settings edit, not the onboarding step.
-    const hasCoverage = isNationwide || countyList.length > 0
-    editing.value = hasCoverage
-    if (hasCoverage) {
-      prefill({
-        city: primaryLoc?.city ?? null,
-        counties: countyList,
-        lat: primaryLoc?.lat ?? null,
-        lng: primaryLoc?.lng ?? null,
-        nationwide: isNationwide,
-      })
-    }
+    await refreshOverview()
     ready.value = true
     return
   }
@@ -309,14 +252,13 @@ onMounted(async () => {
 <template>
   <v-container class="loc">
     <OnboardingSteps
-      v-if="mode === 'draft'"
       :mode="draftStore.draft?.mode === 'advanced' ? 'advanced' : 'easy'"
       current="location"
       class="loc__steps"
     />
     <header class="loc__head">
-      <p class="loc__eyebrow"><span class="loc__dot" /> {{ eyebrowText }}</p>
-      <h1>{{ titleText }}</h1>
+      <p class="loc__eyebrow"><span class="loc__dot" /> {{ t('location.eyebrow') }}</p>
+      <h1>{{ t('location.title') }}</h1>
       <p class="loc__lead">{{ t('location.lead') }}</p>
     </header>
 
@@ -355,7 +297,7 @@ onMounted(async () => {
           @update:model-value="onLeafSlugsChange"
         />
       </div>
-      <div v-if="mode === 'draft' && groupSlug" class="loc__suggest">
+      <div v-if="groupSlug" class="loc__suggest">
         <v-btn
           size="small"
           variant="tonal"
@@ -380,40 +322,71 @@ onMounted(async () => {
         variant="outlined"
         density="comfortable"
         multiple
-        chips
-        closable-chips
         hide-details
         @update:model-value="onCountySelectionsChange"
-      />
+      >
+        <template #selection="{ index }">
+          <span v-if="index === 0" class="loc__selectPlaceholder">
+            {{
+              nationwide
+                ? t('location.nationwideOption')
+                : t('location.selectedCount', { n: countiesChosen.length })
+            }}
+          </span>
+        </template>
+      </v-select>
+
+      <!-- Large, legible pills instead of the input's own cramped chip row —
+           makes exactly what's selected unambiguous. -->
+      <div class="loc__summary">
+        <span v-if="nationwide" class="locchip locchip--all">
+          <v-icon icon="mdi-earth" size="15" /> {{ t('location.nationwideOption') }}
+        </span>
+        <template v-else-if="countiesChosen.length">
+          <span v-for="c in countiesChosen" :key="c" class="locchip">
+            <v-icon icon="mdi-map-marker" size="14" />
+            {{ c }}
+            <button
+              type="button"
+              class="locchip__x"
+              :aria-label="t('location.removeCounty', { county: c })"
+              @click="removeCounty(c)"
+            >
+              <v-icon icon="mdi-close" size="13" />
+            </button>
+          </span>
+        </template>
+        <span v-else class="loc__summaryEmpty">{{ t('location.noneSelected') }}</span>
+      </div>
 
       <div v-if="nationwide" class="loc__note">
         <span>{{ t('location.nationwideHint') }}</span>
       </div>
 
-      <template v-else>
+      <template v-else-if="countiesChosen.length">
         <div class="loc__fieldhead">
           <span>{{ t('location.mapLabel') }}</span>
-          <InfoHint :text="t('location.mapHint')" />
+          <InfoHint
+            :text="countiesChosen.length > 1 ? t('location.mapOverviewHint') : t('location.mapHint')"
+          />
         </div>
         <div class="loc__map">
-          <LocationMap :lat="lat" :lng="lng" @pick="onMapPick" />
+          <LocationMap :lat="lat" :lng="lng" :markers="overviewMarkers" @pick="onMapPick" />
         </div>
       </template>
 
-      <div class="loc__actions" :class="{ 'loc__actions--solo': editing }">
-        <!-- No "back" when this is a settings edit — there is no previous
-             onboarding step to return to, only the dashboard. -->
-        <v-btn v-if="!editing" variant="text" prepend-icon="mdi-arrow-left" :to="backTarget">
-          {{ backText }}
+      <div class="loc__actions">
+        <v-btn variant="text" prepend-icon="mdi-arrow-left" :to="backTarget">
+          {{ t('location.back') }}
         </v-btn>
         <v-btn
           color="primary"
-          :append-icon="editing ? undefined : 'mdi-arrow-right'"
+          append-icon="mdi-arrow-right"
           :disabled="!canContinue"
           :loading="saving"
           @click="save"
         >
-          {{ ctaText }}
+          {{ saved ? t('location.savedContinue') : t('location.continue') }}
         </v-btn>
       </div>
     </template>
@@ -496,6 +469,52 @@ onMounted(async () => {
   margin-top: 0.6rem;
 }
 
+.loc__selectPlaceholder {
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+
+/* Selected-counties summary ------------------------------------------ */
+.loc__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+.loc__summaryEmpty {
+  font-size: 0.85rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.locchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.4rem 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-primary), 0.1);
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.locchip--all {
+  padding: 0.4rem 0.9rem;
+  background: var(--tvz-ai-soft);
+  border-color: rgba(var(--v-theme-primary), 0.35);
+}
+.locchip__x {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: rgb(var(--v-theme-primary));
+  opacity: 0.7;
+}
+.locchip__x:hover {
+  opacity: 1;
+  background: rgba(var(--v-theme-primary), 0.16);
+}
+
 .loc__map {
   height: 340px;
   margin-top: 0.75rem;
@@ -512,18 +531,8 @@ onMounted(async () => {
   border: 1px solid var(--tvz-glass-border);
   font-size: 0.82rem;
 }
-.loc__note strong {
-  font-size: 0.9rem;
-}
 .loc__note span {
   color: rgba(var(--v-theme-on-surface), 0.7);
-}
-.loc__note--error {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.4rem;
-  background: rgba(var(--v-theme-error), 0.1);
-  color: rgb(var(--v-theme-error));
 }
 
 .loc__actions {
@@ -531,8 +540,5 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-top: 1.75rem;
-}
-.loc__actions--solo {
-  justify-content: flex-end;
 }
 </style>

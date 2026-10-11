@@ -25,6 +25,10 @@ export interface CampaignData {
   spentToday: Money
   /** Lifetime billed clicks. */
   clicks: number
+  /** Paused automatically because CPC Maxim fell under a Feed's own minimum
+   *  (manual CPC only — AUTO can't land here) — distinct from a plain manual
+   *  stop, so the panel can say exactly what needs fixing. */
+  cpcBelowFeedMinimum: boolean
 }
 
 export interface CampaignPayload {
@@ -130,6 +134,9 @@ export interface CampaignSpend {
   needsPositionUpgrade: boolean
   /** CPC Maxim needed to reach #1 in every Feed the company competes in. */
   recommendedCpc: Money
+  /** Paused automatically because CPC Maxim fell under a Feed's own minimum
+   *  — distinct from a plain manual stop. */
+  cpcBelowFeedMinimum: boolean
   /** Server clock at the time of the request — the client ticks projections off this. */
   now: string
   /** CPC maxim — the bidding ceiling the owner set, never the actual per-click charge. */
