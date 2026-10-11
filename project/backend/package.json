@@ -20,11 +20,16 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "jest --config test/jest-e2e.json",
+    "test:integration": "jest --config test/jest.integration.json --runInBand --forceExit",
+    "pretest:integration": "export $(grep -v '^#' .env.test | xargs) && npx prisma migrate deploy",
     "prisma:generate": "npm run ensure:env && prisma generate",
     "prisma:migrate": "npm run ensure:env && prisma migrate dev",
     "prisma:deploy": "npm run ensure:env && prisma migrate deploy",
     "prisma:studio": "npm run ensure:env && prisma studio",
-    "db:seed": "npm run ensure:env && ts-node --transpile-only prisma/seed.ts"
+    "db:seed": "npm run ensure:env && ts-node --transpile-only prisma/seed.ts",
+    "test:load:seed": "export $(grep -v '^#' .env.load | xargs) && ts-node --transpile-only test/load/seed.ts",
+    "test:load:start": "export $(grep -v '^#' .env.load | xargs) && nest start",
+    "test:load": "k6 run test/load/index.k6.js"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
@@ -86,18 +91,22 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/test"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
+    "testPathIgnorePatterns": ["/node_modules/", "/test/integration/"],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.(t|j)s"
     ],
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/$1"
+      "^src/(.*)$": "<rootDir>/src/$1"
     }
   }
 }

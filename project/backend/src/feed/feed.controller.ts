@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Headers, Ip, Post, Query } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { CampaignService } from '../campaigns/campaign.service';
 import { FeedService } from './feed.service';
 import { FeedQueryDto } from './feed.query';
 import { AdClickDto } from './dto/ad-click.dto';
 
 /** Public — the main discovery experience (PRD §6). No auth. */
+@SkipThrottle()
 @Controller('feed')
 export class FeedController {
   constructor(
