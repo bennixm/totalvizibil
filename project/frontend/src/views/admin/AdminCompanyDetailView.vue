@@ -18,7 +18,8 @@ import { useToastStore } from '@/stores/toast'
 import type { CampaignTier, CampaignStatus } from '@/stores/campaign'
 import type { LocalizedName } from '@/stores/companies'
 import { ApiError } from '@/services/api'
-import { fetchCounties } from '@/services/geo'
+import { fetchCounties, countyCenter } from '@/services/geo'
+import LocationMap from '@/components/LocationMap.vue'
 
 const { t, n, locale } = useI18n()
 const route = useRoute()
@@ -130,8 +131,27 @@ const countyItems = computed(() => [
 /** The raw multi-select model — `[NATIONWIDE]` or one-or-more real județe. */
 const countySelections = ref<string[]>([])
 const nationwide = computed(() => countySelections.value.includes(NATIONWIDE))
+/** The real județe chosen (excludes the sentinel) — empty while nationwide. */
+const countiesChosen = computed(() => countySelections.value.filter((v) => v !== NATIONWIDE))
 const savingLoc = ref(false)
 const locValid = computed(() => nationwide.value || countySelections.value.length > 0)
+
+/** No single "office address" concept here (unlike the owner-facing location
+ *  step) — the map is always a read-only overview, one labelled marker per
+ *  selected județ, even for just one. */
+const overviewMarkers = ref<{ lat: number; lng: number; label: string }[] | null>(null)
+async function refreshOverview(): Promise<void> {
+  if (nationwide.value || !countiesChosen.value.length) {
+    overviewMarkers.value = null
+    return
+  }
+  try {
+    const centers = await Promise.all(countiesChosen.value.map((c) => countyCenter(c)))
+    overviewMarkers.value = centers.map((c) => ({ lat: c.lat, lng: c.lng, label: c.county }))
+  } catch {
+    overviewMarkers.value = null
+  }
+}
 
 /** Picking "Toată țara" selects every județ (collapsed to the sentinel);
  *  manually ticking every real județ collapses the same way — both
@@ -141,6 +161,10 @@ function onCountySelectionsChange(vals: string[]): void {
   const realPicks = vals.filter((v) => v !== NATIONWIDE)
   const pickedEveryCounty = counties.value.length > 0 && realPicks.length === counties.value.length
   countySelections.value = justPickedNationwide || pickedEveryCounty ? [NATIONWIDE] : realPicks
+  void refreshOverview()
+}
+function removeCounty(c: string): void {
+  onCountySelectionsChange(countySelections.value.filter((v) => v !== c))
 }
 
 async function saveLocation() {
@@ -292,6 +316,7 @@ function hydrate() {
     : ''
   const l = d.company.location
   countySelections.value = l?.nationwide ? [NATIONWIDE] : (l?.counties ?? [])
+  void refreshOverview()
   const c = d.campaign.campaign
   if (c) {
     budget.value = c.dailyBudget.credits
@@ -631,11 +656,44 @@ const leadStatusItems = computed(() => [
                   variant="outlined"
                   density="comfortable"
                   multiple
-                  chips
-                  closable-chips
                   hide-details
                   @update:model-value="onCountySelectionsChange"
-                />
+                >
+                  <template #selection="{ index }">
+                    <span v-if="index === 0" class="ac__selectPlaceholder">
+                      {{
+                        nationwide
+                          ? t('location.nationwideOption')
+                          : t('location.selectedCount', { n: countiesChosen.length })
+                      }}
+                    </span>
+                  </template>
+                </v-select>
+
+                <div class="ac__locChips">
+                  <span v-if="nationwide" class="locchip locchip--all">
+                    <v-icon icon="mdi-earth" size="15" /> {{ t('location.nationwideOption') }}
+                  </span>
+                  <template v-else-if="countiesChosen.length">
+                    <span v-for="c in countiesChosen" :key="c" class="locchip">
+                      <v-icon icon="mdi-map-marker" size="14" />
+                      {{ c }}
+                      <button
+                        type="button"
+                        class="locchip__x"
+                        :aria-label="t('location.removeCounty', { county: c })"
+                        @click="removeCounty(c)"
+                      >
+                        <v-icon icon="mdi-close" size="13" />
+                      </button>
+                    </span>
+                  </template>
+                  <span v-else class="ac__muted">{{ t('location.noneSelected') }}</span>
+                </div>
+
+                <div v-if="!nationwide && countiesChosen.length" class="ac__locMap">
+                  <LocationMap :lat="44.4268" :lng="26.1025" :markers="overviewMarkers" />
+                </div>
 
                 <div>
                   <v-btn
@@ -1108,6 +1166,48 @@ const leadStatusItems = computed(() => [
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+}
+.ac__selectPlaceholder {
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.ac__locChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: -0.3rem;
+}
+.ac__locMap {
+  height: 280px;
+}
+.locchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.4rem 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-primary), 0.1);
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.locchip--all {
+  padding: 0.4rem 0.9rem;
+  background: var(--tvz-ai-soft);
+  border-color: rgba(var(--v-theme-primary), 0.35);
+}
+.locchip__x {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: rgb(var(--v-theme-primary));
+  opacity: 0.7;
+}
+.locchip__x:hover {
+  opacity: 1;
+  background: rgba(var(--v-theme-primary), 0.16);
 }
 .ac__facts {
   display: flex;

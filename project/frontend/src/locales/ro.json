@@ -471,6 +471,8 @@
     "alert": {
       "stoppedTitle": "Campania este oprită",
       "stoppedText": "Nu apari în feed cât timp campania e pe pauză. Repornește-o.",
+      "cpcFloorTitle": "CPC Maxim prea mic · campania a fost oprită automat",
+      "cpcFloorText": "CPC Maxim era sub pragul minim al unui Feed, deci afacerea nu putea apărea în nicio căutare — campania s-a oprit automat. Ridică-l la cel puțin CPC Maxim standard și reactiveaz-o.",
       "budgetTitle": "Bugetul de azi s-a epuizat",
       "budgetText": "Anunțul iese din feed până mâine. Mărește bugetul zilnic dacă se întâmplă des.",
       "walletTitle": "Portofel insuficient",
@@ -482,7 +484,7 @@
       "responseTitle": "Răspunzi prea încet",
       "responseText": "Timpul de răspuns îți trage scorul în jos. Răspunde mai repede la cereri.",
       "feedTitle": "Nu apari în feed",
-      "feedText": "Campania e activă dar afacerea nu apare încă în feed. Verifică optimizarea."
+      "feedText": "Campania e activă dar afacerea nu apare în nicio căutare din feed — verifică CPC Maxim, categoria și locația afacerii."
     },
     "websiteUnpublished": "Nepublicat",
     "invoicesTitle": "Facturi",
@@ -528,7 +530,8 @@
       "wallet_blocked": "Portofelul proprietarului este blocat. Deblochează-l ca să poți activa campania.",
       "company_suspended": "Afacerea este suspendată. Nu poate rula campanii.",
       "website_builder_incomplete": "Finalizează builder-ul site-ului avansat înainte să listezi campania.",
-      "company_pending_deletion": "Afacerea este programată pentru ștergere · nu mai poate fi editată."
+      "company_pending_deletion": "Afacerea este programată pentru ștergere · nu mai poate fi editată.",
+      "cpc_below_feed_minimum": "CPC Maxim este sub pragul minim al unui Feed · la acest nivel afacerea nu poate apărea în nicio căutare. Ridică-l cel puțin la CPC Maxim standard."
     },
     "builderRequiredTitle": "Întâi finalizează site-ul",
     "builderRequiredNote": "Este o afacere pe plan avansat. Construiește și finalizează site-ul înainte ca anunțul să poată fi listat.",
@@ -539,6 +542,7 @@
     "consumedNote": "Consumat de această campanie: {n} credite",
     "pausedNote": "Campania e oprită. Reactiveaz-o ca să reapară în feed. Scorul de rulaj se păstrează 24h, apoi se resetează.",
     "editStopsNote": "Salvarea modificărilor oprește campania până o reactivezi.",
+    "savedPausedNudge": "Modificările au fost salvate · campania e pe pauză până o reactivezi.",
     "saveActivate": "Salvează și reactivează",
     "spentToday": "Consum azi",
     "clicks": "Click-uri plătite",
@@ -1908,6 +1912,7 @@
     "filesEmpty": "Niciun fișier încă.",
     "exportSource": "Exportă sursa (.zip)",
     "exportDist": "Exportă build-ul (.zip)",
+    "exportNote": "Formularul de contact și programările apelează API-ul public Totalvizibil și funcționează din orice domeniu, inclusiv după ce găzduiești site-ul exportat pe propriul server.",
     "domainTitle": "Domeniu personalizat",
     "domainHint": "Cumpără un domeniu propriu pentru afacerea ta — site-ul rămâne și pe Totalvizibil, în paralel.",
     "domainPlaceholder": "exemplu.ro",
@@ -1923,6 +1928,11 @@
       "pending": "În curs",
       "active": "Activ",
       "failed": "Eșuat"
+    },
+    "domainErr": {
+      "insufficient_credits": "Credite insuficiente pentru acest domeniu.",
+      "domain_not_available": "Domeniul nu mai este disponibil.",
+      "domain_already_registered": "Acest domeniu este deja înregistrat la noi."
     }
   },
   "spend": {

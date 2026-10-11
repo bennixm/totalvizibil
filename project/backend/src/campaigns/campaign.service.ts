@@ -15,6 +15,7 @@ import { DEFAULT_REFS, RUN_SCORE_GRACE_MS, effectiveActiveSeconds } from '../ana
 import {
   chargeMinor,
   cpcLocalMinor,
+  FeedMarginConfig,
   feedCpcMinMinor,
   isEligibleForFeed,
   rankPeersByFeedScore,
@@ -224,6 +225,21 @@ export class CampaignService {
           data: { cpcMinor: target },
         });
       }
+    }
+
+    // A manual campaign whose CPC Maxim sits under the Feed's own CPC minim
+    // can never be eligible for any Feed — never billed, never shown. This
+    // self-heals any campaign that reached `active` before `activate()`/
+    // `save()` started rejecting this (or whose floor rose later, via an
+    // admin margin change) instead of leaving it stuck showing "Active" while
+    // genuinely invisible. AUTO can't land here (see auto-cpc.ts).
+    if (
+      campaign.status === CampaignStatus.active &&
+      !campaign.autoOptimize &&
+      !isEligibleForFeed(campaign.cpcMinor, await this.analytics.marginConfig())
+    ) {
+      const d = await this.setLive(companyId, campaign, CampaignStatus.paused);
+      return { ...d, spentTodayMinor: spentToday };
     }
 
     // Can the wallet cover the next click? (Not a whole day — see the method doc.)
@@ -503,7 +519,7 @@ export class CampaignService {
 
     return {
       campaign: campaign
-        ? { ...this.view(campaign), consumed: money(consumedMinor), clicks }
+        ? { ...this.view(campaign, cfg), consumed: money(consumedMinor), clicks }
         : null,
       suggestions: {
         standard: this.tierView(s.standard),
@@ -657,6 +673,7 @@ export class CampaignService {
       feedRanks,
       byFeed,
       s,
+      cfg,
     ] = await Promise.all([
       this.wallet.getSummary(owner),
       this.wallet.consumedByCompany(companyId),
@@ -665,12 +682,18 @@ export class CampaignService {
       this.analytics.feedRanksFor(companyId),
       this.spendByFeedFor(companyId),
       this.suggestFor(companyId),
+      this.analytics.marginConfig(),
     ]);
     const requiresWebsiteBuilder = !websiteReady;
     // Not #1 in at least one Feed the company competes in — the campaign panel
     // surfaces this as a single alert instead of the old per-Feed position list.
     const needsPositionUpgrade = feedRanks.some((r) => r.position !== 1);
     const recommendedCpc = money(s.appearFirst.cpcMinor);
+    // A manual CPC Maxim under the Feed's own CPC minim — reconcile() above
+    // already demotes an active campaign like this to `paused`, but the panel
+    // still needs to say WHY it's paused, distinctly from a manual stop.
+    const cpcBelowFeedMinimum =
+      !!campaign && !campaign.autoOptimize && !isEligibleForFeed(campaign.cpcMinor, cfg);
 
     if (!campaign) {
       return {
@@ -683,6 +706,7 @@ export class CampaignService {
         byFeed,
         needsPositionUpgrade,
         recommendedCpc,
+        cpcBelowFeedMinimum,
         now: now.toISOString(),
         cpcSet: money(0),
         dailyBudget: money(0),
@@ -895,6 +919,7 @@ export class CampaignService {
       byFeed,
       needsPositionUpgrade,
       recommendedCpc,
+      cpcBelowFeedMinimum,
       now: now.toISOString(),
       cpcSet: money(campaign.cpcMinor),
       dailyBudget: money(budget),
@@ -968,6 +993,16 @@ export class CampaignService {
     const dailyBudgetMinor = creditsToMinor(dto.dailyBudget);
     let cpcMinor = creditsToMinor(dto.cpc);
     if (cpcMinor < 1) throw new BadRequestException('cpc must be at least 0.01 credits');
+    // Below the Feed's own CPC minim, the campaign is ineligible for every
+    // Feed it would otherwise compete in — never billed, never shown — no
+    // matter how "active" it looks in the panel. Reject it outright for a
+    // manual CPC (the owner picked this number on purpose); AUTO already
+    // clamps its own CPC above this floor (see auto-cpc.ts), so it can only
+    // ever land here via the daily-budget clamp below, which is fine.
+    const floorMinor = feedCpcMinMinor(await this.analytics.marginConfig());
+    if (cpcMinor < floorMinor && !auto) {
+      throw new BadRequestException('cpc_below_feed_minimum');
+    }
     if (cpcMinor > dailyBudgetMinor) {
       // In AUTO mode the CPC is managed by the platform — clamp instead of
       // rejecting; the owner only really controls the daily budget cap.
@@ -1072,6 +1107,15 @@ export class CampaignService {
     if (!(await this.isListingWebsiteReady(companyId))) {
       throw new BadRequestException('website_builder_incomplete');
     }
+    // A manual CPC Maxim under the Feed's own CPC minim is ineligible for
+    // every Feed — activating it would show "Active" while the business never
+    // actually appears anywhere. AUTO can't land here (see auto-cpc.ts).
+    if (
+      !campaign.autoOptimize &&
+      !isEligibleForFeed(campaign.cpcMinor, await this.analytics.marginConfig())
+    ) {
+      throw new BadRequestException('cpc_below_feed_minimum');
+    }
     const owner = await this.walletOwner(companyId);
     await this.wallet.assertSpendable(owner);
     if (!(await this.wallet.canAfford(owner, campaign.dailyBudgetMinor))) {
@@ -1130,16 +1174,17 @@ export class CampaignService {
   async summaryFor(companyId: string) {
     const campaign = await this.reconcile(companyId);
     if (!campaign) return null;
-    const [consumedMinor, clicks] = await Promise.all([
+    const [consumedMinor, clicks, cfg] = await Promise.all([
       this.wallet.consumedByCompany(companyId),
       this.clickCount(companyId),
+      this.analytics.marginConfig(),
     ]);
-    return { ...this.view(campaign), consumed: money(consumedMinor), clicks };
+    return { ...this.view(campaign, cfg), consumed: money(consumedMinor), clicks };
   }
 
   // --- views --------------------------------------------------------
 
-  private view(c: Campaign) {
+  private view(c: Campaign, cfg: FeedMarginConfig) {
     return {
       status: c.status,
       dailyBudget: money(c.dailyBudgetMinor),
@@ -1148,6 +1193,11 @@ export class CampaignService {
       autoOptimize: c.autoOptimize,
       spentToday: money(c.spentTodayMinor),
       activatedAt: c.activatedAt,
+      // Lets the panel tell "paused because the owner stopped it" apart from
+      // "paused because CPC Maxim fell under a Feed's own minimum" (reconcile
+      // demotes the latter automatically — see its own comment) — a manual
+      // pause with no fix needed vs. one specific, actionable problem.
+      cpcBelowFeedMinimum: !c.autoOptimize && !isEligibleForFeed(c.cpcMinor, cfg),
     };
   }
 

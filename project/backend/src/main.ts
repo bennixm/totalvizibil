@@ -2,10 +2,30 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
-import { json, urlencoded } from 'express';
+import cors from 'cors';
+import { json, urlencoded, type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AppConfig } from './config/env';
+
+/**
+ * `/api/v1/public/*` (lead submission, appointment slots/booking, the public
+ * company lookup, the published-bundle HTML) is the one slice of the API
+ * meant to be called from ANY origin, not just our own frontend: a company's
+ * AI-built site can be exported as a zip and self-hosted on the owner's own
+ * domain (see WebsiteSettingsView's file export), and its contact/booking
+ * forms call these same endpoints by absolute URL from wherever they end up
+ * running (see ProV2AgentService.buildSystemPrompt). None of them read the
+ * session cookie or require auth — they're already fully public and
+ * unauthenticated by design, callable from a plain `curl` with no CORS
+ * involved at all — so reflecting any browser Origin back here (with
+ * `credentials: false`, never sending/accepting the cookie) doesn't expose
+ * anything a non-browser client couldn't already reach; it only lets a
+ * browser call them cross-origin too. Every other route keeps the strict,
+ * single-origin, credentialed policy below — that one guards real session
+ * state and must never be opened up the same way.
+ */
+const PUBLIC_API_PREFIX = '/api/v1/public';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
@@ -35,9 +55,13 @@ async function bootstrap(): Promise<void> {
       },
     }),
   );
-  app.enableCors({
+  const publicCors = cors({ origin: true, credentials: false });
+  const strictCors = cors({
     origin: config.get('frontendOrigin', { infer: true }),
     credentials: true,
+  });
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    (req.path.startsWith(PUBLIC_API_PREFIX) ? publicCors : strictCors)(req, res, next);
   });
   app.useGlobalPipes(
     new ValidationPipe({

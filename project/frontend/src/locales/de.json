@@ -471,6 +471,8 @@
     "alert": {
       "stoppedTitle": "Die Kampagne ist gestoppt",
       "stoppedText": "Solange die Kampagne pausiert ist, erscheinst du nicht im Feed. Starte sie erneut.",
+      "cpcFloorTitle": "CPC Maxim zu niedrig · Kampagne automatisch gestoppt",
+      "cpcFloorText": "CPC Maxim lag unter dem Mindestwert eines Feeds, daher konnte das Unternehmen in keiner Suche erscheinen — die Kampagne hat sich selbst gestoppt. Erhöhe ihn mindestens auf den Standard-CPC-Maxim und aktiviere sie erneut.",
       "budgetTitle": "Tagesbudget aufgebraucht",
       "budgetText": "Der Eintrag verlässt den Feed bis morgen. Erhöhe das Tagesbudget, wenn das häufig passiert.",
       "walletTitle": "Guthaben zu niedrig",
@@ -482,7 +484,7 @@
       "responseTitle": "Du antwortest zu langsam",
       "responseText": "Deine Antwortzeit drückt den Score. Antworte schneller auf Anfragen.",
       "feedTitle": "Nicht im Feed",
-      "feedText": "Die Kampagne ist aktiv, das Unternehmen erscheint aber noch nicht. Prüfe den Optimierer."
+      "feedText": "Die Kampagne ist aktiv, das Unternehmen erscheint aber in keiner Feed-Suche — prüfe CPC Maxim, die Kategorie und den Standort."
     },
     "websiteUnpublished": "Nicht veröffentlicht",
     "invoicesTitle": "Rechnungen",
@@ -528,7 +530,8 @@
       "wallet_blocked": "Das Inhaber-Wallet ist gesperrt. Entsperren Sie es, um die Kampagne zu aktivieren.",
       "company_suspended": "Das Unternehmen ist gesperrt und kann keine Kampagnen ausführen.",
       "website_builder_incomplete": "Schließe den Advanced-Website-Builder ab, bevor du die Kampagne listest.",
-      "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgesehen · es kann nicht mehr bearbeitet werden."
+      "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgesehen · es kann nicht mehr bearbeitet werden.",
+      "cpc_below_feed_minimum": "CPC Maxim liegt unter dem Mindestwert eines Feeds — auf diesem Niveau kann das Unternehmen in keiner Suche erscheinen. Erhöhe es mindestens auf den Standard-CPC-Maxim."
     },
     "builderRequiredTitle": "Zuerst die Website fertigstellen",
     "builderRequiredNote": "Dies ist ein Unternehmen im Advanced-Tarif. Baue die Website und stelle sie fertig, bevor die Kampagne live gehen kann.",
@@ -539,6 +542,7 @@
     "consumedNote": "Von dieser Kampagne verbraucht: {n} Credits",
     "pausedNote": "Die Kampagne ist gestoppt. Reaktiviere sie, um wieder im Feed zu erscheinen. Der Laufzeit-Score bleibt 24 Std. erhalten, dann wird er zurückgesetzt.",
     "editStopsNote": "Änderungen zu speichern stoppt die Kampagne, bis du sie reaktivierst.",
+    "savedPausedNudge": "Änderungen gespeichert · die Kampagne ist pausiert, bis du sie reaktivierst.",
     "saveActivate": "Speichern & reaktivieren",
     "spentToday": "Heute verbraucht",
     "clicks": "Berechnete Klicks",
@@ -1908,6 +1912,7 @@
     "filesEmpty": "Noch keine Dateien.",
     "exportSource": "Quellcode exportieren (.zip)",
     "exportDist": "Build exportieren (.zip)",
+    "exportNote": "Das Kontaktformular und die Terminbuchung rufen die öffentliche API von Totalvizibil auf und funktionieren von jeder Domain aus, auch wenn du die exportierte Website auf deinem eigenen Server hostest.",
     "domainTitle": "Eigene Domain",
     "domainHint": "Kaufe eine eigene Domain für dein Unternehmen — die Website bleibt parallel auch auf Totalvizibil.",
     "domainPlaceholder": "beispiel.de",
@@ -1923,6 +1928,11 @@
       "pending": "In Bearbeitung",
       "active": "Aktiv",
       "failed": "Fehlgeschlagen"
+    },
+    "domainErr": {
+      "insufficient_credits": "Nicht genug Credits für diese Domain.",
+      "domain_not_available": "Die Domain ist nicht mehr verfügbar.",
+      "domain_already_registered": "Diese Domain ist bei uns bereits registriert."
     }
   },
   "spend": {

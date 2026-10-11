@@ -78,12 +78,15 @@ function shortDur(ms: number): string {
 }
 
 const status = computed(() => s.value?.status ?? null)
-const statusColor: Record<string, string> = {
+const statusColor = computed<Record<string, string>>(() => ({
   active: 'success',
-  paused: 'warning',
+  // A plain manual pause reads amber (nothing's wrong, just stopped); paused
+  // because CPC Maxim fell under a Feed's own minimum reads red — the same
+  // problem the banner above already names.
+  paused: s.value?.cpcBelowFeedMinimum ? 'error' : 'warning',
   depleted: 'error',
   draft: 'default',
-}
+}))
 const isLive = computed(() => status.value === 'active')
 const builderPending = computed(() => !!s.value?.requiresWebsiteBuilder)
 const lowFunds = computed(
@@ -97,6 +100,7 @@ const KNOWN_ERR = [
   'company_pending_deletion',
   'wallet_blocked',
   'set_budget_first',
+  'cpc_below_feed_minimum',
 ]
 const errText = computed(() => {
   const c = error.value
@@ -371,6 +375,22 @@ watch(
       </section>
 
       <!-- Gate banners -->
+      <div v-if="s.cpcBelowFeedMinimum" class="ov__banner ov__banner--danger">
+        <v-icon icon="mdi-alert-octagon-outline" size="18" />
+        <div>
+          <strong>{{ t('dashboard.alert.cpcFloorTitle') }}</strong>
+          <p>{{ t('dashboard.alert.cpcFloorText') }}</p>
+        </div>
+        <v-btn
+          size="small"
+          variant="flat"
+          color="error"
+          :to="{ name: 'campaign-budget', query: { c: companyId } }"
+        >
+          {{ t('spend.budgetCta') }}
+        </v-btn>
+      </div>
+
       <div v-if="builderPending" class="ov__banner ov__banner--ai">
         <v-icon icon="mdi-alert-outline" size="18" />
         <div>

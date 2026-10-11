@@ -165,7 +165,13 @@ const campaignAlerts = computed<Alert[]>(() => {
   const cq = { c: companyId.value }
   const out: Alert[] = []
 
-  if (c.status === 'paused') {
+  if (c.status === 'paused' && c.cpcBelowFeedMinimum) {
+    // A distinct, specific alert instead of the generic "stopped" one below —
+    // this isn't a manual pause, it's CPC Maxim sitting under a Feed's own
+    // minimum, so the campaign was never actually eligible to appear anywhere.
+    out.push({ key: 'cpcFloor', severity: 'high', icon: 'mdi-alert-octagon-outline',
+      to: { name: 'campaign-budget', query: cq }, cta: 'dashboard.taskManage' })
+  } else if (c.status === 'paused') {
     out.push({ key: 'stopped', severity: 'high', icon: 'mdi-pause-octagon-outline',
       to: { name: 'campaign', query: cq }, cta: 'dashboard.campaignCta' })
   }
@@ -194,7 +200,10 @@ const campaignAlerts = computed<Alert[]>(() => {
         to: { name: 'leads', query: cq }, cta: 'dashboard.leadsCta' })
     }
     if (!an.feedRank && c.status === 'active' && !budgetGone) {
-      out.push({ key: 'feed', severity: 'warn', icon: 'mdi-radar',
+      // The campaign reads "Active" but isn't ranked in its own Feed — a real
+      // problem (not a soft suggestion), so it gets the same red treatment as
+      // the other hard-stop alerts above.
+      out.push({ key: 'feed', severity: 'high', icon: 'mdi-radar',
         to: { name: 'campaign-optimize', query: cq }, cta: 'dashboard.optimizeCta' })
     }
   }

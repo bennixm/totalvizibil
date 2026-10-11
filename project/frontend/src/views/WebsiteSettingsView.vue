@@ -100,6 +100,25 @@ const checking = ref(false)
 const purchasing = ref(false)
 const checkResult = ref<DomainCheck | null>(null)
 
+const DOMAIN_KNOWN_ERR = ['insufficient_credits', 'domain_not_available', 'domain_already_registered']
+function domainErrText(code: string): string {
+  return DOMAIN_KNOWN_ERR.includes(code) ? t('websiteSettings.domainErr.' + code) : code
+}
+/** The one domain-purchase error that needs action, not just an
+ *  acknowledgement — same persistent, actionable toast as the AI editor's
+ *  own out-of-credits alert. */
+function reportDomainError(err: unknown): void {
+  const code = err instanceof Error ? err.message : 'error'
+  if (code === 'insufficient_credits') {
+    toasts.error(domainErrText(code), {
+      timeout: 0,
+      action: { label: t('wallet.topUpCta'), to: { name: 'wallet' } },
+    })
+  } else {
+    toasts.error(domainErrText(code))
+  }
+}
+
 async function loadDomains(): Promise<void> {
   if (!companyId.value) return
   try {
@@ -118,7 +137,7 @@ async function checkDomain(): Promise<void> {
       `/companies/${companyId.value}/domains/check?domain=${encodeURIComponent(domain)}`,
     )
   } catch (err) {
-    toasts.error(err instanceof Error ? err.message : 'error')
+    reportDomainError(err)
   } finally {
     checking.value = false
   }
@@ -148,7 +167,7 @@ async function purchaseDomain(): Promise<void> {
     checkResult.value = null
     await loadDomains()
   } catch (err) {
-    toasts.error(err instanceof Error ? err.message : 'error')
+    reportDomainError(err)
   } finally {
     purchasing.value = false
   }
@@ -272,6 +291,10 @@ onMounted(async () => {
               {{ t('websiteSettings.exportDist') }}
             </v-btn>
           </div>
+          <p class="ws__hint ws__exportNote">
+            <v-icon icon="mdi-information-outline" size="13" />
+            {{ t('websiteSettings.exportNote') }}
+          </p>
         </template>
       </section>
 
@@ -477,6 +500,11 @@ onMounted(async () => {
   display: flex;
   gap: 0.6rem;
   margin-top: 0.9rem;
+}
+.ws__exportNote {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .ws__domainList {

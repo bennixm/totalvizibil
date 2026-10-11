@@ -52,6 +52,23 @@ const lng = ref(DEFAULT.lng)
 const saving = ref(false)
 const saved = ref(false)
 
+/** Several counties selected → the map switches to a read-only overview (one
+ *  labelled marker per county) instead of a single draggable address pin,
+ *  which stops making sense once there's more than one service area. */
+const overviewMarkers = ref<{ lat: number; lng: number; label: string }[] | null>(null)
+async function refreshOverview(): Promise<void> {
+  if (nationwide.value || countiesChosen.value.length <= 1) {
+    overviewMarkers.value = null
+    return
+  }
+  try {
+    const centers = await Promise.all(countiesChosen.value.map((c) => countyCenter(c)))
+    overviewMarkers.value = centers.map((c) => ({ lat: c.lat, lng: c.lng, label: c.county }))
+  } catch {
+    overviewMarkers.value = null
+  }
+}
+
 // Category (2-level, required): a parent group + one or more real
 // subcategories. Selecting every subcategory under the group is how a
 // business ends up classified as "Servicii complete {group}" — that's a
@@ -128,10 +145,12 @@ function onCountySelectionsChange(vals: string[]): void {
   const pickedEveryCounty = counties.value.length > 0 && realPicks.length === counties.value.length
   countySelections.value = justPickedNationwide || pickedEveryCounty ? [NATIONWIDE] : realPicks
   saved.value = false
-  // Re-centre on the (new) first county's main city — a sensible default pin
-  // the owner can fine-tune by clicking elsewhere on the map.
+  void refreshOverview()
+  // Re-centre on the (new) first county's main city — only meaningful once
+  // we're back down to exactly one real county (the pin becomes an overview
+  // otherwise — see refreshOverview).
   const primary = countiesChosen.value[0]
-  if (primary) {
+  if (primary && countiesChosen.value.length === 1) {
     void countyCenter(primary)
       .then((center) => {
         lat.value = center.lat
@@ -142,6 +161,9 @@ function onCountySelectionsChange(vals: string[]): void {
         /* keep whatever point was already set */
       })
   }
+}
+function removeCounty(c: string): void {
+  onCountySelectionsChange(countySelections.value.filter((v) => v !== c))
 }
 
 // Moving the pin on the map updates the coordinates, fills the city name for
@@ -157,6 +179,7 @@ function onMapPick(p: { lat: number; lng: number }): void {
       city.value = near.name
       if (counties.value.includes(near.county) && !countiesChosen.value.includes(near.county)) {
         countySelections.value = [near.county, ...countiesChosen.value]
+        void refreshOverview()
       }
     })
     .catch(() => {
@@ -216,6 +239,7 @@ onMounted(async () => {
     preselectCategory(draftStore.draft.categorySlugs)
     const loc = draftStore.draft.location
     if (loc) prefill(loc)
+    await refreshOverview()
     ready.value = true
     return
   }
@@ -298,23 +322,56 @@ onMounted(async () => {
         variant="outlined"
         density="comfortable"
         multiple
-        chips
-        closable-chips
         hide-details
         @update:model-value="onCountySelectionsChange"
-      />
+      >
+        <template #selection="{ index }">
+          <span v-if="index === 0" class="loc__selectPlaceholder">
+            {{
+              nationwide
+                ? t('location.nationwideOption')
+                : t('location.selectedCount', { n: countiesChosen.length })
+            }}
+          </span>
+        </template>
+      </v-select>
+
+      <!-- Large, legible pills instead of the input's own cramped chip row —
+           makes exactly what's selected unambiguous. -->
+      <div class="loc__summary">
+        <span v-if="nationwide" class="locchip locchip--all">
+          <v-icon icon="mdi-earth" size="15" /> {{ t('location.nationwideOption') }}
+        </span>
+        <template v-else-if="countiesChosen.length">
+          <span v-for="c in countiesChosen" :key="c" class="locchip">
+            <v-icon icon="mdi-map-marker" size="14" />
+            {{ c }}
+            <button
+              type="button"
+              class="locchip__x"
+              :aria-label="t('location.removeCounty', { county: c })"
+              @click="removeCounty(c)"
+            >
+              <v-icon icon="mdi-close" size="13" />
+            </button>
+          </span>
+        </template>
+        <span v-else class="loc__summaryEmpty">{{ t('location.noneSelected') }}</span>
+      </div>
 
       <div v-if="nationwide" class="loc__note">
         <span>{{ t('location.nationwideHint') }}</span>
       </div>
 
-      <template v-else>
+      <template v-else-if="countiesChosen.length">
         <div class="loc__fieldhead">
           <span>{{ t('location.mapLabel') }}</span>
-          <InfoHint :text="t('location.mapHint')" />
+          <InfoHint
+            :text="countiesChosen.length > 1 ? t('location.mapOverviewHint') : t('location.mapHint')"
+          />
         </div>
         <div class="loc__map">
-          <LocationMap :lat="lat" :lng="lng" @pick="onMapPick" />
+          <LocationMap :lat="lat" :lng="lng" :markers="overviewMarkers" @pick="onMapPick" />
         </div>
       </template>
 
@@ -410,6 +467,52 @@ onMounted(async () => {
 }
 .loc__suggest {
   margin-top: 0.6rem;
+}
+
+.loc__selectPlaceholder {
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+
+/* Selected-counties summary ------------------------------------------ */
+.loc__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+.loc__summaryEmpty {
+  font-size: 0.85rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.locchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.4rem 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-primary), 0.1);
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.locchip--all {
+  padding: 0.4rem 0.9rem;
+  background: var(--tvz-ai-soft);
+  border-color: rgba(var(--v-theme-primary), 0.35);
+}
+.locchip__x {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: rgb(var(--v-theme-primary));
+  opacity: 0.7;
+}
+.locchip__x:hover {
+  opacity: 1;
+  background: rgba(var(--v-theme-primary), 0.16);
 }
 
 .loc__map {
