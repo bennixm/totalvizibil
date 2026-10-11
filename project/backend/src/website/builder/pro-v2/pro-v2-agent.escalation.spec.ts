@@ -194,6 +194,7 @@ function fakeConfig() {
     anthropicModel: 'claude-sonnet-5',
     deepseekModelFlash: 'deepseek-chat',
     deepseekModelPro: 'deepseek-reasoner',
+    frontendOrigin: 'http://localhost:5173',
   };
   return { get: (key: string) => values[key] } as never;
 }
@@ -224,6 +225,7 @@ describe('ProV2AgentService — cross-provider escalation (DeepSeek configured)'
       { configured: false, search: jest.fn(async () => []) } as never,
       prisma as never,
       fakeNotifications as never,
+      fakeConfig(),
     );
 
     // Seed a "second message" scenario (not the first message, since first
@@ -308,6 +310,7 @@ describe('ProV2AgentService — cross-provider escalation (DeepSeek configured)'
       { configured: false, search: jest.fn(async () => []) } as never,
       prisma as never,
       fakeNotifications as never,
+      fakeConfig(),
     );
 
     const result = await svc.sendMessage('u1', 'c1', 'Rename the button to Start now');

@@ -23,9 +23,11 @@
  */
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../../notifications/notifications.service';
+import { AppConfig } from '../../../config/env';
 import { assertClean } from '../../drafts/content-filter';
 import { ProV2Service } from './pro-v2.service';
 import { ClaudeProvider } from '../../../ai/claude.provider';
@@ -221,6 +223,7 @@ export class ProV2AgentService {
     private readonly pexels: PexelsSearchTool,
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
   async getView(companyId: string, userId: string) {
@@ -681,7 +684,20 @@ export class ProV2AgentService {
 
   // --- system prompt -------------------------------------------------------
 
+  /** The backend's own absolute API origin (e.g. `https://totalvizibil.ro`)
+   *  — the generated site's forms must call the public API by its ABSOLUTE
+   *  URL, never a path relative to the current page. A relative path only
+   *  resolves correctly while the site is served from our own domain; once
+   *  exported and self-hosted on the owner's own domain/VPS, the same
+   *  relative path would instead hit THEIR server (and 404), silently
+   *  breaking every contact/booking form. See CORS in main.ts for the other
+   *  half of making that export path actually work. */
+  private apiOrigin(): string {
+    return this.config.get('frontendOrigin', { infer: true });
+  }
+
   private buildSystemPrompt(businessFacts: string): string {
+    const apiBase = `${this.apiOrigin()}/api/v1`;
     return [
       'You are WebPixel AI, an AI agent exclusively for building websites for the WebPixel platform.',
       'You ONLY create, modify, debug, and improve websites. You are an AI website builder for WebPixel, not a general-purpose coding agent.',
@@ -719,12 +735,19 @@ export class ProV2AgentService {
       '',
       '## Forms',
       'A generated site may only ever offer TWO kinds of form, and both must be wired to the platform\'s real backend exactly as specified below — never invent a different field, a different endpoint, or a form that only shows a fake "thank you" with no real submission. If a request doesn\'t fit either shape, build the closest of the two rather than inventing a third kind, and mention the constraint briefly in your reply.',
+      `IMPORTANT: always call these endpoints by their FULL absolute URL, starting with \`${apiBase}\` exactly as shown below (e.g. \`${apiBase}/public/companies/{slug}/lead\`) — never a path relative to the current page (never just \`/api/v1/...\`). The owner can export this site and host it on their own domain; a relative path would then silently call THEIR server instead of ours and break the form, while the absolute URL below keeps working from any domain. Put it in one constant near the top of whichever file calls it, not repeated inline.`,
       '',
-      '1. CONTACT FORM — for general enquiries. On submit, POST JSON to `/api/v1/public/companies/{slug}/lead` (use the real Slug from the business facts above) with exactly this body: `{ "channel": "form", "name"?: string, "email"?: string, "phone"?: string, "message": string }`. `message` is required; at least one of `email`/`phone` is required so the owner can reply. Do not send any other field — the backend rejects anything it doesn\'t recognize, and extra fields are silently dropped, not stored. On success (HTTP 202) show a short thank-you state; the endpoint always returns success even if rate-limited, so don\'t try to parse a body for confirmation details.',
+      '1. CONTACT FORM — for general enquiries. On submit, POST JSON to `' +
+        apiBase +
+        '/public/companies/{slug}/lead` (use the real Slug from the business facts above) with exactly this body: `{ "channel": "form", "name"?: string, "email"?: string, "phone"?: string, "message": string }`. `message` is required; at least one of `email`/`phone` is required so the owner can reply. Do not send any other field — the backend rejects anything it doesn\'t recognize, and extra fields are silently dropped, not stored. On success (HTTP 202) show a short thank-you state; the endpoint always returns success even if rate-limited, so don\'t try to parse a body for confirmation details.',
       '',
       "2. APPOINTMENT / BOOKING FORM — only when the user specifically asks for booking/scheduling/appointments, not for every business. This is NOT something you assemble yourself from a date input and a text field — the platform has a real backend for it (available slots, double-booking prevention, the owner's own panel to manage bookings) and the form must actually drive that, not a static placeholder:",
-      '   - To show real available times: GET `/api/v1/public/companies/{slug}/appointments/slots?date=YYYY-MM-DD`, which returns `{ "enabled": boolean, "slots": [{ "startsAt": ISO-string, "endsAt": ISO-string }] }`. `enabled: false` means the owner hasn\'t turned booking on yet — show a short "booking isn\'t available yet" message in that case, don\'t hide the section or error.',
-      '   - To book a slot the visitor picked: POST JSON to `/api/v1/public/companies/{slug}/appointments` with exactly `{ "startsAt": <the ISO string from a slot above>, "name": string, "email"?: string, "phone"?: string, "notes"?: string }`. The response is `{ "ok": boolean, "error"?: string }` — `ok: false` with `error: "slot_taken"` means someone else just booked it a moment earlier; re-fetch the slots and ask the visitor to pick another, don\'t treat it as a generic failure.',
+      '   - To show real available times: GET `' +
+        apiBase +
+        '/public/companies/{slug}/appointments/slots?date=YYYY-MM-DD`, which returns `{ "enabled": boolean, "slots": [{ "startsAt": ISO-string, "endsAt": ISO-string }] }`. `enabled: false` means the owner hasn\'t turned booking on yet — show a short "booking isn\'t available yet" message in that case, don\'t hide the section or error.',
+      '   - To book a slot the visitor picked: POST JSON to `' +
+        apiBase +
+        '/public/companies/{slug}/appointments` with exactly `{ "startsAt": <the ISO string from a slot above>, "name": string, "email"?: string, "phone"?: string, "notes"?: string }`. The response is `{ "ok": boolean, "error"?: string }` — `ok: false` with `error: "slot_taken"` means someone else just booked it a moment earlier; re-fetch the slots and ask the visitor to pick another, don\'t treat it as a generic failure.',
       '   - Never invent your own availability (no hardcoded time list, no "every weekday 9-5" assumption) — always fetch it live from the slots endpoint, since only the owner\'s real schedule (set in their own panel) determines what\'s actually open.',
       '',
       ...(businessFacts

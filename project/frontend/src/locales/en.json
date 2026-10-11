@@ -471,6 +471,8 @@
     "alert": {
       "stoppedTitle": "The campaign is stopped",
       "stoppedText": "You're out of the feed while the campaign is paused. Start it again.",
+      "cpcFloorTitle": "CPC Maxim too low · campaign stopped automatically",
+      "cpcFloorText": "CPC Maxim was under a Feed's own minimum, so the business couldn't appear in any search — the campaign stopped itself. Raise it to at least the standard CPC Maxim and reactivate.",
       "budgetTitle": "Today's budget is spent",
       "budgetText": "The listing leaves the feed until tomorrow. Raise the daily budget if this happens often.",
       "walletTitle": "Wallet too low",
@@ -482,7 +484,7 @@
       "responseTitle": "You reply too slowly",
       "responseText": "Your response time is dragging the score down. Answer requests faster.",
       "feedTitle": "Not in the feed",
-      "feedText": "The campaign is active but the business isn't showing yet. Check the optimiser."
+      "feedText": "The campaign is active but the business isn't showing in any feed search — check CPC Maxim, the category and the location."
     },
     "websiteUnpublished": "Not published",
     "invoicesTitle": "Invoices",
@@ -528,7 +530,8 @@
       "wallet_blocked": "The owner wallet is frozen. Unblock it to activate the campaign.",
       "company_suspended": "The business is suspended and cannot run campaigns.",
       "website_builder_incomplete": "Finish the advanced website builder before listing the campaign.",
-      "company_pending_deletion": "This business is scheduled for deletion · it can no longer be edited."
+      "company_pending_deletion": "This business is scheduled for deletion · it can no longer be edited.",
+      "cpc_below_feed_minimum": "CPC Maxim is below a Feed's own minimum — at this level the business can't appear in any search. Raise it to at least the standard CPC Maxim."
     },
     "builderRequiredTitle": "Finish your website first",
     "builderRequiredNote": "This is an advanced-plan business. Build and finish its website before the campaign can go live.",
@@ -539,6 +542,7 @@
     "consumedNote": "Consumed by this campaign: {n} credits",
     "pausedNote": "The campaign is stopped. Re-activate it to show in the feed again. Its run-time score is kept for 24h, then it resets.",
     "editStopsNote": "Saving changes stops the campaign until you re-activate it.",
+    "savedPausedNudge": "Changes saved · the campaign is paused until you reactivate it.",
     "saveActivate": "Save & re-activate",
     "spentToday": "Spent today",
     "clicks": "Billed clicks",
@@ -1908,6 +1912,7 @@
     "filesEmpty": "No files yet.",
     "exportSource": "Export source (.zip)",
     "exportDist": "Export build (.zip)",
+    "exportNote": "The contact form and appointment booking call Totalvizibil's public API and work from any domain, including once you host the exported site on your own server.",
     "domainTitle": "Custom domain",
     "domainHint": "Buy your own domain for your business — the site stays on Totalvizibil too, in parallel.",
     "domainPlaceholder": "example.com",
@@ -1923,6 +1928,11 @@
       "pending": "Pending",
       "active": "Active",
       "failed": "Failed"
+    },
+    "domainErr": {
+      "insufficient_credits": "Not enough credits for this domain.",
+      "domain_not_available": "The domain is no longer available.",
+      "domain_already_registered": "This domain is already registered with us."
     }
   },
   "spend": {
