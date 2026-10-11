@@ -104,7 +104,27 @@ function fakeWallet() {
 function fakeCampaigns() {
   return {
     saveFor: jest.fn(async () => {}),
-    getFor: jest.fn(async () => null),
+    // Mirrors the real `CampaignService.getFor()` contract — it always
+    // returns this full editor payload, even for a company with no
+    // Campaign row yet (only the nested `campaign` field goes null then).
+    getFor: jest.fn(async () => ({
+      campaign: null,
+      suggestions: {
+        standard: { cpc: { minor: 110, credits: 1.1 }, dailyBudget: { minor: 2000, credits: 20 } },
+        appearFirst: {
+          cpc: { minor: 110, credits: 1.1 },
+          dailyBudget: { minor: 2000, credits: 20 },
+        },
+      },
+      marketCpc: { minor: 0, credits: 0 },
+      requiresWebsiteBuilder: false,
+      canActivate: true,
+      wallet: { balance: { minor: 0, credits: 0 }, currency: 'EUR', eurRonRate: 5 },
+      consumed: { minor: 0, credits: 0 },
+      required: { minor: 0, credits: 0 },
+      autoBudgetLimited: false,
+      runnable: true,
+    })),
     isListingWebsiteReady: jest.fn(async () => true),
   };
 }
@@ -120,6 +140,7 @@ function fakeLeads() {
 function fakeAnalytics() {
   return {
     companyAnalytics: jest.fn(async () => ({})),
+    feedRanksFor: jest.fn(async () => []),
   };
 }
 

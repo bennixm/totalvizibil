@@ -19,6 +19,7 @@ function makeMessage(overrides = {}) {
     body: 'Hello',
     createdAt: new Date(),
     author: { id: 'u1', name: 'Ion', platformRoles: [] },
+    attachments: [],
     ...overrides,
   };
 }
@@ -72,8 +73,10 @@ function fakePrisma() {
   const messages: any[] = [];
   const members = new Map<string, any>();
   const staffRoles: any[] = [];
+  const attachments = new Map<string, any>();
+  let attachmentSeq = 0;
 
-  return {
+  const prisma: any = {
     supportTicket: {
       findMany: jest.fn(async ({ where }: any) => {
         const all = [...tickets.values()].map(makeTicketList);
@@ -125,7 +128,47 @@ function fakePrisma() {
     user: {
       findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, name: 'Staff' })),
     },
-    $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
+    supportAttachment: {
+      count: jest.fn(
+        async ({ where }: any) =>
+          [...attachments.values()].filter(
+            (a) =>
+              a.ticketId === where.ticketId &&
+              a.uploaderId === where.uploaderId &&
+              a.messageId === where.messageId,
+          ).length,
+      ),
+      create: jest.fn(async ({ data }: any) => {
+        attachmentSeq += 1;
+        const a = { id: `att${attachmentSeq}`, messageId: null, ...data };
+        attachments.set(a.id, a);
+        return { id: a.id, filename: a.filename, mime: a.mime, size: a.size };
+      }),
+      findUnique: jest.fn(async ({ where }: any) => attachments.get(where.id) ?? null),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const ids: string[] = where.id?.in ?? [];
+        let count = 0;
+        for (const id of ids) {
+          const a = attachments.get(id);
+          if (
+            a &&
+            a.ticketId === where.ticketId &&
+            a.uploaderId === where.uploaderId &&
+            a.messageId === where.messageId
+          ) {
+            Object.assign(a, data);
+            count += 1;
+          }
+        }
+        return { count };
+      }),
+    },
+    // Both forms the real client supports: the array-of-promises shorthand,
+    // and the interactive callback — `postMessage` uses the latter so it can
+    // roll back the whole reply if claiming its attachments fails.
+    $transaction: jest.fn(async (arg: any) =>
+      typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
+    ),
     __seedTicket: (data: Record<string, any> = {}) => {
       const t = { id: 't1', requesterId: 'u1', status: 'open', subject: 'Test', ...data };
       tickets.set(t.id, t);
@@ -137,7 +180,15 @@ function fakePrisma() {
     __seedStaff: (userId: string, role = 'support') => {
       staffRoles.push({ userId, role });
     },
+    __seedAttachment: (data: Record<string, any>) => {
+      attachmentSeq += 1;
+      const a = { id: `att${attachmentSeq}`, messageId: null, ...data };
+      attachments.set(a.id, a);
+      return a;
+    },
   };
+
+  return prisma;
 }
 
 function makeService() {
