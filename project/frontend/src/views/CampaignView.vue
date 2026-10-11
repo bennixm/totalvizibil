@@ -475,7 +475,6 @@ watch(
             :min="0.05"
             :max="Number.isFinite(cpcMax) ? cpcMax : undefined"
             step="0.05"
-            :label="t('campaign.cpc')"
             suffix="cr"
             variant="outlined"
             density="comfortable"
@@ -483,11 +482,13 @@ watch(
             :error="!cpcValid"
             :hint="cpcHint"
             persistent-hint
-          />
+          >
+            <template #label>
+              {{ t('campaign.cpc') }}
+              <InfoHint :text="t('campaign.cpcMaxNote')" :size="14" />
+            </template>
+          </v-text-field>
         </div>
-        <p class="camp__cpcNote">
-          <v-icon icon="mdi-information-outline" size="14" /> {{ t('campaign.cpcMaxNote') }}
-        </p>
         <div v-if="!auto" class="camp__first">
           <v-checkbox-btn
             :model-value="appearFirst"
@@ -870,14 +871,6 @@ watch(
   margin: 0.9rem 0 0;
   font-size: 0.8rem;
   color: rgb(var(--v-theme-warning));
-}
-.camp__cpcNote {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  margin: 0.4rem 0 0;
-  font-size: 0.76rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .camp__stats {
   display: grid;

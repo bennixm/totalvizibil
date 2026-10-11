@@ -32,15 +32,6 @@ export interface ReviewIssue {
   fix?: string;
 }
 
-/** Classify a business's services into subcategories from a closed set. */
-export interface SubcategorySuggestionInput {
-  businessType?: string;
-  services: string[];
-  /** The closed set to pick from — one parent group's subcategories. */
-  leaves: { slug: string; name: string }[];
-  locale: AiLocale;
-}
-
 const TIMEOUT_MS = 20_000;
 const PLAN_TIMEOUT_MS = 60_000;
 
@@ -178,14 +169,6 @@ const REVIEW_SYSTEM: Record<AiLocale, string> = {
     'Ignoriere Stil- oder Geschmacksfragen. Ist ein Eintrag in Ordnung, lasse ihn weg. ' +
     'Antworte NUR mit JSON: {"issues":[{"key":"...","kind":"meaning|grammar|profanity|other","message":"kurze Erklärung","fix":"...optional..."}]}.',
 };
-
-const SUBCATEGORY_SYSTEM =
-  'You classify a local business into subcategories from a fixed, closed list — you ' +
-  'never invent a new one. Given the services it offers, pick every subcategory slug ' +
-  'from the provided list that genuinely matches at least one of those services. Be ' +
-  'precise, not exhaustive — do not pick a slug just because it is loosely related. ' +
-  'Reply with JSON only: {"slugs": ["...", "..."]}, using only slugs from the given list ' +
-  '(empty array if none clearly match).';
 
 /**
  * AI client for the website builders — **Claude (Anthropic Messages API) only**.
@@ -463,45 +446,5 @@ export class AiService {
       out.push({ key, kind, message, ...(kind === 'grammar' && fixRaw ? { fix: fixRaw } : {}) });
     }
     return out.slice(0, 40);
-  }
-
-  /**
-   * Classify a business into subcategories from a fixed closed set (never a
-   * freeform/new one), based on the services it listed — the business
-   * creation flow pre-fills its multi-select picker with this, fully
-   * editable before the owner confirms. `null` when unavailable (no key, or
-   * no match found) — the caller leaves the picker empty rather than guessing.
-   */
-  async suggestSubcategories(input: SubcategorySuggestionInput): Promise<string[] | null> {
-    const services = input.services
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, 12);
-    if (!services.length || !input.leaves.length) return null;
-    if (!this.configured) return null;
-
-    const lang = LOCALE_NAME[input.locale] ?? 'Romanian';
-    const user = [
-      `Language: ${lang}`,
-      input.businessType ? `Business field: ${input.businessType}` : '',
-      `Services offered: ${services.join(', ')}`,
-      'Available subcategories (pick only from this closed list, by slug):',
-      ...input.leaves.map((l) => `- ${l.slug}: ${l.name}`),
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    const parsed = (await this.json(SUBCATEGORY_SYSTEM, user, {
-      maxTokens: 300,
-      effort: 'low',
-      model: this.anthropicModelFast,
-    })) as { slugs?: unknown } | null;
-    if (!parsed) return null;
-
-    const valid = new Set(input.leaves.map((l) => l.slug));
-    const slugs = Array.isArray(parsed.slugs)
-      ? parsed.slugs.filter((s): s is string => typeof s === 'string' && valid.has(s))
-      : [];
-    return slugs.length ? Array.from(new Set(slugs)).slice(0, 8) : null;
   }
 }

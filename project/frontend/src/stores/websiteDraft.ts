@@ -450,30 +450,6 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       }
     },
 
-    /**
-     * AI-assisted subcategory suggestion for the location step's picker —
-     * classifies the draft's own services list against the chosen parent
-     * group. Suggestion only; the caller decides whether to apply it.
-     * Empty array on any failure (no key, nothing matched, offline, …).
-     */
-    async suggestCategories(parentSlug: string): Promise<string[]> {
-      const ref = loadRef()
-      if (!ref) return []
-      try {
-        const res = await apiFetch<{ slugs: string[] }>(
-          `/website-drafts/${ref.id}/suggest-categories`,
-          {
-            method: 'POST',
-            headers: { 'X-Draft-Token': ref.token },
-            body: { parentSlug },
-          },
-        )
-        return Array.isArray(res.slugs) ? res.slugs : []
-      } catch {
-        return []
-      }
-    },
-
     /** Abandon the current draft and start over on next open. */
     async restart(): Promise<void> {
       clearRef()

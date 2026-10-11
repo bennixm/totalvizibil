@@ -117,7 +117,7 @@ export function enumerateCompanyFeeds(company: FeedCompanyLike): FeedId[] {
 }
 
 /** `where` fragment matching every company physically present in one atomic Feed (status + category + area). */
-function feedWhere(feedId: FeedId): Prisma.CompanyWhereInput {
+export function feedWhere(feedId: FeedId): Prisma.CompanyWhereInput {
   return {
     status: 'active',
     categoryAssignments: { some: { categoryId: feedId.leafId } },
