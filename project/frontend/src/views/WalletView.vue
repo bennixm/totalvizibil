@@ -729,4 +729,75 @@ watch(
     order: -1;
   }
 }
+
+/* Mobile: date filters stack full-width instead of fighting the tabs for
+   room, and the payments table stops scrolling sideways — each row becomes
+   its own card instead. */
+@media (max-width: 640px) {
+  .wal__payToolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .wal__payDates {
+    align-items: stretch;
+  }
+  .wal__payDateField {
+    flex: 1 1 auto;
+  }
+  .wal__payDateField input[type='date'] {
+    width: 100%;
+  }
+
+  .wal__payTable {
+    white-space: normal;
+  }
+  .wal__payTable thead {
+    display: none;
+  }
+  .wal__payTable,
+  .wal__payTable tbody,
+  .wal__payTable tr,
+  .wal__payTable td {
+    display: block;
+    width: 100%;
+  }
+  .payrow {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    row-gap: 0.35rem;
+    column-gap: 0.6rem;
+    padding: 0.8rem 0.9rem;
+  }
+  .payrow + .payrow td {
+    border-top: none;
+  }
+  .payrow:not(:last-child) {
+    border-bottom: 1px solid var(--tvz-hairline);
+  }
+  .wal__payTable td {
+    padding: 0;
+  }
+  .wal__payTable td.num {
+    order: 1;
+    width: auto;
+    text-align: left;
+  }
+  .wal__payTable td.payrow__id {
+    order: 2;
+    width: auto;
+  }
+  .wal__payTable td.end:not(.payrow__date) {
+    order: 3;
+    width: auto;
+    text-align: left;
+  }
+  .wal__payTable td.payrow__date.end {
+    order: 4;
+    width: 100%;
+    text-align: left;
+    font-size: 0.74rem;
+  }
+}
 </style>

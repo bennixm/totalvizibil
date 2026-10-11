@@ -651,46 +651,48 @@ function shortDate(iso: string): string {
               <p v-if="!affiliate.stats?.items.length" class="acc__refEmpty">
                 {{ t('affiliate.listEmpty') }}
               </p>
-              <table v-else class="acc__refTable">
-                <thead>
-                  <tr>
-                    <th>{{ t('affiliate.colClient') }}</th>
-                    <th>{{ t('affiliate.colDate') }}</th>
-                    <th>{{ t('affiliate.colStatus') }}</th>
-                    <th class="num">{{ t('affiliate.colReward') }}</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="r in affiliate.stats.items" :key="r.id">
-                    <td>
-                      <div class="acc__refClient">{{ r.name }}</div>
-                      <div class="acc__refMail">{{ r.emailMasked }}</div>
-                    </td>
-                    <td>{{ shortDate(r.createdAt) }}</td>
-                    <td>
-                      <v-chip
-                        size="x-small"
-                        :color="r.status === 'rewarded' ? 'success' : undefined"
-                        :variant="r.status === 'rewarded' ? 'tonal' : 'outlined'"
-                      >
-                        {{ r.status === 'rewarded' ? t('affiliate.statusRewarded') : t('affiliate.statusPending') }}
-                      </v-chip>
-                    </td>
-                    <td class="num">{{ r.rewardCredits != null ? `${r.rewardCredits} cr` : 'N/A' }}</td>
-                    <td class="num">
-                      <router-link
-                        v-if="r.invoiceId"
-                        :to="{ name: 'invoice-print', params: { id: r.invoiceId } }"
-                        class="acc__refInv"
-                      >
-                        <v-icon icon="mdi-receipt-text-outline" size="14" />
-                        {{ t('affiliate.viewInvoice') }}
-                      </router-link>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <div v-else class="acc__refTableWrap">
+                <table class="acc__refTable">
+                  <thead>
+                    <tr>
+                      <th>{{ t('affiliate.colClient') }}</th>
+                      <th>{{ t('affiliate.colDate') }}</th>
+                      <th>{{ t('affiliate.colStatus') }}</th>
+                      <th class="num">{{ t('affiliate.colReward') }}</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="r in affiliate.stats.items" :key="r.id">
+                      <td>
+                        <div class="acc__refClient">{{ r.name }}</div>
+                        <div class="acc__refMail">{{ r.emailMasked }}</div>
+                      </td>
+                      <td>{{ shortDate(r.createdAt) }}</td>
+                      <td>
+                        <v-chip
+                          size="x-small"
+                          :color="r.status === 'rewarded' ? 'success' : undefined"
+                          :variant="r.status === 'rewarded' ? 'tonal' : 'outlined'"
+                        >
+                          {{ r.status === 'rewarded' ? t('affiliate.statusRewarded') : t('affiliate.statusPending') }}
+                        </v-chip>
+                      </td>
+                      <td class="num">{{ r.rewardCredits != null ? `${r.rewardCredits} cr` : 'N/A' }}</td>
+                      <td class="num">
+                        <router-link
+                          v-if="r.invoiceId"
+                          :to="{ name: 'invoice-print', params: { id: r.invoiceId } }"
+                          class="acc__refInv"
+                        >
+                          <v-icon icon="mdi-receipt-text-outline" size="14" />
+                          {{ t('affiliate.viewInvoice') }}
+                        </router-link>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </v-card>
           </div>
         </v-window-item>
@@ -854,8 +856,12 @@ function shortDate(iso: string): string {
   font-size: 0.86rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
+.acc__refTableWrap {
+  overflow-x: auto;
+}
 .acc__refTable {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
   font-size: 0.86rem;
 }

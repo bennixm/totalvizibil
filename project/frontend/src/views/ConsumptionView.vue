@@ -355,10 +355,10 @@ watch(
             <tbody>
               <tr v-for="e in consumption" :key="e.id">
                 <td class="cons__ledgerDate">{{ new Date(e.createdAt).toLocaleString() }}</td>
-                <td>
+                <td class="cons__ledgerDetail">
                   <span class="crow__id">{{ shortId(e.id) }}</span> {{ entryLabel(e) }}
                 </td>
-                <td>{{ e.clicks ?? '—' }}</td>
+                <td class="cons__ledgerClicks" :data-label="t('consumption.colClicks')">{{ e.clicks ?? '—' }}</td>
                 <td class="cons__ledgerAmount">
                   {{ cr(Math.abs(e.amount.credits)) }}
                   <v-icon icon="mdi-poker-chip" size="0.6em" class="cons__unit" />
@@ -660,7 +660,7 @@ watch(
 }
 .cons__ledgerTable th:nth-child(3),
 .cons__ledgerTable th:nth-child(4),
-.cons__ledgerTable td:nth-child(3),
+.cons__ledgerClicks,
 .cons__ledgerAmount {
   text-align: right;
 }
@@ -687,6 +687,92 @@ watch(
 }
 .cons__more:hover {
   background: rgba(var(--v-theme-on-surface), 0.03);
+}
+
+/* Mobile: filters stack full-width (no more squeezed 12rem fields fighting
+   each other for room), and the ledger stops scrolling sideways — each row
+   becomes its own card instead, same information, no horizontal panning. */
+@media (max-width: 640px) {
+  .cons__filters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .cons__filterId,
+  .cons__filterType {
+    max-width: none;
+    width: 100%;
+  }
+  .cons__filterDate {
+    width: 100%;
+  }
+  .cons__filterDate input[type='date'] {
+    width: 100%;
+  }
+  .cons__filterClear {
+    justify-content: center;
+    padding: 0.7rem 0.6rem;
+  }
+
+  .cons__ledgerWrap {
+    overflow-x: visible;
+  }
+  .cons__ledgerTable {
+    white-space: normal;
+  }
+  .cons__ledgerTable thead {
+    display: none;
+  }
+  .cons__ledgerTable,
+  .cons__ledgerTable tbody,
+  .cons__ledgerTable tr,
+  .cons__ledgerTable td {
+    display: block;
+    width: 100%;
+  }
+  .cons__ledgerTable tr {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0.8rem 0.9rem;
+    margin-bottom: 0.6rem;
+    border: 1px solid var(--tvz-glass-border);
+    border-radius: var(--tvz-radius-md);
+    border-top: none;
+  }
+  .cons__ledgerTable tr:last-child {
+    margin-bottom: 0;
+  }
+  .cons__ledgerTable td {
+    padding: 0;
+    border-top: none;
+  }
+  .cons__ledgerDate {
+    order: 1;
+    margin-bottom: 0.3rem;
+  }
+  .cons__ledgerDetail {
+    order: 2;
+    width: 100%;
+    margin-bottom: 0.55rem;
+    font-weight: 600;
+    white-space: normal;
+  }
+  .cons__ledgerClicks {
+    order: 3;
+    flex: 1 1 auto;
+    width: auto;
+    text-align: left;
+    font-size: 0.78rem;
+    color: rgba(var(--v-theme-on-surface), 0.6);
+  }
+  .cons__ledgerClicks::before {
+    content: attr(data-label) ': ';
+  }
+  .cons__ledgerAmount {
+    order: 4;
+    width: auto;
+    font-weight: 700;
+  }
 }
 
 @media (max-width: 620px) {
