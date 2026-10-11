@@ -61,10 +61,18 @@ const approxText = computed(() => money.approx(Math.abs(props.credits), props.cu
   text-transform: none;
   letter-spacing: normal;
 }
+/* Stacked lines are plain block children, not a flex column — a flex
+   column's `align-items` is a cross-axis choice independent of the
+   surrounding context, so it always left-aligns the shorter line
+   regardless of whether the component sits in a right-aligned table cell
+   or a left-aligned card, visibly uneven when the two lines' widths
+   differ. Block children instead inherit `text-align` from whichever
+   alignment the caller's own layout already established, so both lines
+   share the same edge the caller intended. */
 .cv--stacked {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
+  display: inline-block;
+  text-align: inherit;
+  white-space: normal;
 }
 .cv__main {
   display: inline;
@@ -87,5 +95,8 @@ const approxText = computed(() => money.approx(Math.abs(props.credits), props.cu
 .cv--stacked .cv__main,
 .cv--stacked .cv__x {
   display: block;
+}
+.cv--stacked .cv__x {
+  margin-top: 0.1rem;
 }
 </style>

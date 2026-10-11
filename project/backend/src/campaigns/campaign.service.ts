@@ -685,9 +685,20 @@ export class CampaignService {
       this.analytics.marginConfig(),
     ]);
     const requiresWebsiteBuilder = !websiteReady;
-    // Not #1 in at least one Feed the company competes in — the campaign panel
-    // surfaces this as a single alert instead of the old per-Feed position list.
-    const needsPositionUpgrade = feedRanks.some((r) => r.position !== 1);
+    // Not #1 in at least one Feed the company competes in, AND raising CPC
+    // Maxim to the recommended number would actually still change that —
+    // the campaign panel surfaces this as a single alert (no per-Feed list)
+    // suggesting exactly that raise. Real rank also weighs budget adequacy,
+    // response/plan/age score and rivals' own "appear first" boost, none of
+    // which this CPC-only recommendation can fix — so once the saved CPC
+    // already meets or exceeds it (or AUTO already manages CPC on its own),
+    // the gap isn't a CPC problem any more and the alert would just be
+    // suggesting the owner "raise" CPC to the number it's already at.
+    const needsPositionUpgrade =
+      !!campaign &&
+      !campaign.autoOptimize &&
+      campaign.cpcMinor < s.appearFirst.cpcMinor &&
+      feedRanks.some((r) => r.position !== 1);
     const recommendedCpc = money(s.appearFirst.cpcMinor);
     // A manual CPC Maxim under the Feed's own CPC minim — reconcile() above
     // already demotes an active campaign like this to `paused`, but the panel

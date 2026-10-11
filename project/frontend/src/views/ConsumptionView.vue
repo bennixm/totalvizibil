@@ -173,10 +173,14 @@ function entryLabel(e: ConsumptionEntry): string {
   if (e.kind === 'click') {
     return `${countyLabel(e.county)} · ${catName(e)}`
   }
-  // These two descriptions are fixed English strings written straight to the
-  // ledger row (see `wallet.service.ts` `chargeAiUsage`/`spend`) — never
-  // translated at write time, so show the already-localized category label
-  // instead of the raw value here.
+  // These descriptions are fixed English strings written straight to the
+  // ledger row (see `wallet.service.ts` `chargeClickWithin`/`chargeAiUsage`/
+  // `spend`) — never translated at write time, so show the
+  // already-localized category label instead of the raw value here.
+  // The "clicks" category here is the day's rolled-up CPC row (shown
+  // outside the dedicated "Click-uri anunț" filter, where individual
+  // per-click Feed rows are used instead — see `kind === 'click'` above).
+  if (e.category === 'clicks') return t('consumption.clicksRollup', { n: e.clicks ?? 0 })
   if (e.category === 'aiUsage') return t(CATEGORY_META.aiUsage.labelKey)
   if (e.category === 'builderUnlock') return t(CATEGORY_META.builderUnlock.labelKey)
   return e.description ?? t('consumption.txnOther')

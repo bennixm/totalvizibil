@@ -556,15 +556,18 @@ export class WalletService implements OnModuleInit {
 
   /**
    * One business's consumption, as a single merged, filterable, paginated
-   * ledger — individual billed `AdClick` rows (each carrying its own Feed:
-   * județ + subcategorie + that click's own cost) stand in for the "clicks"
-   * category instead of the daily `WalletTransaction` rollup row, which has
-   * no Feed detail to show. Every other category still comes from
-   * `WalletTransaction` as before. The two sources are merge-sorted by
-   * `createdAt` and paginated with a timestamp cursor — fetching `take + 1`
-   * from each source is always enough to construct the true top `take` of
-   * the union (an item ranked in the overall top `take` can't be preceded,
-   * within its own source, by `take` or more items of that same source).
+   * ledger. Filtered to the "clicks" category specifically, individual
+   * billed `AdClick` rows (each carrying its own Feed: județ + subcategorie
+   * + that click's own cost) stand in for it instead of the daily
+   * `WalletTransaction` rollup row, which has no Feed detail to show. Every
+   * other view — including "all types" — uses the rollup row like every
+   * other category, so a single rare row (e.g. the one-off builder-unlock
+   * fee) isn't buried under potentially hundreds of per-click rows newer
+   * than it. The two sources are merge-sorted by `createdAt` and paginated
+   * with a timestamp cursor — fetching `take + 1` from each source is
+   * always enough to construct the true top `take` of the union (an item
+   * ranked in the overall top `take` can't be preceded, within its own
+   * source, by `take` or more items of that same source).
    */
   async consumptionLedgerFor(
     userId: string,
@@ -585,8 +588,14 @@ export class WalletService implements OnModuleInit {
     const category = SPEND_CATEGORIES.includes(opts.category as SpendCategory)
       ? (opts.category as SpendCategory)
       : undefined;
-    const wantClicks = !category || category === 'clicks';
-    const wantTxns = !category || category !== 'clicks';
+    // Per-click Feed detail only makes sense once the list is narrowed to
+    // the "clicks" category on its own — merging hundreds of individual
+    // click rows into "All types" buried every other (much rarer) category
+    // arbitrarily deep in the chronological list. "All types" instead uses
+    // the same daily CPC rollup row every other category already comes
+    // from, so a one-off row (like the builder-unlock fee) actually surfaces.
+    const wantClicks = category === 'clicks';
+    const wantTxns = category !== 'clicks';
 
     let gte: Date | undefined;
     let lt: Date | undefined;
@@ -671,7 +680,7 @@ export class WalletService implements OnModuleInit {
             walletId: wallet.id,
             companyId,
             type: 'spend',
-            ...(category ? categoryWhere(category) : { NOT: { provider: CPC_PROVIDER } }),
+            ...(category ? categoryWhere(category) : {}),
             ...(Object.keys(createdAt).length ? { createdAt } : {}),
             ...(txnIds ? { id: { in: txnIds } } : {}),
           },

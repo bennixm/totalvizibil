@@ -1874,6 +1874,7 @@
     "title": "Verbrauch",
     "totalLabel": "Gesamt ausgegeben",
     "clicks": "Anzeigenklicks",
+    "clicksRollup": "{n} berechnete Klicks",
     "aiUsage": "Website-Builder-KI",
     "builderUnlock": "Builder-Freischaltungsgebühr",
     "other": "Sonstiges",
