@@ -370,6 +370,17 @@ export class AdminUsersService {
     return this.wallet.listTransactions(id, opts);
   }
 
+  /** Same transaction history as a downloadable PDF — the admin equivalent
+   *  of the owner's own Transactions page export. */
+  async exportTransactions(
+    id: string,
+    opts: { type?: string; category?: string; from?: string; to?: string; search?: string },
+  ): Promise<Buffer> {
+    const target = await this.prisma.user.findUnique({ where: { id }, select: { name: true } });
+    if (!target) throw new NotFoundException('User not found');
+    return this.wallet.exportTransactionsPdf(id, target.name, opts);
+  }
+
   async blockWallet(id: string, dto: BlockWalletDto) {
     const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
     if (!target) throw new NotFoundException('User not found');

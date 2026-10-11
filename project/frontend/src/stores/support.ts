@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 
-import { apiFetch } from '@/services/api'
+import { apiFetch, ApiError, BASE_URL } from '@/services/api'
 
 export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed'
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent'
@@ -50,6 +50,13 @@ export interface TicketListItem {
   lastActivityAt: string
 }
 
+export interface TicketAttachment {
+  id: string
+  filename: string
+  mime: string
+  size: number
+}
+
 export interface TicketMessage {
   id: string
   kind: MessageKind
@@ -57,6 +64,7 @@ export interface TicketMessage {
   author: { id: string; name: string; staff: boolean } | null
   mine: boolean
   createdAt: string
+  attachments: TicketAttachment[]
 }
 
 export interface TicketDetail {
@@ -191,13 +199,43 @@ export const useSupportStore = defineStore('support', {
       }
     },
 
-    async reply(id: string, body: string, internal = false): Promise<boolean> {
+    async reply(
+      id: string,
+      body: string,
+      internal = false,
+      attachmentIds: string[] = [],
+    ): Promise<boolean> {
       return this.run(() =>
         apiFetch<TicketDetail>(`/support/tickets/${id}/messages`, {
           method: 'POST',
-          body: { body, internal },
+          body: { body, internal, ...(attachmentIds.length ? { attachmentIds } : {}) },
         }),
       )
+    },
+
+    /** Upload one file onto the ticket before sending the message that will
+     *  reference it — returns the attachment's id (and nothing on failure;
+     *  the caller shows its own error, same convention as `uploadAsset`
+     *  elsewhere in the app). */
+    async uploadAttachment(
+      ticketId: string,
+      dataUri: string,
+      filename: string,
+    ): Promise<TicketAttachment | null> {
+      this.error = ''
+      try {
+        return await apiFetch<TicketAttachment>(`/support/tickets/${ticketId}/attachments`, {
+          method: 'POST',
+          body: { dataUri, filename },
+        })
+      } catch (err) {
+        this.error = err instanceof ApiError ? err.message : 'error'
+        return null
+      }
+    },
+
+    attachmentUrl(ticketId: string, attachmentId: string): string {
+      return `${BASE_URL}/support/tickets/${ticketId}/attachments/${attachmentId}`
     },
 
     async patch(

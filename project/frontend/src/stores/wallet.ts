@@ -265,6 +265,21 @@ export const useWalletStore = defineStore('wallet', {
       this.nextCursor = res.nextCursor
     },
 
+    /** Same transaction list as a downloadable PDF, scoped to the currently
+     *  active filters — same "plain href, cookie rides along" shape as
+     *  `paymentsExportUrl()`. */
+    transactionsExportUrl(): string {
+      const params = new URLSearchParams()
+      if (this.txnFilters.companyId) params.set('companyId', this.txnFilters.companyId)
+      if (this.txnFilters.type) params.set('type', this.txnFilters.type)
+      if (this.txnFilters.category) params.set('category', this.txnFilters.category)
+      if (this.txnFilters.from) params.set('from', this.txnFilters.from)
+      if (this.txnFilters.to) params.set('to', this.txnFilters.to)
+      if (this.txnFilters.search) params.set('search', this.txnFilters.search)
+      const q = params.toString() ? `?${params.toString()}` : ''
+      return `${BASE_URL}/wallet/transactions/export${q}`
+    },
+
     /** Backs the Consumption page's single merged, filterable, paginated ledger. */
     async loadConsumption(
       append = true,
@@ -298,6 +313,21 @@ export const useWalletStore = defineStore('wallet', {
       )
       this.consumption = append ? [...this.consumption, ...res.items] : res.items
       this.consumptionNextCursor = res.nextCursor
+    },
+
+    /** Same consumption ledger as a downloadable PDF, scoped to the currently
+     *  active filters. */
+    consumptionExportUrl(): string {
+      const params = new URLSearchParams()
+      if (this.consumptionFilters.companyId) {
+        params.set('companyId', this.consumptionFilters.companyId)
+      }
+      if (this.consumptionFilters.category) params.set('category', this.consumptionFilters.category)
+      if (this.consumptionFilters.from) params.set('from', this.consumptionFilters.from)
+      if (this.consumptionFilters.to) params.set('to', this.consumptionFilters.to)
+      if (this.consumptionFilters.search) params.set('search', this.consumptionFilters.search)
+      const q = params.toString() ? `?${params.toString()}` : ''
+      return `${BASE_URL}/wallet/consumption/export${q}`
     },
 
     /** Backs the Wallet page's own Payments/Refunds statement. */

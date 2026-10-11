@@ -9,6 +9,7 @@ import {
   Post,
   Put,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
@@ -245,6 +246,22 @@ export class AdminController {
     });
   }
 
+  @Get('users/:id/transactions/export')
+  async exportUserTransactions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('type') type?: string,
+    @Query('category') category?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('search') search?: string,
+  ) {
+    const buffer = await this.users.exportTransactions(id, { type, category, from, to, search });
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: 'attachment; filename="tranzactii-totalvizibil.pdf"',
+    });
+  }
+
   @Post('users/:id/wallet/block')
   blockWallet(@Param('id', ParseUUIDPipe) id: string, @Body() dto: BlockWalletDto) {
     return this.users.blockWallet(id, dto);
@@ -277,6 +294,15 @@ export class AdminController {
   @Get('companies')
   listCompanies(@Query() query: ListCompaniesQuery) {
     return this.companies.list(query);
+  }
+
+  @Get('companies/export')
+  async exportCompanies(@Query() query: ListCompaniesQuery) {
+    const buffer = await this.companies.exportPdf(query);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: 'attachment; filename="afaceri-totalvizibil.pdf"',
+    });
   }
 
   @Get('companies/:id')
@@ -392,6 +418,15 @@ export class AdminController {
       page: query.page,
       pageSize: query.pageSize,
       status: query.status,
+    });
+  }
+
+  @Get('referrals/export')
+  async exportReferrals(@Query() query: ListReferralsQuery) {
+    const buffer = await this.affiliate.exportPdf({ status: query.status });
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: 'attachment; filename="recomandari-totalvizibil.pdf"',
     });
   }
 }

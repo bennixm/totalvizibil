@@ -13,6 +13,7 @@ import { PlatformSettingsService } from '../platform-settings/platform-settings.
 import { BillingService, isProfileComplete } from '../billing/billing.service';
 import { generateInvoicePdf } from '../billing/invoice-pdf';
 import { generatePaymentsPdf } from './payments-pdf';
+import { generateTablePdf } from '../common/table-pdf';
 import { AffiliateService } from '../affiliate/affiliate.service';
 import { StripeService } from '../stripe/stripe.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -554,6 +555,96 @@ export class WalletService implements OnModuleInit {
     return { items, nextCursor: hasMore ? pageRows[pageRows.length - 1].id : null };
   }
 
+  /** Same line `useTxnLabel.ts` renders for the Transactions page — kept
+   *  in sync by hand since the PDF is server-rendered and always Romanian,
+   *  unlike the page itself which runs through i18n. */
+  private txnLabelRo(t: {
+    clicks: number | null;
+    provider: string | null;
+    description: string | null;
+    type: string;
+  }): string {
+    if (t.clicks != null) return 'Click-uri anunț';
+    if (t.provider === 'ai-usage') return 'Prompt AI';
+    if (t.description === 'Advanced website builder') return 'Deblocare builder avansat';
+    if (t.description === 'Additional business') return 'Afacere suplimentară';
+    const TYPE_RO: Record<string, string> = {
+      purchase: 'Cumpărare',
+      spend: 'Consum',
+      refund: 'Rambursare',
+      adjustment: 'Ajustare',
+    };
+    return TYPE_RO[t.type] ?? t.type;
+  }
+
+  /**
+   * The full wallet transaction ledger (every type/category, same rows the
+   * Transactions page lists) for the given filters, as a downloadable PDF —
+   * paginates through `listTransactions` internally up to a hard cap so an
+   * owner with a long history still gets one complete export, not just the
+   * first page.
+   */
+  async exportTransactionsPdf(
+    userId: string,
+    ownerName: string,
+    opts: {
+      companyId?: string;
+      type?: string;
+      category?: string;
+      from?: string;
+      to?: string;
+      search?: string;
+    },
+  ): Promise<Buffer> {
+    const EXPORT_CAP = 2000;
+    const rows: Awaited<ReturnType<WalletService['listTransactions']>>['items'] = [];
+    let cursor: string | undefined;
+    for (let i = 0; i < 40 && rows.length < EXPORT_CAP; i++) {
+      const page = await this.listTransactions(userId, { ...opts, cursor, limit: 100 });
+      rows.push(...page.items);
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+
+    const STATUS_RO: Record<string, string> = {
+      pending: 'În așteptare',
+      completed: 'Finalizată',
+      failed: 'Eșuată',
+      canceled: 'Anulată',
+    };
+    const range =
+      opts.from && opts.to
+        ? `${opts.from} - ${opts.to}`
+        : opts.from
+          ? `de la ${opts.from}`
+          : opts.to
+            ? `până la ${opts.to}`
+            : 'toate datele';
+
+    return generateTablePdf({
+      title: 'TRANZACȚII',
+      ownerName,
+      subtitle: `Perioadă: ${range}`,
+      columns: [
+        { label: 'ID', width: 0.14 },
+        { label: 'Tip', width: 0.32 },
+        { label: 'Sumă', width: 0.2, align: 'right' },
+        { label: 'Dată', width: 0.19, align: 'right' },
+        { label: 'Stare', width: 0.15, align: 'right' },
+      ],
+      rows: rows
+        .slice(0, EXPORT_CAP)
+        .map((r) => [
+          `#${r.id.slice(0, 8)}`,
+          this.txnLabelRo(r) + (r.companyName ? ` · ${r.companyName}` : ''),
+          `${r.amount.minor < 0 ? '-' : '+'}${Math.abs(r.amount.credits).toFixed(2)} cr`,
+          r.createdAt.toLocaleString('ro-RO'),
+          STATUS_RO[r.status] ?? r.status,
+        ]),
+      emptyText: 'Nicio tranzacție în perioada selectată.',
+    });
+  }
+
   /**
    * One business's consumption, as a single merged, filterable, paginated
    * ledger. Filtered to the "clicks" category specifically, individual
@@ -759,6 +850,87 @@ export class WalletService implements OnModuleInit {
       items: page.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
       nextCursor: hasMore ? page[page.length - 1].createdAt.toISOString() : null,
     };
+  }
+
+  /** Same line `ConsumptionView.vue`'s `entryLabel()` renders — kept in sync
+   *  by hand since the PDF is server-rendered and always Romanian. */
+  private consumptionEntryLabelRo(e: {
+    kind: 'click' | 'txn';
+    category: SpendCategory;
+    county: string | null;
+    categoryName: Prisma.JsonValue | null;
+    description: string | null;
+    clicks: number | null;
+  }): string {
+    if (e.kind === 'click') {
+      const county = e.county === 'nationwide' ? 'Toată țara' : (e.county ?? '');
+      const catName = (e.categoryName as Record<string, string> | null)?.ro ?? '';
+      return [county, catName].filter(Boolean).join(' · ');
+    }
+    if (e.category === 'clicks') return `${e.clicks ?? 0} click-uri facturate`;
+    if (e.category === 'aiUsage') return 'AI Website Builder';
+    if (e.category === 'builderUnlock') return 'Taxă deblocare builder';
+    return e.description ?? 'Consum';
+  }
+
+  /**
+   * The full consumption ledger for one business (every category, same rows
+   * the Consumption page lists) as a downloadable PDF — paginates through
+   * `consumptionLedgerFor` internally up to a hard cap.
+   */
+  async exportConsumptionPdf(
+    userId: string,
+    companyId: string,
+    opts: { category?: string; from?: string; to?: string; search?: string },
+  ): Promise<Buffer> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { displayName: true },
+    });
+
+    const EXPORT_CAP = 2000;
+    const rows: Awaited<ReturnType<WalletService['consumptionLedgerFor']>>['items'] = [];
+    let cursor: string | undefined;
+    for (let i = 0; i < 40 && rows.length < EXPORT_CAP; i++) {
+      const page = await this.consumptionLedgerFor(userId, companyId, {
+        ...opts,
+        cursor,
+        limit: 100,
+      });
+      rows.push(...page.items);
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+
+    const range =
+      opts.from && opts.to
+        ? `${opts.from} - ${opts.to}`
+        : opts.from
+          ? `de la ${opts.from}`
+          : opts.to
+            ? `până la ${opts.to}`
+            : 'toate datele';
+
+    return generateTablePdf({
+      title: 'CONSUM AFACERE',
+      ownerName: company?.displayName ?? 'Afacere',
+      subtitle: `Perioadă: ${range}`,
+      columns: [
+        { label: 'Dată', width: 0.22 },
+        { label: 'Detaliu', width: 0.46 },
+        { label: 'Click-uri', width: 0.12, align: 'right' },
+        { label: 'Sumă', width: 0.2, align: 'right' },
+      ],
+      rows: rows
+        .slice(0, EXPORT_CAP)
+        .map((e) => [
+          new Date(e.createdAt).toLocaleString('ro-RO'),
+          `#${e.id.slice(0, 8)} ${this.consumptionEntryLabelRo(e)}`,
+          e.clicks != null ? String(e.clicks) : '—',
+          `${Math.abs(e.amount.credits).toFixed(2)} cr`,
+        ]),
+      emptyText: 'Nicio înregistrare în perioada selectată.',
+    });
   }
 
   /** Shared date-range filter builder for listPayments/listPaymentsForExport

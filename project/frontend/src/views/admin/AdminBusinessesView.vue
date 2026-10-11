@@ -77,7 +77,19 @@ function open(id: string): void {
       :eyebrow="t('admin.navGroupManage')"
       :count="admin.businessesTotal"
       :sub="t('adminBiz.lead')"
-    />
+    >
+      <template #actions>
+        <v-btn
+          v-if="admin.businesses.length"
+          :href="admin.companiesExportUrl()"
+          variant="tonal"
+          size="small"
+          prepend-icon="mdi-file-pdf-box"
+        >
+          {{ t('transactions.exportPdf') }}
+        </v-btn>
+      </template>
+    </AdminPageHeader>
 
     <div v-if="s" class="ab__chips">
       <AdminFilterChip

@@ -12,6 +12,7 @@ import { PlatformSettingsService } from '../platform-settings/platform-settings.
 import { NotificationsService } from '../notifications/notifications.service';
 import { RUN_SCORE_GRACE_MS } from '../analytics/visibility';
 import { money } from '../wallet/money';
+import { generateTablePdf } from '../common/table-pdf';
 import { SaveCampaignDto } from '../campaigns/dto/save-campaign.dto';
 import { CampaignActionDto } from './dto/campaign-action.dto';
 import { SetCompanyStatusDto } from './dto/set-company-status.dto';
@@ -52,10 +53,11 @@ export class AdminCompaniesService {
 
   // --- list / browse --------------------------------------------
 
-  async list(query: ListCompaniesQuery) {
-    const { search, status, campaign, pendingDeletion, page = 1, pageSize = 20 } = query;
-
-    const where: Prisma.CompanyWhereInput = {
+  private buildListWhere(
+    query: Pick<ListCompaniesQuery, 'search' | 'status' | 'campaign' | 'pendingDeletion'>,
+  ): Prisma.CompanyWhereInput {
+    const { search, status, campaign, pendingDeletion } = query;
+    return {
       ...(status ? { status } : {}),
       ...(campaign === 'none' ? { campaign: { is: null } } : {}),
       ...(campaign && campaign !== 'none' ? { campaign: { status: campaign } } : {}),
@@ -70,6 +72,11 @@ export class AdminCompaniesService {
           }
         : {}),
     };
+  }
+
+  async list(query: ListCompaniesQuery) {
+    const { page = 1, pageSize = 20 } = query;
+    const where = this.buildListWhere(query);
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.company.findMany({
@@ -123,6 +130,58 @@ export class AdminCompaniesService {
       pageSize,
       total,
     };
+  }
+
+  /** Same business list, same filters, as a downloadable PDF — capped so an
+   *  unfiltered export on a very large platform still returns promptly. */
+  async exportPdf(
+    query: Pick<ListCompaniesQuery, 'search' | 'status' | 'campaign' | 'pendingDeletion'>,
+  ): Promise<Buffer> {
+    const EXPORT_CAP = 2000;
+    const where = this.buildListWhere(query);
+    const rows = await this.prisma.company.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: EXPORT_CAP,
+      include: {
+        campaign: { select: { status: true } },
+        owner: { select: { name: true, email: true } },
+      },
+    });
+    const consumed = await this.wallet.consumedByCompanies(rows.map((r) => r.id));
+
+    const STATUS_RO: Record<string, string> = {
+      draft: 'Ciornă',
+      active: 'Activă',
+      suspended: 'Suspendată',
+    };
+    const CAMP_RO: Record<string, string> = {
+      draft: 'Ciornă',
+      active: 'Activă',
+      paused: 'Pe pauză',
+      depleted: 'Epuizată',
+    };
+
+    return generateTablePdf({
+      title: 'AFACERI',
+      ownerName: 'Panou admin',
+      subtitle: `${rows.length} afaceri`,
+      columns: [
+        { label: 'Afacere', width: 0.3 },
+        { label: 'Status', width: 0.14 },
+        { label: 'Proprietar', width: 0.26 },
+        { label: 'Campanie', width: 0.14, align: 'right' },
+        { label: 'Consumat', width: 0.16, align: 'right' },
+      ],
+      rows: rows.map((c) => [
+        c.displayName,
+        STATUS_RO[c.status] ?? c.status,
+        c.owner.email,
+        c.campaign ? (CAMP_RO[c.campaign.status] ?? c.campaign.status) : 'Fără campanie',
+        `${money(consumed.get(c.id) ?? 0).credits.toFixed(2)} cr`,
+      ]),
+      emptyText: 'Nicio afacere pentru acest filtru.',
+    });
   }
 
   // --- full detail ------------------------------------------------

@@ -20,6 +20,10 @@ export const ticketDetailInclude = {
       author: {
         select: { id: true, name: true, platformRoles: { select: { role: true } } },
       },
+      attachments: {
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, filename: true, mime: true, size: true },
+      },
     },
   },
 } satisfies Prisma.SupportTicketInclude;
@@ -62,6 +66,12 @@ export function ticketDetailView(t: TicketDetailRow, viewer: { id: string; staff
         : null,
       mine: m.authorId === viewer.id,
       createdAt: m.createdAt,
+      attachments: m.attachments.map((a) => ({
+        id: a.id,
+        filename: a.filename,
+        mime: a.mime,
+        size: a.size,
+      })),
     }));
 
   return {

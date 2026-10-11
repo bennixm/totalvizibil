@@ -102,6 +102,53 @@ export class WalletController {
     });
   }
 
+  /** Same Transactions list as a downloadable PDF for the selected filters. */
+  @Get('transactions/export')
+  async exportTransactions(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('companyId') companyId?: string,
+    @Query('type') type?: string,
+    @Query('category') category?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('search') search?: string,
+  ) {
+    const buffer = await this.wallet.exportTransactionsPdf(user.id, user.name, {
+      companyId,
+      type,
+      category,
+      from,
+      to,
+      search,
+    });
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: 'attachment; filename="tranzactii-totalvizibil.pdf"',
+    });
+  }
+
+  /** Same Consumption ledger as a downloadable PDF for the selected business/filters. */
+  @Get('consumption/export')
+  async exportConsumption(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('companyId') companyId: string,
+    @Query('category') category?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('search') search?: string,
+  ) {
+    const buffer = await this.wallet.exportConsumptionPdf(user.id, companyId, {
+      category,
+      from,
+      to,
+      search,
+    });
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: 'attachment; filename="consum-totalvizibil.pdf"',
+    });
+  }
+
   /** Backs the Wallet page's own Payments/Refunds table (below Refund). */
   @Get('payments')
   payments(
