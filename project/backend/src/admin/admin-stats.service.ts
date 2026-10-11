@@ -48,6 +48,7 @@ export class AdminStatsService {
       websitesPublished,
       companiesNew7,
       companiesNew30,
+      companiesPendingDeletion,
       activeSessions,
     ] = await this.prisma.$transaction([
       this.prisma.user.count(),
@@ -65,6 +66,7 @@ export class AdminStatsService {
       this.prisma.website.count({ where: { status: 'published' } }),
       this.prisma.company.count({ where: { createdAt: { gte: d7 } } }),
       this.prisma.company.count({ where: { createdAt: { gte: d30 } } }),
+      this.prisma.company.count({ where: { deletionScheduledAt: { not: null } } }),
       this.prisma.session.count({ where: { revokedAt: null, expiresAt: { gt: nowDate } } }),
     ]);
 
@@ -151,6 +153,7 @@ export class AdminStatsService {
         websitesPublished,
         new7d: companiesNew7,
         new30d: companiesNew30,
+        pendingDeletion: companiesPendingDeletion,
         byCountry: byCountry.map((r) => ({ country: r.country, count: r._count._all })),
       },
       staffByRole: byRole.map((r) => ({ role: r.role, count: r._count._all })),

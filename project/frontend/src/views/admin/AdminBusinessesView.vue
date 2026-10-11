@@ -29,6 +29,9 @@ const s = computed(() => admin.stats?.companies)
 function toggleStatus(status: BusinessStatus | null): void {
   admin.setBusinessFilter('status', admin.businessFilters.status === status ? null : status)
 }
+function togglePendingDeletion(): void {
+  admin.setBusinessFilter('pendingDeletion', !admin.businessFilters.pendingDeletion)
+}
 
 const statusItems = computed(() => [
   { value: null, title: t('admin.filterAnyStatus') },
@@ -112,6 +115,14 @@ function open(id: string): void {
         :value="n(s.websitesPublished)"
         icon="mdi-web"
       />
+      <AdminFilterChip
+        :label="t('adminBiz.pendingDeletion')"
+        :value="n(s.pendingDeletion)"
+        icon="mdi-delete-clock-outline"
+        tone="error"
+        :active="admin.businessFilters.pendingDeletion"
+        @click="togglePendingDeletion"
+      />
     </div>
 
     <div class="ab__filters">
@@ -172,6 +183,9 @@ function open(id: string): void {
             <span class="chip" :class="`chip--${bizTone[b.status] || 'idle'}`">{{
               t(`dashboard.status${b.status.charAt(0).toUpperCase()}${b.status.slice(1)}`)
             }}</span>
+            <span v-if="b.deletionScheduledAt" class="chip chip--err">
+              {{ t('adminBiz.pendingDeletion') }}
+            </span>
           </span>
           <span class="brow__meta">
             /{{ b.slug }}

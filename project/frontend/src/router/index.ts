@@ -265,6 +265,11 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-invoices',
         component: () => import('@/views/admin/AdminInvoicesView.vue'),
       },
+      {
+        path: 'referrals',
+        name: 'admin-referrals',
+        component: () => import('@/views/admin/AdminReferralsView.vue'),
+      },
     ],
   },
 

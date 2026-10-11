@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class ListCompaniesQuery {
   @IsOptional()
@@ -16,6 +16,13 @@ export class ListCompaniesQuery {
   @IsOptional()
   @IsIn(['none', 'draft', 'active', 'paused', 'depleted'])
   campaign?: 'none' | 'draft' | 'active' | 'paused' | 'depleted';
+
+  /** Businesses currently inside the deletion grace window — frozen, awaiting
+   *  either an owner cancel or the sweep's final wipe. */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  pendingDeletion?: boolean;
 
   @IsOptional()
   @Type(() => Number)
