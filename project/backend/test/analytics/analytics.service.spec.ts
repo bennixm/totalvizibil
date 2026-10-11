@@ -144,22 +144,37 @@ describe('AnalyticsService', () => {
       const { svc, prisma } = makeService();
       prisma.__seedCompany({
         id: 'co1',
-        categoryAssignments: [{ categoryId: 'cat1' }],
+        categoryAssignments: [{ categoryId: 'cat1', isPrimary: true, createdAt: new Date() }],
+        locations: [{ county: 'Cluj', nationwide: false, isPrimary: true, createdAt: new Date() }],
       });
       prisma.campaign.aggregate.mockResolvedValue({ _max: { cpcMinor: null } });
       const result = await svc.marketCpcFor('co1');
       expect(result).toBe(0);
+      expect(prisma.campaign.aggregate).toHaveBeenCalled();
     });
 
     it('aggregate returns rival CPC → returns it', async () => {
       const { svc, prisma } = makeService();
       prisma.__seedCompany({
         id: 'co1',
-        categoryAssignments: [{ categoryId: 'cat1' }],
+        categoryAssignments: [{ categoryId: 'cat1', isPrimary: true, createdAt: new Date() }],
+        locations: [{ county: 'Cluj', nationwide: false, isPrimary: true, createdAt: new Date() }],
       });
       prisma.campaign.aggregate.mockResolvedValue({ _max: { cpcMinor: 600 } });
       const result = await svc.marketCpcFor('co1');
       expect(result).toBe(600);
+    });
+
+    it('no locations (no usable Feed) → returns 0 without querying campaign', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedCompany({
+        id: 'co1',
+        categoryAssignments: [{ categoryId: 'cat1', isPrimary: true, createdAt: new Date() }],
+        locations: [],
+      });
+      const result = await svc.marketCpcFor('co1');
+      expect(result).toBe(0);
+      expect(prisma.campaign.aggregate).not.toHaveBeenCalled();
     });
   });
 
