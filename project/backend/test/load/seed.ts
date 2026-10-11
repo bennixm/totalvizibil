@@ -25,9 +25,20 @@ async function main() {
   console.log('[seed] Cleaning load DB...');
 
   const TABLES = [
-    'ad_clicks', 'leads', 'campaigns', 'company_locations', 'company_contacts',
-    'company_categories', 'company_users', 'wallet_transactions', 'wallets',
-    'websites', 'website_drafts', 'companies', 'users', 'categories',
+    'ad_clicks',
+    'leads',
+    'campaigns',
+    'company_locations',
+    'company_contacts',
+    'company_categories',
+    'company_users',
+    'wallet_transactions',
+    'wallets',
+    'websites',
+    'website_drafts',
+    'companies',
+    'users',
+    'categories',
   ];
   for (const t of TABLES) {
     await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${t}" RESTART IDENTITY CASCADE`);
@@ -91,7 +102,7 @@ async function main() {
     const category = leafCats[i % leafCats.length];
 
     // Vary CPC and budget to exercise ranking logic
-    const cpcMinor = 100 + i * 10;          // 100..290 (minor units = hundredths)
+    const cpcMinor = 100 + i * 10; // 100..290 (minor units = hundredths)
     const dailyBudgetMinor = 5000 + i * 500; // 5000..14500
 
     const company = await prisma.company.create({
@@ -143,9 +154,7 @@ async function main() {
   console.log(`[seed] Dashboard company ID: ${firstCompany?.id}`);
   console.log('[seed] Category slugs:', leafSlugs.join(', '));
   console.log('[seed] Company slugs:', slugsCreated.slice(0, 3).join(', '), '...');
-  console.log(
-    '\n[seed] Save these for k6 scenarios — or query them at runtime via /api/v1/feed',
-  );
+  console.log('\n[seed] Save these for k6 scenarios — or query them at runtime via /api/v1/feed');
 }
 
 main()

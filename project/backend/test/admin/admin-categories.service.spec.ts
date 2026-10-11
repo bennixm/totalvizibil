@@ -103,7 +103,9 @@ describe('AdminCategoriesService', () => {
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'c1', slug: 'cat' });
       const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.update('c1', { parentId: 'c1' } as any)).rejects.toThrow(BadRequestException);
+      await expect(svc.update('c1', { parentId: 'c1' } as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('throws BadRequestException when nesting a parent that has children', async () => {

@@ -4,7 +4,7 @@ import { AppointmentsService } from 'src/appointments/appointments.service';
 
 function fakeConfig(overrides: Record<string, any> = {}) {
   const defaults: Record<string, any> = { frontendOrigin: 'http://localhost:5173' };
-  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides }[k])) };
+  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides })[k]) };
 }
 
 function fakeMail() {
@@ -41,8 +41,10 @@ function fakePrisma() {
 
   return {
     companyUser: {
-      findUnique: jest.fn(async ({ where }: any) =>
-        members.get(`${where.companyId_userId.companyId}:${where.companyId_userId.userId}`) ?? null,
+      findUnique: jest.fn(
+        async ({ where }: any) =>
+          members.get(`${where.companyId_userId.companyId}:${where.companyId_userId.userId}`) ??
+          null,
       ),
     },
     company: {
@@ -57,7 +59,9 @@ function fakePrisma() {
       findUnique: jest.fn(async ({ where }: any) => settings.get(where.companyId) ?? null),
       upsert: jest.fn(async ({ where, create, update }: any) => {
         const existing = settings.get(where.companyId);
-        const row = existing ? { ...existing, ...update } : { companyId: where.companyId, ...create };
+        const row = existing
+          ? { ...existing, ...update }
+          : { companyId: where.companyId, ...create };
         settings.set(where.companyId, row);
         return row;
       }),
@@ -96,8 +100,14 @@ function fakePrisma() {
       members.set(`${companyId}:${userId}`, { companyId, userId, status: 'active' });
     },
     __seedCompany: (data = {}) => {
-      const c = { id: 'co1', slug: 'acme', status: 'active', displayName: 'Acme',
-        owner: { id: 'owner1', email: 'owner@acme.com' }, ...data };
+      const c = {
+        id: 'co1',
+        slug: 'acme',
+        status: 'active',
+        displayName: 'Acme',
+        owner: { id: 'owner1', email: 'owner@acme.com' },
+        ...data,
+      };
       companies.set(c.id, c);
       return c;
     },
@@ -119,7 +129,12 @@ function makeService() {
   const notifications = fakeNotifications();
   const mail = fakeMail();
   const config = fakeConfig();
-  const svc = new AppointmentsService(prisma as any, notifications as any, mail as any, config as any);
+  const svc = new AppointmentsService(
+    prisma as any,
+    notifications as any,
+    mail as any,
+    config as any,
+  );
   return { svc, prisma, notifications, mail };
 }
 
@@ -143,7 +158,9 @@ describe('AppointmentsService', () => {
         startMinute: i * 60,
         endMinute: i * 60 + 30,
       }));
-      await expect(svc.setAvailability('u1', 'co1', { windows })).rejects.toThrow(BadRequestException);
+      await expect(svc.setAvailability('u1', 'co1', { windows })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('happy path deletes and recreates windows in transaction', async () => {
@@ -159,7 +176,9 @@ describe('AppointmentsService', () => {
   describe('availableSlotsFor', () => {
     it('throws BadRequestException for invalid date format', async () => {
       const { svc } = makeService();
-      await expect(svc.availableSlotsFor('acme', 'not-a-date')).rejects.toThrow(BadRequestException);
+      await expect(svc.availableSlotsFor('acme', 'not-a-date')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('returns { enabled: true, slots: [] } for date beyond lookahead', async () => {
@@ -191,7 +210,12 @@ describe('AppointmentsService', () => {
   describe('submitPublic', () => {
     it('returns { ok: true } for bot user-agent without DB access', async () => {
       const { svc, prisma } = makeService();
-      const result = await svc.submitPublic('acme', { startsAt: new Date().toISOString(), name: 'Bot' }, '1.2.3.4', 'Googlebot/2.1');
+      const result = await svc.submitPublic(
+        'acme',
+        { startsAt: new Date().toISOString(), name: 'Bot' },
+        '1.2.3.4',
+        'Googlebot/2.1',
+      );
       expect(result).toEqual({ ok: true });
       expect(prisma.company.findFirst).not.toHaveBeenCalled();
     });
@@ -201,7 +225,12 @@ describe('AppointmentsService', () => {
       prisma.__seedCompany();
       prisma.__seedSettings('co1', { enabled: false });
       const future = new Date(Date.now() + 86400000).toISOString();
-      const result = await svc.submitPublic('acme', { startsAt: future, name: 'Ion' }, '1.2.3.4', 'Mozilla/5.0');
+      const result = await svc.submitPublic(
+        'acme',
+        { startsAt: future, name: 'Ion' },
+        '1.2.3.4',
+        'Mozilla/5.0',
+      );
       expect(result).toEqual({ ok: false, error: 'appointments_disabled' });
     });
 
@@ -210,7 +239,12 @@ describe('AppointmentsService', () => {
       prisma.__seedCompany();
       prisma.__seedSettings('co1');
       const past = new Date(Date.now() - 86400000).toISOString();
-      const result = await svc.submitPublic('acme', { startsAt: past, name: 'Ion' }, '1.2.3.4', 'Mozilla/5.0');
+      const result = await svc.submitPublic(
+        'acme',
+        { startsAt: past, name: 'Ion' },
+        '1.2.3.4',
+        'Mozilla/5.0',
+      );
       expect(result).toEqual({ ok: false, error: 'invalid_slot' });
     });
 
@@ -221,12 +255,25 @@ describe('AppointmentsService', () => {
       const future = new Date(Date.now() + 86400000);
       jest.spyOn(svc as any, 'availableSlotsFor').mockResolvedValue({
         enabled: true,
-        slots: [{ startsAt: future.toISOString(), endsAt: new Date(future.getTime() + 1800000).toISOString() }],
+        slots: [
+          {
+            startsAt: future.toISOString(),
+            endsAt: new Date(future.getTime() + 1800000).toISOString(),
+          },
+        ],
       });
       prisma.appointment.create.mockRejectedValue(
-        new Prisma.PrismaClientKnownRequestError('Unique constraint', { code: 'P2002', clientVersion: '5' }),
+        new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+          code: 'P2002',
+          clientVersion: '5',
+        }),
       );
-      const result = await svc.submitPublic('acme', { startsAt: future.toISOString(), name: 'Ion' }, '1.2.3.4', 'Mozilla/5.0');
+      const result = await svc.submitPublic(
+        'acme',
+        { startsAt: future.toISOString(), name: 'Ion' },
+        '1.2.3.4',
+        'Mozilla/5.0',
+      );
       expect(result).toEqual({ ok: false, error: 'slot_taken' });
     });
 
@@ -237,9 +284,19 @@ describe('AppointmentsService', () => {
       const future = new Date(Date.now() + 86400000);
       jest.spyOn(svc as any, 'availableSlotsFor').mockResolvedValue({
         enabled: true,
-        slots: [{ startsAt: future.toISOString(), endsAt: new Date(future.getTime() + 1800000).toISOString() }],
+        slots: [
+          {
+            startsAt: future.toISOString(),
+            endsAt: new Date(future.getTime() + 1800000).toISOString(),
+          },
+        ],
       });
-      const result = await svc.submitPublic('acme', { startsAt: future.toISOString(), name: 'Ion', email: 'ion@example.com' }, '1.2.3.4', 'Mozilla/5.0');
+      const result = await svc.submitPublic(
+        'acme',
+        { startsAt: future.toISOString(), name: 'Ion', email: 'ion@example.com' },
+        '1.2.3.4',
+        'Mozilla/5.0',
+      );
       expect(result).toEqual({ ok: true });
       expect(prisma.appointment.create).toHaveBeenCalled();
       await new Promise((r) => setTimeout(r, 10));
@@ -253,7 +310,9 @@ describe('AppointmentsService', () => {
     it('throws NotFoundException for unknown appointment', async () => {
       const { svc, prisma } = makeService();
       prisma.__seedMember('co1', 'u1');
-      await expect(svc.updateStatus('u1', 'co1', 'missing', 'confirmed')).rejects.toThrow(NotFoundException);
+      await expect(svc.updateStatus('u1', 'co1', 'missing', 'confirmed')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('sends mail when status changes to confirmed', async () => {

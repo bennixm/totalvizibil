@@ -118,11 +118,7 @@ async function seedFeedCompany(opts: SeedCompanyOpts) {
 }
 
 /** Seed N leads for a company. Responded leads have firstResponseAt = createdAt (0-minute response). */
-async function seedLeads(
-  companyId: string,
-  total: number,
-  responded: number,
-) {
+async function seedLeads(companyId: string, total: number, responded: number) {
   await prisma.lead.createMany({
     data: Array.from({ length: total }, (_, i) => ({
       companyId,
@@ -496,7 +492,12 @@ describe('Feed ranking', () => {
 
       // Seed a second unrelated category
       const parent2 = await prisma.category.create({
-        data: { slug: 'construction', nameI18n: { ro: 'Construcții' }, isActive: true, position: 1 },
+        data: {
+          slug: 'construction',
+          nameI18n: { ro: 'Construcții' },
+          isActive: true,
+          position: 1,
+        },
       });
       const plumbingLeaf = await prisma.category.create({
         data: {

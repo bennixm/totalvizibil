@@ -108,8 +108,10 @@ function fakePrisma() {
 
   return {
     companyUser: {
-      findUnique: jest.fn(async ({ where }: any) =>
-        members.get(`${where.companyId_userId.companyId}:${where.companyId_userId.userId}`) ?? null,
+      findUnique: jest.fn(
+        async ({ where }: any) =>
+          members.get(`${where.companyId_userId.companyId}:${where.companyId_userId.userId}`) ??
+          null,
       ),
     },
     company: {
@@ -164,8 +166,16 @@ function fakePrisma() {
       members.set(`${companyId}:${userId}`, { companyId, userId, status: 'active', role });
     },
     __seedCompany: (data = {}) => {
-      const c = { id: 'co1', status: 'active', displayName: 'Acme', ownerUserId: 'owner1',
-        deletionScheduledAt: null, categoryAssignments: [], locations: [], ...data };
+      const c = {
+        id: 'co1',
+        status: 'active',
+        displayName: 'Acme',
+        ownerUserId: 'owner1',
+        deletionScheduledAt: null,
+        categoryAssignments: [],
+        locations: [],
+        ...data,
+      };
       companies.set(c.id, c);
       return c;
     },
@@ -203,14 +213,18 @@ describe('CampaignService', () => {
   describe('save', () => {
     it('throws NotFoundException when user is not a company member', async () => {
       const { svc } = makeService();
-      await expect(svc.save('u1', 'co1', { cpc: 2, dailyBudget: 50 })).rejects.toThrow(NotFoundException);
+      await expect(svc.save('u1', 'co1', { cpc: 2, dailyBudget: 50 })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws ForbiddenException when company is pending deletion', async () => {
       const { svc, prisma } = makeService();
       prisma.__seedMember('co1', 'u1', 'owner');
       prisma.__seedCompany({ id: 'co1', deletionScheduledAt: new Date() });
-      await expect(svc.save('u1', 'co1', { cpc: 2, dailyBudget: 50 })).rejects.toThrow(ForbiddenException);
+      await expect(svc.save('u1', 'co1', { cpc: 2, dailyBudget: 50 })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('throws BadRequestException when cpc exceeds daily budget', async () => {
@@ -218,7 +232,9 @@ describe('CampaignService', () => {
       prisma.__seedMember('co1', 'u1', 'owner');
       prisma.__seedCompany();
       prisma.__seedWebsite('co1');
-      await expect(svc.save('u1', 'co1', { cpc: 100, dailyBudget: 50 })).rejects.toThrow(BadRequestException);
+      await expect(svc.save('u1', 'co1', { cpc: 100, dailyBudget: 50 })).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -261,8 +277,13 @@ describe('CampaignService', () => {
         makeCampaign({ companyId: 'co1', status: 'draft', activatedAt: null }),
       );
       prisma.company.findUnique.mockResolvedValue({
-        id: 'co1', status: 'active', displayName: 'Acme', deletionScheduledAt: null,
-        ownerUserId: 'owner1', categoryAssignments: [], locations: [],
+        id: 'co1',
+        status: 'active',
+        displayName: 'Acme',
+        deletionScheduledAt: null,
+        ownerUserId: 'owner1',
+        categoryAssignments: [],
+        locations: [],
       });
       await svc.activate('u1', 'co1');
       expect(affiliate.maybeReward).toHaveBeenCalledWith('owner1');
@@ -285,8 +306,13 @@ describe('CampaignService', () => {
         makeCampaign({ companyId: 'co1', status: 'active', activatedAt: new Date() }),
       );
       prisma.company.findUnique.mockResolvedValue({
-        id: 'co1', status: 'active', displayName: 'Acme', deletionScheduledAt: null,
-        ownerUserId: 'owner1', categoryAssignments: [], locations: [],
+        id: 'co1',
+        status: 'active',
+        displayName: 'Acme',
+        deletionScheduledAt: null,
+        ownerUserId: 'owner1',
+        categoryAssignments: [],
+        locations: [],
       });
       await svc.pause('u1', 'co1');
       const calls = (prisma.$transaction as jest.Mock).mock.calls;
@@ -299,7 +325,11 @@ describe('CampaignService', () => {
       const { svc, prisma } = makeService();
       prisma.$transaction.mockImplementation(async (fn: any) =>
         fn({
-          company: { findUnique: jest.fn().mockResolvedValue({ ownerUserId: 'o1', categoryAssignments: [], locations: [] }) },
+          company: {
+            findUnique: jest
+              .fn()
+              .mockResolvedValue({ ownerUserId: 'o1', categoryAssignments: [], locations: [] }),
+          },
           adClick: {
             create: jest.fn().mockResolvedValue({ id: 'c1' }),
             update: jest.fn().mockResolvedValue({}),
@@ -323,15 +353,26 @@ describe('CampaignService', () => {
       const { svc, prisma } = makeService();
       prisma.$transaction.mockImplementation(async (fn: any) =>
         fn({
-          company: { findUnique: jest.fn().mockResolvedValue({ ownerUserId: 'o1', categoryAssignments: [], locations: [] }) },
+          company: {
+            findUnique: jest
+              .fn()
+              .mockResolvedValue({ ownerUserId: 'o1', categoryAssignments: [], locations: [] }),
+          },
           adClick: {
             create: jest.fn().mockRejectedValue(
-              new Prisma.PrismaClientKnownRequestError('Unique constraint', { code: 'P2002', clientVersion: '5' }),
+              new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+                code: 'P2002',
+                clientVersion: '5',
+              }),
             ),
             update: jest.fn().mockResolvedValue({}),
             findMany: jest.fn().mockResolvedValue([]),
           },
-          campaign: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+          campaign: {
+            findUnique: jest.fn().mockResolvedValue(null),
+            update: jest.fn(),
+            findMany: jest.fn().mockResolvedValue([]),
+          },
           website: { updateMany: jest.fn().mockResolvedValue({}) },
           category: { findUnique: jest.fn().mockResolvedValue(null) },
           $queryRaw: jest.fn().mockResolvedValue([]),
@@ -345,7 +386,11 @@ describe('CampaignService', () => {
       const { svc, prisma } = makeService();
       prisma.$transaction.mockImplementation(async (fn: any) =>
         fn({
-          company: { findUnique: jest.fn().mockResolvedValue({ ownerUserId: 'o1', categoryAssignments: [], locations: [] }) },
+          company: {
+            findUnique: jest
+              .fn()
+              .mockResolvedValue({ ownerUserId: 'o1', categoryAssignments: [], locations: [] }),
+          },
           adClick: {
             create: jest.fn().mockResolvedValue({ id: 'c1' }),
             update: jest.fn().mockResolvedValue({}),

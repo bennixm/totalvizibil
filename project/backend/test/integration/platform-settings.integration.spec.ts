@@ -19,15 +19,11 @@ afterAll(async () => app.close());
 describe('Platform Settings', () => {
   describe('GET /platform/pricing', () => {
     it('returns 200 without auth', async () => {
-      await request(app.getHttpServer())
-        .get('/api/v1/platform/pricing')
-        .expect(200);
+      await request(app.getHttpServer()).get('/api/v1/platform/pricing').expect(200);
     });
 
     it('returns pricing shape with expected keys', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/api/v1/platform/pricing')
-        .expect(200);
+      const res = await request(app.getHttpServer()).get('/api/v1/platform/pricing').expect(200);
       expect(res.body).toHaveProperty('creditsDiscountEnabled');
       expect(res.body).toHaveProperty('creditsDiscountPct');
     });

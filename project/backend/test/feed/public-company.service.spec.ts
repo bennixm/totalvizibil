@@ -81,7 +81,14 @@ describe('PublicCompanyService', () => {
       prisma.__seedCompany({
         id: 'co1',
         slug: 'acme',
-        website: { id: 'w1', status: 'draft', mode: 'easy', theme: {}, content: {}, publishedAt: null },
+        website: {
+          id: 'w1',
+          status: 'draft',
+          mode: 'easy',
+          theme: {},
+          content: {},
+          publishedAt: null,
+        },
       });
       const svc = new PublicCompanyService(prisma as any);
       const result = await svc.bySlug('acme');

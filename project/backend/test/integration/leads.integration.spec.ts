@@ -53,9 +53,7 @@ describe('Leads', () => {
 
   describe('GET /companies/:id/leads', () => {
     it('returns 401 without auth', async () => {
-      await request(app.getHttpServer())
-        .get('/api/v1/companies/fake-id/leads')
-        .expect(401);
+      await request(app.getHttpServer()).get('/api/v1/companies/fake-id/leads').expect(401);
     });
 
     it('returns 200 with paginated list for member', async () => {

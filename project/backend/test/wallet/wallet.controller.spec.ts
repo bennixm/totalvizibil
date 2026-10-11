@@ -1,10 +1,21 @@
 import { WalletController } from 'src/wallet/wallet.controller';
 
-const user = { id: 'u1', name: 'Ion', email: 'ion@example.com', sessionId: 's1', platformRoles: [], emailVerifiedAt: null };
+const user = {
+  id: 'u1',
+  name: 'Ion',
+  email: 'ion@example.com',
+  sessionId: 's1',
+  platformRoles: [],
+  emailVerifiedAt: null,
+};
 
 function fakeWallet() {
   return {
-    getSummary: jest.fn().mockResolvedValue({ balance: { minor: 0, credits: 0, display: '0' }, currency: 'RON', eurRonRate: 5.05 }),
+    getSummary: jest.fn().mockResolvedValue({
+      balance: { minor: 0, credits: 0, display: '0' },
+      currency: 'RON',
+      eurRonRate: 5.05,
+    }),
     fx: jest.fn().mockResolvedValue({ currency: 'RON', eurRonRate: 5.05 }),
     setCurrency: jest.fn().mockResolvedValue({ currency: 'EUR' }),
     listTransactions: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
@@ -46,7 +57,17 @@ describe('WalletController', () => {
 
   it('transactions → forwards all query params', async () => {
     const { ctrl, wallet } = makeController();
-    await ctrl.transactions(user as any, '10', 'cursor1', 'co1', 'credit', 'click', '2024-01-01', '2024-12-31', 'foo');
+    await ctrl.transactions(
+      user as any,
+      '10',
+      'cursor1',
+      'co1',
+      'credit',
+      'click',
+      '2024-01-01',
+      '2024-12-31',
+      'foo',
+    );
     expect(wallet.listTransactions).toHaveBeenCalledWith('u1', {
       limit: 10,
       cursor: 'cursor1',
@@ -74,7 +95,10 @@ describe('WalletController', () => {
   it('payments → passes kind "refund" when provided', async () => {
     const { ctrl, wallet } = makeController();
     await ctrl.payments(user as any, 'refund');
-    expect(wallet.listPayments).toHaveBeenCalledWith('u1', expect.objectContaining({ kind: 'refund' }));
+    expect(wallet.listPayments).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ kind: 'refund' }),
+    );
   });
 
   it('buy → delegates to wallet.startPurchase with credits', async () => {
@@ -109,7 +133,16 @@ describe('WalletController', () => {
 
   it('consumption → forwards all query params', async () => {
     const { ctrl, wallet } = makeController();
-    await ctrl.consumption(user as any, 'co1', 'click', '2024-01-01', '2024-12-31', 'foo', 'cur1', '20');
+    await ctrl.consumption(
+      user as any,
+      'co1',
+      'click',
+      '2024-01-01',
+      '2024-12-31',
+      'foo',
+      'cur1',
+      '20',
+    );
     expect(wallet.consumptionLedgerFor).toHaveBeenCalledWith('u1', 'co1', {
       category: 'click',
       from: '2024-01-01',

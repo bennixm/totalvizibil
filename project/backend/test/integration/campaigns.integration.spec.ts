@@ -70,7 +70,14 @@ describe('Campaigns', () => {
       // Seed website so it passes that check
       await prisma.website.upsert({
         where: { companyId },
-        create: { companyId, mode: 'easy', status: 'published', publishedAt: new Date(), theme: {}, content: {} },
+        create: {
+          companyId,
+          mode: 'easy',
+          status: 'published',
+          publishedAt: new Date(),
+          theme: {},
+          content: {},
+        },
         update: { status: 'published', publishedAt: new Date() },
       });
 

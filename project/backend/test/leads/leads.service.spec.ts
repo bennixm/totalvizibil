@@ -4,7 +4,7 @@ import { LeadsService } from 'src/leads/leads.service';
 
 function fakeConfig(overrides: Record<string, any> = {}) {
   const defaults: Record<string, any> = { frontendOrigin: 'http://localhost:5173' };
-  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides }[k])) };
+  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides })[k]) };
 }
 
 function fakeMail() {
@@ -43,8 +43,10 @@ function fakePrisma() {
 
   return {
     companyUser: {
-      findUnique: jest.fn(async ({ where }: any) =>
-        members.get(`${where.companyId_userId.companyId}:${where.companyId_userId.userId}`) ?? null,
+      findUnique: jest.fn(
+        async ({ where }: any) =>
+          members.get(`${where.companyId_userId.companyId}:${where.companyId_userId.userId}`) ??
+          null,
       ),
     },
     company: {
@@ -80,8 +82,15 @@ function fakePrisma() {
       members.set(`${companyId}:${userId}`, { companyId, userId, status: 'active' });
     },
     __seedCompany: (data = {}) => {
-      const c = { id: 'co1', slug: 'acme', status: 'active', displayName: 'Acme',
-        owner: { id: 'owner1', email: 'owner@acme.com' }, contacts: [], ...data };
+      const c = {
+        id: 'co1',
+        slug: 'acme',
+        status: 'active',
+        displayName: 'Acme',
+        owner: { id: 'owner1', email: 'owner@acme.com' },
+        contacts: [],
+        ...data,
+      };
       companies.set(c.id, c);
       companies.set(c.slug, c);
       return c;
@@ -107,15 +116,21 @@ describe('LeadsService', () => {
   describe('submitPublic', () => {
     it('throws NotFoundException for unknown slug', async () => {
       const { svc } = makeService();
-      await expect(svc.submitPublic('unknown', 'form', {}, '127.0.0.1', 'Mozilla/5.0')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        svc.submitPublic('unknown', 'form', {}, '127.0.0.1', 'Mozilla/5.0'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('returns { ok: true } without creating lead for bot user-agent', async () => {
       const { svc, prisma } = makeService();
       prisma.__seedCompany({ slug: 'acme' });
-      const result = await svc.submitPublic('acme', 'form', { name: 'Bot', email: 'b@b.com' }, '1.2.3.4', 'Googlebot/2.1');
+      const result = await svc.submitPublic(
+        'acme',
+        'form',
+        { name: 'Bot', email: 'b@b.com' },
+        '1.2.3.4',
+        'Googlebot/2.1',
+      );
       expect(result).toEqual({ ok: true });
       expect(prisma.lead.create).not.toHaveBeenCalled();
     });
@@ -129,14 +144,26 @@ describe('LeadsService', () => {
           clientVersion: '5',
         }),
       );
-      const result = await svc.submitPublic('acme', 'form', { name: 'Ion', email: 'i@example.com', message: 'test' }, '1.2.3.4', 'Mozilla/5.0');
+      const result = await svc.submitPublic(
+        'acme',
+        'form',
+        { name: 'Ion', email: 'i@example.com', message: 'test' },
+        '1.2.3.4',
+        'Mozilla/5.0',
+      );
       expect(result).toEqual({ ok: true });
     });
 
     it('happy path creates lead and fires notification', async () => {
       const { svc, prisma, notifications } = makeService();
       prisma.__seedCompany({ slug: 'acme' });
-      const result = await svc.submitPublic('acme', 'form', { name: 'Ion', email: 'ion@example.com', message: 'Buna' }, '1.2.3.4', 'Mozilla/5.0');
+      const result = await svc.submitPublic(
+        'acme',
+        'form',
+        { name: 'Ion', email: 'ion@example.com', message: 'Buna' },
+        '1.2.3.4',
+        'Mozilla/5.0',
+      );
       expect(result).toEqual({ ok: true });
       expect(prisma.lead.create).toHaveBeenCalled();
       // notification fired async — wait a tick
@@ -199,12 +226,20 @@ describe('LeadsService', () => {
     it('sends mail and stamps firstResponseAt on happy path', async () => {
       const { svc, prisma, mail } = makeService();
       prisma.__seedMember('co1', 'u1');
-      prisma.__seedLead({ id: 'l1', companyId: 'co1', email: 'v@example.com', channel: 'form', firstResponseAt: null });
+      prisma.__seedLead({
+        id: 'l1',
+        companyId: 'co1',
+        email: 'v@example.com',
+        channel: 'form',
+        firstResponseAt: null,
+      });
       prisma.__seedCompany({ id: 'co1', displayName: 'Acme', owner: { email: 'owner@acme.com' } });
       await svc.reply('u1', 'co1', 'l1', 'Mulțumim pentru mesaj!');
       expect(mail.send).toHaveBeenCalled();
       expect(prisma.lead.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ firstResponseAt: expect.any(Date) }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ firstResponseAt: expect.any(Date) }),
+        }),
       );
     });
   });

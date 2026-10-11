@@ -180,9 +180,7 @@ describe('NotificationsSweepService', () => {
       const prisma = fakePrisma();
       const analytics = fakeAnalytics();
       const notifications = fakeNotifications();
-      prisma.campaign.findMany.mockResolvedValue([
-        fakeCampaign({ status: 'active' }),
-      ]);
+      prisma.campaign.findMany.mockResolvedValue([fakeCampaign({ status: 'active' })]);
       analytics.feedRanksFor.mockResolvedValue([{ position: 1, feedId: 'f1' }]);
 
       const svc = new NotificationsSweepService(

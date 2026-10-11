@@ -19,9 +19,7 @@ afterAll(async () => app.close());
 describe('Geo', () => {
   describe('GET /geo/counties', () => {
     it('returns 200 with data array of counties', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/api/v1/geo/counties')
-        .expect(200);
+      const res = await request(app.getHttpServer()).get('/api/v1/geo/counties').expect(200);
       expect(res.body).toHaveProperty('data');
       expect(Array.isArray(res.body.data)).toBe(true);
       expect(res.body.data.length).toBeGreaterThan(0);
@@ -30,17 +28,13 @@ describe('Geo', () => {
 
   describe('GET /geo/cities', () => {
     it('returns 200 with data array', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/api/v1/geo/cities')
-        .expect(200);
+      const res = await request(app.getHttpServer()).get('/api/v1/geo/cities').expect(200);
       expect(res.body).toHaveProperty('data');
       expect(Array.isArray(res.body.data)).toBe(true);
     });
 
     it('filters by query string', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/api/v1/geo/cities?q=Buc')
-        .expect(200);
+      const res = await request(app.getHttpServer()).get('/api/v1/geo/cities?q=Buc').expect(200);
       expect(res.body.data.length).toBeGreaterThan(0);
       expect(res.body.data[0]).toHaveProperty('name');
     });

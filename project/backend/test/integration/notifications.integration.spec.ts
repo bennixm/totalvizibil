@@ -40,9 +40,7 @@ describe('Notifications', () => {
 
   describe('GET /notifications/unread-count', () => {
     it('returns 401 without auth', async () => {
-      await request(app.getHttpServer())
-        .get('/api/v1/notifications/unread-count')
-        .expect(401);
+      await request(app.getHttpServer()).get('/api/v1/notifications/unread-count').expect(401);
     });
 
     it('returns count 0 for new user', async () => {
@@ -61,9 +59,7 @@ describe('Notifications', () => {
 
   describe('POST /notifications/read-all', () => {
     it('returns 401 without auth', async () => {
-      await request(app.getHttpServer())
-        .post('/api/v1/notifications/read-all')
-        .expect(401);
+      await request(app.getHttpServer()).post('/api/v1/notifications/read-all').expect(401);
     });
 
     it('returns ok true', async () => {

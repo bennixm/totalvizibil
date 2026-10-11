@@ -94,15 +94,19 @@ function fakePrisma() {
   };
 }
 
-function fakeSettings(overrides: {
-  affiliateEnabled?: boolean;
-  affiliateRewardCredits?: number;
-  affiliateMinDepositCredits?: number;
-} = {}) {
+function fakeSettings(
+  overrides: {
+    affiliateEnabled?: boolean;
+    affiliateRewardCredits?: number;
+    affiliateMinDepositCredits?: number;
+  } = {},
+) {
   return {
     affiliateEnabled: jest.fn().mockResolvedValue(overrides.affiliateEnabled ?? true),
     affiliateRewardCredits: jest.fn().mockResolvedValue(overrides.affiliateRewardCredits ?? 50),
-    affiliateMinDepositCredits: jest.fn().mockResolvedValue(overrides.affiliateMinDepositCredits ?? 100),
+    affiliateMinDepositCredits: jest
+      .fn()
+      .mockResolvedValue(overrides.affiliateMinDepositCredits ?? 100),
   };
 }
 
@@ -186,7 +190,12 @@ describe('AffiliateService', () => {
     it('returns { claimed: false } for account older than 24h', async () => {
       const { svc, prisma } = makeService();
       const oldDate = new Date(Date.now() - 25 * 60 * 60 * 1000);
-      prisma.__seedUser({ id: 'u1', createdAt: oldDate, referralCode: null, referralReceived: null });
+      prisma.__seedUser({
+        id: 'u1',
+        createdAt: oldDate,
+        referralCode: null,
+        referralReceived: null,
+      });
       prisma.__seedUser({ id: 'referrer1', referralCode: 'CODE1234', status: 'active' });
       const result = await svc.claim('u1', 'CODE1234');
       expect(result).toEqual({ claimed: false });
@@ -194,14 +203,24 @@ describe('AffiliateService', () => {
 
     it('returns { claimed: false } when no matching referral code', async () => {
       const { svc, prisma } = makeService();
-      prisma.__seedUser({ id: 'u1', createdAt: new Date(), referralCode: null, referralReceived: null });
+      prisma.__seedUser({
+        id: 'u1',
+        createdAt: new Date(),
+        referralCode: null,
+        referralReceived: null,
+      });
       const result = await svc.claim('u1', 'BADCODE1');
       expect(result).toEqual({ claimed: false });
     });
 
     it('happy path returns { claimed: true }', async () => {
       const { svc, prisma } = makeService();
-      prisma.__seedUser({ id: 'u1', createdAt: new Date(), referralCode: null, referralReceived: null });
+      prisma.__seedUser({
+        id: 'u1',
+        createdAt: new Date(),
+        referralCode: null,
+        referralReceived: null,
+      });
       prisma.__seedUser({ id: 'referrer1', referralCode: 'CODE1234', status: 'active' });
       const result = await svc.claim('u1', 'CODE1234');
       expect(result).toEqual({ claimed: true });
@@ -210,7 +229,12 @@ describe('AffiliateService', () => {
 
     it('returns { claimed: true } silently on P2002', async () => {
       const { svc, prisma } = makeService();
-      prisma.__seedUser({ id: 'u1', createdAt: new Date(), referralCode: null, referralReceived: null });
+      prisma.__seedUser({
+        id: 'u1',
+        createdAt: new Date(),
+        referralCode: null,
+        referralReceived: null,
+      });
       prisma.__seedUser({ id: 'referrer1', referralCode: 'CODE1234', status: 'active' });
       prisma.referral.create.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError('Unique constraint', {

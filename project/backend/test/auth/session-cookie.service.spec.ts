@@ -5,14 +5,18 @@ function fakeConfig(overrides: Record<string, any> = {}) {
     sessionCookieName: 'tvz_session',
     sessionCookieSecure: false,
   };
-  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides }[k])) };
+  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides })[k]) };
 }
 
 function fakeSessions(overrides: Partial<any> = {}) {
   return {
-    issue: jest.fn().mockResolvedValue({ token: 'tok123', expiresAt: new Date(Date.now() + 86400000) }),
+    issue: jest
+      .fn()
+      .mockResolvedValue({ token: 'tok123', expiresAt: new Date(Date.now() + 86400000) }),
     revoke: jest.fn().mockResolvedValue(undefined),
-    get maxAgeMs() { return 86400000; },
+    get maxAgeMs() {
+      return 86400000;
+    },
     ...overrides,
   };
 }
@@ -42,7 +46,10 @@ describe('SessionCookieService', () => {
 
       await svc.start(req, res as any, 'u1');
 
-      expect(sessions.issue).toHaveBeenCalledWith('u1', expect.objectContaining({ ip: '127.0.0.1' }));
+      expect(sessions.issue).toHaveBeenCalledWith(
+        'u1',
+        expect.objectContaining({ ip: '127.0.0.1' }),
+      );
       expect(res.cookie).toHaveBeenCalledWith(
         'tvz_session',
         'tok123',
@@ -52,7 +59,10 @@ describe('SessionCookieService', () => {
 
     it('passes secure: true when sessionCookieSecure is true', async () => {
       const sessions = fakeSessions();
-      const svc = new SessionCookieService(sessions as any, fakeConfig({ sessionCookieSecure: true }) as any);
+      const svc = new SessionCookieService(
+        sessions as any,
+        fakeConfig({ sessionCookieSecure: true }) as any,
+      );
       const res = fakeRes();
 
       await svc.start(fakeReq(), res as any, 'u1');
