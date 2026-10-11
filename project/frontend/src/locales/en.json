@@ -1874,6 +1874,7 @@
     "title": "Consumption",
     "totalLabel": "Total spent",
     "clicks": "Ad clicks",
+    "clicksRollup": "{n} billed clicks",
     "aiUsage": "Website Builder AI",
     "builderUnlock": "Builder unlock fee",
     "other": "Other",
