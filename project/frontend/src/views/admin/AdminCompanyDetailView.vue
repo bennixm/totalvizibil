@@ -472,6 +472,11 @@ function toggleSuspend() {
   }
 }
 
+const pendingDeletion = computed(() => !!data.value?.company.deletionScheduledAt)
+function cancelDeletion() {
+  void act('cancelDeletion', () => admin.cancelCompanyDeletion(id.value), t('adminCo.deletionCanceled'))
+}
+
 // --- leads ---
 const leadRows = ref<AdminCompanyLead[]>([])
 const leadCursor = ref<string | null>(null)
@@ -567,6 +572,9 @@ const leadStatusItems = computed(() => [
       >
         <template #pills>
           <v-chip size="small" :color="bizColor[data.company.status]" variant="tonal">{{ statusLabel }}</v-chip>
+          <v-chip v-if="pendingDeletion" size="small" color="error" variant="flat" prepend-icon="mdi-delete-clock-outline">
+            {{ t('adminCo.pendingDeletionPill') }}
+          </v-chip>
           <v-chip v-if="camp" size="small" :color="campColor[camp.status]" variant="flat">
             {{ t('admin.camp_' + camp.status) }}
           </v-chip>
@@ -609,6 +617,28 @@ const leadStatusItems = computed(() => [
           <AdminMetaItem :label="t('adminCo.created')" :value="dOnly(data.company.createdAt)" />
         </template>
       </AdminDetailHeader>
+
+      <v-alert
+        v-if="pendingDeletion"
+        type="error"
+        variant="tonal"
+        density="comfortable"
+        class="ac__deletionAlert"
+        :title="t('adminCo.pendingDeletionTitle')"
+      >
+        <p class="ac__deletionText">
+          {{ t('adminCo.pendingDeletionText', { date: dt(data.company.deletionEffectiveAt) }) }}
+        </p>
+        <v-btn
+          size="small"
+          variant="flat"
+          color="error"
+          :loading="busy === 'cancelDeletion'"
+          @click="cancelDeletion"
+        >
+          {{ t('adminCo.cancelDeletionCta') }}
+        </v-btn>
+      </v-alert>
 
       <v-tabs v-model="tab" color="primary" class="ac__tabs" show-arrows>
         <v-tab value="overview" prepend-icon="mdi-store-cog-outline">{{ t('adminCo.tabOverview') }}</v-tab>
@@ -948,6 +978,9 @@ const leadStatusItems = computed(() => [
             <p v-else-if="builderPending" class="ac__muted ac__builderNote">
               <v-icon icon="mdi-alert-outline" size="13" /> {{ t('adminCo.builderRequired') }}
             </p>
+            <p v-else-if="camp?.cpcBelowFeedMinimum" class="ac__muted ac__builderNote ac__builderNote--error">
+              <v-icon icon="mdi-alert-octagon-outline" size="13" /> {{ t('adminCo.cpcBelowFeedMinimum') }}
+            </p>
             <p v-else-if="cpcBelowMarket" class="ac__muted ac__builderNote">
               <v-icon icon="mdi-trending-up" size="13" />
               {{
@@ -958,6 +991,22 @@ const leadStatusItems = computed(() => [
               }}
             </p>
           </div>
+            </AdminSection>
+
+            <!-- Real per-Feed standing — same source the owner's own campaign
+                 page reads, so admin sees exactly why "not #1" fires. -->
+            <AdminSection v-if="hasCampaign" :title="t('adminCo.feedStatusTitle')" icon="mdi-map-marker-radius-outline">
+              <p v-if="data.feedStatus.needsPositionUpgrade" class="ac__muted ac__builderNote">
+                <v-icon icon="mdi-trending-up" size="13" />
+                {{ t('adminCo.needsPositionUpgrade', { n: fmt(data.feedStatus.recommendedCpc.credits) }) }}
+              </p>
+              <p v-if="!data.feedStatus.feedRanks.length" class="ac__muted">{{ t('adminCo.noFeeds') }}</p>
+              <ul v-else class="ac__feedList">
+                <li v-for="(r, i) in data.feedStatus.feedRanks" :key="i" class="ac__feedRow">
+                  <span class="ac__feedName">{{ r.county === 'nationwide' ? t('feed.coverageCountry') : r.county }} · {{ nm(r.categoryName) }}</span>
+                  <span class="ac__feedPos" :class="{ 'is-top': r.position === 1 }">#{{ r.position }} / {{ r.total }}</span>
+                </li>
+              </ul>
             </AdminSection>
           </div>
         </v-window-item>
@@ -1140,6 +1189,12 @@ const leadStatusItems = computed(() => [
 .ac__tabs {
   border-bottom: 1px solid var(--tvz-hairline);
   margin-bottom: 1.4rem;
+}
+.ac__deletionAlert {
+  margin-bottom: 1.2rem;
+}
+.ac__deletionText {
+  margin: 0.25rem 0 0.75rem;
 }
 .ac__stack {
   display: flex;
@@ -1523,6 +1578,40 @@ const leadStatusItems = computed(() => [
   flex-wrap: wrap;
   margin-top: 1rem;
   align-items: center;
+}
+.ac__builderNote--error {
+  color: rgb(var(--v-theme-error));
+  font-weight: 600;
+}
+.ac__feedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.ac__feedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-on-surface), 0.03);
+  font-size: 0.84rem;
+}
+.ac__feedName {
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.ac__feedPos {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--v-theme-warning));
+}
+.ac__feedPos.is-top {
+  color: rgb(var(--v-theme-success));
 }
 
 .ac__cpcLive {

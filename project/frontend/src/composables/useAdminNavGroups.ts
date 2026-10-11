@@ -20,6 +20,7 @@ export function useAdminNavGroups() {
         { to: { name: 'admin-users' }, label: t('admin.navUsers'), icon: 'mdi-account-multiple-outline' },
         { to: { name: 'admin-businesses' }, label: t('admin.navBusinesses'), icon: 'mdi-domain' },
         { to: { name: 'admin-invoices' }, label: t('admin.navInvoices'), icon: 'mdi-receipt-text-outline' },
+        { to: { name: 'admin-referrals' }, label: t('admin.navReferrals'), icon: 'mdi-account-multiple-plus-outline' },
         { to: { name: 'admin-categories' }, label: t('admin.navCategories'), icon: 'mdi-shape-outline' },
         { to: { name: 'support' }, label: t('admin.navSupport'), icon: 'mdi-face-agent' },
       ],

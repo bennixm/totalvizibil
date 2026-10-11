@@ -523,6 +523,16 @@ async function save() {
                 <span class="as__affLbl">{{ t('adminSettings.affiliateCreditsPaid') }}</span>
               </div>
             </div>
+            <v-btn
+              v-if="referralStats"
+              :to="{ name: 'admin-referrals' }"
+              variant="text"
+              size="small"
+              append-icon="mdi-arrow-right"
+              class="as__affLink"
+            >
+              {{ t('adminSettings.affiliateViewAll') }}
+            </v-btn>
           </AdminSection>
         </v-window-item>
 
@@ -743,6 +753,9 @@ async function save() {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--tvz-hairline);
+}
+.as__affLink {
+  margin-top: 0.25rem;
 }
 .as__affStat {
   display: flex;

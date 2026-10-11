@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 import { apiFetch } from '@/services/api'
 import type { PlatformRole } from '@/stores/auth'
-import type { CampaignPayload, SaveCampaignInput } from '@/stores/campaign'
+import type { CampaignPayload, FeedRankEntry, SaveCampaignInput } from '@/stores/campaign'
 import type { DashboardAnalytics, LocalizedName } from '@/stores/companies'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 
@@ -25,6 +25,7 @@ export interface AdminStats {
     websitesPublished: number
     new7d: number
     new30d: number
+    pendingDeletion: number
     byCountry: { country: string; count: number }[]
   }
   economy: {
@@ -204,6 +205,12 @@ export interface InvoicesFilters {
   pageSize: number
 }
 
+export interface ReferralsFilters {
+  status: 'pending' | 'rewarded' | null
+  page: number
+  pageSize: number
+}
+
 /** Full invoice record for the admin detail view — the raw fiscal document,
  *  unlike the trimmed `AdminInvoiceRow` used for the list. */
 export interface AdminInvoiceDetail {
@@ -261,6 +268,8 @@ export interface AdminBusinessRow {
   category: LocalizedName | null
   owner: { id: string; name: string; email: string }
   createdAt: string
+  deletionScheduledAt: string | null
+  deletionEffectiveAt: string | null
   campaign: {
     status: CampaignStatus
     dailyBudget: Money
@@ -276,6 +285,7 @@ export interface BusinessesFilters {
   search: string
   status: BusinessStatus | null
   campaign: CampaignFilter | null
+  pendingDeletion: boolean
   page: number
   pageSize: number
 }
@@ -313,6 +323,12 @@ interface AdminState {
   invoicesTotal: number
   invoiceFilters: InvoicesFilters
   loadingInvoices: boolean
+  referrals: AdminReferralRow[]
+  referralsTotal: number
+  referralsTotalRewarded: number
+  referralsCreditsPaid: number
+  referralFilters: ReferralsFilters
+  loadingReferrals: boolean
 }
 
 export interface UpdateUserInput {
@@ -398,8 +414,19 @@ export interface AdminCompanyDetail {
     } | null
     owner: { id: string; name: string; email: string; status: UserStatus }
     counts: { services: number; contacts: number; leads: number; clicks: number }
+    /** Inside the 7-day grace window — frozen, awaiting an owner/admin cancel
+     *  or the sweep's final wipe at `deletionEffectiveAt`. */
+    deletionScheduledAt: string | null
+    deletionEffectiveAt: string | null
   }
   campaign: CampaignPayload
+  /** Same per-Feed source of truth the owner's own campaign-spend page reads —
+   *  the real position (not just the editor's flat recommendation). */
+  feedStatus: {
+    feedRanks: FeedRankEntry[]
+    needsPositionUpgrade: boolean
+    recommendedCpc: Money
+  }
   analytics: DashboardAnalytics
   leads: {
     summary: {
@@ -459,7 +486,14 @@ export const useAdminStore = defineStore('admin', {
     loadingUsers: false,
     businesses: [],
     businessesTotal: 0,
-    businessFilters: { search: '', status: null, campaign: null, page: 1, pageSize: 20 },
+    businessFilters: {
+      search: '',
+      status: null,
+      campaign: null,
+      pendingDeletion: false,
+      page: 1,
+      pageSize: 20,
+    },
     loadingBusinesses: false,
     settings: null,
     categories: [],
@@ -468,6 +502,12 @@ export const useAdminStore = defineStore('admin', {
     invoicesTotal: 0,
     invoiceFilters: { search: '', status: null, kind: null, page: 1, pageSize: 20 },
     loadingInvoices: false,
+    referrals: [],
+    referralsTotal: 0,
+    referralsTotalRewarded: 0,
+    referralsCreditsPaid: 0,
+    referralFilters: { status: null, page: 1, pageSize: 20 },
+    loadingReferrals: false,
   }),
 
   actions: {
@@ -508,6 +548,7 @@ export const useAdminStore = defineStore('admin', {
         if (f.search.trim()) p.set('search', f.search.trim())
         if (f.status) p.set('status', f.status)
         if (f.campaign) p.set('campaign', f.campaign)
+        if (f.pendingDeletion) p.set('pendingDeletion', 'true')
         p.set('page', String(f.page))
         p.set('pageSize', String(f.pageSize))
         const res = await apiFetch<{ items: AdminBusinessRow[]; total: number }>(
@@ -550,6 +591,30 @@ export const useAdminStore = defineStore('admin', {
       this.invoiceFilters[key] = value
       if (key !== 'page') this.invoiceFilters.page = 1
       void this.fetchInvoices()
+    },
+
+    async fetchReferralsList(): Promise<void> {
+      this.loadingReferrals = true
+      try {
+        const f = this.referralFilters
+        const res = await this.fetchReferrals({
+          status: f.status ?? undefined,
+          page: f.page,
+          pageSize: f.pageSize,
+        })
+        this.referrals = res.items
+        this.referralsTotal = res.total
+        this.referralsTotalRewarded = res.totalRewarded
+        this.referralsCreditsPaid = res.creditsPaid
+      } finally {
+        this.loadingReferrals = false
+      }
+    },
+
+    setReferralFilter<K extends keyof ReferralsFilters>(key: K, value: ReferralsFilters[K]): void {
+      this.referralFilters[key] = value
+      if (key !== 'page') this.referralFilters.page = 1
+      void this.fetchReferralsList()
     },
 
     fetchInvoiceDetail(id: string): Promise<AdminInvoiceDetail> {
@@ -662,6 +727,12 @@ export const useAdminStore = defineStore('admin', {
       return apiFetch(`/admin/companies/${companyId}/status`, {
         method: 'PATCH',
         body: { status },
+      })
+    },
+
+    cancelCompanyDeletion(companyId: string): Promise<AdminCompanyDetail> {
+      return apiFetch<AdminCompanyDetail>(`/admin/companies/${companyId}/cancel-deletion`, {
+        method: 'POST',
       })
     },
 

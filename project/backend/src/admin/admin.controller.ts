@@ -309,6 +309,11 @@ export class AdminController {
     return this.companies.setStatus(id, dto);
   }
 
+  @Post('companies/:id/cancel-deletion')
+  cancelCompanyDeletion(@Param('id', ParseUUIDPipe) id: string) {
+    return this.companies.cancelDeletion(id);
+  }
+
   @Put('companies/:id/campaign')
   saveCampaign(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SaveCampaignDto) {
     return this.companies.saveCampaign(id, dto);

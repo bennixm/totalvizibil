@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { resolveLocationInput } from '../geo/ro-cities';
 import { WalletService } from '../wallet/wallet.service';
 import { CampaignService } from '../campaigns/campaign.service';
+import { COMPANY_DELETE_GRACE_MS } from '../companies/companies.constants';
 import { LeadsService } from '../leads/leads.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { ProV2Service } from '../website/builder/pro-v2/pro-v2.service';
@@ -52,12 +53,13 @@ export class AdminCompaniesService {
   // --- list / browse --------------------------------------------
 
   async list(query: ListCompaniesQuery) {
-    const { search, status, campaign, page = 1, pageSize = 20 } = query;
+    const { search, status, campaign, pendingDeletion, page = 1, pageSize = 20 } = query;
 
     const where: Prisma.CompanyWhereInput = {
       ...(status ? { status } : {}),
       ...(campaign === 'none' ? { campaign: { is: null } } : {}),
       ...(campaign && campaign !== 'none' ? { campaign: { status: campaign } } : {}),
+      ...(pendingDeletion ? { deletionScheduledAt: { not: null } } : {}),
       ...(search
         ? {
             OR: [
@@ -101,6 +103,10 @@ export class AdminCompaniesService {
         category: (c.category?.nameI18n as Record<string, string> | undefined) ?? null,
         owner: c.owner,
         createdAt: c.createdAt,
+        deletionScheduledAt: c.deletionScheduledAt,
+        deletionEffectiveAt: c.deletionScheduledAt
+          ? new Date(c.deletionScheduledAt.getTime() + COMPANY_DELETE_GRACE_MS)
+          : null,
         campaign: c.campaign
           ? {
               status: c.campaign.status,
@@ -136,13 +142,32 @@ export class AdminCompaniesService {
     });
     if (!company) throw new NotFoundException('Company not found');
 
-    const [campaign, analytics, leadItems, leadSummary, advancedPriceCredits] = await Promise.all([
-      this.campaigns.getFor(companyId),
-      this.analytics.companyAnalytics(companyId),
-      this.leads.listFor(companyId, { limit: 30 }),
-      this.leads.summaryFor(companyId),
-      this.settings.advancedBuilderPriceCredits(),
-    ]);
+    const [campaign, feedRanks, analytics, leadItems, leadSummary, advancedPriceCredits] =
+      await Promise.all([
+        this.campaigns.getFor(companyId),
+        // Same per-Feed source of truth the owner's own campaign-spend page
+        // reads — so admin sees exactly where the company really stands, not
+        // just the editor's flat recommendation. `feedRanksFor` alone (not
+        // the full `spendReportFor`) so this doesn't run the campaign's
+        // self-healing `reconcile()` a second time in parallel with `getFor`.
+        this.analytics.feedRanksFor(companyId),
+        this.analytics.companyAnalytics(companyId),
+        this.leads.listFor(companyId, { limit: 30 }),
+        this.leads.summaryFor(companyId),
+        this.settings.advancedBuilderPriceCredits(),
+      ]);
+    // Mirrors `CampaignService.spendReportFor`'s own needsPositionUpgrade:
+    // only a real ask when raising CPC to the recommendation would still
+    // change anything (manual mode, current CPC below it) — composite rank
+    // can stay "not #1" for budget/response/plan/age reasons this number
+    // can't fix, so it's not flagged as a CPC problem once CPC already meets it.
+    const recommendedCpc = campaign.suggestions.appearFirst.cpc;
+    const needsPositionUpgrade =
+      !!campaign.campaign &&
+      !campaign.campaign.autoOptimize &&
+      campaign.campaign.cpc.minor < recommendedCpc.minor &&
+      feedRanks.some((r) => r.position !== 1);
+    const feedStatus = { feedRanks, needsPositionUpgrade, recommendedCpc };
 
     // Județ-based coverage only — never mixed, so the first row's `nationwide`
     // tells the whole story (either one `nationwide` row, or one row per județ).
@@ -162,6 +187,10 @@ export class AdminCompaniesService {
         createdAt: company.createdAt,
         advancedUnlockedAt: company.advancedUnlockedAt,
         advancedPriceCredits,
+        deletionScheduledAt: company.deletionScheduledAt,
+        deletionEffectiveAt: company.deletionScheduledAt
+          ? new Date(company.deletionScheduledAt.getTime() + COMPANY_DELETE_GRACE_MS)
+          : null,
         category: company.category
           ? {
               slug: company.category.slug,
@@ -192,6 +221,7 @@ export class AdminCompaniesService {
         },
       },
       campaign,
+      feedStatus,
       analytics,
       leads: { summary: leadSummary, items: leadItems.items, nextCursor: leadItems.nextCursor },
     };
@@ -474,5 +504,42 @@ export class AdminCompaniesService {
       );
 
     return { ok: true as const, status: 'draft' as const };
+  }
+
+  /**
+   * Call off a pending deletion on the owner's behalf — same effect as the
+   * owner's own `cancelDeletion` (no admin-bypass needed there since this
+   * doesn't touch anything ownership-gated), just reachable from here too
+   * for support cases where the owner can't get to their own panel in time.
+   * A no-op past the grace window — the sweep may already be mid-wipe.
+   */
+  async cancelDeletion(companyId: string) {
+    const company = await this.loadCompany(companyId);
+    if (!company.deletionScheduledAt) return this.detail(companyId);
+    if (Date.now() - company.deletionScheduledAt.getTime() >= COMPANY_DELETE_GRACE_MS) {
+      throw new BadRequestException('deletion_grace_expired');
+    }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { deletionScheduledAt: null, deletionReminderSentAt: null },
+    });
+
+    void this.notifications
+      .notify({
+        userId: company.ownerUserId,
+        type: 'business_deletion_canceled',
+        title: `Ștergerea afacerii „${company.displayName}" a fost anulată`,
+        body: `Un administrator a anulat ștergerea afacerii „${company.displayName}". Este din nou activă.`,
+        channels: { panel: true, email: true },
+        data: { companyId },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Deletion-canceled notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
+    return this.detail(companyId);
   }
 }
