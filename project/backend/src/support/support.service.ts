@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -15,12 +16,21 @@ import { CreateTicketDto } from './dto/create-ticket.dto';
 import { ListTicketsQuery } from './dto/list-tickets.query';
 import { PostMessageDto } from './dto/post-message.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { UploadAttachmentDto } from './dto/upload-attachment.dto';
+import { decodeAttachment } from './attachment-validation';
 import {
   ticketDetailInclude,
   ticketDetailView,
   ticketListInclude,
   ticketListView,
 } from './support.view';
+
+/** A requester can have at most this many uploaded-but-not-yet-sent
+ *  attachments on one ticket at a time — keeps an abandoned upload flow
+ *  from silently accumulating unbounded rows (there is no sweep for
+ *  never-sent attachments, same as this app's other "upload now, reference
+ *  later" flows). */
+const MAX_PENDING_ATTACHMENTS = 10;
 
 /** The signed-in caller, resolved to "is this person support staff?". */
 export interface SupportActor {
@@ -171,17 +181,36 @@ export class SupportService {
       ticketData.resolvedAt = null;
     }
 
-    await this.prisma.$transaction([
-      this.prisma.supportMessage.create({
+    const messageId = randomUUID();
+    const attachmentIds = dto.attachmentIds ?? [];
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.supportMessage.create({
         data: {
+          id: messageId,
           ticketId: id,
           authorId: actor.id,
           kind: internal ? 'note' : 'reply',
           body: dto.body,
         },
-      }),
-      this.prisma.supportTicket.update({ where: { id }, data: ticketData }),
-    ]);
+      });
+      await tx.supportTicket.update({ where: { id }, data: ticketData });
+      if (attachmentIds.length) {
+        // Scoped so this can only ever claim attachments this same actor
+        // uploaded onto this same ticket and that aren't already linked to a
+        // different message — never another user's upload or a stale id
+        // from elsewhere, even if the client sent a bogus/foreign id. If
+        // any id in the batch doesn't match, the whole transaction rolls
+        // back rather than silently sending the message without them.
+        const linked = await tx.supportAttachment.updateMany({
+          where: { id: { in: attachmentIds }, ticketId: id, uploaderId: actor.id, messageId: null },
+          data: { messageId },
+        });
+        if (linked.count !== attachmentIds.length) {
+          throw new BadRequestException('invalid_attachments');
+        }
+      }
+    });
 
     if (staffReply) {
       void this.notifyRequester(
@@ -202,6 +231,51 @@ export class SupportService {
       );
     }
     return this.get(actor, id);
+  }
+
+  /**
+   * Upload a file (PDF or image) onto a ticket, not yet attached to any
+   * message — same two-step shape as the website builders' own image
+   * attach (upload first, get an id back, then reference it). The real
+   * type is re-derived from the decoded bytes' magic number in
+   * `decodeAttachment`, not trusted from the client's claimed MIME.
+   */
+  async uploadAttachment(actor: SupportActor, ticketId: string, dto: UploadAttachmentDto) {
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      select: { requesterId: true, status: true },
+    });
+    if (!ticket || (!actor.staff && ticket.requesterId !== actor.id)) {
+      throw new NotFoundException('Ticket not found');
+    }
+    if (ticket.status === 'closed') throw new BadRequestException('ticket_closed');
+
+    const pending = await this.prisma.supportAttachment.count({
+      where: { ticketId, uploaderId: actor.id, messageId: null },
+    });
+    if (pending >= MAX_PENDING_ATTACHMENTS) throw new BadRequestException('too_many_attachments');
+
+    const { mime, bytes, filename } = decodeAttachment(dto.dataUri, dto.filename);
+    const row = await this.prisma.supportAttachment.create({
+      data: { ticketId, uploaderId: actor.id, filename, mime, bytes, size: bytes.length },
+      select: { id: true, filename: true, mime: true, size: true },
+    });
+    return row;
+  }
+
+  /** Streamed back to whoever can see the ticket (requester or staff) — same
+   *  access rule as everything else on it. */
+  async getAttachment(actor: SupportActor, ticketId: string, attachmentId: string) {
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      select: { requesterId: true },
+    });
+    if (!ticket || (!actor.staff && ticket.requesterId !== actor.id)) {
+      throw new NotFoundException('Ticket not found');
+    }
+    const att = await this.prisma.supportAttachment.findUnique({ where: { id: attachmentId } });
+    if (!att || att.ticketId !== ticketId) throw new NotFoundException('Attachment not found');
+    return att;
   }
 
   async update(actor: SupportActor, id: string, dto: UpdateTicketDto) {

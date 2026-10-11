@@ -57,6 +57,7 @@ model User {
   supportTicketsRequested SupportTicket[]          @relation("SupportRequester")
   supportTicketsAssigned  SupportTicket[]          @relation("SupportAssignee")
   supportMessages         SupportMessage[]
+  supportAttachments      SupportAttachment[]
   referralsMade           Referral[]               @relation("ReferralsMade")
   referralReceived        Referral?                @relation("ReferralReceived")
   aiUsageRecords          AiUsageRecord[]
@@ -1246,10 +1247,11 @@ model SupportTicket {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  requester User             @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  assignee  User?            @relation("SupportAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  company   Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  messages  SupportMessage[]
+  requester   User                @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  assignee    User?               @relation("SupportAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  company     Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  messages    SupportMessage[]
+  attachments SupportAttachment[]
 
   @@index([status])
   @@index([requesterId])
@@ -1267,11 +1269,40 @@ model SupportMessage {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  ticket      SupportTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author      User?               @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  attachments SupportAttachment[]
 
   @@index([ticketId, createdAt])
   @@map("support_messages")
+}
+
+// A file (PDF or image) attached to a ticket — uploaded standalone right
+// before the message that references it is sent (same two-step shape as the
+// website builders' own image attach: upload first, get an id back, then
+// send the message with that id). `messageId` is null in between those two
+// steps; `postMessage` fills it in atomically when the message is created.
+// Bytes live directly in Postgres, same convention as `WebsiteAsset` — this
+// app has no object-storage bucket.
+model SupportAttachment {
+  id         String  @id @default(uuid()) @db.Uuid
+  ticketId   String  @map("ticket_id") @db.Uuid
+  messageId  String? @map("message_id") @db.Uuid
+  uploaderId String  @map("uploader_id") @db.Uuid
+  filename   String
+  mime       String
+  bytes      Bytes
+  size       Int
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket   SupportTicket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  message  SupportMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploader User            @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([messageId])
+  @@map("support_attachments")
 }
 
 // ---------------------------------------------------------------------------

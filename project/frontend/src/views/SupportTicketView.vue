@@ -23,6 +23,48 @@ const id = computed(() => String(route.params.id))
 const draft = ref('')
 const internal = ref(false)
 
+// --- attachments (composer) --------------------------------------------
+const MAX_FILES = 5
+const MAX_FILE_BYTES = 6_000_000
+const pendingFiles = ref<File[]>([])
+const uploadingAttachments = ref(false)
+const attachError = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
+
+function onAttachClick(): void {
+  fileInput.value?.click()
+}
+function onFilesPicked(e: Event): void {
+  const input = e.target as HTMLInputElement
+  attachError.value = ''
+  for (const file of Array.from(input.files ?? [])) {
+    if (pendingFiles.value.length >= MAX_FILES) {
+      attachError.value = t('support.attachTooMany', { n: MAX_FILES })
+      break
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      attachError.value = t('support.attachTooLarge', { n: Math.round(MAX_FILE_BYTES / 1_000_000) })
+      continue
+    }
+    pendingFiles.value.push(file)
+  }
+  input.value = ''
+}
+function removeFile(i: number): void {
+  pendingFiles.value.splice(i, 1)
+}
+function fileSize(bytes: number): string {
+  return bytes >= 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.round(bytes / 1000)} KB`
+}
+function readFileAsDataUri(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result))
+    r.onerror = () => reject(new Error('read_failed'))
+    r.readAsDataURL(file)
+  })
+}
+
 const isStaff = computed(() => ticket.value?.viewerIsStaff ?? false)
 const isRequester = computed(() => ticket.value?.viewerIsRequester ?? false)
 const closed = computed(() => ticket.value?.status === 'closed')
@@ -75,11 +117,37 @@ function systemText(m: TicketMessage): string {
 
 async function send(): Promise<void> {
   const text = draft.value.trim()
-  if (!text || working.value) return
-  const ok = await support.reply(id.value, text, internal.value && isStaff.value)
+  if ((!text && !pendingFiles.value.length) || working.value || uploadingAttachments.value) return
+
+  const attachmentIds: string[] = []
+  if (pendingFiles.value.length) {
+    uploadingAttachments.value = true
+    attachError.value = ''
+    try {
+      for (const file of pendingFiles.value) {
+        const dataUri = await readFileAsDataUri(file)
+        const att = await support.uploadAttachment(id.value, dataUri, file.name)
+        if (!att) {
+          attachError.value = support.error || t('support.attachFailed')
+          return
+        }
+        attachmentIds.push(att.id)
+      }
+    } finally {
+      uploadingAttachments.value = false
+    }
+  }
+
+  const ok = await support.reply(
+    id.value,
+    text || t('support.attachOnlyBody'),
+    internal.value && isStaff.value,
+    attachmentIds,
+  )
   if (ok) {
     draft.value = ''
     internal.value = false
+    pendingFiles.value = []
   }
 }
 
@@ -197,6 +265,23 @@ onMounted(() => {
                   <span class="msg__when">{{ fmtDateTime(m.createdAt) }}</span>
                 </div>
                 <p class="msg__body">{{ m.body }}</p>
+                <div v-if="m.attachments.length" class="msg__files">
+                  <a
+                    v-for="a in m.attachments"
+                    :key="a.id"
+                    :href="support.attachmentUrl(id, a.id)"
+                    target="_blank"
+                    rel="noopener"
+                    class="msg__file"
+                  >
+                    <v-icon
+                      :icon="a.mime === 'application/pdf' ? 'mdi-file-pdf-box' : 'mdi-file-image-outline'"
+                      size="16"
+                    />
+                    <span class="msg__fileName">{{ a.filename }}</span>
+                    <span class="msg__fileSize">{{ fileSize(a.size) }}</span>
+                  </a>
+                </div>
               </template>
             </li>
           </ol>
@@ -212,7 +297,42 @@ onMounted(() => {
               rows="3"
               hide-details
             />
+            <div v-if="pendingFiles.length" class="composer__pending">
+              <span v-for="(f, i) in pendingFiles" :key="i" class="composer__pendingChip">
+                <v-icon icon="mdi-paperclip" size="13" />
+                <span class="composer__pendingName">{{ f.name }}</span>
+                <span class="composer__pendingSize">{{ fileSize(f.size) }}</span>
+                <button
+                  type="button"
+                  class="composer__pendingRemove"
+                  :aria-label="t('common.close')"
+                  @click="removeFile(i)"
+                >
+                  <v-icon icon="mdi-close" size="13" />
+                </button>
+              </span>
+            </div>
+            <p v-if="attachError" class="composer__attachErr">
+              <v-icon icon="mdi-alert-circle-outline" size="13" /> {{ attachError }}
+            </p>
             <div class="composer__row">
+              <input
+                ref="fileInput"
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"
+                multiple
+                class="composer__fileInput"
+                @change="onFilesPicked"
+              />
+              <button
+                type="button"
+                class="composer__attachBtn"
+                :disabled="pendingFiles.length >= MAX_FILES"
+                :title="t('support.attachFile')"
+                @click="onAttachClick"
+              >
+                <v-icon icon="mdi-paperclip" size="18" />
+              </button>
               <label v-if="isStaff" class="composer__toggle">
                 <input v-model="internal" type="checkbox" />
                 <span>{{ t('support.internalNote') }}</span>
@@ -222,8 +342,8 @@ onMounted(() => {
                 color="primary"
                 variant="flat"
                 class="composer__send"
-                :loading="working"
-                :disabled="!draft.trim()"
+                :loading="working || uploadingAttachments"
+                :disabled="!draft.trim() && !pendingFiles.length"
                 append-icon="mdi-send"
                 @click="send"
               >
@@ -543,6 +663,39 @@ onMounted(() => {
   white-space: pre-wrap;
   word-break: break-word;
 }
+.msg__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+.msg__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 7px;
+  border: 1px solid var(--tvz-hairline);
+  background: rgb(var(--v-theme-surface));
+  font-size: 0.76rem;
+  color: rgb(var(--v-theme-on-surface));
+  text-decoration: none;
+  max-width: 100%;
+}
+.msg__file:hover {
+  border-color: rgba(var(--v-theme-primary), 0.5);
+  color: rgb(var(--v-theme-primary));
+}
+.msg__fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 16rem;
+}
+.msg__fileSize {
+  flex: none;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
 .mini {
   font-size: 0.56rem;
   font-weight: 800;
@@ -592,6 +745,70 @@ onMounted(() => {
 }
 .composer__send {
   border-radius: 8px;
+}
+.composer__pending {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+.composer__pendingChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.3rem 0.25rem 0.5rem;
+  border-radius: 7px;
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  font-size: 0.74rem;
+  max-width: 100%;
+}
+.composer__pendingName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 14rem;
+}
+.composer__pendingSize {
+  flex: none;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.composer__pendingRemove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.composer__pendingRemove:hover {
+  background: rgba(var(--v-theme-on-surface), 0.12);
+}
+.composer__attachErr {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: rgb(var(--v-theme-error));
+}
+.composer__fileInput {
+  display: none;
+}
+.composer__attachBtn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.composer__attachBtn:hover {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+}
+.composer__attachBtn:disabled {
+  opacity: 0.4;
 }
 .closedbar {
   display: flex;

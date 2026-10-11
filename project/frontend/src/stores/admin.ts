@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 
-import { apiFetch } from '@/services/api'
+import { apiFetch, BASE_URL } from '@/services/api'
 import type { PlatformRole } from '@/stores/auth'
 import type { CampaignPayload, FeedRankEntry, SaveCampaignInput } from '@/stores/campaign'
 import type { DashboardAnalytics, LocalizedName } from '@/stores/companies'
@@ -664,6 +664,37 @@ export const useAdminStore = defineStore('admin', {
     /** Paginated/filterable Activity-tab history — the user-detail payload
      *  above only ever embeds the most recent 20 with no filters; this is
      *  what "search by id" / "load more" there call into. */
+    /** Same user transaction history as a downloadable PDF — plain href,
+     *  session cookie rides along, same shape as the owner-facing exports. */
+    userTransactionsExportUrl(
+      id: string,
+      filters: { type?: string; search?: string } = {},
+    ): string {
+      const p = new URLSearchParams()
+      if (filters.type) p.set('type', filters.type)
+      if (filters.search) p.set('search', filters.search)
+      const q = p.toString() ? `?${p.toString()}` : ''
+      return `${BASE_URL}/admin/users/${id}/transactions/export${q}`
+    },
+
+    companiesExportUrl(): string {
+      const f = this.businessFilters
+      const p = new URLSearchParams()
+      if (f.search.trim()) p.set('search', f.search.trim())
+      if (f.status) p.set('status', f.status)
+      if (f.campaign) p.set('campaign', f.campaign)
+      if (f.pendingDeletion) p.set('pendingDeletion', 'true')
+      const q = p.toString() ? `?${p.toString()}` : ''
+      return `${BASE_URL}/admin/companies/export${q}`
+    },
+
+    referralsExportUrl(): string {
+      const p = new URLSearchParams()
+      if (this.referralFilters.status) p.set('status', this.referralFilters.status)
+      const q = p.toString() ? `?${p.toString()}` : ''
+      return `${BASE_URL}/admin/referrals/export${q}`
+    },
+
     listUserTransactions(
       id: string,
       opts: { cursor?: string; type?: string; search?: string } = {},

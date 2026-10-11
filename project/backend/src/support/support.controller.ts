@@ -8,8 +8,11 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
@@ -19,6 +22,7 @@ import { CreateTicketDto } from './dto/create-ticket.dto';
 import { ListTicketsQuery } from './dto/list-tickets.query';
 import { PostMessageDto } from './dto/post-message.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { UploadAttachmentDto } from './dto/upload-attachment.dto';
 
 @UseGuards(AuthGuard)
 @Controller('support')
@@ -71,6 +75,35 @@ export class SupportController {
     @Body() dto: PostMessageDto,
   ) {
     return this.support.postMessage(this.actor(user), id, dto);
+  }
+
+  /** Upload one file (PDF/image), returned id is attached to the message
+   *  that references it in the following `postMessage` call. Throttled
+   *  separately from the message-post rate — a handful of up-to-6MB
+   *  uploads per minute is plenty for a real person attaching evidence. */
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Post('tickets/:id/attachments')
+  uploadAttachment(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UploadAttachmentDto,
+  ) {
+    return this.support.uploadAttachment(this.actor(user), id, dto);
+  }
+
+  @Get('tickets/:id/attachments/:attachmentId')
+  async downloadAttachment(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const att = await this.support.getAttachment(this.actor(user), id, attachmentId);
+    res.setHeader('Content-Type', att.mime);
+    res.setHeader('Content-Length', att.size);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', `inline; filename="${att.filename.replace(/"/g, "'")}"`);
+    res.end(att.bytes);
   }
 
   @Patch('tickets/:id')

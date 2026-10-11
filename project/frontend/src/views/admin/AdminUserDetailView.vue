@@ -736,6 +736,17 @@ const txnColor: Record<string, string> = {
         <v-window-item value="activity">
           <div class="ud__stack">
             <AdminSection :title="t('admin.txnsTitle')" icon="mdi-swap-vertical">
+              <template #actions>
+                <v-btn
+                  v-if="activityTxns.length"
+                  :href="admin.userTransactionsExportUrl(id, { type: activityFilterType || undefined, search: activitySearch || undefined })"
+                  variant="text"
+                  size="small"
+                  prepend-icon="mdi-file-pdf-box"
+                >
+                  {{ t('transactions.exportPdf') }}
+                </v-btn>
+              </template>
               <div class="ud__txnFilters">
                 <v-text-field
                   v-model="activitySearch"

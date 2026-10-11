@@ -1,5 +1,14 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class PostMessageDto {
   @IsString()
@@ -12,4 +21,12 @@ export class PostMessageDto {
   @IsOptional()
   @IsBoolean()
   internal?: boolean;
+
+  /** Ids from the separate `POST .../attachments` upload step — attached to
+   *  this message once it's actually sent. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsUUID('4', { each: true })
+  attachmentIds?: string[];
 }

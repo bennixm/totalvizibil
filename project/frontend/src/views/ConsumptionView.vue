@@ -294,6 +294,15 @@ watch(
       <section class="card cons__list">
         <div class="cons__listHead">
           <h3>{{ t('consumption.recentTitle') }}</h3>
+          <v-btn
+            v-if="consumption.length"
+            :href="walletStore.consumptionExportUrl()"
+            variant="text"
+            size="small"
+            prepend-icon="mdi-file-pdf-box"
+          >
+            {{ t('consumption.exportPdf') }}
+          </v-btn>
         </div>
 
         <div class="cons__filters">
@@ -580,6 +589,10 @@ watch(
 }
 
 .cons__listHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
   margin-bottom: 0.2rem;
 }
 .cons__listHead h3 {

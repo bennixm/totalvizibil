@@ -33,7 +33,19 @@ onMounted(() => admin.fetchReferralsList())
       :eyebrow="t('admin.navGroupManage')"
       :count="admin.referralsTotal"
       :sub="t('adminRef.lead')"
-    />
+    >
+      <template #actions>
+        <v-btn
+          v-if="hasRows"
+          :href="admin.referralsExportUrl()"
+          variant="tonal"
+          size="small"
+          prepend-icon="mdi-file-pdf-box"
+        >
+          {{ t('transactions.exportPdf') }}
+        </v-btn>
+      </template>
+    </AdminPageHeader>
 
     <div class="ar__chips">
       <AdminFilterChip

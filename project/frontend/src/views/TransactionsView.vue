@@ -137,9 +137,20 @@ function daysLeft(processAt: string): number {
         <p class="txn__eyebrow">{{ t('transactions.eyebrow') }}</p>
         <h1>{{ t('transactions.title') }}</h1>
       </div>
-      <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="{ name: 'wallet' }">
-        {{ t('transactions.back') }}
-      </v-btn>
+      <div class="txn__headActions">
+        <v-btn
+          v-if="transactions.length"
+          :href="wallet.transactionsExportUrl()"
+          variant="text"
+          size="small"
+          prepend-icon="mdi-file-pdf-box"
+        >
+          {{ t('transactions.exportPdf') }}
+        </v-btn>
+        <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="{ name: 'wallet' }">
+          {{ t('transactions.back') }}
+        </v-btn>
+      </div>
     </header>
 
     <div class="txn__toolbar">
@@ -286,6 +297,12 @@ function daysLeft(processAt: string): number {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.25rem;
+}
+.txn__headActions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
 }
 .txn__eyebrow {
   text-transform: uppercase;

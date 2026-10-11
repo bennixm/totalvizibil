@@ -7,6 +7,7 @@ import { PlatformSettingsService } from '../platform-settings/platform-settings.
 import { CREDIT_MINOR } from '../wallet/money';
 import { BillingService } from '../billing/billing.service';
 import { generateInvoicePdf } from '../billing/invoice-pdf';
+import { generateTablePdf } from '../common/table-pdf';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AppConfig } from '../config/env';
 
@@ -379,5 +380,45 @@ export class AffiliateService {
       totalRewarded: rewardedAgg._count,
       creditsPaid: rewardedAgg._sum.rewardCredits ?? 0,
     };
+  }
+
+  /** Same referral ledger as a downloadable PDF. */
+  async exportPdf(params: { status?: 'pending' | 'rewarded' }): Promise<Buffer> {
+    const EXPORT_CAP = 2000;
+    const where: Prisma.ReferralWhereInput = params.status ? { status: params.status } : {};
+    const rows = await this.prisma.referral.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: EXPORT_CAP,
+      select: {
+        status: true,
+        rewardCredits: true,
+        rewardedAt: true,
+        createdAt: true,
+        referrer: { select: { name: true, email: true } },
+        referredUser: { select: { name: true, email: true } },
+      },
+    });
+
+    return generateTablePdf({
+      title: 'RECOMANDĂRI',
+      ownerName: 'Panou admin',
+      subtitle: `${rows.length} recomandări`,
+      columns: [
+        { label: 'Recomandat de', width: 0.32 },
+        { label: 'Utilizator recomandat', width: 0.32 },
+        { label: 'Status', width: 0.14 },
+        { label: 'Recompensă', width: 0.1, align: 'right' },
+        { label: 'Dată', width: 0.12, align: 'right' },
+      ],
+      rows: rows.map((r) => [
+        `${r.referrer.name} (${r.referrer.email})`,
+        `${r.referredUser.name} (${r.referredUser.email})`,
+        r.status === 'rewarded' ? 'Recompensată' : 'În așteptare',
+        r.rewardCredits != null ? `${r.rewardCredits} cr` : '—',
+        (r.rewardedAt ?? r.createdAt).toLocaleDateString('ro-RO'),
+      ]),
+      emptyText: 'Nicio recomandare pentru acest filtru.',
+    });
   }
 }
