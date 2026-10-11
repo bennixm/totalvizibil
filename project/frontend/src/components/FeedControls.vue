@@ -30,25 +30,73 @@ function normalize(s: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
 }
+/** Words, 2+ letters — single-letter tokens match almost anything and would
+ *  just add noise. */
+function tokenize(s: string): string[] {
+  return normalize(s)
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 2)
+}
+/** A query word rarely spells a category exactly — "reparatii acoperisuri"
+ *  should still find "Acoperisuri" even though only one of its two words is
+ *  in the name at all. Substring-either-way catches prefixes/plurals most of
+ *  the time ("acoperis" vs "acoperisuri"); a shared-prefix fallback catches
+ *  the rest (Romanian noun/verb endings drift at the tail, not the start —
+ *  "reparatii" vs "reparatie" share "reparati" before diverging). */
+function wordsMatch(a: string, b: string): boolean {
+  if (a === b) return true
+  if (a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a))) return true
+  const minLen = Math.min(a.length, b.length)
+  if (minLen < 4) return false
+  let shared = 0
+  while (shared < minLen && a[shared] === b[shared]) shared++
+  return shared >= 4
+}
 interface SearchHit {
   group: FeedCategoryNode
   leaf: FeedCategoryLeaf | null
   label: string
 }
+/** Highest when the whole query basically IS the name, lowest (but still a
+ *  hit) when only a fraction of the query's words land — so "reparatii
+ *  acoperisuri" still surfaces "Acoperisuri" (via its one matching word)
+ *  below anything that matches more fully, instead of finding nothing at
+ *  all because the complete phrase was never going to appear verbatim in
+ *  any one category name. */
+function matchScore(query: string, queryWords: string[], name: string): number {
+  const n = normalize(name)
+  if (n === query) return 100
+  if (query.length >= 3 && (n.includes(query) || query.includes(n))) return 80
+  const nameWords = tokenize(name)
+  const matched = queryWords.filter((qw) => nameWords.some((nw) => wordsMatch(qw, nw)))
+  if (!matched.length) return 0
+  return Math.round(40 + (matched.length / queryWords.length) * 30)
+}
 const searchQuery = ref('')
 const searchFocused = ref(false)
 const searchHits = computed<SearchHit[]>(() => {
-  const q = normalize(searchQuery.value.trim())
-  if (!q) return []
-  const hits: SearchHit[] = []
+  const raw = searchQuery.value.trim()
+  if (!raw) return []
+  const q = normalize(raw)
+  const qWords = tokenize(raw)
+  if (!qWords.length) return []
+
+  const hits: (SearchHit & { score: number })[] = []
   for (const g of feed.facets.categories) {
     const gName = catName(g.name)
-    if (normalize(gName).includes(q)) hits.push({ group: g, leaf: null, label: gName })
+    const gScore = matchScore(q, qWords, gName)
+    if (gScore > 0) hits.push({ group: g, leaf: null, label: gName, score: gScore })
     for (const c of g.children) {
       const cName = catName(c.name)
-      if (normalize(cName).includes(q)) hits.push({ group: g, leaf: c, label: cName })
+      const cScore = matchScore(q, qWords, cName)
+      if (cScore > 0) hits.push({ group: g, leaf: c, label: cName, score: cScore })
     }
   }
+  // Equal score, e.g. both the group and its exact subcategory are fully
+  // contained in the query ("instalații electrice" inside "montaj
+  // instalații electrice") — the subcategory is the more useful click since
+  // the group is still one tap away from it either way.
+  hits.sort((a, b) => b.score - a.score || (a.leaf ? 0 : 1) - (b.leaf ? 0 : 1))
   return hits.slice(0, 8)
 })
 const searchOpen = computed(() => searchFocused.value)
