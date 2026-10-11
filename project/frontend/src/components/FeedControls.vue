@@ -45,7 +45,6 @@ function tokenize(s: string): string[] {
  *  "reparatii" vs "reparatie" share "reparati" before diverging). */
 function wordsMatch(a: string, b: string): boolean {
   if (a === b) return true
-  if (a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a))) return true
   const minLen = Math.min(a.length, b.length)
   if (minLen < 4) return false
   let shared = 0
@@ -66,7 +65,14 @@ interface SearchHit {
 function matchScore(query: string, queryWords: string[], name: string): number {
   const n = normalize(name)
   if (n === query) return 100
-  if (query.length >= 3 && (n.includes(query) || query.includes(n))) return 80
+  // Substring match must land on a word boundary in the name (start of
+  // string or right after a space) — otherwise a short query can silently
+  // match a hidden fragment inside a longer, unrelated word (e.g. "menaj"
+  // is literally contained inside "ameNAJari", but the two have nothing
+  // to do with each other).
+  if (query.length >= 3 && (n.startsWith(query) || n.includes(' ' + query) || query.includes(n))) {
+    return 80
+  }
   const nameWords = tokenize(name)
   const matched = queryWords.filter((qw) => nameWords.some((nw) => wordsMatch(qw, nw)))
   if (!matched.length) return 0
