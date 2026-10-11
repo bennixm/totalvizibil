@@ -1,4 +1,10 @@
-import { CREDIT_MINOR, creditsToMinor, eurCentsToRonBani, minorToCredits, money } from 'src/wallet/money';
+import {
+  CREDIT_MINOR,
+  creditsToMinor,
+  eurCentsToRonBani,
+  minorToCredits,
+  money,
+} from 'src/wallet/money';
 
 describe('money helpers', () => {
   it('1 credit = 100 minor units = 1 EUR', () => {

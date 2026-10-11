@@ -1,5 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
-import { AiUsageService, REQUEST_MAX_COST_USD, CREDITS_PER_USD } from 'src/website/builder/pro-v2/ai-usage.service';
+import {
+  AiUsageService,
+  REQUEST_MAX_COST_USD,
+  CREDITS_PER_USD,
+} from 'src/website/builder/pro-v2/ai-usage.service';
 import { CREDIT_MINOR } from 'src/wallet/money';
 
 function fakePrisma() {

@@ -59,7 +59,7 @@ async function setupStranger() {
 // ---------------------------------------------------------------------------
 
 describe('Authorization — company endpoints', () => {
-  it('stranger cannot GET another user\'s company', async () => {
+  it("stranger cannot GET another user's company", async () => {
     const { companyId } = await setupOwnerAndCompany();
     const stranger = await setupStranger();
 
@@ -69,7 +69,7 @@ describe('Authorization — company endpoints', () => {
       .expect(404);
   });
 
-  it('stranger cannot PATCH another user\'s company', async () => {
+  it("stranger cannot PATCH another user's company", async () => {
     const { companyId } = await setupOwnerAndCompany();
     const stranger = await setupStranger();
 
@@ -80,7 +80,7 @@ describe('Authorization — company endpoints', () => {
       .expect(404);
   });
 
-  it('stranger cannot DELETE another user\'s company', async () => {
+  it("stranger cannot DELETE another user's company", async () => {
     const { companyId } = await setupOwnerAndCompany();
     const stranger = await setupStranger();
 
@@ -90,7 +90,7 @@ describe('Authorization — company endpoints', () => {
       .expect(404);
   });
 
-  it('stranger cannot GET another user\'s company dashboard', async () => {
+  it("stranger cannot GET another user's company dashboard", async () => {
     const { companyId } = await setupOwnerAndCompany();
     const stranger = await setupStranger();
 
@@ -169,14 +169,14 @@ describe('Authorization — lead endpoints', () => {
     return { owner, companyId, slug, leadId };
   }
 
-  it('stranger cannot list leads for another user\'s company', async () => {
+  it("stranger cannot list leads for another user's company", async () => {
     const { companyId } = await setupCompanyWithLead();
     const stranger = await setupStranger();
 
     await request(app.getHttpServer())
       .get(`/api/v1/companies/${companyId}/leads`)
       .set('Cookie', stranger.cookie)
-      .expect(res => expect([403, 404]).toContain(res.status));
+      .expect((res) => expect([403, 404]).toContain(res.status));
   });
 
   it('stranger cannot GET a specific lead', async () => {
@@ -188,7 +188,7 @@ describe('Authorization — lead endpoints', () => {
     await request(app.getHttpServer())
       .get(`/api/v1/companies/${companyId}/leads/${leadId}`)
       .set('Cookie', stranger.cookie)
-      .expect(res => expect([403, 404]).toContain(res.status));
+      .expect((res) => expect([403, 404]).toContain(res.status));
   });
 
   it('stranger cannot DELETE a lead', async () => {
@@ -200,7 +200,7 @@ describe('Authorization — lead endpoints', () => {
     await request(app.getHttpServer())
       .delete(`/api/v1/companies/${companyId}/leads/${leadId}`)
       .set('Cookie', stranger.cookie)
-      .expect(res => expect([403, 404]).toContain(res.status));
+      .expect((res) => expect([403, 404]).toContain(res.status));
   });
 });
 
@@ -209,17 +209,17 @@ describe('Authorization — lead endpoints', () => {
 // ---------------------------------------------------------------------------
 
 describe('Authorization — campaign endpoints', () => {
-  it('stranger cannot GET another user\'s campaign', async () => {
+  it("stranger cannot GET another user's campaign", async () => {
     const { companyId } = await setupOwnerAndCompany();
     const stranger = await setupStranger();
 
     await request(app.getHttpServer())
       .get(`/api/v1/companies/${companyId}/campaign`)
       .set('Cookie', stranger.cookie)
-      .expect(res => expect([403, 404]).toContain(res.status));
+      .expect((res) => expect([403, 404]).toContain(res.status));
   });
 
-  it('stranger cannot PUT (update) another user\'s campaign', async () => {
+  it("stranger cannot PUT (update) another user's campaign", async () => {
     const { companyId } = await setupOwnerAndCompany();
     const stranger = await setupStranger();
 
@@ -227,27 +227,27 @@ describe('Authorization — campaign endpoints', () => {
       .put(`/api/v1/companies/${companyId}/campaign`)
       .set('Cookie', stranger.cookie)
       .send({ cpc: 2, dailyBudget: 50 })
-      .expect(res => expect([403, 404]).toContain(res.status));
+      .expect((res) => expect([403, 404]).toContain(res.status));
   });
 
-  it('stranger cannot activate another user\'s campaign', async () => {
+  it("stranger cannot activate another user's campaign", async () => {
     const { companyId } = await setupOwnerAndCompany();
     const stranger = await setupStranger();
 
     await request(app.getHttpServer())
       .post(`/api/v1/companies/${companyId}/campaign/activate`)
       .set('Cookie', stranger.cookie)
-      .expect(res => expect([403, 404]).toContain(res.status));
+      .expect((res) => expect([403, 404]).toContain(res.status));
   });
 
-  it('stranger cannot pause another user\'s campaign', async () => {
+  it("stranger cannot pause another user's campaign", async () => {
     const { companyId } = await setupOwnerAndCompany();
     const stranger = await setupStranger();
 
     await request(app.getHttpServer())
       .post(`/api/v1/companies/${companyId}/campaign/pause`)
       .set('Cookie', stranger.cookie)
-      .expect(res => expect([403, 404]).toContain(res.status));
+      .expect((res) => expect([403, 404]).toContain(res.status));
   });
 
   it('editor member cannot activate the campaign (owner/manager/billing only)', async () => {
@@ -263,11 +263,14 @@ describe('Authorization — campaign endpoints', () => {
     });
 
     // Save campaign first
-    const owner = await prisma.company.findUnique({ where: { id: companyId }, select: { ownerUserId: true } });
-    const ownerCookie = (await request(app.getHttpServer())
+    const owner = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { ownerUserId: true },
+    });
+    const ownerCookie = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ email: 'owner@example.com', password: 'password123' })
-      .then(r => (r.headers['set-cookie'] as unknown as string[])[0]));
+      .then((r) => (r.headers['set-cookie'] as unknown as string[])[0]);
 
     await request(app.getHttpServer())
       .put(`/api/v1/companies/${companyId}/campaign`)
@@ -294,6 +297,9 @@ describe('Authorization — unauthenticated', () => {
     await request(app.getHttpServer()).delete(`/api/v1/companies/${companyId}`).expect(401);
     await request(app.getHttpServer()).get(`/api/v1/companies/${companyId}/leads`).expect(401);
     await request(app.getHttpServer()).get(`/api/v1/companies/${companyId}/campaign`).expect(401);
-    await request(app.getHttpServer()).put(`/api/v1/companies/${companyId}/campaign`).send({}).expect(401);
+    await request(app.getHttpServer())
+      .put(`/api/v1/companies/${companyId}/campaign`)
+      .send({})
+      .expect(401);
   });
 });

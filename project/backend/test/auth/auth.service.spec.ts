@@ -1,5 +1,10 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
-import { AuthService, EMAIL_NOT_VERIFIED, TOTP_INVALID, TOTP_REQUIRED } from 'src/auth/auth.service';
+import {
+  AuthService,
+  EMAIL_NOT_VERIFIED,
+  TOTP_INVALID,
+  TOTP_REQUIRED,
+} from 'src/auth/auth.service';
 import { PasswordService } from 'src/auth/password.service';
 import { TotpService } from 'src/auth/totp.service';
 

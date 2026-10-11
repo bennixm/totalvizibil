@@ -39,7 +39,11 @@ function fakeLeads() {
 }
 
 function fakeAnalytics() {
-  return { companyAnalytics: jest.fn().mockResolvedValue({ visibility: {}, planMode: 'easy', campaign: {}, response: {} }) };
+  return {
+    companyAnalytics: jest
+      .fn()
+      .mockResolvedValue({ visibility: {}, planMode: 'easy', campaign: {}, response: {} }),
+  };
 }
 
 function fakeSettings() {
@@ -85,7 +89,7 @@ function makeCompanyRow(overrides: Record<string, any> = {}) {
 // ---------------------------------------------------------------------------
 
 function fakePrisma() {
-  const members  = new Map<string, any>();
+  const members = new Map<string, any>();
   const companies = new Map<string, any>();
 
   return {
@@ -185,23 +189,23 @@ function fakePrisma() {
 // ---------------------------------------------------------------------------
 
 function makeService() {
-  const prisma        = fakePrisma();
-  const drafts        = fakeDrafts();
-  const wallet        = fakeWallet();
-  const campaigns     = fakeCampaigns();
-  const leads         = fakeLeads();
-  const analytics     = fakeAnalytics();
-  const settings      = fakeSettings();
+  const prisma = fakePrisma();
+  const drafts = fakeDrafts();
+  const wallet = fakeWallet();
+  const campaigns = fakeCampaigns();
+  const leads = fakeLeads();
+  const analytics = fakeAnalytics();
+  const settings = fakeSettings();
   const notifications = fakeNotifications();
 
   const svc = new CompaniesService(
-    prisma        as any,
-    drafts        as any,
-    wallet        as any,
-    campaigns     as any,
-    leads         as any,
-    analytics     as any,
-    settings      as any,
+    prisma as any,
+    drafts as any,
+    wallet as any,
+    campaigns as any,
+    leads as any,
+    analytics as any,
+    settings as any,
     notifications as any,
   );
 
@@ -213,7 +217,6 @@ function makeService() {
 // ---------------------------------------------------------------------------
 
 describe('CompaniesService', () => {
-
   // ---- create ------------------------------------------------------------
 
   describe('create', () => {
@@ -268,7 +271,9 @@ describe('CompaniesService', () => {
       prisma.__seedMember('co1', 'u1', 'viewer');
       prisma.__seedCompany({ id: 'co1' });
 
-      await expect(svc.update('u1', 'co1', { displayName: 'New' })).rejects.toThrow(ForbiddenException);
+      await expect(svc.update('u1', 'co1', { displayName: 'New' })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('throws ForbiddenException when the company is pending deletion', async () => {
@@ -276,7 +281,9 @@ describe('CompaniesService', () => {
       prisma.__seedMember('co1', 'u1', 'owner');
       prisma.__seedCompany({ id: 'co1', deletionScheduledAt: new Date() });
 
-      await expect(svc.update('u1', 'co1', { displayName: 'New' })).rejects.toThrow(ForbiddenException);
+      await expect(svc.update('u1', 'co1', { displayName: 'New' })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('updates the company on the happy path', async () => {

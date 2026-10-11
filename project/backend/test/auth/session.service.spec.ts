@@ -7,7 +7,7 @@ function hash(token: string) {
 
 function fakeConfig(overrides: Record<string, any> = {}) {
   const defaults: Record<string, any> = { sessionTtlDays: 1 };
-  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides }[k])) };
+  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides })[k]) };
 }
 
 function makeSession(overrides = {}) {
@@ -53,7 +53,10 @@ describe('SessionService', () => {
       const prisma = fakePrisma();
       const svc = new SessionService(prisma as any, fakeConfig() as any);
       const before = Date.now();
-      const { token, expiresAt } = await svc.issue('u1', { userAgent: 'test-agent', ip: '127.0.0.1' });
+      const { token, expiresAt } = await svc.issue('u1', {
+        userAgent: 'test-agent',
+        ip: '127.0.0.1',
+      });
       expect(token).toBeTruthy();
       expect(expiresAt.getTime()).toBeGreaterThan(before);
     });

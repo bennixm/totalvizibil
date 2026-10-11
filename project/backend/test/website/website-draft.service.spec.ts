@@ -161,9 +161,7 @@ describe('WebsiteDraftService', () => {
           { code: 'P2002', clientVersion: '5' },
         ),
       );
-      await expect(svc.create()).rejects.toBeInstanceOf(
-        Prisma.PrismaClientKnownRequestError,
-      );
+      await expect(svc.create()).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
     });
   });
 
@@ -180,9 +178,7 @@ describe('WebsiteDraftService', () => {
 
     it('throws NotFoundException when token is not found', async () => {
       const { svc } = makeService();
-      await expect(svc.get('d1', 'unknown-token')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(svc.get('d1', 'unknown-token')).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('throws NotFoundException when the draft id does not match the token', async () => {
@@ -241,16 +237,12 @@ describe('WebsiteDraftService', () => {
         step: 'portfolio',
         mode: 'advanced',
       });
-      await expect(svc.advanceStep('d1', 'tok1')).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(svc.advanceStep('d1', 'tok1')).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('throws NotFoundException for an unrecognised token', async () => {
       const { svc } = makeService();
-      await expect(svc.advanceStep('d1', 'ghost-token')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(svc.advanceStep('d1', 'ghost-token')).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

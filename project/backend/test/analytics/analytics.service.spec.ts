@@ -2,7 +2,7 @@ import { AnalyticsService } from 'src/analytics/analytics.service';
 
 function fakePlatformSettings() {
   return {
-    feedCostPromovareCredits: jest.fn().mockResolvedValue(1),   // 1 credit = 100 minor
+    feedCostPromovareCredits: jest.fn().mockResolvedValue(1), // 1 credit = 100 minor
     feedMarjaProfitCredits: jest.fn().mockResolvedValue(1),
     feedMarjaPozitionareCredits: jest.fn().mockResolvedValue(1),
     eurRonRate: jest.fn().mockResolvedValue(5.05),
@@ -101,9 +101,7 @@ describe('AnalyticsService', () => {
           pausedAt: null,
         },
       ]);
-      prisma.website.findMany.mockResolvedValue([
-        { companyId: 'co1', mode: 'pro' },
-      ]);
+      prisma.website.findMany.mockResolvedValue([{ companyId: 'co1', mode: 'pro' }]);
       const result = await svc.visibilityInputsFor(['co1']);
       const entry = result.get('co1');
       expect(entry!.cpcMinor).toBe(400);
@@ -114,7 +112,11 @@ describe('AnalyticsService', () => {
       const { svc, prisma } = makeService();
       prisma.lead.groupBy.mockResolvedValue([{ companyId: 'co1', _count: { _all: 5 } }]);
       prisma.lead.findMany.mockResolvedValue([
-        { companyId: 'co1', createdAt: new Date(Date.now() - 3600000), firstResponseAt: new Date() },
+        {
+          companyId: 'co1',
+          createdAt: new Date(Date.now() - 3600000),
+          firstResponseAt: new Date(),
+        },
       ]);
       const result = await svc.visibilityInputsFor(['co1']);
       const entry = result.get('co1');
@@ -179,12 +181,8 @@ describe('AnalyticsService', () => {
       const { svc, prisma } = makeService();
       prisma.__seedCompany({
         id: 'co1',
-        categoryAssignments: [
-          { categoryId: 'cat1', isPrimary: true, createdAt: new Date() },
-        ],
-        locations: [
-          { county: 'Cluj', nationwide: false, isPrimary: true, createdAt: new Date() },
-        ],
+        categoryAssignments: [{ categoryId: 'cat1', isPrimary: true, createdAt: new Date() }],
+        locations: [{ county: 'Cluj', nationwide: false, isPrimary: true, createdAt: new Date() }],
       });
       // feedEligiblePeers calls company.findMany — return empty (no rivals)
       prisma.company.findMany.mockResolvedValue([]);
@@ -199,12 +197,8 @@ describe('AnalyticsService', () => {
       const { svc, prisma } = makeService();
       prisma.__seedCompany({
         id: 'co1',
-        categoryAssignments: [
-          { categoryId: 'cat1', isPrimary: true, createdAt: new Date() },
-        ],
-        locations: [
-          { county: 'Cluj', nationwide: false, isPrimary: true, createdAt: new Date() },
-        ],
+        categoryAssignments: [{ categoryId: 'cat1', isPrimary: true, createdAt: new Date() }],
+        locations: [{ county: 'Cluj', nationwide: false, isPrimary: true, createdAt: new Date() }],
       });
       // 2 rivals eligible (cpcMinor >= feedCpcMin = 200)
       prisma.company.findMany.mockResolvedValue([

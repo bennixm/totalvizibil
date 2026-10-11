@@ -7,7 +7,7 @@ function fakeNotifications() {
 
 function fakeConfig(overrides: Record<string, any> = {}) {
   const defaults: Record<string, any> = { frontendOrigin: 'http://localhost:5173' };
-  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides }[k])) };
+  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides })[k]) };
 }
 
 function makeMessage(overrides = {}) {
@@ -85,7 +85,12 @@ function fakePrisma() {
         return t ? makeTicketDetail(t) : null;
       }),
       create: jest.fn(async ({ data }: any) => {
-        const t = makeTicketDetail({ id: 't1', requesterId: data.requesterId, subject: data.subject, status: 'open' });
+        const t = makeTicketDetail({
+          id: 't1',
+          requesterId: data.requesterId,
+          subject: data.subject,
+          status: 'open',
+        });
         tickets.set(t.id, t);
         return t;
       }),
@@ -105,14 +110,16 @@ function fakePrisma() {
       createMany: jest.fn(async () => ({ count: 1 })),
     },
     companyUser: {
-      findUnique: jest.fn(async ({ where }: any) =>
-        members.get(`${where.companyId_userId.companyId}:${where.companyId_userId.userId}`) ?? null,
+      findUnique: jest.fn(
+        async ({ where }: any) =>
+          members.get(`${where.companyId_userId.companyId}:${where.companyId_userId.userId}`) ??
+          null,
       ),
     },
     platformRoleAssignment: {
       findMany: jest.fn(async () => staffRoles),
-      findFirst: jest.fn(async ({ where }: any) =>
-        staffRoles.find((r) => r.userId === where.userId) ?? null,
+      findFirst: jest.fn(
+        async ({ where }: any) => staffRoles.find((r) => r.userId === where.userId) ?? null,
       ),
     },
     user: {
@@ -200,7 +207,12 @@ describe('SupportService', () => {
     it('throws BadRequestException when user is not company member', async () => {
       const { svc } = makeService();
       await expect(
-        svc.create(userActor, { subject: 'Help', body: 'Please', category: 'other', companyId: 'co1' }),
+        svc.create(userActor, {
+          subject: 'Help',
+          body: 'Please',
+          category: 'other',
+          companyId: 'co1',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -213,7 +225,12 @@ describe('SupportService', () => {
     it('creates ticket when user is active company member', async () => {
       const { svc, prisma } = makeService();
       prisma.__seedMember('co1', 'u1');
-      await svc.create(userActor, { subject: 'Help', body: 'Please', category: 'other', companyId: 'co1' });
+      await svc.create(userActor, {
+        subject: 'Help',
+        body: 'Please',
+        category: 'other',
+        companyId: 'co1',
+      });
       expect(prisma.supportTicket.create).toHaveBeenCalled();
     });
   });
@@ -222,12 +239,20 @@ describe('SupportService', () => {
     it('throws BadRequestException on closed ticket', async () => {
       const { svc, prisma } = makeService();
       prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'closed' });
-      await expect(svc.postMessage(userActor, 't1', { body: 'hi' })).rejects.toThrow(BadRequestException);
+      await expect(svc.postMessage(userActor, 't1', { body: 'hi' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('staff reply stamps firstResponseAt when not set', async () => {
       const { svc, prisma } = makeService();
-      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', firstResponseAt: null, assigneeId: null });
+      prisma.__seedTicket({
+        id: 't1',
+        requesterId: 'u1',
+        status: 'open',
+        firstResponseAt: null,
+        assigneeId: null,
+      });
       await svc.postMessage(staffActor, 't1', { body: 'We are looking into it.' });
       const updateArg = (prisma.supportTicket.update as jest.Mock).mock.calls[0][0];
       expect(updateArg.data).toHaveProperty('firstResponseAt');
@@ -235,7 +260,12 @@ describe('SupportService', () => {
 
     it('customer reply re-opens resolved ticket', async () => {
       const { svc, prisma } = makeService();
-      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'resolved', firstResponseAt: new Date() });
+      prisma.__seedTicket({
+        id: 't1',
+        requesterId: 'u1',
+        status: 'resolved',
+        firstResponseAt: new Date(),
+      });
       await svc.postMessage(userActor, 't1', { body: 'Still broken.' });
       const updateArg = (prisma.supportTicket.update as jest.Mock).mock.calls[0][0];
       expect(updateArg.data.status).toBe('open');
@@ -244,7 +274,9 @@ describe('SupportService', () => {
 
     it('throws NotFoundException for missing ticket', async () => {
       const { svc } = makeService();
-      await expect(svc.postMessage(userActor, 'missing', { body: 'x' })).rejects.toThrow(NotFoundException);
+      await expect(svc.postMessage(userActor, 'missing', { body: 'x' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -252,24 +284,42 @@ describe('SupportService', () => {
     it('non-staff setting priority throws ForbiddenException', async () => {
       const { svc, prisma } = makeService();
       prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open' });
-      await expect(svc.update(userActor, 't1', { priority: 'urgent' })).rejects.toThrow(ForbiddenException);
+      await expect(svc.update(userActor, 't1', { priority: 'urgent' })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('non-staff setting assigneeId throws ForbiddenException', async () => {
       const { svc, prisma } = makeService();
       prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open' });
-      await expect(svc.update(userActor, 't1', { assigneeId: 'staff1' })).rejects.toThrow(ForbiddenException);
+      await expect(svc.update(userActor, 't1', { assigneeId: 'staff1' })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('staff assignee not in staff roles throws BadRequestException', async () => {
       const { svc, prisma } = makeService();
-      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: null, priority: 'normal' });
-      await expect(svc.update(staffActor, 't1', { assigneeId: 'nobody' })).rejects.toThrow(BadRequestException);
+      prisma.__seedTicket({
+        id: 't1',
+        requesterId: 'u1',
+        status: 'open',
+        assigneeId: null,
+        priority: 'normal',
+      });
+      await expect(svc.update(staffActor, 't1', { assigneeId: 'nobody' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('resolving ticket notifies requester', async () => {
       const { svc, prisma, notifications } = makeService();
-      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', priority: 'normal', assigneeId: null });
+      prisma.__seedTicket({
+        id: 't1',
+        requesterId: 'u1',
+        status: 'open',
+        priority: 'normal',
+        assigneeId: null,
+      });
       await svc.update(staffActor, 't1', { status: 'resolved' });
       await new Promise((r) => setTimeout(r, 10));
       expect(notifications.notify).toHaveBeenCalledWith(

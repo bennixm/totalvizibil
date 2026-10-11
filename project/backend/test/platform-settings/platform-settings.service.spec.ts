@@ -8,9 +8,7 @@ function fakePrisma() {
       findUnique: jest.fn(async ({ where }: any) => settings.get(where.key) ?? null),
       upsert: jest.fn(async ({ where, create, update }: any) => {
         const existing = settings.get(where.key);
-        const row = existing
-          ? { ...existing, ...update }
-          : { key: where.key, ...create };
+        const row = existing ? { ...existing, ...update } : { key: where.key, ...create };
         settings.set(where.key, row);
         return row;
       }),
@@ -82,7 +80,7 @@ describe('PlatformSettingsService', () => {
 
     it('stores valid rate via setEurRonRate', async () => {
       const svc = new PlatformSettingsService(fakePrisma() as any, fakeNotifications() as any);
-      const result = await svc.setEurRonRate(4.9200);
+      const result = await svc.setEurRonRate(4.92);
       expect(result).toBe(4.92);
     });
   });

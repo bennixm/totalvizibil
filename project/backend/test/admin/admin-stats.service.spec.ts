@@ -138,11 +138,26 @@ describe('AdminStatsService', () => {
       const { svc } = makeService();
       const { economy } = await svc.overview();
       expect(economy).toMatchObject({
-        creditsSold: expect.objectContaining({ minor: expect.any(Number), credits: expect.any(Number) }),
-        creditsSold30d: expect.objectContaining({ minor: expect.any(Number), credits: expect.any(Number) }),
-        cpcConsumed: expect.objectContaining({ minor: expect.any(Number), credits: expect.any(Number) }),
-        cpcConsumed30d: expect.objectContaining({ minor: expect.any(Number), credits: expect.any(Number) }),
-        refunded: expect.objectContaining({ minor: expect.any(Number), credits: expect.any(Number) }),
+        creditsSold: expect.objectContaining({
+          minor: expect.any(Number),
+          credits: expect.any(Number),
+        }),
+        creditsSold30d: expect.objectContaining({
+          minor: expect.any(Number),
+          credits: expect.any(Number),
+        }),
+        cpcConsumed: expect.objectContaining({
+          minor: expect.any(Number),
+          credits: expect.any(Number),
+        }),
+        cpcConsumed30d: expect.objectContaining({
+          minor: expect.any(Number),
+          credits: expect.any(Number),
+        }),
+        refunded: expect.objectContaining({
+          minor: expect.any(Number),
+          credits: expect.any(Number),
+        }),
         pendingPurchases: expect.any(Number),
         walletsBlocked: expect.any(Number),
       });
@@ -193,8 +208,8 @@ describe('AdminStatsService', () => {
       const dateKey = d.toISOString().slice(0, 10);
 
       (prisma.$queryRaw as jest.Mock)
-        .mockResolvedValueOnce([])  // signupTimeseries users
-        .mockResolvedValueOnce([])  // signupTimeseries companies
+        .mockResolvedValueOnce([]) // signupTimeseries users
+        .mockResolvedValueOnce([]) // signupTimeseries companies
         .mockResolvedValueOnce([{ day: d, sold: BigInt(50000), consumed: BigInt(12000) }]);
 
       const { svc } = makeService(prisma);

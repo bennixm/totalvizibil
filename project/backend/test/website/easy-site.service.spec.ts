@@ -15,10 +15,10 @@ function fakePrisma() {
 
   return {
     companyUser: {
-      findUnique: jest.fn(async ({ where }: any) =>
-        members.get(
-          `${where.companyId_userId.companyId}:${where.companyId_userId.userId}`,
-        ) ?? null,
+      findUnique: jest.fn(
+        async ({ where }: any) =>
+          members.get(`${where.companyId_userId.companyId}:${where.companyId_userId.userId}`) ??
+          null,
       ),
     },
     company: {

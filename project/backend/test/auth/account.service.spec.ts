@@ -52,7 +52,9 @@ function fakePrisma() {
         if (!u) throw Object.assign(new Error('Not found'), { code: 'P2025' });
         return u;
       }),
-      findUnique: jest.fn(async ({ where }: any) => users.get(where.id) ?? users.get(where.email) ?? null),
+      findUnique: jest.fn(
+        async ({ where }: any) => users.get(where.id) ?? users.get(where.email) ?? null,
+      ),
       update: jest.fn(async ({ where, data }: any) => {
         const u = users.get(where.id);
         if (u) Object.assign(u, data);
@@ -85,7 +87,14 @@ function makeService() {
   return { svc, prisma, passwords, sessions, notifications, mail };
 }
 
-const principal = { id: 'u1', sessionId: 'sess1', email: 'user@example.com', name: 'Ion', platformRoles: [], emailVerifiedAt: null };
+const principal = {
+  id: 'u1',
+  sessionId: 'sess1',
+  email: 'user@example.com',
+  name: 'Ion',
+  platformRoles: [],
+  emailVerifiedAt: null,
+};
 
 describe('AccountService', () => {
   describe('updateProfile', () => {
@@ -143,10 +152,15 @@ describe('AccountService', () => {
     it('happy path updates hash and revokes other sessions', async () => {
       const { svc, prisma, sessions } = makeService();
       prisma.__seedUser({ id: 'u1', passwordHash: 'hashed:oldpass' });
-      const result = await svc.changePassword(principal, { currentPassword: 'oldpass', newPassword: 'newpass' });
+      const result = await svc.changePassword(principal, {
+        currentPassword: 'oldpass',
+        newPassword: 'newpass',
+      });
       expect(result).toEqual({ ok: true });
       expect(prisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ passwordHash: 'hashed:newpass' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ passwordHash: 'hashed:newpass' }),
+        }),
       );
       expect(sessions.revokeAllForUser).toHaveBeenCalledWith('u1', 'sess1');
     });
@@ -197,7 +211,9 @@ describe('AccountService', () => {
       const result = await svc.totpEnable('u1', code);
       expect(result).toEqual({ ok: true });
       expect(prisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ totpEnabledAt: expect.any(Date) }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ totpEnabledAt: expect.any(Date) }),
+        }),
       );
     });
   });

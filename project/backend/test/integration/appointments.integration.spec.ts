@@ -76,9 +76,7 @@ describe('Appointments', () => {
 
   describe('GET /companies/:companyId/appointments', () => {
     it('returns 401 without auth', async () => {
-      await request(app.getHttpServer())
-        .get('/api/v1/companies/fake-id/appointments')
-        .expect(401);
+      await request(app.getHttpServer()).get('/api/v1/companies/fake-id/appointments').expect(401);
     });
 
     it('returns paginated list for company owner', async () => {

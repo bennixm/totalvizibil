@@ -20,9 +20,7 @@ afterAll(async () => app.close());
 describe('Billing', () => {
   describe('GET /account/billing/profile', () => {
     it('returns 401 without auth', async () => {
-      await request(app.getHttpServer())
-        .get('/api/v1/account/billing/profile')
-        .expect(401);
+      await request(app.getHttpServer()).get('/api/v1/account/billing/profile').expect(401);
     });
 
     it('returns profile and isComplete flag', async () => {
@@ -56,7 +54,12 @@ describe('Billing', () => {
       const res = await request(app.getHttpServer())
         .put('/api/v1/account/billing/profile')
         .set('Cookie', user.cookie)
-        .send({ kind: 'individual', name: 'Ion Popescu', address: 'Str. Unirii 1', city: 'Cluj-Napoca' })
+        .send({
+          kind: 'individual',
+          name: 'Ion Popescu',
+          address: 'Str. Unirii 1',
+          city: 'Cluj-Napoca',
+        })
         .expect(200);
       expect(res.body.profile).toHaveProperty('name', 'Ion Popescu');
     });
@@ -64,9 +67,7 @@ describe('Billing', () => {
 
   describe('GET /account/billing/invoices', () => {
     it('returns 401 without auth', async () => {
-      await request(app.getHttpServer())
-        .get('/api/v1/account/billing/invoices')
-        .expect(401);
+      await request(app.getHttpServer()).get('/api/v1/account/billing/invoices').expect(401);
     });
 
     it('returns empty list for new user', async () => {

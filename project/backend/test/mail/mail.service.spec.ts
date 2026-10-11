@@ -14,7 +14,7 @@ function fakeConfig(overrides: Record<string, any> = {}) {
     smtpPort: 587,
     smtpFrom: 'no-reply@example.com',
   };
-  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides }[k])) };
+  return { get: jest.fn((k: string) => ({ ...defaults, ...overrides })[k]) };
 }
 
 const fakeTransporter = () => ({

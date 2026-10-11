@@ -79,11 +79,18 @@ describe('Support', () => {
       const createRes = await request(app.getHttpServer())
         .post('/api/v1/support/tickets')
         .set('Cookie', user.cookie)
-        .send({ subject: 'Help needed', body: 'Please help me with this issue', category: 'other' });
+        .send({
+          subject: 'Help needed',
+          body: 'Please help me with this issue',
+          category: 'other',
+        });
       const ticketId = createRes.body.id;
 
       // Close the ticket directly in DB
-      await prisma.supportTicket.update({ where: { id: ticketId }, data: { status: 'closed', closedAt: new Date() } });
+      await prisma.supportTicket.update({
+        where: { id: ticketId },
+        data: { status: 'closed', closedAt: new Date() },
+      });
 
       await request(app.getHttpServer())
         .post(`/api/v1/support/tickets/${ticketId}/messages`)
@@ -103,7 +110,11 @@ describe('Support', () => {
       const createRes = await request(app.getHttpServer())
         .post('/api/v1/support/tickets')
         .set('Cookie', user.cookie)
-        .send({ subject: 'Help needed', body: 'Please help me with this issue', category: 'other' });
+        .send({
+          subject: 'Help needed',
+          body: 'Please help me with this issue',
+          category: 'other',
+        });
       const ticketId = createRes.body.id;
 
       await request(app.getHttpServer())

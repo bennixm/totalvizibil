@@ -13,7 +13,19 @@ function makeUser(overrides: Record<string, unknown> = {}) {
     status: 'active' as const,
     platformRoles: [] as { role: string }[],
     wallet: null as { balanceMinor: number; blockedAt: Date | null } | null,
-    companyMembers: [] as { role: string; company: { id: string; displayName: string; slug: string; status: string; ownerUserId: string; createdAt: Date; campaign: null; _count: { leads: number; adClicks: number } } }[],
+    companyMembers: [] as {
+      role: string;
+      company: {
+        id: string;
+        displayName: string;
+        slug: string;
+        status: string;
+        ownerUserId: string;
+        createdAt: Date;
+        campaign: null;
+        _count: { leads: number; adClicks: number };
+      };
+    }[],
     totpEnabledAt: null as Date | null,
     lastLoginAt: null as Date | null,
     passwordChangedAt: null as Date | null,
@@ -52,11 +64,13 @@ function fakePrisma() {
         return null;
       }),
       count: jest.fn(async () => users.size),
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<FakeUser> }) => {
-        const u = users.get(where.id);
-        if (u) Object.assign(u, data);
-        return u ?? null;
-      }),
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: Partial<FakeUser> }) => {
+          const u = users.get(where.id);
+          if (u) Object.assign(u, data);
+          return u ?? null;
+        },
+      ),
     },
     company: {
       findMany: jest.fn(async () => [] as { id: string }[]),
@@ -166,7 +180,10 @@ describe('AdminUsersService', () => {
       const callArg = (prisma.user.findMany as jest.Mock).mock.calls[0][0] as {
         where: Record<string, unknown>;
       };
-      const or = callArg.where['OR'] as { email?: Record<string, string>; name?: Record<string, string> }[];
+      const or = callArg.where['OR'] as {
+        email?: Record<string, string>;
+        name?: Record<string, string>;
+      }[];
       expect(or).toBeDefined();
       expect(or[0]?.email?.contains).toBe('alice');
       expect(or[1]?.name?.contains).toBe('alice');
