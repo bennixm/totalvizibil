@@ -571,22 +571,24 @@ watch(
             {{ t('spend.previewSeeAll') }}
           </v-btn>
         </div>
-        <table class="ov__spendTable">
-          <thead>
-            <tr>
-              <th>{{ t('spend.previewColFeed') }}</th>
-              <th>{{ t('spend.previewColClicks') }}</th>
-              <th>{{ t('spend.previewColSpent') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(r, i) in spendPreview" :key="r.county + r.categorySlug + i">
-              <td>{{ countyLabel(r.county) }} · {{ catName(r) }}</td>
-              <td>{{ r.clicks }}</td>
-              <td>{{ n(r.spent.credits, { maximumFractionDigits: 2 }) }} cr</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="ov__spendTableWrap">
+          <table class="ov__spendTable">
+            <thead>
+              <tr>
+                <th>{{ t('spend.previewColFeed') }}</th>
+                <th>{{ t('spend.previewColClicks') }}</th>
+                <th>{{ t('spend.previewColSpent') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(r, i) in spendPreview" :key="r.county + r.categorySlug + i">
+                <td>{{ countyLabel(r.county) }} · {{ catName(r) }}</td>
+                <td>{{ r.clicks }}</td>
+                <td>{{ n(r.spent.credits, { maximumFractionDigits: 2 }) }} cr</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <!-- Lifetime strip -->
@@ -1068,8 +1070,12 @@ watch(
 .ov__spendPreview {
   margin-bottom: 1rem;
 }
+.ov__spendTableWrap {
+  overflow-x: auto;
+}
 .ov__spendTable {
   width: 100%;
+  min-width: 420px;
   border-collapse: collapse;
   font-size: 0.84rem;
 }

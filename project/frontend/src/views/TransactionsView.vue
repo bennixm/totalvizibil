@@ -499,4 +499,99 @@ function daysLeft(processAt: string): number {
 .txn__more:hover {
   background: rgba(var(--v-theme-on-surface), 0.03);
 }
+
+/* Mobile: the type pills scroll sideways in their own single row instead of
+   wrapping inside their pill mask (which broke the rounded-corner look past
+   2 lines), filters stack full-width, and the table stops scrolling
+   sideways — each row becomes its own card instead. */
+@media (max-width: 640px) {
+  .txn__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .txn__tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .txn__tabs button {
+    flex: none;
+  }
+  .txn__toolbarEnd {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .txn__idFilter,
+  .txn__companyFilter {
+    max-width: none;
+    width: 100%;
+  }
+
+  .txn__table {
+    white-space: normal;
+  }
+  .txn__table thead {
+    display: none;
+  }
+  .txn__table,
+  .txn__table tbody,
+  .txn__table tr,
+  .txn__table td {
+    display: block;
+    width: 100%;
+  }
+  .trow {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    row-gap: 0.35rem;
+    column-gap: 0.6rem;
+    padding: 0.85rem 1rem;
+  }
+  .trow + .trow td {
+    border-top: none;
+  }
+  .trow:not(:last-child) {
+    border-bottom: 1px solid var(--tvz-hairline);
+  }
+  .txn__table td {
+    padding: 0;
+  }
+  .txn__table td.trow__type {
+    order: 1;
+    width: 100%;
+  }
+  .txn__table td.num {
+    order: 2;
+    width: 100%;
+    text-align: left;
+  }
+  .txn__table td.trow__id {
+    order: 3;
+    width: auto;
+  }
+  .txn__table td.trow__date.end {
+    order: 4;
+    width: auto;
+    text-align: left;
+  }
+  .txn__table td.end:not(.trow__date) {
+    order: 5;
+    width: auto;
+    text-align: left;
+  }
+  .trow__detail td {
+    padding: 0 1rem 0.7rem;
+  }
+  /* A long refund note next to a button is the one spot `flex-wrap` alone
+     cuts it close at narrow widths — stack them instead of trusting wrap. */
+  .trow__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .trow__actions .v-btn {
+    width: 100%;
+  }
+}
 </style>
