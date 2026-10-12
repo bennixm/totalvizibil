@@ -2014,6 +2014,11 @@
       "active": "Activ",
       "failed": "Eșuat"
     },
+    "appointmentsTitle": "Programări",
+    "appointmentsHint": "Permite vizitatorilor să rezerve o programare direct de pe site. Odată activată, apare și în meniu, pentru administrare.",
+    "appointmentsOn": "Programările au fost activate.",
+    "appointmentsOff": "Programările au fost dezactivate.",
+    "appointmentsManage": "Administrează programările",
     "domainErr": {
       "insufficient_credits": "Credite insuficiente pentru acest domeniu.",
       "domain_not_available": "Domeniul nu mai este disponibil.",

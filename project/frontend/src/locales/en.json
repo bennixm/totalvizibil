@@ -2014,6 +2014,11 @@
       "active": "Active",
       "failed": "Failed"
     },
+    "appointmentsTitle": "Appointments",
+    "appointmentsHint": "Let visitors book an appointment right from the site. Once turned on, it also appears in the menu for day-to-day management.",
+    "appointmentsOn": "Appointments turned on.",
+    "appointmentsOff": "Appointments turned off.",
+    "appointmentsManage": "Manage appointments",
     "domainErr": {
       "insufficient_credits": "Not enough credits for this domain.",
       "domain_not_available": "The domain is no longer available.",

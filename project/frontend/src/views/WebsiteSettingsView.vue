@@ -173,6 +173,28 @@ async function purchaseDomain(): Promise<void> {
   }
 }
 
+// --- appointments ------------------------------------------------------
+// The feature is strictly opt-in and its own page (and the sidebar link to
+// it) only appear once this is on — so the toggle has to live somewhere
+// that's always reachable, which is here.
+const savingAppointments = ref(false)
+async function toggleAppointments(v: boolean | null): Promise<void> {
+  if (!companyId.value) return
+  savingAppointments.value = true
+  try {
+    await apiFetch(`/companies/${companyId.value}/appointments/settings`, {
+      method: 'PUT',
+      body: { enabled: !!v },
+    })
+    await companies.fetchOverview(true)
+    toasts.success(v ? t('websiteSettings.appointmentsOn') : t('websiteSettings.appointmentsOff'))
+  } catch (err) {
+    toasts.error(err instanceof Error ? err.message : 'error')
+  } finally {
+    savingAppointments.value = false
+  }
+}
+
 async function loadFor(id: string): Promise<void> {
   companyId.value = id
   companies.select(id)
@@ -358,6 +380,29 @@ onMounted(async () => {
           </p>
         </div>
       </section>
+
+      <!-- Appointments — opt-in, so the toggle lives here (always reachable)
+           even though the feature's own page only shows once it's on. -->
+      <section class="card ws__section">
+        <h2>{{ t('websiteSettings.appointmentsTitle') }}</h2>
+        <p class="ws__hint">{{ t('websiteSettings.appointmentsHint') }}</p>
+        <v-switch
+          :model-value="companies.currentOverview?.appointmentsEnabled ?? false"
+          :label="t('appointments.enableToggle')"
+          color="primary"
+          density="comfortable"
+          hide-details
+          :loading="savingAppointments"
+          @update:model-value="toggleAppointments"
+        />
+        <router-link
+          v-if="companies.currentOverview?.appointmentsEnabled"
+          class="ws__apptLink"
+          :to="{ name: 'appointments', query: { c: companyId } }"
+        >
+          {{ t('websiteSettings.appointmentsManage') }} <v-icon icon="mdi-arrow-right" size="15" />
+        </router-link>
+      </section>
     </template>
   </v-container>
 </template>
@@ -465,6 +510,16 @@ onMounted(async () => {
   margin: 0.4rem 0;
   font-size: 0.82rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.ws__apptLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.9rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
 }
 .ws__files {
   list-style: none;

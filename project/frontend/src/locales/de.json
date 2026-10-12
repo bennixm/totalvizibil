@@ -2014,6 +2014,11 @@
       "active": "Aktiv",
       "failed": "Fehlgeschlagen"
     },
+    "appointmentsTitle": "Termine",
+    "appointmentsHint": "Lässt Besucher direkt auf der Website einen Termin buchen. Sobald aktiviert, erscheint der Punkt auch im Menü zur Verwaltung.",
+    "appointmentsOn": "Termine wurden aktiviert.",
+    "appointmentsOff": "Termine wurden deaktiviert.",
+    "appointmentsManage": "Termine verwalten",
     "domainErr": {
       "insufficient_credits": "Nicht genug Credits für diese Domain.",
       "domain_not_available": "Die Domain ist nicht mehr verfügbar.",
