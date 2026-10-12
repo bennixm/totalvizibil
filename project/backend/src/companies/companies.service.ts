@@ -891,7 +891,7 @@ export class CompaniesService implements OnModuleInit {
       include: { website: { select: { mode: true, status: true } } },
     });
     const ids = companies.map((c) => c.id);
-    const [campaigns, consumedMap, locations] = await Promise.all([
+    const [campaigns, consumedMap, locations, appointmentSettings] = await Promise.all([
       this.prisma.campaign.findMany({
         where: { companyId: { in: ids } },
         select: { companyId: true, status: true },
@@ -901,9 +901,16 @@ export class CompaniesService implements OnModuleInit {
         where: { companyId: { in: ids }, isPrimary: true },
         select: { companyId: true, city: true },
       }),
+      // Backs nav-gating on the frontend (item 11): "Programări" is only
+      // worth showing once the owner has actually turned appointments on.
+      this.prisma.appointmentSettings.findMany({
+        where: { companyId: { in: ids } },
+        select: { companyId: true, enabled: true },
+      }),
     ]);
     const campMap = new Map(campaigns.map((x) => [x.companyId, x.status]));
     const locMap = new Map(locations.map((x) => [x.companyId, x.city]));
+    const apptMap = new Map(appointmentSettings.map((x) => [x.companyId, x.enabled]));
 
     return companies.map((c) => ({
       id: c.id,
@@ -911,6 +918,10 @@ export class CompaniesService implements OnModuleInit {
       slug: c.slug,
       status: c.status,
       website: c.website ? { mode: c.website.mode, status: c.website.status } : null,
+      // Same condition `dashboard()` uses for its own `unlock_advanced_builder`
+      // task — an advanced-plan site with nothing live yet has no real "Cereri".
+      builderUnlocked: !!c.advancedUnlockedAt,
+      appointmentsEnabled: apptMap.get(c.id) ?? false,
       campaignStatus: campMap.get(c.id) ?? null,
       consumedCredits: (consumedMap.get(c.id) ?? 0) / CREDIT_MINOR,
       locationCity: locMap.get(c.id) ?? null,

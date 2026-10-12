@@ -191,6 +191,11 @@ export interface CompanyOverview {
   slug: string
   status: CompanyStatus
   website: { mode: 'easy' | 'advanced'; status: 'draft' | 'published' | 'unpublished' } | null
+  /** Whether the advanced builder has actually been unlocked — mirrors the
+   *  dashboard's own `unlock_advanced_builder` task. */
+  builderUnlocked: boolean
+  /** Whether the owner has turned the Appointments feature on. */
+  appointmentsEnabled: boolean
   campaignStatus: 'draft' | 'active' | 'paused' | 'depleted' | null
   /** Lifetime credits this business's campaign has consumed. */
   consumedCredits: number

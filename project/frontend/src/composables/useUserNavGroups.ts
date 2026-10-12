@@ -2,6 +2,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { SidebarNavGroup } from '@/components/AppSidebar.vue'
+import { useCompaniesStore } from '@/stores/companies'
 
 /**
  * The signed-in user's panel navigation, grouped for the left sidebar.
@@ -15,6 +16,28 @@ import type { SidebarNavGroup } from '@/components/AppSidebar.vue'
  */
 export function useUserNavGroups() {
   const { t } = useI18n()
+  const companies = useCompaniesStore()
+  const current = computed(() => companies.currentOverview)
+
+  // No website at all, or an advanced-plan site that was never unlocked —
+  // there's no live site for a visitor to submit a form on. Before overview
+  // has loaded even once, default to showing it rather than flashing it
+  // away — but a *loaded, empty* overview (no business at all yet) must
+  // fail closed, not open.
+  const showLeads = computed(() => {
+    if (!companies.overviewLoaded) return true
+    const c = current.value
+    if (!c || !c.website) return false
+    if (c.website.mode === 'advanced' && !c.builderUnlocked) return false
+    return true
+  })
+  // Appointments is strictly opt-in (see AppointmentsView's own toggle, also
+  // surfaced in Website settings) — hide the page until it's actually been
+  // turned on, same "daca nu e setat" rule as Leads.
+  const showAppointments = computed(() => {
+    if (!companies.overviewLoaded) return true
+    return current.value?.appointmentsEnabled ?? false
+  })
 
   const groups = computed<SidebarNavGroup[]>(() => [
     {
@@ -22,12 +45,18 @@ export function useUserNavGroups() {
       // campaign switcher (SidebarCampaignSwitch) currently has selected.
       items: [
         { to: { name: 'dashboard' }, label: t('nav.dashboard'), icon: 'mdi-view-dashboard-outline' },
-        { to: { name: 'leads' }, label: t('nav.leads'), icon: 'mdi-inbox-arrow-down-outline' },
-        {
-          to: { name: 'appointments' },
-          label: t('nav.appointments'),
-          icon: 'mdi-calendar-check-outline',
-        },
+        ...(showLeads.value
+          ? [{ to: { name: 'leads' }, label: t('nav.leads'), icon: 'mdi-inbox-arrow-down-outline' }]
+          : []),
+        ...(showAppointments.value
+          ? [
+              {
+                to: { name: 'appointments' },
+                label: t('nav.appointments'),
+                icon: 'mdi-calendar-check-outline',
+              },
+            ]
+          : []),
         { to: { name: 'campaign' }, label: t('nav.campaign'), icon: 'mdi-bullhorn-outline' },
         {
           to: { name: 'consumption' },
