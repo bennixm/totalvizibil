@@ -62,6 +62,7 @@ model User {
   referralReceived        Referral?                @relation("ReferralReceived")
   aiUsageRecords          AiUsageRecord[]
   notifications           Notification[]
+  platformExpensesCreated PlatformExpense[]
 
   @@map("users")
 }
@@ -170,6 +171,49 @@ model PlatformRoleAssignment {
 
   @@unique([userId, role])
   @@map("platform_roles")
+}
+
+// ---------------------------------------------------------------------------
+// Financial module (Contabil / admin) — operating costs that have no other
+// home in the schema. AI spend stays derived from `AiUsageRecord` (already
+// tracked per call) rather than duplicated here; Stripe fees are captured
+// automatically at payment-confirmation time (source = stripe_api) but can
+// also be corrected/backfilled manually, same as every other category.
+// ---------------------------------------------------------------------------
+
+enum ExpenseCategory {
+  hosting
+  call_center
+  cloud_storage
+  domains
+  google_ads
+  stripe_fees
+  other
+}
+
+enum ExpenseSource {
+  manual
+  stripe_api
+}
+
+model PlatformExpense {
+  id          String          @id @default(uuid()) @db.Uuid
+  category    ExpenseCategory
+  // The day this cost belongs to, for period filtering/aggregation — not
+  // necessarily the row's createdAt (a manual entry may be backdated).
+  incurredOn  DateTime        @map("incurred_on") @db.Date
+  amountMinor Int             @map("amount_minor")
+  currency    String          @default("EUR")
+  source      ExpenseSource   @default(manual)
+  note        String?
+  createdById String?         @map("created_by_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([category, incurredOn])
+  @@map("platform_expenses")
 }
 
 // ---------------------------------------------------------------------------

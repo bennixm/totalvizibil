@@ -1233,6 +1233,33 @@ export class WalletService implements OnModuleInit {
     // minimum-deposit threshold — re-evaluate their referral. Fire-and-forget.
     void this.affiliate.maybeReward(userId).catch(() => undefined);
 
+    // Log Stripe's real processing fee as a platform cost, for the finance
+    // module's P&L — best-effort: the payment is already settled by this
+    // point, a fee lookup failing must never affect the customer.
+    if (stripePaymentIntentId) {
+      void this.stripe
+        .retrievePaymentIntentFeeMinor(stripePaymentIntentId)
+        .then((feeMinor) => {
+          if (feeMinor == null) return;
+          return this.prisma.platformExpense.create({
+            data: {
+              category: 'stripe_fees',
+              incurredOn: new Date(),
+              amountMinor: feeMinor,
+              currency: 'EUR',
+              source: 'stripe_api',
+              note: `Payment intent ${stripePaymentIntentId}`,
+            },
+          });
+        })
+        .catch((err) =>
+          this.logger.error(
+            `Stripe fee capture failed for ${stripePaymentIntentId}`,
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
+
     // The money has already moved and the invoice is already issued by this
     // point — a notification hiccup must NEVER make a successful payment
     // look like it failed to the customer. That includes the PDF itself: a

@@ -26,6 +26,7 @@ import { DomainsModule } from './domains/domains.module';
 import { AdminModule } from './admin/admin.module';
 import { SupportModule } from './support/support.module';
 import { HealthModule } from './health/health.module';
+import { FinanceModule } from './finance/finance.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { HealthModule } from './health/health.module';
     AdminModule,
     SupportModule,
     HealthModule,
+    FinanceModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
