@@ -79,4 +79,19 @@ export class StripeService {
       amount: opts.amountMinor,
     });
   }
+
+  /** Stripe's own processing fee for a completed payment, in EUR cents — null
+   *  if it can't be determined yet (e.g. the balance transaction hasn't
+   *  settled). Used to log the real cost of accepting the payment, never to
+   *  gate the payment itself. */
+  async retrievePaymentIntentFeeMinor(paymentIntentId: string): Promise<number | null> {
+    const pi = await this.req().paymentIntents.retrieve(paymentIntentId, {
+      expand: ['latest_charge.balance_transaction'],
+    });
+    const charge = pi.latest_charge;
+    if (!charge || typeof charge === 'string') return null;
+    const bt = charge.balance_transaction;
+    if (!bt || typeof bt === 'string') return null;
+    return bt.fee;
+  }
 }

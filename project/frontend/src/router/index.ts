@@ -224,7 +224,18 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/admin/AdminLayout.vue'),
     meta: { requiresAuth: true, requiresPlatformStaff: true },
     children: [
-      { path: '', redirect: { name: 'admin-dashboard' } },
+      {
+        path: '',
+        redirect: (to) => {
+          const auth = useAuthStore()
+          const roles = auth.user?.platformRoles ?? []
+          // A finance-only Contabil has no business landing on the general
+          // admin dashboard (they can't see it) — send them straight to the
+          // one area they actually have.
+          const home = roles.includes('admin') ? 'admin-dashboard' : 'admin-financiar'
+          return { name: home, query: to.query }
+        },
+      },
       {
         path: 'dashboard',
         name: 'admin-dashboard',
@@ -263,12 +274,37 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'invoices',
         name: 'admin-invoices',
+        meta: { allowedRoles: ['admin', 'finance'] },
         component: () => import('@/views/admin/AdminInvoicesView.vue'),
       },
       {
         path: 'referrals',
         name: 'admin-referrals',
         component: () => import('@/views/admin/AdminReferralsView.vue'),
+      },
+      {
+        path: 'financiar',
+        name: 'admin-financiar',
+        meta: { allowedRoles: ['admin', 'finance'] },
+        component: () => import('@/views/admin/AdminFinanceDashboardView.vue'),
+      },
+      {
+        path: 'financiar/venituri',
+        name: 'admin-financiar-venituri',
+        meta: { allowedRoles: ['admin', 'finance'] },
+        component: () => import('@/views/admin/AdminFinanceRevenueView.vue'),
+      },
+      {
+        path: 'financiar/costuri',
+        name: 'admin-financiar-costuri',
+        meta: { allowedRoles: ['admin', 'finance'] },
+        component: () => import('@/views/admin/AdminFinanceExpensesView.vue'),
+      },
+      {
+        path: 'financiar/ai',
+        name: 'admin-financiar-ai',
+        meta: { allowedRoles: ['admin', 'finance'] },
+        component: () => import('@/views/admin/AdminFinanceAiUsageView.vue'),
       },
     ],
   },
@@ -332,8 +368,14 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
-  if (to.meta.requiresPlatformStaff && !auth.isPlatformStaff) {
-    return { name: 'account' }
+  if (to.meta.requiresPlatformStaff) {
+    // Default to admin-only — only routes that opt in via `allowedRoles`
+    // (the finance module, invoices) are also open to the `finance` role.
+    const allowed = (to.meta.allowedRoles as string[] | undefined) ?? ['admin']
+    const roles = auth.user?.platformRoles ?? []
+    if (!roles.some((r) => allowed.includes(r))) {
+      return { name: 'account' }
+    }
   }
   if (to.meta.guestOnly && auth.isAuthenticated) {
     return { name: 'account' }
