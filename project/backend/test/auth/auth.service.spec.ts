@@ -1,0 +1,232 @@
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  AuthService,
+  EMAIL_NOT_VERIFIED,
+  TOTP_INVALID,
+  TOTP_REQUIRED,
+} from 'src/auth/auth.service';
+import { PasswordService } from 'src/auth/password.service';
+import { TotpService } from 'src/auth/totp.service';
+
+type MockPrisma = {
+  user: {
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
+  };
+};
+
+function makePrisma(): MockPrisma {
+  return {
+    user: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+  };
+}
+
+describe('AuthService', () => {
+  let prisma: MockPrisma;
+  let passwords: PasswordService;
+  let totp: TotpService;
+  let service: AuthService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    passwords = new PasswordService();
+    totp = new TotpService();
+    service = new AuthService(prisma as never, passwords, totp);
+  });
+
+  describe('register', () => {
+    it('rejects a duplicate email once it is verified', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', emailVerifiedAt: new Date() });
+      await expect(
+        service.register({ email: 'a@b.com', password: 'password123', name: 'A' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('updates an existing still-unverified account in place instead of conflicting', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'Old Name',
+        emailVerifiedAt: null,
+        platformRoles: [],
+      });
+      prisma.user.update.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'New Name',
+        platformRoles: [],
+        emailVerifiedAt: null,
+      });
+
+      const view = await service.register({
+        email: 'a@b.com',
+        password: 'password123',
+        name: 'New Name',
+      });
+
+      expect(view.name).toBe('New Name');
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'u1' } }),
+      );
+    });
+
+    it('creates a user and returns a safe view (no hash), unverified', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'A',
+        platformRoles: [],
+        emailVerifiedAt: null,
+      });
+
+      const view = await service.register({
+        email: 'a@b.com',
+        password: 'password123',
+        name: 'A',
+      });
+
+      expect(view).toEqual({
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'A',
+        platformRoles: [],
+        emailVerifiedAt: null,
+      });
+      const createArg = prisma.user.create.mock.calls[0][0];
+      expect(createArg.data.passwordHash).toMatch(/^\$argon2id\$/);
+    });
+  });
+
+  describe('validateCredentials', () => {
+    it('throws for an unknown email', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      await expect(
+        service.validateCredentials({ email: 'x@y.com', password: 'whatever12' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('throws for a wrong password', async () => {
+      const hash = await passwords.hash('the-real-password');
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'x@y.com',
+        name: 'X',
+        status: 'active',
+        passwordHash: hash,
+        platformRoles: [],
+      });
+      await expect(
+        service.validateCredentials({ email: 'x@y.com', password: 'wrong-password' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('tells a suspended user their account is suspended (password was right)', async () => {
+      const hash = await passwords.hash('the-real-password');
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'x@y.com',
+        name: 'X',
+        status: 'suspended',
+        passwordHash: hash,
+        platformRoles: [],
+      });
+      await expect(
+        service.validateCredentials({ email: 'x@y.com', password: 'the-real-password' }),
+      ).rejects.toMatchObject({ message: 'account_suspended' });
+    });
+
+    it('returns the user view and stamps lastLoginAt on success', async () => {
+      const hash = await passwords.hash('the-real-password');
+      const verifiedAt = new Date('2026-01-01T00:00:00Z');
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'x@y.com',
+        name: 'X',
+        status: 'active',
+        passwordHash: hash,
+        totpEnabledAt: null,
+        totpSecret: null,
+        emailVerifiedAt: verifiedAt,
+        platformRoles: [{ role: 'admin' }],
+      });
+      prisma.user.update.mockResolvedValue({});
+
+      const view = await service.validateCredentials({
+        email: 'x@y.com',
+        password: 'the-real-password',
+      });
+
+      expect(view).toEqual({
+        id: 'u1',
+        email: 'x@y.com',
+        name: 'X',
+        platformRoles: ['admin'],
+        emailVerifiedAt: verifiedAt.toISOString(),
+      });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u1' },
+        data: { lastLoginAt: expect.any(Date) },
+      });
+    });
+
+    it('blocks login for an account that never verified its email (password is right)', async () => {
+      const hash = await passwords.hash('the-real-password');
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'x@y.com',
+        name: 'X',
+        status: 'active',
+        passwordHash: hash,
+        totpEnabledAt: null,
+        totpSecret: null,
+        emailVerifiedAt: null,
+        platformRoles: [],
+      });
+      await expect(
+        service.validateCredentials({ email: 'x@y.com', password: 'the-real-password' }),
+      ).rejects.toMatchObject({ message: EMAIL_NOT_VERIFIED });
+    });
+
+    it('demands a TOTP code when 2FA is enabled', async () => {
+      const hash = await passwords.hash('pw-123456');
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'x@y.com',
+        name: 'X',
+        status: 'active',
+        passwordHash: hash,
+        totpEnabledAt: new Date(),
+        totpSecret: totp.generateSecret(),
+        emailVerifiedAt: new Date(),
+        platformRoles: [],
+      });
+      await expect(
+        service.validateCredentials({ email: 'x@y.com', password: 'pw-123456' }),
+      ).rejects.toMatchObject({ message: TOTP_REQUIRED });
+    });
+
+    it('rejects a bad TOTP code', async () => {
+      const hash = await passwords.hash('pw-123456');
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'x@y.com',
+        name: 'X',
+        status: 'active',
+        passwordHash: hash,
+        totpEnabledAt: new Date(),
+        totpSecret: totp.generateSecret(),
+        emailVerifiedAt: new Date(),
+        platformRoles: [],
+      });
+      await expect(
+        service.validateCredentials({
+          email: 'x@y.com',
+          password: 'pw-123456',
+          totpCode: '000000',
+        }),
+      ).rejects.toMatchObject({ message: TOTP_INVALID });
+    });
+  });
+});
