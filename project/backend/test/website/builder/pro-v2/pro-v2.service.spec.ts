@@ -71,7 +71,12 @@ function fakePrisma(
         },
       ),
     },
-    $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
+    // Supports both calling conventions Prisma allows: an array of
+    // promises, or a callback given the client itself as `tx` (which this
+    // fake — having no real isolation — just passes itself for).
+    $transaction: jest.fn(async function (this: unknown, ops: unknown) {
+      return typeof ops === 'function' ? ops(this) : Promise.all(ops as Promise<unknown>[]);
+    }),
     proV2Project: {
       findUnique: jest.fn(async () => project),
       create: jest.fn(
@@ -184,8 +189,9 @@ function fakePrisma(
 function fakeWallet(balanceCredits = 1000) {
   return {
     getSummary: jest.fn(async () => ({ balance: { credits: balanceCredits } })),
-    spend: jest.fn(async () => {}),
-    adjust: jest.fn(async () => {}),
+    assertSpendable: jest.fn(async () => {}),
+    spendWithin: jest.fn(async () => ({ balanceMinor: 0, transactionId: 'txn1' })),
+    adjustWithin: jest.fn(async () => 0),
   };
 }
 function fakeSettings(priceCredits = 50, bonusCredits = 10) {
@@ -276,14 +282,38 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
     );
     await svc.unlock('c1', 'u1');
-    expect(wallet.spend).toHaveBeenCalledTimes(1);
-    expect(wallet.adjust).toHaveBeenCalledWith('owner1', 10, 'Website Builder unlock bonus');
+    expect(wallet.spendWithin).toHaveBeenCalledTimes(1);
+    expect(wallet.adjustWithin).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner1',
+      10,
+      'Website Builder unlock bonus',
+    );
     await expect(svc.getOrCreateProject('c1', 'u1')).resolves.toBeDefined();
     // Calling unlock again on an already-unlocked company must not charge
     // (or re-grant the bonus) twice.
     await svc.unlock('c1', 'u1');
-    expect(wallet.spend).toHaveBeenCalledTimes(1);
-    expect(wallet.adjust).toHaveBeenCalledTimes(1);
+    expect(wallet.spendWithin).toHaveBeenCalledTimes(1);
+    expect(wallet.adjustWithin).toHaveBeenCalledTimes(1);
+  });
+
+  it('unlock rolls back the charge if granting the bonus fails mid-transaction (regression: the four steps used to commit separately)', async () => {
+    const prisma = fakePrisma('owner', false);
+    const wallet = fakeWallet(100);
+    wallet.adjustWithin.mockRejectedValueOnce(new Error('db hiccup'));
+    const svc = new ProV2Service(
+      prisma as never,
+      wallet as never,
+      fakeSettings(50, 10) as never,
+      fakeAssets() as never,
+    );
+
+    await expect(svc.unlock('c1', 'u1')).rejects.toThrow('db hiccup');
+
+    // The company must NOT be left half-unlocked — same transaction, same
+    // outcome as the charge itself.
+    expect(prisma.company.update).not.toHaveBeenCalled();
+    await expect(svc.getOrCreateProject('c1', 'u1')).rejects.toThrow(ForbiddenException);
   });
 
   it('uploadAsset delegates to WebsiteAssetService as kind "custom", after ownership + unlock checks', async () => {

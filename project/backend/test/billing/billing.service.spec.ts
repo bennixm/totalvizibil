@@ -294,4 +294,45 @@ describe('BillingService', () => {
       expect(updateArg.data.voidedAt).toBeInstanceOf(Date);
     });
   });
+
+  // ── unvoidInvoice ──────────────────────────────────────────────────────────
+
+  describe('unvoidInvoice', () => {
+    it('throws NotFoundException when invoice does not exist', async () => {
+      const { svc } = makeService();
+
+      await expect(svc.unvoidInvoice('nonexistent-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('is a no-op (regression) when the invoice is not currently voided', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedInvoice({ id: 'inv-1', voidedAt: null });
+
+      const result = await svc.unvoidInvoice('inv-1');
+
+      // Mirrors voidInvoice's own already-in-that-state guard — a stale
+      // double-click (or a second admin) must not re-fire the "restored"
+      // notification or touch a voidReason some other action already set.
+      expect(prisma.invoice.update).not.toHaveBeenCalled();
+      expect(notifications.notify).not.toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+
+    it('happy path clears voidedAt and voidReason, and notifies once', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedInvoice({ id: 'inv-1', number: 'TVZ-2025-000001', voidedAt: new Date() });
+
+      await svc.unvoidInvoice('inv-1');
+
+      expect(prisma.invoice.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'inv-1' },
+          data: { voidedAt: null, voidReason: null },
+        }),
+      );
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'invoice_restored' }),
+      );
+    });
+  });
 });

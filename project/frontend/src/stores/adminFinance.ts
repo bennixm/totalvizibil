@@ -84,6 +84,16 @@ interface AdminFinanceState {
 
   aiUsage: AiUsageReport | null
   loadingAiUsage: boolean
+
+  // Bumped on every `fetchOverview`/`fetchRevenue`/`fetchExpenses` call —
+  // each in-flight request is tagged with the value it saw, and discards its
+  // own result if a newer call (a fast follow-up filter change) has started
+  // in the meantime. Without this, clicking through period/filter options
+  // quickly can let a slower, earlier request's response land AFTER a
+  // faster, newer one and silently overwrite it with stale data.
+  overviewSeq: number
+  revenueSeq: number
+  expensesSeq: number
 }
 
 export const useAdminFinanceStore = defineStore('adminFinance', {
@@ -104,6 +114,10 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
 
     aiUsage: null,
     loadingAiUsage: false,
+
+    overviewSeq: 0,
+    revenueSeq: 0,
+    expensesSeq: 0,
   }),
 
   actions: {
@@ -113,15 +127,18 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     },
 
     async fetchOverview(): Promise<void> {
+      const seq = ++this.overviewSeq
       this.loadingOverview = true
       try {
         const params = new URLSearchParams()
         if (this.period.from) params.set('from', this.period.from)
         if (this.period.to) params.set('to', this.period.to)
         const qs = params.toString()
-        this.overview = await apiFetch<FinanceOverview>(`/admin/finance/overview${qs ? `?${qs}` : ''}`)
+        const res = await apiFetch<FinanceOverview>(`/admin/finance/overview${qs ? `?${qs}` : ''}`)
+        if (seq !== this.overviewSeq) return
+        this.overview = res
       } finally {
-        this.loadingOverview = false
+        if (seq === this.overviewSeq) this.loadingOverview = false
       }
     },
 
@@ -135,6 +152,7 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     },
 
     async fetchRevenue(): Promise<void> {
+      const seq = ++this.revenueSeq
       this.loadingRevenue = true
       try {
         const f = this.revenueFilters
@@ -147,10 +165,11 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
         const res = await apiFetch<{ items: RevenueRow[]; total: number }>(
           `/admin/finance/revenue?${params.toString()}`,
         )
+        if (seq !== this.revenueSeq) return
         this.revenue = res.items
         this.revenueTotal = res.total
       } finally {
-        this.loadingRevenue = false
+        if (seq === this.revenueSeq) this.loadingRevenue = false
       }
     },
 
@@ -174,6 +193,7 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     },
 
     async fetchExpenses(): Promise<void> {
+      const seq = ++this.expensesSeq
       this.loadingExpenses = true
       try {
         const f = this.expenseFilters
@@ -186,10 +206,11 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
         const res = await apiFetch<{ items: ExpenseRow[]; total: number }>(
           `/admin/finance/expenses?${params.toString()}`,
         )
+        if (seq !== this.expensesSeq) return
         this.expenses = res.items
         this.expensesTotal = res.total
       } finally {
-        this.loadingExpenses = false
+        if (seq === this.expensesSeq) this.loadingExpenses = false
       }
     },
 

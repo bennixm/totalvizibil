@@ -19,6 +19,10 @@ export interface CampaignData {
   /** AUTO mode: the platform manages the CPC and keeps the campaign live 24/7. */
   autoOptimize: boolean
   activatedAt: string | null
+  /** Round-tripped back as `SaveCampaignInput.expectedUpdatedAt` on the next
+   *  save — lets the backend detect a concurrent edit (by the owner, or an
+   *  admin) since this was hydrated, instead of silently overwriting it. */
+  updatedAt: string
   /** Lifetime credits this campaign has consumed. */
   consumed: Money
   /** Credits spent on clicks so far today (resets daily). */
@@ -54,6 +58,9 @@ export interface SaveCampaignInput {
   cpc: number
   appearFirst: boolean
   autoOptimize?: boolean
+  /** The campaign's `updatedAt` as last hydrated by this caller — rejected
+   *  with `campaign_changed_since_loaded` if it no longer matches. */
+  expectedUpdatedAt?: string
 }
 
 /** The company's position within ONE atomic Feed (județ + subcategorie). A

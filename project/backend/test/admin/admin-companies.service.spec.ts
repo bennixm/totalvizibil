@@ -46,9 +46,11 @@ function makeCompany(overrides: Record<string, any> = {}) {
 
 function fakePrisma() {
   const companies = new Map<string, ReturnType<typeof makeCompany>>();
+  const companyCategoryRows: { companyId: string; categoryId: string; isPrimary: boolean }[] = [];
+  let primaryLocation: { city: string | null; lat: number | null; lng: number | null } | null =
+    null;
 
-  const prisma = {
-    $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
+  const prisma: any = {
     company: {
       findUnique: jest.fn(async ({ where }: any) => companies.get(where.id) ?? null),
       findMany: jest.fn(async () => [...companies.values()]),
@@ -77,6 +79,22 @@ function fakePrisma() {
     companyLocation: {
       deleteMany: jest.fn(async () => ({ count: 0 })),
       createMany: jest.fn(async () => ({ count: 0 })),
+      // Only the single row `setLocation` reads back (the existing primary's
+      // city/lat/lng to carry forward) — set via `__seedPrimaryLocation`.
+      findFirst: jest.fn(async () => primaryLocation),
+    },
+    companyCategory: {
+      deleteMany: jest.fn(async ({ where }: any) => {
+        const before = companyCategoryRows.length;
+        const kept = companyCategoryRows.filter((r) => r.companyId !== where.companyId);
+        companyCategoryRows.length = 0;
+        companyCategoryRows.push(...kept);
+        return { count: before - companyCategoryRows.length };
+      }),
+      create: jest.fn(async ({ data }: any) => {
+        companyCategoryRows.push(data);
+        return data;
+      }),
     },
     category: {
       findUnique: jest.fn(async () => null),
@@ -87,8 +105,21 @@ function fakePrisma() {
       companies.set(c.id, c);
       return c;
     },
+    __seedPrimaryLocation: (loc: { city: string | null; lat: number | null; lng: number | null }) => {
+      primaryLocation = loc;
+    },
     __companies: companies,
+    __companyCategoryRows: companyCategoryRows,
   };
+
+  // Supports both call shapes actually used in the service: the array form
+  // `$transaction([...])` and the interactive-callback form
+  // `$transaction(async (tx) => {...})` (used by `updateCompany`'s
+  // category-sync fix) — the callback just gets the same fake client, since
+  // none of these fakes need real row-level isolation.
+  prisma.$transaction = jest.fn(async (arg: any) =>
+    typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
+  );
 
   return prisma;
 }
@@ -141,6 +172,14 @@ function fakeAnalytics() {
   return {
     companyAnalytics: jest.fn(async () => ({})),
     feedRanksFor: jest.fn(async () => []),
+    // Floor = costPromovareMinor + marjaProfitMinor = 20 — `makeCampaign`'s
+    // default `cpcMinor: 50` clears it; tests that need to fail the check
+    // seed a campaign with a lower `cpcMinor`.
+    marginConfig: jest.fn(async () => ({
+      costPromovareMinor: 10,
+      marjaProfitMinor: 10,
+      marjaPozitionareMinor: 0,
+    })),
   };
 }
 
@@ -380,14 +419,14 @@ describe('AdminCompaniesService', () => {
   // ---- saveCampaign() (delegation) ---------------------------------------
 
   describe('saveCampaign()', () => {
-    it('delegates to campaigns.saveFor with the provided dto', async () => {
+    it('delegates to campaigns.saveFor with the provided dto, tagged as an admin-initiated save', async () => {
       const { svc, prisma, campaigns } = makeService();
       prisma.__seed({ id: 'company-1', status: 'active' });
       const dto = { dailyBudgetMinor: 500, cpcMinor: 25 } as any;
 
       await svc.saveCampaign('company-1', dto);
 
-      expect(campaigns.saveFor).toHaveBeenCalledWith('company-1', dto);
+      expect(campaigns.saveFor).toHaveBeenCalledWith('company-1', dto, 'admin');
     });
 
     it('throws NotFoundException before saving when company does not exist', async () => {
@@ -395,6 +434,186 @@ describe('AdminCompaniesService', () => {
 
       await expect(svc.saveCampaign('nonexistent', {} as any)).rejects.toThrow(NotFoundException);
       expect(campaigns.saveFor).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---- pending-deletion freeze (regression) ------------------------------
+
+  describe('pending-deletion freeze', () => {
+    const PENDING_METHODS: [string, (svc: AdminCompaniesService) => Promise<unknown>][] = [
+      ['updateCompany', (svc) => svc.updateCompany('company-1', { displayName: 'New' } as any)],
+      [
+        'setLocation',
+        (svc) => svc.setLocation('company-1', { nationwide: true } as any),
+      ],
+      ['setWebsitePublished', (svc) => svc.setWebsitePublished('company-1', false)],
+      ['saveCampaign', (svc) => svc.saveCampaign('company-1', {} as any)],
+      [
+        'campaignAction',
+        (svc) => svc.campaignAction('company-1', { action: 'pause' } as any),
+      ],
+      ['setStatus', (svc) => svc.setStatus('company-1', { status: 'suspended' } as any)],
+      ['upgradeToAdvanced', (svc) => svc.upgradeToAdvanced('company-1')],
+    ];
+
+    it.each(PENDING_METHODS)(
+      '%s rejects a company with a deletion scheduled',
+      async (_name, call) => {
+        const { svc, prisma } = makeService();
+        prisma.__seed({
+          id: 'company-1',
+          status: 'active',
+          deletionScheduledAt: new Date(),
+          campaign: makeCampaign(),
+        });
+
+        await expect(call(svc)).rejects.toThrow('company_pending_deletion');
+      },
+    );
+
+    it('cancelDeletion is NOT blocked — it is the one way out of this state', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seed({
+        id: 'company-1',
+        status: 'draft',
+        deletionScheduledAt: new Date(),
+        ownerUserId: 'user-1',
+      });
+
+      const result = await svc.cancelDeletion('company-1');
+
+      expect(result).toBeDefined();
+      expect(prisma.company.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ deletionScheduledAt: null }) }),
+      );
+    });
+  });
+
+  // ---- campaignAction() ---------------------------------------------------
+
+  describe('campaignAction()', () => {
+    it('delete preserves a suspended status instead of lifting it to draft', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seed({
+        id: 'company-1',
+        status: 'suspended',
+        campaign: makeCampaign({ status: CampaignStatus.paused }),
+      });
+
+      await svc.campaignAction('company-1', { action: 'delete' } as any);
+
+      expect(prisma.company.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { featured: false } }),
+      );
+      expect(prisma.__companies.get('company-1')?.status).toBe('suspended');
+    });
+
+    it('delete demotes a non-suspended company to draft as before', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seed({
+        id: 'company-1',
+        status: 'active',
+        campaign: makeCampaign({ status: CampaignStatus.active }),
+      });
+
+      await svc.campaignAction('company-1', { action: 'delete' } as any);
+
+      expect(prisma.__companies.get('company-1')?.status).toBe('draft');
+    });
+
+    it('activate rejects a manual CPC below the Feed CPC minim instead of self-reverting later', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seed({
+        id: 'company-1',
+        status: 'draft',
+        campaign: makeCampaign({ status: CampaignStatus.paused, cpcMinor: 10, autoOptimize: false }),
+      });
+
+      await expect(svc.campaignAction('company-1', { action: 'activate' } as any)).rejects.toThrow(
+        'cpc_below_feed_minimum',
+      );
+    });
+
+    it('activate succeeds when CPC clears the Feed minim', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seed({
+        id: 'company-1',
+        status: 'draft',
+        campaign: makeCampaign({ status: CampaignStatus.paused, cpcMinor: 50, autoOptimize: false }),
+      });
+
+      const result = await svc.campaignAction('company-1', { action: 'activate' } as any);
+
+      expect(result).toEqual({ ok: true, action: 'activate' });
+    });
+
+    it('pause on a live campaign notifies the owner (admin-initiated, emailed)', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seed({
+        id: 'company-1',
+        status: 'active',
+        ownerUserId: 'user-1',
+        campaign: makeCampaign({ status: CampaignStatus.active }),
+      });
+
+      await svc.campaignAction('company-1', { action: 'pause' } as any);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          type: 'campaign_paused_by_admin',
+          channels: { panel: true, email: true },
+        }),
+      );
+    });
+  });
+
+  // ---- updateCompany() — category sync ------------------------------------
+
+  describe('updateCompany()', () => {
+    it('syncs the company_categories join table alongside the categoryId scalar', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seed({ id: 'company-1', status: 'active', categoryId: 'old-cat' });
+      prisma.category.findUnique.mockResolvedValueOnce({
+        id: 'new-cat',
+        isActive: true,
+        parentId: 'parent-1',
+      });
+
+      await svc.updateCompany('company-1', { categoryId: 'new-cat' } as any);
+
+      expect(prisma.__companyCategoryRows).toEqual([
+        { companyId: 'company-1', categoryId: 'new-cat', isPrimary: true },
+      ]);
+      expect(prisma.__companies.get('company-1')?.categoryId).toBe('new-cat');
+    });
+
+    it('leaves category_categories untouched when no categoryId is sent', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seed({ id: 'company-1', status: 'active' });
+
+      await svc.updateCompany('company-1', { displayName: 'Renamed' } as any);
+
+      expect(prisma.companyCategory.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.companyCategory.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---- setLocation() — pin carry-forward -----------------------------------
+
+  describe('setLocation()', () => {
+    it('carries the existing primary city/lat/lng forward onto the new primary row', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seed({ id: 'company-1', status: 'active' });
+      prisma.__seedPrimaryLocation({ city: 'Cluj-Napoca', lat: 46.77, lng: 23.59 });
+
+      await svc.setLocation('company-1', { counties: ['Cluj', 'Sibiu'] } as any);
+
+      const [createManyCall] = (prisma.companyLocation.createMany as jest.Mock).mock.calls;
+      const rows = createManyCall[0].data as any[];
+      expect(rows[0]).toMatchObject({ city: 'Cluj-Napoca', lat: 46.77, lng: 23.59, isPrimary: true });
+      expect(rows[1]).toMatchObject({ city: null, lat: null, lng: null, isPrimary: false });
     });
   });
 });

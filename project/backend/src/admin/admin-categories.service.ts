@@ -14,7 +14,9 @@ export class AdminCategoriesService {
   async tree() {
     const all = await this.prisma.category.findMany({
       orderBy: [{ position: 'asc' }, { slug: 'asc' }],
-      include: { _count: { select: { companies: true, children: true } } },
+      include: {
+        _count: { select: { companies: true, companyCategories: true, children: true } },
+      },
     });
 
     const view = (c: (typeof all)[number]) => ({
@@ -25,7 +27,13 @@ export class AdminCategoriesService {
       icon: c.icon,
       isActive: c.isActive,
       position: c.position,
-      companyCount: c._count.companies,
+      // `companies` is only the legacy primary-FK mirror; `companyCategories`
+      // is the authoritative multi-category join table (every tagged
+      // company — primary or secondary — gets a row there). They SHOULD
+      // agree, but an admin company-edit that writes `Company.categoryId`
+      // directly without re-syncing the join table can leave the FK ahead of
+      // it — take the max so a still-in-use category never reads as 0.
+      companyCount: Math.max(c._count.companies, c._count.companyCategories),
       childCount: c._count.children,
     });
 
@@ -80,7 +88,9 @@ export class AdminCategoriesService {
   async update(id: string, dto: UpdateCategoryDto) {
     const cat = await this.prisma.category.findUnique({
       where: { id },
-      include: { _count: { select: { children: true } } },
+      include: {
+        _count: { select: { children: true, companies: true, companyCategories: true } },
+      },
     });
     if (!cat) throw new NotFoundException('Category not found');
 
@@ -88,6 +98,16 @@ export class AdminCategoriesService {
       this.assertSlug(dto.slug);
       const taken = await this.prisma.category.findUnique({ where: { slug: dto.slug } });
       if (taken) throw new BadRequestException('That slug is already taken');
+      // The slug is a path segment in this app's flat, indexed SEO URLs
+      // (/group/subcategory/slug) — renaming it out from under companies
+      // that are live under it 404s every indexed link with no redirect.
+      // Only allow a slug change while the category is still empty.
+      const inUse = Math.max(cat._count.companies, cat._count.companyCategories);
+      if (inUse > 0) {
+        throw new BadRequestException(
+          `${inUse} business(es) use this category — reassign them before changing its slug (changing it would break their live URLs)`,
+        );
+      }
     }
 
     if (dto.parentId !== undefined) {
@@ -119,12 +139,21 @@ export class AdminCategoriesService {
   async remove(id: string) {
     const cat = await this.prisma.category.findUnique({
       where: { id },
-      include: { _count: { select: { companies: true, children: true } } },
+      include: {
+        _count: { select: { companies: true, companyCategories: true, children: true } },
+      },
     });
     if (!cat) throw new NotFoundException('Category not found');
-    if (cat._count.companies > 0) {
+    // `companies` is only the legacy primary-FK mirror — a company tagged to
+    // this category ONLY as a secondary niche has no row there, but does
+    // have one in `companyCategories` (the real, authoritative join table),
+    // which Prisma's `onDelete: Cascade` would otherwise silently destroy
+    // along with the category, pulling that company out of a Feed it's
+    // still ranking and paying CPC in.
+    const inUse = Math.max(cat._count.companies, cat._count.companyCategories);
+    if (inUse > 0) {
       throw new BadRequestException(
-        `${cat._count.companies} business(es) use this category — reassign them first`,
+        `${inUse} business(es) use this category — reassign them first`,
       );
     }
     if (cat._count.children > 0) {

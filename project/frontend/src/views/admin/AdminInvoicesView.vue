@@ -60,6 +60,21 @@ function openVoid(inv: { id: string; number: string }): void {
   voidTarget.value = inv
   voidReason.value = ''
 }
+/** Re-fetches the open detail dialog's content in place after a void/unvoid
+ *  — nulling it out (the old behaviour) left `detailOpen` true with nothing
+ *  to render: a blank dialog shell the admin could only dismiss by clicking
+ *  the overlay, with no confirmation the action actually applied. */
+async function refreshDetailIfOpen(id: string): Promise<void> {
+  if (!detailOpen.value || detail.value?.id !== id) return
+  try {
+    detail.value = await admin.fetchInvoiceDetail(id)
+  } catch {
+    // The void/unvoid itself already succeeded and was flashed — a failed
+    // re-fetch just means the dialog keeps showing the pre-action state
+    // until the admin reopens it, not worth a second error toast.
+  }
+}
+
 async function confirmVoid(): Promise<void> {
   if (!voidTarget.value || voidReason.value.trim().length < 3) return
   const id = voidTarget.value.id
@@ -68,7 +83,7 @@ async function confirmVoid(): Promise<void> {
     await admin.voidInvoice(id, voidReason.value.trim())
     flash(t('admin.invVoided'))
     voidTarget.value = null
-    if (detail.value?.id === id) detail.value = null
+    await refreshDetailIfOpen(id)
   } catch (e) {
     flash(errText(e, t('admin.genericError')), 'error')
   } finally {
@@ -80,7 +95,7 @@ async function unvoid(inv: { id: string; number: string }): Promise<void> {
   try {
     await admin.unvoidInvoice(inv.id)
     flash(t('admin.invUnvoided'))
-    if (detail.value?.id === inv.id) detail.value = null
+    await refreshDetailIfOpen(inv.id)
   } catch (e) {
     flash(errText(e, t('admin.genericError')), 'error')
   } finally {

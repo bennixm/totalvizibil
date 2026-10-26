@@ -798,6 +798,17 @@ export class CompaniesService implements OnModuleInit {
         where: { companyId, status: { in: ['active', 'depleted'] } },
         data: { status: 'paused', pausedAt: now, autoOptimize: false },
       }),
+      // A campaign that's already `paused` (not active/depleted) is missed
+      // by the clause above but can still carry `autoOptimize: true` — left
+      // alone, `CampaignService.reconcile`'s 24/7 AUTO-revival branch
+      // (`autoOptimize && paused` → funded → active) would bring it straight
+      // back into the feed on the very next read, regardless of this
+      // deletion. Clear the flag unconditionally instead of only for the
+      // statuses handled above.
+      this.prisma.campaign.updateMany({
+        where: { companyId, status: { notIn: ['active', 'depleted'] }, autoOptimize: true },
+        data: { autoOptimize: false },
+      }),
     ]);
 
     // The takedown is already committed by this point — a notification

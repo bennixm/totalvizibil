@@ -299,7 +299,7 @@ const economyChart = computed(() => {
   border: 1px solid var(--tvz-hairline);
   border-radius: 12px;
   background: rgb(var(--v-theme-surface));
-  border-top: 2px solid rgb(var(--acc) / 0.5);
+  border-top: 2px solid rgba(var(--acc), 0.5);
 }
 .kpi--primary {
   --acc: var(--v-theme-primary);
@@ -326,7 +326,7 @@ const economyChart = computed(() => {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: rgb(var(--acc) / 0.12);
+  background: rgba(var(--acc), 0.12);
   color: rgb(var(--acc));
 }
 .kpi__value {

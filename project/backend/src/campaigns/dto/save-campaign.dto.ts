@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { IsBoolean, IsISO8601, IsNumber, IsOptional, Max, Min } from 'class-validator';
 
 export class SaveCampaignDto {
   /** Daily budget in credits (1 Credit = 1 EUR). */
@@ -28,4 +28,13 @@ export class SaveCampaignDto {
   @IsOptional()
   @IsBoolean()
   autoOptimize?: boolean;
+
+  /** The campaign's `updatedAt` as last seen by the caller — lets the admin
+   *  panel (where the owner could be editing the same campaign concurrently)
+   *  detect and reject a stale save instead of silently overwriting newer
+   *  changes. Optional: the owner's own save never needs this, since only
+   *  they edit their own campaign. */
+  @IsOptional()
+  @IsISO8601()
+  expectedUpdatedAt?: string;
 }

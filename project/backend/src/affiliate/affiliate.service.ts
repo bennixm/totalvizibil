@@ -123,8 +123,14 @@ export class AffiliateService {
     }
 
     try {
+      // Stamp today's reward amount onto the referral now, at claim time —
+      // not re-read from the live setting later at payout time. Otherwise an
+      // admin lowering the reward retroactively cuts the pay owed on every
+      // still-pending referral, even though the referrer was shown (and
+      // shared their link under) the higher amount the whole time.
+      const promisedReward = await this.settings.affiliateRewardCredits();
       await this.prisma.referral.create({
-        data: { referrerId: referrer.id, referredUserId },
+        data: { referrerId: referrer.id, referredUserId, rewardCredits: promisedReward },
       });
       return { claimed: true };
     } catch (err) {
@@ -150,7 +156,7 @@ export class AffiliateService {
     try {
       const referral = await this.prisma.referral.findUnique({
         where: { referredUserId },
-        select: { id: true, status: true, referrerId: true },
+        select: { id: true, status: true, referrerId: true, rewardCredits: true },
       });
       if (!referral || referral.status !== 'pending') return;
       if (!(await this.settings.affiliateEnabled())) return;
@@ -159,7 +165,11 @@ export class AffiliateService {
       const minDeposit = await this.settings.affiliateMinDepositCredits();
       if ((await this.depositedCredits(referredUserId)) < minDeposit) return;
 
-      const reward = await this.settings.affiliateRewardCredits();
+      // Pay what was promised at claim time (`rewardCredits`, stamped in
+      // `claim()`), not whatever the live setting says today — falls back to
+      // the live setting only for a referral claimed before this stamping
+      // existed (`rewardCredits` still null).
+      const reward = referral.rewardCredits ?? (await this.settings.affiliateRewardCredits());
       const referred = await this.prisma.user.findUnique({
         where: { id: referredUserId },
         select: { name: true },
@@ -320,7 +330,12 @@ export class AffiliateService {
       code,
       referred: rows.length,
       rewarded: rows.filter((r) => r.status === 'rewarded').length,
-      creditsEarned: rows.reduce((s, r) => s + (r.rewardCredits ?? 0), 0),
+      // `rewardCredits` is now stamped at claim time (the promised amount),
+      // not just at payout — so a pending referral has a non-null value too.
+      // Only an actually-`rewarded` row represents credits really earned.
+      creditsEarned: rows
+        .filter((r) => r.status === 'rewarded')
+        .reduce((s, r) => s + (r.rewardCredits ?? 0), 0),
       items: rows.map((r) => ({
         id: r.id,
         name: r.referredUser.name,
@@ -340,7 +355,7 @@ export class AffiliateService {
     const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
     const where: Prisma.ReferralWhereInput = params.status ? { status: params.status } : {};
 
-    const [rows, total, rewardedAgg] = await this.prisma.$transaction([
+    const [rows, total, rewardedAgg, totalAll, totalPending] = await this.prisma.$transaction([
       this.prisma.referral.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -362,6 +377,12 @@ export class AffiliateService {
         _count: true,
         _sum: { rewardCredits: true },
       }),
+      // Unfiltered totals for the summary chips — `total` above is scoped to
+      // whatever status filter is active, so deriving "pending" as
+      // `total - totalRewarded` on the frontend went negative/nonsensical
+      // under a filter. These two are never filtered.
+      this.prisma.referral.count(),
+      this.prisma.referral.count({ where: { status: 'pending' } }),
     ]);
 
     return {
@@ -377,6 +398,8 @@ export class AffiliateService {
       page,
       pageSize,
       total,
+      totalAll,
+      totalPending,
       totalRewarded: rewardedAgg._count,
       creditsPaid: rewardedAgg._sum.rewardCredits ?? 0,
     };

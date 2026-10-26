@@ -10,8 +10,13 @@ function makeCategory(overrides: Record<string, any> = {}) {
     parentId: null,
     isActive: true,
     position: 0,
-    _count: { companies: 0, children: 0 },
     ...overrides,
+    _count: {
+      companies: 0,
+      companyCategories: 0,
+      children: 0,
+      ...overrides._count,
+    },
   };
 }
 
@@ -117,6 +122,27 @@ describe('AdminCategoriesService', () => {
         BadRequestException,
       );
     });
+
+    it('throws BadRequestException when renaming the slug of a category in use', async () => {
+      // The slug is a path segment in this app's flat, indexed SEO URLs —
+      // renaming it on a still-in-use category would 404 every live link.
+      const prisma = fakePrisma();
+      prisma.__seedCat({ id: 'c1', slug: 'old-slug', _count: { companies: 2 } });
+      const svc = new AdminCategoriesService(prisma as any);
+      await expect(svc.update('c1', { slug: 'new-slug' } as any)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('allows renaming the slug of an empty category', async () => {
+      const prisma = fakePrisma();
+      prisma.__seedCat({ id: 'c1', slug: 'old-slug' });
+      const svc = new AdminCategoriesService(prisma as any);
+      await expect(svc.update('c1', { slug: 'new-slug' } as any)).resolves.toBeDefined();
+      expect(prisma.category.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'c1' }, data: expect.objectContaining({ slug: 'new-slug' }) }),
+      );
+    });
   });
 
   describe('remove', () => {
@@ -136,6 +162,16 @@ describe('AdminCategoriesService', () => {
     it('throws BadRequestException when category has children', async () => {
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'c1', slug: 'cat', _count: { companies: 0, children: 2 } });
+      const svc = new AdminCategoriesService(prisma as any);
+      await expect(svc.remove('c1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when a company is tagged ONLY as a secondary category (companyCategories, no primary FK)', async () => {
+      // Regression: the legacy `companies` (primary-FK) count alone used to
+      // miss secondary tagging, letting the category — and its cascading
+      // `company_categories` rows — be deleted while still in active use.
+      const prisma = fakePrisma();
+      prisma.__seedCat({ id: 'c1', slug: 'cat', _count: { companies: 0, companyCategories: 1 } });
       const svc = new AdminCategoriesService(prisma as any);
       await expect(svc.remove('c1')).rejects.toThrow(BadRequestException);
     });

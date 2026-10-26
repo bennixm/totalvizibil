@@ -190,7 +190,11 @@ export class AdminStatsService {
   /** Per-day signup counts for the last `days` days (inclusive of today). */
   private async signupTimeseries(days: number): Promise<DayPoint[]> {
     const since = new Date(Date.now() - (days - 1) * DAY);
-    since.setHours(0, 0, 0, 0);
+    // UTC, not local — every bucket key below is a UTC date (`toISOString().slice(0,10)`,
+    // matching Postgres's `date_trunc('day', ...)`). `setHours` anchors in the
+    // SERVER's local timezone instead, which on any server east of UTC silently
+    // shifted the whole window back far enough to drop today's data entirely.
+    since.setUTCHours(0, 0, 0, 0);
 
     const [users, companies] = await Promise.all([
       this.prisma.$queryRaw<{ day: Date; n: bigint }[]>`
@@ -219,7 +223,11 @@ export class AdminStatsService {
   /** Per-day credits bought vs burned for the last `days` days (credits, not minor). */
   private async economyTimeseries(days: number): Promise<EconomyPoint[]> {
     const since = new Date(Date.now() - (days - 1) * DAY);
-    since.setHours(0, 0, 0, 0);
+    // UTC, not local — every bucket key below is a UTC date (`toISOString().slice(0,10)`,
+    // matching Postgres's `date_trunc('day', ...)`). `setHours` anchors in the
+    // SERVER's local timezone instead, which on any server east of UTC silently
+    // shifted the whole window back far enough to drop today's data entirely.
+    since.setUTCHours(0, 0, 0, 0);
 
     const rows = await this.prisma.$queryRaw<{ day: Date; sold: bigint; consumed: bigint }[]>`
       SELECT date_trunc('day', "created_at") AS day,

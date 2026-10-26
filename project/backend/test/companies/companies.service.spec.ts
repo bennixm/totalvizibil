@@ -337,5 +337,23 @@ describe('CompaniesService', () => {
         }),
       );
     });
+
+    it('also clears autoOptimize on a campaign that is already paused — regression: a paused AUTO campaign kept the flag and self-revived on the next reconcile() read, regardless of the scheduled deletion', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedMember('co1', 'u1', 'owner');
+      prisma.__seedCompany({ id: 'co1', deletionScheduledAt: null });
+
+      await svc.requestDeletion('u1', 'co1');
+
+      const calls = (prisma.campaign.updateMany as jest.Mock).mock.calls;
+      const clearsAutoOptimizeOnNonActive = calls.some(
+        ([arg]: [any]) =>
+          arg.where.companyId === 'co1' &&
+          arg.where.status?.notIn?.includes('active') &&
+          arg.where.status?.notIn?.includes('depleted') &&
+          arg.data.autoOptimize === false,
+      );
+      expect(clearsAutoOptimizeOnNonActive).toBe(true);
+    });
   });
 });

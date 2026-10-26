@@ -20,12 +20,44 @@ function dayKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** A refund's `refundSources` JSON column — see the field comment on
+ *  `WalletTransaction` in schema.prisma for the shape and why `moneyMinor`
+ *  (not `amountMinor`) is the real EUR-cents movement behind each source. */
+function parseRefundSources(json: Prisma.JsonValue): { amountMinor: number; moneyMinor?: number }[] {
+  if (!Array.isArray(json)) return [];
+  return json.filter(
+    (s): s is { amountMinor: number; moneyMinor?: number } =>
+      typeof s === 'object' && s !== null && typeof (s as Record<string, unknown>).amountMinor === 'number',
+  );
+}
+
+/** The real money a completed refund sent back — `refundSources[].moneyMinor`
+ *  (falling back to `amountMinor` for pre-discount-feature rows that never
+ *  got a `moneyMinor`), minus the processing fee the platform kept. Using
+ *  the refund row's own `amountMinor` instead (the credit FACE value) both
+ *  over-subtracts the fee portion from revenue and ignores that a
+ *  discounted purchase's money slice is smaller than its credit slice. */
+function refundMoneyMinor(r: { refundSources: Prisma.JsonValue; feeMinor: number | null }): number {
+  const sources = parseRefundSources(r.refundSources);
+  const grossMoneyMinor = sources.reduce((s, src) => s + (src.moneyMinor ?? src.amountMinor), 0);
+  return grossMoneyMinor - (r.feeMinor ?? 0);
+}
+
 function startOfUtcMonth(d = new Date()): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
 }
 function endOfUtcDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999));
 }
+
+/** Excludes a purchase whose invoice was voided — the admin told the
+ *  customer the sale was annulled, so it shouldn't still count as revenue.
+ *  A row with no invoice at all (refunds, or any row this join doesn't
+ *  apply to) is unaffected — only an invoice that exists AND is voided
+ *  excludes its row. */
+const NOT_VOIDED_INVOICE: Prisma.WalletTransactionWhereInput = {
+  OR: [{ invoice: { is: null } }, { invoice: { is: { voidedAt: null } } }],
+};
 
 const EXPENSE_CATEGORIES = [
   'hosting',
@@ -63,12 +95,17 @@ export class FinanceService {
     const [purchaseRows, refundRows, cpcSpendRows, otherSpendRows, expenseRows, aiRows] =
       await this.prisma.$transaction([
         this.prisma.walletTransaction.findMany({
-          where: { type: 'purchase', status: 'completed', ...dateFilter },
-          select: { amountMinor: true, createdAt: true },
+          where: {
+            type: 'purchase',
+            status: 'completed',
+            ...dateFilter,
+            ...NOT_VOIDED_INVOICE,
+          },
+          select: { amountMinor: true, eurCents: true, createdAt: true },
         }),
         this.prisma.walletTransaction.findMany({
           where: { type: 'refund', status: 'completed', ...dateFilter },
-          select: { amountMinor: true, createdAt: true },
+          select: { refundSources: true, feeMinor: true, createdAt: true },
         }),
         this.prisma.walletTransaction.findMany({
           where: {
@@ -98,9 +135,15 @@ export class FinanceService {
         }),
       ]);
 
+    // Revenue is the real money that changed hands — a purchase's `eurCents`
+    // (which can be less than its credit face value `amountMinor` whenever
+    // the site-wide discount was active), minus what refunds actually sent
+    // back (also real-money, fee-aware — see `refundMoneyMinor`). Using
+    // `amountMinor` for either side overstates revenue during a discount
+    // and overstates the refund deduction by the processing fee.
     const revenueMinor =
-      purchaseRows.reduce((s, r) => s + r.amountMinor, 0) +
-      refundRows.reduce((s, r) => s + r.amountMinor, 0);
+      purchaseRows.reduce((s, r) => s + (r.eurCents ?? r.amountMinor), 0) -
+      refundRows.reduce((s, r) => s + refundMoneyMinor(r), 0);
     const cpcConsumedMinor = -cpcSpendRows.reduce((s, r) => s + r.amountMinor, 0);
     const otherFeesConsumedMinor = -otherSpendRows.reduce((s, r) => s + r.amountMinor, 0);
 
@@ -116,18 +159,30 @@ export class FinanceService {
 
     const adSpendMinor = expensesByCategory.google_ads;
 
-    // Daily trend for the chart — bucket every row into its UTC day.
+    // Daily trend for the chart — bucket every row into its UTC day. AI cost
+    // is accumulated as raw (unrounded) USD per day and converted to minor
+    // units exactly once per day when the trend is finalised below — summing
+    // already-rounded per-row cents first would under-count any day made up
+    // of several sub-cent calls, same class of bug as `aiCostMinor` above
+    // already avoids by rounding its own sum once.
     const days = new Map<string, { revenueMinor: number; costMinor: number }>();
+    const aiUsdByDay = new Map<string, number>();
     const bump = (date: Date, field: 'revenueMinor' | 'costMinor', amount: number) => {
       const key = dayKey(date);
       const bucket = days.get(key) ?? { revenueMinor: 0, costMinor: 0 };
       bucket[field] += amount;
       days.set(key, bucket);
     };
-    for (const r of purchaseRows) bump(r.createdAt, 'revenueMinor', r.amountMinor);
-    for (const r of refundRows) bump(r.createdAt, 'revenueMinor', r.amountMinor);
+    for (const r of purchaseRows) bump(r.createdAt, 'revenueMinor', r.eurCents ?? r.amountMinor);
+    for (const r of refundRows) bump(r.createdAt, 'revenueMinor', -refundMoneyMinor(r));
     for (const r of expenseRows) bump(r.incurredOn, 'costMinor', r.amountMinor);
-    for (const r of aiRows) bump(r.createdAt, 'costMinor', usdToEurMinor(r.estimatedCostUsd));
+    for (const r of aiRows) {
+      const key = dayKey(r.createdAt);
+      aiUsdByDay.set(key, (aiUsdByDay.get(key) ?? 0) + r.estimatedCostUsd);
+    }
+    for (const [key, usd] of aiUsdByDay) {
+      bump(new Date(`${key}T00:00:00.000Z`), 'costMinor', usdToEurMinor(usd));
+    }
 
     const trend = Array.from(days.entries())
       .map(([date, v]) => ({ date, ...v }))
@@ -160,6 +215,7 @@ export class FinanceService {
     return {
       type: { in: types },
       status: 'completed',
+      ...NOT_VOIDED_INVOICE,
       ...(q.from || q.to
         ? {
             createdAt: {
@@ -366,9 +422,14 @@ export class FinanceService {
   async aiUsageReport(q: FinancePeriodQuery) {
     const { rows, from, to } = await this.aiRows(q);
 
+    // Accumulate raw (unrounded) USD per model and round to minor units
+    // exactly ONCE at the end — rounding each row first (as this used to)
+    // drops every sub-cent call to 0 individually, so a model made up of
+    // many cheap calls could show €0,00 here while still contributing real
+    // cost to `totalCostMinor` below, which rounds its sum only once.
     const byModel = new Map<
       string,
-      { provider: string; model: string; calls: number; tokens: number; costMinor: number }
+      { provider: string; model: string; calls: number; tokens: number; costUsd: number }
     >();
     for (const r of rows) {
       const key = `${r.provider}:${r.model}`;
@@ -377,32 +438,37 @@ export class FinanceService {
         model: r.model,
         calls: 0,
         tokens: 0,
-        costMinor: 0,
+        costUsd: 0,
       };
       bucket.calls += 1;
       bucket.tokens += r.inputTokens + r.outputTokens;
-      bucket.costMinor += usdToEurMinor(r.estimatedCostUsd);
+      bucket.costUsd += r.estimatedCostUsd;
       byModel.set(key, bucket);
     }
 
     const totalCostMinor = usdToEurMinor(rows.reduce((s, r) => s + r.estimatedCostUsd, 0));
     const totalTokens = rows.reduce((s, r) => s + r.inputTokens + r.outputTokens, 0);
 
+    const byModelMinor = Array.from(byModel.values())
+      .map(({ costUsd, ...rest }) => ({ ...rest, costMinor: usdToEurMinor(costUsd) }))
+      .sort((a, b) => b.costMinor - a.costMinor);
+
     return {
       range: { from: from.toISOString(), to: to.toISOString() },
       totalCostMinor,
       totalTokens,
       totalCalls: rows.length,
-      byModel: Array.from(byModel.values()).sort((a, b) => b.costMinor - a.costMinor),
+      byModel: byModelMinor,
     };
   }
 
   async exportAiUsagePdf(q: FinancePeriodQuery): Promise<Buffer> {
     const { rows } = await this.aiRows(q);
 
+    // Same "round once, at the end" fix as `aiUsageReport` — see its comment.
     const byModel = new Map<
       string,
-      { provider: string; model: string; calls: number; tokens: number; costMinor: number }
+      { provider: string; model: string; calls: number; tokens: number; costUsd: number }
     >();
     for (const r of rows) {
       const key = `${r.provider}:${r.model}`;
@@ -411,11 +477,11 @@ export class FinanceService {
         model: r.model,
         calls: 0,
         tokens: 0,
-        costMinor: 0,
+        costUsd: 0,
       };
       bucket.calls += 1;
       bucket.tokens += r.inputTokens + r.outputTokens;
-      bucket.costMinor += usdToEurMinor(r.estimatedCostUsd);
+      bucket.costUsd += r.estimatedCostUsd;
       byModel.set(key, bucket);
     }
 
@@ -431,6 +497,7 @@ export class FinanceService {
         { label: 'Cost', width: 0.2, align: 'right' },
       ],
       rows: Array.from(byModel.values())
+        .map(({ costUsd, ...rest }) => ({ ...rest, costMinor: usdToEurMinor(costUsd) }))
         .sort((a, b) => b.costMinor - a.costMinor)
         .map((b) => [
           b.provider,

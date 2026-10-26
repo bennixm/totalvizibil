@@ -156,6 +156,7 @@ const KNOWN_ERRORS = [
   'website_builder_incomplete',
   'company_pending_deletion',
   'cpc_below_feed_minimum',
+  'campaign_changed_since_loaded',
 ]
 
 function errText(code: string): string {
@@ -234,6 +235,7 @@ async function save(): Promise<void> {
     cpc: cpc.value,
     appearFirst: appearFirst.value,
     autoOptimize: auto.value,
+    expectedUpdatedAt: data.value?.campaign?.updatedAt,
   })
   if (!ok) return
   dirty.value = false
