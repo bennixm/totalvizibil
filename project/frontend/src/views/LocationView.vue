@@ -51,16 +51,25 @@ const saved = ref(false)
  *  labelled marker per county) instead of a single draggable address pin,
  *  which stops making sense once there's more than one service area. */
 const overviewMarkers = ref<{ lat: number; lng: number; label: string }[] | null>(null)
-async function refreshOverview(): Promise<void> {
+// Bumped once per selection change and threaded through both this and the
+// primary-pin re-centre below — each async result is discarded if a newer
+// selection change has started by the time it resolves. Without this,
+// ticking several counties in a row fires that many concurrent lookups that
+// can resolve out of order, and whichever lands LAST (not the one for the
+// current selection) wins — the map was observed getting stuck on an
+// early/small selection forever.
+let locSeq = 0
+async function refreshOverview(seq: number): Promise<void> {
   if (nationwide.value || countiesChosen.value.length <= 1) {
-    overviewMarkers.value = null
+    if (seq === locSeq) overviewMarkers.value = null
     return
   }
   try {
     const centers = await Promise.all(countiesChosen.value.map((c) => countyCenter(c)))
+    if (seq !== locSeq) return
     overviewMarkers.value = centers.map((c) => ({ lat: c.lat, lng: c.lng, label: c.county }))
   } catch {
-    overviewMarkers.value = null
+    if (seq === locSeq) overviewMarkers.value = null
   }
 }
 
@@ -70,13 +79,15 @@ function onCountySelectionsChange(vals: string[]): void {
   const pickedEveryCounty = counties.value.length > 0 && realPicks.length === counties.value.length
   countySelections.value = justPickedNationwide || pickedEveryCounty ? [NATIONWIDE] : realPicks
   saved.value = false
-  void refreshOverview()
+  const seq = ++locSeq
+  void refreshOverview(seq)
   // Re-centre the single-pin map on the (new) first county's main city —
   // only meaningful once we're back down to exactly one real county.
   const primary = countiesChosen.value[0]
   if (primary && countiesChosen.value.length === 1) {
     void countyCenter(primary)
       .then((center) => {
+        if (seq !== locSeq) return
         lat.value = center.lat
         lng.value = center.lng
         city.value = center.name
@@ -97,7 +108,7 @@ function onMapPick(p: { lat: number; lng: number }): void {
       city.value = near.name
       if (counties.value.includes(near.county) && !countiesChosen.value.includes(near.county)) {
         countySelections.value = [near.county, ...countiesChosen.value]
-        void refreshOverview()
+        void refreshOverview(++locSeq)
       }
     })
     .catch(() => {})
@@ -151,7 +162,7 @@ async function loadFor(id: string): Promise<void> {
     lat.value = primaryLoc.lat
     lng.value = primaryLoc.lng
   }
-  await refreshOverview()
+  await refreshOverview(++locSeq)
   ready.value = true
 }
 

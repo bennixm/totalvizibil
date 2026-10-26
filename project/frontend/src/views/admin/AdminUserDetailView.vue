@@ -795,8 +795,8 @@ const txnColor: Record<string, string> = {
                   </thead>
                   <tbody>
                     <tr v-for="tx in activityTxns" :key="tx.id">
-                      <td class="ud__txnId">#{{ tx.id.slice(0, 8) }}</td>
-                      <td>
+                      <td class="ud__txnId" :data-label="t('wallet.colId')">#{{ tx.id.slice(0, 8) }}</td>
+                      <td :data-label="t('admin.colType')">
                         <v-chip size="x-small" :color="txnColor[tx.type]" variant="tonal">
                           {{ t('wallet.txnType.' + tx.type) }}
                         </v-chip>
@@ -811,7 +811,7 @@ const txnColor: Record<string, string> = {
                           · {{ t('admin.refundProcessesIn', { d: tx.processAt ? daysLeft(tx.processAt) : 0 }) }}
                         </span>
                       </td>
-                      <td class="num">
+                      <td class="num" :data-label="t('admin.colTotal')">
                         <CreditsValue
                           :credits="tx.amount.credits"
                           :currency="walletCur"
@@ -819,7 +819,7 @@ const txnColor: Record<string, string> = {
                           stacked
                         />
                       </td>
-                      <td class="num ud__date">{{ dt(tx.createdAt) }}</td>
+                      <td class="num ud__date" :data-label="t('admin.colDate')">{{ dt(tx.createdAt) }}</td>
                       <td class="ud__txnAction">
                         <v-btn
                           v-if="tx.type === 'refund' && tx.status === 'pending'"
@@ -886,9 +886,11 @@ const txnColor: Record<string, string> = {
                           {{ t('admin.invStatusVoid') }}
                         </v-chip>
                       </td>
-                      <td class="num">{{ fmtCr(inv.totalMinor / 100) }} {{ inv.currency }}</td>
-                      <td class="num ud__date">{{ d(inv.issuedAt) }}</td>
-                      <td class="num">
+                      <td class="num" :data-label="t('admin.colTotal')">
+                        {{ fmtCr(inv.totalMinor / 100) }} {{ inv.currency }}
+                      </td>
+                      <td class="num ud__date" :data-label="t('admin.colDate')">{{ d(inv.issuedAt) }}</td>
+                      <td class="num ud__txnAction">
                         <a
                           :href="`/account/invoices/${inv.id}`"
                           target="_blank"
@@ -1209,6 +1211,60 @@ const txnColor: Record<string, string> = {
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
   white-space: nowrap;
+}
+
+/* Mobile: both the Activity and Invoices tables (they share `.ud__table`)
+   stop scrolling sideways — each row becomes a card with the free-form
+   title (description/invoice number) up top and every other fact on its
+   own clearly labeled line, instead of a cramped multi-column strip. */
+@media (max-width: 640px) {
+  .ud__tableWrap {
+    overflow-x: visible;
+  }
+  .ud__table thead {
+    display: none;
+  }
+  .ud__table,
+  .ud__table tbody,
+  .ud__table tr {
+    display: block;
+    width: 100%;
+  }
+  .ud__table tr {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.4rem;
+    padding: 0.7rem 0;
+  }
+  .ud__table tr:not(:last-child) {
+    border-bottom: 1px solid var(--tvz-hairline);
+  }
+  .ud__table td {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border-bottom: none;
+    text-align: left;
+    white-space: normal;
+  }
+  .ud__table td[data-label] {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    column-gap: 0.75rem;
+  }
+  .ud__table td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(var(--v-theme-on-surface), 0.45);
+  }
+  .ud__table .ud__txnAction {
+    text-align: left;
+  }
 }
 .ud__sessions {
   list-style: none;
