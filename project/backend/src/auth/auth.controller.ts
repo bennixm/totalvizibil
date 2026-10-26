@@ -41,13 +41,13 @@ export class AuthController {
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('register')
-  async register(
-    @Body() dto: RegisterDto,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<{ user: AuthUserView }> {
+  async register(@Body() dto: RegisterDto): Promise<{ user: AuthUserView }> {
     const user = await this.auth.register(dto);
-    await this.cookie.start(req, res, user.id);
+    // No session yet — same gate as login's EMAIL_NOT_VERIFIED check: an
+    // account isn't usable until its email is verified, so registering must
+    // not itself grant a cookie. The caller logs in (re-using the password it
+    // already has) once `email/verify` unblocks it.
+    //
     // Best-effort: a mail hiccup here must never fail the signup the user is
     // actively watching complete — the "Resend code" button on the
     // verification screen is the real recovery path for that case, so a
@@ -127,11 +127,11 @@ export class AuthController {
     return { ok: true };
   }
 
-  /** Same code mechanism from both entry points: the setup wizard (already
-   *  has a session from `register()`) and the login flow (rejected before a
-   *  session was ever started, so this never itself grants one — it only
-   *  flips `emailVerifiedAt`, and the caller re-submits the login/continues
-   *  the wizard once verified). */
+  /** Same code mechanism from both entry points: the setup wizard and the
+   *  login flow. Neither has a session at this point (`register()` no longer
+   *  grants one pre-verification, and `login()` rejected before starting
+   *  one) — this only flips `emailVerifiedAt`, and the caller re-submits
+   *  login (with the password it already has) once verified. */
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(200)
   @Post('email/verify')

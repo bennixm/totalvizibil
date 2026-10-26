@@ -26,9 +26,28 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthUserView> {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      include: { platformRoles: true },
+    });
     if (existing) {
-      throw new ConflictException('An account with this email already exists');
+      if (existing.emailVerifiedAt) {
+        throw new ConflictException('An account with this email already exists');
+      }
+      // Still-unverified account re-attempting signup with the same email — e.g.
+      // the setup wizard's "change email" step sends them back here and they
+      // resubmit unchanged. Update the details in place instead of bouncing
+      // them with a conflict; the caller sends a fresh code either way.
+      const updated = await this.prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          name: dto.name,
+          passwordHash: await this.passwords.hash(dto.password),
+          passwordChangedAt: new Date(),
+        },
+        include: { platformRoles: true },
+      });
+      return this.toView(updated);
     }
 
     const user = await this.prisma.user.create({

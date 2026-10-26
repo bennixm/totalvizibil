@@ -356,6 +356,7 @@
     "resend": "Code erneut senden",
     "resendWait": "Code erneut senden (einen Moment warten)",
     "resendSent": "Ein neuer Code ist unterwegs.",
+    "changeEmail": "E-Mail-Adresse falsch? Ändern",
     "err": {
       "code_invalid": "Dieser Code stimmt nicht. Prüfe dein Postfach und versuche es erneut.",
       "code_expired": "Dieser Code ist abgelaufen. Fordere einen neuen an.",

@@ -59,16 +59,38 @@ export const useAuthStore = defineStore('auth', {
       return bootstrapInFlight
     },
 
-    async register(input: { email: string; password: string; name: string }): Promise<void> {
+    /**
+     * Creates the account but never signs it in — the account isn't usable
+     * until its email is verified, so this must not grant a session (that
+     * used to happen here, which let an unverified signup browse the whole
+     * platform). `login()` is what actually starts the session, once
+     * `verifyEmail()` has unblocked it.
+     */
+    async register(input: { email: string; password: string; name: string }): Promise<AuthUser> {
       const { user } = await apiFetch<{ user: AuthUser }>('/auth/register', {
+        method: 'POST',
+        body: input,
+      })
+      return user
+    },
+
+    async login(input: {
+      email: string
+      password: string
+      totpCode?: string
+    }): Promise<void> {
+      const { user } = await apiFetch<{ user: AuthUser }>('/auth/login', {
         method: 'POST',
         body: input,
       })
       this.user = user
       this.ready = true
 
-      // If the visitor arrived on an affiliate link, attribute this new account
-      // to it now. Best-effort — a bad/expired code just no-ops server-side.
+      // If the visitor arrived on an affiliate link, attribute the account to
+      // it now that there's finally a session to attribute it to. Best-effort
+      // — a bad/expired/already-claimed code just no-ops server-side, and
+      // `tvz.ref` is removed after the first attempt so this never re-fires
+      // on a later, unrelated login.
       let ref: string | null = null
       try {
         ref = localStorage.getItem('tvz.ref')
@@ -89,19 +111,6 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async login(input: {
-      email: string
-      password: string
-      totpCode?: string
-    }): Promise<void> {
-      const { user } = await apiFetch<{ user: AuthUser }>('/auth/login', {
-        method: 'POST',
-        body: input,
-      })
-      this.user = user
-      this.ready = true
-    },
-
     /** Resends the email-verification code — enumeration-safe on the backend
      *  (always resolves the same way), used identically from the setup
      *  wizard and from a blocked login attempt. */
@@ -110,10 +119,11 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
-     * Verifies the code. Never itself starts a session — the setup wizard
-     * already has one from `register()`; the login flow re-submits the
-     * login after this resolves. Refreshes `this.user` when there already is
-     * one (the setup-wizard case) so `emailVerifiedAt` flips immediately.
+     * Verifies the code. Never itself starts a session — neither entry point
+     * (fresh setup-wizard signup, or a login rejected pre-verification) has
+     * one at this point; both re-submit `login()` after this resolves.
+     * Refreshes `this.user` when there already is one (a currently-logged-in
+     * user re-verifying) so `emailVerifiedAt` flips immediately.
      */
     async verifyEmail(email: string, code: string): Promise<{ ok: true }> {
       const result = await apiFetch<{ ok: true }>('/auth/email/verify', {

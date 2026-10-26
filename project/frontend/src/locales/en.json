@@ -356,6 +356,7 @@
     "resend": "Resend code",
     "resendWait": "Resend code (wait a moment)",
     "resendSent": "A new code is on its way.",
+    "changeEmail": "Got the email address wrong? Change it",
     "err": {
       "code_invalid": "That code isn't right. Check your inbox and try again.",
       "code_expired": "This code has expired. Request a new one.",

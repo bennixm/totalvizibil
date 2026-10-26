@@ -356,6 +356,7 @@
     "resend": "Retrimite codul",
     "resendWait": "Retrimite codul (așteaptă puțin)",
     "resendSent": "Un cod nou este pe drum.",
+    "changeEmail": "Ai greșit adresa de email? Modific-o",
     "err": {
       "code_invalid": "Codul nu e corect. Verifică emailul și încearcă din nou.",
       "code_expired": "Acest cod a expirat. Cere unul nou.",

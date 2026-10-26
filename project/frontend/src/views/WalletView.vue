@@ -135,7 +135,19 @@ function clearPaymentsDates(): void {
   paymentsTo.value = ''
 }
 
-watch([paymentsKind, paymentsFrom, paymentsTo], loadPaymentsInitial)
+// An inverted range (from > to) would silently come back empty with no clue
+// why — correct it to a valid range first, which re-triggers this watcher via
+// its own dependency and only THEN fetches, rather than ever fetching an
+// impossible range.
+watch([paymentsKind, paymentsFrom, paymentsTo], ([, from, to], prev) => {
+  if (from && to && from > to) {
+    const prevFrom = prev?.[1]
+    if (from !== prevFrom) paymentsTo.value = from
+    else paymentsFrom.value = to
+    return
+  }
+  void loadPaymentsInitial()
+})
 
 onMounted(async () => {
   await Promise.all([

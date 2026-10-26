@@ -98,11 +98,28 @@ function makeService() {
 describe('WalletService payments/refunds statement', () => {
   const USER = 'user-1';
 
-  it('includes only completed Stripe purchases in the "purchase" kind', async () => {
+  it('includes completed purchases of any provider in the "purchase" kind', async () => {
+    // Regression test: this used to also require `provider: 'stripe'`, which
+    // made the tab permanently empty in any environment without a Stripe key
+    // configured — every purchase there is a completed dev-stub row, which
+    // is a real, usable payment from the product's point of view.
     const { service, prisma } = makeService();
     const wallet = await prisma.wallet.upsert({ where: { userId: USER } });
     prisma.__seed(USER, wallet.id as string, { providerRef: 'pi_real' });
     prisma.__seed(USER, wallet.id as string, { provider: 'stub-dev', providerRef: 'dev-1' });
+
+    const { items } = await service.listPayments(USER, { kind: 'purchase' });
+
+    expect(items).toHaveLength(2);
+    expect(items.every((i) => i.amount.credits === 10)).toBe(true);
+  });
+
+  it('excludes non-completed purchases and non-purchase rows from the "purchase" kind', async () => {
+    const { service, prisma } = makeService();
+    const wallet = await prisma.wallet.upsert({ where: { userId: USER } });
+    prisma.__seed(USER, wallet.id as string); // the one that should actually show up
+    prisma.__seed(USER, wallet.id as string, { status: 'pending' });
+    prisma.__seed(USER, wallet.id as string, { status: 'failed' });
     prisma.__seed(USER, wallet.id as string, {
       type: 'adjustment',
       provider: 'admin',

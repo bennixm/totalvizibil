@@ -144,6 +144,10 @@ interface State {
     from: string | null
     to: string | null
   }
+  /** Bumped on every `loadPayments(false, ...)` call — lets a reply that
+   *  arrives after a newer filter change was already issued detect it's
+   *  stale and avoid clobbering the newer one's result. */
+  paymentsRequestSeq: number
   consumption: ConsumptionEntry[]
   /** A timestamp (not an id) — the merged click/transaction ledger pages by `createdAt`. */
   consumptionNextCursor: string | null
@@ -173,6 +177,7 @@ export const useWalletStore = defineStore('wallet', {
     payments: [],
     paymentsNextCursor: null,
     paymentsFilters: { kind: 'purchase', from: null, to: null },
+    paymentsRequestSeq: 0,
     consumption: [],
     consumptionNextCursor: null,
     consumptionFilters: { companyId: null, category: null, from: null, to: null, search: null },
@@ -330,7 +335,14 @@ export const useWalletStore = defineStore('wallet', {
       return `${BASE_URL}/wallet/consumption/export${q}`
     },
 
-    /** Backs the Wallet page's own Payments/Refunds statement. */
+    /**
+     * Backs the Wallet page's own Payments/Refunds statement. A fresh
+     * (non-append) call is a filter/tab change replacing the whole list, and
+     * those can overlap — e.g. the "from" and "to" date pickers each fire
+     * their own call — so replies are tagged with a sequence number and a
+     * reply that's no longer the latest one issued is dropped rather than
+     * clobbering a newer filter's result with stale data.
+     */
     async loadPayments(
       append = true,
       filters?: { kind?: PaymentKind; from?: string | null; to?: string | null },
@@ -342,6 +354,7 @@ export const useWalletStore = defineStore('wallet', {
           to: filters.to ?? null,
         }
       }
+      const seq = append ? this.paymentsRequestSeq : ++this.paymentsRequestSeq
       const params = new URLSearchParams()
       params.set('kind', this.paymentsFilters.kind)
       if (append && this.paymentsNextCursor) params.set('cursor', this.paymentsNextCursor)
@@ -350,6 +363,12 @@ export const useWalletStore = defineStore('wallet', {
       const res = await apiFetch<{ items: PaymentRow[]; nextCursor: string | null }>(
         `/wallet/payments?${params.toString()}`,
       )
+      // A filter change since this request was issued (`seq` moved on) means
+      // this reply — whether a fresh page or a "load more" continuation —
+      // belongs to a superseded query; drop it instead of appending rows
+      // from the old filter onto the new one's list, or replacing the new
+      // list with stale data.
+      if (seq !== this.paymentsRequestSeq) return
       this.payments = append ? [...this.payments, ...res.items] : res.items
       this.paymentsNextCursor = res.nextCursor
     },
@@ -398,7 +417,12 @@ export const useWalletStore = defineStore('wallet', {
         this.lastInvoice = invoice
         useMoneyStore().applyFx(this.summary)
         this.pending = null
-        await this.loadTransactions(false)
+        // Both the general ledger AND the Wallet page's own Payments
+        // statement need the just-completed row — without this, "Istoric
+        // plăți" keeps showing whatever it had before the payment (e.g. no
+        // rows at all for a first top-up) until the user touches a filter
+        // or reloads the page.
+        await Promise.all([this.loadTransactions(false), this.loadPayments(false)])
         return true
       } catch (err) {
         this.setError(err)

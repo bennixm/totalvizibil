@@ -36,11 +36,39 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('rejects a duplicate email', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'u1' });
+    it('rejects a duplicate email once it is verified', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', emailVerifiedAt: new Date() });
       await expect(
         service.register({ email: 'a@b.com', password: 'password123', name: 'A' }),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('updates an existing still-unverified account in place instead of conflicting', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'Old Name',
+        emailVerifiedAt: null,
+        platformRoles: [],
+      });
+      prisma.user.update.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'New Name',
+        platformRoles: [],
+        emailVerifiedAt: null,
+      });
+
+      const view = await service.register({
+        email: 'a@b.com',
+        password: 'password123',
+        name: 'New Name',
+      });
+
+      expect(view.name).toBe('New Name');
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'u1' } }),
+      );
     });
 
     it('creates a user and returns a safe view (no hash), unverified', async () => {

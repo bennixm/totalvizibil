@@ -947,10 +947,15 @@ export class WalletService implements OnModuleInit {
     return createdAt;
   }
 
-  /** The `where` clause for "Payments" (real money the owner actually paid —
-   *  a completed Stripe purchase, not a dev-stub test row or an admin/
-   *  affiliate credit grant) vs "Refunds" (any status — pending/completed/
-   *  failed are all meaningful to see in a statement). */
+  /** The `where` clause for "Payments" (a completed purchase — i.e. money the
+   *  owner actually paid, not an admin/affiliate credit grant, which is type
+   *  `adjustment` and already excluded by `type: kind`) vs "Refunds" (any
+   *  status — pending/completed/failed are all meaningful to see in a
+   *  statement). Deliberately NOT restricted to `provider: 'stripe'`: in any
+   *  environment without a Stripe key configured, every purchase is a
+   *  dev-stub row (see WalletService.startPurchase) — a provider filter here
+   *  would make this tab permanently empty in that environment even though
+   *  the purchases genuinely completed. */
   private paymentsWhere(
     walletId: string,
     kind: 'purchase' | 'refund',
@@ -958,7 +963,7 @@ export class WalletService implements OnModuleInit {
     return {
       walletId,
       type: kind,
-      ...(kind === 'purchase' ? { provider: STRIPE_PROVIDER, status: 'completed' } : {}),
+      ...(kind === 'purchase' ? { status: 'completed' } : {}),
     };
   }
 
