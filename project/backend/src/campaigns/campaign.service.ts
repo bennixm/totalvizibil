@@ -267,8 +267,21 @@ export class CampaignService {
       campaign.status === CampaignStatus.depleted ||
       (campaign.autoOptimize && campaign.status === CampaignStatus.paused);
     if (revivable && funded && budgetLeft) {
-      const d = await this.setLive(companyId, campaign, CampaignStatus.active);
-      return { ...d, spentTodayMinor: spentToday };
+      // Defense in depth: a company mid-deletion must never come back to
+      // life from a background reconcile triggered by a mere read (e.g. an
+      // admin opening its detail page, or the owner's own dashboard load).
+      // `scheduleDeletion` already pauses the campaign and clears
+      // `autoOptimize`, which is what normally keeps this branch from firing
+      // — this is a second, independent guard in case that state is ever
+      // reached some other way.
+      const pending = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { deletionScheduledAt: true },
+      });
+      if (!pending?.deletionScheduledAt) {
+        const d = await this.setLive(companyId, campaign, CampaignStatus.active);
+        return { ...d, spentTodayMinor: spentToday };
+      }
     }
     return { ...campaign, spentTodayMinor: spentToday };
   }
@@ -969,7 +982,7 @@ export class CampaignService {
 
   async save(userId: string, companyId: string, dto: SaveCampaignDto) {
     await this.assertCanEdit(companyId, userId);
-    return this.saveFor(companyId, dto);
+    return this.saveFor(companyId, dto, 'owner');
   }
 
   /**
@@ -980,13 +993,22 @@ export class CampaignService {
    */
   async remove(userId: string, companyId: string): Promise<void> {
     await this.assertCanEdit(companyId, userId);
-    const campaign = await this.prisma.campaign.findUnique({ where: { companyId } });
+    const [campaign, company] = await Promise.all([
+      this.prisma.campaign.findUnique({ where: { companyId } }),
+      this.prisma.company.findUnique({ where: { id: companyId }, select: { status: true } }),
+    ]);
     if (!campaign) throw new NotFoundException('No campaign');
 
     await this.prisma.$transaction([
       this.prisma.company.update({
         where: { id: companyId },
-        data: { status: 'draft', featured: false },
+        // Never silently lift a `suspended` status by routing it back to
+        // `draft` — deleting the campaign just means there's nothing left
+        // to activate, not that the business is cleared to republish.
+        data:
+          company?.status === 'suspended'
+            ? { featured: false }
+            : { status: 'draft', featured: false },
       }),
       this.prisma.website.updateMany({
         where: { companyId },
@@ -996,9 +1018,22 @@ export class CampaignService {
     ]);
   }
 
-  /** Save the campaign numbers, no membership check (platform-admin callers). */
-  async saveFor(companyId: string, dto: SaveCampaignDto) {
+  /** Save the campaign numbers. `actor` is 'owner' for the owner's own
+   *  membership-checked `save()` above, or 'admin' for the platform-admin
+   *  panel (no membership check there) — only affects the pause-on-edit
+   *  notification's wording/channel below. */
+  async saveFor(companyId: string, dto: SaveCampaignDto, actor: 'owner' | 'admin' = 'owner') {
     const existing = await this.prisma.campaign.findUnique({ where: { companyId } });
+    // Optimistic concurrency: the admin panel hydrates once on page load,
+    // so a concurrent edit by the owner (or another admin) would otherwise
+    // be silently overwritten with no warning. The owner's own `save()`
+    // never sends this — only they ever edit their own campaign.
+    if (dto.expectedUpdatedAt && existing) {
+      const expected = new Date(dto.expectedUpdatedAt).getTime();
+      if (expected !== existing.updatedAt.getTime()) {
+        throw new BadRequestException('campaign_changed_since_loaded');
+      }
+    }
     const auto = dto.autoOptimize ?? existing?.autoOptimize ?? false;
 
     const dailyBudgetMinor = creditsToMinor(dto.dailyBudget);
@@ -1055,20 +1090,26 @@ export class CampaignService {
       await this.setLive(companyId, saved, CampaignStatus.paused);
       if (wasLive) {
         // Already committed — a notification hiccup must never mask this.
-        // The owner just made this edit themselves, so a quiet panel entry
-        // is enough — not an alarming email like an admin-initiated pause.
+        // The owner editing their OWN campaign gets a quiet panel entry —
+        // not an alarming email for something they just did themselves.
+        // An ADMIN editing it is a surprise to the owner (they didn't touch
+        // anything), so that case gets the clearer, emailed variant —
+        // matching how admin suspend/reactivate already notify.
         const company = await this.prisma.company.findUnique({
           where: { id: companyId },
           select: { displayName: true, ownerUserId: true },
         });
         if (company) {
+          const adminInitiated = actor === 'admin';
           void this.notifications
             .notify({
               userId: company.ownerUserId,
-              type: 'campaign_paused_on_edit',
+              type: adminInitiated ? 'campaign_paused_by_admin' : 'campaign_paused_on_edit',
               title: `Campania „${company.displayName}" a fost pusă pe pauză`,
-              body: 'Editarea bugetului/CPC-ului a scos campania din feed — reactivează-o din panou când ești gata.',
-              channels: { panel: true },
+              body: adminInitiated
+                ? `Un administrator a modificat bugetul/CPC-ul campaniei „${company.displayName}" — a fost scoasă din feed. O poți reactiva din panou.`
+                : 'Editarea bugetului/CPC-ului a scos campania din feed — reactivează-o din panou când ești gata.',
+              channels: adminInitiated ? { panel: true, email: true } : { panel: true },
               data: { companyId },
             })
             .catch((err) =>
@@ -1204,6 +1245,10 @@ export class CampaignService {
       autoOptimize: c.autoOptimize,
       spentToday: money(c.spentTodayMinor),
       activatedAt: c.activatedAt,
+      // Round-tripped by the admin panel's save as `expectedUpdatedAt` — lets
+      // `saveFor` detect a concurrent edit (by the owner, or another admin)
+      // since this was hydrated, instead of silently overwriting it.
+      updatedAt: c.updatedAt,
       // Lets the panel tell "paused because the owner stopped it" apart from
       // "paused because CPC Maxim fell under a Feed's own minimum" (reconcile
       // demotes the latter automatically — see its own comment) — a manual

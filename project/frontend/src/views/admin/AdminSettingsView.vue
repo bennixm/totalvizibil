@@ -5,12 +5,14 @@ import { useI18n } from 'vue-i18n'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import { useAdminStore } from '@/stores/admin'
+import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import type { AdminReferralsPage } from '@/stores/admin'
 import { ApiError } from '@/services/api'
 
 const { t } = useI18n()
 const admin = useAdminStore()
+const confirm = useConfirmStore()
 
 const tab = ref<'pricing' | 'billing' | 'affiliate' | 'discount' | 'maintenance'>('pricing')
 const loading = ref(true)
@@ -52,8 +54,7 @@ const maintenanceSending = ref(false)
 const maintenanceValid = computed(
   () => maintenance.title.trim().length > 0 && maintenance.message.trim().length > 0,
 )
-async function sendMaintenance() {
-  if (!maintenanceValid.value) return
+async function doSendMaintenance() {
   maintenanceSending.value = true
   try {
     const res = await admin.broadcastMaintenance({
@@ -68,6 +69,17 @@ async function sendMaintenance() {
   } finally {
     maintenanceSending.value = false
   }
+}
+// This emails + in-panel-notifies EVERY active user, immediately, with no
+// undo — worth a confirm step the same as the far smaller act of deleting an
+// empty category already gets.
+function sendMaintenance() {
+  if (!maintenanceValid.value) return
+  confirm.ask(
+    t('adminSettings.maintenanceConfirmTitle'),
+    t('adminSettings.maintenanceConfirmText'),
+    doSendMaintenance,
+  )
 }
 const issuer = reactive({
   invoiceIssuerName: '',
@@ -288,7 +300,13 @@ async function save() {
       affiliateRewardCredits: affiliate.rewardCredits,
       affiliateMinDepositCredits: affiliate.minDeposit,
       creditsDiscountEnabled: discount.enabled,
-      creditsDiscountPct: discount.pct,
+      // The backend validates this with @Min(1)/@Max(90) whenever it's
+      // present in the payload, regardless of `creditsDiscountEnabled` — so
+      // sending a cleared/zeroed percent while the toggle is off used to
+      // reject the WHOLE settings save (every other edited tab included).
+      // Omit it entirely in that case; the last saved percent is kept
+      // server-side and simply isn't applied while disabled.
+      ...(discount.enabled ? { creditsDiscountPct: discount.pct } : {}),
     })
     hydrate()
     flash(t('adminSettings.saved'))

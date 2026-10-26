@@ -105,20 +105,40 @@ function toggleRole(r: PlatformRole) {
   else form.roles.splice(i, 1)
 }
 
-async function run<T>(key: string, fn: () => Promise<T>, okMsg: string) {
+/**
+ * Returns whether `fn` actually succeeded. Two things this fixes:
+ * - Re-entrancy: Vuetify's `loading` state only sets `pointer-events: none`
+ *   on the button (blocks a mouse click, not a keyboard-dispatched Enter on
+ *   an already-focused button), so without this guard a double-Enter could
+ *   fire a wallet adjustment or refund twice before the first round-trip
+ *   even returns.
+ * - Callers used to chain `.then()` onto this to clear a form on completion
+ *   — but a caught error still resolves the promise, so those `.then()`s
+ *   ran (and wiped what the admin typed) on FAILURE too. Call sites now
+ *   check the returned boolean before clearing anything.
+ */
+async function run<T>(
+  key: string,
+  fn: () => Promise<T>,
+  okMsg: string | ((result: T) => string),
+): Promise<{ ok: boolean; value?: T }> {
+  if (busy.value) return { ok: false }
   busy.value = key
   try {
-    await fn()
+    const value = await fn()
     await load()
-    flash(okMsg)
+    flash(typeof okMsg === 'function' ? okMsg(value) : okMsg)
+    return { ok: true, value }
   } catch (e) {
     flash(errText(e, t('admin.genericError')), 'error')
+    return { ok: false }
   } finally {
     busy.value = null
   }
 }
 
 async function saveDetails() {
+  if (savingDetails.value) return
   savingDetails.value = true
   try {
     hydrate(
@@ -138,12 +158,13 @@ async function saveDetails() {
 }
 
 function setBan(suspend: boolean) {
-  const doIt = () =>
-    run(
+  const doIt = async () => {
+    await run(
       'ban',
       () => admin.updateUser(id.value, { status: suspend ? 'suspended' : 'active' }),
       t(suspend ? 'admin.userBanned' : 'admin.userUnbanned'),
     )
+  }
   if (suspend) confirm.ask(t('admin.banUser'), t('admin.banUserConfirm'), doIt)
   else void doIt()
 }
@@ -153,7 +174,7 @@ function runUserAction(key: 'disableTotp' | 'revokeSessions') {
 }
 
 async function savePassword() {
-  if (newPassword.value.length < 8) return
+  if (newPassword.value.length < 8 || savingPassword.value || isSelf.value) return
   savingPassword.value = true
   try {
     await admin.setUserPassword(id.value, newPassword.value)
@@ -168,23 +189,37 @@ async function savePassword() {
 }
 
 function toggleWalletBlock() {
+  if (isSelf.value) return
   const blocked = !user.value?.wallet.blocked
   void run(
     'walletBlock',
     () => admin.blockWallet(id.value, blocked, blocked ? blockReason.value.trim() : undefined),
     t(blocked ? 'admin.walletBlocked' : 'admin.walletUnblocked'),
-  ).then(() => (blockReason.value = ''))
+  ).then(({ ok }) => {
+    if (ok) blockReason.value = ''
+  })
 }
 
 function submitAdjust() {
-  if (!adjust.credits || adjust.reason.trim().length < 3) return
+  if (!adjust.credits || adjust.reason.trim().length < 3 || isSelf.value) return
+  const requested = adjust.credits
   void run(
     'adjust',
-    () => admin.adjustWallet(id.value, adjust.credits as number, adjust.reason.trim()),
-    t('admin.walletAdjusted'),
-  ).then(() => {
-    adjust.credits = null
-    adjust.reason = ''
+    () => admin.adjustWallet(id.value, requested, adjust.reason.trim()),
+    (detail) => {
+      const applied = detail.lastAdjustment?.appliedCredits ?? requested
+      return Math.abs(applied) !== Math.abs(requested)
+        ? t('admin.walletAdjustedClamped', {
+            applied: fmtCr(Math.abs(applied)),
+            requested: fmtCr(Math.abs(requested)),
+          })
+        : t('admin.walletAdjusted')
+    },
+  ).then(({ ok }) => {
+    if (ok) {
+      adjust.credits = null
+      adjust.reason = ''
+    }
   })
 }
 
@@ -203,8 +238,8 @@ function submitRefund() {
     t('admin.refundConfirmText'),
     () =>
       run('refund', () => admin.refundBalance(id.value, credits), t('admin.refundRequested')).then(
-        () => {
-          refundAmount.value = null
+        ({ ok }) => {
+          if (ok) refundAmount.value = null
         },
       ),
     { danger: false },
@@ -215,11 +250,11 @@ function cancelWalletRefund(refundId: string) {
     `cancelRefund-${refundId}`,
     () => admin.cancelWalletRefund(id.value, refundId),
     t('admin.refundCanceled'),
-  ).then(() => {
+  ).then(({ ok }) => {
     // `run()` already re-hydrates `user.value.transactions` — only the
     // Activity tab's OWN paginated/filtered view (once it's been used)
     // needs its own refresh on top of that.
-    if (activityOverride.value !== null) void loadActivity(false)
+    if (ok && activityOverride.value !== null) void loadActivity(false)
   })
 }
 function daysLeft(processAt: string): number {
@@ -241,7 +276,13 @@ const activityTxns = computed(() => activityOverride.value ?? user.value?.transa
 const activityHasFilters = computed(() => !!activityFilterType.value || !!activitySearch.value)
 const ACTIVITY_TYPE_OPTIONS: AdminUserTxn['type'][] = ['purchase', 'spend', 'refund', 'adjustment']
 
+// Bumped on every call — a reply is discarded if a newer request has
+// started by the time it resolves, so an overlapping type-filter change +
+// debounced search (or two rapid filter changes) can never land out of
+// order and show results that don't match the currently-visible filters.
+let activitySeq = 0
 async function loadActivity(append: boolean): Promise<void> {
+  const seq = ++activitySeq
   activityLoading.value = true
   try {
     const res = await admin.listUserTransactions(id.value, {
@@ -249,12 +290,16 @@ async function loadActivity(append: boolean): Promise<void> {
       type: activityFilterType.value || undefined,
       search: activitySearch.value || undefined,
     })
+    if (seq !== activitySeq) return
     activityOverride.value = append ? [...(activityOverride.value ?? []), ...res.items] : res.items
     activityCursor.value = res.nextCursor
   } catch (e) {
+    if (seq !== activitySeq) return
     flash(errText(e, t('admin.genericError')), 'error')
   } finally {
-    activityLoading.value = false
+    // A superseded request's `finally` must not clear the spinner out from
+    // under a still-in-flight newer one.
+    if (seq === activitySeq) activityLoading.value = false
   }
 }
 function clearActivityFilters(): void {
@@ -277,12 +322,13 @@ watch(tab, (v) => {
 })
 
 function companyStatus(c: AdminUserCompany, status: 'active' | 'suspended') {
-  const go = () =>
-    run(
+  const go = async () => {
+    await run(
       'co-' + c.id,
       () => admin.setCompanyStatus(c.id, status),
       t(status === 'suspended' ? 'admin.bizSuspended' : 'admin.bizUnsuspended'),
     )
+  }
   if (status === 'suspended') {
     confirm.ask(t('admin.suspendBiz'), t('admin.suspendBizConfirm', { name: c.displayName }), go)
   } else {
@@ -469,6 +515,7 @@ const txnColor: Record<string, string> = {
             </AdminSection>
 
             <AdminSection :title="t('admin.securityTitle')" icon="mdi-shield-key-outline">
+              <p v-if="isSelf" class="ud__note mt-0 mb-3">{{ t('admin.selfSecurityHint') }}</p>
               <div class="ud__secRow">
                 <div>
                   <p class="ud__secLabel">{{ t('account.twoFaTitle') }}</p>
@@ -480,7 +527,7 @@ const txnColor: Record<string, string> = {
                   variant="tonal"
                   size="small"
                   rounded="pill"
-                  :disabled="!user.twoFactorEnabled"
+                  :disabled="isSelf || !user.twoFactorEnabled"
                   :loading="busy === 'disableTotp'"
                   prepend-icon="mdi-shield-off-outline"
                   @click="runUserAction('disableTotp')"
@@ -498,7 +545,7 @@ const txnColor: Record<string, string> = {
                   variant="tonal"
                   size="small"
                   rounded="pill"
-                  :disabled="!user.sessions.length"
+                  :disabled="isSelf || !user.sessions.length"
                   :loading="busy === 'revokeSessions'"
                   prepend-icon="mdi-logout-variant"
                   @click="runUserAction('revokeSessions')"
@@ -517,12 +564,13 @@ const txnColor: Record<string, string> = {
                   density="compact"
                   hide-details
                   autocomplete="new-password"
+                  :disabled="isSelf"
                 />
                 <v-btn
                   variant="flat"
                   color="primary"
                   :loading="savingPassword"
-                  :disabled="newPassword.length < 8"
+                  :disabled="isSelf || newPassword.length < 8"
                   @click="savePassword"
                 >
                   {{ t('admin.setPassword') }}
@@ -543,6 +591,7 @@ const txnColor: Record<string, string> = {
                   variant="tonal"
                   size="small"
                   rounded="pill"
+                  :disabled="isSelf"
                   :loading="busy === 'walletBlock'"
                   :prepend-icon="user.wallet.blocked ? 'mdi-lock-open-variant' : 'mdi-lock'"
                   @click="toggleWalletBlock"
@@ -550,6 +599,7 @@ const txnColor: Record<string, string> = {
                   {{ user.wallet.blocked ? t('admin.unblockWallet') : t('admin.blockWallet') }}
                 </v-btn>
               </template>
+              <p v-if="isSelf" class="ud__note mt-0 mb-3">{{ t('admin.selfSecurityHint') }}</p>
 
               <div class="ud__balance">
                 <strong>
@@ -593,7 +643,9 @@ const txnColor: Record<string, string> = {
             </AdminSection>
 
             <AdminSection :title="t('admin.adjustTitle')" icon="mdi-tune-vertical">
-              <p class="ud__note mt-0 mb-3">{{ t('admin.adjustHint') }}</p>
+              <p class="ud__note mt-0 mb-3">
+                {{ isSelf ? t('admin.selfSecurityHint') : t('admin.adjustHint') }}
+              </p>
               <div class="ud__adjust">
                 <v-text-field
                   v-model.number="adjust.credits"
@@ -603,6 +655,7 @@ const txnColor: Record<string, string> = {
                   density="compact"
                   hide-details
                   class="ud__adjustCredits"
+                  :disabled="isSelf"
                 />
                 <v-text-field
                   v-model="adjust.reason"
@@ -610,12 +663,13 @@ const txnColor: Record<string, string> = {
                   variant="outlined"
                   density="compact"
                   hide-details
+                  :disabled="isSelf"
                 />
                 <v-btn
                   variant="flat"
                   color="primary"
                   :loading="busy === 'adjust'"
-                  :disabled="!adjust.credits || adjust.reason.trim().length < 3"
+                  :disabled="isSelf || !adjust.credits || adjust.reason.trim().length < 3"
                   @click="submitAdjust"
                 >
                   {{ t('admin.apply') }}

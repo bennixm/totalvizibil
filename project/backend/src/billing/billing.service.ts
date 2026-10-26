@@ -391,6 +391,11 @@ export class BillingService {
   async unvoidInvoice(id: string) {
     const invoice = await this.prisma.invoice.findUnique({ where: { id } });
     if (!invoice) throw new NotFoundException('invoice_not_found');
+    // Mirrors `voidInvoice`'s own already-in-that-state short-circuit — two
+    // admins (or one stale tab) clicking "Restaurează" on an invoice that's
+    // already valid must not re-fire the notification or wipe a voidReason
+    // some OTHER void already set in the meantime.
+    if (!invoice.voidedAt) return this.adminGetInvoice(id);
     await this.prisma.invoice.update({
       where: { id },
       data: { voidedAt: null, voidReason: null },

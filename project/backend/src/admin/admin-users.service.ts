@@ -12,6 +12,8 @@ import { SessionService } from '../auth/session.service';
 import { WalletService } from '../wallet/wallet.service';
 import { BillingService } from '../billing/billing.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MailService } from '../mail/mail.service';
+import { renderEmailLayout, textToHtml } from '../mail/templates/layout';
 import { money } from '../wallet/money';
 import { effectiveActiveSeconds } from '../analytics/visibility';
 import { ListUsersQuery } from './dto/list-users.query';
@@ -30,6 +32,7 @@ export class AdminUsersService {
     private readonly wallet: WalletService,
     private readonly billing: BillingService,
     private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
   ) {}
 
   async list(query: ListUsersQuery) {
@@ -114,30 +117,21 @@ export class AdminUsersService {
     const now = new Date();
     const companyIds = u.companyMembers.map((m) => m.company.id);
 
-    const [sessions, walletSummary, transactionsPage, invoices, spendByCompany] = await Promise.all(
-      [
-        this.sessions.listActiveForUser(id),
-        this.wallet.getSummary(id),
-        // Reuses the same row shape (+ refund eligibility/state) the
-        // customer's own transactions page gets — one source of truth
-        // instead of a second hand-rolled mapping here.
-        this.wallet.listTransactions(id, { limit: 20 }),
-        this.billing.listForUser(id),
-        companyIds.length
-          ? this.prisma.walletTransaction.groupBy({
-              by: ['companyId'],
-              where: { companyId: { in: companyIds }, type: 'spend', status: 'completed' },
-              _sum: { amountMinor: true },
-            })
-          : Promise.resolve([]),
-      ],
-    );
-
-    const consumedBy = new Map(
-      spendByCompany
-        .filter((r) => r.companyId)
-        .map((r) => [r.companyId as string, Math.abs(r._sum.amountMinor ?? 0)]),
-    );
+    const [sessions, walletSummary, transactionsPage, invoices, consumedBy] = await Promise.all([
+      this.sessions.listActiveForUser(id),
+      this.wallet.getSummary(id),
+      // Reuses the same row shape (+ refund eligibility/state) the
+      // customer's own transactions page gets — one source of truth
+      // instead of a second hand-rolled mapping here.
+      this.wallet.listTransactions(id, { limit: 20 }),
+      this.billing.listForUser(id),
+      // Same CPC-only ad-spend helper the Businesses list and company-detail
+      // page use — the inline groupBy this used to do omitted the provider
+      // filter, so it double-counted one-off fees (builder unlock, AI
+      // usage) as ad spend and showed a different number for the same
+      // company than every other admin page.
+      this.wallet.consumedByCompanies(companyIds),
+    ]);
 
     return {
       id: u.id,
@@ -214,7 +208,7 @@ export class AdminUsersService {
     };
   }
 
-  async update(callerId: string, id: string, dto: UpdateUserDto) {
+  async update(callerId: string, callerSessionId: string, id: string, dto: UpdateUserDto) {
     const target = await this.prisma.user.findUnique({
       where: { id },
       include: { platformRoles: true },
@@ -231,7 +225,8 @@ export class AdminUsersService {
       }
     }
 
-    if (dto.email && dto.email !== target.email) {
+    const emailChanged = !!dto.email && dto.email !== target.email;
+    if (emailChanged) {
       const taken = await this.prisma.user.findUnique({ where: { email: dto.email } });
       if (taken) throw new BadRequestException('That email is already in use');
     }
@@ -246,6 +241,12 @@ export class AdminUsersService {
           email: dto.email,
           status: dto.status,
           ...(dto.disableTotp ? { totpSecret: null, totpEnabledAt: null } : {}),
+          // The new address hasn't been proven to belong to this user (no
+          // code was sent/confirmed the way self-service signup requires),
+          // so an admin-initiated email change forces re-verification —
+          // otherwise the account would sit "verified" on an address nobody
+          // ever confirmed.
+          ...(emailChanged ? { emailVerifiedAt: null } : {}),
         },
       }),
     );
@@ -269,13 +270,58 @@ export class AdminUsersService {
 
     await this.prisma.$transaction(ops);
 
+    // Mirrors the self-service email-change flow (account.service.ts): both
+    // addresses get told, so if this was unexpected, the rightful owner's
+    // OLD inbox still hears about it — an admin changing an email silently
+    // left the real owner with no signal at all.
+    if (emailChanged) {
+      const oldEmail = target.email;
+      const newEmail = dto.email as string;
+      const oldEmailText = `Adresa de email a contului tău a fost schimbată din ${oldEmail} în ${newEmail} de un administrator.\n\nDacă nu te aștepți la asta, contactează suportul imediat.`;
+      void this.mail
+        .send({
+          to: oldEmail,
+          subject: 'Adresa de email a contului a fost schimbată',
+          text: oldEmailText,
+          html: renderEmailLayout({
+            heading: 'Adresa de email a contului a fost schimbată',
+            bodyHtml: textToHtml(oldEmailText),
+          }),
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Admin email-change (old address) notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+      void this.notifications
+        .notify({
+          userId: id,
+          type: 'email_changed',
+          title: 'Adresa de email a contului a fost schimbată',
+          body: `Un administrator a schimbat adresa de email a contului în ${newEmail}. Trebuie să o confirmi din nou. Dacă nu te aștepți la asta, contactează suportul.`,
+          channels: { email: true },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Admin email-change notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
+
     // Banning a user pulls their businesses out of the feed too.
     if (dto.status === 'suspended') {
       await this.suspendOwnedListings(id);
     }
 
     if (dto.revokeSessions || dto.status === 'suspended') {
-      await this.sessions.revokeAllForUser(id, isSelf ? callerId : undefined);
+      // `revokeAllForUser`'s second arg is a SESSION id to keep alive, not a
+      // user id — passing `callerId` here never matched anything (no
+      // Session.id equals a User.id), so an admin revoking their own
+      // sessions was silently logging themselves out of the very request
+      // doing the revoking too.
+      await this.sessions.revokeAllForUser(id, isSelf ? callerSessionId : undefined);
     }
 
     if (dto.status && dto.status !== target.status) {
@@ -388,11 +434,22 @@ export class AdminUsersService {
     return this.detail(id);
   }
 
-  async adjustWallet(id: string, dto: AdjustWalletDto) {
+  // `adminUserId` is optional only so this compiles against the current
+  // controller handler, which doesn't pass it yet (see admin.controller.ts
+  // `adjustWallet` — needs `@CurrentUser() caller: AuthPrincipal` added and
+  // `caller.id` threaded through, the same one-line shape `refundBalance`'s
+  // handler already uses). Until that's wired up, attribution is just null.
+  async adjustWallet(id: string, dto: AdjustWalletDto, adminUserId?: string) {
     const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
     if (!target) throw new NotFoundException('User not found');
-    await this.wallet.adjust(id, dto.credits, dto.reason);
-    return this.detail(id);
+    const result = await this.wallet.adjust(id, dto.credits, dto.reason, {
+      initiatedByAdminId: adminUserId,
+    });
+    const detail = await this.detail(id);
+    // Surfaced so the admin panel can tell "applied in full" from "balance
+    // was too low, only part of a claw-back actually moved" instead of a
+    // blanket success for both.
+    return { ...detail, lastAdjustment: result };
   }
 
   /** Admin-initiated refund of up to the user's current wallet balance — same

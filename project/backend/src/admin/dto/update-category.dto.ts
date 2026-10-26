@@ -4,9 +4,11 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { CategoryNameDto } from './create-category.dto';
@@ -42,6 +44,7 @@ export class UpdateCategoryDto {
 
   /** '' or null clears the parent (promotes to a top-level group). */
   @IsOptional()
-  @IsString()
+  @ValidateIf((_, value) => !!value)
+  @IsUUID()
   parentId?: string | null;
 }

@@ -50,14 +50,14 @@ onMounted(() => admin.fetchReferralsList())
     <div class="ar__chips">
       <AdminFilterChip
         :label="t('adminRef.total')"
-        :value="n(admin.referralsTotal)"
+        :value="n(admin.referralsTotalAll)"
         icon="mdi-account-multiple-plus-outline"
         :active="admin.referralFilters.status === null"
         @click="admin.setReferralFilter('status', null)"
       />
       <AdminFilterChip
         :label="t('adminRef.pending')"
-        :value="n(admin.referralsTotal - admin.referralsTotalRewarded)"
+        :value="n(admin.referralsTotalPending)"
         icon="mdi-clock-outline"
         tone="warning"
         :active="admin.referralFilters.status === 'pending'"

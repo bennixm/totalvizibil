@@ -167,6 +167,10 @@ export interface AdminUserDetail {
   transactions: AdminUserTxn[]
   invoices: AdminUserInvoice[]
   sessions: { id: string; userAgent: string | null; ip: string | null; createdAt: string }[]
+  /** Only present right after `adjustWallet` — the requested vs. actually
+   *  applied delta, since a claw-back larger than the balance is clamped
+   *  rather than rejected. */
+  lastAdjustment?: { requestedCredits: number; appliedCredits: number }
 }
 
 /** Compact invoice row embedded in a user's admin detail page. */
@@ -316,6 +320,11 @@ interface AdminState {
   businessesTotal: number
   businessFilters: BusinessesFilters
   loadingBusinesses: boolean
+  /** Bumped on every `fetchBusinesses` call — a reply only replaces
+   *  `businesses` if it's still the most recent one issued, so two filter
+   *  changes fired in quick succession can't land out of order (same
+   *  pattern as `paymentsRequestSeq` in stores/wallet.ts). */
+  businessesRequestSeq: number
   settings: AdminSettings | null
   categories: AdminCategoryGroup[]
   loadingCategories: boolean
@@ -325,6 +334,10 @@ interface AdminState {
   loadingInvoices: boolean
   referrals: AdminReferralRow[]
   referralsTotal: number
+  /** Unfiltered counts for the summary chips — never scoped to the active
+   *  status filter, so "Pending" never goes negative under a filter. */
+  referralsTotalAll: number
+  referralsTotalPending: number
   referralsTotalRewarded: number
   referralsCreditsPaid: number
   referralFilters: ReferralsFilters
@@ -473,6 +486,9 @@ export interface AdminReferralsPage {
   page: number
   pageSize: number
   total: number
+  /** Unfiltered — never scoped to the active status filter, unlike `total`. */
+  totalAll: number
+  totalPending: number
   totalRewarded: number
   creditsPaid: number
 }
@@ -495,6 +511,7 @@ export const useAdminStore = defineStore('admin', {
       pageSize: 20,
     },
     loadingBusinesses: false,
+    businessesRequestSeq: 0,
     settings: null,
     categories: [],
     loadingCategories: false,
@@ -504,6 +521,8 @@ export const useAdminStore = defineStore('admin', {
     loadingInvoices: false,
     referrals: [],
     referralsTotal: 0,
+    referralsTotalAll: 0,
+    referralsTotalPending: 0,
     referralsTotalRewarded: 0,
     referralsCreditsPaid: 0,
     referralFilters: { status: null, page: 1, pageSize: 20 },
@@ -519,7 +538,12 @@ export const useAdminStore = defineStore('admin', {
       this.loadingUsers = true
       try {
         const p = new URLSearchParams()
-        if (this.filters.search.trim()) p.set('search', this.filters.search.trim())
+        // The search field is `clearable` — Vuetify writes `null` back on
+        // clear regardless of the declared `string` type, and `.trim()` on
+        // that threw before the request was even built, leaving the list
+        // stuck on its last results with no visible error.
+        const search = (this.filters.search ?? '').trim()
+        if (search) p.set('search', search)
         if (this.filters.status) p.set('status', this.filters.status)
         if (this.filters.role) p.set('role', this.filters.role)
         p.set('page', String(this.filters.page))
@@ -541,6 +565,7 @@ export const useAdminStore = defineStore('admin', {
     },
 
     async fetchBusinesses(): Promise<void> {
+      const seq = ++this.businessesRequestSeq
       this.loadingBusinesses = true
       try {
         const f = this.businessFilters
@@ -554,10 +579,15 @@ export const useAdminStore = defineStore('admin', {
         const res = await apiFetch<{ items: AdminBusinessRow[]; total: number }>(
           `/admin/companies?${p.toString()}`,
         )
+        // A newer filter/page change already started since this request was
+        // issued — dropping this reply instead of letting it land out of
+        // order and show a list that doesn't match the currently-selected
+        // filter chip.
+        if (seq !== this.businessesRequestSeq) return
         this.businesses = res.items
         this.businessesTotal = res.total
       } finally {
-        this.loadingBusinesses = false
+        if (seq === this.businessesRequestSeq) this.loadingBusinesses = false
       }
     },
 
@@ -604,6 +634,8 @@ export const useAdminStore = defineStore('admin', {
         })
         this.referrals = res.items
         this.referralsTotal = res.total
+        this.referralsTotalAll = res.totalAll
+        this.referralsTotalPending = res.totalPending
         this.referralsTotalRewarded = res.totalRewarded
         this.referralsCreditsPaid = res.creditsPaid
       } finally {

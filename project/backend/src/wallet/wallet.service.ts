@@ -351,54 +351,24 @@ export class WalletService implements OnModuleInit {
   /**
    * Admin credit/debit. `credits` may be negative (a claw-back); a debit is
    * clamped so the balance never goes below zero. Records an `adjustment`
-   * transaction with the reason.
+   * transaction with the reason and (when given) which admin initiated it —
+   * the same attribution `requestRefund` already records, so an unexplained
+   * balance change is never un-traceable.
+   *
+   * Returns both the requested and actually-applied delta (in credits): for
+   * a debit larger than the balance, `appliedCredits` is the clamped,
+   * smaller amount that really moved — callers should surface the
+   * difference instead of reporting a blanket success.
    */
-  async adjust(userId: string, credits: number, reason: string) {
-    if (!Number.isFinite(credits) || credits === 0) {
-      throw new BadRequestException('credits must be a non-zero number');
-    }
-    const wallet = await this.ensureWallet(userId);
-    const requestedDeltaMinor = Math.round(credits * CREDIT_MINOR);
-
-    // A debit is clamped atomically (debitClamped) so it can't be raced past
-    // zero by a concurrent spend; a credit is a plain atomic increment, no
-    // clamp needed.
-    const deltaMinor = await this.prisma.$transaction(async (tx) => {
-      if (requestedDeltaMinor < 0) {
-        const { deltaMinor: debited, balanceMinor } = await this.debitClamped(
-          tx,
-          wallet.id,
-          -requestedDeltaMinor,
-        );
-        const applied = -debited;
-        await tx.walletTransaction.create({
-          data: {
-            walletId: wallet.id,
-            type: 'adjustment',
-            status: 'completed',
-            amountMinor: applied,
-            balanceAfterMinor: balanceMinor,
-            description: reason.trim() || 'Admin adjustment',
-          },
-        });
-        return applied;
-      }
-      const updated = await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balanceMinor: { increment: requestedDeltaMinor } },
-      });
-      await tx.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          type: 'adjustment',
-          status: 'completed',
-          amountMinor: requestedDeltaMinor,
-          balanceAfterMinor: updated.balanceMinor,
-          description: reason.trim() || 'Admin adjustment',
-        },
-      });
-      return requestedDeltaMinor;
-    });
+  async adjust(
+    userId: string,
+    credits: number,
+    reason: string,
+    opts: { initiatedByAdminId?: string } = {},
+  ): Promise<{ requestedCredits: number; appliedCredits: number }> {
+    const deltaMinor = await this.prisma.$transaction((tx) =>
+      this.adjustWithin(tx, userId, credits, reason, opts),
+    );
 
     // Already committed — a notification hiccup must never mask this.
     void this.notifications
@@ -420,7 +390,72 @@ export class WalletService implements OnModuleInit {
         ),
       );
 
-    return this.getSummary(userId);
+    return { requestedCredits: credits, appliedCredits: minorToCredits(deltaMinor) };
+  }
+
+  /**
+   * Same adjustment logic as `adjust`, split out so a caller that must charge/
+   * credit a wallet as ONE step of its own larger atomic operation (e.g.
+   * `Pro V2Service.applyUnlock`, which charges the unlock fee, grants the
+   * starting-balance bonus, and flips the company to advanced mode — all or
+   * nothing) can compose it inside their own `$transaction` via `tx`, instead
+   * of `adjust()` opening a second, separate transaction that could commit
+   * independently of the rest. No notification here — the caller's own
+   * `adjust()`/equivalent (or its own notify call) fires that once the WHOLE
+   * outer transaction has actually committed.
+   */
+  async adjustWithin(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    credits: number,
+    reason: string,
+    opts: { initiatedByAdminId?: string } = {},
+  ): Promise<number> {
+    if (!Number.isFinite(credits) || credits === 0) {
+      throw new BadRequestException('credits must be a non-zero number');
+    }
+    const wallet = await tx.wallet.upsert({ where: { userId }, create: { userId }, update: {} });
+    const requestedDeltaMinor = Math.round(credits * CREDIT_MINOR);
+
+    // A debit is clamped atomically (debitClamped) so it can't be raced past
+    // zero by a concurrent spend; a credit is a plain atomic increment, no
+    // clamp needed.
+    if (requestedDeltaMinor < 0) {
+      const { deltaMinor: debited, balanceMinor } = await this.debitClamped(
+        tx,
+        wallet.id,
+        -requestedDeltaMinor,
+      );
+      const applied = -debited;
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: 'adjustment',
+          status: 'completed',
+          amountMinor: applied,
+          balanceAfterMinor: balanceMinor,
+          description: reason.trim() || 'Admin adjustment',
+          initiatedByAdminId: opts.initiatedByAdminId ?? null,
+        },
+      });
+      return applied;
+    }
+    const updated = await tx.wallet.update({
+      where: { id: wallet.id },
+      data: { balanceMinor: { increment: requestedDeltaMinor } },
+    });
+    await tx.walletTransaction.create({
+      data: {
+        walletId: wallet.id,
+        type: 'adjustment',
+        status: 'completed',
+        amountMinor: requestedDeltaMinor,
+        balanceAfterMinor: updated.balanceMinor,
+        description: reason.trim() || 'Admin adjustment',
+        initiatedByAdminId: opts.initiatedByAdminId ?? null,
+      },
+    });
+    return requestedDeltaMinor;
   }
 
   /**

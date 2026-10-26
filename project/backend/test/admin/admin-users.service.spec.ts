@@ -129,7 +129,11 @@ function fakeWallet() {
     })),
     listTransactions: jest.fn(async () => ({ items: [] })),
     setBlocked: jest.fn(async () => {}),
-    adjust: jest.fn(async () => {}),
+    adjust: jest.fn(async (_userId: string, credits: number) => ({
+      requestedCredits: credits,
+      appliedCredits: credits,
+    })),
+    consumedByCompanies: jest.fn(async () => new Map<string, number>()),
     requestRefund: jest.fn(async () => {}),
     cancelRefund: jest.fn(async () => {}),
   };
@@ -147,6 +151,12 @@ function fakeNotifications() {
   };
 }
 
+function fakeMail() {
+  return {
+    send: jest.fn(async () => {}),
+  };
+}
+
 function makeService() {
   const prisma = fakePrisma();
   const sessions = fakeSessions();
@@ -154,6 +164,7 @@ function makeService() {
   const wallet = fakeWallet();
   const billing = fakeBilling();
   const notifications = fakeNotifications();
+  const mail = fakeMail();
   const svc = new AdminUsersService(
     prisma as any,
     passwords as any,
@@ -161,8 +172,9 @@ function makeService() {
     wallet as any,
     billing as any,
     notifications as any,
+    mail as any,
   );
-  return { svc, prisma, sessions, passwords, wallet, billing, notifications };
+  return { svc, prisma, sessions, passwords, wallet, billing, notifications, mail };
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +244,35 @@ describe('AdminUsersService', () => {
       expect(result.id).toBe('u1');
       expect(result.email).toBe('u1@test.com');
     });
+
+    it('derives per-company consumed spend from wallet.consumedByCompanies, not a separate inline groupBy (regression: the old inline query omitted the CPC-only provider filter and disagreed with the Businesses list for the same company)', async () => {
+      const { svc, prisma, wallet } = makeService();
+      prisma.__seedUser({
+        id: 'u1',
+        companyMembers: [
+          {
+            role: 'owner',
+            company: {
+              id: 'co1',
+              displayName: 'Co',
+              slug: 'co',
+              status: 'active',
+              ownerUserId: 'u1',
+              createdAt: new Date('2024-01-01'),
+              campaign: null,
+              _count: { leads: 0, adClicks: 0 },
+            },
+          },
+        ],
+      });
+      wallet.consumedByCompanies.mockResolvedValue(new Map([['co1', 1234]]));
+
+      const result = await svc.detail('u1');
+
+      expect(wallet.consumedByCompanies).toHaveBeenCalledWith(['co1']);
+      expect(prisma.walletTransaction.groupBy).not.toHaveBeenCalled();
+      expect(result.companies[0].consumed.credits).toBeGreaterThan(0);
+    });
   });
 
   describe('update — suspend', () => {
@@ -241,7 +282,7 @@ describe('AdminUsersService', () => {
       // Stub detail so the complex read-side is skipped
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
-      await svc.update('admin1', 'u1', { status: 'suspended' });
+      await svc.update('admin1', 'admin1-session', 'u1', { status: 'suspended' });
 
       // user.update called with suspended status
       expect(prisma.user.update).toHaveBeenCalledWith(
@@ -258,6 +299,77 @@ describe('AdminUsersService', () => {
       expect(notifications.notify).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'u1', type: 'account_suspended' }),
       );
+    });
+
+    it('revoking your OWN sessions keeps the current session alive (regression: the except-id must be a session id, not the caller\'s user id)', async () => {
+      const { svc, prisma, sessions } = makeService();
+      prisma.__seedUser({ id: 'admin1', status: 'active' });
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await svc.update('admin1', 'admin1-session', 'admin1', { revokeSessions: true });
+
+      // Must except the CALLER'S SESSION id, never the caller's user id —
+      // `revokeAllForUser`'s second arg is matched against `Session.id`, so
+      // passing a user id there (the old bug) never excludes anything and
+      // logs the admin out of the very request that triggered this.
+      expect(sessions.revokeAllForUser).toHaveBeenCalledWith('admin1', 'admin1-session');
+    });
+  });
+
+  describe('update — email change', () => {
+    it('notifies both the old and new address, and resets emailVerifiedAt so the new address must be re-confirmed', async () => {
+      const { svc, prisma, mail, notifications } = makeService();
+      prisma.__seedUser({ id: 'u1', email: 'old@example.com', status: 'active' });
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await svc.update('admin1', 'admin1-session', 'u1', { email: 'new@example.com' });
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u1' },
+          data: expect.objectContaining({ email: 'new@example.com', emailVerifiedAt: null }),
+        }),
+      );
+      // Old inbox gets a direct, one-off mail — it's no longer tied to the account.
+      expect(mail.send).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'old@example.com' }),
+      );
+      // New address gets the standard notification channel.
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u1', type: 'email_changed' }),
+      );
+    });
+
+    it('does not touch email/verification or send mail when the email is unchanged', async () => {
+      const { svc, prisma, mail } = makeService();
+      prisma.__seedUser({ id: 'u1', email: 'same@example.com', status: 'active' });
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await svc.update('admin1', 'admin1-session', 'u1', { name: 'New Name' });
+
+      expect(mail.send).not.toHaveBeenCalled();
+      const data = (prisma.user.update as jest.Mock).mock.calls[0][0].data;
+      expect(data.emailVerifiedAt).toBeUndefined();
+    });
+  });
+
+  describe('adjustWallet', () => {
+    it('passes the acting admin id through for attribution and surfaces the applied vs requested delta', async () => {
+      const { svc, prisma, wallet } = makeService();
+      prisma.__seedUser({ id: 'u1' });
+      wallet.adjust.mockResolvedValue({ requestedCredits: -500, appliedCredits: -20 });
+      jest.spyOn(svc, 'detail').mockResolvedValue({ id: 'u1' } as any);
+
+      const result = await svc.adjustWallet(
+        'u1',
+        { credits: -500, reason: 'chargeback reversal' },
+        'admin1',
+      );
+
+      expect(wallet.adjust).toHaveBeenCalledWith('u1', -500, 'chargeback reversal', {
+        initiatedByAdminId: 'admin1',
+      });
+      expect(result.lastAdjustment).toEqual({ requestedCredits: -500, appliedCredits: -20 });
     });
   });
 

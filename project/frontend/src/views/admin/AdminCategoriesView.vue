@@ -43,10 +43,22 @@ const editor = reactive({
   icon: '',
   isActive: true,
   position: 0,
+  /** Snapshot of the company count at open time — used only to lock the slug
+   *  field below; not re-read live. */
+  companyCount: 0,
 })
+// The slug is a path segment in this app's flat, indexed SEO URLs — changing
+// it on a category that's actually in use 404s every indexed link. The
+// backend now rejects that outright; lock the field here too so the admin
+// sees why instead of typing a new slug that then fails to save.
+const slugLocked = computed(() => editor.mode === 'edit' && editor.companyCount > 0)
 const parentOptions = computed(() => [
   { value: '', title: t('adminCat.topLevel') },
-  ...admin.categories.map((g) => ({ value: g.id, title: nm(g) })),
+  // Exclude the category currently being edited — picking itself as its own
+  // parent was only ever rejected server-side, with a generic error toast.
+  ...admin.categories
+    .filter((g) => g.id !== editor.id)
+    .map((g) => ({ value: g.id, title: nm(g) })),
 ])
 
 function openCreate(parentId = '') {
@@ -60,6 +72,7 @@ function openCreate(parentId = '') {
     icon: '',
     isActive: true,
     position: 0,
+    companyCount: 0,
   })
 }
 function openEdit(c: AdminCategory) {
@@ -73,6 +86,7 @@ function openEdit(c: AdminCategory) {
     icon: c.icon ?? '',
     isActive: c.isActive,
     position: c.position,
+    companyCount: c.companyCount,
   })
 }
 
@@ -116,7 +130,7 @@ async function save() {
   }
 }
 
-async function toggleActive(c: AdminCategory) {
+async function doToggleActive(c: AdminCategory) {
   busy.value = c.id
   try {
     await admin.updateCategory(c.id, { isActive: !c.isActive })
@@ -125,6 +139,20 @@ async function toggleActive(c: AdminCategory) {
   } finally {
     busy.value = null
   }
+}
+function toggleActive(c: AdminCategory | AdminCategoryGroup) {
+  // Only the destructive direction (hiding) needs confirming — reactivating
+  // is always safe to fire immediately.
+  if (!c.isActive) {
+    void doToggleActive(c)
+    return
+  }
+  const affected = 'children' in c ? groupCompanyTotal(c) : c.companyCount
+  confirm.ask(
+    t('adminCat.deactivateTitle'),
+    t('adminCat.deactivateConfirm', { name: nm(c), n: affected }),
+    () => doToggleActive(c),
+  )
 }
 
 function askDelete(c: AdminCategory) {
@@ -231,7 +259,8 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
           <v-text-field
             v-model="editor.slug"
             :label="t('adminCat.slug')"
-            :hint="t('adminCat.slugHint')"
+            :hint="slugLocked ? t('adminCat.slugLockedHint') : t('adminCat.slugHint')"
+            :disabled="slugLocked"
             persistent-hint
             density="comfortable"
           />

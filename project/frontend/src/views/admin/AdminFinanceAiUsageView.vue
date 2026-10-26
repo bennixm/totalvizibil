@@ -16,6 +16,19 @@ function eur(minor: number): string {
 
 const hasRows = computed(() => (finance.aiUsage?.byModel.length ?? 0) > 0)
 
+/** This page has no period control of its own — it silently inherits
+ *  `finance.period` from the Dashboard page, which is otherwise invisible
+ *  here (looks identical to the default current-month window on a fresh
+ *  page load). Surfacing the backend-returned range at least tells the
+ *  admin what window the numbers below actually cover. */
+const rangeLabel = computed(() => {
+  const range = finance.aiUsage?.range
+  if (!range) return ''
+  const from = new Date(range.from).toLocaleDateString('ro-RO')
+  const to = new Date(range.to).toLocaleDateString('ro-RO')
+  return `${from} – ${to}`
+})
+
 onMounted(() => finance.fetchAiUsage())
 </script>
 
@@ -34,6 +47,7 @@ onMounted(() => finance.fetchAiUsage())
     </div>
 
     <template v-else-if="finance.aiUsage">
+      <p v-if="rangeLabel" class="afa__range">{{ rangeLabel }}</p>
       <div class="afa__kpis">
         <AdminStatCard :label="t('adminFinance.aiTotalCost')" :value="eur(finance.aiUsage.totalCostMinor)" icon="mdi-cash-minus" tone="error" />
         <AdminStatCard :label="t('adminFinance.aiTotalCalls')" :value="n(finance.aiUsage.totalCalls)" icon="mdi-swap-horizontal" />
@@ -74,11 +88,16 @@ onMounted(() => finance.fetchAiUsage())
   place-items: center;
   min-height: 200px;
 }
+.afa__range {
+  margin: 1rem 0 0;
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
 .afa__kpis {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.7rem;
-  margin: 1.2rem 0 1.4rem;
+  margin: 0.6rem 0 1.4rem;
 }
 .afa__list {
   list-style: none;

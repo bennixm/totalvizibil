@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { CampaignStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveLocationInput } from '../geo/ro-cities';
+import { feedCpcMinMinor, isEligibleForFeed } from '../analytics/feed-pricing';
 import { WalletService } from '../wallet/wallet.service';
 import { CampaignService } from '../campaigns/campaign.service';
 import { COMPANY_DELETE_GRACE_MS } from '../companies/companies.constants';
@@ -49,6 +50,25 @@ export class AdminCompaniesService {
     });
     if (!company) throw new NotFoundException('Company not found');
     return company;
+  }
+
+  /**
+   * Mirrors the owner-facing `assertCanEditCompany`/`assertCanEdit` guards
+   * (companies.service.ts, campaign.service.ts) on the admin side, which had
+   * no equivalent at all — an admin could reactivate, publish, or edit a
+   * company already mid-deletion, producing a state the owner's own (always
+   * blocked) edit paths could never reach or undo. Every mutating method
+   * below calls this except `cancelDeletion`, which is the one way OUT of
+   * this state.
+   */
+  private async assertNotPendingDeletion(companyId: string): Promise<void> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { deletionScheduledAt: true },
+    });
+    if (company?.deletionScheduledAt) {
+      throw new BadRequestException('company_pending_deletion');
+    }
   }
 
   // --- list / browse --------------------------------------------
@@ -313,6 +333,7 @@ export class AdminCompaniesService {
    */
   async upgradeToAdvanced(companyId: string, charge = false) {
     await this.loadCompany(companyId);
+    await this.assertNotPendingDeletion(companyId);
     await this.builder.unlockForAdmin(companyId, { charge });
     return this.detail(companyId);
   }
@@ -321,20 +342,36 @@ export class AdminCompaniesService {
 
   async updateCompany(companyId: string, dto: UpdateCompanyDto) {
     await this.loadCompany(companyId);
+    await this.assertNotPendingDeletion(companyId);
     if (dto.categoryId) {
       const cat = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
       if (!cat || !cat.isActive || cat.parentId == null) {
         throw new BadRequestException('Pick an active leaf category');
       }
     }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: {
-        ...(dto.displayName !== undefined ? { displayName: dto.displayName } : {}),
-        ...(dto.legalName !== undefined ? { legalName: dto.legalName || null } : {}),
-        ...(dto.description !== undefined ? { description: dto.description || null } : {}),
-        ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
-      },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.company.update({
+        where: { id: companyId },
+        data: {
+          ...(dto.displayName !== undefined ? { displayName: dto.displayName } : {}),
+          ...(dto.legalName !== undefined ? { legalName: dto.legalName || null } : {}),
+          ...(dto.description !== undefined ? { description: dto.description || null } : {}),
+          ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
+        },
+      });
+      if (dto.categoryId) {
+        // Keep `company_categories` — the Feed's actual source of truth for
+        // ranking/billing (feed.service.ts reads `categoryAssignments`
+        // exclusively, never the `Company.categoryId` scalar) — in sync
+        // with the mirror above. The owner-facing path already does this
+        // (CompaniesService.update → syncPrimaryCategory); this admin path
+        // was writing only the scalar, so the company kept competing and
+        // being billed under its OLD category forever.
+        await tx.companyCategory.deleteMany({ where: { companyId } });
+        await tx.companyCategory.create({
+          data: { companyId, categoryId: dto.categoryId, isPrimary: true },
+        });
+      }
     });
     return this.detail(companyId);
   }
@@ -346,7 +383,18 @@ export class AdminCompaniesService {
    */
   async setLocation(companyId: string, dto: SetCompanyLocationDto) {
     await this.loadCompany(companyId);
+    await this.assertNotPendingDeletion(companyId);
     const { nationwide, counties } = resolveLocationInput(dto);
+    // Carry the existing primary row's city/lat/lng forward onto the new
+    // primary row — this admin coverage editor only ever touches the
+    // județe list, but a full delete+recreate was dropping the exact-address
+    // pin entirely. With it gone, the owner's own `setPublished` (which
+    // requires `nationwide || (lat && lng)`) started rejecting every future
+    // publish attempt with no way to fix it from this screen.
+    const existingPrimary = await this.prisma.companyLocation.findFirst({
+      where: { companyId, isPrimary: true },
+      select: { city: true, lat: true, lng: true },
+    });
     const rows: Prisma.CompanyLocationCreateManyInput[] = nationwide
       ? [{ companyId, nationwide: true, country: 'RO', isPrimary: true }]
       : counties.map((county, i) => ({
@@ -355,6 +403,9 @@ export class AdminCompaniesService {
           nationwide: false,
           country: 'RO',
           isPrimary: i === 0,
+          city: i === 0 ? (existingPrimary?.city ?? null) : null,
+          lat: i === 0 ? (existingPrimary?.lat ?? null) : null,
+          lng: i === 0 ? (existingPrimary?.lng ?? null) : null,
         }));
     await this.prisma.$transaction([
       this.prisma.companyLocation.deleteMany({ where: { companyId } }),
@@ -366,6 +417,30 @@ export class AdminCompaniesService {
   /** Admin: take the public website online / offline (does not touch business status). */
   async setWebsitePublished(companyId: string, published: boolean) {
     await this.loadCompany(companyId);
+    await this.assertNotPendingDeletion(companyId);
+    if (published) {
+      // Same readiness gate the owner's own `setPublished` enforces
+      // (companies.service.ts) — without it, this could "publish" a site
+      // with no content, no category, or no usable location, leaving
+      // `website.status === 'published'` true while the company's own
+      // `status` (left untouched by design here) keeps the public URL
+      // unreachable — a contradictory, confusing state.
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          categoryId: true,
+          website: { select: { id: true } },
+          locations: { select: { nationwide: true, lat: true, lng: true } },
+        },
+      });
+      if (!company?.website) throw new BadRequestException('website_missing');
+      if (!company.categoryId) throw new BadRequestException('category_required');
+      const loc = company.locations.find((l) => l.nationwide || (l.lat != null && l.lng != null));
+      if (!loc) throw new BadRequestException('location_required');
+      if (!(await this.campaigns.isListingWebsiteReady(companyId))) {
+        throw new BadRequestException('website_builder_incomplete');
+      }
+    }
     await this.prisma.website.updateMany({
       where: { companyId },
       data: { status: published ? 'published' : 'unpublished' },
@@ -377,7 +452,8 @@ export class AdminCompaniesService {
 
   async saveCampaign(companyId: string, dto: SaveCampaignDto) {
     await this.loadCompany(companyId);
-    await this.campaigns.saveFor(companyId, dto);
+    await this.assertNotPendingDeletion(companyId);
+    await this.campaigns.saveFor(companyId, dto, 'admin');
     return this.detail(companyId);
   }
 
@@ -423,6 +499,7 @@ export class AdminCompaniesService {
 
   async campaignAction(companyId: string, dto: CampaignActionDto) {
     const company = await this.loadCompany(companyId);
+    await this.assertNotPendingDeletion(companyId);
     if (!company.campaign) throw new BadRequestException('This business has no campaign');
     const wasLive = company.campaign.status === CampaignStatus.active;
 
@@ -431,13 +508,33 @@ export class AdminCompaniesService {
         this.prisma.campaign.delete({ where: { companyId } }),
         this.prisma.company.update({
           where: { id: companyId },
-          data: { status: 'draft', featured: false },
+          // Never silently lift a `suspended` status by routing it back to
+          // `draft` just because its campaign was deleted.
+          data:
+            company.status === 'suspended'
+              ? { featured: false }
+              : { status: 'draft', featured: false },
         }),
         this.prisma.website.updateMany({
           where: { companyId },
           data: { status: 'unpublished' },
         }),
       ]);
+      void this.notifications
+        .notify({
+          userId: company.ownerUserId,
+          type: 'campaign_deleted_by_admin',
+          title: `Campania „${company.displayName}" a fost ștearsă`,
+          body: `Un administrator a șters campania afacerii „${company.displayName}" — a fost scoasă din feed. Poți configura una nouă din panou.`,
+          channels: { panel: true, email: true },
+          data: { companyId },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Campaign-deleted-by-admin notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
       return { ok: true as const, action: 'delete' as const };
     }
 
@@ -452,6 +549,23 @@ export class AdminCompaniesService {
       if (wasLive || company.campaign.status === CampaignStatus.depleted) {
         await this.setLive(companyId, false, wasLive);
       }
+      if (wasLive) {
+        void this.notifications
+          .notify({
+            userId: company.ownerUserId,
+            type: 'campaign_paused_by_admin',
+            title: `Campania „${company.displayName}" a fost pusă pe pauză`,
+            body: `Un administrator a pus pe pauză campania afacerii „${company.displayName}" — a fost scoasă din feed. O poți reactiva din panou.`,
+            channels: { panel: true, email: true },
+            data: { companyId },
+          })
+          .catch((err) =>
+            this.logger.error(
+              'Campaign-paused-by-admin notification failed',
+              err instanceof Error ? err.stack : err,
+            ),
+          );
+      }
       return { ok: true as const, action: 'pause' as const };
     }
 
@@ -463,6 +577,17 @@ export class AdminCompaniesService {
       throw new BadRequestException(
         'Finish the advanced website builder before activating this campaign',
       );
+    }
+    // A manual CPC Maxim under the Feed's own CPC minim is ineligible for
+    // every Feed — activating it anyway shows "Active" in the admin panel
+    // while `CampaignService.reconcile`'s self-heal immediately pauses it
+    // back, undoing a success toast the admin just saw. Same check the
+    // owner-facing `activate()` already enforces.
+    if (
+      !company.campaign.autoOptimize &&
+      !isEligibleForFeed(company.campaign.cpcMinor, await this.analytics.marginConfig())
+    ) {
+      throw new BadRequestException('cpc_below_feed_minimum');
     }
     const owner = await this.prisma.company.findUnique({
       where: { id: companyId },
@@ -486,6 +611,7 @@ export class AdminCompaniesService {
 
   async setStatus(companyId: string, dto: SetCompanyStatusDto) {
     const company = await this.loadCompany(companyId);
+    await this.assertNotPendingDeletion(companyId);
 
     if (dto.status === 'suspended') {
       const now = new Date();

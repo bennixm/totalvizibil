@@ -30,7 +30,15 @@ const confirm = useConfirmStore()
 const id = computed(() => String(route.params.id))
 const data = ref<AdminCompanyDetail | null>(null)
 const loading = ref(true)
-const busy = ref<string | null>(null)
+// A SET of in-flight action keys, not a single string — suspending the
+// business while a lead-status change is still in flight (two independent,
+// concurrent operations on this same page) used to share one `busy` ref:
+// whichever action's `finally` ran first cleared the OTHER one's spinner,
+// and a second operation would silently overwrite the first key entirely.
+const busy = ref<Set<string>>(new Set())
+function isBusy(key: string): boolean {
+  return busy.value.has(key)
+}
 
 const tab = ref<'overview' | 'website' | 'campaign' | 'requests' | 'stats'>('overview')
 
@@ -53,6 +61,7 @@ function flash(text: string, color: 'success' | 'error' = 'success') {
 function errText(e: unknown, fb: string) {
   if (e instanceof ApiError) {
     if (e.message === 'owner_wallet_cannot_afford_upgrade') return t('adminCo.upgradeUnaffordable')
+    if (e.message === 'campaign_changed_since_loaded') return t('adminCo.campaignChangedSinceLoaded')
     return e.message
   }
   return fb
@@ -112,11 +121,29 @@ const savingProfile = ref(false)
 function catName(x: Record<string, string>): string {
   return x[locale.value] ?? x.en ?? Object.values(x)[0] ?? ''
 }
-const categoryOptions = computed(() =>
-  admin.categories.flatMap((g) =>
-    g.children.map((c) => ({ value: c.id, title: `${catName(g.name)} › ${catName(c.name)}` })),
-  ),
-)
+// Deactivated categories shouldn't be offered for a NEW assignment (saving
+// one 400s server-side with an opaque error) — but the company's CURRENTLY
+// assigned category must stay visible even if it was deactivated after the
+// fact, or the select would silently show a blank value with no explanation.
+const categoryOptions = computed(() => {
+  const opts = admin.categories
+    .filter((g) => g.isActive)
+    .flatMap((g) =>
+      g.children
+        .filter((c) => c.isActive)
+        .map((c) => ({ value: c.id, title: `${catName(g.name)} › ${catName(c.name)}` })),
+    )
+  const currentId = profile.categoryId
+  const current = data.value?.company.category
+  if (currentId && current && !opts.some((o) => o.value === currentId)) {
+    const parentLabel = current.parent ? catName(current.parent.name) : catName(current.name)
+    opts.unshift({
+      value: currentId,
+      title: `${parentLabel} › ${catName(current.name)} (${t('adminCo.categoryInactiveOption')})`,
+    })
+  }
+  return opts
+})
 
 // --- location editor: județe only, multi-select, no radius ---
 const NATIONWIDE = '__nationwide__'
@@ -271,6 +298,13 @@ const cpcValid = computed(
     auto.value ||
     (cpcN.value >= 0.05 && cpcN.value <= budgetN.value && cpcN.value <= cpcMax.value + 0.005),
 )
+// AUTO mode skipped budget validation entirely (only `cpcValid` gated the
+// Save button, and it short-circuits to `true` in AUTO) — an emptied/zero
+// budget field submitted fine client-side and only failed with a raw
+// class-validator string from the backend's `@Min(1)`. The floor applies in
+// both modes; only the CPC-specific checks above are AUTO-exempt.
+const budgetValid = computed(() => budgetN.value >= 1)
+const campaignValid = computed(() => cpcValid.value && budgetValid.value)
 const cpcHint = computed(() => {
   if (auto.value) return t('campaign.cpcAuto')
   if (cpcOverMax.value) return t('campaign.cpcOverMax', { n: fmt(cpcMax.value) })
@@ -376,7 +410,7 @@ function setAuto(v: boolean | null) {
 }
 
 async function act<T>(key: string, fn: () => Promise<T>, okMsg: string) {
-  busy.value = key
+  busy.value.add(key)
   try {
     await fn()
     await load()
@@ -384,7 +418,7 @@ async function act<T>(key: string, fn: () => Promise<T>, okMsg: string) {
   } catch (e) {
     flash(errText(e, t('admin.genericError')), 'error')
   } finally {
-    busy.value = null
+    busy.value.delete(key)
   }
 }
 
@@ -410,41 +444,62 @@ const ownerCanAffordUpgrade = computed(
   () => ownerBalance.value >= (data.value?.company.advancedPriceCredits ?? 0),
 )
 function upgradeAdvanced(charge = false) {
-  void act(
-    charge ? 'upgrade-paid' : 'upgrade',
-    async () => {
-      data.value = await admin.upgradeCompanyAdvanced(id.value, charge)
-      hydrate()
-    },
-    t(charge ? 'adminCo.webUpgradedPaid' : 'adminCo.webUpgraded'),
+  // Irreversible (no re-lock path) and moves real credits either way — a fee
+  // charged to the owner, or a bonus credited to them for free — so this
+  // gets the same confirm-first treatment as campaign delete/suspend below,
+  // instead of firing on a single click.
+  const go = () =>
+    act(
+      charge ? 'upgrade-paid' : 'upgrade',
+      async () => {
+        data.value = await admin.upgradeCompanyAdvanced(id.value, charge)
+        hydrate()
+      },
+      t(charge ? 'adminCo.webUpgradedPaid' : 'adminCo.webUpgraded'),
+    )
+  confirm.ask(
+    t('adminCo.webUpgradeConfirmTitle'),
+    charge
+      ? t('adminCo.webUpgradeConfirmTextPaid', { n: data.value?.company.advancedPriceCredits ?? 0 })
+      : t('adminCo.webUpgradeConfirmTextFree'),
+    go,
   )
 }
 
+// Bumped on every call — a reply only updates the shared leads summary if
+// it's still the most recent one issued. Without this, changing status on
+// two leads in quick succession could have the FIRST change's response
+// arrive last and overwrite the summary with stale counts, even though both
+// individual rows (patched by id below, not by array position) stay correct.
+let leadStatusSeq = 0
 async function setLeadStatus(leadId: string, status: 'new' | 'seen' | 'resolved') {
-  busy.value = 'lead-' + leadId
+  const key = 'lead-' + leadId
+  const seq = ++leadStatusSeq
+  busy.value.add(key)
   try {
     const fresh = await admin.setCompanyLeadStatus(id.value, leadId, status)
     // patch the row in place so the current filter view is preserved
     const i = leadRows.value.findIndex((l) => l.id === leadId)
     const updated = fresh.leads.items.find((l) => l.id === leadId)
     if (i !== -1 && updated) leadRows.value[i] = updated
-    if (data.value) data.value.leads.summary = fresh.leads.summary
+    if (data.value && seq === leadStatusSeq) data.value.leads.summary = fresh.leads.summary
     flash(t('adminCo.leadStatusSet'))
   } catch (e) {
     flash(errText(e, t('admin.genericError')), 'error')
   } finally {
-    busy.value = null
+    busy.value.delete(key)
   }
 }
 
 function saveCampaign() {
-  if (!cpcValid.value) return
+  if (!campaignValid.value) return
   void act(
     'campSave',
     async () => {
       data.value = await admin.saveCompanyCampaign(id.value, {
-        dailyBudget: budget.value,
-        cpc: cpc.value,
+        expectedUpdatedAt: camp.value?.updatedAt,
+        dailyBudget: budgetN.value,
+        cpc: cpcN.value,
         appearFirst: appearFirst.value,
         autoOptimize: auto.value,
       })
@@ -492,12 +547,25 @@ const leadCursor = ref<string | null>(null)
 const leadFilter = reactive({ channel: '' as '' | 'form' | 'call', status: '' as '' | 'new' | 'seen' | 'resolved' })
 const loadingLeads = ref(false)
 
+// Seeds the Requests tab from the detail payload's embedded first page, but
+// only ONCE — `data` gets reassigned after every unrelated mutation on this
+// page (profile save, location save, suspend, …), and re-seeding from that
+// raw payload every time was silently discarding whatever filter/pagination
+// the admin had set on this tab, snapping it back to the unfiltered first
+// page while the filter chips still showed the old selection. Any `data`
+// change AFTER the first one instead re-runs the leads fetch honoring the
+// CURRENT filter — same effect (fresh data), but respecting what's selected.
+let leadsSeeded = false
 watch(
   data,
   (d) => {
-    if (d) {
+    if (!d) return
+    if (!leadsSeeded) {
       leadRows.value = d.leads.items
       leadCursor.value = d.leads.nextCursor
+      leadsSeeded = true
+    } else {
+      void reloadLeads()
     }
   },
   { immediate: true },
@@ -611,7 +679,7 @@ const leadStatusItems = computed(() => [
             :variant="data.company.status === 'suspended' ? 'flat' : 'tonal'"
             size="small"
             rounded="pill"
-            :loading="busy === 'suspend'"
+            :loading="isBusy('suspend')"
             :prepend-icon="data.company.status === 'suspended' ? 'mdi-store-check-outline' : 'mdi-store-off-outline'"
             @click="toggleSuspend"
           >
@@ -642,7 +710,7 @@ const leadStatusItems = computed(() => [
           size="small"
           variant="flat"
           color="error"
-          :loading="busy === 'cancelDeletion'"
+          :loading="isBusy('cancelDeletion')"
           @click="cancelDeletion"
         >
           {{ t('adminCo.cancelDeletionCta') }}
@@ -677,7 +745,7 @@ const leadStatusItems = computed(() => [
                   hide-details
                 />
                 <div>
-                  <v-btn color="primary" variant="flat" rounded="pill" :loading="savingProfile" prepend-icon="mdi-content-save-outline" @click="saveProfile">
+                  <v-btn color="primary" variant="flat" rounded="pill" :loading="savingProfile" :disabled="pendingDeletion" prepend-icon="mdi-content-save-outline" @click="saveProfile">
                     {{ t('common.save') }}
                   </v-btn>
                 </div>
@@ -740,7 +808,7 @@ const leadStatusItems = computed(() => [
                     variant="flat"
                     rounded="pill"
                     :loading="savingLoc"
-                    :disabled="!locValid"
+                    :disabled="!locValid || pendingDeletion"
                     prepend-icon="mdi-content-save-outline"
                     @click="saveLocation"
                   >
@@ -784,7 +852,8 @@ const leadStatusItems = computed(() => [
                   variant="tonal"
                   size="small"
                   rounded="pill"
-                  :loading="busy === 'webpub'"
+                  :loading="isBusy('webpub')"
+                  :disabled="pendingDeletion"
                   :prepend-icon="data.company.website.status === 'published' ? 'mdi-eye-off-outline' : 'mdi-earth'"
                   @click="toggleWebsitePublished"
                 >
@@ -825,7 +894,8 @@ const leadStatusItems = computed(() => [
                     color="primary"
                     variant="flat"
                     rounded="pill"
-                    :loading="busy === 'upgrade'"
+                    :loading="isBusy('upgrade')"
+                    :disabled="pendingDeletion"
                     prepend-icon="mdi-gift-outline"
                     @click="upgradeAdvanced(false)"
                   >
@@ -835,8 +905,8 @@ const leadStatusItems = computed(() => [
                     color="primary"
                     variant="tonal"
                     rounded="pill"
-                    :loading="busy === 'upgrade-paid'"
-                    :disabled="!ownerCanAffordUpgrade"
+                    :loading="isBusy('upgrade-paid')"
+                    :disabled="!ownerCanAffordUpgrade || pendingDeletion"
                     prepend-icon="mdi-wallet-outline"
                     @click="upgradeAdvanced(true)"
                   >
@@ -926,7 +996,7 @@ const leadStatusItems = computed(() => [
           </p>
 
           <div class="ac__row">
-            <v-text-field v-model.number="budget" type="number" :min="1" :label="t('campaign.dailyBudget')" suffix="cr" variant="outlined" density="comfortable" hide-details />
+            <v-text-field v-model.number="budget" type="number" :min="1" :label="t('campaign.dailyBudget')" suffix="cr" variant="outlined" density="comfortable" :error="!budgetValid" hide-details />
             <v-text-field
               v-model.number="cpc"
               type="number"
@@ -971,16 +1041,16 @@ const leadStatusItems = computed(() => [
           </div>
 
           <div class="ac__campActions">
-            <v-btn v-if="dirty" color="primary" size="small" :loading="busy === 'campSave'" :disabled="!cpcValid" prepend-icon="mdi-content-save-outline" @click="saveCampaign">
+            <v-btn v-if="dirty" color="primary" size="small" :loading="isBusy('campSave')" :disabled="!campaignValid || pendingDeletion" prepend-icon="mdi-content-save-outline" @click="saveCampaign">
               {{ t('campaign.saveChanges') }}
             </v-btn>
-            <v-btn v-if="hasCampaign && isLive" size="small" variant="tonal" :loading="busy === 'camp-pause'" prepend-icon="mdi-pause" @click="campaignAction('pause')">
+            <v-btn v-if="hasCampaign && isLive" size="small" variant="tonal" :loading="isBusy('camp-pause')" :disabled="pendingDeletion" prepend-icon="mdi-pause" @click="campaignAction('pause')">
               {{ t('admin.campPause') }}
             </v-btn>
-            <v-btn v-else-if="hasCampaign" size="small" color="primary" :loading="busy === 'camp-activate'" :disabled="builderPending" prepend-icon="mdi-broadcast" @click="campaignAction('activate')">
+            <v-btn v-else-if="hasCampaign" size="small" color="primary" :loading="isBusy('camp-activate')" :disabled="builderPending || pendingDeletion" prepend-icon="mdi-broadcast" @click="campaignAction('activate')">
               {{ t('admin.campActivate') }}
             </v-btn>
-            <v-btn v-if="hasCampaign" size="small" variant="text" color="error" :loading="busy === 'camp-delete'" prepend-icon="mdi-trash-can-outline" @click="campaignAction('delete')">
+            <v-btn v-if="hasCampaign" size="small" variant="text" color="error" :loading="isBusy('camp-delete')" :disabled="pendingDeletion" prepend-icon="mdi-trash-can-outline" @click="campaignAction('delete')">
               {{ t('admin.campDelete') }}
             </v-btn>
             <p v-if="!hasCampaign" class="ac__muted">{{ t('admin.noCampaign') }}</p>
@@ -1072,7 +1142,7 @@ const leadStatusItems = computed(() => [
                         variant="outlined"
                         hide-details
                         class="ac__leadSel"
-                        :loading="busy === 'lead-' + l.id"
+                        :loading="isBusy('lead-' + l.id)"
                         @update:model-value="(v) => setLeadStatus(l.id, v)"
                       />
                     </td>

@@ -324,6 +324,37 @@ describe('CampaignService', () => {
     });
   });
 
+  describe('remove', () => {
+    it('regression: preserves a suspended company status instead of lifting it to draft', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedMember('co1', 'u1', 'owner');
+      prisma.__seedCompany({ id: 'co1', status: 'suspended', deletionScheduledAt: null });
+      prisma.__seedCampaign({ companyId: 'co1' });
+
+      await svc.remove('u1', 'co1');
+
+      expect(prisma.company.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'co1' }, data: { featured: false } }),
+      );
+    });
+
+    it('demotes a non-suspended company to draft as before', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedMember('co1', 'u1', 'owner');
+      prisma.__seedCompany({ id: 'co1', status: 'active', deletionScheduledAt: null });
+      prisma.__seedCampaign({ companyId: 'co1' });
+
+      await svc.remove('u1', 'co1');
+
+      expect(prisma.company.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'co1' },
+          data: { status: 'draft', featured: false },
+        }),
+      );
+    });
+  });
+
   describe('registerClick', () => {
     it('returns { billed: false, reason: "bot" } for bot user-agent', async () => {
       const { svc, prisma } = makeService();

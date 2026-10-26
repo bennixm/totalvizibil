@@ -132,26 +132,34 @@ export class ProV2Service {
     opts: { chargeOwner: boolean },
   ): Promise<void> {
     if (alreadyUnlockedAt) return;
-    if (opts.chargeOwner) {
-      const price = await this.settings.advancedBuilderPriceCredits();
-      await this.wallet.spend(ownerUserId, price * CREDIT_MINOR, {
-        description: 'Advanced website builder',
-        companyId,
-      });
-    }
-    // A starting balance so the owner can actually use the AI builder they
-    // just unlocked — admin-customizable, same pattern as the unlock price
-    // itself. Granted on every real unlock (paid or admin-granted free),
-    // not conditioned on `chargeOwner`.
+    // One atomic step: charging the fee, granting the starting bonus, and
+    // flipping the company/website to advanced mode must all land together.
+    // This used to be four sequential, separately-committed calls — a
+    // failure after the debit (e.g. a transient DB error on the company
+    // update) could leave the owner charged with no unlock to show for it.
+    if (opts.chargeOwner) await this.wallet.assertSpendable(ownerUserId);
+    const price = opts.chargeOwner ? await this.settings.advancedBuilderPriceCredits() : 0;
     const bonus = await this.settings.advancedBuilderUnlockBonusCredits();
-    if (bonus > 0) {
-      await this.wallet.adjust(ownerUserId, bonus, 'Website Builder unlock bonus');
-    }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { advancedUnlockedAt: new Date() },
+    await this.prisma.$transaction(async (tx) => {
+      if (opts.chargeOwner) {
+        const spent = await this.wallet.spendWithin(tx, ownerUserId, price * CREDIT_MINOR, {
+          description: 'Advanced website builder',
+          companyId,
+        });
+        if (!spent) throw new BadRequestException('insufficient_credits');
+      }
+      // Admin-customizable starting balance so the owner can actually use the
+      // AI builder they just unlocked — granted on every real unlock (paid or
+      // admin-granted free), not conditioned on `chargeOwner`.
+      if (bonus > 0) {
+        await this.wallet.adjustWithin(tx, ownerUserId, bonus, 'Website Builder unlock bonus');
+      }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { advancedUnlockedAt: new Date() },
+      });
+      await tx.website.updateMany({ where: { companyId }, data: { mode: 'advanced' } });
     });
-    await this.prisma.website.updateMany({ where: { companyId }, data: { mode: 'advanced' } });
   }
 
   /** Real facts about the business, collected earlier in the Advanced

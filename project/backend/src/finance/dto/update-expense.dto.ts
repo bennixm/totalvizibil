@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsNotFutureDate } from './create-expense.dto';
 
 const MANUAL_CATEGORIES = [
   'hosting',
@@ -18,6 +19,7 @@ export class UpdateExpenseDto {
 
   @IsOptional()
   @IsISO8601()
+  @IsNotFutureDate()
   incurredOn?: string;
 
   @IsOptional()

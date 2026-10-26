@@ -6,9 +6,32 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import { useAdminFinanceStore, type ExpenseCategory, type ExpenseRow } from '@/stores/adminFinance'
+import { useConfirmStore } from '@/stores/confirm'
+import { useToastStore } from '@/stores/toast'
+import { ApiError } from '@/services/api'
 
 const { t } = useI18n()
 const finance = useAdminFinanceStore()
+const confirm = useConfirmStore()
+const toasts = useToastStore()
+function errText(e: unknown, fb: string): string {
+  return e instanceof ApiError ? e.message : fb
+}
+
+/** Mirrors the server's `@Min(1) @Max(100_000_000)` on `amountMinor` — keeps
+ *  an invalid amount from ever leaving the client as a confusing raw 400. */
+const MIN_AMOUNT_MINOR = 1
+const MAX_AMOUNT_MINOR = 100_000_000
+
+/** Local calendar date, NOT `toISOString().slice(0,10)` — that reads UTC,
+ *  so an entry made between midnight and ~2-3am local time (Romania is
+ *  UTC+2/+3) would silently default to YESTERDAY's date. */
+function localDateStr(d = new Date()): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 const CATEGORIES: { value: ExpenseCategory; label: string }[] = [
   { value: 'hosting', label: 'Hosting' },
@@ -35,7 +58,7 @@ const editor = reactive({
   show: false,
   id: null as string | null,
   category: 'hosting' as ExpenseCategory,
-  incurredOn: new Date().toISOString().slice(0, 10),
+  incurredOn: localDateStr(),
   amount: 0,
   note: '',
 })
@@ -44,7 +67,7 @@ const busy = reactive({ save: false, deleteId: null as string | null })
 function openCreate(): void {
   editor.id = null
   editor.category = 'hosting'
-  editor.incurredOn = new Date().toISOString().slice(0, 10)
+  editor.incurredOn = localDateStr()
   editor.amount = 0
   editor.note = ''
   editor.show = true
@@ -57,28 +80,43 @@ function openEdit(row: ExpenseRow): void {
   editor.note = row.note ?? ''
   editor.show = true
 }
-const canSave = computed(() => editor.amount > 0 && editor.incurredOn.length === 10)
+const amountMinor = computed(() => Math.round(editor.amount * 100))
+const canSave = computed(
+  () =>
+    amountMinor.value >= MIN_AMOUNT_MINOR &&
+    amountMinor.value <= MAX_AMOUNT_MINOR &&
+    editor.incurredOn.length === 10 &&
+    new Date(editor.incurredOn).getTime() <= Date.now(),
+)
 
 async function save(): Promise<void> {
+  if (!canSave.value) return
   busy.save = true
   try {
     const payload = {
       category: editor.category,
       incurredOn: editor.incurredOn,
-      amountMinor: Math.round(editor.amount * 100),
+      amountMinor: amountMinor.value,
       note: editor.note.trim() || undefined,
     }
     if (editor.id) await finance.updateExpense(editor.id, payload)
     else await finance.createExpense(payload)
     editor.show = false
+  } catch (e) {
+    toasts.error(errText(e, t('admin.genericError')))
   } finally {
     busy.save = false
   }
+}
+function confirmRemove(row: ExpenseRow): void {
+  confirm.ask(t('adminFinance.deleteExpenseTitle'), t('adminFinance.deleteExpenseConfirm'), () => remove(row.id))
 }
 async function remove(id: string): Promise<void> {
   busy.deleteId = id
   try {
     await finance.deleteExpense(id)
+  } catch (e) {
+    toasts.error(errText(e, t('admin.genericError')))
   } finally {
     busy.deleteId = null
   }
@@ -148,7 +186,7 @@ onMounted(() => finance.fetchExpenses())
               size="small"
               color="error"
               :loading="busy.deleteId === r.id"
-              @click="remove(r.id)"
+              @click="confirmRemove(r)"
             />
           </span>
         </li>

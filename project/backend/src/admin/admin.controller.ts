@@ -222,7 +222,7 @@ export class AdminController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
   ) {
-    return this.users.update(caller.id, id, dto);
+    return this.users.update(caller.id, caller.sessionId, id, dto);
   }
 
   @Post('users/:id/password')
@@ -268,8 +268,12 @@ export class AdminController {
   }
 
   @Post('users/:id/wallet/adjust')
-  adjustWallet(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AdjustWalletDto) {
-    return this.users.adjustWallet(id, dto);
+  adjustWallet(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdjustWalletDto,
+  ) {
+    return this.users.adjustWallet(id, dto, caller.id);
   }
 
   @Post('users/:id/wallet/refund')
