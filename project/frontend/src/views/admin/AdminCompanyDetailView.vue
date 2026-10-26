@@ -140,16 +140,25 @@ const locValid = computed(() => nationwide.value || countySelections.value.lengt
  *  step) — the map is always a read-only overview, one labelled marker per
  *  selected județ, even for just one. */
 const overviewMarkers = ref<{ lat: number; lng: number; label: string }[] | null>(null)
+// Bumped on every selection change — each `refreshOverview` call tags its own
+// result with the value it saw at the time, and discards that result if a
+// newer selection has since started. Without this, ticking several counties
+// in a row fires that many concurrent lookups that can resolve out of order,
+// and whichever one lands LAST (not the one for the current selection) wins
+// — the map was observed getting stuck on an early/small selection forever.
+let overviewSeq = 0
 async function refreshOverview(): Promise<void> {
+  const seq = ++overviewSeq
   if (nationwide.value || !countiesChosen.value.length) {
-    overviewMarkers.value = null
+    if (seq === overviewSeq) overviewMarkers.value = null
     return
   }
   try {
     const centers = await Promise.all(countiesChosen.value.map((c) => countyCenter(c)))
+    if (seq !== overviewSeq) return
     overviewMarkers.value = centers.map((c) => ({ lat: c.lat, lng: c.lng, label: c.county }))
   } catch {
-    overviewMarkers.value = null
+    if (seq === overviewSeq) overviewMarkers.value = null
   }
 }
 

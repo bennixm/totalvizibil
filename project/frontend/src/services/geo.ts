@@ -29,7 +29,19 @@ export async function nearestCity(lat: number, lng: number): Promise<GeoCity> {
 }
 
 /** A representative city for a județ — re-centres the map when it's picked
- *  from the dropdown directly (no map click yet to anchor an exact point). */
-export async function countyCenter(name: string): Promise<GeoCity> {
-  return apiFetch<GeoCity>(`/geo/county-center?name=${encodeURIComponent(name)}`)
+ *  from the dropdown directly (no map click yet to anchor an exact point).
+ *  Județe are a fixed, closed set with stable centers, so the result is
+ *  cached (by name) for the life of the page: the location pickers re-fetch
+ *  every currently-selected county on every single selection tick, and
+ *  without this cache that's an unbounded, ever-growing burst of identical
+ *  requests re-racing each other as the user clicks through a long list. */
+const countyCenterCache = new Map<string, Promise<GeoCity>>()
+export function countyCenter(name: string): Promise<GeoCity> {
+  let cached = countyCenterCache.get(name)
+  if (!cached) {
+    cached = apiFetch<GeoCity>(`/geo/county-center?name=${encodeURIComponent(name)}`)
+    cached.catch(() => countyCenterCache.delete(name)) // don't cache a failed lookup
+    countyCenterCache.set(name, cached)
+  }
+  return cached
 }
