@@ -668,8 +668,8 @@ function shortDate(iso: string): string {
                         <div class="acc__refClient">{{ r.name }}</div>
                         <div class="acc__refMail">{{ r.emailMasked }}</div>
                       </td>
-                      <td>{{ shortDate(r.createdAt) }}</td>
-                      <td>
+                      <td :data-label="t('affiliate.colDate')">{{ shortDate(r.createdAt) }}</td>
+                      <td :data-label="t('affiliate.colStatus')">
                         <v-chip
                           size="x-small"
                           :color="r.status === 'rewarded' ? 'success' : undefined"
@@ -678,7 +678,9 @@ function shortDate(iso: string): string {
                           {{ r.status === 'rewarded' ? t('affiliate.statusRewarded') : t('affiliate.statusPending') }}
                         </v-chip>
                       </td>
-                      <td class="num">{{ r.rewardCredits != null ? `${r.rewardCredits} cr` : 'N/A' }}</td>
+                      <td class="num" :data-label="t('affiliate.colReward')">
+                        {{ r.rewardCredits != null ? `${r.rewardCredits} cr` : 'N/A' }}
+                      </td>
                       <td class="num">
                         <router-link
                           v-if="r.invoiceId"
@@ -899,6 +901,59 @@ function shortDate(iso: string): string {
   color: rgb(var(--v-theme-primary));
   white-space: nowrap;
 }
+
+/* Mobile: referred-client rows stop forcing a 480px horizontal scroll —
+   each becomes a card with the client up top and the rest on labeled lines. */
+@media (max-width: 640px) {
+  .acc__refTableWrap {
+    overflow-x: visible;
+  }
+  .acc__refTable {
+    min-width: 0;
+  }
+  .acc__refTable thead {
+    display: none;
+  }
+  .acc__refTable,
+  .acc__refTable tbody,
+  .acc__refTable tr {
+    display: block;
+    width: 100%;
+  }
+  .acc__refTable tr {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.4rem;
+    padding: 0.7rem 0;
+  }
+  .acc__refTable tr:not(:last-child) {
+    border-bottom: 1px solid var(--tvz-hairline);
+  }
+  .acc__refTable td {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border-bottom: none;
+    text-align: left;
+    white-space: normal;
+  }
+  .acc__refTable td[data-label] {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    column-gap: 0.75rem;
+  }
+  .acc__refTable td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(var(--v-theme-on-surface), 0.45);
+  }
+}
+
 @media (max-width: 560px) {
   .acc__refLink {
     flex-direction: column;

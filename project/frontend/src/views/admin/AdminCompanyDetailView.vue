@@ -1051,11 +1051,11 @@ const leadStatusItems = computed(() => [
                       </span>
                     </td>
                     <td class="ac__leadMsg">{{ l.message || 'N/A' }}</td>
-                    <td class="ac__muted">
+                    <td class="ac__muted" :data-label="t('adminCo.leadRespCol')">
                       {{ l.responseMinutes != null ? fmtMinutes(l.responseMinutes) : t('adminCo.leadNoResp') }}
                     </td>
-                    <td class="num ac__date">{{ dOnly(l.createdAt) }}</td>
-                    <td>
+                    <td class="num ac__date" :data-label="t('admin.colDate')">{{ dOnly(l.createdAt) }}</td>
+                    <td class="ac__leadStatus" :data-label="t('admin.colStatus')">
                       <v-select
                         :model-value="l.status"
                         :items="leadStatusItems"
@@ -1437,6 +1437,76 @@ const leadStatusItems = computed(() => [
 }
 .ac__leadSel {
   width: 142px;
+}
+
+/* Mobile: each lead becomes a card — who/message up top (its natural
+   reading order), then every other fact on its own labeled line instead of
+   a cramped multi-column strip, and the status dropdown gets full width
+   instead of being squeezed into a 142px column. */
+@media (max-width: 640px) {
+  .ac__tableWrap {
+    overflow-x: visible;
+  }
+  .ac__table thead {
+    display: none;
+  }
+  .ac__table,
+  .ac__table tbody,
+  .ac__table tr {
+    display: block;
+    width: 100%;
+  }
+  .ac__table tr {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.4rem;
+    padding: 0.7rem 0;
+  }
+  .ac__table tr:not(:last-child) {
+    border-bottom: 1px solid var(--tvz-hairline);
+  }
+  .ac__table td {
+    display: block;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+    border-bottom: none;
+    text-align: left;
+    white-space: normal;
+  }
+  .ac__table td[data-label] {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    column-gap: 0.75rem;
+  }
+  .ac__table td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(var(--v-theme-on-surface), 0.45);
+  }
+  /* The status dropdown doesn't fit the "value on the right" shape the
+     other labeled rows use — label above, full-width control below. */
+  .ac__table td.ac__leadStatus {
+    display: block;
+  }
+  .ac__table td.ac__leadStatus::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.3rem;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(var(--v-theme-on-surface), 0.45);
+  }
+  .ac__leadSel {
+    width: 100%;
+  }
 }
 
 /* stats */

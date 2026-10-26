@@ -335,14 +335,16 @@ watch(
               </thead>
               <tbody>
                 <tr v-for="p in payments" :key="p.id" class="payrow">
-                  <td class="payrow__id">#{{ p.id.slice(0, 8) }}</td>
-                  <td class="num">
+                  <td class="payrow__id" :data-label="t('wallet.colId')">#{{ p.id.slice(0, 8) }}</td>
+                  <td class="num" :data-label="t('wallet.colAmount')">
                     <span class="payrow__amount" :class="p.amount.minor < 0 ? 'is-out' : 'is-in'">
                       <CreditsValue :credits="p.amount.credits" signed stacked />
                     </span>
                   </td>
-                  <td class="end payrow__date">{{ new Date(p.createdAt).toLocaleDateString() }}</td>
-                  <td class="end">
+                  <td class="end payrow__date" :data-label="t('wallet.colDate')">
+                    {{ new Date(p.createdAt).toLocaleDateString() }}
+                  </td>
+                  <td class="end" :data-label="t('wallet.colStatus')">
                     <span class="payrow__badge" :class="'payrow__badge--' + p.status">
                       {{ t('wallet.txnStatus.' + p.status) }}
                     </span>
@@ -768,18 +770,14 @@ watch(
   }
   .wal__payTable,
   .wal__payTable tbody,
-  .wal__payTable tr,
-  .wal__payTable td {
+  .wal__payTable tr {
     display: block;
     width: 100%;
   }
   .payrow {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: baseline;
-    row-gap: 0.35rem;
-    column-gap: 0.6rem;
+    flex-direction: column;
+    row-gap: 0.4rem;
     padding: 0.8rem 0.9rem;
   }
   .payrow + .payrow td {
@@ -788,28 +786,37 @@ watch(
   .payrow:not(:last-child) {
     border-bottom: 1px solid var(--tvz-hairline);
   }
+  /* Every field gets its own clearly labeled row instead of floating,
+     unlabeled, on a shared wrapped line (the old layout read as a jumble). */
   .wal__payTable td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    column-gap: 0.75rem;
+    width: 100%;
     padding: 0;
+    text-align: left;
+  }
+  .wal__payTable td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(var(--v-theme-on-surface), 0.45);
   }
   .wal__payTable td.num {
     order: 1;
-    width: auto;
-    text-align: left;
   }
   .wal__payTable td.payrow__id {
     order: 2;
-    width: auto;
   }
   .wal__payTable td.end:not(.payrow__date) {
     order: 3;
-    width: auto;
-    text-align: left;
   }
   .wal__payTable td.payrow__date.end {
     order: 4;
-    width: 100%;
-    text-align: left;
-    font-size: 0.74rem;
   }
 }
 </style>

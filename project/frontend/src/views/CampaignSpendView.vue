@@ -583,8 +583,10 @@ watch(
             <tbody>
               <tr v-for="(r, i) in spendPreview" :key="r.county + r.categorySlug + i">
                 <td>{{ countyLabel(r.county) }} · {{ catName(r) }}</td>
-                <td>{{ r.clicks }}</td>
-                <td>{{ n(r.spent.credits, { maximumFractionDigits: 2 }) }} cr</td>
+                <td :data-label="t('spend.previewColClicks')">{{ r.clicks }}</td>
+                <td :data-label="t('spend.previewColSpent')">
+                  {{ n(r.spent.credits, { maximumFractionDigits: 2 }) }} cr
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1095,6 +1097,57 @@ watch(
 .ov__spendTable td {
   padding: 0.55rem 0;
   border-top: 1px solid var(--tvz-hairline);
+}
+
+/* Mobile: stop forcing a 420px horizontal scroll for a 3-column preview —
+   each feed becomes a card with clicks/spent on their own labeled lines. */
+@media (max-width: 640px) {
+  .ov__spendTableWrap {
+    overflow-x: visible;
+  }
+  .ov__spendTable {
+    min-width: 0;
+  }
+  .ov__spendTable thead {
+    display: none;
+  }
+  .ov__spendTable,
+  .ov__spendTable tbody,
+  .ov__spendTable tr {
+    display: block;
+    width: 100%;
+  }
+  .ov__spendTable tr {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.3rem;
+    padding: 0.55rem 0;
+  }
+  .ov__spendTable td {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border-top: none;
+    text-align: left;
+  }
+  .ov__spendTable td[data-label] {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    column-gap: 0.75rem;
+  }
+  .ov__spendTable td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(var(--v-theme-on-surface), 0.45);
+  }
+  .ov__spendTable tr:not(:last-child) {
+    border-bottom: 1px solid var(--tvz-hairline);
+  }
 }
 
 /* Lifetime -------------------------------------------------------------- */

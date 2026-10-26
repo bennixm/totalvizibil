@@ -223,7 +223,7 @@ function daysLeft(processAt: string): number {
             <tbody>
               <template v-for="txn in transactions" :key="txn.id">
                 <tr class="trow">
-                  <td class="trow__id">{{ shortId(txn.id) }}</td>
+                  <td class="trow__id" :data-label="t('wallet.colId')">{{ shortId(txn.id) }}</td>
                   <td class="trow__type">
                     <span class="trow__icon" :class="{ 'is-in': txn.amount.minor >= 0 }">
                       <v-icon :icon="txnIcon(txn)" size="15" />
@@ -234,13 +234,15 @@ function daysLeft(processAt: string): number {
                     </span>
                     <span v-if="txn.companyName" class="trow__sub"> · {{ txn.companyName }}</span>
                   </td>
-                  <td class="num">
+                  <td class="num" :data-label="t('wallet.colAmount')">
                     <span class="trow__amount" :class="txn.amount.minor < 0 ? 'is-out' : 'is-in'">
                       <CreditsValue :credits="txn.amount.credits" signed stacked />
                     </span>
                   </td>
-                  <td class="trow__date end">{{ new Date(txn.createdAt).toLocaleDateString() }}</td>
-                  <td class="end">
+                  <td class="trow__date end" :data-label="t('wallet.colDate')">
+                    {{ new Date(txn.createdAt).toLocaleDateString() }}
+                  </td>
+                  <td class="end" :data-label="t('wallet.colStatus')">
                     <span class="trow__badge" :class="'trow__badge--' + txn.status">
                       {{ t('wallet.txnStatus.' + txn.status) }}
                     </span>
@@ -552,19 +554,15 @@ function daysLeft(processAt: string): number {
   }
   .txn__table,
   .txn__table tbody,
-  .txn__table tr,
-  .txn__table td {
+  .txn__table tr {
     display: block;
     width: 100%;
   }
   .trow {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: baseline;
-    row-gap: 0.35rem;
-    column-gap: 0.6rem;
+    flex-direction: column;
     padding: 0.85rem 1rem;
+    row-gap: 0.45rem;
   }
   .trow + .trow td {
     border-top: none;
@@ -573,30 +571,44 @@ function daysLeft(processAt: string): number {
     border-bottom: 1px solid var(--tvz-hairline);
   }
   .txn__table td {
+    display: block;
+    width: 100%;
     padding: 0;
+    text-align: left;
   }
   .txn__table td.trow__type {
     order: 1;
-    width: 100%;
+  }
+  /* Everything that isn't the type "title" line becomes its own clearly
+     labeled row — the previous flex-wrap + space-between pile-up (id, date
+     and status all floating on one unlabeled line) read as a jumble on
+     narrow screens. One fact per line, each tagged with its column name. */
+  .txn__table td[data-label] {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    column-gap: 0.75rem;
+  }
+  .txn__table td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(var(--v-theme-on-surface), 0.45);
   }
   .txn__table td.num {
     order: 2;
-    width: 100%;
-    text-align: left;
   }
   .txn__table td.trow__id {
     order: 3;
-    width: auto;
   }
   .txn__table td.trow__date.end {
     order: 4;
-    width: auto;
-    text-align: left;
   }
   .txn__table td.end:not(.trow__date) {
     order: 5;
-    width: auto;
-    text-align: left;
   }
   .trow__detail td {
     padding: 0 1rem 0.7rem;
