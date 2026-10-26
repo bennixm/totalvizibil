@@ -138,6 +138,10 @@ async function submitVerify(): Promise<void> {
   verifyError.value = ''
   try {
     await auth.verifyEmail(email.value.trim(), verifyCodeInput.value.trim())
+    // Verifying just unblocked login — register() no longer starts a session
+    // by itself, so this is what actually signs the user in, same as the
+    // login screen's own verify-then-resubmit flow.
+    await auth.login({ email: email.value.trim(), password: password.value })
     needsVerification.value = false
     await run(finishClaim)
   } catch (err) {
@@ -145,6 +149,14 @@ async function submitVerify(): Promise<void> {
   } finally {
     verifyBusy.value = false
   }
+}
+
+/** Lets the user return to the account-details form to fix a wrong email —
+ *  e.g. the confirmation code never arrives because it was typed wrong. */
+function backToAccountForm(): void {
+  needsVerification.value = false
+  verifyCodeInput.value = ''
+  verifyError.value = ''
 }
 
 async function resendCode(): Promise<void> {
@@ -166,12 +178,12 @@ async function resendCode(): Promise<void> {
 function submitNew(): void {
   if (!canSubmit.value) return
   void run(async () => {
-    await auth.register({
+    const user = await auth.register({
       name: name.value.trim(),
       email: email.value.trim(),
       password: password.value,
     })
-    if (!auth.user?.emailVerifiedAt) {
+    if (!user.emailVerifiedAt) {
       needsVerification.value = true
       return
     }
@@ -201,16 +213,12 @@ onMounted(async () => {
     await router.replace({ name: 'create-location' })
     return
   }
-  if (auth.isAuthenticated && !auth.user?.emailVerifiedAt) {
-    // The user registered, left before entering their code (closed the tab,
-    // a slow email, ...), and has now come back — same session, still
-    // unverified. Resume exactly where they left off instead of the
-    // "already signed in" card, which would skip verification entirely.
-    email.value = auth.user?.email ?? ''
-    needsVerification.value = true
-    checking.value = false
-    return
-  }
+  // `auth.isAuthenticated` only ever reflects a real, verified session now —
+  // register() no longer grants one pre-verification — so there's no
+  // "resume mid-verification" case to special-case here: a visitor who
+  // closed the tab before entering their code just lands back on the account
+  // form, and resubmitting the same email updates the still-unverified
+  // account in place (see AuthService.register) and sends a fresh code.
   if (auth.isAuthenticated) {
     // Was previously unguarded — `fetchOverview()` throws on any network
     // hiccup (it has no internal try/catch), which killed this WHOLE
@@ -286,6 +294,9 @@ onMounted(async () => {
         @click="resendCode"
       >
         {{ resendCooldown ? t('verify.resendWait') : t('verify.resend') }}
+      </v-btn>
+      <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" @click="backToAccountForm">
+        {{ t('verify.changeEmail') }}
       </v-btn>
     </form>
 
@@ -368,7 +379,7 @@ onMounted(async () => {
       <p class="acc__fineprint">{{ t('claim.saveNote') }}</p>
     </form>
 
-    <div class="acc__back">
+    <div v-if="!needsVerification" class="acc__back">
       <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" @click="router.back()">
         {{ t('claim.back') }}
       </v-btn>
