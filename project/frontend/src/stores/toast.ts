@@ -6,6 +6,10 @@ export type ToastKind = 'success' | 'error' | 'info' | 'warning'
 export interface ToastAction {
   label: string
   to: RouteLocationRaw
+  /** Fired alongside the navigation — e.g. marking the notification that
+   *  spawned this toast as read, so acting on it from the pop-up doesn't
+   *  leave the bell badge stuck on "unread". */
+  onClick?: () => void
 }
 
 export interface Toast {

@@ -2,7 +2,7 @@
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
-import { useToastStore, type ToastKind } from '@/stores/toast'
+import { useToastStore, type Toast, type ToastKind } from '@/stores/toast'
 
 const { t } = useI18n()
 const toast = useToastStore()
@@ -24,6 +24,11 @@ function heading(text: string): string {
 function rest(text: string): string {
   const i = text.indexOf('\n')
   return i === -1 ? '' : text.slice(i + 1)
+}
+
+function onActionClick(tt: Toast): void {
+  tt.action?.onClick?.()
+  toast.dismiss(tt.id)
 }
 </script>
 
@@ -48,7 +53,7 @@ function rest(text: string): string {
               v-if="tt.action"
               class="toast__action"
               :to="tt.action.to"
-              @click="toast.dismiss(tt.id)"
+              @click="onActionClick(tt)"
             >
               {{ tt.action.label }}
             </RouterLink>

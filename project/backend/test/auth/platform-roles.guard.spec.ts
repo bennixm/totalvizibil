@@ -1,6 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PLATFORM_ROLES_KEY, PlatformRolesGuard } from 'src/auth/platform-roles.guard';
+import { PlatformRolesGuard } from 'src/auth/platform-roles.guard';
 import { AuthPrincipal } from 'src/auth/auth.types';
 
 function fakeContext(user?: Partial<AuthPrincipal>) {

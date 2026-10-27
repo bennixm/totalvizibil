@@ -146,12 +146,22 @@ function fakeNotifications() {
   return { notify: jest.fn().mockResolvedValue(undefined) };
 }
 
+function fakeConfig() {
+  return { get: jest.fn().mockReturnValue('https://totalvizibil.ro') };
+}
+
 function makeService() {
   const prisma = fakePrisma();
   const settings = fakeSettings();
   const notifications = fakeNotifications();
-  const svc = new BillingService(prisma as any, settings as any, notifications as any);
-  return { svc, prisma, settings, notifications };
+  const config = fakeConfig();
+  const svc = new BillingService(
+    prisma as any,
+    settings as any,
+    notifications as any,
+    config as any,
+  );
+  return { svc, prisma, settings, notifications, config };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

@@ -23,7 +23,12 @@ function fakePrisma() {
     aiRows: [] as { estimatedCostUsd: number; createdAt: Date }[],
   };
   let walletTxCall = 0;
-  const walletTxSequence = () => [state.purchases, state.refunds, state.cpcSpends, state.otherSpends];
+  const walletTxSequence = () => [
+    state.purchases,
+    state.refunds,
+    state.cpcSpends,
+    state.otherSpends,
+  ];
 
   return {
     walletTransaction: {

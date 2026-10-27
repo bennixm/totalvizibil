@@ -157,6 +157,10 @@ function fakeMail() {
   };
 }
 
+function fakeConfig() {
+  return { get: jest.fn(() => 'https://totalvizibil.ro') };
+}
+
 function makeService() {
   const prisma = fakePrisma();
   const sessions = fakeSessions();
@@ -165,6 +169,7 @@ function makeService() {
   const billing = fakeBilling();
   const notifications = fakeNotifications();
   const mail = fakeMail();
+  const config = fakeConfig();
   const svc = new AdminUsersService(
     prisma as any,
     passwords as any,
@@ -173,6 +178,7 @@ function makeService() {
     billing as any,
     notifications as any,
     mail as any,
+    config as any,
   );
   return { svc, prisma, sessions, passwords, wallet, billing, notifications, mail };
 }
@@ -301,7 +307,7 @@ describe('AdminUsersService', () => {
       );
     });
 
-    it('revoking your OWN sessions keeps the current session alive (regression: the except-id must be a session id, not the caller\'s user id)', async () => {
+    it("revoking your OWN sessions keeps the current session alive (regression: the except-id must be a session id, not the caller's user id)", async () => {
       const { svc, prisma, sessions } = makeService();
       prisma.__seedUser({ id: 'admin1', status: 'active' });
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
@@ -313,6 +319,32 @@ describe('AdminUsersService', () => {
       // passing a user id there (the old bug) never excludes anything and
       // logs the admin out of the very request that triggered this.
       expect(sessions.revokeAllForUser).toHaveBeenCalledWith('admin1', 'admin1-session');
+    });
+  });
+
+  describe('update — disableTotp', () => {
+    it('regression: notifies the user when an admin disables their 2FA (this used to be silent — the self-service path already notified)', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedUser({ id: 'u1', totpEnabledAt: new Date(), totpSecret: 'secret' });
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await svc.update('admin1', 'admin1-session', 'u1', { disableTotp: true });
+
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u1', type: 'totp_disabled' }),
+      );
+    });
+
+    it('does not notify when 2FA was never enabled (a no-op disableTotp flag)', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedUser({ id: 'u1', totpEnabledAt: null });
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await svc.update('admin1', 'admin1-session', 'u1', { disableTotp: true });
+
+      expect(notifications.notify).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'totp_disabled' }),
+      );
     });
   });
 
@@ -331,9 +363,7 @@ describe('AdminUsersService', () => {
         }),
       );
       // Old inbox gets a direct, one-off mail — it's no longer tied to the account.
-      expect(mail.send).toHaveBeenCalledWith(
-        expect.objectContaining({ to: 'old@example.com' }),
-      );
+      expect(mail.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'old@example.com' }));
       // New address gets the standard notification channel.
       expect(notifications.notify).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'u1', type: 'email_changed' }),

@@ -219,6 +219,7 @@ export class SupportService {
         ticket.number,
         ticket.subject,
         'Un agent de suport a răspuns la ticketul tău.',
+        dto.body,
       );
     } else if (requesterReply && !actor.staff) {
       // Already committed — a notification hiccup must never mask this.
@@ -392,15 +393,23 @@ export class SupportService {
   }
 
   /** Panel + email — migrated off a raw `MailService.send` so ticket updates
-   *  go through the same central system as every other notification. */
+   *  go through the same central system as every other notification.
+   *  `replyExcerpt` (the staff reply's own text, only passed for an actual
+   *  reply — not for a status-change line like "marked resolved") used to be
+   *  dropped entirely: the email said a reply existed without saying what it
+   *  said, forcing a login just to read one paragraph. */
   private async notifyRequester(
     requesterId: string,
     ticketId: string,
     ticketNumber: number,
     subject: string,
     line: string,
+    replyExcerpt?: string,
   ): Promise<void> {
     const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
+    const quoted = replyExcerpt
+      ? `„${replyExcerpt.slice(0, 300)}${replyExcerpt.length > 300 ? '…' : ''}”`
+      : null;
     await this.notifications
       .notify({
         userId: requesterId,
@@ -410,7 +419,18 @@ export class SupportService {
         channels: { panel: true, email: true },
         data: { ticketId },
         email: {
-          text: `${line}\n\nDeschide ticketul din contul tău Totalvizibil ca să răspunzi.`,
+          greet: true,
+          text: [
+            line,
+            quoted,
+            'Răspunde direct din ticket — păstrăm tot istoricul conversației într-un singur loc.',
+          ]
+            .filter((p): p is string => !!p)
+            .join('\n\n'),
+          details: [
+            { label: 'Ticket', value: `#${ticketNumber}` },
+            { label: 'Subiect', value: subject },
+          ],
           cta: { label: 'Deschide ticketul', url: `${frontendOrigin}/support/${ticketId}` },
         },
       })

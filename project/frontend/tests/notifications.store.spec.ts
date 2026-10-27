@@ -109,6 +109,61 @@ describe('notifications store', () => {
     expect(store.unreadCount).toBe(3)
   })
 
+  it('fetchUnreadCount ignores a slow response that resolves after a local mutation already changed the count', async () => {
+    const store = useNotificationsStore()
+    store.items = [item({ id: 'a' })]
+    store.unreadCount = 1
+
+    let resolveCount!: (v: { count: number }) => void
+    apiFetchMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCount = resolve
+        }),
+    )
+    const fetchPromise = store.fetchUnreadCount() // slow — simulates a reconnect-triggered count sync
+
+    // A lead arrives via the socket (see connect()'s 'notification' handler)
+    // while that fetch is still in flight — the badge increments locally.
+    apiFetchMock.mockResolvedValueOnce({ ok: true })
+    await store.markRead('a') // any local mutation bumps the guard token
+    store.unreadCount = 2 // simulate the increment a fresh push would cause
+
+    resolveCount({ count: 0 }) // the stale fetch finally resolves, with a now-outdated count
+    await fetchPromise
+
+    // The stale 0 must NOT overwrite the count a more recent local event set.
+    expect(store.unreadCount).toBe(2)
+  })
+
+  it('markAllRead does not optimistically mark a notification that arrives mid-request', async () => {
+    const store = useNotificationsStore()
+    const old = item({ id: 'old', createdAt: new Date(Date.now() - 60_000).toISOString() })
+    store.items = [old]
+    store.unreadCount = 1
+
+    let resolveRequest!: (v: { ok: true }) => void
+    apiFetchMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve
+        }),
+    )
+    const markPromise = store.markAllRead()
+
+    // A notification created AFTER markAllRead's asOf snapshot arrives before
+    // the request completes — it must not be swept up as read.
+    const fresh = item({ id: 'fresh', createdAt: new Date(Date.now() + 60_000).toISOString() })
+    store.items = [fresh, ...store.items]
+    store.unreadCount += 1
+
+    resolveRequest({ ok: true })
+    await markPromise
+
+    expect(store.items.find((n) => n.id === 'old')?.readAt).not.toBeNull()
+    expect(store.items.find((n) => n.id === 'fresh')?.readAt).toBeNull()
+  })
+
   it('load() ignores a slow response once a newer load() has already resolved', async () => {
     const store = useNotificationsStore()
     let resolveFirst!: (v: { items: NotificationItem[]; nextCursor: string | null }) => void

@@ -263,10 +263,6 @@ describe('Authorization — campaign endpoints', () => {
     });
 
     // Save campaign first
-    const owner = await prisma.company.findUnique({
-      where: { id: companyId },
-      select: { ownerUserId: true },
-    });
     const ownerCookie = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ email: 'owner@example.com', password: 'password123' })

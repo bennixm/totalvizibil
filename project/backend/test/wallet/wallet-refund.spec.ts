@@ -411,6 +411,43 @@ describe('WalletService refunds (balance-based)', () => {
     ).toBe(0);
   });
 
+  it("cancelRefund notifies panel-only for the user's own cancel, panel+email for an admin-initiated one", async () => {
+    const { service, prisma, notifications } = makeService({ refundFeePct: 5 });
+    const wallet = await prisma.wallet.upsert({ where: { userId: USER } });
+    await prisma.wallet.update({
+      where: { id: wallet.id },
+      data: { balanceMinor: { increment: 200 * CREDIT_MINOR } },
+    });
+    prisma.__seedPurchase(USER, wallet.id as string, { amountMinor: 100 * CREDIT_MINOR });
+    await service.requestRefund(USER, 50);
+    const [refund] = refundRows(prisma);
+    notifications.notify.mockClear();
+
+    await service.cancelRefund(USER, refund.id as string);
+
+    expect(notifications.notify).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'refund_canceled', channels: { panel: true } }),
+    );
+
+    // A second refund, canceled WITH an admin id this time.
+    prisma.__seedPurchase(USER, wallet.id as string, { amountMinor: 100 * CREDIT_MINOR });
+    await service.requestRefund(USER, 30);
+    const refund2 = refundRows(prisma).find((r) => r.id !== refund.id)!;
+    notifications.notify.mockClear();
+
+    await service.cancelRefund(USER, refund2.id as string, 'admin1');
+
+    expect(notifications.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'refund_canceled',
+        channels: { panel: true, email: true },
+        email: expect.objectContaining({
+          cta: expect.objectContaining({ label: 'Contactează suportul' }),
+        }),
+      }),
+    );
+  });
+
   it('rejects canceling a refund whose hold has already elapsed', async () => {
     const { service, prisma } = makeService();
     const wallet = await prisma.wallet.upsert({ where: { userId: USER } });

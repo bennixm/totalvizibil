@@ -26,6 +26,7 @@ type SocketSync = { kind: 'read' | 'read-all' | 'dismissed'; id?: string }
 
 const COMPANY_TYPES = new Set([
   'lead_received',
+  'leads_stale',
   'business_created',
   'business_deletion_scheduled',
   'business_deletion_canceled',
@@ -35,12 +36,21 @@ const COMPANY_TYPES = new Set([
   'campaign_depleted',
   'wallet_low_balance',
   'campaign_activated',
+  'campaign_activated_by_admin',
   'campaign_paused_on_edit',
+  'campaign_cpc_below_minimum',
+  'company_category_changed_by_admin',
+  'company_location_changed_by_admin',
+  'company_website_published_by_admin',
+  'company_website_unpublished_by_admin',
+  'advanced_unlock_charged_by_admin',
+  'advanced_unlock_granted_by_admin',
 ])
 const WALLET_TYPES = new Set([
   'refund_requested',
   'refund_completed',
   'refund_failed',
+  'refund_canceled',
   'discount_updated',
   'discount_ended',
   'wallet_blocked',
@@ -57,7 +67,7 @@ export function routeForNotification(n: Pick<NotificationItem, 'type' | 'data'>)
   const invoiceId = n.data?.invoiceId
   const ticketId = n.data?.ticketId
 
-  if (n.type === 'lead_received' && typeof companyId === 'string') {
+  if ((n.type === 'lead_received' || n.type === 'leads_stale') && typeof companyId === 'string') {
     return { name: 'leads', query: { c: companyId } }
   }
   if (n.type === 'appointment_received' && typeof companyId === 'string') {
@@ -80,6 +90,9 @@ export function routeForNotification(n: Pick<NotificationItem, 'type' | 'data'>)
   }
   if (WALLET_TYPES.has(n.type)) {
     return { name: 'wallet' }
+  }
+  if (n.type === 'referral_claimed') {
+    return { name: 'account', query: { tab: 'affiliate' } }
   }
   if (TICKET_TYPES.has(n.type) && typeof ticketId === 'string') {
     return { name: 'support-ticket', params: { id: ticketId } }
@@ -134,6 +147,19 @@ const VISUALS: Record<string, NotificationVisual> = {
   ticket_assigned: { icon: 'mdi-account-arrow-right-outline', tone: 'primary' },
   support_ticket_update: { icon: 'mdi-lifebuoy', tone: 'primary' },
   pro_build_failed: { icon: 'mdi-alert-circle-outline', tone: 'error' },
+  leads_stale: { icon: 'mdi-clock-alert-outline', tone: 'warning' },
+  campaign_activated_by_admin: { icon: 'mdi-bullhorn-outline', tone: 'success' },
+  campaign_cpc_below_minimum: { icon: 'mdi-battery-alert-variant-outline', tone: 'warning' },
+  company_category_changed_by_admin: { icon: 'mdi-shape-outline', tone: 'warning' },
+  company_location_changed_by_admin: { icon: 'mdi-map-marker-outline', tone: 'warning' },
+  company_website_published_by_admin: { icon: 'mdi-web', tone: 'success' },
+  company_website_unpublished_by_admin: { icon: 'mdi-web-off', tone: 'warning' },
+  advanced_unlock_charged_by_admin: { icon: 'mdi-rocket-launch-outline', tone: 'warning' },
+  advanced_unlock_granted_by_admin: { icon: 'mdi-rocket-launch-outline', tone: 'success' },
+  business_deleted: { icon: 'mdi-domain-off', tone: 'error' },
+  refund_canceled: { icon: 'mdi-cash-refund', tone: 'warning' },
+  domain_purchased: { icon: 'mdi-web-plus', tone: 'success' },
+  referral_claimed: { icon: 'mdi-account-plus-outline', tone: 'primary' },
 }
 const DEFAULT_VISUAL: NotificationVisual = { icon: 'mdi-bell-outline', tone: 'primary' }
 
@@ -170,6 +196,17 @@ let socket: Socket | null = null
  *  the most recent request, so a slow first open can never clobber a frester
  *  one that finished first (e.g. two quick open/close taps on the bell). */
 let loadToken = 0
+/** Bumped by every LOCAL change to `unreadCount` (a mark-read, a dismiss, a
+ *  cross-tab sync event, a fresh push) — `fetchUnreadCount` captures this
+ *  before its request and discards the response if anything moved the count
+ *  in the meantime. Without this, a slow reconnect-triggered count fetch
+ *  could land after a newer push/read and silently overwrite it (e.g. a lead
+ *  arrives right after reconnect, the badge increments, then the stale fetch
+ *  that started before the push resolves and wipes it back down). */
+let unreadToken = 0
+function bumpUnread(): void {
+  unreadToken++
+}
 
 /** Same-origin in dev (Vite proxies /socket.io) and in prod (served behind
  *  the same host) unless VITE_API_BASE_URL points at a different origin. */
@@ -217,7 +254,9 @@ export const useNotificationsStore = defineStore('notifications', {
     },
 
     async fetchUnreadCount(): Promise<void> {
+      const token = unreadToken
       const res = await apiFetch<{ count: number }>('/notifications/unread-count')
+      if (token !== unreadToken) return // something local already moved the count since
       this.unreadCount = res.count
     },
 
@@ -226,28 +265,44 @@ export const useNotificationsStore = defineStore('notifications', {
       if (!row || row.readAt) return
       row.readAt = new Date().toISOString()
       this.unreadCount = Math.max(0, this.unreadCount - 1)
+      bumpUnread()
       try {
         await apiFetch(`/notifications/${id}/read`, { method: 'POST' })
       } catch {
         // Roll back — never let the panel show a state the server doesn't have.
         row.readAt = null
         this.unreadCount += 1
+        bumpUnread()
       }
     },
 
     async markAllRead(): Promise<void> {
-      const before = this.items.map((n) => n.readAt)
+      // Bounded the same way the backend now bounds its own `updateMany` — a
+      // notification that arrives mid-request (its `createdAt` is later than
+      // this snapshot) must never be optimistically marked read by a click
+      // that happened before it existed.
+      const asOf = Date.now()
+      const eligible = this.items.filter(
+        (n) => !n.readAt && new Date(n.createdAt).getTime() <= asOf,
+      )
+      if (!eligible.length) return
+      const before = new Map(eligible.map((n) => [n.id, n.readAt]))
       const beforeCount = this.unreadCount
       const now = new Date().toISOString()
-      this.items.forEach((n) => {
-        if (!n.readAt) n.readAt = now
-      })
-      this.unreadCount = 0
+      eligible.forEach((n) => (n.readAt = now))
+      this.unreadCount = Math.max(0, this.unreadCount - eligible.length)
+      bumpUnread()
       try {
         await apiFetch('/notifications/read-all', { method: 'POST' })
       } catch {
-        this.items.forEach((n, i) => (n.readAt = before[i]))
+        // Roll back by id, not position — the list may have gained or lost
+        // rows (a push, a dismiss) while this request was in flight, so a
+        // positional snapshot could restore the wrong row's state.
+        this.items.forEach((n) => {
+          if (before.has(n.id)) n.readAt = before.get(n.id) ?? null
+        })
         this.unreadCount = beforeCount
+        bumpUnread()
       }
     },
 
@@ -256,16 +311,31 @@ export const useNotificationsStore = defineStore('notifications', {
     async dismiss(id: string): Promise<void> {
       const idx = this.items.findIndex((n) => n.id === id)
       if (idx === -1) return
+      // Anchor the rollback position to the PRECEDING item's id, not the raw
+      // index — a push arriving while this request is in flight prepends to
+      // the front (see the socket handler below) and shifts every index, so
+      // restoring at the original numeric position could land in the wrong
+      // slot. Re-finding the neighbour's CURRENT position naturally adjusts
+      // for that (and for nothing having changed at all, which is the common
+      // case — then this is just `idx` again).
+      const precedingId = idx > 0 ? this.items[idx - 1].id : null
       const [removed] = this.items.splice(idx, 1)
       const wasUnread = !removed.readAt
-      if (wasUnread) this.unreadCount = Math.max(0, this.unreadCount - 1)
+      if (wasUnread) {
+        this.unreadCount = Math.max(0, this.unreadCount - 1)
+        bumpUnread()
+      }
       try {
         await apiFetch(`/notifications/${id}`, { method: 'DELETE' })
       } catch {
-        // Roll back at the same position — never silently lose a row the
-        // server still has because of a network blip.
-        this.items.splice(idx, 0, removed)
-        if (wasUnread) this.unreadCount += 1
+        const insertAt = precedingId
+          ? this.items.findIndex((n) => n.id === precedingId) + 1
+          : 0
+        this.items.splice(insertAt, 0, removed)
+        if (wasUnread) {
+          this.unreadCount += 1
+          bumpUnread()
+        }
       }
     },
 
@@ -282,12 +352,23 @@ export const useNotificationsStore = defineStore('notifications', {
         // pop-up + badge count.
         if (payload.id) this.items = [payload as NotificationItem, ...this.items]
         this.unreadCount += 1
+        bumpUnread()
 
         const visual = visualForNotification(payload.type ?? '')
         const to = payload.id ? routeForNotification(payload as NotificationItem) : null
         useToastStore().push(TONE_TO_TOAST[visual.tone], `${payload.title}\n${payload.body}`, {
           timeout: 7000,
-          action: to ? { label: i18n.global.t('notifications.open'), to } : undefined,
+          action:
+            to && payload.id
+              ? {
+                  label: i18n.global.t('notifications.open'),
+                  to,
+                  // Acting on the notification straight from the toast must
+                  // mark it read too — otherwise the bell badge stayed stuck
+                  // on "unread" even though the user just resolved it.
+                  onClick: () => void this.markRead(payload.id!),
+                }
+              : undefined,
         })
       })
 
@@ -297,6 +378,7 @@ export const useNotificationsStore = defineStore('notifications', {
           if (row && !row.readAt) {
             row.readAt = new Date().toISOString()
             this.unreadCount = Math.max(0, this.unreadCount - 1)
+            bumpUnread()
           }
         } else if (msg.kind === 'read-all') {
           const now = new Date().toISOString()
@@ -304,12 +386,16 @@ export const useNotificationsStore = defineStore('notifications', {
             if (!n.readAt) n.readAt = now
           })
           this.unreadCount = 0
+          bumpUnread()
         } else if (msg.kind === 'dismissed' && msg.id) {
           const idx = this.items.findIndex((n) => n.id === msg.id)
           if (idx !== -1) {
             const wasUnread = !this.items[idx].readAt
             this.items.splice(idx, 1)
-            if (wasUnread) this.unreadCount = Math.max(0, this.unreadCount - 1)
+            if (wasUnread) {
+              this.unreadCount = Math.max(0, this.unreadCount - 1)
+              bumpUnread()
+            }
           }
         }
       })
@@ -320,6 +406,19 @@ export const useNotificationsStore = defineStore('notifications', {
       // `connect` fires on the FIRST connect too so this covers both cases.
       socket.on('connect', () => {
         void this.fetchUnreadCount().catch(() => {})
+      })
+
+      // The server-side gateway rejects (or later revalidates and drops) a
+      // socket with no valid/live session — reconnecting would just be
+      // rejected again every time, forever, with socket.io's default
+      // infinite-retry options otherwise doing exactly that for a tab left
+      // open after the session died. Tear it down for good instead; the
+      // next real login calls connect() fresh.
+      socket.on('disconnect', (reason) => {
+        if (reason === 'io server disconnect') {
+          socket?.disconnect()
+          socket = null
+        }
       })
     },
 

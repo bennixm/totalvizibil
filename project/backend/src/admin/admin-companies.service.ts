@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CampaignStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AppConfig } from '../config/env';
 import { resolveLocationInput } from '../geo/ro-cities';
-import { feedCpcMinMinor, isEligibleForFeed } from '../analytics/feed-pricing';
+import { isEligibleForFeed } from '../analytics/feed-pricing';
 import { WalletService } from '../wallet/wallet.service';
 import { CampaignService } from '../campaigns/campaign.service';
 import { COMPANY_DELETE_GRACE_MS } from '../companies/companies.constants';
@@ -41,7 +43,17 @@ export class AdminCompaniesService {
     private readonly builder: ProV2Service,
     private readonly settings: PlatformSettingsService,
     private readonly notifications: NotificationsService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
+
+  /** Every admin-initiated notification below sends the owner to the real
+   *  support page instead of a bare "contactează-ne" with nothing to click. */
+  private get supportCta() {
+    return {
+      label: 'Contactează suportul',
+      url: `${this.config.get('frontendOrigin', { infer: true })}/support`,
+    };
+  }
 
   private async loadCompany(companyId: string) {
     const company = await this.prisma.company.findUnique({
@@ -341,7 +353,7 @@ export class AdminCompaniesService {
   // --- profile edit ---------------------------------------------
 
   async updateCompany(companyId: string, dto: UpdateCompanyDto) {
-    await this.loadCompany(companyId);
+    const existing = await this.loadCompany(companyId);
     await this.assertNotPendingDeletion(companyId);
     if (dto.categoryId) {
       const cat = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
@@ -349,6 +361,10 @@ export class AdminCompaniesService {
         throw new BadRequestException('Pick an active leaf category');
       }
     }
+    // Only a REAL category change is worth telling the owner about — it
+    // moves which feed they compete/bill in, unlike a plain display-name or
+    // description edit in the same request, which isn't.
+    const categoryChanged = !!dto.categoryId && dto.categoryId !== existing.categoryId;
     await this.prisma.$transaction(async (tx) => {
       await tx.company.update({
         where: { id: companyId },
@@ -373,6 +389,27 @@ export class AdminCompaniesService {
         });
       }
     });
+
+    if (categoryChanged) {
+      // Already committed — a notification hiccup must never mask this.
+      void this.notifications
+        .notify({
+          userId: existing.ownerUserId,
+          type: 'company_category_changed_by_admin',
+          title: `Categoria afacerii „${existing.displayName}" a fost schimbată`,
+          body: `Un administrator a schimbat categoria afacerii „${existing.displayName}" — de acum concurează și este facturată într-un alt Feed.`,
+          channels: { panel: true, email: true },
+          data: { companyId },
+          email: { cta: this.supportCta },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Company-category-changed notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
+
     return this.detail(companyId);
   }
 
@@ -382,7 +419,7 @@ export class AdminCompaniesService {
    * it must not leave other, previously-set județe stranded behind it.
    */
   async setLocation(companyId: string, dto: SetCompanyLocationDto) {
-    await this.loadCompany(companyId);
+    const company = await this.loadCompany(companyId);
     await this.assertNotPendingDeletion(companyId);
     const { nationwide, counties } = resolveLocationInput(dto);
     // Carry the existing primary row's city/lat/lng forward onto the new
@@ -411,12 +448,33 @@ export class AdminCompaniesService {
       this.prisma.companyLocation.deleteMany({ where: { companyId } }),
       this.prisma.companyLocation.createMany({ data: rows }),
     ]);
+
+    // Already committed — a notification hiccup must never mask this. Every
+    // call here is a deliberate full-replace of the service area, unlike the
+    // category edit above — no "did anything actually change" check needed.
+    void this.notifications
+      .notify({
+        userId: company.ownerUserId,
+        type: 'company_location_changed_by_admin',
+        title: `Zona de acoperire a afacerii „${company.displayName}" a fost schimbată`,
+        body: `Un administrator a schimbat județele/zona de acoperire a afacerii „${company.displayName}" — de acolo apar acum anunțurile și se facturează clicurile.`,
+        channels: { panel: true, email: true },
+        data: { companyId },
+        email: { cta: this.supportCta },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Company-location-changed notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return this.detail(companyId);
   }
 
   /** Admin: take the public website online / offline (does not touch business status). */
   async setWebsitePublished(companyId: string, published: boolean) {
-    await this.loadCompany(companyId);
+    const outer = await this.loadCompany(companyId);
     await this.assertNotPendingDeletion(companyId);
     if (published) {
       // Same readiness gate the owner's own `setPublished` enforces
@@ -445,6 +503,40 @@ export class AdminCompaniesService {
       where: { companyId },
       data: { status: published ? 'published' : 'unpublished' },
     });
+
+    // Already committed — a notification hiccup must never mask this. The
+    // owner's own `setPublished` already notifies nothing for either
+    // direction (the owner just clicked the button themselves); this is the
+    // ADMIN-initiated lever, where silence is exactly the "my site is down
+    // and I don't know why" support ticket this closes off.
+    void this.notifications
+      .notify(
+        published
+          ? {
+              userId: outer.ownerUserId,
+              type: 'company_website_published_by_admin',
+              title: `Site-ul afacerii „${outer.displayName}" este din nou public`,
+              body: `Un administrator a republicat site-ul afacerii „${outer.displayName}".`,
+              channels: { panel: true },
+              data: { companyId },
+            }
+          : {
+              userId: outer.ownerUserId,
+              type: 'company_website_unpublished_by_admin',
+              title: `Site-ul afacerii „${outer.displayName}" a fost depublicat`,
+              body: `Un administrator a depublicat site-ul afacerii „${outer.displayName}" — nu mai este vizibil public.`,
+              channels: { panel: true, email: true },
+              data: { companyId },
+              email: { cta: this.supportCta },
+            },
+      )
+      .catch((err) =>
+        this.logger.error(
+          'Company-website-published notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return this.detail(companyId);
   }
 
@@ -525,9 +617,13 @@ export class AdminCompaniesService {
           userId: company.ownerUserId,
           type: 'campaign_deleted_by_admin',
           title: `Campania „${company.displayName}" a fost ștearsă`,
-          body: `Un administrator a șters campania afacerii „${company.displayName}" — a fost scoasă din feed. Poți configura una nouă din panou.`,
+          body: `„${company.displayName}" nu mai apare în feed — campania a fost ștearsă. Poți configura una nouă din panou.`,
           channels: { panel: true, email: true },
           data: { companyId },
+          email: {
+            details: [{ label: 'Afacere', value: company.displayName }],
+            cta: this.supportCta,
+          },
         })
         .catch((err) =>
           this.logger.error(
@@ -540,7 +636,8 @@ export class AdminCompaniesService {
 
     if (dto.action === 'pause') {
       // Kill AUTO too, else the owner's next page load would revive it.
-      if (company.campaign.autoOptimize) {
+      const autoWasOn = company.campaign.autoOptimize;
+      if (autoWasOn) {
         await this.prisma.campaign.update({
           where: { companyId },
           data: { autoOptimize: false },
@@ -555,9 +652,17 @@ export class AdminCompaniesService {
             userId: company.ownerUserId,
             type: 'campaign_paused_by_admin',
             title: `Campania „${company.displayName}" a fost pusă pe pauză`,
-            body: `Un administrator a pus pe pauză campania afacerii „${company.displayName}" — a fost scoasă din feed. O poți reactiva din panou.`,
+            body:
+              `„${company.displayName}" nu mai apare în feed. Campania este oprită și nu consumă buget.` +
+              (autoWasOn
+                ? ' Modul AUTO a fost dezactivat — va trebui repornit manual, nu se reactivează singur.'
+                : ''),
             channels: { panel: true, email: true },
             data: { companyId },
+            email: {
+              details: [{ label: 'Afacere', value: company.displayName }],
+              cta: this.supportCta,
+            },
           })
           .catch((err) =>
             this.logger.error(
@@ -606,6 +711,32 @@ export class AdminCompaniesService {
       throw new BadRequestException('Owner wallet cannot fund one day of budget');
     }
     await this.setLive(companyId, true, wasLive);
+
+    // Already committed — a notification hiccup must never mask this. The
+    // owner-facing `activate()` notifies `campaign_activated`; this is the
+    // admin-initiated mirror — the wallet starts being debited per click
+    // from an action the owner didn't take, the inverse of the pause/delete
+    // cases above.
+    void this.notifications
+      .notify({
+        userId: owner.ownerUserId,
+        type: 'campaign_activated_by_admin',
+        title: `Campania „${company.displayName}" este acum live`,
+        body: `Un administrator a activat campania afacerii „${company.displayName}" — a apărut în feed și portofelul este debitat per clic.`,
+        channels: { panel: true, email: true },
+        data: { companyId },
+        email: {
+          details: [{ label: 'Afacere', value: company.displayName }],
+          cta: this.supportCta,
+        },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Campaign-activated-by-admin notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return { ok: true as const, action: 'activate' as const };
   }
 
@@ -646,14 +777,23 @@ export class AdminCompaniesService {
       ]);
 
       // Already committed — a notification hiccup must never mask this.
+      const autoWasOn = !!company.campaign?.autoOptimize;
       void this.notifications
         .notify({
           userId: company.ownerUserId,
           type: 'business_suspended',
           title: `Afacerea „${company.displayName}" a fost suspendată`,
-          body: `Afacerea „${company.displayName}" a fost suspendată de un administrator și a fost dată jos din feed.`,
+          body:
+            `„${company.displayName}" nu mai apare în feed. Campania este oprită și nu consumă buget.` +
+            (autoWasOn
+              ? ' Modul AUTO a fost dezactivat — va trebui repornit manual la reactivare.'
+              : ''),
           channels: { email: true, panel: true },
           data: { companyId },
+          email: {
+            details: [{ label: 'Afacere', value: company.displayName }],
+            cta: this.supportCta,
+          },
         })
         .catch((err) =>
           this.logger.error(
@@ -677,9 +817,13 @@ export class AdminCompaniesService {
         userId: company.ownerUserId,
         type: 'business_reactivated',
         title: `Afacerea „${company.displayName}" a fost reactivată`,
-        body: `Suspendarea afacerii „${company.displayName}" a fost ridicată — o poți republica din panou.`,
+        body: `„${company.displayName}" poate fi republicată — suspendarea a fost ridicată.`,
         channels: { email: true, panel: true },
         data: { companyId },
+        email: {
+          details: [{ label: 'Afacere', value: company.displayName }],
+          cta: this.supportCta,
+        },
       })
       .catch((err) =>
         this.logger.error(
@@ -714,9 +858,13 @@ export class AdminCompaniesService {
         userId: company.ownerUserId,
         type: 'business_deletion_canceled',
         title: `Ștergerea afacerii „${company.displayName}" a fost anulată`,
-        body: `Un administrator a anulat ștergerea afacerii „${company.displayName}". Este din nou activă.`,
+        body: `„${company.displayName}" este din nou activă — ștergerea programată a fost anulată de un administrator.`,
         channels: { panel: true, email: true },
         data: { companyId },
+        email: {
+          details: [{ label: 'Afacere', value: company.displayName }],
+          cta: this.supportCta,
+        },
       })
       .catch((err) =>
         this.logger.error(

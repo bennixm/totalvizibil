@@ -1,9 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { CustomDomain } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
-import { creditsToMinor, money } from '../wallet/money';
+import { NotificationsService } from '../notifications/notifications.service';
+import { creditsToMinor, minorToCredits, money } from '../wallet/money';
 import { DomainRegistrarProvider, StubDomainRegistrarProvider } from './domain-registrar';
 
 /**
@@ -19,12 +20,14 @@ import { DomainRegistrarProvider, StubDomainRegistrarProvider } from './domain-r
  */
 @Injectable()
 export class DomainsService {
+  private readonly logger = new Logger(DomainsService.name);
   private readonly registrar: DomainRegistrarProvider = new StubDomainRegistrarProvider();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly settings: PlatformSettingsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private async assertOwner(companyId: string, userId: string): Promise<void> {
@@ -104,6 +107,39 @@ export class DomainsService {
         registrarRef: result.ref,
       },
     });
+
+    // Already committed (the charge + the row) — a notification hiccup must
+    // never mask that. There's no "activated"/"failed" event to notify on
+    // yet: the registrar is a dev stub (see this class's doc comment) that
+    // never really configures DNS, so this purchase receipt is the only
+    // confirmation a real integration would need to add a second one
+    // alongside, once that lands.
+    void this.notifications
+      .notify({
+        userId,
+        type: 'domain_purchased',
+        title: `Domeniul ${domain} a fost achiziționat`,
+        body: `Achiziția pentru ${domain} a fost înregistrată și este în curs de configurare.`,
+        channels: { panel: true, email: true },
+        data: { companyId },
+        email: {
+          greet: true,
+          text: `Achiziția domeniului ${domain} a fost înregistrată. Configurarea DNS este în curs — te anunțăm aici de îndată ce domeniul devine activ.`,
+          details: [
+            { label: 'Domeniu', value: domain },
+            { label: 'Preț domeniu', value: `${minorToCredits(avail.priceCreditsMinor)} credite` },
+            { label: 'Taxă platformă', value: `${minorToCredits(feeCreditsMinor)} credite` },
+            { label: 'Total plătit', value: `${minorToCredits(totalMinor)} credite` },
+          ],
+        },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Domain-purchase notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return this.toView(row);
   }
 

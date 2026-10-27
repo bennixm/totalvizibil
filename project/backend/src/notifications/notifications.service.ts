@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { NotificationChannel, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailAttachment, MailService } from '../mail/mail.service';
@@ -38,17 +39,71 @@ export interface NotifyInput {
     details?: { label: string; value: string }[];
     cta?: { label: string; url: string };
     attachments?: MailAttachment[];
+    /** Inbox-preview line — defaults to the message's first line if omitted,
+     *  rather than a mid-sentence/mid-word slice of the whole body. Worth
+     *  overriding with something the subject doesn't already say. */
+    preheader?: string;
+    /** Opens the message with "Bună, {name}," when the recipient's name is
+     *  available (never applies to notifyAll() — a broadcast has no single
+     *  recipient to greet). Off by default so call sites that already greet
+     *  inline, or whose first line reads fine without one, aren't
+     *  double-greeted. */
+    greet?: boolean;
+    /** Short line under the footer — why this was sent / what to do if the
+     *  recipient didn't expect it. Kept visually and textually separate from
+     *  the main message instead of competing with it as just another
+     *  sentence in the body. */
+    footerNote?: string;
   };
+}
+
+/** "Bună, {name}," + the message — the one greeting rule shared by every
+ *  email in the system, so `greet` behaves identically everywhere instead of
+ *  each call site hand-rolling its own opening line. */
+function composeMessage(
+  body: string,
+  name: string | null | undefined,
+  email: NotifyInput['email'],
+): string {
+  const greetLine = email?.greet && name ? `Bună, ${name},` : null;
+  return [greetLine, email?.text ?? body].filter((p): p is string => !!p).join('\n\n');
+}
+
+/** The plain-text MIME part — the message, plus `details`/`cta`/`footerNote`
+ *  inlined as plain lines. Without this, a text-only client lost the
+ *  details table and the call-to-action link entirely (e.g. a lead's
+ *  contact info, an invoice link) — they used to exist only in the HTML
+ *  alternative built by `buildHtml` below. */
+function buildText(message: string, email: NotifyInput['email']): string {
+  const parts = [message];
+  if (email?.details?.length) {
+    parts.push(email.details.map((d) => `${d.label}: ${d.value}`).join('\n'));
+  }
+  if (email?.cta) parts.push(`${email.cta.label}: ${email.cta.url}`);
+  if (email?.footerNote) parts.push(email.footerNote);
+  return parts.join('\n\n');
 }
 
 /** Builds the HTML alternative for one notification — shared by notify() and
  *  notifyAll() so a broadcast renders through the exact same layout as a
- *  per-user email, never a second code path. */
-function buildHtml(heading: string, text: string, email: NotifyInput['email']): string {
-  const parts = [textToHtml(text)];
+ *  per-user email, never a second code path. `details`/`cta` get their own
+ *  styled widgets here, so they're intentionally NOT repeated as text inside
+ *  `message` (that duplication is `buildText`'s job, for the plain part). */
+function buildHtml(
+  heading: string,
+  message: string,
+  preheader: string,
+  email: NotifyInput['email'],
+): string {
+  const parts = [textToHtml(message)];
   if (email?.details?.length) parts.push(detailsTable(email.details));
   if (email?.cta) parts.push(ctaButton(email.cta.label, email.cta.url));
-  return renderEmailLayout({ heading, preheader: text.slice(0, 140), bodyHtml: parts.join('') });
+  return renderEmailLayout({
+    heading,
+    preheader,
+    bodyHtml: parts.join(''),
+    footerNote: email?.footerNote,
+  });
 }
 
 /**
@@ -59,6 +114,8 @@ function buildHtml(heading: string, text: string, email: NotifyInput['email']): 
  */
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
@@ -102,15 +159,17 @@ export class NotificationsService {
     if (input.channels.email) {
       const user = await this.prisma.user.findUnique({
         where: { id: input.userId },
-        select: { email: true },
+        select: { email: true, name: true },
       });
       if (user?.email) {
-        const text = input.email?.text ?? input.body;
+        const message = composeMessage(input.body, user.name, input.email);
+        const subject = input.email?.subject ?? input.title;
+        const preheader = input.email?.preheader ?? message.split('\n')[0].slice(0, 140);
         const { dispatched } = await this.mail.send({
           to: user.email,
-          subject: input.email?.subject ?? input.title,
-          text,
-          html: buildHtml(input.email?.subject ?? input.title, text, input.email),
+          subject,
+          text: buildText(message, input.email),
+          html: buildHtml(subject, message, preheader, input.email),
           replyTo: input.email?.replyTo,
           attachments: input.email?.attachments,
         });
@@ -124,7 +183,11 @@ export class NotificationsService {
     }
   }
 
-  /** Notify every active user — the discount and maintenance broadcasts. */
+  /** Notify every active user — the discount and maintenance broadcasts.
+   *  Explicit per-recipient row ids (generated here, not left to the DB
+   *  default) so the panel push and the email-dispatch tracking below can
+   *  both reference the exact row each recipient got, without a second
+   *  round-trip to re-look them up after `createMany`. */
   async notifyAll(input: Omit<NotifyInput, 'userId'>): Promise<number> {
     const channels = this.channelList(input.channels);
     if (!channels.length) return 0;
@@ -135,9 +198,12 @@ export class NotificationsService {
     });
     if (!users.length) return 0;
 
+    const recipients = users.map((u) => ({ ...u, rowId: randomUUID() }));
+
     await this.prisma.notification.createMany({
-      data: users.map((u) => ({
-        userId: u.id,
+      data: recipients.map((r) => ({
+        id: r.rowId,
+        userId: r.id,
         type: input.type,
         title: input.title,
         body: input.body,
@@ -147,41 +213,68 @@ export class NotificationsService {
     });
 
     if (input.channels.panel) {
-      this.gateway.broadcast({
-        type: input.type,
-        title: input.title,
-        body: input.body,
-        data: input.data,
-      });
+      // Pushed per-recipient room, not a server-wide emit — a socket
+      // belonging to a user who ISN'T in `recipients` (e.g. suspended
+      // mid-broadcast — see NotificationsGateway's session handling) must
+      // never get a toast/unread bump with no DB row behind it.
+      for (const r of recipients) {
+        this.gateway.pushToUser(r.id, {
+          id: r.rowId,
+          type: input.type,
+          title: input.title,
+          body: input.body,
+          data: input.data,
+          createdAt: new Date(),
+        });
+      }
     }
 
     if (input.channels.email) {
       const subject = input.email?.subject ?? input.title;
-      const text = input.email?.text ?? input.body;
-      const html = buildHtml(subject, text, input.email);
+      // No name to greet with — a broadcast has no single recipient.
+      const message = composeMessage(input.body, null, input.email);
+      const preheader = input.email?.preheader ?? message.split('\n')[0].slice(0, 140);
+      const text = buildText(message, input.email);
+      const html = buildHtml(subject, message, preheader, input.email);
       // Backgrounded, not awaited: the DB rows + panel push above are
       // already committed by the time this starts, so a slow or failing
       // email leg can never undo or mask that. Without this, a broadcast to
       // thousands of active users would hold the caller's HTTP request open
       // for as long as the sequential email loop below takes to finish.
-      void this.sendBroadcastEmails(users, subject, text, html);
+      void this.sendBroadcastEmails(recipients, subject, text, html);
     }
 
-    return users.length;
+    return recipients.length;
   }
 
   /** Sequential, deliberately — a burst of concurrent SMTP connections to
    *  Gmail is exactly the kind of thing that gets a dev account throttled.
    *  Called fire-and-forget from `notifyAll` once its DB/panel work is
-   *  already committed. */
+   *  already committed. Stamps `emailSentAt` per recipient exactly like
+   *  `notify()` does, so a broadcast's audit trail is honest about which
+   *  emails actually went out instead of claiming success just because rows
+   *  were created. */
   private async sendBroadcastEmails(
-    users: { email: string }[],
+    recipients: { id: string; email: string; rowId: string }[],
     subject: string,
     text: string,
     html: string,
   ): Promise<void> {
-    for (const u of users) {
-      await this.mail.send({ to: u.email, subject, text, html }).catch(() => undefined);
+    for (const r of recipients) {
+      try {
+        const { dispatched } = await this.mail.send({ to: r.email, subject, text, html });
+        if (dispatched) {
+          await this.prisma.notification.update({
+            where: { id: r.rowId },
+            data: { emailSentAt: new Date() },
+          });
+        }
+      } catch (err) {
+        this.logger.error(
+          `Broadcast email failed for user ${r.id}`,
+          err instanceof Error ? err.stack : err,
+        );
+      }
     }
   }
 
@@ -190,7 +283,10 @@ export class NotificationsService {
     const take = Math.min(Math.max(opts.limit ?? 20, 1), 100);
     const rows = await this.prisma.notification.findMany({
       where: { userId, channels: { has: NotificationChannel.panel }, dismissedAt: null },
-      orderBy: { createdAt: 'desc' },
+      // `id` as a tiebreaker makes the sort total — `createdAt` alone isn't
+      // unique, and a cursor sitting on one of several same-timestamp rows
+      // could otherwise skip or repeat a neighbour across the page boundary.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
     });
@@ -222,9 +318,18 @@ export class NotificationsService {
   }
 
   async markAllRead(userId: string): Promise<void> {
+    // Bounded by the moment this request started — a notification that's
+    // inserted a moment later (e.g. a lead arriving mid-request) must never
+    // be swept up as "read" by a click that happened before it existed.
+    const asOf = new Date();
     await this.prisma.notification.updateMany({
-      where: { userId, channels: { has: NotificationChannel.panel }, readAt: null },
-      data: { readAt: new Date() },
+      where: {
+        userId,
+        channels: { has: NotificationChannel.panel },
+        readAt: null,
+        createdAt: { lte: asOf },
+      },
+      data: { readAt: asOf },
     });
     this.gateway.syncUser(userId, { kind: 'read-all' });
   }

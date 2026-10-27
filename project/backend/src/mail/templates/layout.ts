@@ -71,6 +71,25 @@ export function ctaButton(label: string, url: string): string {
     </table>`;
 }
 
+/** A prominent, boxed, monospace block for a one-time code — verification,
+ *  2FA, etc. Deliberately NOT inline text: a code mid-paragraph is easy to
+ *  misread or skim past, and this is usually the single thing the recipient
+ *  came to the email for. */
+export function codeBlock(code: string): string {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0 26px;">
+      <tr>
+        <td bgcolor="${PAPER}" align="center"
+            style="background:${PAPER};border:1px solid ${BORDER};border-radius:12px;padding:20px;">
+          <span style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+                       font-size:32px;font-weight:700;letter-spacing:10px;color:${INK};">
+            ${escapeHtml(code)}
+          </span>
+        </td>
+      </tr>
+    </table>`;
+}
+
 /** A label/value receipt table — payment confirmations, invoice summaries,
  *  appointment details. Zebra-tinted rows read as a single cohesive card
  *  rather than a bare list, and hold up in clients that drop border-radius. */

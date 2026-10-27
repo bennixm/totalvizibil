@@ -247,7 +247,13 @@ function fakeWallet(canAfford = true) {
  *  preserving this suite's original all-Claude behavior. */
 function setup(claudeScript: AiProvider, wallet = fakeWallet()) {
   const prisma = fakePrisma();
-  const projects = new ProV2Service(prisma as never, {} as never, {} as never, {} as never);
+  const projects = new ProV2Service(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
   const router = new ModelRouter(
     claudeScript as never,
     fakeDeepSeekUnconfigured as never,

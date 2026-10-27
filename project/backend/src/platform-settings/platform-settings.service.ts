@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AppConfig } from '../config/env';
 
 export const SETTING_KEYS = {
   eurRonRate: 'eur_ron_rate',
@@ -115,6 +117,7 @@ export class PlatformSettingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
   async get(key: string): Promise<string | null> {
@@ -401,13 +404,21 @@ export class PlatformSettingsService {
     // user is a slow, best-effort side effect (sequential emails, see
     // NotificationsService.notifyAll) that must never block the admin's
     // response nor turn an already-successful settings change into an error.
+    const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
     if (after.enabled && (!before.enabled || after.pct !== before.pct)) {
       void this.notifications
         .notifyAll({
           type: 'discount_updated',
           title: `Reducere de ${after.pct}% la achiziția de credite`,
-          body: `Beneficiezi acum de o reducere de ${after.pct}% la achiziția de credite.`,
+          body: `Cumperi credite cu ${after.pct}% mai ieftin cât timp reducerea este activă.`,
           channels: { panel: true, email: true },
+          email: {
+            preheader: 'Reducerea se aplică automat în coș.',
+            text: `Reducerea de ${after.pct}% se aplică automat la orice achiziție de credite, fără cod. Creditele nu expiră, deci poți cumpăra acum și le folosești când ai nevoie.`,
+            cta: { label: 'Cumpără credite', url: `${frontendOrigin}/wallet` },
+            footerNote:
+              'Primești acest email pentru că ai un cont Totalvizibil. Îți poți gestiona preferințele de notificare din contul tău.',
+          },
         })
         .catch((err) =>
           this.logger.error(
@@ -420,8 +431,13 @@ export class PlatformSettingsService {
         .notifyAll({
           type: 'discount_ended',
           title: 'Reducerea la achiziția de credite s-a încheiat',
-          body: 'Reducerea la achiziția de credite nu mai este activă.',
+          body: 'Reducerea la achiziția de credite nu mai este activă — prețul standard se aplică din nou.',
           channels: { panel: true, email: true },
+          email: {
+            cta: { label: 'Vezi portofelul', url: `${frontendOrigin}/wallet` },
+            footerNote:
+              'Primești acest email pentru că ai un cont Totalvizibil. Îți poți gestiona preferințele de notificare din contul tău.',
+          },
         })
         .catch((err) =>
           this.logger.error(

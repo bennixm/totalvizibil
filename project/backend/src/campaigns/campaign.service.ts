@@ -5,12 +5,14 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Campaign, CampaignStatus, CompanyRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AffiliateService } from '../affiliate/affiliate.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AppConfig } from '../config/env';
 import { DEFAULT_REFS, RUN_SCORE_GRACE_MS, effectiveActiveSeconds } from '../analytics/visibility';
 import {
   chargeMinor,
@@ -61,6 +63,7 @@ export class CampaignService {
     private readonly analytics: AnalyticsService,
     private readonly affiliate: AffiliateService,
     private readonly notifications: NotificationsService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
   // --- membership -------------------------------------------------------
@@ -239,6 +242,34 @@ export class CampaignService {
       !isEligibleForFeed(campaign.cpcMinor, await this.analytics.marginConfig())
     ) {
       const d = await this.setLive(companyId, campaign, CampaignStatus.paused);
+      // Already committed — a notification hiccup must never mask this. Only
+      // fires on the active→paused transition itself (this branch can't
+      // match again once `status` is no longer `active`), so a persistently
+      // low CPC floor doesn't re-notify on every later reconcile() call.
+      // Without this the owner had no way to learn WHY their campaign
+      // stopped — e.g. after an admin raised the Feed's own CPC minim — short
+      // of noticing `cpcBelowFeedMinimum` in the dashboard payload.
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { displayName: true },
+      });
+      if (company) {
+        void this.notifications
+          .notify({
+            userId: owner,
+            type: 'campaign_cpc_below_minimum',
+            title: `Campania „${company.displayName}" s-a oprit — CPC Maxim e sub pragul minim`,
+            body: `CPC Maxim al campaniei „${company.displayName}" a ajuns sub pragul minim al Feed-ului, așa că nu mai poate rula. Ridică CPC Maxim din panou ca să repornească.`,
+            channels: { panel: true, email: true },
+            data: { companyId },
+          })
+          .catch((err) =>
+            this.logger.error(
+              'Campaign-cpc-below-minimum notification failed',
+              err instanceof Error ? err.stack : err,
+            ),
+          );
+      }
       return { ...d, spentTodayMinor: spentToday };
     }
 
@@ -1107,10 +1138,21 @@ export class CampaignService {
               type: adminInitiated ? 'campaign_paused_by_admin' : 'campaign_paused_on_edit',
               title: `Campania „${company.displayName}" a fost pusă pe pauză`,
               body: adminInitiated
-                ? `Un administrator a modificat bugetul/CPC-ul campaniei „${company.displayName}" — a fost scoasă din feed. O poți reactiva din panou.`
-                : 'Editarea bugetului/CPC-ului a scos campania din feed — reactivează-o din panou când ești gata.',
+                ? `„${company.displayName}" nu mai apare în feed. Un administrator a modificat bugetul/CPC-ul campaniei — nu consumă buget cât e pe pauză. O poți reactiva din panou.`
+                : 'Editarea bugetului/CPC-ului a scos campania din feed — nu consumă buget cât e pe pauză. Reactiveaz-o din panou când ești gata.',
               channels: adminInitiated ? { panel: true, email: true } : { panel: true },
               data: { companyId },
+              ...(adminInitiated
+                ? {
+                    email: {
+                      details: [{ label: 'Afacere', value: company.displayName }],
+                      cta: {
+                        label: 'Contactează suportul',
+                        url: `${this.config.get('frontendOrigin', { infer: true })}/support`,
+                      },
+                    },
+                  }
+                : {}),
             })
             .catch((err) =>
               this.logger.error(

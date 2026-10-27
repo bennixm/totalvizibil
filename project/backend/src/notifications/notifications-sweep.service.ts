@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { CampaignStatus } from '@prisma/client';
+import { CampaignStatus, LeadStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { utcDay } from '../campaigns/ad-click';
 import { AnalyticsService } from '../analytics/analytics.service';
@@ -11,6 +11,15 @@ const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 const LOW_BALANCE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 /** Don't re-notify the same "you could reach #1" condition more than once a day. */
 const POSITION_ALERT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+/** A lead sitting unanswered this long gets one stale-lead digest a day. */
+const STALE_LEAD_AFTER_MS = 48 * 60 * 60 * 1000;
+
+/** UTC midnight of "today" — the same day-bucket key `spendDay` already uses
+ *  elsewhere (ad-click.ts's `utcDay()`), reused here for every sweep's
+ *  once-a-day dedup cooldown so they all key off one consistent day boundary. */
+function utcMidnight(): Date {
+  return new Date(`${utcDay()}T00:00:00.000Z`);
+}
 
 /**
  * Turns the campaign-health conditions already surfaced on the dashboard
@@ -29,6 +38,8 @@ const POSITION_ALERT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 @Injectable()
 export class NotificationsSweepService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsSweepService.name);
+  /** Re-entrancy guard — see the comment on `sweep()` below. */
+  private sweeping = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -43,24 +54,42 @@ export class NotificationsSweepService implements OnModuleInit {
   }
 
   private async sweep(): Promise<void> {
-    await this.sweepDepletedCampaigns().catch((err) => {
-      this.logger.error('Depleted-campaign sweep failed', err instanceof Error ? err.stack : err);
-    });
-    await this.sweepLowBalances().catch((err) => {
-      this.logger.error('Low-balance sweep failed', err instanceof Error ? err.stack : err);
-    });
-    await this.sweepFeedPositionUpgrades().catch((err) => {
-      this.logger.error('Feed-position sweep failed', err instanceof Error ? err.stack : err);
-    });
+    // The feed-position sweep runs two analytics queries per active
+    // campaign — at scale a single tick can run long enough to still be
+    // going when the next one is due. Without this guard, ticks would stack
+    // without bound instead of the next one just waiting its turn.
+    if (this.sweeping) return;
+    this.sweeping = true;
+    try {
+      await this.sweepDepletedCampaigns().catch((err) => {
+        this.logger.error('Depleted-campaign sweep failed', err instanceof Error ? err.stack : err);
+      });
+      await this.sweepLowBalances().catch((err) => {
+        this.logger.error('Low-balance sweep failed', err instanceof Error ? err.stack : err);
+      });
+      await this.sweepFeedPositionUpgrades().catch((err) => {
+        this.logger.error('Feed-position sweep failed', err instanceof Error ? err.stack : err);
+      });
+      await this.sweepStaleLeads().catch((err) => {
+        this.logger.error('Stale-lead sweep failed', err instanceof Error ? err.stack : err);
+      });
+    } finally {
+      this.sweeping = false;
+    }
   }
 
   private async sweepDepletedCampaigns(): Promise<void> {
-    const today = new Date(`${utcDay()}T00:00:00.000Z`);
+    // Keyed on the `depleted` STATUS itself, not on `spendDay` — that column
+    // only updates when a click actually bills today, so a campaign that
+    // depleted because a DIFFERENT business drained the shared wallet (its
+    // own `spendDay` never touched today), or one that crossed into
+    // `depleted` in the last stretch of the UTC day just before this sweep's
+    // next tick rolls `today` over, used to be skipped forever — `spendDay`
+    // simply never matched `today` for either case.
     const campaigns = await this.prisma.campaign.findMany({
       where: {
         status: CampaignStatus.depleted,
-        spendDay: today,
-        NOT: { depletedNotifiedForDay: today },
+        OR: [{ depletedNotifiedForDay: null }, { depletedNotifiedForDay: { lt: utcMidnight() } }],
       },
       include: { company: { select: { id: true, displayName: true, ownerUserId: true } } },
     });
@@ -82,8 +111,20 @@ export class NotificationsSweepService implements OnModuleInit {
         // the safe direction to fail in for a user-visible notification.
         // `updateMany`'s WHERE re-checks the same condition the outer SELECT
         // used, so two overlapping sweeps can't both claim the same campaign.
+        //
+        // IMPORTANT: this used to be `NOT: { depletedNotifiedForDay: today } }`
+        // — under SQL's three-valued logic, `NOT (NULL = x)` is NULL, not
+        // TRUE, so every campaign (the column starts NULL for all of them,
+        // and this method was the only writer) was silently excluded. This
+        // notification had never fired for anyone. The null-inclusive `OR`
+        // form below is the fix — the other two sweeps in this file already
+        // used it correctly, which is how the bug was spotted.
+        const today = utcMidnight();
         const claimed = await this.prisma.campaign.updateMany({
-          where: { id: c.id, NOT: { depletedNotifiedForDay: today } },
+          where: {
+            id: c.id,
+            OR: [{ depletedNotifiedForDay: null }, { depletedNotifiedForDay: { lt: today } }],
+          },
           data: { depletedNotifiedForDay: today },
         });
         if (claimed.count === 0) continue;
@@ -93,7 +134,7 @@ export class NotificationsSweepService implements OnModuleInit {
           type: 'campaign_depleted',
           title: `Bugetul zilnic pentru ${c.company.displayName} s-a epuizat`,
           body: `Anunțul nu mai apare în feed pentru "${c.company.displayName}" până mâine — bugetul zilnic a fost consumat integral.`,
-          channels: { panel: true },
+          channels: { panel: true, email: true },
           data: { companyId: c.company.id },
         });
         notified++;
@@ -107,6 +148,85 @@ export class NotificationsSweepService implements OnModuleInit {
     if (notified > 0) {
       this.logger.log(`Notified ${notified} depleted campaign(s)`);
     }
+  }
+
+  /**
+   * A lead left unanswered is lost revenue, and the arrival email is easy to
+   * miss — this is a once-a-day DIGEST per company (never per-lead, which
+   * would be noisy), only for leads still `new` after a full day.
+   */
+  private async sweepStaleLeads(): Promise<void> {
+    const staleSince = new Date(Date.now() - STALE_LEAD_AFTER_MS);
+    const stale = await this.prisma.lead.findMany({
+      where: {
+        status: LeadStatus.new,
+        createdAt: { lt: staleSince },
+        OR: [{ staleNotifiedAt: null }, { staleNotifiedAt: { lt: utcMidnight() } }],
+      },
+      select: {
+        id: true,
+        companyId: true,
+        company: { select: { displayName: true, ownerUserId: true } },
+      },
+    });
+    if (!stale.length) return;
+
+    const byCompany = new Map<
+      string,
+      { displayName: string; ownerUserId: string; count: number }
+    >();
+    for (const l of stale) {
+      const entry = byCompany.get(l.companyId);
+      if (entry) entry.count++;
+      else {
+        byCompany.set(l.companyId, {
+          displayName: l.company.displayName,
+          ownerUserId: l.company.ownerUserId,
+          count: 1,
+        });
+      }
+    }
+
+    let notified = 0;
+    for (const [companyId, info] of byCompany) {
+      try {
+        // Claim the whole company's batch for today before notifying — same
+        // atomic-claim-then-notify ordering as every other sweep in this file.
+        const today = utcMidnight();
+        const claimed = await this.prisma.lead.updateMany({
+          where: {
+            companyId,
+            status: LeadStatus.new,
+            createdAt: { lt: staleSince },
+            OR: [{ staleNotifiedAt: null }, { staleNotifiedAt: { lt: today } }],
+          },
+          data: { staleNotifiedAt: today },
+        });
+        if (claimed.count === 0) continue;
+
+        await this.notifications.notify({
+          userId: info.ownerUserId,
+          type: 'leads_stale',
+          title:
+            info.count === 1
+              ? `O cerere pentru „${info.displayName}" așteaptă încă un răspuns`
+              : `${info.count} cereri pentru „${info.displayName}" așteaptă încă un răspuns`,
+          body:
+            info.count === 1
+              ? `O cerere de la un client nu are niciun răspuns de peste 48 de ore.`
+              : `${info.count} cereri de la clienți nu au niciun răspuns de peste 48 de ore.`,
+          channels: { panel: true, email: true },
+          data: { companyId },
+        });
+        notified++;
+      } catch (err) {
+        this.logger.error(
+          `Stale-lead notification failed for company ${companyId}`,
+          err instanceof Error ? err.stack : err,
+        );
+      }
+    }
+    if (notified > 0) this.logger.log(`Notified ${notified} company/ies of stale leads`);
   }
 
   private async sweepLowBalances(): Promise<void> {
