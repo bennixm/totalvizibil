@@ -33,6 +33,31 @@ import {
 const ROLES_THAT_CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager];
 const SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
+/** How many stale drafts are taken down concurrently per chunk.
+ *
+ *  `scheduleDeletion` does a multi-statement `$transaction` AND fires an
+ *  unawaited `notify()` (≈3 more queries + an SMTP round-trip) per business.
+ *  Unbounded, a tick with a few hundred stale drafts puts a few hundred of
+ *  those in flight at once against a default Prisma pool of 9-17 connections
+ *  — the transactions and the notifications then starve each other (and every
+ *  real user request sharing that pool) until the pool times out. ~15 keeps
+ *  the fan-out comfortably under the pool size with room left for live
+ *  traffic. */
+const STALE_DRAFT_CHUNK = 15;
+
+/** Rows the scheduled retention purge touches per tick. Bounded so the daily
+ *  job can't turn into one giant delete, which on Postgres means a long-held
+ *  lock set over cascading child tables (leads, clicks, website rows). The
+ *  remainder is picked up by the next tick; a company purged a day late is
+ *  harmless, a 20-minute lock pile-up is not. */
+const PURGE_BATCH = 500;
+
+/** Expired website drafts deleted per tick, same reasoning as `PURGE_BATCH`.
+ *  Higher because these rows have no dependents to cascade through — but they
+ *  are the fattest rows in the schema (full generated theme+content JSON), so
+ *  still bounded rather than "delete everything expired". */
+const DRAFT_PURGE_BATCH = 2_000;
+
 @Injectable()
 export class CompaniesService implements OnModuleInit {
   private readonly logger = new Logger(CompaniesService.name);
@@ -97,6 +122,58 @@ export class CompaniesService implements OnModuleInit {
     setInterval(() => void this.sweepStaleDrafts(), SWEEP_INTERVAL_MS);
     setTimeout(() => void this.sweepDeletionReminders(), 90_000);
     setInterval(() => void this.sweepDeletionReminders(), SWEEP_INTERVAL_MS);
+    // Third sweep on the same daily cadence — the retention work that until
+    // now only ever ran lazily, off a user read. See `sweepRetention`.
+    setTimeout(() => void this.sweepRetention(), 120_000);
+    setInterval(() => void this.sweepRetention(), SWEEP_INTERVAL_MS);
+  }
+
+  /**
+   * Scheduled retention: the two cleanups that had no timer at all.
+   *
+   * 1. `purgeExpiredDeletions` was only ever called from user-read paths
+   *    (`overview`, `dashboard`). A business whose deletion was scheduled —
+   *    especially one scheduled automatically by `sweepStaleDrafts`, where by
+   *    definition NOBODY with membership may ever open the app again — was
+   *    therefore never actually purged, despite the reminder email naming a
+   *    hard deletion date. That is a GDPR/retention promise the platform was
+   *    quietly not keeping, not just a cleanup miss.
+   * 2. Expired `WebsiteDraft` rows were never deleted by anything. They carry
+   *    the full generated theme+content JSON (the fattest rows in the
+   *    schema), `expiresAt` + `DRAFT_TTL_MS` have always existed, and even
+   *    anonymous unauthenticated visitors create them — so the table only
+   *    ever grew. Parked in this sweep rather than in a service of its own:
+   *    it is one `deleteMany` on an already-daily timer, and a whole new
+   *    module for that would be more moving parts, not fewer.
+   *
+   * Each leg gets its own error boundary so one failing can't skip the other.
+   */
+  private async sweepRetention(): Promise<void> {
+    try {
+      const purged = await this.purgeExpiredDeletions();
+      if (purged > 0) this.logger.log(`Purged ${purged} business(es) past their grace window`);
+    } catch (err) {
+      this.logger.error('Deletion-purge sweep failed', err instanceof Error ? err.stack : err);
+    }
+
+    try {
+      // Two steps rather than one `deleteMany` on `expiresAt` alone:
+      // `deleteMany` has no `take`, and an unbounded delete over this table is
+      // exactly the long-lock problem `DRAFT_PURGE_BATCH` exists to avoid.
+      const expired = await this.prisma.websiteDraft.findMany({
+        where: { expiresAt: { lt: new Date() } },
+        select: { id: true },
+        take: DRAFT_PURGE_BATCH,
+      });
+      if (expired.length > 0) {
+        const { count } = await this.prisma.websiteDraft.deleteMany({
+          where: { id: { in: expired.map((d) => d.id) } },
+        });
+        if (count > 0) this.logger.log(`Deleted ${count} expired website draft(s)`);
+      }
+    } catch (err) {
+      this.logger.error('Expired-draft sweep failed', err instanceof Error ? err.stack : err);
+    }
   }
 
   /**
@@ -119,11 +196,42 @@ export class CompaniesService implements OnModuleInit {
         },
         select: { id: true },
       });
-      for (const { id } of stale) {
-        await this.scheduleDeletion(id);
+      // Chunked, with a per-item error boundary inside each chunk.
+      //
+      // Two separate problems being fixed here, both of which only show up at
+      // volume. (1) This loop had a single try/catch around the WHOLE method,
+      // so one row throwing — a company deleted between the SELECT and the
+      // transaction, say — aborted every remaining stale draft in the batch
+      // silently, exactly the per-item isolation `sweepDeletionReminders`
+      // below already had. (2) `scheduleDeletion` fires an unawaited
+      // `notify()` (deliberately — see its comment), so an unbounded loop put
+      // one `$transaction` + one notify()+SMTP per stale draft in flight all
+      // at once; a few hundred of those saturate the default Prisma pool and
+      // then fight each other and live user traffic for connections.
+      //
+      // Chunking gives both: bounded concurrency, and one row's failure
+      // confined to that row. `allSettled`, not `all` — a rejection must not
+      // abandon the rest of its own chunk either.
+      let scheduled = 0;
+      for (let i = 0; i < stale.length; i += STALE_DRAFT_CHUNK) {
+        const chunk = stale.slice(i, i + STALE_DRAFT_CHUNK);
+        const results = await Promise.allSettled(
+          chunk.map(async ({ id }) => {
+            try {
+              await this.scheduleDeletion(id);
+            } catch (err) {
+              this.logger.error(
+                `Stale-draft takedown failed for company ${id}`,
+                err instanceof Error ? err.stack : err,
+              );
+              throw err;
+            }
+          }),
+        );
+        scheduled += results.filter((r) => r.status === 'fulfilled').length;
       }
-      if (stale.length > 0) {
-        this.logger.log(`Scheduled ${stale.length} stale draft business(es) for deletion`);
+      if (scheduled > 0) {
+        this.logger.log(`Scheduled ${scheduled} stale draft business(es) for deletion`);
       }
     } catch (err) {
       this.logger.error('Stale-draft sweep failed', err instanceof Error ? err.stack : err);
@@ -160,7 +268,12 @@ export class CompaniesService implements OnModuleInit {
           if (claimed.count === 0) continue;
 
           const effectiveAt = new Date(c.deletionScheduledAt!.getTime() + COMPANY_DELETE_GRACE_MS);
-          const effectiveDate = effectiveAt.toLocaleDateString('ro-RO');
+          // Explicit timezone — see `scheduleDeletion`. Every customer here is
+          // Romanian; the server's own zone is an implementation detail and
+          // must never decide which calendar day this email names.
+          const effectiveDate = effectiveAt.toLocaleDateString('ro-RO', {
+            timeZone: 'Europe/Bucharest',
+          });
           const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
           await this.notifications.notify({
             userId: c.ownerUserId,
@@ -806,6 +919,9 @@ export class CompaniesService implements OnModuleInit {
       where: { id: companyId },
       select: { deletionScheduledAt: true, displayName: true, ownerUserId: true },
     });
+    // Cheap pre-check only — the real gate is the conditional claim below.
+    // This read just avoids setting up the transaction for the common
+    // already-scheduled case.
     if (company.deletionScheduledAt) return;
 
     const campaign = await this.prisma.campaign.findUnique({
@@ -815,16 +931,28 @@ export class CompaniesService implements OnModuleInit {
     const autoWasOn = !!campaign?.autoOptimize;
 
     const now = new Date();
+    // Claim the schedule with an atomic conditional UPDATE — `updateMany`
+    // with `deletionScheduledAt: null` in the WHERE — instead of trusting the
+    // read-then-write above. The read and the write were separate statements,
+    // so two concurrent callers could both see `null` and both proceed: both
+    // would stamp a deadline and, worse, both would send the owner the
+    // "scheduled for deletion" email. That isn't an exotic race — it's the
+    // NORMAL case the moment this runs on more than one app instance, since
+    // every instance fires its own `sweepStaleDrafts` timer over the same
+    // rows. `count === 0` means somebody else got there first; the rest of
+    // the takedown and the email are theirs to do, not ours.
+    const claimed = await this.prisma.company.updateMany({
+      where: { id: companyId, deletionScheduledAt: null },
+      data: {
+        deletionScheduledAt: now,
+        deletionReminderSentAt: null,
+        status: 'draft',
+        featured: false,
+      },
+    });
+    if (claimed.count === 0) return;
+
     await this.prisma.$transaction([
-      this.prisma.company.update({
-        where: { id: companyId },
-        data: {
-          deletionScheduledAt: now,
-          deletionReminderSentAt: null,
-          status: 'draft',
-          featured: false,
-        },
-      }),
       this.prisma.website.updateMany({
         where: { companyId },
         data: { status: 'unpublished' },
@@ -858,7 +986,12 @@ export class CompaniesService implements OnModuleInit {
         type: 'business_deletion_scheduled',
         title: `Afacerea „${company.displayName}" a fost programată pentru ștergere`,
         body:
-          `Anunțul a fost dat jos acum. Datele sunt șterse definitiv pe ${effectiveAt.toLocaleDateString('ro-RO')} — poți anula oricând până atunci.` +
+          // Explicit timezone: without it this formats against the SERVER
+          // PROCESS's local zone (UTC on the host), so a deadline that falls
+          // just after Romanian midnight is shown to a Romanian customer as
+          // the previous day. The cutoff itself is UTC-derived, only its
+          // presentation is local — see also `sweepDeletionReminders`.
+          `Anunțul a fost dat jos acum. Datele sunt șterse definitiv pe ${effectiveAt.toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest' })} — poți anula oricând până atunci.` +
           (autoWasOn
             ? ' Modul AUTO al campaniei a fost dezactivat și nu se reactivează singur dacă anulezi ștergerea.'
             : ''),
@@ -911,11 +1044,19 @@ export class CompaniesService implements OnModuleInit {
   }
 
   /**
-   * Wipe any of the given businesses whose grace window has elapsed. There is no
-   * cron — this rides along with the reads that list a user's businesses.
+   * Wipe businesses whose grace window has elapsed.
+   *
+   * Two modes. With `companyIds`, it's the original opportunistic purge that
+   * rides along with the reads listing a user's own businesses. With no
+   * argument, it's the platform-wide pass driven by `sweepRetention`'s daily
+   * timer — which is what makes the hard deletion date in the reminder email
+   * actually true for a business nobody ever comes back to (see
+   * `sweepRetention`). The global pass is bounded by `PURGE_BATCH` per tick.
+   *
+   * Returns how many businesses were purged.
    */
-  private async purgeExpiredDeletions(companyIds: string[]): Promise<void> {
-    if (companyIds.length === 0) return;
+  private async purgeExpiredDeletions(companyIds?: string[]): Promise<number> {
+    if (companyIds && companyIds.length === 0) return 0;
     const cutoff = new Date(Date.now() - COMPANY_DELETE_GRACE_MS);
     // Captured before the wipe — the pre-deletion reminder already warned
     // the owner this was coming, but the irreversible wipe itself notified
@@ -923,28 +1064,54 @@ export class CompaniesService implements OnModuleInit {
     // confirmation a data-deletion request is expected to produce. Must be
     // read now: there's no row left to look this up from afterward.
     const expired = await this.prisma.company.findMany({
-      where: { id: { in: companyIds }, deletionScheduledAt: { lte: cutoff } },
+      where: {
+        deletionScheduledAt: { lte: cutoff },
+        ...(companyIds ? { id: { in: companyIds } } : {}),
+      },
       select: { id: true, displayName: true, ownerUserId: true },
+      // Only the global pass needs a bound — the per-user form is already
+      // narrowed to one user's handful of memberships.
+      ...(companyIds ? {} : { take: PURGE_BATCH }),
     });
-    if (expired.length === 0) return;
+    if (expired.length === 0) return 0;
     await this.prisma.company.deleteMany({
       where: { id: { in: expired.map((c) => c.id) } },
     });
-    for (const c of expired) {
-      void this.notifications
-        .notify({
-          userId: c.ownerUserId,
-          type: 'business_deleted',
-          title: `Afacerea „${c.displayName}" a fost ștearsă definitiv`,
-          body: `Datele afacerii „${c.displayName}" au fost șterse definitiv, conform programării. Acțiunea este ireversibilă.`,
-          channels: { email: true },
-        })
-        .catch((err) =>
-          this.logger.error(
-            `Business-deleted notification failed for company ${c.id}`,
-            err instanceof Error ? err.stack : err,
-          ),
-        );
+
+    // Unawaited as before — this also runs from user-facing reads
+    // (`overview`/`dashboard`), where the wipe is already committed and an
+    // SMTP round-trip must never be in the critical path of a page load.
+    void this.notifyBusinessesDeleted(expired);
+    return expired.length;
+  }
+
+  /** The "it's actually gone" emails for a completed purge, chunked for the
+   *  same reason `sweepStaleDrafts` chunks: the scheduled global pass can
+   *  bring up to `PURGE_BATCH` of these at once, and unbounded that would be
+   *  hundreds of simultaneous notify()+SMTP pairs on the shared Prisma pool.
+   *  Called fire-and-forget; never throws. */
+  private async notifyBusinessesDeleted(
+    expired: { id: string; displayName: string; ownerUserId: string }[],
+  ): Promise<void> {
+    for (let i = 0; i < expired.length; i += STALE_DRAFT_CHUNK) {
+      await Promise.allSettled(
+        expired.slice(i, i + STALE_DRAFT_CHUNK).map((c) =>
+          this.notifications
+            .notify({
+              userId: c.ownerUserId,
+              type: 'business_deleted',
+              title: `Afacerea „${c.displayName}" a fost ștearsă definitiv`,
+              body: `Datele afacerii „${c.displayName}" au fost șterse definitiv, conform programării. Acțiunea este ireversibilă.`,
+              channels: { email: true },
+            })
+            .catch((err) =>
+              this.logger.error(
+                `Business-deleted notification failed for company ${c.id}`,
+                err instanceof Error ? err.stack : err,
+              ),
+            ),
+        ),
+      );
     }
   }
 

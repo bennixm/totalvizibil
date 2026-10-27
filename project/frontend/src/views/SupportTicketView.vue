@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationsStore } from '@/stores/notifications'
 import {
   useSupportStore,
   TICKET_CATEGORIES,
@@ -17,19 +18,50 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const auth = useAuthStore()
 const support = useSupportStore()
+const notifications = useNotificationsStore()
 const { ticket, staff, loading, working, error } = storeToRefs(support)
 
 const id = computed(() => String(route.params.id))
 const draft = ref('')
 const internal = ref(false)
 
+/** Backend error codes this page knows how to phrase for a human. Anything
+ *  outside this set falls through as-is (a server message, not a code) —
+ *  same convention as SupportNewView. */
+const KNOWN_ERRORS = new Set([
+  'ticket_closed',
+  'invalid_attachments',
+  'assignee_not_staff',
+  'invalid_assignee',
+  'too_many_attachments',
+  'attachment_too_large',
+  'unsupported_attachment_type',
+  'staff_only',
+  'already_claimed',
+  'not_a_member',
+])
+function errorText(code: string): string {
+  return KNOWN_ERRORS.has(code) ? t('support.err.' + code) : code
+}
+const errText = computed(() => (error.value ? errorText(error.value) : ''))
+
 // --- attachments (composer) --------------------------------------------
 const MAX_FILES = 5
 const MAX_FILE_BYTES = 6_000_000
 const pendingFiles = ref<File[]>([])
+/** Attachments that already made it to the server but whose message hasn't
+ *  been posted yet (a failure later in the batch, or a failed `reply`). Kept
+ *  across retries so the next attempt references them instead of uploading
+ *  the same files again — re-uploading was both duplicating attachments and
+ *  burning through the per-ticket cap. */
+const uploadedIds = ref<string[]>([])
 const uploadingAttachments = ref(false)
 const attachError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
+
+/** Everything that would ride along on the next message — files still to
+ *  upload plus the ones already stored. */
+const attachCount = computed(() => pendingFiles.value.length + uploadedIds.value.length)
 
 function onAttachClick(): void {
   fileInput.value?.click()
@@ -38,7 +70,7 @@ function onFilesPicked(e: Event): void {
   const input = e.target as HTMLInputElement
   attachError.value = ''
   for (const file of Array.from(input.files ?? [])) {
-    if (pendingFiles.value.length >= MAX_FILES) {
+    if (attachCount.value >= MAX_FILES) {
       attachError.value = t('support.attachTooMany', { n: MAX_FILES })
       break
     }
@@ -117,21 +149,35 @@ function systemText(m: TicketMessage): string {
 
 async function send(): Promise<void> {
   const text = draft.value.trim()
-  if ((!text && !pendingFiles.value.length) || working.value || uploadingAttachments.value) return
+  if ((!text && !attachCount.value) || working.value || uploadingAttachments.value) return
 
-  const attachmentIds: string[] = []
   if (pendingFiles.value.length) {
     uploadingAttachments.value = true
     attachError.value = ''
     try {
-      for (const file of pendingFiles.value) {
-        const dataUri = await readFileAsDataUri(file)
-        const att = await support.uploadAttachment(id.value, dataUri, file.name)
-        if (!att) {
-          attachError.value = support.error || t('support.attachFailed')
+      // Iterate a snapshot and drop each file from `pendingFiles` the moment
+      // its upload lands, so a failure partway through leaves exactly the
+      // files that still need sending. Previously the whole batch stayed
+      // queued and a retry re-uploaded the successful ones as duplicates.
+      for (const file of [...pendingFiles.value]) {
+        let attachmentId: string
+        try {
+          const dataUri = await readFileAsDataUri(file)
+          const att = await support.uploadAttachment(id.value, dataUri, file.name)
+          if (!att) {
+            attachError.value = support.error
+              ? errorText(support.error)
+              : t('support.attachFailed')
+            return
+          }
+          attachmentId = att.id
+        } catch {
+          attachError.value = t('support.attachFailed')
           return
         }
-        attachmentIds.push(att.id)
+        const at = pendingFiles.value.indexOf(file)
+        if (at !== -1) pendingFiles.value.splice(at, 1)
+        uploadedIds.value.push(attachmentId)
       }
     } finally {
       uploadingAttachments.value = false
@@ -142,12 +188,14 @@ async function send(): Promise<void> {
     id.value,
     text || t('support.attachOnlyBody'),
     internal.value && isStaff.value,
-    attachmentIds,
+    uploadedIds.value,
   )
   if (ok) {
     draft.value = ''
     internal.value = false
     pendingFiles.value = []
+    uploadedIds.value = []
+    attachError.value = ''
   }
 }
 
@@ -175,10 +223,50 @@ function reopenTicket(): void {
   void support.patch(id.value, { status: 'open' })
 }
 
-watch(id, (v) => v && support.loadTicket(v))
+watch(id, (v) => {
+  // A different ticket: anything staged for the previous one must not ride
+  // along on this one's next reply.
+  pendingFiles.value = []
+  uploadedIds.value = []
+  attachError.value = ''
+  if (v) void support.loadTicket(v)
+})
+
+/**
+ * Live-refresh this thread when a support notification for it arrives.
+ * `watch(id)` alone never fires when the toast's "Open ticket" action points
+ * at the ticket already on screen (same route), so a staff reply stayed
+ * invisible until a manual refresh. The notifications store prepends every
+ * push to `items`, so watching the newest row's id catches them all.
+ */
+const SUPPORT_NOTIFICATION_TYPES = new Set([
+  'ticket_created',
+  'ticket_reply',
+  'ticket_assigned',
+  'support_ticket_update',
+  // Types the backend is adding; harmless to listen for before they exist.
+  'ticket_reopened',
+  'ticket_assigned_requester',
+  'ticket_unassigned',
+  'ticket_closed_by_user',
+])
+watch(
+  () => notifications.items[0]?.id ?? null,
+  (newestId) => {
+    if (!newestId) return
+    const latest = notifications.items[0]
+    if (!latest || !SUPPORT_NOTIFICATION_TYPES.has(latest.type)) return
+    const ticketId = latest.data?.ticketId
+    if (typeof ticketId !== 'string' || ticketId !== id.value) return
+    void support.loadTicket(id.value)
+  },
+)
+
 onMounted(() => {
   void support.loadTicket(id.value)
-  void support.loadStaff()
+  // Staff-only endpoint — asking as a plain customer just 403s into a bare
+  // catch, so don't ask at all.
+  if (auth.isSupportStaff) void support.loadStaff()
 })
 </script>
 
@@ -315,6 +403,12 @@ onMounted(() => {
             <p v-if="attachError" class="composer__attachErr">
               <v-icon icon="mdi-alert-circle-outline" size="13" /> {{ attachError }}
             </p>
+            <!-- Files that already landed server-side after a partial failure:
+                 say so, so "only one chip left" doesn't read as data loss. -->
+            <p v-if="uploadedIds.length && pendingFiles.length" class="composer__attachKept">
+              <v-icon icon="mdi-cloud-check-outline" size="13" />
+              {{ t('support.attachKept', { n: uploadedIds.length }) }}
+            </p>
             <div class="composer__row">
               <input
                 ref="fileInput"
@@ -327,7 +421,7 @@ onMounted(() => {
               <button
                 type="button"
                 class="composer__attachBtn"
-                :disabled="pendingFiles.length >= MAX_FILES"
+                :disabled="attachCount >= MAX_FILES"
                 :title="t('support.attachFile')"
                 @click="onAttachClick"
               >
@@ -343,7 +437,7 @@ onMounted(() => {
                 variant="flat"
                 class="composer__send"
                 :loading="working || uploadingAttachments"
-                :disabled="!draft.trim() && !pendingFiles.length"
+                :disabled="!draft.trim() && !attachCount"
                 append-icon="mdi-send"
                 @click="send"
               >
@@ -365,8 +459,8 @@ onMounted(() => {
             </v-btn>
           </div>
 
-          <p v-if="error" class="tv__err">
-            <v-icon icon="mdi-alert-circle-outline" size="15" /> {{ error }}
+          <p v-if="errText" class="tv__err">
+            <v-icon icon="mdi-alert-circle-outline" size="15" /> {{ errText }}
           </p>
         </div>
 
@@ -791,6 +885,14 @@ onMounted(() => {
   margin: 0.5rem 0 0;
   font-size: 0.78rem;
   color: rgb(var(--v-theme-error));
+}
+.composer__attachKept {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.76rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .composer__fileInput {
   display: none;

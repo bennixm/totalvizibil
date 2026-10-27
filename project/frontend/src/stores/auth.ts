@@ -34,6 +34,17 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (state): boolean => state.user !== null,
     isPlatformStaff: (state): boolean => (state.user?.platformRoles.length ?? 0) > 0,
+    /**
+     * Only the roles that may actually work the support queue — mirrors the
+     * backend's `SUPPORT_STAFF_ROLES` (support.constants.ts). Distinct from
+     * `isPlatformStaff`, which is true for ANY platform role: gating the
+     * support UI on that one handed `finance`/`moderator` accounts a broken
+     * queue view (no "New ticket" button, 403s on the staff endpoints).
+     */
+    isSupportStaff: (state): boolean => {
+      const roles = state.user?.platformRoles ?? []
+      return roles.includes('admin') || roles.includes('support')
+    },
   },
 
   actions: {

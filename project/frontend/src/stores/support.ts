@@ -113,41 +113,97 @@ export interface TicketFilters {
 
 interface State {
   list: TicketListItem[]
+  /** Cursor for the next page of `list`, or null when it's the last one. */
+  nextCursor: string | null
   ticket: TicketDetail | null
   overview: SupportOverview | null
   staff: UserMini[]
   loading: boolean
+  /** Separate from `loading` so a "load more" spinner never makes the already
+   *  rendered list fall back to the full-page loader. */
+  loadingMore: boolean
+  /** Set only when a "load more" failed — the existing rows stay put, the UI
+   *  just says the next page didn't arrive. */
+  moreError: boolean
   working: boolean
   error: string
+}
+
+/** Bumped on every fresh `loadList` — a response (first page or an appended
+ *  one) is only applied while it's still the most recent request, so a slow
+ *  page can't land on top of a newer filter set. */
+let listToken = 0
+/** The filter set the current `list` was built from, replayed by `loadMore`
+ *  so the next page is drawn from the same query. */
+let listFilters: TicketFilters = {}
+
+function ticketsPath(filters: TicketFilters, cursor?: string | null): string {
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, String(v))
+  if (cursor) qs.set('cursor', cursor)
+  const q = qs.toString()
+  return `/support/tickets${q ? `?${q}` : ''}`
+}
+
+/** `nextCursor` is optional on the wire so an older backend (which only ever
+ *  returned `items`) still works — it just never offers a next page. */
+interface TicketPage {
+  items: TicketListItem[]
+  nextCursor?: string | null
 }
 
 export const useSupportStore = defineStore('support', {
   state: (): State => ({
     list: [],
+    nextCursor: null,
     ticket: null,
     overview: null,
     staff: [],
     loading: false,
+    loadingMore: false,
+    moreError: false,
     working: false,
     error: '',
   }),
 
   actions: {
     async loadList(filters: TicketFilters = {}): Promise<void> {
+      listFilters = { ...filters }
+      const token = ++listToken
       this.loading = true
+      this.moreError = false
       this.error = ''
       try {
-        const qs = new URLSearchParams()
-        for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, String(v))
-        const q = qs.toString()
-        const res = await apiFetch<{ items: TicketListItem[] }>(
-          `/support/tickets${q ? `?${q}` : ''}`,
-        )
+        const res = await apiFetch<TicketPage>(ticketsPath(filters))
+        if (token !== listToken) return // a newer loadList() already won
         this.list = res.items
+        this.nextCursor = res.nextCursor ?? null
       } catch (err) {
+        if (token !== listToken) return
         this.error = err instanceof Error ? err.message : 'error'
       } finally {
-        this.loading = false
+        if (token === listToken) this.loading = false
+      }
+    },
+
+    /** Appends the next page. Never touches `list`/`error` on failure — a
+     *  failed "load more" must leave what's already on screen alone. */
+    async loadMore(): Promise<void> {
+      if (this.loadingMore || !this.nextCursor) return
+      const token = listToken
+      const cursor = this.nextCursor
+      this.loadingMore = true
+      this.moreError = false
+      try {
+        const res = await apiFetch<TicketPage>(ticketsPath(listFilters, cursor))
+        if (token !== listToken) return // filters changed while this was in flight
+        this.list = [...this.list, ...res.items]
+        this.nextCursor = res.nextCursor ?? null
+      } catch {
+        if (token !== listToken) return
+        this.moreError = true
+      } finally {
+        if (token === listToken) this.loadingMore = false
       }
     },
 
@@ -227,6 +283,10 @@ export const useSupportStore = defineStore('support', {
         return await apiFetch<TicketAttachment>(`/support/tickets/${ticketId}/attachments`, {
           method: 'POST',
           body: { dataUri, filename },
+          // A base64 data URI of a multi-MB screenshot regularly outruns the
+          // 12s default — the request was being aborted client-side while the
+          // server was still happily storing it.
+          timeoutMs: 30_000,
         })
       } catch (err) {
         this.error = err instanceof ApiError ? err.message : 'error'

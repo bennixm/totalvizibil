@@ -21,6 +21,10 @@ import {
   primaryFeedOf,
 } from './feed-resolver';
 
+/** Rolling window for the lead-response aggregation that feeds the Visibility
+ *  Score — see `responseAggFor`. */
+const RESPONSE_AGG_WINDOW_DAYS = 90;
+
 export interface FeedRank {
   /** 1-based slot in the company's category group. */
   position: number;
@@ -113,16 +117,35 @@ export class AnalyticsService {
 
   // --- shared: lead response aggregation -----------------------------
 
+  /**
+   * Windowed to the last `RESPONSE_AGG_WINDOW_DAYS` days.
+   *
+   * This runs once per company per ranking pass, and the feed-position
+   * notification sweep calls it transitively for every PEER of every campaign
+   * it examines — so the old unwindowed, un-`take`n form materialized every
+   * lead a peer company had ever had a response to, forever, on a schedule.
+   * A rolling window keeps the cost flat as the leads table grows.
+   *
+   * It also makes the score itself better: "how responsive is this business"
+   * is a question about the recent past, not about a reply someone sent two
+   * years ago. Both halves use the same window so the responded/total ratio
+   * stays internally consistent.
+   */
   private async responseAggFor(companyIds: string[]): Promise<Map<string, ResponseAgg>> {
     if (!companyIds.length) return new Map();
+    const since = new Date(Date.now() - RESPONSE_AGG_WINDOW_DAYS * 24 * 60 * 60 * 1000);
     const [totals, responded] = await Promise.all([
       this.prisma.lead.groupBy({
         by: ['companyId'],
-        where: { companyId: { in: companyIds } },
+        where: { companyId: { in: companyIds }, createdAt: { gte: since } },
         _count: { _all: true },
       }),
       this.prisma.lead.findMany({
-        where: { companyId: { in: companyIds }, firstResponseAt: { not: null } },
+        where: {
+          companyId: { in: companyIds },
+          firstResponseAt: { not: null },
+          createdAt: { gte: since },
+        },
         select: { companyId: true, createdAt: true, firstResponseAt: true },
       }),
     ]);

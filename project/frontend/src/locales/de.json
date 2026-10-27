@@ -2142,8 +2142,11 @@
     "colPriority": "Priorität",
     "colCategory": "Kategorie",
     "colAssignee": "Zuständig",
+    "colLastActivity": "Letzte Aktivität",
     "emptyTitle": "Keine Tickets",
     "emptyHint": "Wenn du ein Ticket öffnest, erscheint es hier.",
+    "loadMore": "Mehr laden",
+    "loadMoreError": "Die weiteren Tickets konnten nicht geladen werden. Versuche es erneut.",
     "fieldSubject": "Betreff",
     "fieldCategory": "Kategorie",
     "fieldPriority": "Priorität",
@@ -2165,6 +2168,7 @@
     "attachTooMany": "Du kannst höchstens {n} Dateien pro Nachricht anhängen.",
     "attachTooLarge": "Die Datei ist größer als {n} MB.",
     "attachFailed": "Datei konnte nicht hochgeladen werden. Prüfe Typ und Größe.",
+    "attachKept": "{n} Datei(en) sind bereits hochgeladen · nur der Rest wird erneut gesendet.",
     "attachOnlyBody": "Datei angehängt.",
     "closedNote": "Dieses Ticket ist geschlossen.",
     "reopen": "Wieder öffnen",
@@ -2213,7 +2217,16 @@
       "unassigned": "Zuweisung entfernt"
     },
     "err": {
-      "not_a_member": "Du bist kein Mitglied dieses Unternehmens."
+      "not_a_member": "Du bist kein Mitglied dieses Unternehmens.",
+      "ticket_closed": "Dieses Ticket ist geschlossen. Öffne es wieder, um weiter zu schreiben.",
+      "staff_only": "Das kann nur das Support-Team.",
+      "already_claimed": "Jemand anderes hat dieses Ticket schon übernommen. Lade neu, um zu sehen, wer.",
+      "assignee_not_staff": "Diese Person gehört nicht zum Support-Team.",
+      "invalid_assignee": "Diese Person gehört nicht zum Support-Team.",
+      "invalid_attachments": "Eine der angehängten Dateien ist nicht mehr gültig. Hänge sie erneut an.",
+      "too_many_attachments": "Zu viele Dateien in einer Nachricht. Verteile sie auf mehrere Nachrichten.",
+      "attachment_too_large": "Diese Datei ist zu groß. Versuche eine kleinere Version.",
+      "unsupported_attachment_type": "Wir akzeptieren nur PDFs und Bilder (PNG, JPG, WEBP, GIF)."
     },
     "investigate": "Untersuchen",
     "openUserAdmin": "Nutzer im Admin öffnen",

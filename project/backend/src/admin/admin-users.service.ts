@@ -18,6 +18,7 @@ import { ctaButton, detailsTable, renderEmailLayout, textToHtml } from '../mail/
 import { AppConfig } from '../config/env';
 import { money } from '../wallet/money';
 import { effectiveActiveSeconds } from '../analytics/visibility';
+import { SUPPORT_STAFF_ROLES } from '../support/support.constants';
 import { ListUsersQuery } from './dto/list-users.query';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AdjustWalletDto } from './dto/adjust-wallet.dto';
@@ -275,6 +276,22 @@ export class AdminUsersService {
     }
 
     await this.prisma.$transaction(ops);
+
+    // A user who no longer works the support queue must not keep holding
+    // tickets: assigned tickets stopped showing as "unassigned" in the queue
+    // while their assignee could no longer open them, so they were invisible
+    // to everyone. Only fires when NO support-staff role is left (dropping
+    // `admin` from someone who still has `support` changes nothing).
+    if (dto.platformRoles) {
+      const had = target.platformRoles.some((r) => SUPPORT_STAFF_ROLES.includes(r.role));
+      const has = dto.platformRoles.some((r) => SUPPORT_STAFF_ROLES.includes(r));
+      if (had && !has) {
+        await this.prisma.supportTicket.updateMany({
+          where: { assigneeId: id },
+          data: { assigneeId: null },
+        });
+      }
+    }
 
     // Mirrors the self-service email-change flow (account.service.ts): both
     // addresses get told, so if this was unexpected, the rightful owner's

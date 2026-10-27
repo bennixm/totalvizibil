@@ -646,6 +646,11 @@ model WebsiteDraft {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([status])
+  // Backs the daily expired-draft purge (CompaniesService.sweepRetention).
+  // These are the fattest rows in the schema (full generated theme+content
+  // JSON) and anonymous visitors create them, so the purge has to be an
+  // index scan, not a seq scan over every draft ever generated.
+  @@index([expiresAt])
   @@map("website_drafts")
 }
 
@@ -705,6 +710,13 @@ model CompanyLocation {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
+  // Backs the Feed's peer-matching query (feed-resolver.ts:
+  // `locations: { some: { OR: [{ county }, { nationwide: true }] } }`), which
+  // runs for every atomic Feed on every ranking/pricing read and on the
+  // feed-position notification sweep. Without these two, that `some` subquery
+  // seq-scans the whole location table per Feed.
+  @@index([county])
+  @@index([nationwide])
   @@map("company_locations")
 }
 
@@ -1129,6 +1141,16 @@ model Lead {
   @@unique([companyId, visitorHash])
   @@index([companyId, status, createdAt])
   @@index([companyId, channel])
+  // Every other index on this table LEADS with `companyId`, so none of them
+  // was usable by the cross-company stale-lead sweep
+  // (NotificationsSweepService.sweepStaleLeads filters on `status` +
+  // `createdAt` only) — it seq-scanned the highest-growth table in the
+  // schema once an hour. Kept deliberately NON-partial (no
+  // `WHERE status = 'new'`): Prisma's DSL can't express a partial index, and
+  // hand-editing the generated SQL to add the predicate would leave the
+  // migration permanently drifted from the schema. The non-partial form is
+  // slightly larger on disk but index-only-scannable for this filter.
+  @@index([status, createdAt])
   @@map("leads")
 }
 
@@ -1293,6 +1315,13 @@ model SupportTicket {
   resolvedAt      DateTime? @map("resolved_at")
   closedAt        DateTime? @map("closed_at")
   lastActivityAt  DateTime  @default(now()) @map("last_activity_at")
+
+  // UTC-midnight-of-the-day the stale/unanswered-ticket escalation last fired
+  // for this ticket (NotificationsSweepService.sweepStaleTickets) — exactly
+  // the same "claim before notify" cooldown column as `Lead.staleNotifiedAt`,
+  // so a ticket nobody has answered gets nudged about once a day rather than
+  // once an hour.
+  staleNotifiedAt DateTime? @map("stale_notified_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

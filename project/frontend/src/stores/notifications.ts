@@ -57,7 +57,18 @@ const WALLET_TYPES = new Set([
   'wallet_unblocked',
   'wallet_adjusted',
 ])
-const TICKET_TYPES = new Set(['ticket_created', 'ticket_reply', 'ticket_assigned', 'support_ticket_update'])
+const TICKET_TYPES = new Set([
+  'ticket_created',
+  'ticket_reply',
+  'ticket_assigned',
+  'support_ticket_update',
+  'ticket_reopened',
+  'ticket_assigned_requester',
+  'ticket_unassigned',
+  'ticket_closed_by_user',
+  'ticket_stale_assignee',
+  'ticket_unanswered_escalation',
+])
 
 /** Where clicking a notification should take the user — `null` when there's
  *  nowhere to go (a broadcast, or an email-only type that never really
@@ -146,6 +157,12 @@ const VISUALS: Record<string, NotificationVisual> = {
   ticket_reply: { icon: 'mdi-message-reply-text-outline', tone: 'primary' },
   ticket_assigned: { icon: 'mdi-account-arrow-right-outline', tone: 'primary' },
   support_ticket_update: { icon: 'mdi-lifebuoy', tone: 'primary' },
+  ticket_reopened: { icon: 'mdi-lock-open-alert-outline', tone: 'warning' },
+  ticket_assigned_requester: { icon: 'mdi-account-check-outline', tone: 'primary' },
+  ticket_unassigned: { icon: 'mdi-account-remove-outline', tone: 'primary' },
+  ticket_closed_by_user: { icon: 'mdi-check-circle-outline', tone: 'success' },
+  ticket_stale_assignee: { icon: 'mdi-clock-alert-outline', tone: 'warning' },
+  ticket_unanswered_escalation: { icon: 'mdi-alert-octagon-outline', tone: 'error' },
   pro_build_failed: { icon: 'mdi-alert-circle-outline', tone: 'error' },
   leads_stale: { icon: 'mdi-clock-alert-outline', tone: 'warning' },
   campaign_activated_by_admin: { icon: 'mdi-bullhorn-outline', tone: 'success' },

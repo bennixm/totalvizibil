@@ -1,9 +1,25 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupportService } from 'src/support/support.service';
+
+/** Real uuids — `assigneeId` is shape-checked before it can reach Postgres,
+ *  so the fixtures have to look like the ids the API actually accepts. */
+const STAFF_A = '11111111-1111-4111-8111-111111111111';
+const STAFF_B = '22222222-2222-4222-8222-222222222222';
+const SOME_UUID = '33333333-3333-4333-8333-333333333333';
 
 function fakeNotifications() {
   return { notify: jest.fn().mockResolvedValue(undefined) };
 }
+
+/** Notifications are deliberately fire-and-forget (a mail hiccup must never
+ *  roll back a committed ticket write), so assertions have to let the
+ *  dispatch microtasks drain first. */
+const settle = () => new Promise((r) => setTimeout(r, 10));
 
 function fakeConfig(overrides: Record<string, any> = {}) {
   const defaults: Record<string, any> = { frontendOrigin: 'http://localhost:5173' };
@@ -102,6 +118,18 @@ function fakePrisma() {
         if (t) Object.assign(t, data);
         return makeTicketDetail(t ?? {});
       }),
+      // Conditional-claim semantics: the write only lands when the row still
+      // matches every field in `where` — that's the whole point of the
+      // atomic assignment claim, so the fake has to honour it.
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const t = tickets.get(where.id);
+        if (!t) return { count: 0 };
+        if ('assigneeId' in where && (t.assigneeId ?? null) !== (where.assigneeId ?? null)) {
+          return { count: 0 };
+        }
+        Object.assign(t, data);
+        return { count: 1 };
+      }),
       count: jest.fn(async () => 0),
     },
     supportMessage: {
@@ -120,13 +148,25 @@ function fakePrisma() {
       ),
     },
     platformRoleAssignment: {
-      findMany: jest.fn(async () => staffRoles),
+      // Honours `where.role` both as a single value (the support-vs-admin
+      // queue scoping) and as `{ in: [...] }` (the is-this-person-staff
+      // check), otherwise the two can't be told apart in a test.
+      findMany: jest.fn(async ({ where }: any = {}) => {
+        const role = where?.role;
+        let rows = staffRoles;
+        if (typeof role === 'string') rows = rows.filter((r) => r.role === role);
+        else if (role?.in) rows = rows.filter((r) => role.in.includes(r.role));
+        return rows.map((r) => ({ userId: r.userId, user: { name: r.name } }));
+      }),
       findFirst: jest.fn(
         async ({ where }: any) => staffRoles.find((r) => r.userId === where.userId) ?? null,
       ),
     },
     user: {
-      findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, name: 'Staff' })),
+      findUnique: jest.fn(async ({ where }: any) => ({
+        id: where.id,
+        name: staffRoles.find((r) => r.userId === where.id)?.name ?? 'Staff',
+      })),
     },
     supportAttachment: {
       count: jest.fn(
@@ -144,7 +184,13 @@ function fakePrisma() {
         attachments.set(a.id, a);
         return { id: a.id, filename: a.filename, mime: a.mime, size: a.size };
       }),
-      findUnique: jest.fn(async ({ where }: any) => attachments.get(where.id) ?? null),
+      findUnique: jest.fn(async ({ where }: any) => {
+        const a = attachments.get(where.id);
+        if (!a) return null;
+        // The parent message's kind decides whether a requester may read the
+        // bytes, so the relation has to come back with the row.
+        return { ...a, message: a.messageId ? { kind: a.messageKind ?? 'reply' } : null };
+      }),
       updateMany: jest.fn(async ({ where, data }: any) => {
         const ids: string[] = where.id?.in ?? [];
         let count = 0;
@@ -177,8 +223,8 @@ function fakePrisma() {
     __seedMember: (companyId: string, userId: string) => {
       members.set(`${companyId}:${userId}`, { companyId, userId, status: 'active' });
     },
-    __seedStaff: (userId: string, role = 'support') => {
-      staffRoles.push({ userId, role });
+    __seedStaff: (userId: string, role = 'support', name = 'Staff') => {
+      staffRoles.push({ userId, role, name });
     },
     __seedAttachment: (data: Record<string, any>) => {
       attachmentSeq += 1;
@@ -323,6 +369,38 @@ describe('SupportService', () => {
       expect(updateArg.data.resolvedAt).toBeNull();
     });
 
+    it('a reply that reopens a resolved ticket is its own notification', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedTicket({
+        id: 't1',
+        requesterId: 'u1',
+        status: 'resolved',
+        assigneeId: STAFF_A,
+        firstResponseAt: new Date(),
+      });
+      await svc.postMessage(userActor, 't1', { body: 'Still broken.' });
+      await settle();
+      const types = (notifications.notify as jest.Mock).mock.calls.map((c) => c[0].type);
+      expect(types).toContain('ticket_reopened');
+      expect(types).not.toContain('ticket_reply');
+    });
+
+    it('customer reply clears a waiting ticket back to open', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({
+        id: 't1',
+        requesterId: 'u1',
+        status: 'waiting',
+        firstResponseAt: new Date(),
+      });
+      await svc.postMessage(userActor, 't1', { body: 'Here is the info you asked for.' });
+      const updateArg = (prisma.supportTicket.update as jest.Mock).mock.calls[0][0];
+      expect(updateArg.data.status).toBe('open');
+      // `waiting` never had a resolvedAt to clear — touching it here would
+      // be the same bug as the status-change stamping one.
+      expect(updateArg.data).not.toHaveProperty('resolvedAt');
+    });
+
     it('throws NotFoundException for missing ticket', async () => {
       const { svc } = makeService();
       await expect(svc.postMessage(userActor, 'missing', { body: 'x' })).rejects.toThrow(
@@ -372,10 +450,333 @@ describe('SupportService', () => {
         assigneeId: null,
       });
       await svc.update(staffActor, 't1', { status: 'resolved' });
-      await new Promise((r) => setTimeout(r, 10));
+      await settle();
       expect(notifications.notify).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'u1', type: 'support_ticket_update' }),
       );
+    });
+
+    it('a uuid-shaped assignee who is not staff is still rejected', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: null });
+      await expect(svc.update(staffActor, 't1', { assigneeId: SOME_UUID })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prisma.platformRoleAssignment.findFirst).toHaveBeenCalled();
+    });
+
+    it('a non-uuid assignee is a 400 and never reaches Postgres', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: null });
+      await expect(svc.update(staffActor, 't1', { assigneeId: 'abc' })).rejects.toThrow(
+        BadRequestException,
+      );
+      // The point of the guard: a malformed id used to reach a
+      // `where: { userId }` and come back as an uncaught P2023 → 500.
+      expect(prisma.platformRoleAssignment.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update — status timestamps', () => {
+    it('closing an already-resolved ticket preserves resolvedAt', async () => {
+      const { svc, prisma } = makeService();
+      const resolvedAt = new Date('2026-01-01T10:00:00Z');
+      prisma.__seedTicket({
+        id: 't1',
+        requesterId: 'u1',
+        status: 'resolved',
+        priority: 'normal',
+        assigneeId: null,
+        resolvedAt,
+      });
+      await svc.update(staffActor, 't1', { status: 'closed' });
+      const arg = (prisma.supportTicket.update as jest.Mock).mock.calls[0][0];
+      // Not merely "still the old value" — the update must not mention the
+      // column at all, or the resolved-today counter loses the ticket.
+      expect(arg.data).not.toHaveProperty('resolvedAt');
+      expect(arg.data.closedAt).toBeInstanceOf(Date);
+    });
+
+    it('resolving stamps resolvedAt', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: null });
+      await svc.update(staffActor, 't1', { status: 'resolved' });
+      const arg = (prisma.supportTicket.update as jest.Mock).mock.calls[0][0];
+      expect(arg.data.resolvedAt).toBeInstanceOf(Date);
+      expect(arg.data).not.toHaveProperty('closedAt');
+    });
+
+    it('reopening a closed ticket clears both stamps', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({
+        id: 't1',
+        requesterId: 'u1',
+        status: 'closed',
+        assigneeId: null,
+        resolvedAt: new Date(),
+        closedAt: new Date(),
+      });
+      await svc.update(staffActor, 't1', { status: 'open' });
+      const arg = (prisma.supportTicket.update as jest.Mock).mock.calls[0][0];
+      expect(arg.data.resolvedAt).toBeNull();
+      expect(arg.data.closedAt).toBeNull();
+    });
+
+    it('a status that the ticket already has writes nothing and notifies nobody', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'resolved', assigneeId: null });
+      await svc.update(staffActor, 't1', { status: 'resolved' });
+      await settle();
+      expect(prisma.supportTicket.update).not.toHaveBeenCalled();
+      expect(notifications.notify).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update — assignment', () => {
+    it('two concurrent claims: one wins, the loser gets a 409', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedStaff(STAFF_A);
+      prisma.__seedStaff(STAFF_B);
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: null });
+
+      const results = await Promise.allSettled([
+        svc.update({ id: STAFF_A, staff: true }, 't1', { assigneeId: 'me' }),
+        svc.update({ id: STAFF_B, staff: true }, 't1', { assigneeId: 'me' }),
+      ]);
+      const rejected = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+      expect(rejected).toHaveLength(1);
+      expect(rejected[0].reason).toBeInstanceOf(ConflictException);
+      expect(rejected[0].reason.message).toBe('already_claimed');
+    });
+
+    it('assigning notifies the new assignee and the requester', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedStaff(STAFF_A, 'support', 'Ana');
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: null });
+      await svc.update(staffActor, 't1', { assigneeId: STAFF_A });
+      await settle();
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: STAFF_A, type: 'ticket_assigned' }),
+      );
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u1',
+          type: 'ticket_assigned_requester',
+          body: expect.stringContaining('Ana'),
+        }),
+      );
+    });
+
+    it('reassigning tells the previous assignee who has it now', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedStaff(STAFF_A, 'support', 'Ana');
+      prisma.__seedStaff(STAFF_B, 'support', 'Bogdan');
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: STAFF_A });
+      await svc.update(staffActor, 't1', { assigneeId: STAFF_B });
+      await settle();
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: STAFF_A,
+          type: 'ticket_unassigned',
+          body: expect.stringContaining('Bogdan'),
+        }),
+      );
+    });
+
+    it('unassigning tells the previous assignee', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedStaff(STAFF_A, 'support', 'Ana');
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: STAFF_A });
+      await svc.update(staffActor, 't1', { assigneeId: '' });
+      await settle();
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: STAFF_A, type: 'ticket_unassigned' }),
+      );
+    });
+
+    it('self-assigning an unassigned ticket notifies no staff member', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedStaff(STAFF_A, 'support', 'Ana');
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: null });
+      await svc.update({ id: STAFF_A, staff: true }, 't1', { assigneeId: 'me' });
+      await settle();
+      const types = (notifications.notify as jest.Mock).mock.calls.map((c) => c[0].type);
+      expect(types).not.toContain('ticket_assigned');
+      expect(types).not.toContain('ticket_unassigned');
+      expect(types).toContain('ticket_assigned_requester');
+    });
+  });
+
+  describe('update — customer-driven status changes', () => {
+    it('a customer closing their own ticket is not notified about it', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: STAFF_A });
+      await svc.update(userActor, 't1', { status: 'closed' });
+      await settle();
+      const types = (notifications.notify as jest.Mock).mock.calls.map((c) => c[0].type);
+      expect(types).not.toContain('support_ticket_update');
+      // …the assignee is, though — they should stop working it.
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: STAFF_A, type: 'ticket_closed_by_user' }),
+      );
+    });
+
+    it('a customer reopening a resolved ticket emails the assignee', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedTicket({
+        id: 't1',
+        requesterId: 'u1',
+        status: 'resolved',
+        assigneeId: STAFF_A,
+        resolvedAt: new Date(),
+      });
+      await svc.update(userActor, 't1', { status: 'open' });
+      await settle();
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: STAFF_A,
+          type: 'ticket_reopened',
+          channels: { panel: true, email: true },
+        }),
+      );
+    });
+
+    it('a reopen on an unassigned ticket reaches the support queue, not every admin', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedStaff(STAFF_A, 'support', 'Ana');
+      prisma.__seedStaff(STAFF_B, 'admin', 'Admin');
+      prisma.__seedTicket({
+        id: 't1',
+        requesterId: 'u1',
+        status: 'closed',
+        assigneeId: null,
+        closedAt: new Date(),
+      });
+      await svc.update(userActor, 't1', { status: 'open' });
+      await settle();
+      const recipients = (notifications.notify as jest.Mock).mock.calls
+        .filter((c) => c[0].type === 'ticket_reopened')
+        .map((c) => c[0].userId);
+      expect(recipients).toEqual([STAFF_A]);
+    });
+  });
+
+  describe('create — staff fan-out', () => {
+    it('only the support role is notified when one exists', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedStaff(STAFF_A, 'support', 'Ana');
+      prisma.__seedStaff(STAFF_B, 'admin', 'Admin');
+      await svc.create(userActor, { subject: 'Help', body: 'Please', category: 'other' });
+      await settle();
+      const recipients = (notifications.notify as jest.Mock).mock.calls
+        .filter((c) => c[0].type === 'ticket_created')
+        .map((c) => c[0].userId);
+      expect(recipients).toEqual([STAFF_A]);
+    });
+
+    it('falls back to admins when nobody holds the support role', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedStaff(STAFF_B, 'admin', 'Admin');
+      await svc.create(userActor, { subject: 'Help', body: 'Please', category: 'other' });
+      await settle();
+      const recipients = (notifications.notify as jest.Mock).mock.calls
+        .filter((c) => c[0].type === 'ticket_created')
+        .map((c) => c[0].userId);
+      expect(recipients).toEqual([STAFF_B]);
+    });
+
+    it('a staff member opening their own ticket is not notified about it', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedStaff(STAFF_A, 'support', 'Ana');
+      await svc.create(
+        { id: STAFF_A, staff: true },
+        { subject: 'Help', body: 'Please', category: 'other' },
+      );
+      await settle();
+      const recipients = (notifications.notify as jest.Mock).mock.calls
+        .filter((c) => c[0].type === 'ticket_created')
+        .map((c) => c[0].userId);
+      expect(recipients).toEqual([]);
+    });
+  });
+
+  describe('getAttachment', () => {
+    const file = { filename: 'x.pdf', mime: 'application/pdf', bytes: Buffer.from('x'), size: 1 };
+
+    it('the requester cannot download an internal note’s attachment', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1' });
+      const att = prisma.__seedAttachment({
+        ticketId: 't1',
+        uploaderId: 'staff1',
+        messageId: 'm9',
+        messageKind: 'note',
+        ...file,
+      });
+      await expect(svc.getAttachment(userActor, 't1', att.id)).rejects.toThrow(NotFoundException);
+      await expect(svc.getAttachment(staffActor, 't1', att.id)).resolves.toMatchObject({
+        id: att.id,
+      });
+    });
+
+    it('the requester can download a reply attachment', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1' });
+      const att = prisma.__seedAttachment({
+        ticketId: 't1',
+        uploaderId: 'u1',
+        messageId: 'm1',
+        messageKind: 'reply',
+        ...file,
+      });
+      await expect(svc.getAttachment(userActor, 't1', att.id)).resolves.toMatchObject({
+        id: att.id,
+      });
+    });
+
+    it('a still-unsent upload is not downloadable by the requester', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1' });
+      const att = prisma.__seedAttachment({
+        ticketId: 't1',
+        uploaderId: 'u1',
+        messageId: null,
+        ...file,
+      });
+      await expect(svc.getAttachment(userActor, 't1', att.id)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('list — pagination', () => {
+    it('asks for one row past the page so it can tell whether more exist', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1' });
+      const res = await svc.list(userActor, {});
+      const call = (prisma.supportTicket.findMany as jest.Mock).mock.calls[0][0];
+      expect(call.take).toBe(101);
+      expect(call).not.toHaveProperty('cursor');
+      expect(res.nextCursor).toBeNull();
+    });
+
+    it('returns a nextCursor once the page is full', async () => {
+      const { svc, prisma } = makeService();
+      for (let i = 0; i < 101; i += 1) prisma.__seedTicket({ id: `t${i}`, requesterId: 'u1' });
+      const res = await svc.list(userActor, {});
+      expect(res.items).toHaveLength(100);
+      expect(res.nextCursor).toBe('t99');
+    });
+
+    it('passes a cursor through as a skip-the-cursor-row seek', async () => {
+      const { svc, prisma } = makeService();
+      await svc.list(userActor, { cursor: SOME_UUID });
+      const call = (prisma.supportTicket.findMany as jest.Mock).mock.calls[0][0];
+      expect(call.cursor).toEqual({ id: SOME_UUID });
+      expect(call.skip).toBe(1);
+    });
+
+    it('rejects a malformed cursor instead of letting Postgres throw', async () => {
+      const { svc } = makeService();
+      await expect(svc.list(userActor, { cursor: 'nope' })).rejects.toThrow(BadRequestException);
     });
   });
 });

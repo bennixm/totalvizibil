@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
@@ -31,4 +31,11 @@ export class ListTicketsQuery {
   @MaxLength(80)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   q?: string;
+
+  /** Opaque "give me the next page" token — the id of the last item of the
+   *  previous page, exactly as returned in that page's `nextCursor`. Same
+   *  contract as the notifications list. */
+  @IsOptional()
+  @IsUUID()
+  cursor?: string;
 }

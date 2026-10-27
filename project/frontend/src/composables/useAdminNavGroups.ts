@@ -12,6 +12,10 @@ export function useAdminNavGroups() {
   const { t } = useI18n()
   const auth = useAuthStore()
   const isAdmin = computed(() => auth.user?.platformRoles.includes('admin') ?? false)
+  // The support queue is open to `support` agents too, not just admins —
+  // gating its link on `isAdmin` left a support-only agent with no way into
+  // the queue from the admin sidebar at all.
+  const isSupportStaff = computed(() => auth.isSupportStaff)
 
   const groups = computed<SidebarNavGroup[]>(() => {
     const all: SidebarNavGroup[] = [
@@ -23,15 +27,19 @@ export function useAdminNavGroups() {
       },
       {
         label: t('admin.navGroupManage'),
-        items: isAdmin.value
-          ? [
-              { to: { name: 'admin-users' }, label: t('admin.navUsers'), icon: 'mdi-account-multiple-outline' },
-              { to: { name: 'admin-businesses' }, label: t('admin.navBusinesses'), icon: 'mdi-domain' },
-              { to: { name: 'admin-referrals' }, label: t('admin.navReferrals'), icon: 'mdi-account-multiple-plus-outline' },
-              { to: { name: 'admin-categories' }, label: t('admin.navCategories'), icon: 'mdi-shape-outline' },
-              { to: { name: 'support' }, label: t('admin.navSupport'), icon: 'mdi-face-agent' },
-            ]
-          : [],
+        items: [
+          ...(isAdmin.value
+            ? [
+                { to: { name: 'admin-users' }, label: t('admin.navUsers'), icon: 'mdi-account-multiple-outline' },
+                { to: { name: 'admin-businesses' }, label: t('admin.navBusinesses'), icon: 'mdi-domain' },
+                { to: { name: 'admin-referrals' }, label: t('admin.navReferrals'), icon: 'mdi-account-multiple-plus-outline' },
+                { to: { name: 'admin-categories' }, label: t('admin.navCategories'), icon: 'mdi-shape-outline' },
+              ]
+            : []),
+          ...(isSupportStaff.value
+            ? [{ to: { name: 'support' }, label: t('admin.navSupport'), icon: 'mdi-face-agent' }]
+            : []),
+        ],
       },
       {
         label: t('admin.navGroupFinance'),

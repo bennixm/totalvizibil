@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -7,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { Prisma } from '@prisma/client';
+import { PlatformRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AppConfig } from '../config/env';
@@ -40,6 +41,20 @@ export interface SupportActor {
 
 const LIST_LIMIT = 100;
 
+/**
+ * Every id in this schema is a UUID, and Postgres rejects a malformed one at
+ * the driver level (Prisma P2023) — which surfaces as an uncaught 500 rather
+ * than the 400 a bad client input deserves. Client-supplied ids that are NOT
+ * route params (those already go through `ParseUUIDPipe`) get shape-checked
+ * here first. Deliberately version-agnostic, same as `ParseUUIDPipe`'s
+ * default: the point is "can Postgres parse this", not "which RFC variant".
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Statuses that mean "someone still has to work this" — entering any of them
+ *  clears `resolvedAt`, since the ticket is demonstrably not resolved. */
+const ACTIVE_STATUSES: readonly string[] = OPEN_STATUSES;
+
 @Injectable()
 export class SupportService {
   private readonly logger = new Logger(SupportService.name);
@@ -71,13 +86,29 @@ export class SupportService {
       ];
     }
 
+    if (query.cursor && !UUID_RE.test(query.cursor)) {
+      throw new BadRequestException('invalid_cursor');
+    }
+
+    // Same cursor contract as `NotificationsService.list` — pass the last
+    // item's id back as `cursor`, read the next page off `nextCursor`. The
+    // list used to stop dead at 100 tickets with no way to reach the rest.
     const tickets = await this.prisma.supportTicket.findMany({
       where,
-      orderBy: { lastActivityAt: 'desc' },
-      take: LIST_LIMIT,
+      // `id` as a tiebreaker makes the sort total — `lastActivityAt` alone
+      // isn't unique, and a cursor sitting on one of several same-timestamp
+      // rows could otherwise skip or repeat a neighbour across the boundary.
+      orderBy: [{ lastActivityAt: 'desc' }, { id: 'desc' }],
+      take: LIST_LIMIT + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
       include: ticketListInclude,
     });
-    return { items: tickets.map(ticketListView) };
+    const hasMore = tickets.length > LIST_LIMIT;
+    const items = hasMore ? tickets.slice(0, LIST_LIMIT) : tickets;
+    return {
+      items: items.map(ticketListView),
+      nextCursor: hasMore ? items[items.length - 1].id : null,
+    };
   }
 
   /** Queue counters for the staff dashboard. */
@@ -99,6 +130,10 @@ export class SupportService {
     const rows = await this.prisma.platformRoleAssignment.findMany({
       where: { role: { in: SUPPORT_STAFF_ROLES } },
       select: { userId: true, user: { select: { name: true } } },
+      // Without an explicit order Postgres is free to hand back a different
+      // sequence on every call, so the assignee dropdown reshuffled itself
+      // between openings.
+      orderBy: { user: { name: 'asc' } },
     });
     const seen = new Map<string, string>();
     for (const r of rows) if (!seen.has(r.userId)) seen.set(r.userId, r.user.name);
@@ -142,13 +177,17 @@ export class SupportService {
     });
 
     // Already committed — a notification hiccup must never mask this. A new
-    // ticket has no assignee yet, so the whole staff queue gets it.
+    // ticket has no assignee yet, so the whole staff queue gets it (see
+    // `supportQueueIds` for who that actually is).
     void this.notifyStaff(
       null,
       'ticket_created',
       `Ticket nou: #${ticket.number}`,
       `${ticket.subject}`,
       ticket.id,
+      // A staff member opening their own ticket doesn't need to be told
+      // about it.
+      { excludeUserId: actor.id },
     );
 
     return ticketDetailView(ticket, actor);
@@ -175,10 +214,20 @@ export class SupportService {
     if (staffReply && (ticket.status === 'open' || ticket.status === 'waiting')) {
       ticketData.status = 'in_progress';
     }
-    // The customer answering a resolved ticket reopens it.
-    if (requesterReply && !actor.staff && ticket.status === 'resolved') {
+    // The customer answering reopens a resolved ticket, and clears a
+    // `waiting` ticket — "waiting" means waiting ON THE CUSTOMER, so their
+    // reply is exactly the thing that ends it. Leaving it `waiting` kept
+    // answered tickets parked in a queue nobody looks at.
+    const reopenedFromResolved = requesterReply && !actor.staff && ticket.status === 'resolved';
+    if (
+      requesterReply &&
+      !actor.staff &&
+      (ticket.status === 'resolved' || ticket.status === 'waiting')
+    ) {
       ticketData.status = 'open';
-      ticketData.resolvedAt = null;
+      // Only the resolved case touches `resolvedAt` — a `waiting` ticket
+      // never had one to clear.
+      if (reopenedFromResolved) ticketData.resolvedAt = null;
     }
 
     const messageId = randomUUID();
@@ -222,14 +271,26 @@ export class SupportService {
         dto.body,
       );
     } else if (requesterReply && !actor.staff) {
-      // Already committed — a notification hiccup must never mask this.
-      void this.notifyStaff(
-        ticket.assigneeId,
-        'ticket_reply',
-        `Răspuns nou pe ticketul #${ticket.number}`,
-        ticket.subject,
-        ticket.id,
-      );
+      // Already committed — a notification hiccup must never mask this. A
+      // reply that REOPENS a resolved ticket is its own event: it means the
+      // fix didn't hold, which reads very differently from "another reply on
+      // an open ticket" in the panel. Sent instead of `ticket_reply` rather
+      // than on top of it, so one customer action is one notification.
+      void (reopenedFromResolved
+        ? this.notifyStaff(
+            ticket.assigneeId,
+            'ticket_reopened',
+            `Ticketul #${ticket.number} a fost redeschis`,
+            `Ticketul #${ticket.number} a fost redeschis — clientul a răspuns după rezolvare.`,
+            ticket.id,
+          )
+        : this.notifyStaff(
+            ticket.assigneeId,
+            'ticket_reply',
+            `Răspuns nou pe ticketul #${ticket.number}`,
+            ticket.subject,
+            ticket.id,
+          ));
     }
     return this.get(actor, id);
   }
@@ -274,8 +335,20 @@ export class SupportService {
     if (!ticket || (!actor.staff && ticket.requesterId !== actor.id)) {
       throw new NotFoundException('Ticket not found');
     }
-    const att = await this.prisma.supportAttachment.findUnique({ where: { id: attachmentId } });
+    const att = await this.prisma.supportAttachment.findUnique({
+      where: { id: attachmentId },
+      include: { message: { select: { kind: true } } },
+    });
     if (!att || att.ticketId !== ticketId) throw new NotFoundException('Attachment not found');
+    // The detail view already hides internal notes from the requester, but
+    // the bytes behind them were still downloadable by anyone who could
+    // guess/see an id — the message body was private while its evidence
+    // wasn't. A still-unsent upload (`messageId === null`) is nobody's to
+    // read yet either. 404, not 403, same as every other access check here:
+    // a requester must not learn that an internal note exists.
+    if (!actor.staff && (att.messageId === null || att.message?.kind === 'note')) {
+      throw new NotFoundException('Attachment not found');
+    }
     return att;
   }
 
@@ -303,16 +376,32 @@ export class SupportService {
       }
     }
 
-    const data: Prisma.SupportTicketUpdateInput = {};
+    // Unchecked (scalar-only) shape on purpose: the same object is handed to
+    // both `update` and the conditional `updateMany` that claims an
+    // assignment below, and `updateMany` only accepts scalars.
+    const data: Prisma.SupportTicketUncheckedUpdateManyInput = {};
     const events: string[] = [];
     const now = new Date();
-    let newAssigneeId: string | null | undefined;
+    /** The status this call actually transitions TO — `null` when the client
+     *  sent a status the ticket already has (a no-op the whole method, and
+     *  every notification below, has to treat as "nothing happened"). */
+    const statusChange = dto.status && dto.status !== ticket.status ? dto.status : null;
+    let newAssigneeId: string | null = null;
+    let newAssigneeName: string | null = null;
+    let assignmentChanged = false;
 
-    if (dto.status && dto.status !== ticket.status) {
-      data.status = dto.status;
-      data.resolvedAt = dto.status === 'resolved' ? now : null;
-      data.closedAt = dto.status === 'closed' ? now : null;
-      events.push(`status:${dto.status}`);
+    if (statusChange) {
+      data.status = statusChange;
+      // Each timestamp is only touched by the transitions that genuinely
+      // affect it. Blanket-clearing both on every status change meant
+      // closing an ALREADY-RESOLVED ticket wiped its `resolvedAt` back to
+      // null — which both lost the real resolution time and silently
+      // dropped the ticket out of the "resolved today" counter.
+      if (statusChange === 'resolved') data.resolvedAt = now;
+      else if (ACTIVE_STATUSES.includes(statusChange)) data.resolvedAt = null;
+      if (statusChange === 'closed') data.closedAt = now;
+      else if (ticket.status === 'closed') data.closedAt = null;
+      events.push(`status:${statusChange}`);
     }
     if (actor.staff && dto.priority && dto.priority !== ticket.priority) {
       data.priority = dto.priority;
@@ -322,6 +411,14 @@ export class SupportService {
       data.category = dto.category;
     }
     if (actor.staff && dto.assigneeId !== undefined) {
+      // Checked against what the CLIENT sent, not the resolved value:
+      // `"me"` is a legal sentinel and `""` means unassign. Anything else
+      // has to be a real id before it reaches a `where: { userId }`, or
+      // Postgres throws P2023 and the caller gets a 500 for what is plainly
+      // a bad request.
+      if (dto.assigneeId && dto.assigneeId !== 'me' && !UUID_RE.test(dto.assigneeId)) {
+        throw new BadRequestException('assignee_not_staff');
+      }
       const next = dto.assigneeId === 'me' ? actor.id : dto.assigneeId || null;
       if (next !== ticket.assigneeId) {
         if (next) {
@@ -330,24 +427,37 @@ export class SupportService {
             select: { id: true },
           });
           if (!ok) throw new BadRequestException('assignee_not_staff');
-          data.assignee = { connect: { id: next } };
           const who = await this.prisma.user.findUnique({
             where: { id: next },
             select: { name: true },
           });
-          events.push(`assigned:${who?.name ?? ''}`);
-          newAssigneeId = next;
+          newAssigneeName = who?.name ?? null;
+          events.push(`assigned:${newAssigneeName ?? ''}`);
         } else {
-          data.assignee = { disconnect: true };
           events.push('unassigned');
         }
+        newAssigneeId = next;
+        assignmentChanged = true;
       }
     }
 
-    if (Object.keys(data).length === 0) return this.get(actor, id);
+    if (Object.keys(data).length === 0 && !assignmentChanged) return this.get(actor, id);
     data.lastActivityAt = now;
 
-    await this.prisma.supportTicket.update({ where: { id }, data });
+    if (assignmentChanged) {
+      // Atomic claim, same shape as the campaign sweeps: the write only
+      // lands if the assignee is still exactly what we read a moment ago.
+      // Read-compare-write let two agents both hit "assign to me" and both
+      // "succeed" — last write won and the loser was never told the ticket
+      // wasn't theirs. Now the loser gets a 409 and can re-read.
+      const claimed = await this.prisma.supportTicket.updateMany({
+        where: { id, assigneeId: ticket.assigneeId },
+        data: { ...data, assigneeId: newAssigneeId },
+      });
+      if (claimed.count === 0) throw new ConflictException('already_claimed');
+    } else {
+      await this.prisma.supportTicket.update({ where: { id }, data });
+    }
     if (events.length) {
       await this.prisma.supportMessage.createMany({
         data: events.map((e) => ({
@@ -359,8 +469,17 @@ export class SupportService {
       });
     }
 
-    if (dto.status === 'resolved' || dto.status === 'closed') {
-      const statusRo = dto.status === 'resolved' ? 'rezolvat' : 'închis';
+    // --- notifications ---------------------------------------------------
+    // All already committed above — a notification hiccup must never mask
+    // the write, so every dispatch here is fire-and-forget.
+    const statusRo = statusChange === 'resolved' ? 'rezolvat' : 'închis';
+
+    // Gated on `statusChange` (the transition that actually happened) rather
+    // than on the raw dto: re-sending the status a ticket already has used to
+    // fire a second "marked resolved" email for nothing. And gated on
+    // `actor.staff`, because a customer closing their own ticket does not
+    // need an email telling them they closed their own ticket.
+    if (statusChange && actor.staff && (statusChange === 'resolved' || statusChange === 'closed')) {
       void this.notifyRequester(
         ticket.requesterId,
         ticket.id,
@@ -369,22 +488,107 @@ export class SupportService {
         `Ticketul tău a fost marcat ca ${statusRo}.`,
       );
     }
-    // Already committed — a notification hiccup must never mask this. Only
-    // fires when the NEW assignee is someone other than the actor doing the
-    // assigning (no need to notify yourself that you picked up a ticket).
-    if (newAssigneeId && newAssigneeId !== actor.id) {
+
+    // The complement: the CUSTOMER resolved/closed it. Whoever is holding the
+    // ticket should stop working on it — nobody was told at all before.
+    if (
+      statusChange &&
+      !actor.staff &&
+      (statusChange === 'resolved' || statusChange === 'closed') &&
+      ticket.assigneeId
+    ) {
+      void this.notifyStaff(
+        ticket.assigneeId,
+        'ticket_closed_by_user',
+        `Ticketul #${ticket.number} a fost ${statusRo} de client`,
+        `Clientul a marcat ticketul #${ticket.number} ca ${statusRo}.`,
+        ticket.id,
+      );
+    }
+
+    // A customer hitting "Reopen" on a resolved/closed ticket is the loudest
+    // signal in this whole system — it means the ticket was closed while the
+    // problem wasn't solved — and it reached nobody. Email as well as panel,
+    // so it lands even when no agent is logged in.
+    if (statusChange === 'open' && !actor.staff && !ACTIVE_STATUSES.includes(ticket.status)) {
+      void this.notifyStaff(
+        ticket.assigneeId,
+        'ticket_reopened',
+        `Ticketul #${ticket.number} a fost redeschis`,
+        `Clientul a redeschis ticketul #${ticket.number} — ${ticket.subject}`,
+        ticket.id,
+        { email: true },
+      );
+    }
+
+    if (assignmentChanged && newAssigneeId) {
+      // Only fires when the NEW assignee is someone other than the actor
+      // doing the assigning (no need to notify yourself that you picked up a
+      // ticket).
+      if (newAssigneeId !== actor.id) {
+        void this.notifications
+          .notify({
+            userId: newAssigneeId,
+            type: 'ticket_assigned',
+            title: `Ți-a fost alocat ticketul #${ticket.number}`,
+            body: ticket.subject,
+            channels: { panel: true },
+            data: { ticketId: ticket.id },
+          })
+          .catch((err) =>
+            this.logger.error(
+              'Ticket-assigned notification failed',
+              err instanceof Error ? err.stack : err,
+            ),
+          );
+      }
+      // The requester's side of the same event: "somebody real has this
+      // now". Panel only — it's reassurance, not something worth an email.
+      if (ticket.requesterId !== newAssigneeId) {
+        void this.notifications
+          .notify({
+            userId: ticket.requesterId,
+            type: 'ticket_assigned_requester',
+            title: `Ticketul #${ticket.number} a fost preluat`,
+            body: newAssigneeName
+              ? `Ticketul #${ticket.number} a fost preluat de ${newAssigneeName}.`
+              : `Ticketul #${ticket.number} a fost preluat de un agent de suport.`,
+            channels: { panel: true },
+            data: { ticketId: ticket.id },
+          })
+          .catch((err) =>
+            this.logger.error(
+              'Ticket-assigned-requester notification failed',
+              err instanceof Error ? err.stack : err,
+            ),
+          );
+      }
+    }
+
+    // Losing a ticket off your own queue is news too — a reassignment or an
+    // unassignment used to be completely silent for the person who had it,
+    // who kept working a ticket that was no longer theirs. Skipped when they
+    // did it themselves (handing off / dropping your own ticket).
+    if (
+      assignmentChanged &&
+      ticket.assigneeId &&
+      ticket.assigneeId !== newAssigneeId &&
+      ticket.assigneeId !== actor.id
+    ) {
       void this.notifications
         .notify({
-          userId: newAssigneeId,
-          type: 'ticket_assigned',
-          title: `Ți-a fost alocat ticketul #${ticket.number}`,
-          body: ticket.subject,
+          userId: ticket.assigneeId,
+          type: 'ticket_unassigned',
+          title: `Ticketul #${ticket.number} nu îți mai este alocat`,
+          body: newAssigneeId
+            ? `Ticketul #${ticket.number} a fost realocat către ${newAssigneeName ?? 'un alt agent'}.`
+            : `Ticketul #${ticket.number} nu îți mai este alocat.`,
           channels: { panel: true },
           data: { ticketId: ticket.id },
         })
         .catch((err) =>
           this.logger.error(
-            'Ticket-assigned notification failed',
+            'Ticket-unassigned notification failed',
             err instanceof Error ? err.stack : err,
           ),
         );
@@ -407,6 +611,7 @@ export class SupportService {
     replyExcerpt?: string,
   ): Promise<void> {
     const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
+    const replyTo = this.supportInboxEmail();
     const quoted = replyExcerpt
       ? `„${replyExcerpt.slice(0, 300)}${replyExcerpt.length > 300 ? '…' : ''}”`
       : null;
@@ -420,6 +625,7 @@ export class SupportService {
         data: { ticketId },
         email: {
           greet: true,
+          ...(replyTo ? { replyTo } : {}),
           text: [
             line,
             quoted,
@@ -442,27 +648,53 @@ export class SupportService {
       );
   }
 
-  /** Notify one staff member (the ticket's assignee) or, if unassigned, every
-   *  support/admin staff member — the whole queue owns an unassigned ticket. */
+  /**
+   * Optional reply-to for ticket emails, so a customer hitting "Reply" in
+   * their mail client reaches a human instead of the no-reply sender. Read
+   * straight from the environment rather than through `AppConfig` because it
+   * is genuinely optional — unset simply means no reply-to header, never a
+   * boot failure or a thrown request.
+   */
+  private supportInboxEmail(): string | null {
+    return process.env.SUPPORT_INBOX_EMAIL?.trim() || null;
+  }
+
+  /**
+   * Who owns an UNASSIGNED ticket. `support` is the real queue; `admin` is
+   * only a fallback for an install that hasn't handed the support role to
+   * anyone yet. Notifying both roles unconditionally meant every admin got
+   * every single ticket event forever — the fastest way to train people to
+   * ignore the bell.
+   */
+  private async supportQueueIds(excludeUserId?: string): Promise<string[]> {
+    const holdersOf = async (role: PlatformRole): Promise<string[]> => {
+      const rows = await this.prisma.platformRoleAssignment.findMany({
+        where: { role },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
+      return rows.map((r) => r.userId);
+    };
+    let ids = await holdersOf('support');
+    if (!ids.length) ids = await holdersOf('admin');
+    return excludeUserId ? ids.filter((id) => id !== excludeUserId) : ids;
+  }
+
+  /** Notify one staff member (the ticket's assignee) or, if unassigned, the
+   *  whole support queue — see `supportQueueIds` for who that is. */
   private async notifyStaff(
     assigneeId: string | null,
     type: string,
     title: string,
     body: string,
     ticketId: string,
+    opts: { email?: boolean; excludeUserId?: string } = {},
   ): Promise<void> {
     try {
-      let staffIds: string[];
-      if (assigneeId) {
-        staffIds = [assigneeId];
-      } else {
-        const rows = await this.prisma.platformRoleAssignment.findMany({
-          where: { role: { in: SUPPORT_STAFF_ROLES } },
-          select: { userId: true },
-          distinct: ['userId'],
-        });
-        staffIds = rows.map((r) => r.userId);
-      }
+      const staffIds = assigneeId
+        ? [assigneeId].filter((id) => id !== opts.excludeUserId)
+        : await this.supportQueueIds(opts.excludeUserId);
+      const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
       for (const userId of staffIds) {
         await this.notifications
           .notify({
@@ -470,8 +702,20 @@ export class SupportService {
             type,
             title,
             body,
-            channels: { panel: true },
+            channels: { panel: true, ...(opts.email ? { email: true } : {}) },
             data: { ticketId },
+            ...(opts.email
+              ? {
+                  email: {
+                    greet: true,
+                    details: [{ label: 'Ticket', value: title }],
+                    cta: {
+                      label: 'Deschide ticketul',
+                      url: `${frontendOrigin}/support/${ticketId}`,
+                    },
+                  },
+                }
+              : {}),
           })
           .catch((err) =>
             this.logger.error(
