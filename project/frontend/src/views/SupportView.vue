@@ -16,9 +16,12 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const support = useSupportStore()
-const { list, overview, loading } = storeToRefs(support)
+const { list, overview, loading, loadingMore, moreError, nextCursor } = storeToRefs(support)
 
-const isStaff = computed(() => auth.isPlatformStaff)
+// Only `admin`/`support` work the queue — `finance`/`moderator` are platform
+// staff but ordinary support *customers*, so they get the own-tickets view
+// (and the "New ticket" button) like anyone else.
+const isStaff = computed(() => auth.isSupportStaff)
 
 const filters = reactive<TicketFilters>({
   scope: 'all',
@@ -76,6 +79,10 @@ function fmtWhen(iso: string): string {
 
 function open(id: string): void {
   void router.push({ name: 'support-ticket', params: { id } })
+}
+
+function loadMore(): void {
+  void support.loadMore()
 }
 
 onMounted(() => {
@@ -215,17 +222,46 @@ onMounted(() => {
             <span><v-icon icon="mdi-comment-text-outline" size="13" /> {{ tk.messageCount }}</span>
           </div>
         </div>
+        <!-- Each side fact is its own `data-label` cell so the 640px
+             breakpoint can stack them as labeled rows instead of hiding
+             them (same pattern as the wallet/consumption tables). -->
         <div class="row__side">
-          <span class="row__when">{{ fmtWhen(tk.lastActivityAt) }}</span>
-          <span v-if="tk.priority !== 'normal'" class="row__prio" :class="`row__prio--${tk.priority}`">
-            {{ t('support.priority.' + tk.priority) }}
+          <span class="row__cell" :data-label="t('support.colLastActivity')">
+            <span class="row__when">{{ fmtWhen(tk.lastActivityAt) }}</span>
           </span>
-          <span v-if="isStaff" class="row__assignee">
-            {{ tk.assignee ? tk.assignee.name : t('support.unassigned') }}
+          <span
+            v-if="tk.priority !== 'normal'"
+            class="row__cell"
+            :data-label="t('support.colPriority')"
+          >
+            <span class="row__prio" :class="`row__prio--${tk.priority}`">
+              {{ t('support.priority.' + tk.priority) }}
+            </span>
+          </span>
+          <span v-if="isStaff" class="row__cell" :data-label="t('support.colAssignee')">
+            <span class="row__assignee">
+              {{ tk.assignee ? tk.assignee.name : t('support.unassigned') }}
+            </span>
           </span>
         </div>
       </li>
     </ul>
+
+    <template v-if="list.length">
+      <p v-if="moreError" class="sup__moreErr">
+        <v-icon icon="mdi-alert-circle-outline" size="14" /> {{ t('support.loadMoreError') }}
+      </p>
+      <button
+        v-if="nextCursor"
+        type="button"
+        class="sup__more"
+        :disabled="loadingMore"
+        @click="loadMore"
+      >
+        <v-progress-circular v-if="loadingMore" indeterminate size="14" width="2" />
+        <template v-else>{{ t('support.loadMore') }}</template>
+      </button>
+    </template>
   </div>
 </template>
 
@@ -473,11 +509,19 @@ onMounted(() => {
   gap: 0.35rem;
   text-align: right;
 }
+/* Plain wrapper on desktop (shrink-to-fit inside the column flex); turns
+   into a labeled `label · value` row at the mobile breakpoint. */
+.row__cell {
+  display: block;
+}
 .row__when {
   font-size: 0.74rem;
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .row__prio {
+  /* No longer a flex item (it sits inside `.row__cell` now), so it has to
+     blockify itself for the padded badge box to hold its shape. */
+  display: inline-block;
   font-size: 0.62rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -492,6 +536,8 @@ onMounted(() => {
   color: rgb(var(--v-theme-error));
 }
 .row__assignee {
+  /* Same reason as `.row__prio` — max-width/ellipsis need a block box. */
+  display: inline-block;
   font-size: 0.72rem;
   color: rgba(var(--v-theme-on-surface), 0.5);
   max-width: 8rem;
@@ -525,12 +571,74 @@ onMounted(() => {
   color: rgb(var(--v-theme-success));
 }
 
+/* Load more ------------------------------------------------------------- */
+.sup__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.4rem;
+  margin-top: 0.75rem;
+  padding: 0.6rem;
+  border-radius: 8px;
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.sup__more:hover:not(:disabled) {
+  background: rgba(var(--v-theme-on-surface), 0.05);
+}
+.sup__more:disabled {
+  opacity: 0.7;
+}
+.sup__moreErr {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: rgb(var(--v-theme-error));
+}
+
 @media (max-width: 640px) {
   .sup__stats {
     grid-template-columns: 1fr 1fr;
   }
+  /* The side column used to be `display: none` here, which silently dropped
+     the timestamp, priority and assignee on phones. Stack it under the
+     subject instead, one labeled fact per line. */
+  .row {
+    flex-wrap: wrap;
+  }
   .row__side {
-    display: none;
+    flex: 1 1 100%;
+    align-items: stretch;
+    gap: 0.3rem;
+    margin-top: 0.7rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--tvz-hairline);
+    text-align: left;
+  }
+  .row__cell {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    column-gap: 0.75rem;
+  }
+  .row__cell::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(var(--v-theme-on-surface), 0.45);
+  }
+  .row__assignee {
+    max-width: none;
+    white-space: normal;
+    text-align: right;
   }
 }
 </style>

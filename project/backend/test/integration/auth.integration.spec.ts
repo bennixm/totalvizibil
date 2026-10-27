@@ -27,9 +27,23 @@ describe('Auth', () => {
       expect(res.body).toMatchObject({ user: { email: 'ion@example.com', name: 'Ion' } });
     });
 
-    it('returns 409 on duplicate email', async () => {
+    it('allows resubmitting the same still-unverified email instead of conflicting (onboarding email-edit step)', async () => {
       const body = { email: 'ion@example.com', password: 'password123', name: 'Ion' };
       await request(app.getHttpServer()).post('/api/v1/auth/register').send(body).expect(201);
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({ ...body, name: 'Ion Updated' })
+        .expect(201);
+      expect(res.body).toMatchObject({ user: { email: 'ion@example.com', name: 'Ion Updated' } });
+    });
+
+    it('returns 409 when the email already belongs to a verified account', async () => {
+      const body = { email: 'ion@example.com', password: 'password123', name: 'Ion' };
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send(body).expect(201);
+      await prisma.user.update({
+        where: { email: 'ion@example.com' },
+        data: { emailVerifiedAt: new Date() },
+      });
       await request(app.getHttpServer()).post('/api/v1/auth/register').send(body).expect(409);
     });
 

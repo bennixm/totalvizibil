@@ -125,8 +125,14 @@ function fakePrisma() {
         if (c) Object.assign(c, data);
         return c ?? {};
       }),
+      updateMany: jest.fn(async () => ({ count: 0 })),
+    },
+    wallet: {
+      findMany: jest.fn(async () => []),
     },
     campaign: {
+      findMany: jest.fn(async () => []),
+      updateMany: jest.fn(async () => ({ count: 0 })),
       findUnique: jest.fn(async ({ where }: any) => {
         const key = where.companyId ?? where.id;
         return campaigns.get(key) ?? null;
@@ -449,6 +455,203 @@ describe('CampaignService', () => {
       );
       const result = await svc.registerClick('co1', '1.2.3.4', 'Mozilla/5.0');
       expect(result).toMatchObject({ billed: false, reason: 'no_campaign' });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // S10a — the scheduled day-rollover / depleted-campaign revival job.
+  //
+  // `reconcile()` has always done this, but ONLY from owner-facing dashboard
+  // reads. The public feed never calls it, and a depleted campaign gets zero
+  // clicks by definition, so `registerClick` can't revive it either: an owner
+  // who didn't open their dashboard the next day stayed silently out of the
+  // feed while funded and believing they were live.
+  // -------------------------------------------------------------------------
+  describe('sweepDayRollover', () => {
+    function candidate(overrides: Record<string, any> = {}) {
+      return {
+        id: 'c1',
+        companyId: 'co1',
+        cpcMinor: 200,
+        dailyBudgetMinor: 5000,
+        spentTodayMinor: 0,
+        pausedAt: new Date(Date.now() - 60_000),
+        company: { ownerUserId: 'owner1' },
+        ...overrides,
+      };
+    }
+
+    it('resets the day counters set-based, for rows carrying spend from a past day', async () => {
+      const { svc, prisma } = makeService();
+
+      await (svc as any).sweepDayRollover();
+
+      const [args] = (prisma.campaign.updateMany as jest.Mock).mock.calls[0];
+      expect(args.data).toEqual({ spentTodayMinor: 0, spendDay: expect.any(Date) });
+      expect(args.where.spentTodayMinor).toEqual({ not: 0 });
+      // Null-safe on spendDay — a bare `NOT` would exclude every NULL row.
+      expect(args.where.OR).toEqual(
+        expect.arrayContaining([
+          { spendDay: null },
+          expect.objectContaining({ spendDay: expect.objectContaining({ lt: expect.any(Date) }) }),
+        ]),
+      );
+    });
+
+    it('revives a funded depleted campaign with set-based updates, not a per-row loop', async () => {
+      const { svc, prisma } = makeService();
+      (prisma.campaign.findMany as jest.Mock).mockResolvedValue([
+        candidate({ id: 'c1', companyId: 'co1' }),
+        candidate({ id: 'c2', companyId: 'co2' }),
+      ]);
+      (prisma.wallet.findMany as jest.Mock).mockResolvedValue([
+        { userId: 'owner1', balanceMinor: 100_000 },
+      ]);
+
+      await (svc as any).sweepDayRollover();
+
+      const flips = (prisma.campaign.updateMany as jest.Mock).mock.calls.filter(
+        ([a]: [any]) => a.data.status === 'active',
+      );
+      // Both campaigns go active, and they go in ONE id-list statement —
+      // `campaign.update` (the per-row call `setLive` would make) is untouched.
+      expect(flips).toHaveLength(1);
+      expect(flips[0][0].where.id.in).toEqual(['c1', 'c2']);
+      expect(prisma.campaign.update).not.toHaveBeenCalled();
+      // Plus the company/website halves of `setLive`'s "publish into the feed".
+      expect(prisma.company.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['co1', 'co2'] } },
+        data: { status: 'active', featured: true },
+      });
+      expect(prisma.website.updateMany).toHaveBeenCalledWith({
+        where: { companyId: { in: ['co1', 'co2'] } },
+        data: { status: 'published' },
+      });
+    });
+
+    it('only looks at depleted campaigns whose company is not pending deletion', async () => {
+      const { svc, prisma } = makeService();
+
+      await (svc as any).sweepDayRollover();
+
+      const where = (prisma.campaign.findMany as jest.Mock).mock.calls[0][0].where;
+      expect(where.status).toBe('depleted');
+      expect(where.company).toEqual({ deletionScheduledAt: null });
+    });
+
+    it('leaves a campaign depleted when the wallet cannot cover one click', async () => {
+      const { svc, prisma } = makeService();
+      (prisma.campaign.findMany as jest.Mock).mockResolvedValue([candidate({ cpcMinor: 500 })]);
+      (prisma.wallet.findMany as jest.Mock).mockResolvedValue([
+        { userId: 'owner1', balanceMinor: 100 },
+      ]);
+
+      await (svc as any).sweepDayRollover();
+
+      expect(prisma.company.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('leaves a campaign depleted when it has no wallet row at all (or a blocked one)', async () => {
+      const { svc, prisma } = makeService();
+      (prisma.campaign.findMany as jest.Mock).mockResolvedValue([candidate()]);
+      (prisma.wallet.findMany as jest.Mock).mockResolvedValue([]);
+
+      await (svc as any).sweepDayRollover();
+
+      expect(prisma.company.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("leaves a campaign depleted when today's budget still cannot cover a click", async () => {
+      const { svc, prisma } = makeService();
+      (prisma.campaign.findMany as jest.Mock).mockResolvedValue([
+        candidate({ dailyBudgetMinor: 5000, spentTodayMinor: 4900, cpcMinor: 200 }),
+      ]);
+      (prisma.wallet.findMany as jest.Mock).mockResolvedValue([
+        { userId: 'owner1', balanceMinor: 100_000 },
+      ]);
+
+      await (svc as any).sweepDayRollover();
+
+      expect(prisma.company.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("drops banked run time only for campaigns stopped past the run-score grace window — reconcile()'s own rule", async () => {
+      const { svc, prisma } = makeService();
+      (prisma.campaign.findMany as jest.Mock).mockResolvedValue([
+        // Stopped long ago ⇒ reactivation starts a fresh run.
+        candidate({ id: 'old', pausedAt: new Date(Date.now() - 30 * 24 * 3600_000) }),
+        // Stopped moments ago ⇒ keeps its accrued time.
+        candidate({ id: 'recent', pausedAt: new Date(Date.now() - 1_000) }),
+      ]);
+      (prisma.wallet.findMany as jest.Mock).mockResolvedValue([
+        { userId: 'owner1', balanceMinor: 100_000 },
+      ]);
+
+      await (svc as any).sweepDayRollover();
+
+      const flips = (prisma.campaign.updateMany as jest.Mock).mock.calls.filter(
+        ([a]: [any]) => a.data.status === 'active',
+      );
+      const fresh = flips.find(([a]: [any]) => a.where.id.in.includes('old'))![0];
+      const kept = flips.find(([a]: [any]) => a.where.id.in.includes('recent'))![0];
+      expect(fresh.data.activeSecondsAccrued).toBe(0);
+      expect(kept.data).not.toHaveProperty('activeSecondsAccrued');
+    });
+
+    it('chunks the wallet lookup so the `in` list cannot blow the bind-param cap', async () => {
+      const { svc, prisma } = makeService();
+      (prisma.campaign.findMany as jest.Mock).mockResolvedValue(
+        Array.from({ length: 2_500 }, (_, i) =>
+          candidate({ id: `c${i}`, companyId: `co${i}`, company: { ownerUserId: `o${i}` } }),
+        ),
+      );
+
+      await (svc as any).sweepDayRollover();
+
+      expect(prisma.wallet.findMany).toHaveBeenCalledTimes(3);
+      for (const [{ where }] of (prisma.wallet.findMany as jest.Mock).mock.calls) {
+        expect(where.userId.in.length).toBeLessThanOrEqual(1_000);
+        expect(where.blockedAt).toBeNull();
+      }
+    });
+
+    it('bounds the candidate read per tick', async () => {
+      const { svc, prisma } = makeService();
+
+      await (svc as any).sweepDayRollover();
+
+      expect((prisma.campaign.findMany as jest.Mock).mock.calls[0][0].take).toBeGreaterThan(0);
+    });
+
+    it('runDayRollover swallows failures and releases its guard', async () => {
+      const { svc, prisma } = makeService();
+      (prisma.campaign.updateMany as jest.Mock).mockRejectedValueOnce(new Error('pool timeout'));
+
+      await expect((svc as any).runDayRollover()).resolves.toBeUndefined();
+      expect((svc as any).rollingOver).toBe(false);
+    });
+
+    it('runDayRollover skips a concurrent tick instead of stacking', async () => {
+      const { svc } = makeService();
+      let release!: () => void;
+      const inner = jest
+        .spyOn(svc as any, 'sweepDayRollover')
+        .mockImplementation(() => new Promise<void>((resolve) => (release = resolve)));
+
+      const first = (svc as any).runDayRollover();
+      await (svc as any).runDayRollover();
+
+      expect(inner).toHaveBeenCalledTimes(1);
+      release();
+      await first;
+    });
+
+    it('does not set timers when NODE_ENV=test', () => {
+      const spy = jest.spyOn(global, 'setInterval');
+      const { svc } = makeService();
+      svc.onModuleInit();
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
     });
   });
 });

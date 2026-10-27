@@ -34,6 +34,29 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (state): boolean => state.user !== null,
     isPlatformStaff: (state): boolean => (state.user?.platformRoles.length ?? 0) > 0,
+    /**
+     * Only the roles that may actually work the support queue — mirrors the
+     * backend's `SUPPORT_STAFF_ROLES` (support.constants.ts). Distinct from
+     * `isPlatformStaff`, which is true for ANY platform role: gating the
+     * support UI on that one handed `finance`/`moderator` accounts a broken
+     * queue view (no "New ticket" button, 403s on the staff endpoints).
+     */
+    isSupportStaff: (state): boolean => {
+      const roles = state.user?.platformRoles ?? []
+      return roles.includes('admin') || roles.includes('support')
+    },
+    /**
+     * Same shape as `isSupportStaff`, for the Contabil area: the only roles the
+     * backend actually lets into `/admin/finance/*` + the invoice endpoints.
+     * Gating the Financiar sidebar group / landing redirect on
+     * `isPlatformStaff` (or on "not admin") instead handed `support`/`moderator`
+     * accounts five links that all 403, and bounced them through a page they
+     * can't open on the way to `/account`.
+     */
+    isFinanceStaff: (state): boolean => {
+      const roles = state.user?.platformRoles ?? []
+      return roles.includes('admin') || roles.includes('finance')
+    },
   },
 
   actions: {

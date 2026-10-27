@@ -70,6 +70,7 @@ function makeService(prisma: ReturnType<typeof fakePrisma>) {
     stripe as any,
     {} as any,
     {} as any,
+    { log: jest.fn(async () => {}) } as any,
   );
 }
 

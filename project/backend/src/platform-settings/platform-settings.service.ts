@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditActor, AuditLogService } from '../admin/audit-log.service';
 import { AppConfig } from '../config/env';
 
 export const SETTING_KEYS = {
@@ -118,7 +119,46 @@ export class PlatformSettingsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly audit: AuditLogService,
   ) {}
+
+  /**
+   * Audit one admin settings PATCH. Called by the controller AFTER it has
+   * applied the individual setters, with the full settings payload as it
+   * looked before and after.
+   *
+   * Only the fields that actually CHANGED are recorded. Snapshotting the
+   * whole blob would bury a VAT-rate change among 20 untouched values, and
+   * these are the settings that re-price the platform for everyone (VAT,
+   * refund fee, the live discount, the FX rate, the invoice issuer identity
+   * stamped onto every future invoice) — the diff IS the finding. A PATCH
+   * that changed nothing writes no row at all.
+   */
+  async auditUpdate(
+    actor: AuditActor,
+    before: Record<string, unknown>,
+    after: Record<string, unknown>,
+  ): Promise<void> {
+    const changedBefore: Record<string, unknown> = {};
+    const changedAfter: Record<string, unknown> = {};
+    for (const key of Object.keys(after)) {
+      if (before[key] !== after[key]) {
+        changedBefore[key] = before[key] ?? null;
+        changedAfter[key] = after[key] ?? null;
+      }
+    }
+    if (!Object.keys(changedAfter).length) return;
+
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'settings.update',
+      targetType: 'platform_settings',
+      targetId: null,
+      before: changedBefore,
+      after: changedAfter,
+    });
+  }
 
   async get(key: string): Promise<string | null> {
     const hit = this.cache.get(key);

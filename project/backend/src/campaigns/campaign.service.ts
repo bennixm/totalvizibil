@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Campaign, CampaignStatus, CompanyRole, Prisma } from '@prisma/client';
@@ -46,16 +47,40 @@ export interface ClickFeedHint {
 
 const CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager, CompanyRole.billing];
 
+/** How often the day-rollover job runs — see `sweepDayRollover`. Hourly rather
+ *  than once at UTC midnight: a single daily tick that happens to land during
+ *  a deploy or a DB blip would cost every depleted campaign a full day in the
+ *  feed, and the job is idempotent, so retrying it every hour costs nothing. */
+const DAY_ROLLOVER_INTERVAL_MS = 60 * 60 * 1000;
+
+/** Campaigns the revival job considers per tick. The WRITES are set-based
+ *  regardless of this (see `sweepDayRollover`); this only bounds the candidate
+ *  read and the wallet lookups behind it. */
+const DAY_ROLLOVER_BATCH = 5_000;
+
+/** Max elements in any `{ in: [...] }` list this job builds — Prisma emits one
+ *  bind parameter per element and Postgres hard-caps a statement at 65,535. */
+const IN_CHUNK = 1_000;
+
 /** Midnight UTC of the given day — matches the `spend_day` DATE column. */
 function startOfUtcDay(now = new Date()): Date {
   return new Date(`${utcDay(now)}T00:00:00.000Z`);
 }
 
+function chunked<T>(items: T[], size = IN_CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 export type ClickResult = { billed: boolean; reason?: string };
 
 @Injectable()
-export class CampaignService {
+export class CampaignService implements OnModuleInit {
   private readonly logger = new Logger(CampaignService.name);
+  /** Re-entrancy guard for `sweepDayRollover` — same pattern as
+   *  NotificationsSweepService's `sweeping`. */
+  private rollingOver = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -65,6 +90,171 @@ export class CampaignService {
     private readonly notifications: NotificationsService,
     private readonly config: ConfigService<AppConfig, true>,
   ) {}
+
+  /** Same plain-timer pattern as CompaniesService / NotificationsSweepService
+   *  — no `@nestjs/schedule` anywhere in this app. Skipped under Jest so test
+   *  runs don't pick up a background interval. */
+  onModuleInit(): void {
+    if (process.env.NODE_ENV === 'test') return;
+    setTimeout(() => void this.runDayRollover(), 90_000);
+    setInterval(() => void this.runDayRollover(), DAY_ROLLOVER_INTERVAL_MS);
+  }
+
+  private async runDayRollover(): Promise<void> {
+    if (this.rollingOver) return;
+    this.rollingOver = true;
+    try {
+      await this.sweepDayRollover();
+    } catch (err) {
+      this.logger.error('Day-rollover sweep failed', err instanceof Error ? err.stack : err);
+    } finally {
+      this.rollingOver = false;
+    }
+  }
+
+  /**
+   * The scheduled counterpart of `reconcile`'s day-rollover branch — real
+   * revenue was being lost without it.
+   *
+   * `reconcile()` resets `spentTodayMinor`/`spendDay` and revives a `depleted`
+   * campaign at UTC day-rollover, but it is only ever called from OWNER-FACING
+   * DASHBOARD READS. The public feed never calls it, and a depleted campaign
+   * gets zero clicks by definition, so `registerClick` can't revive it either.
+   * Net effect: a business owner who simply didn't open their dashboard the
+   * next day stayed silently excluded from the feed indefinitely — funded,
+   * believing they were running, invisible.
+   *
+   * Deliberately SET-BASED: a bounded candidate read, then a fixed handful of
+   * `updateMany`s, never a per-row loop. The one thing that can't be expressed
+   * as a pure `updateMany` is `reconcile`'s funded test, which compares the
+   * campaign's `cpcMinor` against the OWNER'S WALLET balance — a cross-table
+   * comparison Prisma's `updateMany` WHERE can't do. So the candidates are
+   * read first (one query), their owners' wallets are read in chunks, the
+   * funded/budget filter runs in memory, and every write after that is a
+   * single set-based statement over an id list.
+   *
+   * Revival conditions mirror `reconcile()` exactly: `depleted`, wallet not
+   * blocked and able to cover one click, today's budget able to cover one
+   * click, and the company not pending deletion (`reconcile`'s own
+   * defense-in-depth guard — a business mid-deletion must never come back to
+   * life). `reconcile` does NOT re-check the Feed CPC minimum when reviving
+   * from `depleted` (that branch only matches `active`), so neither does this.
+   */
+  private async sweepDayRollover(): Promise<void> {
+    const today = startOfUtcDay();
+
+    // 1. Day-counter reset, fully set-based. Only rows that actually carry
+    //    spend from a previous day need touching; the `spentTodayMinor: 0`
+    //    default state is already correct for everything else.
+    const reset = await this.prisma.campaign.updateMany({
+      where: {
+        spentTodayMinor: { not: 0 },
+        OR: [{ spendDay: null }, { spendDay: { lt: today } }],
+      },
+      data: { spentTodayMinor: 0, spendDay: today },
+    });
+
+    // 2. Revival candidates. `spentTodayMinor` is read AFTER the reset above,
+    //    so `dailyBudgetMinor - spentTodayMinor` is already today's real
+    //    remaining budget — the same number `reconcile` computes as
+    //    `dayRolled ? 0 : campaign.spentTodayMinor`.
+    const candidates = await this.prisma.campaign.findMany({
+      where: {
+        status: CampaignStatus.depleted,
+        company: { deletionScheduledAt: null },
+      },
+      select: {
+        id: true,
+        companyId: true,
+        cpcMinor: true,
+        dailyBudgetMinor: true,
+        spentTodayMinor: true,
+        pausedAt: true,
+        company: { select: { ownerUserId: true } },
+      },
+      orderBy: { id: 'asc' },
+      take: DAY_ROLLOVER_BATCH,
+    });
+    if (!candidates.length) {
+      if (reset.count > 0) this.logger.log(`Reset today's spend on ${reset.count} campaign(s)`);
+      return;
+    }
+
+    // 3. Owners' wallets, chunked. Same funded test as `WalletService.canAfford`
+    //    (not blocked, balance covers the amount) — inlined here because this
+    //    needs it for thousands of owners as one set of reads, not one call
+    //    per campaign.
+    const ownerIds = [...new Set(candidates.map((c) => c.company.ownerUserId))];
+    const balanceByOwner = new Map<string, number>();
+    for (const ids of chunked(ownerIds)) {
+      const wallets = await this.prisma.wallet.findMany({
+        where: { userId: { in: ids }, blockedAt: null },
+        select: { userId: true, balanceMinor: true },
+      });
+      for (const w of wallets) balanceByOwner.set(w.userId, w.balanceMinor);
+    }
+
+    const revivable = candidates.filter((c) => {
+      const balance = balanceByOwner.get(c.company.ownerUserId);
+      // No wallet row, or a blocked one (filtered out above) ⇒ not funded.
+      if (balance === undefined) return false;
+      if (balance < c.cpcMinor) return false;
+      return c.dailyBudgetMinor - c.spentTodayMinor >= c.cpcMinor;
+    });
+    if (!revivable.length) {
+      if (reset.count > 0) this.logger.log(`Reset today's spend on ${reset.count} campaign(s)`);
+      return;
+    }
+
+    // 4. The revival writes — `setLive`'s effects, expressed set-based.
+    //    `setLive` is per-row (it has a single Campaign in hand) and does one
+    //    thing conditionally: a campaign stopped for longer than
+    //    RUN_SCORE_GRACE_MS loses its banked run time so reactivation starts a
+    //    fresh run, while one stopped for less keeps it. That single condition
+    //    is the only reason this needs two campaign updates instead of one —
+    //    split the ids by it, then one `updateMany` per side.
+    const now = new Date();
+    const graceCutoff = new Date(now.getTime() - RUN_SCORE_GRACE_MS);
+    const freshRun = revivable.filter((c) => c.pausedAt && c.pausedAt < graceCutoff);
+    const keepRun = revivable.filter((c) => !(c.pausedAt && c.pausedAt < graceCutoff));
+    const companyIds = revivable.map((c) => c.companyId);
+
+    for (const ids of chunked(freshRun.map((c) => c.id))) {
+      await this.prisma.campaign.updateMany({
+        where: { id: { in: ids } },
+        data: {
+          status: CampaignStatus.active,
+          activatedAt: now,
+          pausedAt: null,
+          activeSecondsAccrued: 0,
+        },
+      });
+    }
+    for (const ids of chunked(keepRun.map((c) => c.id))) {
+      await this.prisma.campaign.updateMany({
+        where: { id: { in: ids } },
+        data: { status: CampaignStatus.active, activatedAt: now, pausedAt: null },
+      });
+    }
+    // The company + website halves of `setLive`'s "publish into the feed".
+    // `claimedAt` is left alone: these companies were already claimed when
+    // they first went live, and `setLive` only ever re-stamps it as a
+    // side-effect of the same write.
+    for (const ids of chunked(companyIds)) {
+      await this.prisma.company.updateMany({
+        where: { id: { in: ids } },
+        data: { status: 'active', featured: true },
+      });
+      await this.prisma.website.updateMany({
+        where: { companyId: { in: ids } },
+        data: { status: 'published' },
+      });
+    }
+
+    this.logger.log(
+      `Day rollover: reset ${reset.count} campaign(s), revived ${revivable.length} depleted campaign(s)`,
+    );
+  }
 
   // --- membership -------------------------------------------------------
 

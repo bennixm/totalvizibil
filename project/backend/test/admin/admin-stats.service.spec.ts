@@ -46,6 +46,9 @@ function fakePrisma() {
       aggregate: jest.fn(async () => ({
         _sum: { amountMinor: 100000, ronBani: 50000 },
       })),
+      // Completed-refund rows, read individually because the real refunded
+      // money is per-row (`refundSources[].moneyMinor` minus that row's fee).
+      findMany: jest.fn(async () => [] as { refundSources: unknown; feeMinor: number | null }[]),
     },
   };
 }
@@ -231,6 +234,85 @@ describe('AdminStatsService', () => {
       const result = await svc.overview();
       expect(result.signups).toHaveLength(14);
       expect(result.economySeries).toHaveLength(14);
+    });
+
+    it("counts only CPC rows as 'consumed' — a bare type:'spend' filter also swept up builder-unlock / AI-usage / additional-business / domain fees and inflated the ad-spend card", async () => {
+      const prisma = fakePrisma();
+      const { svc } = makeService(prisma);
+
+      await svc.overview();
+
+      const spendCalls = (prisma.walletTransaction.aggregate as jest.Mock).mock.calls
+        .map((c) => c[0] as { where: Record<string, unknown> })
+        .filter((a) => a.where.type === 'spend');
+
+      // Both the all-time and the 30-day aggregate.
+      expect(spendCalls).toHaveLength(2);
+      for (const call of spendCalls) {
+        expect(call.where.provider).toBe('cpc');
+      }
+    });
+
+    it("restricts the economySeries 'consumed' SQL to the CPC provider too, so the chart agrees with the card", async () => {
+      const prisma = fakePrisma();
+      const { svc } = makeService(prisma);
+
+      await svc.overview();
+
+      // The third $queryRaw is economyTimeseries (two signup queries first).
+      const call = (prisma.$queryRaw as jest.Mock).mock.calls[2] as [
+        { strings?: string[] } & string[],
+        ...unknown[],
+      ];
+      const sql = (Array.isArray(call[0]) ? call[0].join('?') : String(call[0])).replace(
+        /\s+/g,
+        ' ',
+      );
+      expect(sql).toContain('"provider" =');
+      // The interpolated value is the CPC provider constant.
+      expect(call.slice(1)).toContain('cpc');
+    });
+
+    it('refunded is the real money sent back (refundSources.moneyMinor minus the withheld fee), not the credit face value', async () => {
+      const prisma = fakePrisma();
+      // 100 credits refunded, but the money behind them was only 90.00 EUR
+      // (a discounted purchase) and the platform kept a 450-cent fee.
+      (prisma.walletTransaction.findMany as jest.Mock).mockResolvedValue([
+        {
+          refundSources: [{ purchaseId: 'p1', amountMinor: 10_000, moneyMinor: 9_000 }],
+          feeMinor: 450,
+        },
+      ]);
+      const { svc } = makeService(prisma);
+
+      const { economy } = await svc.overview();
+
+      expect(economy.refunded.minor).toBe(9_000 - 450);
+    });
+
+    it('falls back to a source slice amountMinor when it has no moneyMinor (pre-discount-feature rows)', async () => {
+      const prisma = fakePrisma();
+      (prisma.walletTransaction.findMany as jest.Mock).mockResolvedValue([
+        { refundSources: [{ purchaseId: 'p1', amountMinor: 2_500 }], feeMinor: null },
+      ]);
+      const { svc } = makeService(prisma);
+
+      const { economy } = await svc.overview();
+
+      expect(economy.refunded.minor).toBe(2_500);
+    });
+
+    it('reads only COMPLETED refunds — a pending or canceled refund sent no money back', async () => {
+      const prisma = fakePrisma();
+      const { svc } = makeService(prisma);
+
+      await svc.overview();
+
+      expect(prisma.walletTransaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ type: 'refund', status: 'completed' }),
+        }),
+      );
     });
 
     it('generatedAt is a valid ISO date string', async () => {

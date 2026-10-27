@@ -1,9 +1,41 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { CPC_PROVIDER } from '../wallet/wallet.service';
 import { money } from '../wallet/money';
 
 const DAY = 86_400_000;
+
+/**
+ * The real money a completed refund sent back, not the credit face value.
+ *
+ * Mirrors the finance module's own refund figure (finance.service.ts's
+ * `refundMoneyMinor`) on purpose: a refund row's `amountMinor` is the CREDIT
+ * slice taken out of the wallet, which both ignores the processing fee the
+ * platform kept and overstates the money leg of a discounted purchase (whose
+ * `moneyMinor` is smaller than its credit slice). The two pages quoted
+ * different "refunded" totals for the same ledger until both used this.
+ */
+function refundMoneyMinor(r: { refundSources: Prisma.JsonValue; feeMinor: number | null }): number {
+  const sources = parseRefundSources(r.refundSources);
+  const grossMoneyMinor = sources.reduce((s, src) => s + (src.moneyMinor ?? src.amountMinor), 0);
+  return grossMoneyMinor - (r.feeMinor ?? 0);
+}
+
+/** A refund's `refundSources` JSON column — see the field comment on
+ *  `WalletTransaction` in schema.prisma for the shape. */
+function parseRefundSources(
+  json: Prisma.JsonValue,
+): { amountMinor: number; moneyMinor?: number }[] {
+  if (!Array.isArray(json)) return [];
+  return json.filter(
+    (s): s is { amountMinor: number; moneyMinor?: number } =>
+      typeof s === 'object' &&
+      s !== null &&
+      typeof (s as Record<string, unknown>).amountMinor === 'number',
+  );
+}
 
 interface DayPoint {
   date: string;
@@ -86,7 +118,7 @@ export class AdminStatsService {
       sold30,
       consumedAllTime,
       consumed30,
-      refundedAllTime,
+      refundRows,
       eurRonRate,
     ] = await Promise.all([
       this.prisma.company.groupBy({
@@ -115,17 +147,33 @@ export class AdminStatsService {
         _sum: { amountMinor: true, ronBani: true },
         where: { type: 'purchase', status: 'completed', createdAt: { gte: d30 } },
       }),
+      // CPC ad spend ONLY. `type: 'spend'` on its own also sweeps up
+      // builder-unlock fees, additional-business fees, AI-usage charges and
+      // domain fees — one-off platform charges that are not ad spend at all,
+      // and which made this card read far higher than the campaigns it
+      // claimed to summarise. `provider: CPC_PROVIDER` is the same filter
+      // `WalletService.consumedByCompany` uses for the per-business figure,
+      // so the dashboard total now reconciles with the parts.
       this.prisma.walletTransaction.aggregate({
         _sum: { amountMinor: true },
-        where: { type: 'spend', status: 'completed' },
+        where: { type: 'spend', status: 'completed', provider: CPC_PROVIDER },
       }),
       this.prisma.walletTransaction.aggregate({
         _sum: { amountMinor: true },
-        where: { type: 'spend', status: 'completed', createdAt: { gte: d30 } },
+        where: {
+          type: 'spend',
+          status: 'completed',
+          provider: CPC_PROVIDER,
+          createdAt: { gte: d30 },
+        },
       }),
-      this.prisma.walletTransaction.aggregate({
-        _sum: { amountMinor: true },
+      // Rows, not an aggregate: the real refunded money is per-row
+      // (`refundSources[].moneyMinor` minus that row's own fee), which no
+      // SQL SUM over `amountMinor` can express. `status: 'completed'` also
+      // matters — a pending or canceled refund never sent any money back.
+      this.prisma.walletTransaction.findMany({
         where: { type: 'refund', status: 'completed' },
+        select: { refundSources: true, feeMinor: true },
       }),
       this.settings.eurRonRate(),
     ]);
@@ -169,7 +217,7 @@ export class AdminStatsService {
         ronCollected30d: (sold30._sum.ronBani ?? 0) / 100,
         cpcConsumed: money(abs(consumedAllTime._sum.amountMinor)),
         cpcConsumed30d: money(abs(consumed30._sum.amountMinor)),
-        refunded: money(abs(refundedAllTime._sum.amountMinor)),
+        refunded: money(refundRows.reduce((s, r) => s + refundMoneyMinor(r), 0)),
         pendingPurchases,
         walletsBlocked,
       },
@@ -229,10 +277,16 @@ export class AdminStatsService {
     // shifted the whole window back far enough to drop today's data entirely.
     since.setUTCHours(0, 0, 0, 0);
 
+    // The `consumed` series is CPC ad spend only — same `provider = 'cpc'`
+    // filter as the `cpcConsumed` card above (see the comment there). Without
+    // it the chart's "credits burned on clicks" line also included one-off
+    // builder-unlock / AI / domain charges.
     const rows = await this.prisma.$queryRaw<{ day: Date; sold: bigint; consumed: bigint }[]>`
       SELECT date_trunc('day', "created_at") AS day,
              COALESCE(SUM("amount_minor") FILTER (WHERE "type" = 'purchase'), 0)::bigint AS sold,
-             COALESCE(-SUM("amount_minor") FILTER (WHERE "type" = 'spend'), 0)::bigint AS consumed
+             COALESCE(-SUM("amount_minor") FILTER (
+               WHERE "type" = 'spend' AND "provider" = ${CPC_PROVIDER}
+             ), 0)::bigint AS consumed
       FROM "wallet_transactions"
       WHERE "created_at" >= ${since} AND "status" = 'completed'
         AND "type" IN ('purchase', 'spend')

@@ -19,6 +19,7 @@ import { FinanceService } from './finance.service';
 import { FinancePeriodQuery } from './dto/finance-period.query';
 import { ListRevenueQuery } from './dto/list-revenue.query';
 import { ListExpensesQuery } from './dto/list-expenses.query';
+import { PagedPeriodQuery } from './dto/paged-period.query';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 
@@ -70,14 +71,30 @@ export class FinanceController {
   }
 
   @Patch('expenses/:id')
-  updateExpense(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateExpenseDto) {
-    return this.finance.updateExpense(id, dto);
+  updateExpense(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateExpenseDto,
+  ) {
+    return this.finance.updateExpense(id, dto, user);
   }
 
   @Delete('expenses/:id')
-  async deleteExpense(@Param('id', ParseUUIDPipe) id: string) {
-    await this.finance.deleteExpense(id);
+  async deleteExpense(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    await this.finance.deleteExpense(id, user);
     return { ok: true };
+  }
+
+  /** Register of invoices annulled in the period (count + voided total). */
+  @Get('voided-invoices')
+  voidedInvoices(@Query() q: PagedPeriodQuery) {
+    return this.finance.listVoidedInvoices(q);
+  }
+
+  /** CPC spend per business for the period, biggest spender first. */
+  @Get('top-companies')
+  topCompanies(@Query() q: PagedPeriodQuery) {
+    return this.finance.listTopCompanies(q);
   }
 
   @Get('ai-usage')

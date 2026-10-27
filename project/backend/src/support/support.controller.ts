@@ -58,6 +58,11 @@ export class SupportController {
     return this.support.assignableStaff();
   }
 
+  /** Tighter than the global rate limit: a real person opens a handful of
+   *  tickets a day, and each one fans a notification out to the whole
+   *  support queue — so this is the one route where a loop is both cheap to
+   *  run and expensive to receive. */
+  @Throttle({ default: { ttl: 3_600_000, limit: 10 } })
   @Post('tickets')
   create(@CurrentUser() user: AuthPrincipal, @Body() dto: CreateTicketDto) {
     return this.support.create(this.actor(user), dto);

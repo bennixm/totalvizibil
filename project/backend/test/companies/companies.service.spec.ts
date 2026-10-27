@@ -124,8 +124,11 @@ function fakePrisma() {
         return c;
       }),
       findMany: jest.fn(async ({ where }: any) => {
-        // purgeExpiredDeletions: return empty so nothing gets deleted in tests
+        // purgeExpiredDeletions (both the per-user and the new global form):
+        // return empty so nothing gets deleted in tests unless a test
+        // explicitly overrides this mock.
         if (where?.id?.in) return [];
+        if (where?.deletionScheduledAt) return [];
         return [...companies.values()];
       }),
       update: jest.fn(async ({ where, data }: any) => {
@@ -133,6 +136,27 @@ function fakePrisma() {
         if (c) Object.assign(c, data);
         return c ?? {};
       }),
+      // Conditional claim (see `scheduleDeletion`): honours the WHERE the way
+      // Postgres would, so a second concurrent caller genuinely gets count=0
+      // rather than the mock rubber-stamping every call.
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const c = companies.get(where.id);
+        if (!c) return { count: 0 };
+        if ('deletionScheduledAt' in where && where.deletionScheduledAt === null) {
+          if (c.deletionScheduledAt) return { count: 0 };
+        }
+        if ('deletionReminderSentAt' in where && where.deletionReminderSentAt === null) {
+          if (c.deletionReminderSentAt) return { count: 0 };
+        }
+        Object.assign(c, data);
+        return { count: 1 };
+      }),
+      deleteMany: jest.fn(async () => ({ count: 0 })),
+    },
+
+    // ---- websiteDraft (retention sweep) ----
+    websiteDraft: {
+      findMany: jest.fn(async () => []),
       deleteMany: jest.fn(async () => ({ count: 0 })),
     },
 
@@ -320,8 +344,11 @@ describe('CompaniesService', () => {
 
       await svc.requestDeletion('u1', 'co1');
 
-      expect(prisma.company.update).toHaveBeenCalledWith(
+      // Now written by the conditional CLAIM (`updateMany`), not a plain
+      // `update` — see the C4 tests below.
+      expect(prisma.company.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
+          where: { id: 'co1', deletionScheduledAt: null },
           data: expect.objectContaining({ deletionScheduledAt: expect.any(Date) }),
         }),
       );
@@ -361,6 +388,148 @@ describe('CompaniesService', () => {
           arg.data.autoOptimize === false,
       );
       expect(clearsAutoOptimizeOnNonActive).toBe(true);
+    });
+  });
+
+  // ---- C4: scheduleDeletion's atomic claim --------------------------------
+
+  describe('scheduleDeletion (atomic claim)', () => {
+    it('C4: two concurrent calls take the business down once and send ONE email', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedCompany({ id: 'co1', deletionScheduledAt: null });
+      // Both callers read `deletionScheduledAt: null` before either writes —
+      // the read-then-write shape this replaced let both proceed, which is
+      // the NORMAL case once more than one app instance runs the sweep.
+      await Promise.all([
+        (svc as any).scheduleDeletion('co1'),
+        (svc as any).scheduleDeletion('co1'),
+      ]);
+
+      const claims = (prisma.company.updateMany as jest.Mock).mock.results;
+      const won = await Promise.all(claims.map((r: any) => r.value));
+      expect(won.filter((r: any) => r.count === 1)).toHaveLength(1);
+      expect(notifications.notify).toHaveBeenCalledTimes(1);
+    });
+
+    it('C4: a lost claim skips the takedown transaction entirely', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedCompany({ id: 'co1', deletionScheduledAt: null });
+      (prisma.company.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+
+      await (svc as any).scheduleDeletion('co1');
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(notifications.notify).not.toHaveBeenCalled();
+    });
+
+    it('C6: the deletion date is formatted in Europe/Bucharest, not the server zone', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seedCompany({ id: 'co1', deletionScheduledAt: null });
+
+      await (svc as any).scheduleDeletion('co1');
+
+      // ro-RO formats as dd.mm.yyyy; the point of the assertion is that a
+      // real date made it into the body (the zone itself is asserted by the
+      // absence of a UTC-vs-local off-by-one, which is only observable with a
+      // fixed clock — covered by the explicit `timeZone` option in source).
+      const body = (notifications.notify as jest.Mock).mock.calls[0][0].body;
+      expect(body).toMatch(/\d{2}\.\d{2}\.\d{4}/);
+    });
+  });
+
+  // ---- C3 / S4: sweepStaleDrafts isolation + bounded fan-out --------------
+
+  describe('sweepStaleDrafts', () => {
+    it('C3: one failing draft does not abort the rest of the batch', async () => {
+      const { svc, prisma } = makeService();
+      (prisma.company.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 'bad' },
+        { id: 'ok1' },
+        { id: 'ok2' },
+      ]);
+      const schedule = jest
+        .spyOn(svc as any, 'scheduleDeletion')
+        .mockImplementation(async (id: any) => {
+          if (id === 'bad') throw new Error('row blew up');
+        });
+
+      await (svc as any).sweepStaleDrafts();
+
+      // Previously a single throwing row aborted every remaining stale draft:
+      // the whole method sat behind ONE outer try/catch.
+      expect(schedule).toHaveBeenCalledTimes(3);
+      expect(schedule).toHaveBeenCalledWith('ok2');
+    });
+
+    it('S4: fans out in bounded chunks instead of all at once', async () => {
+      const { svc, prisma } = makeService();
+      (prisma.company.findMany as jest.Mock).mockResolvedValueOnce(
+        Array.from({ length: 40 }, (_, i) => ({ id: `d${i}` })),
+      );
+
+      let inFlight = 0;
+      let peak = 0;
+      jest.spyOn(svc as any, 'scheduleDeletion').mockImplementation(async () => {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 1));
+        inFlight--;
+      });
+
+      await (svc as any).sweepStaleDrafts();
+
+      // Each stale draft costs a multi-statement $transaction plus an
+      // unawaited notify() (≈3 queries + SMTP). Unbounded, 40 of those hit a
+      // default Prisma pool of 9-17 connections simultaneously.
+      expect(peak).toBeLessThanOrEqual(15);
+      expect(peak).toBeGreaterThan(1);
+    });
+  });
+
+  // ---- S10b / item 14: the scheduled retention sweep ----------------------
+
+  describe('sweepRetention', () => {
+    it('S10b: purges expired deletions platform-wide, with no company ids to narrow by', async () => {
+      const { svc } = makeService();
+      const purge = jest.spyOn(svc as any, 'purgeExpiredDeletions').mockResolvedValue(0);
+
+      await (svc as any).sweepRetention();
+
+      // The whole point of the finding: this used to run ONLY from user-read
+      // paths, so a business nobody ever came back to was never purged at all
+      // despite the reminder email naming a hard deletion date.
+      expect(purge).toHaveBeenCalledWith();
+    });
+
+    it('item 14: deletes expired website drafts in a bounded batch', async () => {
+      const { svc, prisma } = makeService();
+      (prisma.websiteDraft.findMany as jest.Mock).mockResolvedValue([{ id: 'd1' }, { id: 'd2' }]);
+      (prisma.websiteDraft.deleteMany as jest.Mock).mockResolvedValue({ count: 2 });
+
+      await (svc as any).sweepRetention();
+
+      const selectArgs = (prisma.websiteDraft.findMany as jest.Mock).mock.calls[0][0];
+      expect(selectArgs.where.expiresAt.lt).toBeInstanceOf(Date);
+      expect(selectArgs.take).toBeGreaterThan(0);
+      expect(prisma.websiteDraft.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['d1', 'd2'] } },
+      });
+    });
+
+    it('skips the delete entirely when nothing is expired', async () => {
+      const { svc, prisma } = makeService();
+
+      await (svc as any).sweepRetention();
+
+      expect(prisma.websiteDraft.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('a failing purge leg still lets the draft leg run', async () => {
+      const { svc, prisma } = makeService();
+      jest.spyOn(svc as any, 'purgeExpiredDeletions').mockRejectedValue(new Error('pool timeout'));
+
+      await expect((svc as any).sweepRetention()).resolves.toBeUndefined();
+      expect(prisma.websiteDraft.findMany).toHaveBeenCalled();
     });
   });
 });

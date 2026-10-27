@@ -1,4 +1,7 @@
 import { decomposeVat, isProfileComplete } from 'src/billing/billing.service';
+import { canViewAnyInvoice } from 'src/billing/billing.controller';
+import { AuthPrincipal } from 'src/auth/auth.types';
+import { PlatformRole } from '@prisma/client';
 
 describe('isProfileComplete', () => {
   const base = {
@@ -61,5 +64,28 @@ describe('decomposeVat', () => {
       const { subtotal, vat } = decomposeVat(total, 19);
       expect(subtotal + vat).toBe(total);
     }
+  });
+});
+
+describe('canViewAnyInvoice', () => {
+  const principal = (platformRoles: PlatformRole[]): AuthPrincipal => ({
+    id: 'u1',
+    email: 'a@b.com',
+    name: 'A',
+    platformRoles,
+    sessionId: 's1',
+    emailVerifiedAt: new Date(),
+  });
+
+  it('admin and finance may open any user invoice (and the staff PDF download)', () => {
+    expect(canViewAnyInvoice(principal(['admin']))).toBe(true);
+    expect(canViewAnyInvoice(principal(['finance']))).toBe(true);
+    expect(canViewAnyInvoice(principal(['moderator', 'finance']))).toBe(true);
+  });
+
+  it('every other principal stays scoped to their own invoices', () => {
+    expect(canViewAnyInvoice(principal([]))).toBe(false);
+    expect(canViewAnyInvoice(principal(['support']))).toBe(false);
+    expect(canViewAnyInvoice(principal(['moderator']))).toBe(false);
   });
 });

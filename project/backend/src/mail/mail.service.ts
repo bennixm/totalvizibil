@@ -60,6 +60,26 @@ export class MailService {
             connectionTimeout: 10_000,
             greetingTimeout: 10_000,
             socketTimeout: 10_000,
+            // Pooled, rate-limited transport. Without `pool`, nodemailer
+            // opens a fresh TCP+TLS+AUTH handshake for EVERY message — the
+            // dominant cost of the background notification sweeps, which send
+            // one email per row in a sequential loop (see
+            // NotificationsSweepService.sweepDepletedCampaigns and
+            // NotificationsService.sendBroadcastEmails). Reusing a small pool
+            // of connections cuts that to one handshake per connection.
+            //
+            // The caps are the other half: `maxConnections` bounds how much
+            // concurrent SMTP this process can ever hold open (providers drop
+            // or blacklist a sender that fans out harder), `maxMessages`
+            // recycles a connection before most providers' own per-connection
+            // message ceiling kicks in, and `rateDelta`/`rateLimit` keep the
+            // send rate under a typical provider's per-second limit instead of
+            // discovering it as a burst of delivery failures.
+            pool: true,
+            maxConnections: 5,
+            maxMessages: 100,
+            rateDelta: 1_000,
+            rateLimit: 10,
             auth: { user, pass },
           })
         : null;

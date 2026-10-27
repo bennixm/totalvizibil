@@ -4,6 +4,7 @@ import { BillingProfile, Invoice, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditActor, AuditLogService } from '../admin/audit-log.service';
 import { AppConfig } from '../config/env';
 import { minorToCredits } from '../wallet/money';
 import { BillingProfileDto } from './dto/billing-profile.dto';
@@ -52,6 +53,7 @@ export class BillingService {
     private readonly settings: PlatformSettingsService,
     private readonly notifications: NotificationsService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly audit: AuditLogService,
   ) {}
 
   // --- profile ---------------------------------------------------------
@@ -363,14 +365,32 @@ export class BillingService {
     return invoice;
   }
 
-  async voidInvoice(id: string, reason: string) {
+  /** `actor` is who voided it. The Invoice row itself deliberately records
+   *  only THAT it was voided and why — an issued invoice is a fiscal
+   *  document and doesn't grow staff-attribution columns — so who did it
+   *  lives in the audit log instead. Optional for the same reason every
+   *  other actor param here is: a non-staff/internal caller has no actor. */
+  async voidInvoice(id: string, reason: string, actor?: AuditActor) {
     const invoice = await this.prisma.invoice.findUnique({ where: { id } });
     if (!invoice) throw new NotFoundException('invoice_not_found');
     if (invoice.voidedAt) return this.adminGetInvoice(id);
-    await this.prisma.invoice.update({
+    const updated = await this.prisma.invoice.update({
       where: { id },
       data: { voidedAt: new Date(), voidReason: reason.trim().slice(0, 300) },
     });
+
+    if (actor) {
+      await this.audit.log({
+        actorId: actor.id,
+        actorRoles: actor.roles,
+        action: 'invoice.void',
+        targetType: 'invoice',
+        targetId: id,
+        before: { voidedAt: invoice.voidedAt, voidReason: invoice.voidReason },
+        after: { voidedAt: updated.voidedAt, voidReason: updated.voidReason },
+        reason: updated.voidReason,
+      });
+    }
 
     // Already committed — a notification hiccup must never mask this.
     void this.notifications
@@ -406,7 +426,8 @@ export class BillingService {
     return this.adminGetInvoice(id);
   }
 
-  async unvoidInvoice(id: string) {
+  /** See `voidInvoice` on why `actor` is audit-logged rather than stored. */
+  async unvoidInvoice(id: string, actor?: AuditActor) {
     const invoice = await this.prisma.invoice.findUnique({ where: { id } });
     if (!invoice) throw new NotFoundException('invoice_not_found');
     // Mirrors `voidInvoice`'s own already-in-that-state short-circuit — two
@@ -418,6 +439,18 @@ export class BillingService {
       where: { id },
       data: { voidedAt: null, voidReason: null },
     });
+
+    if (actor) {
+      await this.audit.log({
+        actorId: actor.id,
+        actorRoles: actor.roles,
+        action: 'invoice.unvoid',
+        targetType: 'invoice',
+        targetId: id,
+        before: { voidedAt: invoice.voidedAt, voidReason: invoice.voidReason },
+        after: { voidedAt: null, voidReason: null },
+      });
+    }
 
     void this.notifications
       .notify({

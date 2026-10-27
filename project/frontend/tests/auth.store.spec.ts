@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { apiFetch, ApiError } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore, type PlatformRole } from '@/stores/auth'
 
 vi.mock('@/services/api', async () => {
   const actual = await vi.importActual<typeof import('@/services/api')>('@/services/api')
@@ -60,6 +60,83 @@ describe('auth store', () => {
     await auth.login({ email: 'x@y.com', password: 'password123' })
     expect(auth.user?.id).toBe('u9')
     expect(auth.isPlatformStaff).toBe(true)
+  })
+
+  it('isSupportStaff is true only for admin/support, isPlatformStaff for any role', () => {
+    const auth = useAuthStore()
+    const withRoles = (platformRoles: PlatformRole[]) => {
+      auth.user = {
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'A',
+        platformRoles,
+        emailVerifiedAt: null,
+      }
+    }
+
+    withRoles([])
+    expect(auth.isPlatformStaff).toBe(false)
+    expect(auth.isSupportStaff).toBe(false)
+
+    withRoles(['admin'])
+    expect(auth.isSupportStaff).toBe(true)
+
+    withRoles(['support'])
+    expect(auth.isSupportStaff).toBe(true)
+
+    // Platform staff, but NOT support staff — these must get the ordinary
+    // customer support view, not the agent queue.
+    withRoles(['finance'])
+    expect(auth.isPlatformStaff).toBe(true)
+    expect(auth.isSupportStaff).toBe(false)
+
+    withRoles(['moderator'])
+    expect(auth.isPlatformStaff).toBe(true)
+    expect(auth.isSupportStaff).toBe(false)
+
+    withRoles(['moderator', 'support'])
+    expect(auth.isSupportStaff).toBe(true)
+
+    auth.user = null
+    expect(auth.isSupportStaff).toBe(false)
+  })
+
+  it('isFinanceStaff is true only for admin/finance', () => {
+    const auth = useAuthStore()
+    const withRoles = (platformRoles: PlatformRole[]) => {
+      auth.user = {
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'A',
+        platformRoles,
+        emailVerifiedAt: null,
+      }
+    }
+
+    withRoles([])
+    expect(auth.isFinanceStaff).toBe(false)
+
+    withRoles(['admin'])
+    expect(auth.isFinanceStaff).toBe(true)
+
+    withRoles(['finance'])
+    expect(auth.isFinanceStaff).toBe(true)
+
+    // Platform staff, but with no business in the Financiar area — the sidebar
+    // group and the /admin landing redirect both hang off this.
+    withRoles(['support'])
+    expect(auth.isPlatformStaff).toBe(true)
+    expect(auth.isFinanceStaff).toBe(false)
+
+    withRoles(['moderator'])
+    expect(auth.isPlatformStaff).toBe(true)
+    expect(auth.isFinanceStaff).toBe(false)
+
+    withRoles(['moderator', 'finance'])
+    expect(auth.isFinanceStaff).toBe(true)
+
+    auth.user = null
+    expect(auth.isFinanceStaff).toBe(false)
   })
 
   it('logout clears the user even if the request fails', async () => {

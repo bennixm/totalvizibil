@@ -27,6 +27,10 @@ function fakeNotifications() {
   };
 }
 
+function fakeAudit() {
+  return { log: jest.fn().mockResolvedValue(undefined) };
+}
+
 function fakeConfig() {
   return { get: jest.fn(() => 'http://localhost:5173') };
 }
@@ -40,6 +44,7 @@ describe('PlatformSettingsService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
 
       await svc.get('test_key');
@@ -54,6 +59,7 @@ describe('PlatformSettingsService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
 
       await svc.set('my_key', 'my_value');
@@ -71,6 +77,7 @@ describe('PlatformSettingsService', () => {
         fakePrisma() as any,
         fakeNotifications() as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
       expect(await svc.eurRonRate()).toBe(5.05);
     });
@@ -82,6 +89,7 @@ describe('PlatformSettingsService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
       expect(await svc.eurRonRate()).toBe(4.97);
     });
@@ -93,6 +101,7 @@ describe('PlatformSettingsService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
       expect(await svc.eurRonRate()).toBe(5.05);
     });
@@ -102,6 +111,7 @@ describe('PlatformSettingsService', () => {
         fakePrisma() as any,
         fakeNotifications() as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
       await expect(svc.setEurRonRate(0)).rejects.toThrow(BadRequestException);
     });
@@ -111,6 +121,7 @@ describe('PlatformSettingsService', () => {
         fakePrisma() as any,
         fakeNotifications() as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
       const result = await svc.setEurRonRate(4.92);
       expect(result).toBe(4.92);
@@ -123,6 +134,7 @@ describe('PlatformSettingsService', () => {
         fakePrisma() as any,
         fakeNotifications() as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
       expect(await svc.affiliateEnabled()).toBe(false);
     });
@@ -134,6 +146,7 @@ describe('PlatformSettingsService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
       expect(await svc.affiliateEnabled()).toBe(true);
     });
@@ -146,6 +159,7 @@ describe('PlatformSettingsService', () => {
         fakePrisma() as any,
         notifications as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
 
       await svc.setCreditsDiscount({ enabled: true, pct: 10 });
@@ -166,6 +180,7 @@ describe('PlatformSettingsService', () => {
         prisma as any,
         notifications as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
 
       await svc.setCreditsDiscount({ enabled: false });
@@ -185,6 +200,7 @@ describe('PlatformSettingsService', () => {
         prisma as any,
         notifications as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
 
       await svc.setCreditsDiscount({ enabled: true, pct: 10 });
@@ -198,9 +214,83 @@ describe('PlatformSettingsService', () => {
         fakePrisma() as any,
         fakeNotifications() as any,
         fakeConfig() as any,
+        fakeAudit() as any,
       );
       await expect(svc.setCreditsDiscount({ pct: 0 })).rejects.toThrow(BadRequestException);
       await expect(svc.setCreditsDiscount({ pct: 100 })).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // auditUpdate — the admin settings PATCH is now attributable.
+  // -------------------------------------------------------------------------
+  describe('auditUpdate', () => {
+    function makeSvc() {
+      const audit = fakeAudit();
+      const svc = new PlatformSettingsService(
+        fakePrisma() as any,
+        fakeNotifications() as any,
+        fakeConfig() as any,
+        audit as any,
+      );
+      return { svc, audit };
+    }
+
+    const ACTOR = { id: 'staff1', roles: ['finance'] };
+
+    it('records ONLY the fields that changed, not the whole settings blob', async () => {
+      const { svc, audit } = makeSvc();
+
+      await svc.auditUpdate(
+        ACTOR,
+        { invoiceVatRatePct: 0, refundFeePct: 5, eurRonRate: 5.05 },
+        { invoiceVatRatePct: 19, refundFeePct: 5, eurRonRate: 5.05 },
+      );
+
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: 'staff1',
+          actorRoles: ['finance'],
+          action: 'settings.update',
+          targetType: 'platform_settings',
+          targetId: null,
+          before: { invoiceVatRatePct: 0 },
+          after: { invoiceVatRatePct: 19 },
+        }),
+      );
+    });
+
+    it('records several changed fields together (one row per PATCH, not per field)', async () => {
+      const { svc, audit } = makeSvc();
+
+      await svc.auditUpdate(
+        ACTOR,
+        { refundFeePct: 5, creditsDiscountEnabled: false, eurRonRate: 5.05 },
+        { refundFeePct: 10, creditsDiscountEnabled: true, eurRonRate: 5.05 },
+      );
+
+      expect(audit.log).toHaveBeenCalledTimes(1);
+      const entry = (audit.log as jest.Mock).mock.calls[0][0];
+      expect(entry.before).toEqual({ refundFeePct: 5, creditsDiscountEnabled: false });
+      expect(entry.after).toEqual({ refundFeePct: 10, creditsDiscountEnabled: true });
+    });
+
+    it('writes nothing when the PATCH changed nothing (a re-save of identical values)', async () => {
+      const { svc, audit } = makeSvc();
+
+      await svc.auditUpdate(ACTOR, { refundFeePct: 5 }, { refundFeePct: 5 });
+
+      expect(audit.log).not.toHaveBeenCalled();
+    });
+
+    it('normalises a missing "before" value to null rather than dropping the field', async () => {
+      const { svc, audit } = makeSvc();
+
+      await svc.auditUpdate(ACTOR, {}, { invoiceIssuerIban: 'RO49AAAA1B31007593840000' });
+
+      const entry = (audit.log as jest.Mock).mock.calls[0][0];
+      expect(entry.before).toEqual({ invoiceIssuerIban: null });
+      expect(entry.after).toEqual({ invoiceIssuerIban: 'RO49AAAA1B31007593840000' });
     });
   });
 });

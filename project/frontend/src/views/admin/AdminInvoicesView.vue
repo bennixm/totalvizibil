@@ -14,7 +14,7 @@ import {
   type InvoiceStatusFilter,
 } from '@/stores/admin'
 import { useToastStore } from '@/stores/toast'
-import { ApiError } from '@/services/api'
+import { ApiError, BASE_URL } from '@/services/api'
 
 const { t, n } = useI18n()
 const admin = useAdminStore()
@@ -42,6 +42,13 @@ function total(minor: number): string {
 }
 function buyerKindLabel(kind: 'individual' | 'company'): string {
   return kind === 'company' ? t('account.billingKindCompany') : t('account.billingKindIndividual')
+}
+/** Server-rendered PDF of an issued invoice — the same document that went out
+ *  as the payment-confirmation email attachment. A plain link, not an
+ *  `apiFetch`: the session cookie rides along and the backend's
+ *  `Content-Disposition: attachment` is what saves the file. */
+function pdfHref(id: string): string {
+  return `${BASE_URL}/admin/invoices/${id}/pdf`
 }
 
 const toasts = useToastStore()
@@ -233,6 +240,14 @@ onMounted(() => admin.fetchInvoices())
               :title="t('admin.invOpenPdf')"
             />
             <v-btn
+              :href="pdfHref(inv.id)"
+              download
+              size="small"
+              variant="text"
+              icon="mdi-file-download-outline"
+              :title="t('wallet.paymentsDownloadPdf')"
+            />
+            <v-btn
               v-if="!inv.voidedAt"
               size="small"
               variant="text"
@@ -307,6 +322,14 @@ onMounted(() => admin.fetchInvoices())
               prepend-icon="mdi-open-in-new"
             >
               {{ t('admin.invOpenPdf') }}
+            </v-btn>
+            <v-btn
+              variant="text"
+              :href="pdfHref(detail.id)"
+              download
+              prepend-icon="mdi-file-download-outline"
+            >
+              {{ t('wallet.paymentsDownloadPdf') }}
             </v-btn>
             <v-spacer />
             <v-btn v-if="!detail.voidedAt" variant="text" color="error" @click="openVoid(detail)">

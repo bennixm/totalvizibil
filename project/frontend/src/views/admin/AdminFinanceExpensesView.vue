@@ -5,15 +5,34 @@ import { useI18n } from 'vue-i18n'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
-import { useAdminFinanceStore, type ExpenseCategory, type ExpenseRow } from '@/stores/adminFinance'
+import {
+  useAdminFinanceStore,
+  type ExpenseCategory,
+  type ExpenseCurrency,
+  type ExpenseRow,
+} from '@/stores/adminFinance'
+import { useAuthStore } from '@/stores/auth'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
 
 const { t } = useI18n()
 const finance = useAdminFinanceStore()
+const auth = useAuthStore()
 const confirm = useConfirmStore()
 const toasts = useToastStore()
+
+/** `stripe_api` rows are auto-captured Stripe-fee bookkeeping: editing or
+ *  deleting one breaks reconciliation against Stripe's own payout report, so
+ *  the backend only lets a full `admin` touch them (403
+ *  `stripe_expense_readonly`). Mirrored here so a Contabil sees WHY the
+ *  actions are unavailable instead of discovering it as a failed request. */
+const isPlatformAdmin = computed(() => auth.user?.platformRoles.includes('admin') ?? false)
+function isLocked(row: ExpenseRow): boolean {
+  return row.source === 'stripe_api' && !isPlatformAdmin.value
+}
+const LOCKED_HINT =
+  'Înregistrare automată din Stripe — se poate modifica doar de un administrator, pentru ca reconcilierea cu Stripe să rămână validă.'
 function errText(e: unknown, fb: string): string {
   return e instanceof ApiError ? e.message : fb
 }
@@ -45,8 +64,18 @@ const CATEGORIES: { value: ExpenseCategory; label: string }[] = [
 function categoryLabel(c: ExpenseCategory): string {
   return CATEGORIES.find((x) => x.value === c)?.label ?? c
 }
-function eur(minor: number): string {
-  return `${(minor / 100).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+const CURRENCIES: ExpenseCurrency[] = ['EUR', 'RON', 'USD']
+const CURRENCY_SUFFIX: Record<string, string> = { EUR: '€', RON: 'lei', USD: '$' }
+
+/** An expense recorded in a foreign currency keeps the ORIGINAL document's
+ *  currency; the platform reports still treat the minor amount as EUR cents,
+ *  so the row shows what was actually entered. */
+function amount(minor: number, currency: string): string {
+  const value = (minor / 100).toLocaleString('ro-RO', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  return `${value} ${CURRENCY_SUFFIX[currency] ?? currency}`
 }
 function dt(s: string): string {
   return new Date(s).toLocaleDateString('ro-RO')
@@ -60,6 +89,7 @@ const editor = reactive({
   category: 'hosting' as ExpenseCategory,
   incurredOn: localDateStr(),
   amount: 0,
+  currency: 'EUR' as ExpenseCurrency,
   note: '',
 })
 const busy = reactive({ save: false, deleteId: null as string | null })
@@ -69,14 +99,17 @@ function openCreate(): void {
   editor.category = 'hosting'
   editor.incurredOn = localDateStr()
   editor.amount = 0
+  editor.currency = 'EUR'
   editor.note = ''
   editor.show = true
 }
 function openEdit(row: ExpenseRow): void {
+  if (isLocked(row)) return
   editor.id = row.id
   editor.category = row.category
   editor.incurredOn = row.incurredOn.slice(0, 10)
   editor.amount = row.amountMinor / 100
+  editor.currency = (CURRENCIES.find((c) => c === row.currency) ?? 'EUR') as ExpenseCurrency
   editor.note = row.note ?? ''
   editor.show = true
 }
@@ -97,6 +130,7 @@ async function save(): Promise<void> {
       category: editor.category,
       incurredOn: editor.incurredOn,
       amountMinor: amountMinor.value,
+      currency: editor.currency,
       note: editor.note.trim() || undefined,
     }
     if (editor.id) await finance.updateExpense(editor.id, payload)
@@ -109,6 +143,7 @@ async function save(): Promise<void> {
   }
 }
 function confirmRemove(row: ExpenseRow): void {
+  if (isLocked(row)) return
   confirm.ask(t('adminFinance.deleteExpenseTitle'), t('adminFinance.deleteExpenseConfirm'), () => remove(row.id))
 }
 async function remove(id: string): Promise<void> {
@@ -177,17 +212,26 @@ onMounted(() => finance.fetchExpenses())
             </span>
           </span>
           <span class="rrow__cell afe__note">{{ r.note ?? '—' }}</span>
-          <span class="rrow__cell"><b>{{ eur(r.amountMinor) }}</b></span>
+          <span class="rrow__cell"><b>{{ amount(r.amountMinor, r.currency) }}</b></span>
           <span class="afe__actions">
-            <v-btn icon="mdi-pencil-outline" variant="text" size="small" @click="openEdit(r)" />
-            <v-btn
-              icon="mdi-trash-can-outline"
-              variant="text"
-              size="small"
-              color="error"
-              :loading="busy.deleteId === r.id"
-              @click="confirmRemove(r)"
-            />
+            <v-tooltip v-if="isLocked(r)" :text="LOCKED_HINT" location="top">
+              <template #activator="{ props: tip }">
+                <span v-bind="tip" class="afe__lock">
+                  <v-icon icon="mdi-lock-outline" size="18" />
+                </span>
+              </template>
+            </v-tooltip>
+            <template v-else>
+              <v-btn icon="mdi-pencil-outline" variant="text" size="small" @click="openEdit(r)" />
+              <v-btn
+                icon="mdi-trash-can-outline"
+                variant="text"
+                size="small"
+                color="error"
+                :loading="busy.deleteId === r.id"
+                @click="confirmRemove(r)"
+              />
+            </template>
           </span>
         </li>
       </ul>
@@ -206,7 +250,24 @@ onMounted(() => finance.fetchExpenses())
         <v-card-text class="d-flex flex-column ga-1">
           <v-select v-model="editor.category" :items="CATEGORIES" item-title="label" item-value="value" :label="t('adminFinance.category')" density="comfortable" />
           <v-text-field v-model="editor.incurredOn" type="date" :label="t('adminFinance.colDate')" density="comfortable" />
-          <v-text-field v-model.number="editor.amount" type="number" min="0" step="0.01" suffix="€" :label="t('adminFinance.colAmount')" density="comfortable" />
+          <div class="afe__amountrow">
+            <v-text-field
+              v-model.number="editor.amount"
+              type="number"
+              min="0"
+              step="0.01"
+              :suffix="CURRENCY_SUFFIX[editor.currency]"
+              :label="t('adminFinance.colAmount')"
+              density="comfortable"
+            />
+            <v-select
+              v-model="editor.currency"
+              :items="CURRENCIES"
+              label="Monedă"
+              density="comfortable"
+              style="max-width: 120px"
+            />
+          </div>
           <v-text-field v-model="editor.note" :label="t('adminFinance.colNote')" density="comfortable" maxlength="300" />
         </v-card-text>
         <v-card-actions>
@@ -246,8 +307,23 @@ onMounted(() => finance.fetchExpenses())
 }
 .afe__actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.1rem;
+}
+.afe__lock {
+  display: inline-flex;
+  padding: 0.35rem;
+  color: rgba(var(--v-theme-on-surface), 0.38);
+  cursor: help;
+}
+.afe__amountrow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+.afe__amountrow > :first-child {
+  flex: 1 1 auto;
 }
 
 .rtable {

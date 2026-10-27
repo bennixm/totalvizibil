@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AdminUsersService } from 'src/admin/admin-users.service';
 
 // ---------------------------------------------------------------------------
@@ -26,6 +26,7 @@ function makeUser(overrides: Record<string, unknown> = {}) {
         _count: { leads: number; adClicks: number };
       };
     }[],
+    billingProfile: null as Record<string, unknown> | null,
     totpEnabledAt: null as Date | null,
     lastLoginAt: null as Date | null,
     passwordChangedAt: null as Date | null,
@@ -85,9 +86,16 @@ function fakePrisma() {
     platformRoleAssignment: {
       deleteMany: jest.fn(async () => ({ count: 0 })),
       create: jest.fn(async (d: unknown) => d),
+      // How many OTHER users still hold a given platform role — the
+      // last-holder guards read this. Default: plenty.
+      count: jest.fn(async () => 3),
     },
     walletTransaction: {
       groupBy: jest.fn(async () => []),
+    },
+    // Unassigned when the last support-staff role is dropped from a user.
+    supportTicket: {
+      updateMany: jest.fn(async () => ({ count: 0 })),
     },
     $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
     // Test helpers
@@ -142,6 +150,12 @@ function fakeWallet() {
 function fakeBilling() {
   return {
     listForUser: jest.fn(async () => []),
+    getProfile: jest.fn(async () => null as Record<string, unknown> | null),
+    upsertProfile: jest.fn(async (_userId: string, dto: Record<string, unknown>) => ({
+      profile: { id: 'bp1', userId: _userId, ...dto },
+      isComplete: true,
+      invoicesIssued: 0,
+    })),
   };
 }
 
@@ -157,6 +171,10 @@ function fakeMail() {
   };
 }
 
+function fakeAudit() {
+  return { log: jest.fn(async () => undefined) };
+}
+
 function fakeConfig() {
   return { get: jest.fn(() => 'https://totalvizibil.ro') };
 }
@@ -169,6 +187,7 @@ function makeService() {
   const billing = fakeBilling();
   const notifications = fakeNotifications();
   const mail = fakeMail();
+  const audit = fakeAudit();
   const config = fakeConfig();
   const svc = new AdminUsersService(
     prisma as any,
@@ -178,9 +197,10 @@ function makeService() {
     billing as any,
     notifications as any,
     mail as any,
+    audit as any,
     config as any,
   );
-  return { svc, prisma, sessions, passwords, wallet, billing, notifications, mail };
+  return { svc, prisma, sessions, passwords, wallet, billing, notifications, mail, audit };
 }
 
 // ---------------------------------------------------------------------------
@@ -393,13 +413,205 @@ describe('AdminUsersService', () => {
       const result = await svc.adjustWallet(
         'u1',
         { credits: -500, reason: 'chargeback reversal' },
-        'admin1',
+        {
+          id: 'admin1',
+          roles: ['finance'],
+        },
       );
 
       expect(wallet.adjust).toHaveBeenCalledWith('u1', -500, 'chargeback reversal', {
         initiatedByAdminId: 'admin1',
+        actorRoles: ['finance'],
       });
       expect(result.lastAdjustment).toEqual({ requestedCredits: -500, appliedCredits: -20 });
+    });
+  });
+
+  describe('update — last finance-role holder guard (E5)', () => {
+    it('refuses a role update that would leave the platform with zero finance users', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedUser({ id: 'u1', platformRoles: [{ role: 'finance' }] });
+      (prisma.platformRoleAssignment.count as jest.Mock).mockResolvedValue(0);
+
+      await expect(
+        svc.update('admin1', 'admin1-session', 'u1', { platformRoles: [] }),
+      ).rejects.toThrow(ForbiddenException);
+      await expect(
+        svc.update('admin1', 'admin1-session', 'u1', { platformRoles: [] }),
+      ).rejects.toThrow('cannot_remove_last_finance_role');
+
+      // Nothing was written.
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('counts only OTHER users, so the holder being edited cannot count as their own replacement', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedUser({ id: 'u1', platformRoles: [{ role: 'finance' }] });
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await svc.update('admin1', 'admin1-session', 'u1', { platformRoles: ['support'] });
+
+      expect(prisma.platformRoleAssignment.count).toHaveBeenCalledWith({
+        where: { role: 'finance', userId: { not: 'u1' } },
+      });
+    });
+
+    it('allows the removal while another finance user remains', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedUser({ id: 'u1', platformRoles: [{ role: 'finance' }] });
+      (prisma.platformRoleAssignment.count as jest.Mock).mockResolvedValue(1);
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await expect(
+        svc.update('admin1', 'admin1-session', 'u1', { platformRoles: [] }),
+      ).resolves.toBeDefined();
+      expect(prisma.platformRoleAssignment.deleteMany).toHaveBeenCalled();
+    });
+
+    it('does not run the guard when the target never held finance in the first place', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedUser({ id: 'u1', platformRoles: [{ role: 'support' }] });
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await svc.update('admin1', 'admin1-session', 'u1', { platformRoles: ['moderator'] });
+
+      expect(prisma.platformRoleAssignment.count).not.toHaveBeenCalled();
+    });
+
+    it('does not run the guard when finance is being KEPT', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedUser({ id: 'u1', platformRoles: [{ role: 'finance' }] });
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await svc.update('admin1', 'admin1-session', 'u1', {
+        platformRoles: ['finance', 'support'],
+      });
+
+      expect(prisma.platformRoleAssignment.count).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('blockWallet', () => {
+    it('threads the acting staff member down to WalletService so the block is attributable', async () => {
+      const { svc, prisma, wallet } = makeService();
+      prisma.__seedUser({ id: 'u1' });
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await svc.blockWallet(
+        'u1',
+        { blocked: true, reason: 'chargeback' },
+        { id: 'staff1', roles: ['finance'] },
+      );
+
+      expect(wallet.setBlocked).toHaveBeenCalledWith('u1', true, 'chargeback', {
+        id: 'staff1',
+        roles: ['finance'],
+      });
+    });
+  });
+
+  describe('cancelRefund', () => {
+    it('actually passes the acting staff id + roles to WalletService (regression: the param existed there but was never passed, so every admin-canceled refund looked customer-initiated)', async () => {
+      const { svc, prisma, wallet } = makeService();
+      prisma.__seedUser({ id: 'u1' });
+      jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
+
+      await svc.cancelRefund('u1', 'r1', { id: 'staff1', roles: ['finance'] });
+
+      expect(wallet.cancelRefund).toHaveBeenCalledWith('u1', 'r1', 'staff1', ['finance']);
+    });
+
+    it('throws NotFoundException for an unknown user', async () => {
+      const { svc } = makeService();
+      await expect(
+        svc.cancelRefund('nope', 'r1', { id: 'staff1', roles: ['admin'] }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('billing profile (C7)', () => {
+    it('exposes the billing profile on the user-detail payload (it used to be omitted for everyone, admins included)', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedUser({
+        id: 'u1',
+        billingProfile: {
+          kind: 'company',
+          name: 'ACME SRL',
+          taxId: 'RO123',
+          regCom: 'J40/1/2020',
+          vatPayer: true,
+          address: 'Str. Test 1',
+          city: 'Cluj',
+          county: 'Cluj',
+          postalCode: '400000',
+          country: 'RO',
+          billingEmail: 'facturi@acme.ro',
+          iban: 'RO49AAAA1B31007593840000',
+          bankName: 'Banca Test',
+        },
+      });
+
+      const result = await svc.detail('u1');
+
+      expect(result.billingProfile).toMatchObject({
+        kind: 'company',
+        name: 'ACME SRL',
+        taxId: 'RO123',
+      });
+    });
+
+    it('reports a null profile for a user who never declared one', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedUser({ id: 'u1' });
+
+      const result = await svc.detail('u1');
+
+      expect(result.billingProfile).toBeNull();
+    });
+
+    it('delegates the write to the SAME BillingService.upsertProfile the self-service form uses, and audit-logs it', async () => {
+      const { svc, prisma, billing, audit } = makeService();
+      prisma.__seedUser({ id: 'u1' });
+      const dto = {
+        kind: 'company' as const,
+        name: 'ACME SRL',
+        taxId: 'RO123',
+        regCom: 'J40/1/2020',
+        address: 'Str. Test 1',
+        city: 'Cluj',
+      };
+
+      const result = await svc.updateBillingProfile('u1', dto, {
+        id: 'staff1',
+        roles: ['finance'],
+      });
+
+      expect(billing.upsertProfile).toHaveBeenCalledWith('u1', dto);
+      expect(result.isComplete).toBe(true);
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: 'staff1',
+          actorRoles: ['finance'],
+          action: 'billing_profile.update',
+          targetType: 'billing_profile',
+          targetId: 'u1',
+        }),
+      );
+      const entry = (audit.log as jest.Mock).mock.calls[0][0];
+      // No profile existed beforehand.
+      expect(entry.before).toBeNull();
+      expect(entry.after).toMatchObject({ name: 'ACME SRL', taxId: 'RO123' });
+    });
+
+    it('throws NotFoundException for an unknown user', async () => {
+      const { svc } = makeService();
+      await expect(
+        svc.updateBillingProfile(
+          'nope',
+          { kind: 'individual', name: 'X', address: 'a', city: 'b' } as any,
+          { id: 'staff1', roles: ['admin'] },
+        ),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

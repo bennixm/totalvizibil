@@ -67,6 +67,82 @@ describe('Support', () => {
         .expect(200);
       expect(res.body.items.length).toBe(0);
     });
+
+    it('returns a null nextCursor when everything fits on one page', async () => {
+      const user = await createAndLoginUser(app, prisma, {
+        email: 'ion@example.com',
+        password: 'password123',
+        name: 'Ion',
+      });
+      await request(app.getHttpServer())
+        .post('/api/v1/support/tickets')
+        .set('Cookie', user.cookie)
+        .send({ subject: 'Only one', body: 'Just the one ticket', category: 'other' });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/support/tickets')
+        .set('Cookie', user.cookie)
+        .expect(200);
+      expect(res.body.items.length).toBe(1);
+      expect(res.body.nextCursor).toBeNull();
+    });
+
+    it('rejects a malformed cursor with 400 rather than a driver error', async () => {
+      const user = await createAndLoginUser(app, prisma, {
+        email: 'ion@example.com',
+        password: 'password123',
+        name: 'Ion',
+      });
+      await request(app.getHttpServer())
+        .get('/api/v1/support/tickets?cursor=not-a-uuid')
+        .set('Cookie', user.cookie)
+        .expect(400);
+    });
+
+    it('a cursor pointing at the only ticket returns an empty next page', async () => {
+      const user = await createAndLoginUser(app, prisma, {
+        email: 'ion@example.com',
+        password: 'password123',
+        name: 'Ion',
+      });
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/support/tickets')
+        .set('Cookie', user.cookie)
+        .send({ subject: 'Only one', body: 'Just the one ticket', category: 'other' });
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/support/tickets?cursor=${created.body.id}`)
+        .set('Cookie', user.cookie)
+        .expect(200);
+      expect(res.body.items).toEqual([]);
+      expect(res.body.nextCursor).toBeNull();
+    });
+
+    it('messageCount counts replies only, not the system audit lines', async () => {
+      const user = await createAndLoginUser(app, prisma, {
+        email: 'ion@example.com',
+        password: 'password123',
+        name: 'Ion',
+      });
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/support/tickets')
+        .set('Cookie', user.cookie)
+        .send({ subject: 'Counting', body: 'One real message', category: 'other' });
+
+      // Closing the ticket writes a `system` message — which used to inflate
+      // the list row's count past what the detail view actually shows.
+      await request(app.getHttpServer())
+        .patch(`/api/v1/support/tickets/${created.body.id}`)
+        .set('Cookie', user.cookie)
+        .send({ status: 'closed' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/support/tickets')
+        .set('Cookie', user.cookie)
+        .expect(200);
+      expect(res.body.items[0].messageCount).toBe(1);
+    });
   });
 
   describe('POST /support/tickets/:id/messages', () => {

@@ -2142,8 +2142,11 @@
     "colPriority": "Prioritate",
     "colCategory": "Categorie",
     "colAssignee": "Responsabil",
+    "colLastActivity": "Ultima activitate",
     "emptyTitle": "Niciun ticket",
     "emptyHint": "Când deschizi un ticket, apare aici.",
+    "loadMore": "Încarcă mai multe",
+    "loadMoreError": "Nu am putut încărca restul ticketelor. Încearcă din nou.",
     "fieldSubject": "Subiect",
     "fieldCategory": "Categorie",
     "fieldPriority": "Prioritate",
@@ -2165,6 +2168,7 @@
     "attachTooMany": "Poți atașa cel mult {n} fișiere pe mesaj.",
     "attachTooLarge": "Fișierul depășește {n} MB.",
     "attachFailed": "Nu am putut încărca fișierul. Verifică tipul și dimensiunea.",
+    "attachKept": "{n} fișier(e) s-au încărcat deja · retrimite doar ce a rămas.",
     "attachOnlyBody": "Fișier atașat.",
     "closedNote": "Ticketul este închis.",
     "reopen": "Redeschide",
@@ -2213,7 +2217,16 @@
       "unassigned": "Atribuire eliminată"
     },
     "err": {
-      "not_a_member": "Nu ești membru al acestei afaceri."
+      "not_a_member": "Nu ești membru al acestei afaceri.",
+      "ticket_closed": "Ticketul este închis. Redeschide-l ca să poți scrie din nou.",
+      "staff_only": "Doar echipa de suport poate face asta.",
+      "already_claimed": "Ticketul a fost deja preluat de altcineva. Reîncarcă pagina ca să vezi cine.",
+      "assignee_not_staff": "Persoana aleasă nu face parte din echipa de suport.",
+      "invalid_assignee": "Persoana aleasă nu face parte din echipa de suport.",
+      "invalid_attachments": "Unul dintre fișierele atașate nu mai este valid. Atașează-le din nou.",
+      "too_many_attachments": "Prea multe fișiere pe un singur mesaj. Trimite-le în mai multe mesaje.",
+      "attachment_too_large": "Fișierul este prea mare. Încearcă o versiune mai mică.",
+      "unsupported_attachment_type": "Acceptăm doar PDF și imagini (PNG, JPG, WEBP, GIF)."
     },
     "investigate": "Investighează",
     "openUserAdmin": "Deschide utilizatorul în admin",

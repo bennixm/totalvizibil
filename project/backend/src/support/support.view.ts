@@ -7,7 +7,11 @@ export const ticketListInclude = {
   requester: userMini,
   assignee: userMini,
   company: { select: { id: true, displayName: true } },
-  _count: { select: { messages: true } },
+  // Only actual replies count. The raw total also included `system` lines
+  // (status/assignment audit entries) and `note` internal notes, so a list
+  // row advertised messages the requester can't even see in the detail view
+  // — e.g. "4 messages" on a ticket showing two.
+  _count: { select: { messages: { where: { kind: 'reply' } } } },
 } satisfies Prisma.SupportTicketInclude;
 
 export const ticketDetailInclude = {

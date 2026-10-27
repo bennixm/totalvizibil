@@ -89,10 +89,20 @@ function hydrate(u: AdminUserDetail) {
   if (refundAmount.value == null) refundAmount.value = u.wallet.refundable.credits || null
 }
 
+/** The whole page hangs off this one fetch. It used to have no `catch`, so a
+ *  failure (a 403 for a non-admin staffer who reached this page from the
+ *  Facturi table, a deleted user's 404, a dropped connection) logged an
+ *  unhandled rejection and left an entirely blank page behind the spinner —
+ *  nothing rendered, because every block below is inside `v-else-if="user"`.
+ *  Now the reason is surfaced instead. */
+const loadError = ref<string | null>(null)
 async function load() {
   loading.value = true
   try {
     hydrate(await admin.fetchUser(id.value))
+    loadError.value = null
+  } catch (e) {
+    loadError.value = errText(e, t('admin.genericError'))
   } finally {
     loading.value = false
   }
@@ -977,6 +987,8 @@ const txnColor: Record<string, string> = {
         </v-window-item>
       </v-window>
     </template>
+
+    <AdminEmptyState v-else :text="loadError ?? t('admin.genericError')" icon="mdi-alert-circle-outline" />
 
   </div>
 </template>

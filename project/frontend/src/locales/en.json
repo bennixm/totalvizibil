@@ -2142,8 +2142,11 @@
     "colPriority": "Priority",
     "colCategory": "Category",
     "colAssignee": "Assignee",
+    "colLastActivity": "Last activity",
     "emptyTitle": "No tickets",
     "emptyHint": "When you open a ticket it shows up here.",
+    "loadMore": "Load more",
+    "loadMoreError": "Couldn't load the rest of the tickets. Try again.",
     "fieldSubject": "Subject",
     "fieldCategory": "Category",
     "fieldPriority": "Priority",
@@ -2165,6 +2168,7 @@
     "attachTooMany": "You can attach at most {n} files per message.",
     "attachTooLarge": "The file is over {n} MB.",
     "attachFailed": "Couldn't upload the file. Check its type and size.",
+    "attachKept": "{n} file(s) already uploaded · only the rest will be resent.",
     "attachOnlyBody": "Attached file.",
     "closedNote": "This ticket is closed.",
     "reopen": "Reopen",
@@ -2213,7 +2217,16 @@
       "unassigned": "Assignment cleared"
     },
     "err": {
-      "not_a_member": "You’re not a member of that business."
+      "not_a_member": "You’re not a member of that business.",
+      "ticket_closed": "This ticket is closed. Reopen it to keep writing.",
+      "staff_only": "Only the support team can do that.",
+      "already_claimed": "Someone else already picked this ticket up. Reload to see who.",
+      "assignee_not_staff": "That person isn’t on the support team.",
+      "invalid_assignee": "That person isn’t on the support team.",
+      "invalid_attachments": "One of the attached files is no longer valid. Attach them again.",
+      "too_many_attachments": "Too many files on one message. Send them across several messages.",
+      "attachment_too_large": "That file is too large. Try a smaller version.",
+      "unsupported_attachment_type": "We only accept PDFs and images (PNG, JPG, WEBP, GIF)."
     },
     "investigate": "Investigate",
     "openUserAdmin": "Open user in admin",
