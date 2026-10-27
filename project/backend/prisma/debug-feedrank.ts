@@ -14,7 +14,10 @@ async function main() {
     notifyAll: async () => 0,
   } as never;
   const config = { get: () => 'http://localhost:5173' } as never;
-  const settings = new PlatformSettingsService(prisma, notifications, config);
+  // This script only exercises the analytics/margin read path — the audit
+  // log is never written from it, so a no-op stub is enough.
+  const auditLog = { log: async () => {} } as never;
+  const settings = new PlatformSettingsService(prisma, notifications, config, auditLog);
   const analytics = new AnalyticsService(prisma, settings);
 
   const cfg = await analytics.marginConfig();

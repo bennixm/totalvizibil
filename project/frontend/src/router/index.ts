@@ -229,10 +229,15 @@ const routes: RouteRecordRaw[] = [
         redirect: (to) => {
           const auth = useAuthStore()
           const roles = auth.user?.platformRoles ?? []
-          // A finance-only Contabil has no business landing on the general
-          // admin dashboard (they can't see it) — send them straight to the
-          // one area they actually have.
-          const home = roles.includes('admin') ? 'admin-dashboard' : 'admin-financiar'
+          // Land each staff role on the first area it can actually open. This
+          // used to be `admin ? dashboard : financiar`, which assumed "not
+          // admin" meant "Contabil": a support-only or moderator-only staffer
+          // was redirected into Financiar, which the guard below then bounced
+          // again to /account — two redirects to reach a dead end.
+          let home = 'account'
+          if (roles.includes('admin')) home = 'admin-dashboard'
+          else if (auth.isFinanceStaff) home = 'admin-financiar'
+          else if (auth.isSupportStaff) home = 'support'
           return { name: home, query: to.query }
         },
       },
@@ -249,6 +254,10 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'users/:id',
         name: 'admin-user',
+        // Reachable from the Facturi table (every invoice row links the buyer),
+        // which a Contabil can open — without `finance` here, clicking a buyer
+        // name ejected them straight to /account.
+        meta: { allowedRoles: ['admin', 'finance'] },
         component: () => import('@/views/admin/AdminUserDetailView.vue'),
       },
       {

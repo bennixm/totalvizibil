@@ -17,6 +17,7 @@ import { generateTablePdf } from '../common/table-pdf';
 import { AffiliateService } from '../affiliate/affiliate.service';
 import { StripeService } from '../stripe/stripe.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditActor, AuditLogService } from '../admin/audit-log.service';
 import { AppConfig } from '../config/env';
 import { CREDIT_MINOR, eurCentsToRonBani, minorToCredits, money } from './money';
 import { WALLET_CURRENCIES, WalletCurrency } from './dto/set-currency.dto';
@@ -25,8 +26,15 @@ const MAX_PURCHASE_CREDITS = 100_000;
 const STUB_PROVIDER = 'stub-dev';
 /** Real payments — Stripe Checkout, test mode key or not. */
 const STRIPE_PROVIDER = 'stripe';
-/** Marks the one rolling "Ad clicks" spend row per company per UTC day. */
-const CPC_PROVIDER = 'cpc';
+/**
+ * Marks the one rolling "Ad clicks" spend row per company per UTC day — i.e.
+ * the ONLY `spend` rows that are real CPC ad spend. Exported because every
+ * report that claims to show "CPC consumed" has to filter on exactly this:
+ * builder-unlock fees, additional-business fees, AI usage and domain fees are
+ * all `type: 'spend'` too, and summing the type alone silently inflates ad
+ * spend with one-off platform charges (see AdminStatsService.overview).
+ */
+export const CPC_PROVIDER = 'cpc';
 const WALLET_TXN_TYPES = ['purchase', 'spend', 'refund', 'adjustment'] as const;
 type WalletTxnTypeFilter = (typeof WALLET_TXN_TYPES)[number];
 
@@ -98,6 +106,7 @@ export class WalletService implements OnModuleInit {
     private readonly stripe: StripeService,
     private readonly config: ConfigService<AppConfig, true>,
     private readonly notifications: NotificationsService,
+    private readonly audit: AuditLogService,
   ) {}
 
   /** Same "no cron dependency, a plain timer" approach as
@@ -339,16 +348,31 @@ export class WalletService implements OnModuleInit {
 
   // --- admin controls ----------------------------------------------
 
-  /** Freeze / unfreeze a wallet. Blocked wallets can't top up or spend. */
-  async setBlocked(userId: string, blocked: boolean, reason?: string | null) {
+  /** Freeze / unfreeze a wallet. Blocked wallets can't top up or spend.
+   *  `actor` is the staff member doing it — audit-logged, since this is one of
+   *  the fund-management actions the `finance` role can now reach. */
+  async setBlocked(userId: string, blocked: boolean, reason?: string | null, actor?: AuditActor) {
     const wallet = await this.ensureWallet(userId);
-    await this.prisma.wallet.update({
+    const updated = await this.prisma.wallet.update({
       where: { id: wallet.id },
       data: {
         blockedAt: blocked ? (wallet.blockedAt ?? new Date()) : null,
         blockedReason: blocked ? (reason ?? wallet.blockedReason ?? null) : null,
       },
     });
+
+    if (actor) {
+      await this.audit.log({
+        actorId: actor.id,
+        actorRoles: actor.roles,
+        action: blocked ? 'wallet.block' : 'wallet.unblock',
+        targetType: 'wallet',
+        targetId: wallet.id,
+        before: { blockedAt: wallet.blockedAt, blockedReason: wallet.blockedReason },
+        after: { blockedAt: updated.blockedAt, blockedReason: updated.blockedReason },
+        reason: reason ?? null,
+      });
+    }
 
     // Already committed — a notification hiccup must never mask this.
     const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
@@ -399,11 +423,34 @@ export class WalletService implements OnModuleInit {
     userId: string,
     credits: number,
     reason: string,
-    opts: { initiatedByAdminId?: string } = {},
+    opts: { initiatedByAdminId?: string; actorRoles?: string[] } = {},
   ): Promise<{ requestedCredits: number; appliedCredits: number }> {
+    // Nobody mints credits into their own wallet. The admin panel hides the
+    // control on your own user row, but that's a UI courtesy, not a control:
+    // the endpoint is a plain POST that anyone holding the role can call
+    // directly. Enforced here rather than in the controller so EVERY path
+    // into an attributed adjustment is covered by the one check.
+    if (opts.initiatedByAdminId && opts.initiatedByAdminId === userId) {
+      throw new ForbiddenException('cannot_adjust_own_wallet');
+    }
+
+    const balanceBeforeMinor = (await this.ensureWallet(userId)).balanceMinor;
     const deltaMinor = await this.prisma.$transaction((tx) =>
       this.adjustWithin(tx, userId, credits, reason, opts),
     );
+
+    if (opts.initiatedByAdminId) {
+      await this.audit.log({
+        actorId: opts.initiatedByAdminId,
+        actorRoles: opts.actorRoles ?? [],
+        action: 'wallet.adjust',
+        targetType: 'wallet',
+        targetId: userId,
+        before: { balanceMinor: balanceBeforeMinor },
+        after: { balanceMinor: balanceBeforeMinor + deltaMinor, appliedDeltaMinor: deltaMinor },
+        reason: reason.trim() || null,
+      });
+    }
 
     // Already committed — a notification hiccup must never mask this.
     void this.notifications
@@ -1317,27 +1364,12 @@ export class WalletService implements OnModuleInit {
     // module's P&L — best-effort: the payment is already settled by this
     // point, a fee lookup failing must never affect the customer.
     if (stripePaymentIntentId) {
-      void this.stripe
-        .retrievePaymentIntentFeeMinor(stripePaymentIntentId)
-        .then((feeMinor) => {
-          if (feeMinor == null) return;
-          return this.prisma.platformExpense.create({
-            data: {
-              category: 'stripe_fees',
-              incurredOn: new Date(),
-              amountMinor: feeMinor,
-              currency: 'EUR',
-              source: 'stripe_api',
-              note: `Payment intent ${stripePaymentIntentId}`,
-            },
-          });
-        })
-        .catch((err) =>
-          this.logger.error(
-            `Stripe fee capture failed for ${stripePaymentIntentId}`,
-            err instanceof Error ? err.stack : err,
-          ),
-        );
+      void this.captureStripeFee(stripePaymentIntentId).catch((err) =>
+        this.logger.error(
+          `Stripe fee capture failed for ${stripePaymentIntentId}`,
+          err instanceof Error ? err.stack : err,
+        ),
+      );
     }
 
     // The money has already moved and the invoice is already issued by this
@@ -1391,6 +1423,54 @@ export class WalletService implements OnModuleInit {
       );
 
     return { ...(await this.getSummary(userId)), invoice };
+  }
+
+  /**
+   * Book Stripe's processing fee for one payment intent as a platform cost.
+   *
+   * Idempotent by construction: `PlatformExpense.externalRef` carries
+   * `stripe_fee:<paymentIntentId>` under a unique constraint, so re-entering
+   * this path for the same payment (a customer re-hitting the success page, a
+   * sweep reconciling a purchase the client already confirmed, a retried
+   * confirm) can never double-book the same real-world fee. The DB decides,
+   * not a read-then-write check that two concurrent confirms could both pass.
+   *
+   * The amount booked is `eurCentsMinor`, NOT Stripe's raw `fee` — see
+   * `StripeService.retrievePaymentIntentFee`.
+   */
+  private async captureStripeFee(paymentIntentId: string): Promise<void> {
+    const fee = await this.stripe.retrievePaymentIntentFee(paymentIntentId);
+    if (fee == null) return;
+
+    const externalRef = `stripe_fee:${paymentIntentId}`;
+    const note =
+      fee.conversion === 'none'
+        ? `Payment intent ${paymentIntentId}`
+        : `Payment intent ${paymentIntentId} — ${fee.nativeMinor} ${fee.nativeCurrency.toUpperCase()} minor converted via ${fee.conversion}`;
+
+    try {
+      await this.prisma.platformExpense.upsert({
+        where: { externalRef },
+        create: {
+          category: 'stripe_fees',
+          incurredOn: new Date(),
+          amountMinor: fee.eurCentsMinor,
+          currency: 'EUR',
+          source: 'stripe_api',
+          note,
+          externalRef,
+        },
+        // Already captured — the first write wins, on purpose. Re-stating the
+        // amount here would let a later FX-rate read silently rewrite a cost
+        // that's already in a closed reporting period.
+        update: {},
+      });
+    } catch (err) {
+      // A concurrent first-capture of the same payment intent lost the race
+      // to the unique constraint. That's the guard working, not a failure.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
+      throw err;
+    }
   }
 
   // --- spend --------------------------------------------------------
@@ -1707,14 +1787,17 @@ export class WalletService implements OnModuleInit {
    *  on every source purchase it allocated from, credits the balance back,
    *  and marks the refund `canceled`. Works the same whether the refund was
    *  customer- or admin-initiated: it's still the customer's own wallet. */
-  /** `initiatedByAdminId` is optional and, today, never actually passed by
-   *  the admin-panel call site (admin-users.service.ts) — it exists so an
-   *  admin-initiated cancel can be told apart from the user's own (the
-   *  notification below reads very differently depending on which one it
-   *  is). Wiring it through from admin-users.service.ts is a one-line,
-   *  separate follow-up; this method is correct either way since the param
-   *  defaults to "not admin-initiated". */
-  async cancelRefund(userId: string, refundTransactionId: string, initiatedByAdminId?: string) {
+  /** `initiatedByAdminId` tells an admin-initiated cancel apart from the
+   *  user's own — the notification below reads very differently depending on
+   *  which one it is, and only the staff-initiated one is audit-logged.
+   *  Absent = the customer canceled their own refund (wallet.controller.ts).
+   *  `actorRoles` is the role snapshot for that audit row. */
+  async cancelRefund(
+    userId: string,
+    refundTransactionId: string,
+    initiatedByAdminId?: string,
+    actorRoles?: string[],
+  ) {
     let canceledMinor = 0;
     await this.prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.upsert({
@@ -1749,6 +1832,18 @@ export class WalletService implements OnModuleInit {
         data: { status: 'canceled', balanceAfterMinor: updated.balanceMinor },
       });
     });
+
+    if (initiatedByAdminId) {
+      await this.audit.log({
+        actorId: initiatedByAdminId,
+        actorRoles: actorRoles ?? [],
+        action: 'refund.cancel',
+        targetType: 'wallet_transaction',
+        targetId: refundTransactionId,
+        before: { status: 'pending' },
+        after: { status: 'canceled', creditsReturnedMinor: canceledMinor },
+      });
+    }
 
     // The rest of the refund lifecycle (requested/completed/failed) all
     // notify — cancel was the one silent gap. A user canceling their OWN

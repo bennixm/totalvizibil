@@ -63,6 +63,7 @@ model User {
   aiUsageRecords          AiUsageRecord[]
   notifications           Notification[]
   platformExpensesCreated PlatformExpense[]
+  adminAuditLogs          AdminAuditLog[]
 
   @@map("users")
 }
@@ -206,6 +207,13 @@ model PlatformExpense {
   currency    String          @default("EUR")
   source      ExpenseSource   @default(manual)
   note        String?
+  // Idempotency key for an automatically-captured cost: the external object
+  // this expense was derived from, namespaced by capture path (e.g.
+  // `stripe_fee:pi_123`). Unique, so a retry of the enclosing flow (a
+  // re-confirmed purchase, a sweep re-processing the same payment intent)
+  // can never double-book the same real-world fee. Null for manual entries,
+  // which have no external object and may legitimately repeat.
+  externalRef String?         @unique @map("external_ref")
   createdById String?         @map("created_by_id") @db.Uuid
   createdAt   DateTime        @default(now()) @map("created_at")
   updatedAt   DateTime        @updatedAt @map("updated_at")
@@ -214,6 +222,49 @@ model PlatformExpense {
 
   @@index([category, incurredOn])
   @@map("platform_expenses")
+}
+
+/**
+ * Who did what to money. Every privileged WRITE that moves funds, changes a
+ * fiscal document, or re-prices the platform appends one row here — the
+ * prerequisite for letting the `finance` role touch these endpoints at all
+ * (before this, an admin-only action needed no attribution record because the
+ * acting set was tiny; a wider staff set does).
+ *
+ * Deliberately append-only and deliberately SEPARATE from the row it
+ * describes: an `Invoice` is immutable-by-design once issued (only
+ * voidable), so "which staff member voided it" cannot live on the invoice —
+ * it lives here. `actorRoles` is a point-in-time SNAPSHOT of the actor's
+ * platform roles, not a join: revoking someone's `finance` role later must
+ * not rewrite what they were allowed to do at the time.
+ */
+model AdminAuditLog {
+  id String @id @default(uuid()) @db.Uuid
+
+  actorId    String   @map("actor_id") @db.Uuid
+  actorRoles String[] @default([]) @map("actor_roles")
+
+  // Short machine code: `wallet.adjust`, `wallet.block`, `wallet.unblock`,
+  // `refund.cancel`, `invoice.void`, `invoice.unvoid`, `settings.update`,
+  // `billing_profile.update`.
+  action     String
+  targetType String  @map("target_type")
+  targetId   String? @map("target_id")
+
+  // Shallow before/after snapshots of ONLY the fields the action touched —
+  // not the whole row (a settings blob or a wallet row would bury the
+  // actual change in noise).
+  before Json?
+  after  Json?
+  reason String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([targetType, targetId])
+  @@index([actorId])
+  @@map("admin_audit_logs")
 }
 
 // ---------------------------------------------------------------------------

@@ -24,6 +24,7 @@ import { AppointmentsModule } from './appointments/appointments.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { DomainsModule } from './domains/domains.module';
 import { AdminModule } from './admin/admin.module';
+import { AuditLogModule } from './admin/audit-log.module';
 import { SupportModule } from './support/support.module';
 import { HealthModule } from './health/health.module';
 import { FinanceModule } from './finance/finance.module';
@@ -34,6 +35,7 @@ import { FinanceModule } from './finance/finance.module';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     AiModule,
     PrismaModule,
+    AuditLogModule,
     PlatformSettingsModule,
     StripeModule,
     MailModule,

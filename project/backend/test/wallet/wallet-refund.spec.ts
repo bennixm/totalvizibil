@@ -251,6 +251,9 @@ function fakeConfig() {
 function fakeNotifications() {
   return { notify: jest.fn(async () => undefined), notifyAll: jest.fn(async () => 0) };
 }
+function fakeAudit() {
+  return { log: jest.fn(async () => undefined) };
+}
 
 function makeService(opts: { refundFeePct?: number; stripeConfigured?: boolean } = {}) {
   const prisma = fakePrisma();
@@ -260,6 +263,7 @@ function makeService(opts: { refundFeePct?: number; stripeConfigured?: boolean }
   const stripe = fakeStripe(opts.stripeConfigured ?? true);
   const config = fakeConfig();
   const notifications = fakeNotifications();
+  const audit = fakeAudit();
 
   const service = new WalletService(
     prisma as any,
@@ -269,8 +273,9 @@ function makeService(opts: { refundFeePct?: number; stripeConfigured?: boolean }
     stripe as any,
     config as any,
     notifications as any,
+    audit as any,
   );
-  return { service, prisma, settings, stripe, notifications };
+  return { service, prisma, settings, stripe, notifications, audit };
 }
 
 function refundRows(prisma: ReturnType<typeof fakePrisma>) {

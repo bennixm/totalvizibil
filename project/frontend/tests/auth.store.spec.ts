@@ -101,6 +101,44 @@ describe('auth store', () => {
     expect(auth.isSupportStaff).toBe(false)
   })
 
+  it('isFinanceStaff is true only for admin/finance', () => {
+    const auth = useAuthStore()
+    const withRoles = (platformRoles: PlatformRole[]) => {
+      auth.user = {
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'A',
+        platformRoles,
+        emailVerifiedAt: null,
+      }
+    }
+
+    withRoles([])
+    expect(auth.isFinanceStaff).toBe(false)
+
+    withRoles(['admin'])
+    expect(auth.isFinanceStaff).toBe(true)
+
+    withRoles(['finance'])
+    expect(auth.isFinanceStaff).toBe(true)
+
+    // Platform staff, but with no business in the Financiar area — the sidebar
+    // group and the /admin landing redirect both hang off this.
+    withRoles(['support'])
+    expect(auth.isPlatformStaff).toBe(true)
+    expect(auth.isFinanceStaff).toBe(false)
+
+    withRoles(['moderator'])
+    expect(auth.isPlatformStaff).toBe(true)
+    expect(auth.isFinanceStaff).toBe(false)
+
+    withRoles(['moderator', 'finance'])
+    expect(auth.isFinanceStaff).toBe(true)
+
+    auth.user = null
+    expect(auth.isFinanceStaff).toBe(false)
+  })
+
   it('logout clears the user even if the request fails', async () => {
     apiFetchMock.mockResolvedValueOnce({
       user: { id: 'u1', email: 'a@b.com', name: 'A', platformRoles: [] },

@@ -11,6 +11,33 @@ export type ExpenseCategory =
   | 'stripe_fees'
   | 'other'
 
+export type ExpenseCurrency = 'EUR' | 'RON' | 'USD'
+
+/** Mirrors the backend's `oneOffFeeCategory()` buckets. */
+export interface OneOffFeeBreakdown {
+  aiUsage: number
+  builderUnlock: number
+  other: number
+}
+
+export interface VatBreakdownRow {
+  vatRatePct: number
+  currency: string
+  invoiceCount: number
+  subtotalMinor: number
+  vatMinor: number
+  totalMinor: number
+}
+
+export interface FinanceTrendPoint {
+  date: string
+  revenueMinor: number
+  costMinor: number
+  purchaseMoneyMinor: number
+  refundMoneyMinor: number
+  refundRatioPct: number
+}
+
 export interface FinanceOverview {
   range: { from: string; to: string }
   revenueMinor: number
@@ -19,15 +46,46 @@ export interface FinanceOverview {
   totalCostMinor: number
   profitMinor: number
   expensesByCategory: Record<ExpenseCategory, number>
-  paidTraffic: { cpcRevenueMinor: number; adSpendMinor: number; profitMinor: number }
+  paidTraffic: {
+    cpcRevenueMinor: number
+    /** The same CPC consumption weighted by the period's gross→net ratio. */
+    cpcRevenueRealMoneyMinor: number
+    adSpendMinor: number
+    profitMinor: number
+    realMoneyProfitMinor: number
+  }
   otherFeesConsumedMinor: number
-  trend: { date: string; revenueMinor: number; costMinor: number }[]
+  otherFeesByCategory: OneOffFeeBreakdown
+  creditConsumption: {
+    recurringMinor: number
+    oneTimeMinor: number
+    oneTimeByCategory: OneOffFeeBreakdown
+  }
+  /** Credit face value sold vs money actually collected; delta = discount cost. */
+  grossRevenueMinor: number
+  netRevenueMinor: number
+  discountCostMinor: number
+  grossToNetRatio: number
+  refundsMoneyMinor: number
+  refundRatioPct: number
+  refundFeeIncomeMinor: number
+  /** Point-in-time (all-time) balance-sheet figures. */
+  walletLiabilityMinor: number
+  blockedWalletBalanceMinor: number
+  refundLiabilityInFlightMinor: number
+  vatBreakdown: VatBreakdownRow[]
+  trend: FinanceTrendPoint[]
 }
+
+export type RevenueTxnType = 'purchase' | 'refund' | 'adjustment'
 
 export interface RevenueRow {
   id: string
-  type: 'purchase' | 'refund'
+  type: RevenueTxnType
+  /** Credit face value (what the wallet moved). */
   amountMinor: number
+  /** Real money (what the bank moved) — reconciles with the dashboard KPI. */
+  moneyMinor: number
   createdAt: string
   userName: string | null
   userEmail: string | null
@@ -44,6 +102,28 @@ export interface ExpenseRow {
   source: 'manual' | 'stripe_api'
   note: string | null
   createdBy: { name: string } | null
+}
+
+export interface VoidedInvoiceRow {
+  id: string
+  number: string
+  kind: 'topup' | 'affiliate_reward'
+  issuedAt: string
+  voidedAt: string
+  voidReason: string | null
+  currency: string
+  subtotalMinor: number
+  vatMinor: number
+  totalMinor: number
+  buyerName: string
+}
+
+export interface TopCompanyRow {
+  companyId: string
+  companyName: string | null
+  companySlug: string | null
+  spendMinor: number
+  clicks: number
 }
 
 export interface AiUsageModelRow {
@@ -74,8 +154,33 @@ interface AdminFinanceState {
 
   revenue: RevenueRow[]
   revenueTotal: number
-  revenueFilters: PeriodFilter & { type: 'purchase' | 'refund' | null; page: number; pageSize: number }
+  /** Real-money net total of the WHOLE filtered period (not the page). */
+  revenuePeriodTotalMinor: number
+  /** Credit face value net total of the whole filtered period. */
+  revenuePeriodFaceTotalMinor: number
+  revenueFilters: PeriodFilter & {
+    type: 'purchase' | 'refund' | null
+    /** Adds `adjustment` rows (manual wallet corrections, affiliate rewards)
+     *  to the ledger. Off = the backend default (`purchase`+`refund`). */
+    includeAdjustments: boolean
+    page: number
+    pageSize: number
+  }
   loadingRevenue: boolean
+
+  voidedInvoices: VoidedInvoiceRow[]
+  voidedInvoicesTotal: number
+  voidedInvoicesSumMinor: number
+  voidedInvoicesPage: number
+  loadingVoidedInvoices: boolean
+  voidedInvoicesLoaded: boolean
+
+  topCompanies: TopCompanyRow[]
+  topCompaniesTotal: number
+  topCompaniesSpendMinor: number
+  topCompaniesPage: number
+  loadingTopCompanies: boolean
+  topCompaniesLoaded: boolean
 
   expenses: ExpenseRow[]
   expensesTotal: number
@@ -104,8 +209,31 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
 
     revenue: [],
     revenueTotal: 0,
-    revenueFilters: { from: null, to: null, type: null, page: 1, pageSize: 20 },
+    revenuePeriodTotalMinor: 0,
+    revenuePeriodFaceTotalMinor: 0,
+    revenueFilters: {
+      from: null,
+      to: null,
+      type: null,
+      includeAdjustments: false,
+      page: 1,
+      pageSize: 20,
+    },
     loadingRevenue: false,
+
+    voidedInvoices: [],
+    voidedInvoicesTotal: 0,
+    voidedInvoicesSumMinor: 0,
+    voidedInvoicesPage: 1,
+    loadingVoidedInvoices: false,
+    voidedInvoicesLoaded: false,
+
+    topCompanies: [],
+    topCompaniesTotal: 0,
+    topCompaniesSpendMinor: 0,
+    topCompaniesPage: 1,
+    loadingTopCompanies: false,
+    topCompaniesLoaded: false,
 
     expenses: [],
     expensesTotal: 0,
@@ -124,6 +252,25 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     setPeriod(from: string | null, to: string | null): void {
       this.period = { from, to }
       void this.fetchOverview()
+      // The dashboard's two drill-down tables share the same period, so they
+      // must not keep showing the previous one's numbers — but only refresh
+      // them once the user has actually opened them.
+      if (this.voidedInvoicesLoaded) {
+        this.voidedInvoicesPage = 1
+        void this.fetchVoidedInvoices()
+      }
+      if (this.topCompaniesLoaded) {
+        this.topCompaniesPage = 1
+        void this.fetchTopCompanies()
+      }
+    },
+
+    /** `from`/`to` of the dashboard period, as query params. */
+    periodParams(): URLSearchParams {
+      const params = new URLSearchParams()
+      if (this.period.from) params.set('from', this.period.from)
+      if (this.period.to) params.set('to', this.period.to)
+      return params
     },
 
     async fetchOverview(): Promise<void> {
@@ -151,36 +298,95 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
       void this.fetchRevenue()
     },
 
+    /** Shared by the ledger list and its PDF export, so the download can
+     *  never cover a different slice than the table on screen. */
+    revenueParams(): URLSearchParams {
+      const f = this.revenueFilters
+      const params = new URLSearchParams()
+      if (f.type) params.set('type', f.type)
+      else if (f.includeAdjustments) {
+        for (const t of ['purchase', 'refund', 'adjustment']) params.append('types', t)
+      }
+      if (f.from) params.set('from', f.from)
+      if (f.to) params.set('to', f.to)
+      return params
+    },
+
     async fetchRevenue(): Promise<void> {
       const seq = ++this.revenueSeq
       this.loadingRevenue = true
       try {
         const f = this.revenueFilters
-        const params = new URLSearchParams()
-        if (f.type) params.set('type', f.type)
-        if (f.from) params.set('from', f.from)
-        if (f.to) params.set('to', f.to)
+        const params = this.revenueParams()
         params.set('page', String(f.page))
         params.set('pageSize', String(f.pageSize))
-        const res = await apiFetch<{ items: RevenueRow[]; total: number }>(
-          `/admin/finance/revenue?${params.toString()}`,
-        )
+        const res = await apiFetch<{
+          items: RevenueRow[]
+          total: number
+          periodTotalMinor: number
+          periodFaceTotalMinor: number
+        }>(`/admin/finance/revenue?${params.toString()}`)
         if (seq !== this.revenueSeq) return
         this.revenue = res.items
         this.revenueTotal = res.total
+        this.revenuePeriodTotalMinor = res.periodTotalMinor
+        this.revenuePeriodFaceTotalMinor = res.periodFaceTotalMinor
       } finally {
         if (seq === this.revenueSeq) this.loadingRevenue = false
       }
     },
 
     revenueExportUrl(): string {
-      const f = this.revenueFilters
-      const params = new URLSearchParams()
-      if (f.type) params.set('type', f.type)
-      if (f.from) params.set('from', f.from)
-      if (f.to) params.set('to', f.to)
-      const q = params.toString()
+      const q = this.revenueParams().toString()
       return `${BASE_URL}/admin/finance/revenue/export${q ? `?${q}` : ''}`
+    },
+
+    async fetchVoidedInvoices(): Promise<void> {
+      this.loadingVoidedInvoices = true
+      try {
+        const params = this.periodParams()
+        params.set('page', String(this.voidedInvoicesPage))
+        const res = await apiFetch<{
+          items: VoidedInvoiceRow[]
+          total: number
+          voidedTotalMinor: number
+        }>(`/admin/finance/voided-invoices?${params.toString()}`)
+        this.voidedInvoices = res.items
+        this.voidedInvoicesTotal = res.total
+        this.voidedInvoicesSumMinor = res.voidedTotalMinor
+        this.voidedInvoicesLoaded = true
+      } finally {
+        this.loadingVoidedInvoices = false
+      }
+    },
+
+    setVoidedInvoicesPage(page: number): void {
+      this.voidedInvoicesPage = page
+      void this.fetchVoidedInvoices()
+    },
+
+    async fetchTopCompanies(): Promise<void> {
+      this.loadingTopCompanies = true
+      try {
+        const params = this.periodParams()
+        params.set('page', String(this.topCompaniesPage))
+        const res = await apiFetch<{
+          items: TopCompanyRow[]
+          total: number
+          totalSpendMinor: number
+        }>(`/admin/finance/top-companies?${params.toString()}`)
+        this.topCompanies = res.items
+        this.topCompaniesTotal = res.total
+        this.topCompaniesSpendMinor = res.totalSpendMinor
+        this.topCompaniesLoaded = true
+      } finally {
+        this.loadingTopCompanies = false
+      }
+    },
+
+    setTopCompaniesPage(page: number): void {
+      this.topCompaniesPage = page
+      void this.fetchTopCompanies()
     },
 
     setExpenseFilter<K extends keyof AdminFinanceState['expenseFilters']>(
@@ -228,6 +434,7 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
       category: ExpenseCategory
       incurredOn: string
       amountMinor: number
+      currency?: ExpenseCurrency
       note?: string
     }): Promise<void> {
       await apiFetch('/admin/finance/expenses', { method: 'POST', body: input })
@@ -236,7 +443,13 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
 
     async updateExpense(
       id: string,
-      input: Partial<{ category: ExpenseCategory; incurredOn: string; amountMinor: number; note: string }>,
+      input: Partial<{
+        category: ExpenseCategory
+        incurredOn: string
+        amountMinor: number
+        currency: ExpenseCurrency
+        note: string
+      }>,
     ): Promise<void> {
       await apiFetch(`/admin/finance/expenses/${id}`, { method: 'PATCH', body: input })
       await Promise.all([this.fetchExpenses(), this.fetchOverview()])

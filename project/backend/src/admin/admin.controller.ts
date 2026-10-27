@@ -46,9 +46,32 @@ import { SaveCampaignDto } from '../campaigns/dto/save-campaign.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { BroadcastMaintenanceDto } from './dto/broadcast-maintenance.dto';
+import { BillingProfileDto } from '../billing/dto/billing-profile.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditActor } from './audit-log.service';
 
-/** Platform admin panel. Requires the `admin` platform role. */
+/** The acting staff member, as every audit-logged handler below passes it
+ *  down: id for attribution, roles for the point-in-time snapshot. */
+function actorOf(caller: AuthPrincipal): AuditActor {
+  return { id: caller.id, roles: caller.platformRoles };
+}
+
+/**
+ * Platform admin panel. The class-level role is `admin`, and that is the
+ * default for every handler here.
+ *
+ * A handful of handlers carry their own `@PlatformRoles('admin', 'finance')`
+ * — the fund-management surface the Contabil role genuinely needs (wallets,
+ * ledgers, refunds, invoices, settings/referrals reads). Because
+ * `PlatformRolesGuard` resolves with `Reflector.getAllAndOverride`, a
+ * method-level decorator REPLACES the class-level one for that handler only.
+ *
+ * It is done per-method on purpose: broadening the class decorator would
+ * hand `finance` category CRUD, the maintenance broadcast to every user, and
+ * admin password resets along with it. Every widened handler that MUTATES
+ * also writes an `AdminAuditLog` row — that attribution record is the
+ * precondition for widening write access to money at all.
+ */
 @UseGuards(AuthGuard, PlatformRolesGuard)
 @PlatformRoles('admin')
 @Controller('admin')
@@ -69,6 +92,10 @@ export class AdminController {
     return this.stats.overview();
   }
 
+  // C9: read-only. Finance needs the VAT rate, refund fee, FX rate and
+  // invoice-issuer identity to reconcile anything at all — the PATCH below
+  // stays admin-only.
+  @PlatformRoles('admin', 'finance')
   @Get('settings')
   async getSettings() {
     const [
@@ -132,7 +159,10 @@ export class AdminController {
   }
 
   @Patch('settings')
-  async updateSettings(@Body() dto: UpdateSettingsDto) {
+  async updateSettings(@CurrentUser() caller: AuthPrincipal, @Body() dto: UpdateSettingsDto) {
+    // Snapshotted before any setter runs so the audit row can record the
+    // real diff — see `PlatformSettingsService.auditUpdate`.
+    const before = await this.getSettings();
     if (dto.eurRonRate !== undefined) await this.settings.setEurRonRate(dto.eurRonRate);
     if (dto.advancedBuilderPriceCredits !== undefined) {
       await this.settings.setAdvancedBuilderPriceCredits(dto.advancedBuilderPriceCredits);
@@ -189,7 +219,9 @@ export class AdminController {
     if ([name, taxId, regCom, address, iban, bank].some((v) => v !== undefined)) {
       await this.settings.setInvoiceIssuer({ name, taxId, regCom, address, iban, bank });
     }
-    return this.getSettings();
+    const after = await this.getSettings();
+    await this.settings.auditUpdate(actorOf(caller), before, after);
+    return after;
   }
 
   /** Broadcast a maintenance/update notice to every active user (email + panel).
@@ -224,6 +256,9 @@ export class AdminController {
     return this.users.list(query);
   }
 
+  // C1: the user-detail payload IS the wallet tab's data source (balance,
+  // block state, refundable, recent ledger, invoices, billing profile).
+  @PlatformRoles('admin', 'finance')
   @Get('users/:id')
   getUser(@Param('id', ParseUUIDPipe) id: string) {
     return this.users.detail(id);
@@ -243,6 +278,8 @@ export class AdminController {
     return this.users.setPassword(id, dto.newPassword);
   }
 
+  // C2: the per-user ledger and its PDF export — read-only.
+  @PlatformRoles('admin', 'finance')
   @Get('users/:id/transactions')
   listUserTransactions(
     @Param('id', ParseUUIDPipe) id: string,
@@ -259,6 +296,7 @@ export class AdminController {
     });
   }
 
+  @PlatformRoles('admin', 'finance')
   @Get('users/:id/transactions/export')
   async exportUserTransactions(
     @Param('id', ParseUUIDPipe) id: string,
@@ -275,20 +313,33 @@ export class AdminController {
     });
   }
 
+  // C4: freeze/unfreeze a wallet. Audit-logged (wallet.block/wallet.unblock).
+  @PlatformRoles('admin', 'finance')
   @Post('users/:id/wallet/block')
-  blockWallet(@Param('id', ParseUUIDPipe) id: string, @Body() dto: BlockWalletDto) {
-    return this.users.blockWallet(id, dto);
+  blockWallet(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BlockWalletDto,
+  ) {
+    return this.users.blockWallet(id, dto, actorOf(caller));
   }
 
+  // C3: credit/debit a wallet. Audit-logged (wallet.adjust); the service
+  // also refuses an adjustment of the caller's OWN wallet.
+  @PlatformRoles('admin', 'finance')
   @Post('users/:id/wallet/adjust')
   adjustWallet(
     @CurrentUser() caller: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AdjustWalletDto,
   ) {
-    return this.users.adjustWallet(id, dto, caller.id);
+    return this.users.adjustWallet(id, dto, actorOf(caller));
   }
 
+  // C5: admin-initiated refund + its cancel. The refund itself already
+  // records `initiatedByAdminId` on the ledger row; the cancel is
+  // audit-logged (refund.cancel).
+  @PlatformRoles('admin', 'finance')
   @Post('users/:id/wallet/refund')
   refundBalance(
     @CurrentUser() caller: AuthPrincipal,
@@ -298,12 +349,28 @@ export class AdminController {
     return this.users.refundBalance(id, dto.credits, caller.id);
   }
 
+  @PlatformRoles('admin', 'finance')
   @Post('users/:id/wallet/refunds/:refundId/cancel')
   cancelWalletRefund(
+    @CurrentUser() caller: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('refundId', ParseUUIDPipe) refundId: string,
   ) {
-    return this.users.cancelRefund(id, refundId);
+    return this.users.cancelRefund(id, refundId, actorOf(caller));
+  }
+
+  /** C7: the billing identity a user's invoices are made out to. Same DTO as
+   *  the customer's own `PATCH /account/billing/profile`, so a staff edit
+   *  can't produce a profile shape the self-service form never could.
+   *  Audit-logged (billing_profile.update). */
+  @PlatformRoles('admin', 'finance')
+  @Patch('users/:id/billing-profile')
+  updateUserBillingProfile(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BillingProfileDto,
+  ) {
+    return this.users.updateBillingProfile(id, dto, actorOf(caller));
   }
 
   // --- businesses --------------------------------------------------
@@ -407,28 +474,46 @@ export class AdminController {
 
   // --- invoices -----------------------------------------------------
 
+  // C6: the whole invoice surface — list, detail, void, unvoid. Voiding is
+  // the single most finance-specific write in the panel. Both mutations are
+  // audit-logged (invoice.void / invoice.unvoid), which is how "who voided
+  // this" is recorded at all: the Invoice row is a fiscal document and
+  // deliberately carries no staff-attribution column.
+  @PlatformRoles('admin', 'finance')
   @Get('invoices')
   listInvoices(@Query() query: ListInvoicesQuery) {
     return this.billing.adminList(query);
   }
 
+  @PlatformRoles('admin', 'finance')
   @Get('invoices/:id')
   invoiceDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.billing.adminGetInvoice(id);
   }
 
+  @PlatformRoles('admin', 'finance')
   @Post('invoices/:id/void')
-  voidInvoice(@Param('id', ParseUUIDPipe) id: string, @Body() dto: VoidInvoiceDto) {
-    return this.billing.voidInvoice(id, dto.reason);
+  voidInvoice(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: VoidInvoiceDto,
+  ) {
+    return this.billing.voidInvoice(id, dto.reason, actorOf(caller));
   }
 
+  @PlatformRoles('admin', 'finance')
   @Post('invoices/:id/unvoid')
-  unvoidInvoice(@Param('id', ParseUUIDPipe) id: string) {
-    return this.billing.unvoidInvoice(id);
+  unvoidInvoice(@CurrentUser() caller: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.billing.unvoidInvoice(id, actorOf(caller));
   }
 
   // --- affiliate program -----------------------------------------------
 
+  // C10: READ only — referral payouts are credits leaving the platform, so
+  // finance has to be able to see them. The reward amount and the program
+  // on/off switch are platform settings and stay behind the admin-only
+  // `PATCH /admin/settings` above.
+  @PlatformRoles('admin', 'finance')
   @Get('referrals')
   listReferrals(@Query() query: ListReferralsQuery) {
     return this.affiliate.adminList({
@@ -438,6 +523,7 @@ export class AdminController {
     });
   }
 
+  @PlatformRoles('admin', 'finance')
   @Get('referrals/export')
   async exportReferrals(@Query() query: ListReferralsQuery) {
     const buffer = await this.affiliate.exportPdf({ status: query.status });

@@ -37,6 +37,14 @@ export function IsNotFutureDate(validationOptions?: ValidationOptions) {
   };
 }
 
+/** Currencies a supplier invoice may be entered in. `PlatformExpense.currency`
+ *  defaults to EUR in the schema and every aggregate in this module is EUR
+ *  cents, so a non-EUR row records the ORIGINAL document's currency for
+ *  bookkeeping/audit — it is not converted. */
+export const EXPENSE_CURRENCIES = ['EUR', 'RON', 'USD'] as const;
+export type ExpenseCurrency = (typeof EXPENSE_CURRENCIES)[number];
+export const DEFAULT_EXPENSE_CURRENCY: ExpenseCurrency = 'EUR';
+
 const MANUAL_CATEGORIES = [
   'hosting',
   'call_center',
@@ -62,6 +70,12 @@ export class CreateExpenseDto {
   @Min(1)
   @Max(100_000_000)
   amountMinor!: number;
+
+  /** Currency of the supplier document. Absent = EUR (the schema default). */
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @IsIn(EXPENSE_CURRENCIES)
+  currency?: ExpenseCurrency;
 
   @IsOptional()
   @IsString()

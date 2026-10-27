@@ -91,6 +91,7 @@ function makeService() {
     {} as any,
     {} as any,
     {} as any,
+    { log: jest.fn(async () => {}) } as any,
   );
   return { service, prisma };
 }

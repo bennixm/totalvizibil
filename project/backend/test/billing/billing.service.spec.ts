@@ -146,6 +146,10 @@ function fakeNotifications() {
   return { notify: jest.fn().mockResolvedValue(undefined) };
 }
 
+function fakeAudit() {
+  return { log: jest.fn().mockResolvedValue(undefined) };
+}
+
 function fakeConfig() {
   return { get: jest.fn().mockReturnValue('https://totalvizibil.ro') };
 }
@@ -155,13 +159,15 @@ function makeService() {
   const settings = fakeSettings();
   const notifications = fakeNotifications();
   const config = fakeConfig();
+  const audit = fakeAudit();
   const svc = new BillingService(
     prisma as any,
     settings as any,
     notifications as any,
     config as any,
+    audit as any,
   );
-  return { svc, prisma, settings, notifications, config };
+  return { svc, prisma, settings, notifications, config, audit };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -303,6 +309,37 @@ describe('BillingService', () => {
       const updateArg = (prisma.invoice.update as jest.Mock).mock.calls[0][0];
       expect(updateArg.data.voidedAt).toBeInstanceOf(Date);
     });
+
+    it('audit-logs WHO voided it — the Invoice row is a fiscal document and carries no staff-attribution column, so the audit log is the only record', async () => {
+      const { svc, prisma, audit } = makeService();
+      prisma.__seedInvoice({ id: 'inv-1', number: 'TVZ-2025-000001', voidedAt: null });
+
+      await svc.voidInvoice('inv-1', 'duplicate issue', { id: 'staff1', roles: ['finance'] });
+
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: 'staff1',
+          actorRoles: ['finance'],
+          action: 'invoice.void',
+          targetType: 'invoice',
+          targetId: 'inv-1',
+          reason: 'duplicate issue',
+        }),
+      );
+      const entry = (audit.log as jest.Mock).mock.calls[0][0];
+      expect(entry.before.voidedAt).toBeNull();
+      expect(entry.after.voidedAt).toBeInstanceOf(Date);
+      expect(entry.after.voidReason).toBe('duplicate issue');
+    });
+
+    it('writes no audit row for a non-staff caller (no actor to attribute it to)', async () => {
+      const { svc, prisma, audit } = makeService();
+      prisma.__seedInvoice({ id: 'inv-1', voidedAt: null });
+
+      await svc.voidInvoice('inv-1', 'reason');
+
+      expect(audit.log).not.toHaveBeenCalled();
+    });
   });
 
   // ── unvoidInvoice ──────────────────────────────────────────────────────────
@@ -342,6 +379,31 @@ describe('BillingService', () => {
       );
       expect(notifications.notify).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'invoice_restored' }),
+      );
+    });
+
+    it('audit-logs the restore too, as the reverse transition', async () => {
+      const { svc, prisma, audit } = makeService();
+      const voidedAt = new Date('2026-01-01T00:00:00.000Z');
+      prisma.__seedInvoice({
+        id: 'inv-1',
+        number: 'TVZ-2025-000001',
+        voidedAt,
+        voidReason: 'duplicate issue',
+      });
+
+      await svc.unvoidInvoice('inv-1', { id: 'staff1', roles: ['finance'] });
+
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: 'staff1',
+          actorRoles: ['finance'],
+          action: 'invoice.unvoid',
+          targetType: 'invoice',
+          targetId: 'inv-1',
+          before: { voidedAt, voidReason: 'duplicate issue' },
+          after: { voidedAt: null, voidReason: null },
+        }),
       );
     });
   });

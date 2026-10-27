@@ -45,6 +45,18 @@ export const useAuthStore = defineStore('auth', {
       const roles = state.user?.platformRoles ?? []
       return roles.includes('admin') || roles.includes('support')
     },
+    /**
+     * Same shape as `isSupportStaff`, for the Contabil area: the only roles the
+     * backend actually lets into `/admin/finance/*` + the invoice endpoints.
+     * Gating the Financiar sidebar group / landing redirect on
+     * `isPlatformStaff` (or on "not admin") instead handed `support`/`moderator`
+     * accounts five links that all 403, and bounced them through a page they
+     * can't open on the way to `/account`.
+     */
+    isFinanceStaff: (state): boolean => {
+      const roles = state.user?.platformRoles ?? []
+      return roles.includes('admin') || roles.includes('finance')
+    },
   },
 
   actions: {

@@ -5,14 +5,16 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { BillingProfile, Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { PasswordService } from '../auth/password.service';
 import { SessionService } from '../auth/session.service';
 import { WalletService } from '../wallet/wallet.service';
 import { BillingService } from '../billing/billing.service';
+import { BillingProfileDto } from '../billing/dto/billing-profile.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditActor, AuditLogService } from './audit-log.service';
 import { MailService } from '../mail/mail.service';
 import { ctaButton, detailsTable, renderEmailLayout, textToHtml } from '../mail/templates/layout';
 import { AppConfig } from '../config/env';
@@ -37,6 +39,7 @@ export class AdminUsersService {
     private readonly billing: BillingService,
     private readonly notifications: NotificationsService,
     private readonly mail: MailService,
+    private readonly audit: AuditLogService,
     config: ConfigService<AppConfig, true>,
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
@@ -100,6 +103,11 @@ export class AdminUsersService {
       include: {
         platformRoles: true,
         wallet: true,
+        // The billing identity every one of this user's invoices is made out
+        // to. It used to be omitted here, which meant NOBODY on staff —
+        // admin included — could see or correct a wrong CUI/address while
+        // looking at the exact invoices it had been snapshotted onto.
+        billingProfile: true,
         companyMembers: {
           where: { status: 'active' },
           include: {
@@ -162,6 +170,10 @@ export class AdminUsersService {
         blockedReason: walletSummary.blockedReason,
         refundable: walletSummary.refundable,
       },
+      // Null until the user has declared one — a brand-new account has no
+      // billing identity yet, and the panel has to be able to show that
+      // state (it's exactly why their purchases are being blocked).
+      billingProfile: u.billingProfile ? billingProfileSnapshot(u.billingProfile) : null,
       companies: u.companyMembers.map((m) => {
         const c = m.company;
         const camp = c.campaign;
@@ -229,6 +241,24 @@ export class AdminUsersService {
       }
       if (dto.platformRoles && !dto.platformRoles.includes('admin')) {
         throw new ForbiddenException('You cannot remove your own admin role');
+      }
+    }
+
+    // Same "don't lock the platform out of itself" guard as the self-admin
+    // check above, for `finance`: the Contabil role is the only way into the
+    // finance module and the money-management endpoints, and nothing else
+    // can grant it back except an admin noticing. Dropping the last holder
+    // (from anyone, not just yourself — the admin check above only covers
+    // the caller's own row) is refused rather than silently emptying the role.
+    if (dto.platformRoles && !dto.platformRoles.includes('finance')) {
+      const hadFinance = target.platformRoles.some((r) => r.role === 'finance');
+      if (hadFinance) {
+        const remaining = await this.prisma.platformRoleAssignment.count({
+          where: { role: 'finance', userId: { not: id } },
+        });
+        if (remaining === 0) {
+          throw new ForbiddenException('cannot_remove_last_finance_role');
+        }
       }
     }
 
@@ -510,23 +540,23 @@ export class AdminUsersService {
     return this.wallet.exportTransactionsPdf(id, target.name, opts);
   }
 
-  async blockWallet(id: string, dto: BlockWalletDto) {
+  async blockWallet(id: string, dto: BlockWalletDto, actor: AuditActor) {
     const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
     if (!target) throw new NotFoundException('User not found');
-    await this.wallet.setBlocked(id, dto.blocked, dto.reason ?? null);
+    await this.wallet.setBlocked(id, dto.blocked, dto.reason ?? null, actor);
     return this.detail(id);
   }
 
-  // `adminUserId` is optional only so this compiles against the current
-  // controller handler, which doesn't pass it yet (see admin.controller.ts
-  // `adjustWallet` — needs `@CurrentUser() caller: AuthPrincipal` added and
-  // `caller.id` threaded through, the same one-line shape `refundBalance`'s
-  // handler already uses). Until that's wired up, attribution is just null.
-  async adjustWallet(id: string, dto: AdjustWalletDto, adminUserId?: string) {
+  /** `actor` is the staff member performing the adjustment: their id is
+   *  recorded on the `adjustment` ledger row for attribution, and their id +
+   *  role snapshot on the audit log. `WalletService.adjust` also uses the id
+   *  to refuse an adjustment of the actor's OWN wallet. */
+  async adjustWallet(id: string, dto: AdjustWalletDto, actor: AuditActor) {
     const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
     if (!target) throw new NotFoundException('User not found');
     const result = await this.wallet.adjust(id, dto.credits, dto.reason, {
-      initiatedByAdminId: adminUserId,
+      initiatedByAdminId: actor.id,
+      actorRoles: actor.roles,
     });
     const detail = await this.detail(id);
     // Surfaced so the admin panel can tell "applied in full" from "balance
@@ -545,10 +575,68 @@ export class AdminUsersService {
     return this.detail(id);
   }
 
-  async cancelRefund(id: string, refundId: string) {
+  /** `actor` must actually reach `WalletService.cancelRefund`: the param had
+   *  existed there from the start but was never passed from here, so every
+   *  admin-canceled refund looked like the customer canceling their own —
+   *  the user got the quiet panel-only notification instead of the email
+   *  telling them money they were expecting isn't coming, and nothing
+   *  recorded who did it. */
+  async cancelRefund(id: string, refundId: string, actor: AuditActor) {
     const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
     if (!target) throw new NotFoundException('User not found');
-    await this.wallet.cancelRefund(id, refundId);
+    await this.wallet.cancelRefund(id, refundId, actor.id, actor.roles);
     return this.detail(id);
   }
+
+  /**
+   * Staff-side edit of a customer's billing identity (name/CUI/address the
+   * invoices are made out to). Deliberately the SAME field set the customer's
+   * own `/account/billing/profile` accepts — a staff edit must not be able to
+   * put a profile into a shape the self-service form could never produce,
+   * and `BillingService.upsertProfile` is what enforces that plus the
+   * "profile just became complete ⇒ backfill the pending invoices" rule.
+   *
+   * Audit-logged with the before/after profile, since this rewrites who a
+   * fiscal document is addressed to.
+   */
+  async updateBillingProfile(id: string, dto: BillingProfileDto, actor: AuditActor) {
+    const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
+    if (!target) throw new NotFoundException('User not found');
+
+    const before = await this.billing.getProfile(id);
+    const { profile, isComplete, invoicesIssued } = await this.billing.upsertProfile(id, dto);
+
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'billing_profile.update',
+      targetType: 'billing_profile',
+      targetId: id,
+      before: before ? billingProfileSnapshot(before) : null,
+      after: billingProfileSnapshot(profile),
+    });
+
+    return { profile, isComplete, invoicesIssued };
+  }
+}
+
+/** The invoice-relevant subset of a billing profile — what the audit row's
+ *  before/after needs, without the timestamps and surrogate ids that make a
+ *  diff unreadable. */
+function billingProfileSnapshot(p: BillingProfile) {
+  return {
+    kind: p.kind,
+    name: p.name,
+    taxId: p.taxId,
+    regCom: p.regCom,
+    vatPayer: p.vatPayer,
+    address: p.address,
+    city: p.city,
+    county: p.county,
+    postalCode: p.postalCode,
+    country: p.country,
+    billingEmail: p.billingEmail,
+    iban: p.iban,
+    bankName: p.bankName,
+  };
 }

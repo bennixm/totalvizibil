@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
-import { IsNotFutureDate } from './create-expense.dto';
+import { EXPENSE_CURRENCIES, IsNotFutureDate, type ExpenseCurrency } from './create-expense.dto';
 
 const MANUAL_CATEGORIES = [
   'hosting',
@@ -28,6 +28,12 @@ export class UpdateExpenseDto {
   @Min(1)
   @Max(100_000_000)
   amountMinor?: number;
+
+  /** Currency of the supplier document — see `CreateExpenseDto.currency`. */
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @IsIn(EXPENSE_CURRENCIES)
+  currency?: ExpenseCurrency;
 
   @IsOptional()
   @IsString()
