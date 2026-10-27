@@ -224,10 +224,30 @@ export class AppointmentsService {
 
   async remove(userId: string, companyId: string, appointmentId: string): Promise<void> {
     await this.assertMember(companyId, userId);
+    // Captured BEFORE the delete — `notifyClient` needs the row's own data
+    // (email, name, time), which obviously can't be read back afterward.
+    const appt = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, companyId },
+      include: { company: { select: { displayName: true } } },
+    });
+    if (!appt) throw new NotFoundException('Appointment not found');
+
     const { count } = await this.prisma.appointment.deleteMany({
       where: { id: appointmentId, companyId },
     });
     if (count === 0) throw new NotFoundException('Appointment not found');
+
+    // The normal cancel path (updateStatus → 'canceled') already emails the
+    // client — removing the row outright used to be the one way to drop a
+    // confirmed appointment with the client never finding out. Same email,
+    // same "status: canceled" framing, since from the client's side the
+    // outcome (their slot is gone) is identical either way.
+    void this.notifyClient(appt, appt.company.displayName, 'canceled').catch((err) =>
+      this.logger.error(
+        'Appointment-removed client email failed',
+        err instanceof Error ? err.stack : err,
+      ),
+    );
   }
 
   // --- public: availability + booking ------------------------------------
@@ -382,7 +402,7 @@ export class AppointmentsService {
       .notify({
         userId: ownerId,
         type: 'appointment_received',
-        title: 'Ai o programare nouă',
+        title: `Programare nouă: ${appt.name}, ${when}`,
         body: `${appt.name} a rezervat o programare pentru ${companyName} pe ${when}.`,
         channels: { panel: true, email: true },
         data: { companyId },

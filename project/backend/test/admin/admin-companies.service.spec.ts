@@ -105,7 +105,11 @@ function fakePrisma() {
       companies.set(c.id, c);
       return c;
     },
-    __seedPrimaryLocation: (loc: { city: string | null; lat: number | null; lng: number | null }) => {
+    __seedPrimaryLocation: (loc: {
+      city: string | null;
+      lat: number | null;
+      lng: number | null;
+    }) => {
       primaryLocation = loc;
     },
     __companies: companies,
@@ -201,6 +205,10 @@ function fakeNotifications() {
   };
 }
 
+function fakeConfig() {
+  return { get: jest.fn().mockReturnValue('https://totalvizibil.ro') };
+}
+
 function makeService() {
   const prisma = fakePrisma();
   const wallet = fakeWallet();
@@ -210,6 +218,7 @@ function makeService() {
   const builder = fakeBuilder();
   const settings = fakeSettings();
   const notifications = fakeNotifications();
+  const config = fakeConfig();
 
   const svc = new AdminCompaniesService(
     prisma as any,
@@ -220,9 +229,21 @@ function makeService() {
     builder as any,
     settings as any,
     notifications as any,
+    config as any,
   );
 
-  return { svc, prisma, wallet, campaigns, leads, analytics, builder, settings, notifications };
+  return {
+    svc,
+    prisma,
+    wallet,
+    campaigns,
+    leads,
+    analytics,
+    builder,
+    settings,
+    notifications,
+    config,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -442,16 +463,10 @@ describe('AdminCompaniesService', () => {
   describe('pending-deletion freeze', () => {
     const PENDING_METHODS: [string, (svc: AdminCompaniesService) => Promise<unknown>][] = [
       ['updateCompany', (svc) => svc.updateCompany('company-1', { displayName: 'New' } as any)],
-      [
-        'setLocation',
-        (svc) => svc.setLocation('company-1', { nationwide: true } as any),
-      ],
+      ['setLocation', (svc) => svc.setLocation('company-1', { nationwide: true } as any)],
       ['setWebsitePublished', (svc) => svc.setWebsitePublished('company-1', false)],
       ['saveCampaign', (svc) => svc.saveCampaign('company-1', {} as any)],
-      [
-        'campaignAction',
-        (svc) => svc.campaignAction('company-1', { action: 'pause' } as any),
-      ],
+      ['campaignAction', (svc) => svc.campaignAction('company-1', { action: 'pause' } as any)],
       ['setStatus', (svc) => svc.setStatus('company-1', { status: 'suspended' } as any)],
       ['upgradeToAdvanced', (svc) => svc.upgradeToAdvanced('company-1')],
     ];
@@ -526,7 +541,11 @@ describe('AdminCompaniesService', () => {
       prisma.__seed({
         id: 'company-1',
         status: 'draft',
-        campaign: makeCampaign({ status: CampaignStatus.paused, cpcMinor: 10, autoOptimize: false }),
+        campaign: makeCampaign({
+          status: CampaignStatus.paused,
+          cpcMinor: 10,
+          autoOptimize: false,
+        }),
       });
 
       await expect(svc.campaignAction('company-1', { action: 'activate' } as any)).rejects.toThrow(
@@ -539,7 +558,11 @@ describe('AdminCompaniesService', () => {
       prisma.__seed({
         id: 'company-1',
         status: 'draft',
-        campaign: makeCampaign({ status: CampaignStatus.paused, cpcMinor: 50, autoOptimize: false }),
+        campaign: makeCampaign({
+          status: CampaignStatus.paused,
+          cpcMinor: 50,
+          autoOptimize: false,
+        }),
       });
 
       const result = await svc.campaignAction('company-1', { action: 'activate' } as any);
@@ -612,7 +635,12 @@ describe('AdminCompaniesService', () => {
 
       const [createManyCall] = (prisma.companyLocation.createMany as jest.Mock).mock.calls;
       const rows = createManyCall[0].data as any[];
-      expect(rows[0]).toMatchObject({ city: 'Cluj-Napoca', lat: 46.77, lng: 23.59, isPrimary: true });
+      expect(rows[0]).toMatchObject({
+        city: 'Cluj-Napoca',
+        lat: 46.77,
+        lng: 23.59,
+        isPrimary: true,
+      });
       expect(rows[1]).toMatchObject({ city: null, lat: null, lng: null, isPrimary: false });
     });
   });

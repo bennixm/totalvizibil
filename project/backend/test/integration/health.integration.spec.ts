@@ -3,7 +3,6 @@ import request from 'supertest';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { createTestApp } from './helpers/app';
 import { resetDb } from './helpers/db';
-import { createAndLoginUser } from './helpers/auth';
 
 let app: INestApplication;
 let prisma: PrismaService;

@@ -4,7 +4,7 @@ import { AccountService } from 'src/auth/account.service';
 
 const totp = new TotpService();
 
-function fakePasswords(knownHash = 'hashed:secret') {
+function fakePasswords() {
   return {
     hash: jest.fn(async (p: string) => `hashed:${p}`),
     verify: jest.fn(async (hash: string, plain: string) => hash === `hashed:${plain}`),
@@ -70,12 +70,17 @@ function fakePrisma() {
   };
 }
 
+function fakeConfig() {
+  return { get: jest.fn(() => 'https://totalvizibil.ro') };
+}
+
 function makeService() {
   const prisma = fakePrisma();
   const passwords = fakePasswords();
   const sessions = fakeSessions();
   const notifications = fakeNotifications();
   const mail = fakeMail();
+  const config = fakeConfig();
   const svc = new AccountService(
     prisma as any,
     passwords as any,
@@ -83,6 +88,7 @@ function makeService() {
     totp,
     notifications as any,
     mail as any,
+    config as any,
   );
   return { svc, prisma, passwords, sessions, notifications, mail };
 }

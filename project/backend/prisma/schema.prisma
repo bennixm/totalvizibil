@@ -1115,6 +1115,12 @@ model Lead {
   repliedAt       DateTime? @map("replied_at")
   resolvedAt      DateTime? @map("resolved_at")
 
+  // UTC-midnight-of-the-day the stale-lead digest last fired for this lead
+  // (NotificationsSweepService.sweepStaleLeads) — same "claim before notify"
+  // cooldown pattern as the campaign/wallet sweep flags below, so a lead
+  // left unanswered gets reminded about once a day, not once an hour.
+  staleNotifiedAt DateTime? @map("stale_notified_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

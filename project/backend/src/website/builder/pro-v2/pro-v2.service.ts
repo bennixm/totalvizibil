@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CompanyRole, ProV2File, ProV2Project } from '@prisma/client';
@@ -9,6 +10,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { WalletService } from '../../../wallet/wallet.service';
 import { CREDIT_MINOR } from '../../../wallet/money';
 import { PlatformSettingsService } from '../../../platform-settings/platform-settings.service';
+import { NotificationsService } from '../../../notifications/notifications.service';
 import { WebsiteAssetService } from '../../assets/website-asset.service';
 import { STARTER_FILES } from './starter-project';
 import {
@@ -42,11 +44,14 @@ export interface FileMatch {
  */
 @Injectable()
 export class ProV2Service {
+  private readonly logger = new Logger(ProV2Service.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly settings: PlatformSettingsService,
     private readonly assets: WebsiteAssetService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // --- ownership ---------------------------------------------------------
@@ -113,6 +118,7 @@ export class ProV2Service {
     const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
     await this.applyUnlock(company.id, company.ownerUserId, company.advancedUnlockedAt, {
       chargeOwner: true,
+      actor: 'owner',
     });
     return { unlocked: true };
   }
@@ -122,6 +128,7 @@ export class ProV2Service {
     const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
     await this.applyUnlock(company.id, company.ownerUserId, company.advancedUnlockedAt, {
       chargeOwner: !!opts.charge,
+      actor: 'admin',
     });
   }
 
@@ -129,7 +136,7 @@ export class ProV2Service {
     companyId: string,
     ownerUserId: string,
     alreadyUnlockedAt: Date | null,
-    opts: { chargeOwner: boolean },
+    opts: { chargeOwner: boolean; actor: 'owner' | 'admin' },
   ): Promise<void> {
     if (alreadyUnlockedAt) return;
     // One atomic step: charging the fee, granting the starting bonus, and
@@ -160,6 +167,44 @@ export class ProV2Service {
       });
       await tx.website.updateMany({ where: { companyId }, data: { mode: 'advanced' } });
     });
+
+    // The owner's own `unlock()` doesn't need a notification — they just
+    // clicked the button and see the result immediately. The admin-initiated
+    // grant debits (or grants) real credits via an action the owner didn't
+    // take, with no notification on either leg before this — inconsistent
+    // with the admin wallet-adjust lever right next to it, which does notify.
+    // Already committed — a notification hiccup must never mask this.
+    if (opts.actor === 'admin') {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { displayName: true },
+      });
+      if (company) {
+        const bonusLine =
+          bonus > 0 ? ` Ai primit și ${bonus} credite bonus ca să-l poți folosi.` : '';
+        void this.notifications
+          .notify({
+            userId: ownerUserId,
+            type: opts.chargeOwner
+              ? 'advanced_unlock_charged_by_admin'
+              : 'advanced_unlock_granted_by_admin',
+            title: opts.chargeOwner
+              ? `Builder-ul avansat a fost activat pentru „${company.displayName}"`
+              : `Ai primit gratuit builder-ul avansat pentru „${company.displayName}"`,
+            body: opts.chargeOwner
+              ? `Un administrator a activat builder-ul avansat pentru „${company.displayName}" și ți-a taxat ${price} credite din portofel.${bonusLine}`
+              : `Un administrator ți-a oferit gratuit builder-ul avansat pentru „${company.displayName}".${bonusLine}`,
+            channels: opts.chargeOwner ? { panel: true, email: true } : { panel: true },
+            data: { companyId },
+          })
+          .catch((err) =>
+            this.logger.error(
+              'Advanced-unlock-by-admin notification failed',
+              err instanceof Error ? err.stack : err,
+            ),
+          );
+      }
+    }
   }
 
   /** Real facts about the business, collected earlier in the Advanced

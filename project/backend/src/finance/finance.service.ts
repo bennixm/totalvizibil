@@ -23,11 +23,15 @@ function dayKey(d: Date): string {
 /** A refund's `refundSources` JSON column — see the field comment on
  *  `WalletTransaction` in schema.prisma for the shape and why `moneyMinor`
  *  (not `amountMinor`) is the real EUR-cents movement behind each source. */
-function parseRefundSources(json: Prisma.JsonValue): { amountMinor: number; moneyMinor?: number }[] {
+function parseRefundSources(
+  json: Prisma.JsonValue,
+): { amountMinor: number; moneyMinor?: number }[] {
   if (!Array.isArray(json)) return [];
   return json.filter(
     (s): s is { amountMinor: number; moneyMinor?: number } =>
-      typeof s === 'object' && s !== null && typeof (s as Record<string, unknown>).amountMinor === 'number',
+      typeof s === 'object' &&
+      s !== null &&
+      typeof (s as Record<string, unknown>).amountMinor === 'number',
   );
 }
 

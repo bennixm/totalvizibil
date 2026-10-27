@@ -6,6 +6,7 @@ import { PasswordService } from './password.service';
 import { SessionService } from './session.service';
 import { MailService } from '../mail/mail.service';
 import { ctaButton, renderEmailLayout, textToHtml } from '../mail/templates/layout';
+import { NotificationsService } from '../notifications/notifications.service';
 import { AppConfig } from '../config/env';
 
 const TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -20,6 +21,7 @@ export class PasswordResetService {
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
     private readonly mail: MailService,
+    private readonly notifications: NotificationsService,
     config: ConfigService<AppConfig, true>,
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
@@ -125,6 +127,38 @@ export class PasswordResetService {
 
     // A reset invalidates every existing session.
     await this.sessions.revokeAllForUser(record.userId);
+
+    // This is the one password-change path in the app that used to notify
+    // NOTHING — self-service `changePassword` and an admin's `setPassword`
+    // both correctly fire `password_changed`; this "forgot password" email
+    // link was the silent exception, and it's the exact path an account
+    // takeover uses. Already committed by this point — a notification
+    // hiccup must never make a successful reset look like it failed. Email
+    // only: the user has no session right after this (every one was just
+    // revoked), so the panel can't reach them anyway.
+    void this.notifications
+      .notify({
+        userId: record.userId,
+        type: 'password_changed',
+        title: 'Parola contului tău a fost schimbată',
+        body: 'Parola contului tău a fost schimbată.',
+        channels: { email: true },
+        email: {
+          greet: true,
+          text: 'Parola contului tău Totalvizibil a fost resetată prin linkul „am uitat parola”. Toate sesiunile deschise au fost închise.\n\nDacă ai fost tu, nu trebuie să faci nimic.',
+          details: [{ label: 'Data și ora', value: new Date().toLocaleString('ro-RO') }],
+          cta: { label: 'Contactează suportul', url: `${this.frontendOrigin}/support` },
+          footerNote:
+            'Dacă nu ai fost tu, contactează-ne imediat — cineva are acces la contul tău.',
+        },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Password-reset-completed notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+
     return { ok: true };
   }
 }

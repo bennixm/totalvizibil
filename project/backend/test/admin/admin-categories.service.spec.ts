@@ -140,7 +140,10 @@ describe('AdminCategoriesService', () => {
       const svc = new AdminCategoriesService(prisma as any);
       await expect(svc.update('c1', { slug: 'new-slug' } as any)).resolves.toBeDefined();
       expect(prisma.category.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'c1' }, data: expect.objectContaining({ slug: 'new-slug' }) }),
+        expect.objectContaining({
+          where: { id: 'c1' },
+          data: expect.objectContaining({ slug: 'new-slug' }),
+        }),
       );
     });
   });

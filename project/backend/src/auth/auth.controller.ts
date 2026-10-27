@@ -11,7 +11,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
+import { AppConfig } from '../config/env';
 import { AuthService } from './auth.service';
 import { PasswordResetService } from './password-reset.service';
 import { EmailVerificationService } from './email-verification.service';
@@ -29,6 +31,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
+  private readonly frontendOrigin: string;
 
   constructor(
     private readonly auth: AuthService,
@@ -37,7 +40,10 @@ export class AuthController {
     private readonly cookie: SessionCookieService,
     private readonly sessions: SessionService,
     private readonly notifications: NotificationsService,
-  ) {}
+    config: ConfigService<AppConfig, true>,
+  ) {
+    this.frontendOrigin = config.get('frontendOrigin', { infer: true });
+  }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('register')
@@ -153,9 +159,24 @@ export class AuthController {
     await this.notifications.notify({
       userId,
       type: 'new_session',
-      title: 'Conectare nouă detectată',
-      body: `Contul tău a fost accesat de pe un dispozitiv nou (${device}) pe ${when}. Dacă nu ai fost tu, schimbă-ți parola imediat.`,
-      channels: { email: true },
+      title: 'Conectare nouă pe contul tău',
+      body: `Contul tău a fost accesat de pe un dispozitiv nou pe ${when}.`,
+      // Now has an in-app trace too (previously email-only) — a security
+      // alert with nothing to find later in the panel left no record once
+      // the email was deleted or missed.
+      channels: { panel: true, email: true },
+      email: {
+        greet: true,
+        text:
+          'Contul tău Totalvizibil a fost accesat de pe un dispozitiv pe care nu l-am mai văzut.\n\n' +
+          'Dacă ai fost tu, nu trebuie să faci nimic.\n\n' +
+          'Dacă NU ai fost tu, schimbă-ți parola acum și activează autentificarea în doi pași — cineva are datele tale de acces.',
+        details: [
+          { label: 'Dispozitiv', value: device },
+          { label: 'Data și ora', value: when },
+        ],
+        cta: { label: 'Vezi sesiunile active', url: `${this.frontendOrigin}/account?tab=sessions` },
+      },
     });
   }
 }

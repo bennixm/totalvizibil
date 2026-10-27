@@ -100,21 +100,26 @@ function fakeMail() {
 function fakeConfig() {
   return { get: jest.fn(() => 'https://totalvizibil.ro') };
 }
+function fakeNotifications() {
+  return { notify: jest.fn(async () => {}) };
+}
 
 function makeService() {
   const prisma = fakePrisma();
   const passwords = fakePasswords();
   const sessions = fakeSessions();
   const mail = fakeMail();
+  const notifications = fakeNotifications();
   const config = fakeConfig();
   const service = new PasswordResetService(
     prisma as any,
     passwords as any,
     sessions as any,
     mail as any,
+    notifications as any,
     config as any,
   );
-  return { service, prisma, passwords, sessions, mail };
+  return { service, prisma, passwords, sessions, mail, notifications };
 }
 
 function tokenFromMailCall(mail: ReturnType<typeof fakeMail>): string {
@@ -188,6 +193,23 @@ describe('PasswordResetService', () => {
     const updatedUser = prisma.__users.get(user.id as string) as { passwordHash: string };
     expect(updatedUser.passwordHash).toBe('hashed(brandNewPassword!23)');
     expect(sessions.revokeAllForUser).toHaveBeenCalledWith(user.id);
+  });
+
+  it('regression: a completed reset notifies the user (this used to be the one silent password-change path — the exact route an account takeover uses)', async () => {
+    const { service, prisma, mail, notifications } = makeService();
+    const user = prisma.__seedUser();
+    await service.request(user.email as string);
+    const token = tokenFromMailCall(mail);
+
+    await service.reset(token, 'brandNewPassword!23');
+
+    expect(notifications.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: user.id,
+        type: 'password_changed',
+        channels: expect.objectContaining({ email: true }),
+      }),
+    );
   });
 
   it('rejects reusing an already-used token', async () => {

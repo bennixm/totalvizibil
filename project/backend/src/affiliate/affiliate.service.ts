@@ -132,6 +132,23 @@ export class AffiliateService {
       await this.prisma.referral.create({
         data: { referrerId: referrer.id, referredUserId, rewardCredits: promisedReward },
       });
+      // Mild engagement news, not important enough for an inbox — the
+      // REWARD notification (once it actually lands) is the one that
+      // matters and already fires with its own email.
+      void this.notifications
+        .notify({
+          userId: referrer.id,
+          type: 'referral_claimed',
+          title: 'Cineva s-a înscris cu codul tău de recomandare',
+          body: 'Recompensa vine după ce finalizează o campanie și alimentează portofelul.',
+          channels: { panel: true },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Referral-claimed notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
       return { claimed: true };
     } catch (err) {
       // Unique(referred_user_id) — a concurrent claim won. Treat as success.
@@ -230,14 +247,15 @@ export class AffiliateService {
           userId: referral.referrerId,
           type: 'referral_rewarded',
           title: 'Ai primit o recompensă din programul de afiliere',
-          body: `Ai primit ${reward} credite pentru un client adus prin programul de afiliere.`,
+          body: `Ai primit ${reward} credite pentru cineva pe care l-ai adus în Totalvizibil.`,
           channels: { panel: true, email: true },
           data: { invoiceId: result.invoice.id },
           email: {
-            text: `Ai primit ${reward} credite pentru un client adus prin programul de afiliere. Documentul de recompensă ${result.invoice.number} este atașat acestui email și disponibil oricând în cont.`,
+            greet: true,
+            text: `Cineva pe care l-ai adus în Totalvizibil și-a pornit prima campanie — iar tu tocmai ai primit recompensa pentru asta. Documentul de recompensă este atașat acestui email și disponibil oricând în cont.`,
             details: [
-              { label: 'Document', value: result.invoice.number },
               { label: 'Credite primite', value: `${reward} credite` },
+              { label: 'Document', value: result.invoice.number },
             ],
             cta: { label: 'Vezi documentul', url: invoiceUrl },
             attachments,

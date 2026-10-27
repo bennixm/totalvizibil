@@ -7,8 +7,10 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CompanyRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AppConfig } from '../config/env';
 import { uniqueSlug } from '../common/slug';
 import { assertCounty, resolveLocationInput } from '../geo/ro-cities';
 import { WebsiteDraftService } from '../website/drafts/website-draft.service';
@@ -44,19 +46,33 @@ export class CompaniesService implements OnModuleInit {
     private readonly analytics: AnalyticsService,
     private readonly settings: PlatformSettingsService,
     private readonly notifications: NotificationsService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
-  /** Email-only confirmation once a business is actually created (direct or draft flow).
-   *  The business is already committed by the time this runs — a notification hiccup
+  /** Confirmation once a business is actually created (direct or draft flow)
+   *  — the first email a new customer ever receives, so it points at the
+   *  two next steps instead of just restating that it worked. The business
+   *  is already committed by the time this runs — a notification hiccup
    *  must never turn an already-successful creation into an error response. */
   private async notifyBusinessCreated(userId: string, displayName: string): Promise<void> {
+    const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
     await this.notifications
       .notify({
         userId,
         type: 'business_created',
-        title: `Afacerea „${displayName}" a fost creată`,
-        body: `Afacerea „${displayName}" a fost creată cu succes pe platformă.`,
-        channels: { email: true },
+        title: `„${displayName}" este gata de configurat`,
+        body: `Afacerea „${displayName}" a fost creată. Urmează site-ul și campania.`,
+        channels: { panel: true, email: true },
+        email: {
+          greet: true,
+          preheader: 'Următorii pași: site-ul și primul buget.',
+          text:
+            `Afacerea „${displayName}" este creată pe Totalvizibil. Mai sunt doi pași până să apari în fața clienților:\n\n` +
+            `1. Construiește site-ul — îl generăm pe baza datelor afacerii tale, îl poți edita oricând după.\n` +
+            `2. Setează un buget zilnic — plătești doar pentru clicurile reale pe anunțul tău, iar bugetul îl poți schimba sau opri când vrei.\n\n` +
+            `Tot ce urmează se face din panoul tău.`,
+          cta: { label: 'Continuă configurarea', url: `${frontendOrigin}/dashboard` },
+        },
       })
       .catch((err) =>
         this.logger.error(
@@ -144,13 +160,26 @@ export class CompaniesService implements OnModuleInit {
           if (claimed.count === 0) continue;
 
           const effectiveAt = new Date(c.deletionScheduledAt!.getTime() + COMPANY_DELETE_GRACE_MS);
+          const effectiveDate = effectiveAt.toLocaleDateString('ro-RO');
+          const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
           await this.notifications.notify({
             userId: c.ownerUserId,
             type: 'business_deletion_reminder',
-            title: `Afacerea „${c.displayName}" va fi ștearsă definitiv în curând`,
-            body: `Mai ai puțin timp să anulezi — datele afacerii „${c.displayName}" sunt șterse definitiv pe ${effectiveAt.toLocaleDateString('ro-RO')}.`,
-            channels: { email: true },
+            title: `Ultima șansă: „${c.displayName}" se șterge pe ${effectiveDate}`,
+            body: `Datele afacerii „${c.displayName}" se șterg definitiv pe ${effectiveDate}. Poți anula până atunci.`,
+            channels: { panel: true, email: true },
             data: { companyId: c.id },
+            email: {
+              greet: true,
+              preheader: 'Anulează acum dacă vrei să păstrezi site-ul și datele.',
+              text:
+                `Ștergerea afacerii „${c.displayName}" este programată pentru ${effectiveDate}.\n\n` +
+                `Ce se șterge definitiv: site-ul, cererile primite de la clienți, programările și istoricul campaniei. ` +
+                `Ștergerea nu poate fi anulată după această dată.\n\n` +
+                `Dacă vrei să păstrezi afacerea, anulează ștergerea din panou — îți revine activă imediat.`,
+              cta: { label: 'Anulează ștergerea', url: `${frontendOrigin}/dashboard` },
+              footerNote: 'Dacă ștergerea este intenționată, nu trebuie să faci nimic.',
+            },
           });
         } catch (err) {
           this.logger.error(
@@ -330,7 +359,7 @@ export class CompaniesService implements OnModuleInit {
     });
 
     await this.syncPrimaryCategory(this.prisma, company.id, dto.categoryId ?? null);
-    await this.notifyBusinessCreated(userId, company.displayName);
+    void this.notifyBusinessCreated(userId, company.displayName);
     return toCompanyView(company, CompanyRole.owner);
   }
 
@@ -496,7 +525,7 @@ export class CompaniesService implements OnModuleInit {
       return created;
     });
 
-    await this.notifyBusinessCreated(userId, company.displayName);
+    void this.notifyBusinessCreated(userId, company.displayName);
     return toCompanyView(company, CompanyRole.owner);
   }
 
@@ -779,6 +808,12 @@ export class CompaniesService implements OnModuleInit {
     });
     if (company.deletionScheduledAt) return;
 
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { companyId },
+      select: { autoOptimize: true },
+    });
+    const autoWasOn = !!campaign?.autoOptimize;
+
     const now = new Date();
     await this.prisma.$transaction([
       this.prisma.company.update({
@@ -822,7 +857,11 @@ export class CompaniesService implements OnModuleInit {
         userId: company.ownerUserId,
         type: 'business_deletion_scheduled',
         title: `Afacerea „${company.displayName}" a fost programată pentru ștergere`,
-        body: `Anunțul a fost dat jos acum. Datele sunt șterse definitiv pe ${effectiveAt.toLocaleDateString('ro-RO')} — poți anula oricând până atunci.`,
+        body:
+          `Anunțul a fost dat jos acum. Datele sunt șterse definitiv pe ${effectiveAt.toLocaleDateString('ro-RO')} — poți anula oricând până atunci.` +
+          (autoWasOn
+            ? ' Modul AUTO al campaniei a fost dezactivat și nu se reactivează singur dacă anulezi ștergerea.'
+            : ''),
         channels: { panel: true, email: true },
         data: { companyId },
       })
@@ -878,14 +917,35 @@ export class CompaniesService implements OnModuleInit {
   private async purgeExpiredDeletions(companyIds: string[]): Promise<void> {
     if (companyIds.length === 0) return;
     const cutoff = new Date(Date.now() - COMPANY_DELETE_GRACE_MS);
+    // Captured before the wipe — the pre-deletion reminder already warned
+    // the owner this was coming, but the irreversible wipe itself notified
+    // nothing, leaving the lifecycle without the final "it's actually gone"
+    // confirmation a data-deletion request is expected to produce. Must be
+    // read now: there's no row left to look this up from afterward.
     const expired = await this.prisma.company.findMany({
       where: { id: { in: companyIds }, deletionScheduledAt: { lte: cutoff } },
-      select: { id: true },
+      select: { id: true, displayName: true, ownerUserId: true },
     });
     if (expired.length === 0) return;
     await this.prisma.company.deleteMany({
       where: { id: { in: expired.map((c) => c.id) } },
     });
+    for (const c of expired) {
+      void this.notifications
+        .notify({
+          userId: c.ownerUserId,
+          type: 'business_deleted',
+          title: `Afacerea „${c.displayName}" a fost ștearsă definitiv`,
+          body: `Datele afacerii „${c.displayName}" au fost șterse definitiv, conform programării. Acțiunea este ireversibilă.`,
+          channels: { email: true },
+        })
+        .catch((err) =>
+          this.logger.error(
+            `Business-deleted notification failed for company ${c.id}`,
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
   }
 
   /** Compact list of the user's businesses for the dashboard switcher. */

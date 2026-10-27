@@ -10,7 +10,6 @@
 
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
-import * as crypto from 'node:crypto';
 
 const prisma = new PrismaClient();
 

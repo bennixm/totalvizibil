@@ -55,7 +55,15 @@ function categoryWhere(category: SpendCategory): Prisma.WalletTransactionWhereIn
     case 'builderUnlock':
       return { provider: null, description: BUILDER_UNLOCK_DESCRIPTION };
     case 'other':
-      return { provider: null, NOT: { description: BUILDER_UNLOCK_DESCRIPTION } };
+      // `description` is nullable, so `NOT: { description: X }` compiled to
+      // SQL's `NOT (description = X)` — under three-valued logic that's NULL
+      // (not TRUE) for every row whose description IS NULL, silently
+      // dropping most of this category's own rows. The null-inclusive `OR`
+      // below is the fix.
+      return {
+        provider: null,
+        OR: [{ description: null }, { description: { not: BUILDER_UNLOCK_DESCRIPTION } }],
+      };
   }
 }
 
@@ -131,13 +139,28 @@ export class WalletService implements OnModuleInit {
     }
   }
 
-  /** Get or lazily create the user's wallet row. */
+  /** Get or lazily create the user's wallet row. Prisma's `upsert` does NOT
+   *  compile to an atomic `INSERT ... ON CONFLICT` here — it's a plain
+   *  SELECT followed by an INSERT, so two concurrent first-ever calls for
+   *  the same user (e.g. two tabs both touching the wallet for the first
+   *  time) can both miss the SELECT and both attempt the INSERT; the loser
+   *  hits the `userId` unique constraint and throws P2002 instead of
+   *  quietly returning the row the winner just created. Caught here and
+   *  retried as a plain read — the constraint already guarantees there's
+   *  now exactly one row to find. */
   private async ensureWallet(userId: string) {
-    return this.prisma.wallet.upsert({
-      where: { userId },
-      create: { userId },
-      update: {},
-    });
+    try {
+      return await this.prisma.wallet.upsert({
+        where: { userId },
+        create: { userId },
+        update: {},
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        return this.prisma.wallet.findUniqueOrThrow({ where: { userId } });
+      }
+      throw err;
+    }
   }
 
   /**
@@ -328,15 +351,27 @@ export class WalletService implements OnModuleInit {
     });
 
     // Already committed — a notification hiccup must never mask this.
+    const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
     void this.notifications
       .notify({
         userId,
         type: blocked ? 'wallet_blocked' : 'wallet_unblocked',
-        title: blocked ? 'Portofelul tău a fost blocat' : 'Portofelul tău a fost deblocat',
+        title: blocked ? 'Portofelul tău a fost blocat temporar' : 'Portofelul tău a fost deblocat',
         body: blocked
-          ? `Nu mai poți cumpăra sau folosi credite momentan.${reason ? ` Motiv: ${reason}` : ''}`
+          ? 'Nu poți cumpăra sau folosi credite până la deblocare. Campaniile active sunt oprite.'
           : 'Poți din nou cumpăra și folosi credite normal.',
         channels: { panel: true, email: true },
+        email: blocked
+          ? {
+              greet: true,
+              text:
+                'Portofelul contului tău Totalvizibil a fost blocat. Până la deblocare nu poți cumpăra credite, iar campaniile active nu mai consumă buget — anunțurile tale nu apar în feed.\n\n' +
+                'Creditele rămase nu se pierd: le vei regăsi integral la deblocare.\n\n' +
+                'Scrie-ne ca să clarificăm situația și să deblocăm portofelul.',
+              details: reason ? [{ label: 'Motiv', value: reason }] : undefined,
+              cta: { label: 'Contactează suportul', url: `${frontendOrigin}/support` },
+            }
+          : { greet: true },
       })
       .catch((err) =>
         this.logger.error(
@@ -440,9 +475,14 @@ export class WalletService implements OnModuleInit {
       });
       return applied;
     }
+    // Clearing `lowBalanceNotifiedAt` on every credit (here and the other 3
+    // balance-increasing writes in this file) means the sweep's 24h cooldown
+    // only suppresses a CONTINUOUSLY low balance — without this, a user who
+    // got the alert, topped up, and drained it again later the same day
+    // would get no second warning until the next day's sweep.
     const updated = await tx.wallet.update({
       where: { id: wallet.id },
-      data: { balanceMinor: { increment: requestedDeltaMinor } },
+      data: { balanceMinor: { increment: requestedDeltaMinor }, lowBalanceNotifiedAt: null },
     });
     await tx.walletTransaction.create({
       data: {
@@ -1246,7 +1286,7 @@ export class WalletService implements OnModuleInit {
 
       const updated = await tx.wallet.update({
         where: { id: wallet.id },
-        data: { balanceMinor: { increment: txn.amountMinor } },
+        data: { balanceMinor: { increment: txn.amountMinor }, lowBalanceNotifiedAt: null },
       });
       await tx.walletTransaction.update({
         where: { id: txn.id },
@@ -1328,7 +1368,8 @@ export class WalletService implements OnModuleInit {
         channels: { panel: true, email: true },
         data: { invoiceId: invoice.id },
         email: {
-          text: `Plata ta a fost procesată cu succes. Factura ${invoice.number} este atașată acestui email și disponibilă oricând în cont.`,
+          greet: true,
+          text: `Plata ta a fost procesată cu succes. ${credits} credite sunt deja în portofelul tău și pot fi folosite imediat. Factura ${invoice.number} este atașată acestui email și disponibilă oricând în cont.`,
           details: [
             { label: 'Factură', value: invoice.number },
             { label: 'Data', value: invoice.issuedAt.toLocaleDateString('ro-RO') },
@@ -1634,9 +1675,23 @@ export class WalletService implements OnModuleInit {
       .notify({
         userId,
         type: 'refund_requested',
-        title: 'Cererea de refund a fost înregistrată',
-        body: `Cererea ta de refund pentru ${credits} credite a fost înregistrată și va fi procesată în curând.`,
-        channels: { email: true },
+        title: 'Am primit cererea ta de refund',
+        body: `Cererea de refund pentru ${credits} credite este în procesare.`,
+        channels: { panel: true, email: true },
+        email: {
+          greet: true,
+          text:
+            'Am înregistrat cererea ta de refund. Creditele au fost deja scoase din portofel, iar banii se întorc pe aceeași metodă de plată cu care ai achiziționat.\n\n' +
+            'Îți trimitem un email de îndată ce transferul este inițiat. În funcție de bancă, suma poate apărea în cont în câteva zile lucrătoare după aceea.',
+          details: [
+            { label: 'Credite', value: `${credits} credite` },
+            { label: 'Data cererii', value: new Date().toLocaleDateString('ro-RO') },
+          ],
+          cta: {
+            label: 'Vezi tranzacțiile',
+            url: `${this.config.get('frontendOrigin', { infer: true })}/wallet/transactions`,
+          },
+        },
       })
       .catch((err) =>
         this.logger.error(
@@ -1652,7 +1707,15 @@ export class WalletService implements OnModuleInit {
    *  on every source purchase it allocated from, credits the balance back,
    *  and marks the refund `canceled`. Works the same whether the refund was
    *  customer- or admin-initiated: it's still the customer's own wallet. */
-  async cancelRefund(userId: string, refundTransactionId: string) {
+  /** `initiatedByAdminId` is optional and, today, never actually passed by
+   *  the admin-panel call site (admin-users.service.ts) — it exists so an
+   *  admin-initiated cancel can be told apart from the user's own (the
+   *  notification below reads very differently depending on which one it
+   *  is). Wiring it through from admin-users.service.ts is a one-line,
+   *  separate follow-up; this method is correct either way since the param
+   *  defaults to "not admin-initiated". */
+  async cancelRefund(userId: string, refundTransactionId: string, initiatedByAdminId?: string) {
+    let canceledMinor = 0;
     await this.prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.upsert({
         where: { userId },
@@ -1672,16 +1735,55 @@ export class WalletService implements OnModuleInit {
         throw new BadRequestException('refund_hold_expired');
       }
 
+      canceledMinor = Math.abs(refund.amountMinor);
       await this.releaseSources(tx, refund.refundSources);
       const updated = await tx.wallet.update({
         where: { id: wallet.id },
-        data: { balanceMinor: { increment: Math.abs(refund.amountMinor) } },
+        data: {
+          balanceMinor: { increment: Math.abs(refund.amountMinor) },
+          lowBalanceNotifiedAt: null,
+        },
       });
       await tx.walletTransaction.update({
         where: { id: refund.id },
         data: { status: 'canceled', balanceAfterMinor: updated.balanceMinor },
       });
     });
+
+    // The rest of the refund lifecycle (requested/completed/failed) all
+    // notify — cancel was the one silent gap. A user canceling their OWN
+    // refund just did it on purpose (a quiet panel row is enough); an
+    // admin-initiated cancel means the user was expecting money that isn't
+    // coming, which is worth an email.
+    const credits = minorToCredits(canceledMinor);
+    void this.notifications
+      .notify({
+        userId,
+        type: 'refund_canceled',
+        title: initiatedByAdminId
+          ? 'Cererea ta de refund a fost anulată'
+          : 'Ai anulat cererea de refund',
+        body: initiatedByAdminId
+          ? `Un administrator a anulat cererea ta de refund pentru ${credits} credite — creditele rămân în portofel.`
+          : `Ai anulat cererea de refund pentru ${credits} credite — creditele rămân în portofel.`,
+        channels: initiatedByAdminId ? { panel: true, email: true } : { panel: true },
+        email: initiatedByAdminId
+          ? {
+              greet: true,
+              details: [{ label: 'Credite', value: `${credits} credite` }],
+              cta: {
+                label: 'Contactează suportul',
+                url: `${this.config.get('frontendOrigin', { infer: true })}/support`,
+              },
+            }
+          : undefined,
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Refund-canceled notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
 
     return this.getSummary(userId);
   }
@@ -1838,13 +1940,18 @@ export class WalletService implements OnModuleInit {
     userId: string,
     reason: string,
   ): Promise<void> {
+    let refundedMinor = 0;
     await this.prisma.$transaction(async (tx) => {
       const refund = await tx.walletTransaction.findUnique({ where: { id: refundTransactionId } });
       if (!refund || refund.status !== 'processing') return;
+      refundedMinor = Math.abs(refund.amountMinor);
       await this.releaseSources(tx, refund.refundSources);
       const updated = await tx.wallet.update({
         where: { id: refund.walletId },
-        data: { balanceMinor: { increment: Math.abs(refund.amountMinor) } },
+        data: {
+          balanceMinor: { increment: Math.abs(refund.amountMinor) },
+          lowBalanceNotifiedAt: null,
+        },
       });
       await tx.walletTransaction.update({
         where: { id: refund.id },
@@ -1855,6 +1962,7 @@ export class WalletService implements OnModuleInit {
         },
       });
     });
+    if (refundedMinor === 0) return; // the guard above returned early — nothing to notify
 
     // Credits are already back in the balance by this point — a notification
     // hiccup must never make this look like anything other than what it is.
@@ -1863,8 +1971,17 @@ export class WalletService implements OnModuleInit {
         userId,
         type: 'refund_failed',
         title: 'Cererea de refund nu a putut fi procesată',
-        body: 'Cererea ta de refund a eșuat — creditele au fost puse înapoi în portofel. Contactează suportul dacă ai nevoie de ajutor.',
+        body: 'Cererea ta de refund a eșuat — creditele au fost puse înapoi în portofel.',
         channels: { panel: true, email: true },
+        email: {
+          greet: true,
+          details: [{ label: 'Credite', value: `${minorToCredits(refundedMinor)} credite` }],
+          cta: {
+            label: 'Vezi tranzacțiile',
+            url: `${this.config.get('frontendOrigin', { infer: true })}/wallet/transactions`,
+          },
+          footerNote: 'Contactează suportul dacă ai nevoie de ajutor.',
+        },
       })
       .catch((err) =>
         this.logger.error(
@@ -1885,6 +2002,16 @@ export class WalletService implements OnModuleInit {
         body: `${minorToCredits(amountMinor)} credite au fost rambursate — banii ar trebui să apară în contul tău în câteva zile lucrătoare, în funcție de bancă.`,
         channels: { panel: true, email: true },
         data: { refundId },
+        email: {
+          greet: true,
+          details: [
+            { label: 'Credite rambursate', value: `${minorToCredits(amountMinor)} credite` },
+          ],
+          cta: {
+            label: 'Vezi tranzacțiile',
+            url: `${this.config.get('frontendOrigin', { infer: true })}/wallet/transactions`,
+          },
+        },
       })
       .catch((err) =>
         this.logger.error(
@@ -1953,19 +2080,83 @@ export class WalletService implements OnModuleInit {
     if (session.payment_status === 'paid') {
       // A billing-profile gap etc. would also block the customer's own
       // confirm — leave the transaction pending for support to look at
-      // rather than silently losing a paid purchase.
+      // rather than silently losing a paid purchase. The customer HAS been
+      // charged real money at this point — a `logger.warn` with no
+      // customer- or staff-facing signal was the worst possible failure
+      // mode for trust, so both now get notified.
       await this.confirmPurchase(userId, transactionId).catch((err) => {
-        this.logger.warn(
-          `Could not auto-confirm paid purchase ${transactionId}: ${err instanceof Error ? err.message : err}`,
-        );
+        const reason = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Could not auto-confirm paid purchase ${transactionId}: ${reason}`);
+        void this.notifyUnconfirmedPaidPurchase(userId, transactionId, txn.amountMinor, reason);
       });
       return;
     }
     if (session.status === 'expired') {
       await this.prisma.walletTransaction.updateMany({
         where: { id: transactionId, status: 'pending' },
-        data: { status: 'canceled', description: 'Buy credits — checkout session expired unpaid' },
+        data: {
+          status: 'canceled',
+          description: 'Buy credits — canceled, checkout session expired unpaid',
+        },
       });
+    }
+  }
+
+  /** Stripe confirms the charge went through, but something ELSE still
+   *  blocked crediting the wallet (e.g. a billing-profile gap) — tells the
+   *  customer their money is safe and it's being handled, and separately
+   *  pings every admin so this doesn't just sit in a log file until the
+   *  customer complains. Best-effort/fire-and-forget: a notify failure here
+   *  must never throw back into the purchase-sweep loop it's called from. */
+  private async notifyUnconfirmedPaidPurchase(
+    userId: string,
+    transactionId: string,
+    amountMinor: number,
+    reason: string,
+  ): Promise<void> {
+    const credits = minorToCredits(amountMinor).toFixed(2);
+    const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
+    try {
+      await this.notifications.notify({
+        userId,
+        type: 'purchase_pending_manual_review',
+        title: 'Plata a fost primită — finalizăm creditarea',
+        body: `Plata ta de ${credits} credite a fost confirmată de procesator, dar creditarea portofelului necesită o verificare manuală. Te anunțăm imediat ce e gata.`,
+        channels: { panel: true, email: true },
+        email: {
+          greet: true,
+          details: [{ label: 'Credite', value: `${credits} credite` }],
+          cta: { label: 'Contactează suportul', url: `${frontendOrigin}/support` },
+          footerNote: 'Banii tăi sunt în siguranță — nu trebuie să plătești din nou.',
+        },
+      });
+    } catch (err) {
+      this.logger.error(
+        `Customer notification for unconfirmed purchase ${transactionId} failed`,
+        err instanceof Error ? err.stack : err,
+      );
+    }
+
+    try {
+      const admins = await this.prisma.platformRoleAssignment.findMany({
+        where: { role: 'admin' },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
+      for (const { userId: adminId } of admins) {
+        await this.notifications.notify({
+          userId: adminId,
+          type: 'purchase_needs_manual_review',
+          title: `Achiziție plătită, necreditată — ${credits} cr`,
+          body: `Transaction ${transactionId}: Stripe confirmă plata, dar auto-confirmarea a eșuat (${reason}). Trebuie creditată manual.`,
+          channels: { panel: true },
+        });
+      }
+    } catch (err) {
+      this.logger.error(
+        `Staff alert for unconfirmed purchase ${transactionId} failed`,
+        err instanceof Error ? err.stack : err,
+      );
     }
   }
 

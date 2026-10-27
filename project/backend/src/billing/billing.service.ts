@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { BillingProfile, Invoice, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AppConfig } from '../config/env';
 import { minorToCredits } from '../wallet/money';
 import { BillingProfileDto } from './dto/billing-profile.dto';
 
@@ -49,6 +51,7 @@ export class BillingService {
     private readonly prisma: PrismaService,
     private readonly settings: PlatformSettingsService,
     private readonly notifications: NotificationsService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
   // --- profile ---------------------------------------------------------
@@ -375,8 +378,23 @@ export class BillingService {
         userId: invoice.userId,
         type: 'invoice_voided',
         title: `Factura ${invoice.number} a fost anulată`,
-        body: `Factura ${invoice.number} a fost anulată.${reason ? ` Motiv: ${reason.trim()}` : ''}`,
-        channels: { email: true },
+        body: `Factura ${invoice.number} nu mai este valabilă din punct de vedere fiscal.`,
+        channels: { panel: true, email: true },
+        email: {
+          greet: true,
+          text:
+            `Factura ${invoice.number} a fost anulată și nu mai este un document valabil — nu o folosi în contabilitate. ` +
+            'Creditele și plata asociate rămân neschimbate; dacă este nevoie de un document corect, îți emitem unul nou.\n\n' +
+            'Întrebări despre această anulare? Scrie-ne.',
+          details: [
+            { label: 'Factură', value: invoice.number },
+            ...(reason ? [{ label: 'Motiv', value: reason.trim() }] : []),
+          ],
+          cta: {
+            label: 'Vezi facturile',
+            url: `${this.config.get('frontendOrigin', { infer: true })}/invoices`,
+          },
+        },
       })
       .catch((err) =>
         this.logger.error(

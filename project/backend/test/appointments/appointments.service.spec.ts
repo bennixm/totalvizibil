@@ -76,7 +76,18 @@ function fakePrisma() {
     },
     appointment: {
       findMany: jest.fn(async () => [...appts.values()]),
-      findFirst: jest.fn(async ({ where }: any) => appts.get(where.id) ?? null),
+      findFirst: jest.fn(async ({ where, include }: any) => {
+        const a = appts.get(where.id);
+        if (!a) return null;
+        // Mimics a real Prisma `include: { company: ... } }` — needed by
+        // `remove()`, which reads `appt.company.displayName` for the
+        // cancellation email built before the row is deleted.
+        if (include?.company) {
+          const company = companies.get(a.companyId);
+          return { ...a, company: { displayName: company?.displayName ?? 'N/A' } };
+        }
+        return a;
+      }),
       create: jest.fn(async ({ data }: any) => {
         const a = makeAppt({ id: 'a1', ...data });
         appts.set(a.id, a);
@@ -323,6 +334,48 @@ describe('AppointmentsService', () => {
       await svc.updateStatus('u1', 'co1', 'a1', 'confirmed');
       await new Promise((r) => setTimeout(r, 10));
       expect(mail.send).toHaveBeenCalled();
+    });
+  });
+
+  describe('remove', () => {
+    it('throws NotFoundException for an unknown appointment', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedMember('co1', 'u1');
+      await expect(svc.remove('u1', 'co1', 'missing')).rejects.toThrow(NotFoundException);
+    });
+
+    it('regression: emails the client the same way a cancel does, instead of silently dropping their confirmed slot', async () => {
+      const { svc, prisma, mail } = makeService();
+      prisma.__seedMember('co1', 'u1');
+      prisma.__seedCompany({ id: 'co1', displayName: 'Acme' });
+      prisma.__seedAppt({
+        id: 'a1',
+        companyId: 'co1',
+        email: 'ion@example.com',
+        status: 'confirmed',
+      });
+
+      await svc.remove('u1', 'co1', 'a1');
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mail.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'ion@example.com',
+          subject: expect.stringContaining('anulată'),
+        }),
+      );
+    });
+
+    it('does not try to email the client when the appointment had no email on file', async () => {
+      const { svc, prisma, mail } = makeService();
+      prisma.__seedMember('co1', 'u1');
+      prisma.__seedCompany({ id: 'co1', displayName: 'Acme' });
+      prisma.__seedAppt({ id: 'a1', companyId: 'co1', email: null });
+
+      await svc.remove('u1', 'co1', 'a1');
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mail.send).not.toHaveBeenCalled();
     });
   });
 });

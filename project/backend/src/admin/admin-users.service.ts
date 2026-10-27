@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { PasswordService } from '../auth/password.service';
 import { SessionService } from '../auth/session.service';
@@ -13,7 +14,8 @@ import { WalletService } from '../wallet/wallet.service';
 import { BillingService } from '../billing/billing.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
-import { renderEmailLayout, textToHtml } from '../mail/templates/layout';
+import { ctaButton, detailsTable, renderEmailLayout, textToHtml } from '../mail/templates/layout';
+import { AppConfig } from '../config/env';
 import { money } from '../wallet/money';
 import { effectiveActiveSeconds } from '../analytics/visibility';
 import { ListUsersQuery } from './dto/list-users.query';
@@ -24,6 +26,7 @@ import { BlockWalletDto } from './dto/block-wallet.dto';
 @Injectable()
 export class AdminUsersService {
   private readonly logger = new Logger(AdminUsersService.name);
+  private readonly frontendOrigin: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -33,7 +36,10 @@ export class AdminUsersService {
     private readonly billing: BillingService,
     private readonly notifications: NotificationsService,
     private readonly mail: MailService,
-  ) {}
+    config: ConfigService<AppConfig, true>,
+  ) {
+    this.frontendOrigin = config.get('frontendOrigin', { infer: true });
+  }
 
   async list(query: ListUsersQuery) {
     const { search, status, role, staffOnly, page = 1, pageSize = 20 } = query;
@@ -277,15 +283,34 @@ export class AdminUsersService {
     if (emailChanged) {
       const oldEmail = target.email;
       const newEmail = dto.email as string;
-      const oldEmailText = `Adresa de email a contului tău a fost schimbată din ${oldEmail} în ${newEmail} de un administrator.\n\nDacă nu te aștepți la asta, contactează suportul imediat.`;
+      const supportCta = { label: 'Contactează suportul', url: `${this.frontendOrigin}/support` };
+      const oldEmailMessage = `Adresa de email a contului tău Totalvizibil a fost schimbată de un administrator.`;
+      const oldEmailDetails = [
+        { label: 'Adresa veche', value: oldEmail },
+        { label: 'Adresa nouă', value: newEmail },
+      ];
+      const oldEmailFooter = 'Mesaj de securitate trimis automat la adresa veche a contului.';
       void this.mail
         .send({
           to: oldEmail,
-          subject: 'Adresa de email a contului a fost schimbată',
-          text: oldEmailText,
+          subject: 'Adresa de email a contului tău a fost schimbată',
+          text: [
+            oldEmailMessage,
+            oldEmailDetails.map((d) => `${d.label}: ${d.value}`).join('\n'),
+            'Dacă nu te aștepți la asta, deschide imediat un tichet de suport — contul poate fi compromis.',
+            `${supportCta.label}: ${supportCta.url}`,
+            oldEmailFooter,
+          ].join('\n\n'),
           html: renderEmailLayout({
             heading: 'Adresa de email a contului a fost schimbată',
-            bodyHtml: textToHtml(oldEmailText),
+            preheader: `Noua adresă este ${newEmail}.`,
+            bodyHtml:
+              textToHtml(
+                `${oldEmailMessage} Dacă nu te aștepți la asta, deschide imediat un tichet de suport — contul poate fi compromis.`,
+              ) +
+              detailsTable(oldEmailDetails) +
+              ctaButton(supportCta.label, supportCta.url),
+            footerNote: oldEmailFooter,
           }),
         })
         .catch((err) =>
@@ -298,13 +323,49 @@ export class AdminUsersService {
         .notify({
           userId: id,
           type: 'email_changed',
-          title: 'Adresa de email a contului a fost schimbată',
-          body: `Un administrator a schimbat adresa de email a contului în ${newEmail}. Trebuie să o confirmi din nou. Dacă nu te aștepți la asta, contactează suportul.`,
+          title: 'Confirmă noua adresă de email a contului',
+          body: `Un administrator a schimbat adresa de email a contului în ${newEmail}.`,
           channels: { email: true },
+          email: {
+            greet: true,
+            text: `Un administrator Totalvizibil a schimbat adresa de email a contului tău în ${newEmail}.\n\nCe trebuie să faci: confirmă noua adresă la următoarea conectare — îți trimitem un cod de verificare pe ${newEmail}. Până atunci, unele funcții ale contului rămân limitate.\n\nDacă nu te aștepți la această schimbare, scrie-ne înainte să confirmi.`,
+            cta: supportCta,
+          },
         })
         .catch((err) =>
           this.logger.error(
             'Admin email-change notification failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
+
+    // Removing a security control an admin didn't set up must still reach
+    // the account it belongs to — the user's OWN `totpDisable` self-service
+    // path already notifies `totp_disabled`; this admin-initiated path used
+    // to be silent. Gated on the user actually having had 2FA enabled
+    // beforehand, so a no-op `disableTotp: true` on an already-disabled
+    // account doesn't send a confusing alert.
+    if (dto.disableTotp && target.totpEnabledAt) {
+      void this.notifications
+        .notify({
+          userId: id,
+          type: 'totp_disabled',
+          title: 'Autentificarea în doi pași a fost dezactivată',
+          body: 'Un administrator a dezactivat autentificarea în doi pași pe contul tău.',
+          channels: { email: true },
+          email: {
+            greet: true,
+            text: 'Un administrator Totalvizibil a dezactivat autentificarea în doi pași pe contul tău. De acum, pentru conectare este suficientă parola.\n\nDacă nu te aștepți la această schimbare, contactează suportul și reactivează autentificarea în doi pași.',
+            cta: {
+              label: 'Reactivează autentificarea în doi pași',
+              url: `${this.frontendOrigin}/account?tab=security`,
+            },
+          },
+        })
+        .catch((err) =>
+          this.logger.error(
+            'Admin 2FA-disable notification failed',
             err instanceof Error ? err.stack : err,
           ),
         );
@@ -388,9 +449,14 @@ export class AdminUsersService {
       .notify({
         userId: id,
         type: 'password_changed',
-        title: 'Parola contului a fost schimbată',
-        body: 'Un administrator a setat o nouă parolă pentru contul tău. Dacă nu te aștepți la asta, contactează suportul.',
+        title: 'Parola contului tău a fost resetată',
+        body: 'Un administrator a resetat parola contului tău. Setează-ți una nouă ca să te poți conecta.',
         channels: { email: true },
+        email: {
+          greet: true,
+          text: 'Un administrator Totalvizibil a resetat parola contului tău, iar sesiunile deschise au fost închise.\n\nCe trebuie să faci: setează-ți o parolă nouă folosind „Am uitat parola” de pe pagina de conectare. Noi nu trimitem niciodată parole prin email.\n\nDacă nu te aștepți la această resetare, contactează-ne înainte să te reconectezi.',
+          cta: { label: 'Setează o parolă nouă', url: `${this.frontendOrigin}/forgot-password` },
+        },
       })
       .catch((err) =>
         this.logger.error(

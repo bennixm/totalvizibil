@@ -192,7 +192,12 @@ export class AdminController {
     return this.getSettings();
   }
 
-  /** Broadcast a maintenance/update notice to every active user (email + panel). */
+  /** Broadcast a maintenance/update notice to every active user (email + panel).
+   *  The highest-VOLUME email in the whole system (every active user, every
+   *  time) is scaffolded here rather than sent as the admin's raw textarea
+   *  content — a greeting, a closing line, and a footer note wrap whatever
+   *  they typed, so its quality doesn't depend entirely on how carefully an
+   *  admin writes under pressure. */
   @Post('maintenance/broadcast')
   async broadcastMaintenance(@Body() dto: BroadcastMaintenanceDto) {
     const notified = await this.notifications.notifyAll({
@@ -200,6 +205,14 @@ export class AdminController {
       title: dto.title,
       body: dto.message,
       channels: { panel: true, email: true },
+      email: {
+        subject: `${dto.title} — Totalvizibil`,
+        text:
+          `Bună,\n\n${dto.message}\n\n` +
+          'Site-urile și campaniile tale continuă să funcționeze normal în acest timp, dacă nu am menționat altfel mai sus.\n\n' +
+          'Echipa Totalvizibil',
+        footerNote: 'Primești acest anunț pentru că ai un cont activ pe Totalvizibil.',
+      },
     });
     return { notified };
   }

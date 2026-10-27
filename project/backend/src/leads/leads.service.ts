@@ -131,14 +131,14 @@ export class LeadsService {
       .notify({
         userId: ownerId,
         type: 'lead_received',
-        title: 'Ai primit o cerere nouă — conectează-te',
+        title: `Cerere nouă pentru ${companyName}, de la ${who}`,
         body: `Cerere nouă pentru ${companyName}, de la ${who}.`,
         channels: { panel: true, email: true },
         data: { companyId },
         email: {
           replyTo: lead.email ?? undefined,
           subject: `Cerere nouă pentru ${companyName}, de la ${who}`,
-          text: `Ai o cerere nouă din formularul de contact al site-ului „${companyName}".\n\n${lead.message ?? ''}`,
+          text: `Ai o cerere nouă din formularul de contact al site-ului „${companyName}”.\n\n${lead.message ?? ''}`,
           details: [
             { label: 'De la', value: lead.name ?? 'N/A' },
             { label: 'Email', value: lead.email ?? 'N/A' },
@@ -329,13 +329,13 @@ export class LeadsService {
       '',
       company.displayName,
       '',
-      lead.message ? `Mesajul tău:\n"${lead.message}"` : '',
+      lead.message ? `Mesajul tău:\n„${lead.message}”` : '',
     ].join('\n');
     const html = renderEmailLayout({
       heading: `Răspuns de la ${company.displayName}`,
       bodyHtml:
         textToHtml(`${greeting}\n\n${message}\n\n— ${company.displayName}`) +
-        (lead.message ? textToHtml(`Mesajul tău:\n„${lead.message}"`) : ''),
+        (lead.message ? textToHtml(`Mesajul tău:\n„${lead.message}”`) : ''),
     });
     await this.mail
       .send({

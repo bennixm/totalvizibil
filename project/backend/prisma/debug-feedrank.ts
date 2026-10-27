@@ -13,7 +13,8 @@ async function main() {
     notify: async () => {},
     notifyAll: async () => 0,
   } as never;
-  const settings = new PlatformSettingsService(prisma, notifications);
+  const config = { get: () => 'http://localhost:5173' } as never;
+  const settings = new PlatformSettingsService(prisma, notifications, config);
   const analytics = new AnalyticsService(prisma, settings);
 
   const cfg = await analytics.marginConfig();

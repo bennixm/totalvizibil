@@ -298,7 +298,7 @@ describe('NotificationsService', () => {
     void prisma;
   });
 
-  it('notifyAll() broadcasts once and creates one row per active user', async () => {
+  it('notifyAll() pushes to each recipient individually and creates one row per active user', async () => {
     const { service, prisma, gateway } = makeService();
     prisma.__seedUser('u1', 'a@example.com');
     prisma.__seedUser('u2', 'b@example.com');
@@ -311,7 +311,13 @@ describe('NotificationsService', () => {
     });
 
     expect(count).toBe(2);
-    expect(gateway.broadcast).toHaveBeenCalledTimes(1);
+    // Pushed per-recipient room, not a server-wide broadcast — a user who
+    // ISN'T in the active-user list (e.g. suspended mid-broadcast) must
+    // never get a toast/unread bump with no DB row behind it.
+    expect(gateway.broadcast).not.toHaveBeenCalled();
+    expect(gateway.pushToUser).toHaveBeenCalledTimes(2);
+    expect(gateway.pushToUser).toHaveBeenCalledWith('u1', expect.objectContaining({ title: 'T' }));
+    expect(gateway.pushToUser).toHaveBeenCalledWith('u2', expect.objectContaining({ title: 'T' }));
     expect(await service.unreadCount('u1')).toBe(1);
     expect(await service.unreadCount('u2')).toBe(1);
   });

@@ -158,6 +158,7 @@ function fakePrisma() {
     // ---- campaign ----
     campaign: {
       updateMany: jest.fn(async () => ({ count: 0 })),
+      findUnique: jest.fn(async () => null),
     },
 
     // ---- website ----
@@ -188,6 +189,10 @@ function fakePrisma() {
 // Factory: fresh service + deps for every test
 // ---------------------------------------------------------------------------
 
+function fakeConfig() {
+  return { get: jest.fn().mockReturnValue('https://totalvizibil.ro') };
+}
+
 function makeService() {
   const prisma = fakePrisma();
   const drafts = fakeDrafts();
@@ -197,6 +202,7 @@ function makeService() {
   const analytics = fakeAnalytics();
   const settings = fakeSettings();
   const notifications = fakeNotifications();
+  const config = fakeConfig();
 
   const svc = new CompaniesService(
     prisma as any,
@@ -207,9 +213,10 @@ function makeService() {
     analytics as any,
     settings as any,
     notifications as any,
+    config as any,
   );
 
-  return { svc, prisma, notifications };
+  return { svc, prisma, notifications, config };
 }
 
 // ---------------------------------------------------------------------------
