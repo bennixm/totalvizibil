@@ -113,6 +113,12 @@ export const useAppointmentsStore = defineStore('appointments', {
       if (this.companyId) await this.load(this.companyId)
     },
 
+    /**
+     * Fetch the next page. Deliberately lets a failure REJECT (rather than
+     * swallowing it into `error`, which drives the page-level toast watcher)
+     * so the caller can show its own busy state and its own message — see
+     * `AppointmentsView`'s local `loadingMore`, mirroring `LeadsView`.
+     */
     async loadMore(): Promise<void> {
       if (!this.companyId || !this.nextCursor) return
       const q = `${this.query() || '?'}${this.query() ? '&' : ''}cursor=${this.nextCursor}`
@@ -160,6 +166,11 @@ export const useAppointmentsStore = defineStore('appointments', {
     async remove(id: string): Promise<void> {
       if (!this.companyId) return
       this.working = true
+      // Reset BEFORE the attempt: the page toasts off `watch(error)`, so a
+      // retry that fails with the exact same message wouldn't change the
+      // value and the watcher would never fire again — leaving the second
+      // attempt with no feedback at all.
+      this.error = ''
       try {
         await apiFetch(`/companies/${this.companyId}/appointments/${id}`, { method: 'DELETE' })
         this.items = this.items.filter((a) => a.id !== id)

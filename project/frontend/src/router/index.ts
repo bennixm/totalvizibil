@@ -223,24 +223,16 @@ const routes: RouteRecordRaw[] = [
     path: '/admin',
     component: () => import('@/views/admin/AdminLayout.vue'),
     meta: { requiresAuth: true, requiresPlatformStaff: true },
+    // NOTE: there is deliberately no `{ path: '' }` child with a role-aware
+    // `redirect` here any more. A route-record `redirect` is resolved by
+    // vue-router BEFORE `beforeEach` runs — i.e. before `auth.bootstrap()` —
+    // so on a cold hard-refresh or bookmark of `/admin`, `auth.user` was
+    // still null, every role check fell through to the `account` fallback,
+    // and even a full admin got ejected to /account. (In-session client-side
+    // navigation worked, because auth was already warm — which is exactly
+    // why it was easy to miss.) The dispatch now lives in the guard below,
+    // keyed on `to.path === '/admin'`, after bootstrap has resolved.
     children: [
-      {
-        path: '',
-        redirect: (to) => {
-          const auth = useAuthStore()
-          const roles = auth.user?.platformRoles ?? []
-          // Land each staff role on the first area it can actually open. This
-          // used to be `admin ? dashboard : financiar`, which assumed "not
-          // admin" meant "Contabil": a support-only or moderator-only staffer
-          // was redirected into Financiar, which the guard below then bounced
-          // again to /account — two redirects to reach a dead end.
-          let home = 'account'
-          if (roles.includes('admin')) home = 'admin-dashboard'
-          else if (auth.isFinanceStaff) home = 'admin-financiar'
-          else if (auth.isSupportStaff) home = 'support'
-          return { name: home, query: to.query }
-        },
-      },
       {
         path: 'dashboard',
         name: 'admin-dashboard',
@@ -273,6 +265,11 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'settings',
         name: 'admin-settings',
+        // `GET /admin/settings` is `@PlatformRoles('admin','finance')`: a
+        // Contabil needs the VAT rate / refund fee / FX rate / invoice-issuer
+        // identity to reconcile anything. The view renders those read-only
+        // and hides every PATCH control for a finance-only viewer.
+        meta: { allowedRoles: ['admin', 'finance'] },
         component: () => import('@/views/admin/AdminSettingsView.vue'),
       },
       {
@@ -289,6 +286,11 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'referrals',
         name: 'admin-referrals',
+        // `GET /admin/referrals` and `/referrals/export` are both
+        // `@PlatformRoles('admin','finance')` — the route defaulting to
+        // admin-only locked a Contabil out of a page the backend had
+        // deliberately opened to them.
+        meta: { allowedRoles: ['admin', 'finance'] },
         component: () => import('@/views/admin/AdminReferralsView.vue'),
       },
       {
@@ -377,12 +379,37 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
-  if (to.meta.requiresPlatformStaff) {
-    // Default to admin-only — only routes that opt in via `allowedRoles`
-    // (the finance module, invoices) are also open to the `finance` role.
-    const allowed = (to.meta.allowedRoles as string[] | undefined) ?? ['admin']
+
+  // `/admin` is a role-aware dispatch, not a page: land each staff role on
+  // the first area it can actually open. Must run BEFORE the role gate below
+  // (which defaults to admin-only) so a support-/finance-only staffer isn't
+  // bounced to /account on the way to the one page they can use. Lives here
+  // rather than in a route-record `redirect` because those resolve before
+  // `auth.bootstrap()` above — see the note on the `/admin` record.
+  if (to.path === '/admin' || to.path === '/admin/') {
     const roles = auth.user?.platformRoles ?? []
-    if (!roles.some((r) => allowed.includes(r))) {
+    let home = 'account'
+    if (roles.includes('admin')) home = 'admin-dashboard'
+    else if (auth.isFinanceStaff) home = 'admin-financiar'
+    else if (auth.isSupportStaff) home = 'support'
+    return { name: home, query: to.query }
+  }
+
+  // `allowedRoles` is enforced on its own, independently of
+  // `requiresPlatformStaff`. It used to live INSIDE that branch: every route
+  // carrying `allowedRoles` happens to also set the flag today, so nothing
+  // was actually open, but a route declaring only `allowedRoles` would have
+  // been completely ungated.
+  const allowedRoles = to.meta.allowedRoles as string[] | undefined
+  if (allowedRoles) {
+    const roles = auth.user?.platformRoles ?? []
+    if (!roles.some((r) => allowedRoles.includes(r))) {
+      return { name: 'account' }
+    }
+  } else if (to.meta.requiresPlatformStaff) {
+    // Staff routes that don't opt in via `allowedRoles` are admin-only.
+    const roles = auth.user?.platformRoles ?? []
+    if (!roles.includes('admin')) {
       return { name: 'account' }
     }
   }

@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import {
   useAdminStore,
@@ -192,6 +193,14 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
     <div v-if="admin.loadingCategories && !admin.categories.length" class="d-flex justify-center py-16">
       <v-progress-circular indeterminate color="primary" />
     </div>
+
+    <!-- A failed fetch used to render as an empty tree, i.e. a platform that
+         looked like it had no categories at all. -->
+    <AdminEmptyState
+      v-else-if="admin.categoriesError"
+      icon="mdi-alert-circle-outline"
+      :text="admin.categoriesError"
+    />
 
     <div v-else class="ac__tree">
       <section v-for="g in admin.categories" :key="g.id" class="grp" :class="{ 'grp--off': !g.isActive }">

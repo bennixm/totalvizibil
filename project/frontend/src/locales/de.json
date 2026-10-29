@@ -4,6 +4,7 @@
     "tagline": "Wo lokale Unternehmen entstehen und gefunden werden"
   },
   "common": {
+    "retry": "Erneut versuchen",
     "loading": "Wird geladen…",
     "save": "Speichern",
     "cancel": "Abbrechen",
@@ -102,6 +103,9 @@
     "searchPlaceholder": "Kategorie oder Leistung suchen…",
     "searchHint": "Tippe, was du suchst, zum Beispiel „Klempner” oder „Malerarbeiten”.",
     "searchEmpty": "Keine passende Kategorie gefunden.",
+    "browseErrorTitle": "Diese Seite konnte nicht geladen werden",
+    "browseErrorText": "Die Kategorieliste wurde nicht geladen, daher lässt sich diese Adresse nicht auflösen. Bitte versuche es erneut.",
+    "retry": "Erneut versuchen",
     "areaCounty": "Kreis",
     "areaCountyPlaceholder": "Kreis wählen…",
     "areaAny": "Beliebiger Ort",
@@ -145,6 +149,11 @@
     "seoDesc": "Beantworte ein paar Fragen und der Assistent baut deine Unternehmenswebsite. Einfach starten oder die volle Kontrolle über Design, Abschnitte und SEO."
   },
   "studio": {
+    "connectionError": "Der Server war nicht erreichbar. Prüfe deine Verbindung und versuche es erneut — dein Entwurf ist sicher.",
+    "reviewFailed": "Die Texte konnten gerade nicht geprüft werden. Versuche es erneut.",
+    "regenAiCapped": "Du hast alle KI-Neugenerierungen für diesen Abschnitt verbraucht. Weitere verwenden einfachere, automatisch erzeugte Texte.",
+    "restartConfirmTitle": "Neu anfangen?",
+    "restartConfirmText": "Dein aktueller Entwurf wird verworfen und eine komplett neue Website beginnt. Das lässt sich nicht rückgängig machen.",
     "eyebrow": "KI-Baukasten · Gratis-Plan",
     "title": "Lass uns deine Website bauen",
     "paneChat": "Chat",
@@ -315,7 +324,20 @@
     "categoryLeafEmpty": "Zuerst eine Kategorie wählen",
     "categoryHint": "Wähle die genauen Unterkategorien deiner Leistungen, oder \"Alle Leistungen\", wenn du alle anbietest · darüber finden dich Kunden im Feed.",
     "categorySection": "Was bietest du an?",
-    "areaSection": "Einzugsgebiet"
+    "areaSection": "Einzugsgebiet",
+    "deletionPendingTitle": "Löschung geplant",
+    "deletionPendingNote": "Dieses Unternehmen ist zur Löschung vorgemerkt und gesperrt. Brich die Löschung im Dashboard ab, um es wieder zu bearbeiten.",
+    "deletionPendingCta": "Zum Dashboard",
+    "setupErrorTitle": "Die benötigten Daten konnten nicht geladen werden",
+    "setupErrorText": "Kategorien und Kreise wurden nicht geladen. Prüfe deine Verbindung und versuche es erneut.",
+    "retry": "Erneut versuchen",
+    "err": {
+      "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgemerkt. Bearbeiten ist gesperrt.",
+      "forbidden": "Deine Rolle darf dieses Unternehmen nicht bearbeiten.",
+      "not_found": "Unternehmen nicht gefunden.",
+      "unknown_category": "Eine der gewählten Kategorien ist nicht mehr verfügbar. Wähle eine andere.",
+      "generic": "Speichern fehlgeschlagen. Bitte versuche es erneut."
+    }
   },
   "category": {
     "eyebrow": "Kategorie",
@@ -366,6 +388,7 @@
     }
   },
   "easyEditor": {
+    "saveErrorText": "Diese Änderung wurde nicht gespeichert. Der vorherige Wert wurde wiederhergestellt.",
     "eyebrow": "Editor für einfache Website",
     "title": "Website bearbeiten",
     "back": "Zurück zum Dashboard",
@@ -374,6 +397,10 @@
     "loadErrorTitle": "Editor konnte nicht geöffnet werden",
     "loadErrorText": "Beim Laden der Website ist ein Fehler aufgetreten. Bitte erneut versuchen.",
     "err": {
+      "notFound": "Unternehmen nicht gefunden.",
+      "noWebsite": "Dieses Unternehmen hat noch keine Website.",
+      "badValue": "Dieser Wert ist nicht gültig. Versuche einen anderen.",
+      "imageTooLarge": "Dieses Bild ist zu groß.",
       "not_a_simple_site": "Dieses Unternehmen nutzt den erweiterten Builder, nicht den einfachen Editor.",
       "forbidden": "Du hast keine Bearbeitungsrechte für dieses Unternehmen.",
       "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgemerkt. Bearbeiten ist gesperrt.",
@@ -496,6 +523,10 @@
     "invoicesNone": "Noch keine Rechnungen",
     "invoicesLast": "Letzte: {number}",
     "invoicesCta": "Rechnungen ansehen",
+    "invoicesUnknownText": "Deine Rechnungsdaten konnten nicht geprüft werden",
+    "invoicesUnknownCta": "Erneut versuchen",
+    "suspendedTitle": "Unternehmen gesperrt",
+    "suspendedBody": "Ein Administrator hat dieses Unternehmen gesperrt. Es erscheint nicht im öffentlichen Feed und die Kampagne kann nicht aktiviert werden. Wende dich an den Support, um den Grund zu erfahren.",
     "editSite": "Website bearbeiten",
     "websiteSettings": "Website-Einstellungen",
     "transactionsTitle": "Transaktionen",
@@ -733,6 +764,7 @@
     "currentPassword": "Aktuelles Passwort",
     "emailChangeHint": "Bestätigen Sie Ihr Passwort, um die E-Mail zu ändern",
     "genericError": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
+    "partialLoadError": "Einige Kontodaten wurden nicht geladen. Lade die Seite neu, um sie zu sehen.",
     "changePasswordTitle": "Passwort ändern",
     "changePasswordNote": "Sie bleiben auf diesem Gerät angemeldet; andere Sitzungen werden abgemeldet.",
     "newPassword": "Neues Passwort",
@@ -1456,6 +1488,24 @@
     "iterations": "0 Durchläufe | 1 Durchlauf | {count} Durchläufe"
   },
   "proV2": {
+    "attachTooLarge": "{n} Bild(er) übersprungen — jedes muss unter {mb} MB sein.",
+    "attachTooMany": "Du kannst höchstens {max} Bilder an eine Nachricht anhängen.",
+    "attachPartialFailure": "{ok} Bild(er) hochgeladen, {failed} fehlgeschlagen. Die Nachricht wurde nur mit den hochgeladenen gesendet.",
+    "bootErrorTitle": "Die Live-Vorschau konnte nicht starten",
+    "bootErrorIsolation": "Der Server sendet die für die Sandbox nötigen Header nicht (COOP/COEP). Das ist meist ein temporäres Serverkonfigurationsproblem — lade die Seite neu und wende dich an den Support, wenn es bestehen bleibt.",
+    "bootErrorTimeout": "Die Sandbox hat zu lange zum Starten gebraucht. Versuche es erneut oder lade die Seite neu.",
+    "bootErrorGeneric": "Die Vorschau-Sandbox konnte nicht starten. Versuche es erneut oder lade die Seite neu; wende dich an den Support, wenn es bestehen bleibt.",
+    "bootErrorReload": "Seite neu laden",
+    "loadForbiddenTitle": "Du hast keinen Zugriff auf dieses Projekt",
+    "loadForbiddenText": "Deine Rolle in diesem Unternehmen darf die Website nicht bearbeiten. Bitte den Inhaber um Bearbeitungsrechte.",
+    "publishErr": {
+      "locked": "Der Builder ist für dieses Unternehmen nicht freigeschaltet.",
+      "noWebsite": "Dieses Unternehmen hat noch keine Website zum Veröffentlichen.",
+      "noIndex": "Der Build enthält keine index.html — ohne Startseite können wir nicht veröffentlichen.",
+      "tooLarge": "Die gebaute Website überschreitet die Größengrenze für die Veröffentlichung.",
+      "tooManyFiles": "Der Build hat zu viele Dateien zum Veröffentlichen.",
+      "forbidden": "Deine Rolle darf dieses Projekt nicht veröffentlichen."
+    },
     "eyebrow": "KI-Website-Builder",
     "title": "Website Builder",
     "files": "Dateien",
@@ -1625,7 +1675,8 @@
     "cancelConfirmText": "Der Termin von {name} wird storniert und der Zeitslot wieder freigegeben.",
     "deleteConfirmTitle": "Termin löschen?",
     "deleteConfirmText": "Der Termin wird endgültig gelöscht. Das kann nicht rückgängig gemacht werden.",
-    "loadMore": "Mehr laden"
+    "loadMore": "Mehr laden",
+    "loadMoreError": "Es konnten keine weiteren Termine geladen werden. Bitte versuche es erneut."
   },
   "analytics": {
     "intro": "Echte Daten aus Anzeige und Website: berechnete Klicks, Anrufe, Formularnachrichten und wie schnell du antwortest. Der Sichtbarkeits-Score bestimmt die Feed-Reihenfolge.",
@@ -1661,6 +1712,9 @@
     "scoreLabel": "Sichtbarkeitsbewertung",
     "allGood": "Die Kampagne ist vollständig optimiert",
     "allGoodText": "Jeder Teil der Sichtbarkeitsbewertung ist auf Maximum. Weiter so.",
+    "errorTitle": "Die Analyse konnte nicht geladen werden",
+    "errorText": "Die Optimierungsdaten wurden nicht geladen. Prüfe deine Verbindung und versuche es erneut.",
+    "retry": "Erneut versuchen",
     "gain": "+{n}% Sichtbarkeit",
     "weightNow": "Gewicht {weight}% · jetzt {score}%",
     "sevHigh": "Hohe Priorität",
@@ -2001,6 +2055,8 @@
     "emptyFiltered": "Keine Transaktionen entsprechen diesen Filtern."
   },
   "websiteSettings": {
+    "loadError": "Die Website-Daten konnten nicht geladen werden. Versuche es erneut.",
+    "filesLoadError": "Die Dateiliste konnte nicht geladen werden.",
     "eyebrow": "Website",
     "title": "Website-Einstellungen",
     "none": "Du hast noch keine Website.",
@@ -2017,6 +2073,10 @@
     "exportNote": "Das Kontaktformular und die Terminbuchung rufen die öffentliche API von Totalvizibil auf und funktionieren von jeder Domain aus, auch wenn du die exportierte Website auf deinem eigenen Server hostest.",
     "domainTitle": "Eigene Domain",
     "domainHint": "Kaufe eine eigene Domain für dein Unternehmen — die Website bleibt parallel auch auf Totalvizibil.",
+    "domainManualNote": "Manueller Service: Der Kauf reserviert die Domain und belastet dein Wallet, die DNS-Einrichtung wird jedoch manuell von unserem Team abgeschlossen, nicht sofort.",
+    "domainPendingNote": "Manuelle Einrichtung läuft — wir informieren dich hier und per E-Mail, sobald sie aktiv ist.",
+    "domainDnsOk": "DNS konfiguriert — die Aktivierung wird abgeschlossen.",
+    "domainFailedNote": "Einrichtung fehlgeschlagen. Kontaktiere den Support für Details.",
     "domainPlaceholder": "beispiel.de",
     "domainCheckCta": "Verfügbarkeit prüfen",
     "domainAvailable": "{domain} ist verfügbar.",
@@ -2033,13 +2093,16 @@
     },
     "appointmentsTitle": "Termine",
     "appointmentsHint": "Lässt Besucher direkt auf der Website einen Termin buchen. Sobald aktiviert, erscheint der Punkt auch im Menü zur Verwaltung.",
+    "appointmentsUnavailable": "Derzeit nicht verfügbar: Generierte Websites enthalten noch kein öffentliches Buchungsformular. Termine können unabhängig von diesem Schalter weiterhin im Bedienfeld verwaltet werden.",
     "appointmentsOn": "Termine wurden aktiviert.",
     "appointmentsOff": "Termine wurden deaktiviert.",
     "appointmentsManage": "Termine verwalten",
     "domainErr": {
       "insufficient_credits": "Nicht genug Credits für diese Domain.",
       "domain_not_available": "Die Domain ist nicht mehr verfügbar.",
-      "domain_already_registered": "Diese Domain ist bei uns bereits registriert."
+      "domain_already_registered": "Diese Domain ist bei uns bereits registriert.",
+      "not_your_company": "Du hast keine Verwaltungsrechte für dieses Unternehmen.",
+      "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
     }
   },
   "spend": {
@@ -2544,6 +2607,8 @@
     }
   },
   "unlock": {
+    "loadErrorTitle": "Der Bezahlschritt konnte nicht geladen werden",
+    "bonus": "{credits} Credits landen direkt nach dem Freischalten wieder in deinem Guthaben.",
     "title": "Erweiterten Builder freischalten",
     "lead": "Eine einmalige Gebühr, aus deinem Wallet bezahlt. Danach baut ein KI-Assistent deine Website und verbessert sie weiter, so lange du willst.",
     "pay": "{credits} Cr zahlen und fortfahren",
@@ -2553,6 +2618,8 @@
     "back": "Zurück",
     "error": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
     "err": {
+      "forbidden": "Deine Rolle darf den Builder für dieses Unternehmen nicht freischalten.",
+      "not_found": "Unternehmen nicht gefunden.",
       "insufficient_credits": "Du hast nicht genug Credits für den erweiterten Builder.",
       "company_pending_deletion": "Dieses Unternehmen ist zur Löschung vorgemerkt. Brich das zuerst im Dashboard ab."
     }

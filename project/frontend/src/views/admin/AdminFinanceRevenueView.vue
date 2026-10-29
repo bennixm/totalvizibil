@@ -87,6 +87,12 @@ onMounted(() => finance.fetchRevenue())
     <div v-if="finance.loadingRevenue && !hasRows" class="afr__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
+    <!-- A failed fetch is NOT "no revenue" — see the store's `errMsg`. -->
+    <AdminEmptyState
+      v-else-if="finance.revenueError"
+      icon="mdi-alert-circle-outline"
+      :text="finance.revenueError"
+    />
     <AdminEmptyState v-else-if="!hasRows" icon="mdi-cash-multiple" :text="t('adminFinance.noRevenue')" />
 
     <div v-else class="rtable">

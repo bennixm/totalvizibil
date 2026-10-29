@@ -388,7 +388,9 @@ describe('ProV2AgentService', () => {
     const { svc } = setup(ai);
 
     const result = await svc.sendMessage('u1', 'c1', 'Never stop');
-    expect(result.reply).toMatch(/step budget|keep going/i);
+    // This fake only ever calls a FAILING read_file, so nothing was mutated —
+    // the fallback reply must say so rather than claiming partial progress.
+    expect(result.reply).toMatch(/wasn't able to change anything/i);
     expect(ai.agentMessage.mock.calls.length).toBeLessThanOrEqual(24);
   });
 

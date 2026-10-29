@@ -20,7 +20,13 @@ const currentLabel = computed(() => (isAdmin.value ? t('nav.modeAdmin') : t('nav
 function go(target: 'user' | 'admin'): void {
   menuOpen.value = false
   if (!mdAndUp.value) ui.closeSidebar()
-  void router.push(target === 'admin' ? { name: 'admin-dashboard' } : { name: 'dashboard' })
+  // `/admin` by PATH, not `{ name: 'admin-dashboard' }`: this switch is shown
+  // to every role with a staff area, but the dashboard route is admin-only —
+  // a `finance`/`support` staffer clicking "Admin" was redirected straight
+  // back out to /account. `/admin` is the role-aware dispatch (see the
+  // `beforeEach` guard in router/index.ts), so each role lands on the first
+  // page it can actually open.
+  void router.push(target === 'admin' ? { path: '/admin' } : { name: 'dashboard' })
 }
 </script>
 

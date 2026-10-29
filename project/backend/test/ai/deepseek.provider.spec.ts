@@ -2,10 +2,11 @@ import { DeepSeekProvider } from 'src/ai/deepseek.provider';
 import type { AgentCallParams } from 'src/ai/provider.types';
 
 /**
- * There is no DEEPSEEK_API_KEY in this environment, so none of this can be
- * checked against the real API — these tests verify the request/response
- * TRANSLATION is correct against a mocked `fetch`, per DeepSeek's publicly
- * documented OpenAI-compatible format. Real-world behavior is unverified.
+ * These tests verify the request/response TRANSLATION against a mocked
+ * `fetch`, per DeepSeek's publicly documented OpenAI-compatible format, plus
+ * robustness against wire behavior that deviates from those docs (a response
+ * carrying tool_calls under an unexpected finish_reason) — with a real key
+ * configured, a mis-translation there silently turns a paid edit into a no-op.
  */
 function fakeConfig(apiKey: string) {
   return { get: () => apiKey } as never;
@@ -125,6 +126,71 @@ describe('DeepSeekProvider', () => {
       output_tokens: 20,
       cache_read_input_tokens: 5,
     });
+  });
+
+  it('still reports tool_use when tool_calls arrive with a non-"tool_calls" finish_reason', async () => {
+    // Regression: the adapter used to key stop_reason off finish_reason
+    // alone, so tool calls returned alongside finish_reason "stop" were
+    // silently discarded as plain text — the agent loop treated the turn as
+    // final, never ran the tools, and the user was billed for a no-op.
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: 'Renaming the button now.',
+              tool_calls: [
+                {
+                  id: 'call_9',
+                  type: 'function',
+                  function: {
+                    name: 'edit_file',
+                    arguments: '{"path":"src/App.vue","oldString":"Old","newString":"New"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      }),
+    } as Response);
+
+    const provider = new DeepSeekProvider(fakeConfig('sk-test'));
+    const result = await provider.agentMessage({
+      system: 'sys',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [],
+      model: 'deepseek-chat',
+      maxTokens: 100,
+    });
+
+    expect(result?.stop_reason).toBe('tool_use');
+    expect(result?.content).toHaveLength(2); // the text block + the tool_use block
+    expect(result?.content[1]).toMatchObject({ type: 'tool_use', name: 'edit_file' });
+  });
+
+  it('reports end_turn for a text-only reply (no tool calls to run)', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'All done.' }, finish_reason: 'length' }],
+        usage: {},
+      }),
+    } as Response);
+
+    const provider = new DeepSeekProvider(fakeConfig('sk-test'));
+    const result = await provider.agentMessage({
+      system: 'sys',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [],
+      model: 'deepseek-chat',
+      maxTokens: 100,
+    });
+
+    expect(result?.stop_reason).toBe('end_turn');
   });
 
   it('bundles multiple Anthropic tool_result blocks into separate OpenAI "tool" messages', async () => {

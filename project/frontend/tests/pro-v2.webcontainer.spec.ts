@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@webcontainer/api', () => ({
   WebContainer: { boot: vi.fn() },
@@ -20,7 +20,12 @@ async function freshSandboxModule() {
   vi.resetModules()
   const api = await import('@webcontainer/api')
   const mod = await import('@/lib/webcontainer')
-  return { WebContainer: api.WebContainer, ProV2Sandbox: mod.ProV2Sandbox }
+  return {
+    WebContainer: api.WebContainer,
+    ProV2Sandbox: mod.ProV2Sandbox,
+    bootContainer: mod.bootContainer,
+    SandboxBootError: mod.SandboxBootError,
+  }
 }
 
 function fakeProcess(opts: { chunks?: string[]; exitCode?: number } = {}) {
@@ -49,6 +54,63 @@ function fakeContainer() {
     },
   }
 }
+
+describe('bootContainer — failure handling (no more infinite spinner)', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('fails immediately with reason "not_isolated" when the page is not cross-origin isolated, without even attempting the boot', async () => {
+    const { WebContainer, bootContainer, SandboxBootError } = await freshSandboxModule()
+    // The real production failure: without the COOP/COEP response headers
+    // `WebContainer.boot()` never settles at all — so it must not be called.
+    vi.stubGlobal('crossOriginIsolated', false)
+
+    await expect(bootContainer()).rejects.toBeInstanceOf(SandboxBootError)
+    expect(WebContainer.boot).not.toHaveBeenCalled()
+
+    await bootContainer().catch((e: unknown) => {
+      expect(e).toMatchObject({ reason: 'not_isolated' })
+    })
+  })
+
+  it('does NOT cache a rejected boot — a retry attempts a genuinely fresh boot instead of replaying the dead rejection', async () => {
+    const { WebContainer, bootContainer } = await freshSandboxModule()
+    const container = fakeContainer()
+    vi.mocked(WebContainer.boot).mockReset()
+    vi.mocked(WebContainer.boot)
+      .mockRejectedValueOnce(new Error('boot blew up'))
+      .mockResolvedValueOnce(container as never)
+
+    await expect(bootContainer()).rejects.toMatchObject({ reason: 'boot_failed' })
+    // Previously this returned the SAME rejected promise forever and only a
+    // hard page reload could recover.
+    await expect(bootContainer()).resolves.toBe(container)
+    expect(WebContainer.boot).toHaveBeenCalledTimes(2)
+  })
+
+  it('caches a SUCCESSFUL boot (only one container may exist per tab)', async () => {
+    const { WebContainer, bootContainer } = await freshSandboxModule()
+    const container = fakeContainer()
+    // The `vi.mock` factory's spy lives in the module registry and survives
+    // `vi.resetModules()`, so its call count carries over between tests here.
+    vi.mocked(WebContainer.boot).mockReset()
+    vi.mocked(WebContainer.boot).mockResolvedValue(container as never)
+
+    await bootContainer()
+    await bootContainer()
+    expect(WebContainer.boot).toHaveBeenCalledTimes(1)
+  })
+
+  it('propagates the boot failure out of ProV2Sandbox.start() so the view can render an error state', async () => {
+    const { WebContainer, ProV2Sandbox } = await freshSandboxModule()
+    vi.mocked(WebContainer.boot).mockRejectedValue(new Error('nope'))
+
+    const box = new ProV2Sandbox()
+    box.onStatus = () => {}
+    await expect(box.start([{ path: 'package.json', content: '{}' }])).rejects.toMatchObject({
+      reason: 'boot_failed',
+    })
+  })
+})
 
 describe('ProV2Sandbox — §5 execution-error capture', () => {
   let container: ReturnType<typeof fakeContainer>

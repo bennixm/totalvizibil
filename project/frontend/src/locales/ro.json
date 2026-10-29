@@ -4,6 +4,7 @@
     "tagline": "Unde afacerile locale se construiesc și se găsesc"
   },
   "common": {
+    "retry": "Încearcă din nou",
     "loading": "Se încarcă…",
     "save": "Salvează",
     "cancel": "Anulează",
@@ -102,6 +103,9 @@
     "searchPlaceholder": "Caută o categorie sau un serviciu…",
     "searchHint": "Scrie ce cauți, de exemplu „instalator” sau „zugrăveli”.",
     "searchEmpty": "Nicio categorie găsită.",
+    "browseErrorTitle": "Nu am putut încărca pagina",
+    "browseErrorText": "Categoriile nu s-au încărcat, așa că nu putem deschide pagina cerută. Încearcă din nou.",
+    "retry": "Încearcă din nou",
     "areaCounty": "Județ",
     "areaCountyPlaceholder": "Alege județul…",
     "areaAny": "Orice locație",
@@ -145,6 +149,11 @@
     "seoDesc": "Răspunde la câteva întrebări și asistentul îți construiește site-ul afacerii. Varianta simplă sau control complet asupra design-ului, secțiunilor și SEO."
   },
   "studio": {
+    "connectionError": "Nu am putut contacta serverul. Verifică conexiunea și încearcă din nou — ciorna ta este în siguranță.",
+    "reviewFailed": "Nu am putut verifica textele acum. Încearcă din nou.",
+    "regenAiCapped": "Ai folosit toate regenerările cu AI pentru această secțiune. Următoarele vor folosi texte generate automat, mai simple.",
+    "restartConfirmTitle": "Începi de la capăt?",
+    "restartConfirmText": "Ciorna actuală va fi abandonată și vei porni un site nou, de la zero. Acțiunea nu poate fi anulată.",
     "eyebrow": "Constructor AI · Plan gratuit",
     "title": "Hai să-ți construim site-ul",
     "paneChat": "Conversație",
@@ -315,7 +324,20 @@
     "categoryLeafEmpty": "Alege întâi categoria",
     "categoryHint": "Alege subcategoriile exacte ale serviciilor tale, sau \"Toate serviciile\" dacă le oferi pe toate · după ele te găsesc clienții în feed.",
     "categorySection": "Ce servicii oferi?",
-    "areaSection": "Zona de acoperire"
+    "areaSection": "Zona de acoperire",
+    "deletionPendingTitle": "Ștergere programată",
+    "deletionPendingNote": "Afacerea este programată pentru ștergere și este îngheațată. Anulează ștergerea din panou ca să poți edita din nou.",
+    "deletionPendingCta": "Mergi la panou",
+    "setupErrorTitle": "Nu am putut încărca datele necesare",
+    "setupErrorText": "Categoriile și județele nu s-au încărcat. Verifică conexiunea și încearcă din nou.",
+    "retry": "Încearcă din nou",
+    "err": {
+      "company_pending_deletion": "Afacerea este programată pentru ștergere. Editarea este blocată.",
+      "forbidden": "Nu ai drept de editare pentru această afacere.",
+      "not_found": "Afacerea nu a fost găsită.",
+      "unknown_category": "Una dintre categoriile alese nu mai este disponibilă. Alege alta.",
+      "generic": "Nu am putut salva. Încearcă din nou."
+    }
   },
   "category": {
     "eyebrow": "Categorie",
@@ -366,6 +388,7 @@
     }
   },
   "easyEditor": {
+    "saveErrorText": "Modificarea nu a fost salvată. Am revenit la valoarea anterioară.",
     "eyebrow": "Editor site simplu",
     "title": "Editează-ți site-ul",
     "back": "Înapoi la panou",
@@ -374,6 +397,10 @@
     "loadErrorTitle": "Nu am putut deschide editorul",
     "loadErrorText": "A apărut o problemă la încărcarea site-ului. Încearcă din nou.",
     "err": {
+      "notFound": "Afacerea nu a fost găsită.",
+      "noWebsite": "Această afacere nu are încă un website.",
+      "badValue": "Valoarea trimisă nu este validă. Încearcă alta.",
+      "imageTooLarge": "Imaginea e prea mare.",
       "not_a_simple_site": "Această afacere folosește builderul avansat, nu editorul simplu.",
       "forbidden": "Nu ai drept de editare pentru această afacere.",
       "company_pending_deletion": "Afacerea este programată pentru ștergere. Editarea este blocată.",
@@ -496,6 +523,10 @@
     "invoicesNone": "Nicio factură încă",
     "invoicesLast": "Ultima: {number}",
     "invoicesCta": "Vezi facturile",
+    "invoicesUnknownText": "Nu am putut verifica datele de facturare",
+    "invoicesUnknownCta": "Încearcă din nou",
+    "suspendedTitle": "Afacere suspendată",
+    "suspendedBody": "Un administrator a suspendat această afacere. Nu apare în feedul public și campania nu poate fi activată. Scrie-ne prin suport ca să afli de ce.",
     "editSite": "Editează site-ul",
     "websiteSettings": "Setări website",
     "transactionsTitle": "Tranzacții",
@@ -733,6 +764,7 @@
     "currentPassword": "Parola curentă",
     "emailChangeHint": "Confirmă parola pentru a schimba emailul",
     "genericError": "Ceva nu a mers. Încearcă din nou.",
+    "partialLoadError": "Unele date din cont nu s-au încărcat. Reîncarcă pagina ca să le vezi.",
     "changePasswordTitle": "Schimbă parola",
     "changePasswordNote": "Rămâi conectat pe acest dispozitiv; celelalte sesiuni sunt deconectate.",
     "newPassword": "Parolă nouă",
@@ -1456,6 +1488,24 @@
     "iterations": "0 iterații | 1 iterație | {count} iterații"
   },
   "proV2": {
+    "attachTooLarge": "Am sărit {n} imagine(i) — fiecare trebuie să fie sub {mb} MB.",
+    "attachTooMany": "Poți atașa cel mult {max} imagini într-un mesaj.",
+    "attachPartialFailure": "{ok} imagine(i) s-au încărcat, {failed} nu. Mesajul a fost trimis doar cu cele încărcate.",
+    "bootErrorTitle": "Previzualizarea live nu a putut porni",
+    "bootErrorIsolation": "Serverul nu trimite antetele necesare pentru sandbox (COOP/COEP). De obicei e o problemă temporară de configurare — reîncarcă pagina, iar dacă persistă contactează suportul.",
+    "bootErrorTimeout": "Sandbox-ul a durat prea mult să pornească. Reîncearcă, iar dacă persistă reîncarcă pagina.",
+    "bootErrorGeneric": "Sandbox-ul de previzualizare nu a pornit. Reîncearcă sau reîncarcă pagina; dacă persistă, contactează suportul.",
+    "bootErrorReload": "Reîncarcă pagina",
+    "loadForbiddenTitle": "Nu ai acces la acest proiect",
+    "loadForbiddenText": "Rolul tău în această afacere nu permite editarea site-ului. Cere proprietarului drepturi de editare.",
+    "publishErr": {
+      "locked": "Builderul nu este deblocat pentru această afacere.",
+      "noWebsite": "Afacerea nu are încă un website pe care să publicăm.",
+      "noIndex": "Build-ul nu conține un index.html — nu putem publica fără pagina principală.",
+      "tooLarge": "Site-ul construit depășește limita de mărime pentru publicare.",
+      "tooManyFiles": "Build-ul are prea multe fișiere pentru publicare.",
+      "forbidden": "Rolul tău nu permite publicarea acestui proiect."
+    },
     "eyebrow": "Builder AI de site-uri",
     "title": "Website Builder",
     "files": "Fișiere",
@@ -1625,7 +1675,8 @@
     "cancelConfirmText": "Programarea lui {name} va fi anulată, iar intervalul devine din nou disponibil.",
     "deleteConfirmTitle": "Ștergi programarea?",
     "deleteConfirmText": "Programarea se șterge definitiv. Acțiunea nu poate fi anulată.",
-    "loadMore": "Încarcă mai multe"
+    "loadMore": "Încarcă mai multe",
+    "loadMoreError": "Nu am putut încărca mai multe programări. Încearcă din nou."
   },
   "analytics": {
     "intro": "Date reale din anunț și site: click-uri plătite, apeluri, mesaje din formular și cât de repede răspunzi. Scorul de vizibilitate decide ordinea în feed.",
@@ -1661,6 +1712,9 @@
     "scoreLabel": "Scor de vizibilitate",
     "allGood": "Campania e optimizată complet",
     "allGoodText": "Toate componentele scorului de vizibilitate sunt la maxim. Continuă așa.",
+    "errorTitle": "Nu am putut încărca analiza",
+    "errorText": "Datele de optimizare nu s-au încărcat. Verifică conexiunea și încearcă din nou.",
+    "retry": "Încearcă din nou",
     "gain": "+{n}% vizibilitate",
     "weightNow": "Pondere {weight}% · acum {score}%",
     "sevHigh": "Prioritate mare",
@@ -2001,6 +2055,8 @@
     "emptyFiltered": "Nicio tranzacție nu corespunde acestor filtre."
   },
   "websiteSettings": {
+    "loadError": "Nu am putut încărca datele site-ului. Încearcă din nou.",
+    "filesLoadError": "Nu am putut încărca lista de fișiere.",
     "eyebrow": "Website",
     "title": "Setări website",
     "none": "Nu ai încă un website.",
@@ -2017,6 +2073,10 @@
     "exportNote": "Formularul de contact și programările apelează API-ul public Totalvizibil și funcționează din orice domeniu, inclusiv după ce găzduiești site-ul exportat pe propriul server.",
     "domainTitle": "Domeniu personalizat",
     "domainHint": "Cumpără un domeniu propriu pentru afacerea ta — site-ul rămâne și pe Totalvizibil, în paralel.",
+    "domainManualNote": "Serviciu în regim manual: achiziția rezervă domeniul și reține costul din portofel, iar configurarea DNS este finalizată manual de echipa noastră, nu instant.",
+    "domainPendingNote": "În curs de configurare manuală — te anunțăm aici și pe e-mail când devine activ.",
+    "domainDnsOk": "DNS configurat — activarea este în curs de finalizare.",
+    "domainFailedNote": "Configurarea a eșuat. Contactează suportul pentru detalii.",
     "domainPlaceholder": "exemplu.ro",
     "domainCheckCta": "Verifică disponibilitate",
     "domainAvailable": "{domain} este disponibil.",
@@ -2033,13 +2093,16 @@
     },
     "appointmentsTitle": "Programări",
     "appointmentsHint": "Permite vizitatorilor să rezerve o programare direct de pe site. Odată activată, apare și în meniu, pentru administrare.",
+    "appointmentsUnavailable": "Momentan indisponibilă: site-urile generate nu includ încă un formular public de rezervare. Poți gestiona programările din panou independent de acest comutator.",
     "appointmentsOn": "Programările au fost activate.",
     "appointmentsOff": "Programările au fost dezactivate.",
     "appointmentsManage": "Administrează programările",
     "domainErr": {
       "insufficient_credits": "Credite insuficiente pentru acest domeniu.",
       "domain_not_available": "Domeniul nu mai este disponibil.",
-      "domain_already_registered": "Acest domeniu este deja înregistrat la noi."
+      "domain_already_registered": "Acest domeniu este deja înregistrat la noi.",
+      "not_your_company": "Nu ai drepturi de administrare pentru această afacere.",
+      "generic": "Ceva nu a funcționat. Încearcă din nou."
     }
   },
   "spend": {
@@ -2544,6 +2607,8 @@
     }
   },
   "unlock": {
+    "loadErrorTitle": "Nu am putut încărca pasul de plată",
+    "bonus": "Primești {credits} credite înapoi în portofel imediat după deblocare.",
     "title": "Deblochează builderul avansat",
     "lead": "Un cost unic, plătit din portofel. După asta, un asistent AI construiește și continuă să-ți îmbunătățească site-ul cât timp vrei.",
     "pay": "Plătește {credits} credite și continuă",
@@ -2553,6 +2618,8 @@
     "back": "Înapoi",
     "error": "Ceva n-a mers. Încearcă din nou.",
     "err": {
+      "forbidden": "Rolul tău nu permite deblocarea builderului pentru această afacere.",
+      "not_found": "Afacerea nu a fost găsită.",
       "insufficient_credits": "Nu ai destule credite pentru builderul avansat.",
       "company_pending_deletion": "Afacerea e programată pentru ștergere. Anuleaz-o din panou mai întâi."
     }

@@ -28,7 +28,36 @@ const DEFAULT = { lat: 44.4268, lng: 26.1025 } // București
 const companyId = ref<string | null>(null)
 const ready = ref(false)
 const error = ref('')
-watch(error, (v) => { if (v) toasts.error(v) })
+
+/**
+ * Backend error → localized copy, mirroring CampaignView's own `errText`:
+ * a recognised code (or the backend's raw English sentence for the
+ * role/not-found guards, which aren't code-shaped) gets its own line and
+ * anything unrecognised falls back to one generic sentence. Without this the
+ * toast showed the raw server string verbatim — a bare
+ * `company_pending_deletion` for a frozen business, untranslated English for
+ * a non-owner role.
+ */
+const ERROR_KEYS: Record<string, string> = {
+  company_pending_deletion: 'company_pending_deletion',
+  forbidden: 'forbidden',
+  'Your role cannot edit this company': 'forbidden',
+  not_found: 'not_found',
+  'Company not found': 'not_found',
+}
+function errText(raw: string): string {
+  const key = ERROR_KEYS[raw]
+  return key ? t('location.err.' + key) : t('location.err.generic')
+}
+watch(error, (v) => { if (v) toasts.error(errText(v)) })
+
+// A business pending deletion is fully frozen server-side (every profile
+// mutation throws `company_pending_deletion`), so editing the service area
+// here can only fail — say so up front and disable the form instead, exactly
+// as the dashboard and the campaign/budget page already do.
+const pendingDeletion = computed(
+  () => !!companies.list.find((c) => c.id === companyId.value)?.deletionScheduledAt,
+)
 
 const NATIONWIDE = '__nationwide__'
 const counties = ref<string[]>([])
@@ -114,7 +143,7 @@ function onMapPick(p: { lat: number; lng: number }): void {
     .catch(() => {})
 }
 
-const canSave = computed(() => countySelections.value.length > 0)
+const canSave = computed(() => countySelections.value.length > 0 && !pendingDeletion.value)
 
 async function save(): Promise<void> {
   if (!canSave.value || saving.value || !companyId.value) return
@@ -198,6 +227,23 @@ watch(
     </div>
 
     <template v-else>
+      <div v-if="pendingDeletion" class="loc__frozen">
+        <v-icon icon="mdi-delete-clock-outline" size="18" />
+        <div>
+          <strong>{{ t('location.deletionPendingTitle') }}</strong>
+          <p>{{ t('location.deletionPendingNote') }}</p>
+        </div>
+        <v-btn
+          size="small"
+          variant="flat"
+          color="primary"
+          append-icon="mdi-arrow-right"
+          :to="{ name: 'dashboard', query: { c: companyId } }"
+        >
+          {{ t('location.deletionPendingCta') }}
+        </v-btn>
+      </div>
+
       <v-select
         :model-value="countySelections"
         :items="countyItems"
@@ -207,6 +253,7 @@ watch(
         density="comfortable"
         multiple
         hide-details
+        :disabled="pendingDeletion"
         @update:model-value="onCountySelectionsChange"
       >
         <template #selection="{ index }">
@@ -233,6 +280,7 @@ watch(
             <button
               type="button"
               class="locchip__x"
+              :disabled="pendingDeletion"
               :aria-label="t('location.removeCounty', { county: c })"
               @click="removeCounty(c)"
             >
@@ -309,6 +357,34 @@ watch(
 
 .loc__selectPlaceholder {
   color: rgba(var(--v-theme-on-surface), 0.75);
+}
+
+/* Same shape as CampaignView's own frozen/pending-deletion notice. */
+.loc__frozen {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--tvz-radius-md);
+  margin-bottom: 1.25rem;
+  background: rgba(var(--v-theme-error), 0.08);
+  border: 1px solid rgba(var(--v-theme-error), 0.4);
+}
+.loc__frozen > .v-icon {
+  color: rgb(var(--v-theme-error));
+  flex: none;
+}
+.loc__frozen > div {
+  flex: 1;
+  min-width: 0;
+}
+.loc__frozen strong {
+  font-size: 0.9rem;
+}
+.loc__frozen p {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
 .loc__fieldhead {

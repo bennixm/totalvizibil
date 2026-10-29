@@ -57,6 +57,28 @@ export const useAuthStore = defineStore('auth', {
       const roles = state.user?.platformRoles ?? []
       return roles.includes('admin') || roles.includes('finance')
     },
+    /**
+     * "Does this account have ANY staff surface it can actually open?" — the
+     * union of the three role-specific getters above, i.e. exactly
+     * `admin | support | finance`.
+     *
+     * Use this (NOT `isPlatformStaff`) to gate staff-only UI chrome: the
+     * "Staff" badge in the account menu and the Admin/User mode switch in
+     * the sidebar. `isPlatformStaff` is true for ANY platform role, which
+     * includes `moderator` — a role no backend endpoint accepts and no nav
+     * item unlocks. Gating the badge + switch on it advertised a staff area
+     * to a `moderator`-only account that had precisely zero reachable pages
+     * behind it, and the switch then dropped them into a page that rejects
+     * them. `isPlatformStaff` itself is left alone: it's still the right
+     * check for "is this any kind of staff at all".
+     */
+    hasReachableStaffArea(): boolean {
+      return (
+        this.isSupportStaff ||
+        this.isFinanceStaff ||
+        (this.user?.platformRoles.includes('admin') ?? false)
+      )
+    },
   },
 
   actions: {

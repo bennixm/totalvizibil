@@ -8,23 +8,60 @@ import EasyStudioAgent from '@/components/studio/EasyStudioAgent.vue'
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
 import { useCompaniesStore } from '@/stores/companies'
 import { useEasySiteStore } from '@/stores/easySite'
+import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const companies = useCompaniesStore()
 const store = useEasySiteStore()
+const toasts = useToastStore()
 const { easy, theme, content, loading, error } = storeToRefs(store)
 
 const companyId = ref<string | null>(null)
 const mobilePane = ref<'editor' | 'preview'>('editor')
 
-const KNOWN_ERR = ['not_a_simple_site', 'forbidden', 'company_pending_deletion', 'rate_limited']
-const errText = computed(() =>
-  error.value && KNOWN_ERR.includes(error.value)
-    ? t('easyEditor.err.' + error.value)
-    : t('easyEditor.loadErrorText'),
-)
+/**
+ * Real error strings the easy-site endpoints actually reject with, mapped to
+ * their i18n suffix. The old list contained a literal `'forbidden'` the
+ * backend never sends (it throws the sentence "Your role cannot edit the
+ * website"), so EVERY genuine role rejection fell through to the generic
+ * "couldn't load" copy. See `easy-site.service.ts`'s `load()`.
+ */
+const ERR_KEY: Record<string, string> = {
+  not_a_simple_site: 'not_a_simple_site',
+  company_pending_deletion: 'company_pending_deletion',
+  rate_limited: 'rate_limited',
+  'Your role cannot edit the website': 'forbidden',
+  'Company not found': 'notFound',
+  'No website': 'noWebsite',
+  bad_color: 'badValue',
+  bad_asset_url: 'badValue',
+  image_too_large: 'imageTooLarge',
+}
+function errKey(code: string): string | null {
+  return ERR_KEY[code] ?? null
+}
+const errText = computed(() => {
+  const key = error.value ? errKey(error.value) : null
+  return key ? t('easyEditor.err.' + key) : t('easyEditor.loadErrorText')
+})
+/** Same mapping, but worded for a failure AFTER the page already loaded —
+ *  i.e. a rejected SAVE, which the initial-load copy describes wrongly. */
+const saveErrText = computed(() => {
+  const key = error.value ? errKey(error.value) : null
+  return key ? t('easyEditor.err.' + key) : t('easyEditor.saveErrorText')
+})
+
+// Post-load failures had NO rendering path at all here: the error pane only
+// shows while nothing has loaded yet, so a rejected inline edit was silent.
+watch(error, (v) => {
+  if (v && easy.value) toasts.error(saveErrText.value)
+})
+
+async function retryLoad(): Promise<void> {
+  if (companyId.value) await store.load(companyId.value)
+}
 
 onMounted(async () => {
   await companies.fetchOverview().catch(() => {})
@@ -89,9 +126,20 @@ watch(
       <v-icon icon="mdi-alert-circle-outline" size="34" />
       <h2>{{ t('easyEditor.loadErrorTitle') }}</h2>
       <p class="ese__lockText">{{ errText }}</p>
-      <v-btn color="primary" variant="tonal" :to="{ name: 'dashboard' }">
-        {{ t('easyEditor.back') }}
-      </v-btn>
+      <div class="ese__lockActions">
+        <v-btn
+          color="primary"
+          variant="tonal"
+          prepend-icon="mdi-refresh"
+          :loading="loading"
+          @click="retryLoad"
+        >
+          {{ t('common.retry') }}
+        </v-btn>
+        <v-btn variant="text" :to="{ name: 'dashboard' }">
+          {{ t('easyEditor.back') }}
+        </v-btn>
+      </div>
     </div>
 
     <div v-else class="ese__grid">
@@ -209,6 +257,13 @@ watch(
   margin: 0;
   max-width: 40ch;
   color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.ese__lockActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .ese__grid {

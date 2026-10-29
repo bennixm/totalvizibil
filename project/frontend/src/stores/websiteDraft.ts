@@ -95,6 +95,15 @@ export interface EasyBlock {
 
 export type EasyTemplate = 'classic' | 'bold' | 'minimal'
 
+/**
+ * Mirrors `AI_CALL_CAP` in the backend (`website-draft.service.ts` and
+ * `easy-site.service.ts`, both 4). Past this many AI calls, the
+ * service-copy endpoint still returns 200 but quietly serves deterministic
+ * rule-based copy instead of AI copy — the owner needs to be told, since
+ * nothing else about the response changes.
+ */
+export const EASY_AI_CALL_CAP = 4
+
 export type EasyStep =
   | 'template'
   | 'name'
@@ -186,6 +195,17 @@ interface ReviewResponse {
   draft: WebsiteDraftView
 }
 
+/**
+ * The outcome of `reviewDraft()`. An empty `issues` array used to be returned
+ * for BOTH "the AI reviewed everything and found nothing" and "the review
+ * never ran" — which rendered a green all-clear over a review that never
+ * happened. The two are now distinct shapes so the caller cannot conflate
+ * them: only `ok: true` means the text was actually checked.
+ */
+export type DraftReviewResult =
+  | { ok: true; issues: DraftIssue[] }
+  | { ok: false; code: string }
+
 interface CreateResponse {
   id: string
   token: string
@@ -231,13 +251,32 @@ interface State {
   draft: WebsiteDraftView | null
   loading: boolean
   sending: boolean
+  /** A restart (discard + create a fresh draft) is in flight. */
+  restarting: boolean
   error: string
 }
 
 /** A 429 (the studio's create/restart and per-step throttles) gets one normalized code. */
 function draftErrorCode(err: unknown): string {
   if (err instanceof ApiError && err.status === 429) return 'rate_limited'
+  if (isUnreachable(err)) return 'unreachable'
   return err instanceof Error ? err.message : 'error'
+}
+
+/**
+ * Did the server actually CONFIRM this draft is gone? Only a 404 (the
+ * backend's "Draft not found" / "Draft expired") and a 410 mean the local
+ * reference is genuinely dead. A network error, a client-side timeout
+ * (ApiError status 0) or any 5xx says nothing about the draft — it is still
+ * safely on the server, so the local reference must survive.
+ */
+function isConfirmedGone(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 404 || err.status === 410)
+}
+
+/** A transient failure: the request never got a verdict from the backend. */
+function isUnreachable(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 0 || err.status >= 500)
 }
 
 export const useWebsiteDraftStore = defineStore('websiteDraft', {
@@ -245,6 +284,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
     draft: null,
     loading: false,
     sending: false,
+    restarting: false,
     error: '',
   }),
 
@@ -275,8 +315,15 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
         }
         this.draft = draft
         return true
-      } catch {
-        clearRef()
+      } catch (err) {
+        // ONLY a confirmed-gone draft may drop the local reference. A network
+        // blip or a 5xx used to take the same path, silently discarding a
+        // finished one-pager that was still safe server-side.
+        if (isConfirmedGone(err)) {
+          clearRef()
+          return false
+        }
+        this.error = draftErrorCode(err)
         return false
       } finally {
         this.loading = false
@@ -296,7 +343,15 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
               headers: { 'X-Draft-Token': ref.token },
             })
             return
-          } catch {
+          } catch (err) {
+            // Same rule as resumeIfAny: a transient failure must NOT fall
+            // through to creating a blank new draft (which would orphan the
+            // real one and burn one of the 6 hourly creates). Keep the
+            // reference and surface a retry-able error instead.
+            if (!isConfirmedGone(err)) {
+              this.error = draftErrorCode(err)
+              return
+            }
             clearRef()
           }
         }
@@ -350,10 +405,12 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       }
     },
 
-    /** Live config edit from a studio widget — colour, image, contact, order. */
-    async patchEasy(patch: EasyPatch): Promise<void> {
+    /** Live config edit from a studio widget — colour, image, contact, order.
+     *  Returns whether the server accepted it, so an optimistic inline edit
+     *  can roll itself back instead of showing a value the server refused. */
+    async patchEasy(patch: EasyPatch): Promise<boolean> {
       const ref = loadRef()
-      if (!ref) return
+      if (!ref) return false
       this.error = ''
       try {
         this.draft = await apiFetch<WebsiteDraftView>(`/website-drafts/${ref.id}/easy`, {
@@ -361,8 +418,10 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
           headers: { 'X-Draft-Token': ref.token },
           body: { ...patch, locale: i18n.global.locale.value },
         })
+        return true
       } catch (err) {
         this.error = draftErrorCode(err)
+        return false
       }
     },
 
@@ -416,9 +475,9 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
      * other). Grammar fixes are applied server-side — the returned draft is
      * adopted; the remaining findings are returned for the user to address.
      */
-    async reviewDraft(): Promise<DraftIssue[]> {
+    async reviewDraft(): Promise<DraftReviewResult> {
       const ref = loadRef()
-      if (!ref) return []
+      if (!ref) return { ok: false, code: 'no_draft' }
       try {
         const res = await apiFetch<ReviewResponse>(`/website-drafts/${ref.id}/review`, {
           method: 'POST',
@@ -426,9 +485,12 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
           timeoutMs: 45_000,
         })
         if (res.draft) this.draft = res.draft
-        return Array.isArray(res.issues) ? res.issues : []
-      } catch {
-        return []
+        return { ok: true, issues: Array.isArray(res.issues) ? res.issues : [] }
+      } catch (err) {
+        // A swallowed failure here used to render as a green "all clean" —
+        // i.e. the owner could publish unchecked text believing it was
+        // verified. Report the failure instead.
+        return { ok: false, code: draftErrorCode(err) }
       }
     },
 
@@ -450,12 +512,33 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       }
     },
 
-    /** Abandon the current draft and start over on next open. */
-    async restart(): Promise<void> {
-      clearRef()
-      this.draft = null
+    /**
+     * Abandon the current draft and start over.
+     *
+     * The old order (clear the local reference, THEN create) lost the draft
+     * outright whenever creation failed — e.g. against the 6-per-hour create
+     * throttle — leaving the previous draft an unreachable anonymous row with
+     * no way back. The swap now happens ONLY after a new draft exists, so a
+     * failed restart leaves the owner exactly where they were.
+     */
+    async restart(): Promise<boolean> {
+      if (this.restarting) return false
+      this.restarting = true
       this.error = ''
-      await this.resumeOrCreate()
+      try {
+        const created = await apiFetch<CreateResponse>('/website-drafts', {
+          method: 'POST',
+          body: { locale: i18n.global.locale.value },
+        })
+        saveRef({ id: created.id, token: created.token })
+        this.draft = created.draft
+        return true
+      } catch (err) {
+        this.error = draftErrorCode(err)
+        return false
+      } finally {
+        this.restarting = false
+      }
     },
 
     /** Start an advanced-plan draft from the info gate (business name only). */

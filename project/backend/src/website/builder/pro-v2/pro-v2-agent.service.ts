@@ -17,9 +17,12 @@
  * can handle it (DeepSeek Flash/Pro), escalating to the next tier — up to
  * Claude — when a hop hard-fails or its result fails a static quality
  * check. Initial generation always starts on Claude (never moved for cost).
- * DeepSeek is NOT configured in this environment (no API key) — the router
- * gracefully resolves every DeepSeek tier straight to Claude in that case,
- * so this still behaves exactly like the pre-routing version when unset.
+ * When no DEEPSEEK_API_KEY is set the router resolves every DeepSeek tier
+ * straight to Claude, so this behaves exactly like the pre-routing version;
+ * when one IS set (as in production) the cheap tiers are genuinely live, so
+ * every cheap-tier result must clear the static quality gate below — a tier
+ * that answers a change request in prose without touching a file escalates
+ * instead of being accepted and billed as a success.
  */
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
@@ -40,7 +43,7 @@ import {
   REQUEST_MAX_PEXELS_SEARCHES,
   REQUEST_MAX_TOOL_CALLS,
 } from './ai-usage.service';
-import { checkStaticQuality } from './quality-gate';
+import { checkStaticQuality, expectsMutation } from './quality-gate';
 import { checkScope, scopeRefusalMessage } from './scope-guard';
 import { PexelsSearchTool } from './pexels-search-tool';
 import type { PexelsOrientation } from '../generator/image-provider/pexels.provider';
@@ -63,9 +66,7 @@ const MUTATING_TOOLS = new Set(['write_file', 'edit_file', 'delete_file']);
 
 // Approximate list prices, USD per million tokens — verify against each
 // provider's current pricing page. Only for a rough "what did this cost"
-// estimate; never used for real billing/invoicing. DeepSeek's figures are
-// UNVERIFIED in this environment (no DEEPSEEK_API_KEY was ever configured
-// here, so no real call has confirmed them) — see the cost-optimization report.
+// estimate; never used for real billing/invoicing.
 const MODEL_PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
   opus: { input: 15, output: 75 },
   sonnet: { input: 3, output: 15 },
@@ -340,6 +341,11 @@ export class ProV2AgentService {
       isRepair: opts.isRepair,
       userContent,
     });
+    // Whether this turn is supposed to end with a file actually changing.
+    // Drives the quality gate's no-mutating-tool-call check below, so a plain
+    // informational question ("why is the footer gone?") is never punished
+    // for answering in prose.
+    const mutationExpected = expectsMutation({ isRepair: opts.isRepair, userContent });
 
     // Persisted BEFORE the (possibly long-running, escalating) loop below —
     // a page reload mid-turn must still show the user's own message instead
@@ -454,6 +460,7 @@ export class ProV2AgentService {
         filesAfter,
         reply: result.finalText,
         mutatingToolCallCount: result.mutatingToolCallCount,
+        mutationExpected,
       });
       if (gate.passed) break;
 
@@ -467,9 +474,13 @@ export class ProV2AgentService {
     if (!result) throw new BadRequestException('pro_agent_unavailable');
     let finalText = result.finalText;
     if (!finalText) {
+      // "I've made the changes I could" is only honest when something was
+      // actually changed — otherwise it reports a no-op as partial success.
       finalText = result.hardFailure
         ? "I couldn't reach the AI provider for this request. Please try again."
-        : "I've made the changes I could within this request's step budget. Tell me if you'd like me to keep going.";
+        : result.mutatingToolCallCount === 0
+          ? "I wasn't able to change anything on your site for this request. Try rephrasing it — say which section or text you want changed — and I'll take another look."
+          : "I've made the changes I could within this request's step budget. Tell me if you'd like me to keep going.";
     }
 
     // Every escalation tier hard-failed (including the last, Claude — no

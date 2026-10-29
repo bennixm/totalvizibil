@@ -54,8 +54,11 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
     <v-main class="shell" :class="{ 'shell--mobile': !mdAndUp }">
       <v-layout v-if="showSidebar" class="panel-layout">
         <AppSidebar :groups="sidebarGroups">
-          <template v-if="auth.isPlatformStaff || !isAdminRoute" #top>
-            <SidebarModeSwitch v-if="auth.isPlatformStaff" />
+          <!-- `hasReachableStaffArea`, not `isPlatformStaff`: the latter is
+               true for ANY platform role, so a `moderator`-only account was
+               shown an "Admin" switch leading to a page that rejects it. -->
+          <template v-if="auth.hasReachableStaffArea || !isAdminRoute" #top>
+            <SidebarModeSwitch v-if="auth.hasReachableStaffArea" />
             <SidebarCampaignSwitch v-if="!isAdminRoute" />
           </template>
           <template #footer>

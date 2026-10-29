@@ -4,7 +4,7 @@ import { apiFetch, ApiError } from '@/services/api'
 import { i18n } from '@/plugins/i18n'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 import type {
-  DraftIssue,
+  DraftReviewResult,
   EasyBlock,
   EasyPatch,
   WebsiteDraftView,
@@ -105,9 +105,11 @@ export const useEasySiteStore = defineStore('easySite', {
       }
     },
 
-    /** Live config edit from a studio widget — colour, image, contact, order. */
-    async patchEasy(patch: EasyPatch): Promise<void> {
-      if (!this.companyId) return
+    /** Live config edit from a studio widget — colour, image, contact, order.
+     *  Returns whether the server accepted it, so an optimistic inline edit
+     *  can roll itself back instead of showing a value the server refused. */
+    async patchEasy(patch: EasyPatch): Promise<boolean> {
+      if (!this.companyId) return false
       this.error = ''
       try {
         this.adopt(
@@ -116,8 +118,10 @@ export const useEasySiteStore = defineStore('easySite', {
             body: { ...patch, locale: i18n.global.locale.value },
           }),
         )
+        return true
       } catch (err) {
         this.error = easyErrorCode(err)
+        return false
       }
     },
 
@@ -169,11 +173,13 @@ export const useEasySiteStore = defineStore('easySite', {
     async send(text: string): Promise<void> {
       void text /* no chat in the claimed-site editor */
     },
-    async reviewDraft(): Promise<DraftIssue[]> {
-      return [] /* the end-of-setup review is a draft-only step */
+    async reviewDraft(): Promise<DraftReviewResult> {
+      /* the end-of-setup review is a draft-only step */
+      return { ok: true, issues: [] }
     },
-    async restart(): Promise<void> {
+    async restart(): Promise<boolean> {
       /* nothing to restart — the site is live */
+      return false
     },
   },
 })

@@ -20,7 +20,8 @@
  * resolved params passed as props — no further navigation, so the address
  * bar keeps showing exactly what the visitor typed or clicked.
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
@@ -28,11 +29,56 @@ import FeedView from '@/views/FeedView.vue'
 import CompanyPublicView from '@/views/CompanyPublicView.vue'
 import { useFeedStore, isCompleteServicesSlug } from '@/stores/feed'
 
+const { t } = useI18n()
 const route = useRoute()
 const feed = useFeedStore()
 const { facets, facetsLoaded } = storeToRefs(feed)
 
-onMounted(() => void feed.loadFacets().catch(() => {}))
+// `loadFacets()` has no internal error handling, and the whole page used to
+// be gated on `facetsLoaded` — only ever set on success. One transient
+// failure therefore left a permanent spinner on EVERY SEO category page and
+// EVERY public company page, with no error and no retry; and because this
+// only ran once per route-record mount, an SPA navigation between flat URLs
+// never retried it either. Same failure mode (and same fix) as FeedView's
+// own `onMounted` guard: never block the render on this one fetch. Here the
+// facet tree is additionally load-bearing — it's the only thing that can say
+// whether `/a/b` is a category page or a company page — so instead of
+// rendering a guessed child we track the attempt explicitly: a resolved
+// attempt either renders the real page or an explicit retryable error, never
+// an endless spinner.
+const attempted = ref(false)
+const failed = ref(false)
+const retrying = ref(false)
+
+async function ensureFacets(): Promise<void> {
+  if (facetsLoaded.value) {
+    attempted.value = true
+    failed.value = false
+    return
+  }
+  retrying.value = true
+  try {
+    await feed.loadFacets()
+    failed.value = false
+  } catch {
+    failed.value = true
+  } finally {
+    attempted.value = true
+    retrying.value = false
+  }
+}
+
+onMounted(() => void ensureFacets())
+
+// A client-side navigation to another flat URL keeps this view mounted, so a
+// previously-failed fetch gets another chance instead of staying broken for
+// the rest of the session.
+watch(
+  () => [route.params.seg1, route.params.seg2, route.params.seg3],
+  () => {
+    if (!facetsLoaded.value) void ensureFacets()
+  },
+)
 
 const seg1 = computed(() => route.params.seg1 as string)
 const seg2 = computed(() => (route.params.seg2 as string | undefined) ?? null)
@@ -65,11 +111,32 @@ const resolved = computed<Resolved>(() => {
   if (group) return { kind: 'feed', group: seg1.value, niche: null }
   return { kind: 'company', crumbs: [seg1.value] }
 })
+
+// A three-segment path is unambiguously a company page — the feed never nests
+// that deep — so it doesn't need the facet tree at all and renders even when
+// the facets fetch is down.
+const needsFacets = computed(() => !seg3.value)
+const showSpinner = computed(() => needsFacets.value && !facetsLoaded.value && !attempted.value)
+const showError = computed(() => needsFacets.value && !facetsLoaded.value && failed.value)
 </script>
 
 <template>
-  <div v-if="!facetsLoaded" class="browse__center">
+  <div v-if="showSpinner" class="browse__center">
     <v-progress-circular indeterminate color="primary" />
+  </div>
+  <div v-else-if="showError" class="browse__center browse__error">
+    <v-icon icon="mdi-cloud-off-outline" size="34" />
+    <h2>{{ t('feed.browseErrorTitle') }}</h2>
+    <p>{{ t('feed.browseErrorText') }}</p>
+    <v-btn
+      color="primary"
+      variant="flat"
+      prepend-icon="mdi-refresh"
+      :loading="retrying"
+      @click="ensureFacets"
+    >
+      {{ t('feed.retry') }}
+    </v-btn>
   </div>
   <FeedView v-else-if="resolved.kind === 'feed'" :group="resolved.group" :niche="resolved.niche" />
   <CompanyPublicView v-else :crumbs="resolved.crumbs" />
@@ -80,5 +147,22 @@ const resolved = computed<Resolved>(() => {
   display: grid;
   place-items: center;
   min-height: 60vh;
+}
+.browse__error {
+  gap: 0.6rem;
+  text-align: center;
+  padding: 2rem 1rem;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.browse__error h2 {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1.25rem;
+  margin: 0;
+  color: rgb(var(--v-theme-on-surface));
+}
+.browse__error p {
+  margin: 0;
+  max-width: 42ch;
+  font-size: 0.9rem;
 }
 </style>

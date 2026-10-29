@@ -179,6 +179,12 @@ onMounted(() => admin.fetchInvoices())
     <div v-if="admin.loadingInvoices && !admin.invoices.length" class="ai__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
+    <!-- A failed fetch is NOT "no invoices" — see the store's `errMsg`. -->
+    <AdminEmptyState
+      v-else-if="admin.invoicesError"
+      icon="mdi-alert-circle-outline"
+      :text="admin.invoicesError"
+    />
     <AdminEmptyState
       v-else-if="!admin.invoices.length"
       icon="mdi-receipt-text-outline"

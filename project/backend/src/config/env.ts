@@ -91,7 +91,15 @@ export function loadConfig(): AppConfig {
     databaseUrl,
     sessionCookieName: process.env.SESSION_COOKIE_NAME ?? 'tvz_session',
     sessionTtlDays: Number(process.env.SESSION_TTL_DAYS ?? 30),
-    sessionCookieSecure: process.env.SESSION_COOKIE_SECURE === 'true',
+    // Forced on in production, whatever the env var says: `.env.example`
+    // ships `SESSION_COOKIE_SECURE=false`, so a deploy that copied it would
+    // silently serve the session cookie without `Secure` (sniffable over any
+    // plain-HTTP request to the domain). Unlike DATABASE_URL/FRONTEND_ORIGIN
+    // above, this one has a safe correct default to fall back to — the app
+    // always sits behind TLS-terminating nginx in production — so it fails
+    // SAFE by coercion instead of failing closed by crashing boot.
+    sessionCookieSecure:
+      nodeEnv === 'production' ? true : process.env.SESSION_COOKIE_SECURE === 'true',
     frontendOrigin: frontendOrigin || 'http://localhost:5173',
     anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() ?? '',
     anthropicModel: process.env.ANTHROPIC_MODEL?.trim() || 'claude-opus-5',

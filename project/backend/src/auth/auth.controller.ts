@@ -12,9 +12,9 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
-import { Request, Response } from 'express';
+import { CookieOptions, Request, Response } from 'express';
 import { AppConfig } from '../config/env';
-import { AuthService } from './auth.service';
+import { AuthService, PENDING_REG_TTL_MS } from './auth.service';
 import { PasswordResetService } from './password-reset.service';
 import { EmailVerificationService } from './email-verification.service';
 import { SessionCookieService } from './session-cookie.service';
@@ -28,10 +28,16 @@ import { ResendVerificationDto, VerifyEmailDto } from './dto/email-verification.
 import { AuthPrincipal, AuthUserView, toAuthUserView } from './auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
 
+/** Cookie carrying the raw pending-registration token (see AuthService.register). */
+export const PENDING_REG_COOKIE = 'tvz_pending_reg';
+
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
   private readonly frontendOrigin: string;
+  /** Narrowly scoped to the auth routes — it is never needed anywhere else,
+   *  and `secure` comes from the same config flag as the session cookie. */
+  private readonly pendingRegCookieOptions: CookieOptions;
 
   constructor(
     private readonly auth: AuthService,
@@ -43,12 +49,31 @@ export class AuthController {
     config: ConfigService<AppConfig, true>,
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
+    this.pendingRegCookieOptions = {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: config.get('sessionCookieSecure', { infer: true }),
+      path: '/api/v1/auth',
+      maxAge: PENDING_REG_TTL_MS,
+    };
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('register')
-  async register(@Body() dto: RegisterDto): Promise<{ user: AuthUserView }> {
-    const user = await this.auth.register(dto);
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ user: AuthUserView }> {
+    const submittedToken = req.cookies?.[PENDING_REG_COOKIE] as string | undefined;
+    const { user, pendingRegToken, didMutate } = await this.auth.register(dto, submittedToken);
+
+    // Proof-of-same-browser for a later resubmit of this same (still
+    // unverified) email — see AuthService.register. Always set, on every
+    // branch, so nothing about the response distinguishes "your pending
+    // signup" from "someone else's".
+    res.cookie(PENDING_REG_COOKIE, pendingRegToken, this.pendingRegCookieOptions);
+
     // No session yet — same gate as login's EMAIL_NOT_VERIFIED check: an
     // account isn't usable until its email is verified, so registering must
     // not itself grant a cookie. The caller logs in (re-using the password it
@@ -58,14 +83,19 @@ export class AuthController {
     // actively watching complete — the "Resend code" button on the
     // verification screen is the real recovery path for that case, so a
     // logged failure here (not surfaced) is the correct amount of handling.
-    this.emailVerification
-      .sendCode(user.id)
-      .catch((err) =>
-        this.logger.error(
-          'Initial verification-code send failed',
-          err instanceof Error ? err.stack : err,
-        ),
-      );
+    //
+    // Skipped entirely when nothing was written: a probe against a stranger's
+    // pending signup must not be usable to spam that stranger's inbox.
+    if (didMutate) {
+      this.emailVerification
+        .sendCode(user.id)
+        .catch((err) =>
+          this.logger.error(
+            'Initial verification-code send failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
     return { user };
   }
 

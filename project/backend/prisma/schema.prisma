@@ -33,6 +33,15 @@ model User {
   // column, so the new login-time gate never locks out pre-existing accounts.
   emailVerifiedAt   DateTime?  @map("email_verified_at")
 
+  // Binds "may overwrite this still-unverified signup" to the browser that
+  // created it. `POST /auth/register` issues an opaque token (SHA-256 stored
+  // here, raw value in the short-lived `tvz_pending_reg` cookie); a resubmit
+  // for the same unverified email only updates the row when it presents the
+  // matching, unexpired token. Without this, anyone knowing a pending
+  // signup's email could overwrite its password before verification.
+  pendingRegTokenHash String?   @map("pending_reg_token_hash")
+  pendingRegExpiresAt DateTime? @map("pending_reg_expires_at")
+
   // TOTP (RFC 6238) two-factor. `totpSecret` is set at setup time but 2FA only
   // enforces once `totpEnabledAt` is non-null (i.e. a code was verified).
   totpSecret    String?   @map("totp_secret")

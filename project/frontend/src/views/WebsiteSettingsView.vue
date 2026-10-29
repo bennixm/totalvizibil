@@ -57,6 +57,10 @@ const money = useMoney()
 const companyId = ref<string | null>(null)
 const loading = ref(true)
 const website = ref<DashboardPayload['website'] | null>(null)
+/** The overview fetch FAILED, as opposed to legitimately reporting that this
+ *  business has no website yet — the old `catch { website = null }` rendered
+ *  both as the same "you have no website" empty state. */
+const websiteError = ref(false)
 
 const isAdvanced = computed(() => !!website.value && 'mode' in website.value && website.value.mode === 'advanced')
 const hasWebsite = computed(() => !!website.value && website.value.status !== 'none')
@@ -70,16 +74,22 @@ const editorRoute = computed(() =>
 // --- files -----------------------------------------------------------
 const files = ref<FilesListing | null>(null)
 const filesLoading = ref(false)
+/** The listing FAILED (transient error, or a role that can't read it) — kept
+ *  distinct from a genuinely empty file list, which the old
+ *  `catch { files = null }` was indistinguishable from. */
+const filesError = ref(false)
 const activeTab = ref<'source' | 'dist'>('source')
 const activeList = computed(() => (activeTab.value === 'source' ? files.value?.source : files.value?.dist) ?? [])
 
 async function loadFiles(): Promise<void> {
   if (!companyId.value || !isAdvanced.value) return
   filesLoading.value = true
+  filesError.value = false
   try {
     files.value = await apiFetch<FilesListing>(`/companies/${companyId.value}/pro-v2/files`)
   } catch {
     files.value = null
+    filesError.value = true
   } finally {
     filesLoading.value = false
   }
@@ -100,9 +110,14 @@ const checking = ref(false)
 const purchasing = ref(false)
 const checkResult = ref<DomainCheck | null>(null)
 
-const DOMAIN_KNOWN_ERR = ['insufficient_credits', 'domain_not_available', 'domain_already_registered']
+const DOMAIN_KNOWN_ERR = [
+  'insufficient_credits',
+  'domain_not_available',
+  'domain_already_registered',
+  'not_your_company',
+]
 function domainErrText(code: string): string {
-  return DOMAIN_KNOWN_ERR.includes(code) ? t('websiteSettings.domainErr.' + code) : code
+  return DOMAIN_KNOWN_ERR.includes(code) ? t('websiteSettings.domainErr.' + code) : t('websiteSettings.domainErr.generic')
 }
 /** The one domain-purchase error that needs action, not just an
  *  acknowledgement — same persistent, actionable toast as the AI editor's
@@ -174,40 +189,30 @@ async function purchaseDomain(): Promise<void> {
 }
 
 // --- appointments ------------------------------------------------------
-// The feature is strictly opt-in and its own page (and the sidebar link to
-// it) only appear once this is on — so the toggle has to live somewhere
-// that's always reachable, which is here.
-const savingAppointments = ref(false)
-async function toggleAppointments(v: boolean | null): Promise<void> {
-  if (!companyId.value) return
-  savingAppointments.value = true
-  try {
-    await apiFetch(`/companies/${companyId.value}/appointments/settings`, {
-      method: 'PUT',
-      body: { enabled: !!v },
-    })
-    await companies.fetchOverview(true)
-    toasts.success(v ? t('websiteSettings.appointmentsOn') : t('websiteSettings.appointmentsOff'))
-  } catch (err) {
-    toasts.error(err instanceof Error ? err.message : 'error')
-  } finally {
-    savingAppointments.value = false
-  }
-}
+// Toggling is disabled: no site generator produces a public booking section
+// yet, so turning this on would promise a feature the live site can't
+// deliver. The panel's own appointments management (schedule, requests)
+// still works independently of this toggle.
 
 async function loadFor(id: string): Promise<void> {
   companyId.value = id
   companies.select(id)
   loading.value = true
+  websiteError.value = false
   try {
     const dash = await companies.fetchDashboard(id)
     website.value = dash.website
   } catch {
     website.value = null
+    websiteError.value = true
   } finally {
     loading.value = false
   }
   await Promise.all([loadFiles(), loadDomains()])
+}
+
+async function retryLoad(): Promise<void> {
+  if (companyId.value) await loadFor(companyId.value)
 }
 
 onMounted(async () => {
@@ -231,6 +236,17 @@ onMounted(async () => {
     <div v-if="loading" class="ws__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
+
+    <!-- A failed overview fetch is NOT "you have no website yet". -->
+    <template v-else-if="websiteError">
+      <div class="ws__empty">
+        <v-icon icon="mdi-alert-circle-outline" size="30" color="error" />
+        <p>{{ t('websiteSettings.loadError') }}</p>
+        <v-btn color="primary" variant="tonal" size="small" prepend-icon="mdi-refresh" @click="retryLoad">
+          {{ t('common.retry') }}
+        </v-btn>
+      </div>
+    </template>
 
     <template v-else-if="!hasWebsite">
       <div class="ws__empty">
@@ -278,6 +294,14 @@ onMounted(async () => {
         <div v-if="filesLoading" class="ws__center ws__center--sm">
           <v-progress-circular indeterminate color="primary" size="22" />
         </div>
+        <!-- A failed listing is NOT "you have no files". -->
+        <div v-else-if="filesError" class="ws__filesError">
+          <v-icon icon="mdi-alert-circle-outline" size="18" />
+          <span>{{ t('websiteSettings.filesLoadError') }}</span>
+          <v-btn variant="tonal" color="primary" size="x-small" prepend-icon="mdi-refresh" @click="loadFiles">
+            {{ t('common.retry') }}
+          </v-btn>
+        </div>
         <template v-else>
           <p v-if="activeTab === 'dist' && !files?.dist" class="ws__hint">
             {{ t('websiteSettings.distNone') }}
@@ -320,17 +344,33 @@ onMounted(async () => {
         </template>
       </section>
 
-      <!-- Custom domain -->
+      <!-- Custom domain — the registrar integration is a manual/beta dev
+           stub (see domains.service.ts's doc comment): a purchase charges
+           the wallet and records the intent, but no DNS is actually
+           configured automatically yet. Said plainly here rather than
+           implying an automated activation that never comes. -->
       <section class="card ws__section">
         <h2>{{ t('websiteSettings.domainTitle') }}</h2>
         <p class="ws__hint">{{ t('websiteSettings.domainHint') }}</p>
+        <p class="ws__hint ws__hint--muted">
+          <v-icon icon="mdi-information-outline" size="13" />
+          {{ t('websiteSettings.domainManualNote') }}
+        </p>
 
         <ul v-if="domains.length" class="ws__domainList">
           <li v-for="d in domains" :key="d.id" class="ws__domainRow">
-            <span class="ws__domainName">{{ d.domain }}</span>
-            <span class="chip" :class="`chip--${d.status === 'active' ? 'success' : d.status === 'failed' ? 'error' : 'warning'}`">
-              {{ t(`websiteSettings.domainStatus.${d.status}`) }}
-            </span>
+            <div class="ws__domainRowMain">
+              <span class="ws__domainName">{{ d.domain }}</span>
+              <span class="chip" :class="`chip--${d.status === 'active' ? 'success' : d.status === 'failed' ? 'error' : 'warning'}`">
+                {{ t(`websiteSettings.domainStatus.${d.status}`) }}
+              </span>
+            </div>
+            <p v-if="d.status === 'pending'" class="ws__domainNote">
+              {{ d.dnsConfigured ? t('websiteSettings.domainDnsOk') : t('websiteSettings.domainPendingNote') }}
+            </p>
+            <p v-else-if="d.status === 'failed'" class="ws__domainNote ws__domainNote--error">
+              {{ t('websiteSettings.domainFailedNote') }}
+            </p>
           </li>
         </ul>
 
@@ -381,19 +421,21 @@ onMounted(async () => {
         </div>
       </section>
 
-      <!-- Appointments — opt-in, so the toggle lives here (always reachable)
-           even though the feature's own page only shows once it's on. -->
+      <!-- Appointments — the public booking widget has no generator support
+           yet (no site produces an actual booking section), so the toggle
+           is disabled rather than promising a feature the live site can't
+           deliver. Re-enable once a builder can emit a real booking section. -->
       <section class="card ws__section">
         <h2>{{ t('websiteSettings.appointmentsTitle') }}</h2>
         <p class="ws__hint">{{ t('websiteSettings.appointmentsHint') }}</p>
+        <p class="ws__hint ws__hint--muted">{{ t('websiteSettings.appointmentsUnavailable') }}</p>
         <v-switch
           :model-value="companies.currentOverview?.appointmentsEnabled ?? false"
           :label="t('appointments.enableToggle')"
           color="primary"
           density="comfortable"
           hide-details
-          :loading="savingAppointments"
-          @update:model-value="toggleAppointments"
+          disabled
         />
         <router-link
           v-if="companies.currentOverview?.appointmentsEnabled"
@@ -511,6 +553,20 @@ onMounted(async () => {
   font-size: 0.82rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
+.ws__hint--muted {
+  font-style: italic;
+}
+.ws__filesError {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--tvz-radius-md);
+  background: rgba(var(--v-theme-error), 0.1);
+  color: rgb(var(--v-theme-error));
+  font-size: 0.82rem;
+}
 .ws__apptLink {
   display: inline-flex;
   align-items: center;
@@ -568,19 +624,29 @@ onMounted(async () => {
   padding: 0;
 }
 .ws__domainRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
   padding: 0.55rem 0;
   border-top: 1px solid var(--tvz-hairline);
 }
 .ws__domainRow:first-child {
   border-top: none;
 }
+.ws__domainRowMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
 .ws__domainName {
   font-weight: 600;
   font-size: 0.88rem;
+}
+.ws__domainNote {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.ws__domainNote--error {
+  color: rgb(var(--v-theme-error));
 }
 .chip {
   font-size: 0.64rem;

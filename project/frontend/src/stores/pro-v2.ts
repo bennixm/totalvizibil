@@ -41,6 +41,56 @@ export interface ProV2Message {
   toolCalls?: ProV2Step[] | null
   usage?: ProV2Usage
   createdAt?: string
+  /** Set by the backend on an automatic sandbox repair report so it can be
+   *  told apart from something the owner actually typed. Optional: older rows
+   *  (and any build where the backend hasn't shipped the column yet) don't
+   *  carry it, which is what the content-prefix fallback below is for. */
+  kind?: string | null
+  /** Alternative spellings the backend may land on for the same flag — read
+   *  defensively so this works either way. */
+  isRepair?: boolean
+  repair?: boolean
+}
+
+/** The literal first line the backend prefixes every automatic repair report
+ *  with (`ProV2AgentService.REPAIR_MARKER`). Matched on the stable leading
+ *  portion only, so the em-dash/wording in the rest of that line can change
+ *  without silently breaking the detection. */
+export const REPAIR_MARKER_PREFIX = '[WebContainer error'
+
+/**
+ * Is this persisted message an automatic sandbox repair report rather than
+ * something the user wrote? These are stored with `role: 'user'` (they go
+ * through the same agent turn), so without this they render as chat bubbles
+ * full of raw Vite/npm stack traces that look like the owner typed them.
+ */
+export function isRepairReport(m: ProV2Message): boolean {
+  if (m.kind === 'repair' || m.isRepair === true || m.repair === true) return true
+  return m.role === 'user' && m.content.trimStart().startsWith(REPAIR_MARKER_PREFIX)
+}
+
+/** Best-effort reconstruction of a repair-log entry from a persisted report,
+ *  so reloading the builder still shows past repairs in the compact log
+ *  instead of losing them (or dumping them into the chat). */
+function repairEntryFromMessage(m: ProV2Message, fixedByReply: boolean): RepairLogEntry {
+  const text = m.content
+  const kind: ExecutionError['kind'] = /npm install failed/i.test(text)
+    ? 'install'
+    : /runtime error/i.test(text)
+      ? 'runtime'
+      : 'build'
+  const path = /^Likely affected file:\s*(.+)$/m.exec(text)?.[1]?.trim()
+  const afterError = text.split(/^Error:$/m)[1]
+  const errorSummary = (afterError ?? text)
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)[0]
+  return {
+    kind,
+    errorSummary: errorSummary ?? text.slice(0, 200),
+    path,
+    status: fixedByReply ? 'fixed' : 'failed',
+  }
 }
 
 interface ViewResponse {
@@ -125,6 +175,42 @@ export const useProV2Store = defineStore('pro-v2', {
   getters: {
     activeFile(state): ProjectFile | null {
       return state.files.find((f) => f.path === state.activeFilePath) ?? state.files[0] ?? null
+    },
+
+    /** What the chat feed should render: everything EXCEPT the automatic
+     *  repair reports (and the assistant replies that answer them, which are
+     *  pure "I fixed the import" noise out of conversational context). */
+    chatMessages(state): ProV2Message[] {
+      const out: ProV2Message[] = []
+      for (let i = 0; i < state.messages.length; i++) {
+        const m = state.messages[i]
+        if (isRepairReport(m)) {
+          // Skip its assistant reply too — it belongs to the repair entry.
+          if (state.messages[i + 1]?.role === 'assistant') i++
+          continue
+        }
+        out.push(m)
+      }
+      return out
+    },
+
+    /** Repairs recovered from persisted history (previous sessions), so a
+     *  reload keeps them in the compact repair log. */
+    repairHistory(state): RepairLogEntry[] {
+      const out: RepairLogEntry[] = []
+      state.messages.forEach((m, i) => {
+        if (!isRepairReport(m)) return
+        const reply = state.messages[i + 1]
+        const fixed = reply?.role === 'assistant'
+        const entry = repairEntryFromMessage(m, fixed)
+        out.push(fixed ? { ...entry, fixSummary: reply.content } : entry)
+      })
+      return out
+    },
+
+    /** History + this session's live repairs, in chronological order. */
+    allRepairs(): RepairLogEntry[] {
+      return [...this.repairHistory, ...this.repairLog]
     },
   },
 

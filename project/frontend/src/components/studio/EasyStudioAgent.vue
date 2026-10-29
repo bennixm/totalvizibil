@@ -4,8 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
 import AiAvatar from '@/components/studio/AiAvatar.vue'
-import { useWebsiteDraftStore } from '@/stores/websiteDraft'
+import { EASY_AI_CALL_CAP, useWebsiteDraftStore } from '@/stores/websiteDraft'
 import { useEasySiteStore } from '@/stores/easySite'
+import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import type {
   DraftIssue,
@@ -34,6 +35,7 @@ const store = (
   props.standalone ? useEasySiteStore() : useWebsiteDraftStore()
 ) as unknown as ReturnType<typeof useWebsiteDraftStore>
 const { draft, sending, error } = storeToRefs(store)
+const confirm = useConfirmStore()
 
 const STEPS: EasyStep[] = [
   'template',
@@ -47,7 +49,11 @@ const STEPS: EasyStep[] = [
 ]
 const TEMPLATES: EasyTemplate[] = ['classic', 'bold', 'minimal']
 const PRESETS = ['#4f46e5', '#0ea5e9', '#059669', '#d97706', '#e11d48', '#7c3aed', '#0f172a']
-const MAX_UPLOAD = 4.5 * 1024 * 1024
+/** EXACTLY the backend's own decoded-byte cap (`MAX_ASSET_BYTES` in
+ *  `website-asset.service.ts` / `website-draft.service.ts`, both 4_500_000).
+ *  This used to be 4.5 MiB (4_718_592) — a ~218 KB band of files that passed
+ *  the client check and then failed server-side with a generic error. */
+const MAX_UPLOAD = 4_500_000
 const MAX_PORTFOLIO = 10
 const MAX_WHYUS = 6
 const MAX_TESTI = 8
@@ -67,12 +73,16 @@ const stepLabel = computed(() => t(`studio.step.${step.value}`))
 const errorText = computed(() => {
   if (error.value === 'banned_content') return t('studio.bannedContent')
   if (error.value === 'rate_limited') return t('studio.rateLimited')
+  if (error.value === 'unreachable') return t('studio.connectionError')
   return t('studio.loadError')
 })
 
 const toasts = useToastStore()
 watch(error, (v) => {
-  if (v) toasts.error(errorText.value)
+  // In `standalone` (claimed-site editor) mode the host view owns error
+  // reporting with its own, correct copy — see `EasySiteEditorView`. Toasting
+  // here too would double up and use the setup flow's wording.
+  if (v && !props.standalone) toasts.error(errorText.value)
 })
 
 // --- template picker -------------------------------------------------
@@ -97,11 +107,24 @@ function showAv(i: number): boolean {
 // auto-applies grammar fixes on the server; the rest is shown here to fix.
 const reviewing = ref(false)
 const reviewIssues = ref<DraftIssue[] | null>(null)
+/** Set when the review request itself failed. An empty `reviewIssues` used to
+ *  cover BOTH "reviewed, nothing wrong" and "the review never ran", so a
+ *  network error / 429 / timeout rendered as a green all-clear and the owner
+ *  could publish unchecked text believing it had been verified. */
+const reviewFailed = ref('')
 async function runReview(): Promise<void> {
   if (reviewing.value) return
   reviewing.value = true
+  reviewFailed.value = ''
   try {
-    reviewIssues.value = await store.reviewDraft()
+    const res = await store.reviewDraft()
+    if (res.ok) {
+      reviewIssues.value = res.issues
+    } else {
+      reviewIssues.value = null
+      reviewFailed.value =
+        res.code === 'rate_limited' ? t('studio.rateLimited') : t('studio.reviewFailed')
+    }
   } finally {
     reviewing.value = false
   }
@@ -143,9 +166,15 @@ watch(
 )
 let colorTimer: ReturnType<typeof setTimeout> | undefined
 function pickColor(hex: string): void {
+  // The last SERVER-CONFIRMED value, so a rejected save visibly reverts
+  // instead of leaving the swatch showing a colour the server refused.
+  const prev = easy.value?.accentColor || PRESETS[0]
   color.value = hex
   clearTimeout(colorTimer)
-  colorTimer = setTimeout(() => void store.patchEasy({ accentColor: hex }), 110)
+  colorTimer = setTimeout(async () => {
+    const ok = await store.patchEasy({ accentColor: hex })
+    if (!ok && color.value === hex) color.value = prev
+  }, 110)
 }
 
 // --- image upload --------------------------------------------------
@@ -211,12 +240,20 @@ watch(
   },
 )
 let titleTimer: ReturnType<typeof setTimeout> | undefined
+async function pushTitle(): Promise<void> {
+  const prev = easy.value?.landingTitle ?? ''
+  const attempted = landingTitle.value
+  const ok = await store.patchEasy({ landingTitle: attempted })
+  // Only revert if the owner hasn't typed something newer meanwhile —
+  // yanking text out from under a live cursor would be worse than the bug.
+  if (!ok && landingTitle.value === attempted) landingTitle.value = prev
+}
 function onTitleInput(): void {
   clearTimeout(titleTimer)
-  titleTimer = setTimeout(() => void store.patchEasy({ landingTitle: landingTitle.value }), 250)
+  titleTimer = setTimeout(() => void pushTitle(), 250)
 }
 function onTitleBlur(): void {
-  void store.patchEasy({ landingTitle: landingTitle.value })
+  void pushTitle()
 }
 
 // --- services (reorder + inline description edit) -----------------
@@ -253,6 +290,25 @@ function saveDesc(i: number): void {
 function regenServices(): void {
   const names = (easy.value?.serviceNames ?? []).filter(Boolean)
   if (names.length) void store.regenerateServices(names)
+}
+/** The backend caps AI service-copy calls per draft/site and then silently
+ *  serves deterministic template copy instead — still a 200, still a changed
+ *  result, with nothing in the response to hint at the downgrade. Tell the
+ *  owner rather than letting them keep clicking for AI they no longer get. */
+const aiCallsUsed = computed(() => easy.value?.aiCalls ?? 0)
+const aiCapReached = computed(() => aiCallsUsed.value >= EASY_AI_CALL_CAP)
+
+// --- restart (destructive) -----------------------------------------
+const restarting = computed(() => store.restarting)
+function askRestart(): void {
+  if (restarting.value) return
+  confirm.ask(t('studio.restartConfirmTitle'), t('studio.restartConfirmText'), async () => {
+    // The store only swaps the local draft reference over once the NEW draft
+    // exists — a failed create (e.g. the 6-per-hour throttle) leaves the
+    // current draft exactly where it was instead of orphaning it.
+    const ok = await store.restart()
+    if (!ok) toasts.error(errorText.value)
+  }, { confirmLabel: t('studio.restart') })
 }
 
 // --- contact ---------------------------------------------------
@@ -300,12 +356,14 @@ watch(
   },
   { immediate: true, deep: true },
 )
-function patchStats(): void {
-  void store.patchEasy({
+async function patchStats(): Promise<void> {
+  const prev = (easy.value?.stats ?? []).map((x) => ({ ...x }))
+  const ok = await store.patchEasy({
     stats: stats.value
       .map((x) => ({ value: x.value.trim(), label: x.label.trim() }))
       .filter((x) => x.value && x.label),
   })
+  if (!ok) stats.value = prev
 }
 function addStat(): void {
   if (stats.value.length < MAX_STATS) stats.value.push({ value: '', label: '' })
@@ -326,12 +384,14 @@ watch(
   },
   { immediate: true, deep: true },
 )
-function patchProcess(): void {
-  void store.patchEasy({
+async function patchProcess(): Promise<void> {
+  const prev = (easy.value?.process ?? []).map((x) => ({ title: x.title, text: x.text ?? '' }))
+  const ok = await store.patchEasy({
     process: processSteps.value
       .map((x) => ({ title: x.title.trim(), text: (x.text ?? '').trim() }))
       .filter((x) => x.title),
   })
+  if (!ok) processSteps.value = prev
 }
 function addStep(): void {
   if (processSteps.value.length < MAX_PROCESS) processSteps.value.push({ title: '', text: '' })
@@ -365,8 +425,10 @@ watch(
   },
   { immediate: true },
 )
-function patchWhy(): void {
-  void store.patchEasy({ whyUs: whyUs.value.map((s) => s.trim()).filter(Boolean) })
+async function patchWhy(): Promise<void> {
+  const prev = [...(easy.value?.whyUs ?? [])]
+  const ok = await store.patchEasy({ whyUs: whyUs.value.map((s) => s.trim()).filter(Boolean) })
+  if (!ok) whyUs.value = prev
 }
 function addWhy(): void {
   if (whyUs.value.length < MAX_WHYUS) whyUs.value.push('')
@@ -390,12 +452,14 @@ watch(
   },
   { immediate: true, deep: true },
 )
-function patchTesti(): void {
-  void store.patchEasy({
+async function patchTesti(): Promise<void> {
+  const prev = (easy.value?.testimonials ?? []).map((x) => ({ ...x }))
+  const ok = await store.patchEasy({
     testimonials: testimonials.value
       .map((x) => ({ quote: x.quote.trim(), author: (x.author ?? '').trim() }))
       .filter((x) => x.quote),
   })
+  if (!ok) testimonials.value = prev
 }
 function addTesti(): void {
   if (testimonials.value.length < MAX_TESTI) testimonials.value.push({ quote: '', author: '' })
@@ -740,6 +804,11 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
                 {{ t('studio.continue') }} <v-icon icon="mdi-arrow-right" size="16" />
               </button>
             </div>
+            <!-- The button still works past the cap, it just stops using AI —
+                 so inform rather than disable. -->
+            <p v-if="aiCapReached" class="minihint">
+              <v-icon icon="mdi-information-outline" size="13" /> {{ t('studio.regenAiCapped') }}
+            </p>
           </template>
           <p v-else class="hint">
             <v-icon icon="mdi-lightbulb-on-outline" size="15" /> {{ t('studio.servicesEmpty') }}
@@ -944,6 +1013,9 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
             <button class="ghost" type="button" :disabled="sending" @click="regenServices">
               <v-icon icon="mdi-refresh" size="14" /> {{ t('studio.servicesRegen') }}
             </button>
+            <p v-if="aiCapReached" class="minihint">
+              <v-icon icon="mdi-information-outline" size="13" /> {{ t('studio.regenAiCapped') }}
+            </p>
           </div>
 
           <!-- Process -->
@@ -1219,6 +1291,10 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
             <v-icon v-else icon="mdi-shield-check-outline" size="15" />
             {{ reviewing ? t('studio.reviewRunning') : t('studio.reviewCta') }}
           </button>
+          <!-- A failed review is NEVER shown as a green all-clear. -->
+          <p v-if="reviewFailed" class="rev__fail">
+            <v-icon icon="mdi-alert-circle-outline" size="14" /> {{ reviewFailed }}
+          </p>
           <template v-if="reviewIssues">
             <p v-if="!reviewIssues.length" class="rev__ok">
               <v-icon icon="mdi-check-circle-outline" size="14" /> {{ t('studio.reviewClean') }}
@@ -1242,8 +1318,10 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
           <v-btn color="primary" size="small" append-icon="mdi-arrow-right" :to="{ name: 'create-location' }">
             {{ t('studio.continueLocation') }}
           </v-btn>
-          <button class="restart" type="button" @click="store.restart()">
-            <v-icon icon="mdi-restart" size="14" /> {{ t('studio.restart') }}
+          <button class="restart" type="button" :disabled="restarting" @click="askRestart">
+            <v-progress-circular v-if="restarting" indeterminate size="13" width="2" />
+            <v-icon v-else icon="mdi-restart" size="14" />
+            {{ t('studio.restart') }}
           </button>
         </div>
       </div>
@@ -2011,6 +2089,14 @@ textarea.fld {
   font-size: 0.8rem;
   color: rgb(var(--v-theme-success));
 }
+.rev__fail {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgb(var(--v-theme-error));
+}
 .rev__list {
   list-style: none;
   margin: 0;
@@ -2199,6 +2285,10 @@ textarea.fld {
 }
 .restart:hover {
   color: rgba(var(--v-theme-on-surface), 0.8);
+}
+.restart:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* ---- stacked (phone / narrow) ---- */

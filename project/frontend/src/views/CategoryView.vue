@@ -24,7 +24,37 @@ const ready = ref(false)
 const saving = ref(false)
 const saved = ref(false)
 const error = ref('')
-watch(error, (v) => { if (v) toasts.error(v) })
+
+/**
+ * Backend error → localized copy, mirroring CampaignView's own `errText`.
+ * Recognised codes (plus the backend's raw English sentences for the
+ * role/not-found guards, which aren't code-shaped) get their own line;
+ * anything unrecognised falls back to one generic sentence instead of
+ * toasting the raw server string verbatim. Shares the `location.err.*` keys
+ * with LocationView — this page already reuses that namespace for the rest
+ * of its copy.
+ */
+const ERROR_KEYS: Record<string, string> = {
+  company_pending_deletion: 'company_pending_deletion',
+  forbidden: 'forbidden',
+  'Your role cannot edit this company': 'forbidden',
+  not_found: 'not_found',
+  'Company not found': 'not_found',
+  unknown_category: 'unknown_category',
+  'Unknown category': 'unknown_category',
+}
+function errText(raw: string): string {
+  const key = ERROR_KEYS[raw]
+  return key ? t('location.err.' + key) : t('location.err.generic')
+}
+watch(error, (v) => { if (v) toasts.error(errText(v)) })
+
+// A business pending deletion is fully frozen server-side — saving here can
+// only throw `company_pending_deletion`, so say so and disable the form, the
+// way the dashboard and the campaign/budget page already do.
+const pendingDeletion = computed(
+  () => !!companies.list.find((c) => c.id === companyId.value)?.deletionScheduledAt,
+)
 
 const catTree = ref<CategoryGroup[]>([])
 const groupSlug = ref<string | null>(null)
@@ -59,7 +89,7 @@ function preselect(slugs: string[]): void {
   }
 }
 
-const canSave = computed(() => leafSlugs.value.length > 0)
+const canSave = computed(() => leafSlugs.value.length > 0 && !pendingDeletion.value)
 
 async function save(): Promise<void> {
   if (!canSave.value || saving.value || !companyId.value) return
@@ -125,6 +155,23 @@ watch(
     </div>
 
     <template v-else>
+      <div v-if="pendingDeletion" class="cat__frozen">
+        <v-icon icon="mdi-delete-clock-outline" size="18" />
+        <div>
+          <strong>{{ t('location.deletionPendingTitle') }}</strong>
+          <p>{{ t('location.deletionPendingNote') }}</p>
+        </div>
+        <v-btn
+          size="small"
+          variant="flat"
+          color="primary"
+          append-icon="mdi-arrow-right"
+          :to="{ name: 'dashboard', query: { c: companyId } }"
+        >
+          {{ t('location.deletionPendingCta') }}
+        </v-btn>
+      </div>
+
       <div class="cat__fields">
         <v-select
           v-model="groupSlug"
@@ -134,13 +181,14 @@ watch(
           variant="outlined"
           density="comfortable"
           hide-details
+          :disabled="pendingDeletion"
           @update:model-value="onGroupChange"
         />
         <v-select
           :model-value="leafSlugs"
           :items="leafItems"
           :label="t('location.categoryLeafLabel')"
-          :disabled="!groupSlug"
+          :disabled="!groupSlug || pendingDeletion"
           :placeholder="groupSlug ? '' : t('location.categoryLeafEmpty')"
           variant="outlined"
           density="comfortable"
@@ -195,6 +243,33 @@ watch(
   display: grid;
   place-items: center;
   min-height: 200px;
+}
+/* Same shape as CampaignView's own frozen/pending-deletion notice. */
+.cat__frozen {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--tvz-radius-md);
+  margin-bottom: 1.25rem;
+  background: rgba(var(--v-theme-error), 0.08);
+  border: 1px solid rgba(var(--v-theme-error), 0.4);
+}
+.cat__frozen > .v-icon {
+  color: rgb(var(--v-theme-error));
+  flex: none;
+}
+.cat__frozen > div {
+  flex: 1;
+  min-width: 0;
+}
+.cat__frozen strong {
+  font-size: 0.9rem;
+}
+.cat__frozen p {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .cat__fields {
   display: grid;

@@ -633,7 +633,16 @@ export class WebsiteDraftService {
     return toDraftView(updated);
   }
 
-  /** Resolve a draft by its opaque token alone (used by the account claim step). */
+  /**
+   * Resolve a draft by its opaque token alone. ONLY the account-claim step
+   * (`CompaniesService.createFromDraft`) may use this: it is the one caller
+   * that legitimately needs to see an already-`claimed` row, because it keys
+   * its idempotent-retry branch off `status === 'claimed' || claimedCompanyId`
+   * and would dead-end the create flow if a claimed draft were hidden from it.
+   *
+   * Everything else must go through `load()`, which rejects claimed drafts —
+   * see the comment there.
+   */
   async loadByToken(token: string) {
     if (!token) throw new NotFoundException('Draft not found');
     const draft = await this.prisma.websiteDraft.findUnique({
@@ -660,9 +669,37 @@ export class WebsiteDraftService {
     });
   }
 
+  /**
+   * The single token-resolution path behind EVERY anonymous draft endpoint —
+   * `get`, `sendMessage`, `advanceStep`, `patchEasy`, `regenerateServices`,
+   * `reviewDraft`, `addAsset` and `setLocation` all enter through here (and
+   * `website-draft.controller.ts` exposes nothing else), so the checks below
+   * cover all of them without per-call-site changes.
+   *
+   * A CLAIMED draft is treated as if it did not exist. The draft token is an
+   * anonymous, pre-signup bearer credential: no session, no account. Once the
+   * draft has been turned into a real company it must stop being a usable
+   * credential, otherwise anyone who picked the token up during the anonymous
+   * phase (a referrer leak, a shared screenshot, synced browser history, a
+   * proxy log) keeps full read/write on the row for the rest of its 7-day
+   * TTL. The concrete abuse that buys: `addAsset` keeps minting
+   * `WebsiteAsset` rows scoped to `draftId` with no `companyId`, which the
+   * per-company 60-asset cap therefore never counts, while they stay publicly
+   * servable from `/api/v1/website-assets/:id` — free, uncapped image hosting
+   * on our own domain. (The live site is unaffected; it renders from the
+   * `Website`/`CompanyContact` rows created at claim time, never from the
+   * draft.)
+   *
+   * Deliberately the SAME `NotFoundException('Draft not found')` the missing
+   * -token branch throws, not a distinct "already claimed" error: a different
+   * response would confirm to a token holder that their token was once valid.
+   */
   private async load(id: string, token: string) {
     const draft = await this.loadByToken(token);
     if (draft.id !== id) throw new NotFoundException('Draft not found');
+    if (draft.status === 'claimed' || draft.claimedCompanyId) {
+      throw new NotFoundException('Draft not found');
+    }
     return draft;
   }
 }

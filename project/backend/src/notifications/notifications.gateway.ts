@@ -46,6 +46,24 @@ function readCookie(header: string | undefined, name: string): string | null {
  * cookie as the REST API (see AuthGuard) — no separate token scheme. Each
  * socket joins a room named after its userId, so `pushToUser`/`broadcast`
  * reach every open tab/device for that user without tracking sockets by hand.
+ *
+ * ORIGIN POLICY. `cors.origin: true` here reflects whatever `Origin` the
+ * connecting browser sent, and `credentials: true` accepts the session cookie
+ * on that connection — on its own that is the exact opposite of the strict,
+ * single-origin, credentialed policy `main.ts` applies to every authenticated
+ * REST route (`strictCors`, built from the ConfigService-validated
+ * `frontendOrigin`). It is NOT left permissive: the real allowlist check runs
+ * in `handleConnection` below, against that same `frontendOrigin` value, and
+ * runs BEFORE any cookie/session resolution.
+ *
+ * The decorator's argument is a static object evaluated at module load, long
+ * before Nest's DI container exists, so the configured origin cannot be
+ * injected into it. Re-reading `FRONTEND_ORIGIN` from `process.env` here would
+ * work, but it would create a SECOND place that derives "the allowed origin"
+ * (with its own dev fallback and production fail-fast rules — see
+ * `config/env.ts`) and those two can silently drift apart. Keeping the
+ * decorator permissive and enforcing the single injected value inside the
+ * instance method keeps exactly one source of truth.
  */
 @WebSocketGateway({
   cors: { origin: true, credentials: true },
@@ -55,6 +73,9 @@ export class NotificationsGateway
 {
   private readonly logger = new Logger(NotificationsGateway.name);
   private readonly cookieName: string;
+  /** The one allowed `Origin` for a credentialed socket — the SAME
+   *  ConfigService value `main.ts` hands to `strictCors` for the REST API. */
+  private readonly frontendOrigin: string;
   /** Tracks every currently-connected socket's raw session token, so it can
    *  be re-resolved on a timer — see `revalidateSessions`. */
   private readonly tokenByClientId = new Map<string, string>();
@@ -71,6 +92,7 @@ export class NotificationsGateway
     config: ConfigService<AppConfig, true>,
   ) {
     this.cookieName = config.get('sessionCookieName', { infer: true });
+    this.frontendOrigin = config.get('frontendOrigin', { infer: true });
   }
 
   onModuleInit(): void {
@@ -78,7 +100,31 @@ export class NotificationsGateway
     setInterval(() => void this.revalidateSessions(), SESSION_REVALIDATE_INTERVAL_MS);
   }
 
+  /**
+   * Whether a handshake is allowed to proceed to session resolution at all.
+   * Exact string compare against the configured frontend origin — the same
+   * comparison the `cors` package does for the REST API, so the two layers
+   * can't disagree about what counts as "our frontend".
+   *
+   * A handshake with NO `Origin` header is rejected too. Every browser sends
+   * it on a WebSocket upgrade, so this only ever turns away non-browser
+   * clients — which have no business holding a browser session cookie, and
+   * for which omitting `Origin` would otherwise be a trivial way to skip the
+   * check entirely.
+   */
+  private originAllowed(client: Socket): boolean {
+    const origin = client.handshake.headers.origin;
+    return typeof origin === 'string' && origin === this.frontendOrigin;
+  }
+
   async handleConnection(client: Socket): Promise<void> {
+    // Deliberately BEFORE the cookie read / `sessions.resolve` call: a
+    // cross-origin connection attempt must never get as far as touching the
+    // victim's session, and must not cost a DB round-trip either.
+    if (!this.originAllowed(client)) {
+      client.disconnect(true);
+      return;
+    }
     const token = readCookie(client.handshake.headers.cookie, this.cookieName);
     const session = token ? await this.sessions.resolve(token) : null;
     if (!session || !token) {
@@ -106,6 +152,11 @@ export class NotificationsGateway
    * longer hold one (revoked, expired, or the user got suspended) — the only
    * thing that ever invalidated a session before this existed was the
    * one-time check at handshake.
+   *
+   * It never admits a connection: it only ever reads `tokenByClientId`, which
+   * `handleConnection` populates AFTER the origin check above, and only ever
+   * disconnects. So the origin allowlist needs no second enforcement point
+   * here — nothing can enter the registry without having passed it.
    *
    * Three things this deliberately does NOT do any more:
    *

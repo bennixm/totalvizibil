@@ -6,6 +6,7 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
+import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import TrendChart from '@/components/TrendChart.vue'
 import { useAdminFinanceStore, type ExpenseCategory } from '@/stores/adminFinance'
 
@@ -122,6 +123,14 @@ onMounted(() => finance.fetchOverview())
     <div v-if="finance.loadingOverview && !finance.overview" class="afd__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
+
+    <!-- The entire page is inside `v-else-if="finance.overview"`, so a failed
+         `/admin/finance/overview` left a blank page behind the spinner. -->
+    <AdminEmptyState
+      v-else-if="finance.overviewError"
+      icon="mdi-alert-circle-outline"
+      :text="finance.overviewError"
+    />
 
     <template v-else-if="finance.overview">
       <div class="afd__kpis">
@@ -325,6 +334,11 @@ onMounted(() => finance.fetchOverview())
             <div v-if="finance.loadingVoidedInvoices" class="afd__center">
               <v-progress-circular indeterminate color="primary" size="28" />
             </div>
+            <AdminEmptyState
+              v-else-if="finance.voidedInvoicesError"
+              icon="mdi-alert-circle-outline"
+              :text="finance.voidedInvoicesError"
+            />
             <p v-else-if="!finance.voidedInvoices.length" class="afd__muted">
               Nicio factură anulată în perioada selectată.
             </p>
@@ -367,6 +381,11 @@ onMounted(() => finance.fetchOverview())
             <div v-if="finance.loadingTopCompanies" class="afd__center">
               <v-progress-circular indeterminate color="primary" size="28" />
             </div>
+            <AdminEmptyState
+              v-else-if="finance.topCompaniesError"
+              icon="mdi-alert-circle-outline"
+              :text="finance.topCompaniesError"
+            />
             <p v-else-if="!finance.topCompanies.length" class="afd__muted">
               Nicio afacere nu a consumat buget CPC în perioada selectată.
             </p>

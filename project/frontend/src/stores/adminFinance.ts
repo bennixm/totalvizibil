@@ -1,6 +1,21 @@
 import { defineStore } from 'pinia'
 
-import { apiFetch, BASE_URL } from '@/services/api'
+import { apiFetch, ApiError, BASE_URL } from '@/services/api'
+
+/**
+ * Why every fetcher below has a `catch`: they used to be
+ * `try { … } finally { loading = false }` with no catch at all, so ANY
+ * backend failure — a 403 for the wrong staff role, a timeout, a 500 —
+ * resolved into an untouched empty list/null overview and rendered as a
+ * calm "no data" page with nothing to say something had gone wrong. Each
+ * call now records its own reason, which the views surface as an error
+ * empty-state (the shape `AdminUserDetailView`'s `loadError` already used).
+ */
+function errMsg(e: unknown): string {
+  if (e instanceof ApiError) return e.message
+  if (e instanceof Error) return e.message
+  return 'request failed'
+}
 
 export type ExpenseCategory =
   | 'hosting'
@@ -152,6 +167,14 @@ interface AdminFinanceState {
   loadingOverview: boolean
   period: PeriodFilter
 
+  /** Per-call failure reason, or null on success. See `errMsg` above. */
+  overviewError: string | null
+  revenueError: string | null
+  expensesError: string | null
+  aiUsageError: string | null
+  voidedInvoicesError: string | null
+  topCompaniesError: string | null
+
   revenue: RevenueRow[]
   revenueTotal: number
   /** Real-money net total of the WHOLE filtered period (not the page). */
@@ -206,6 +229,13 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     overview: null,
     loadingOverview: false,
     period: { from: null, to: null },
+
+    overviewError: null,
+    revenueError: null,
+    expensesError: null,
+    aiUsageError: null,
+    voidedInvoicesError: null,
+    topCompaniesError: null,
 
     revenue: [],
     revenueTotal: 0,
@@ -284,6 +314,11 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
         const res = await apiFetch<FinanceOverview>(`/admin/finance/overview${qs ? `?${qs}` : ''}`)
         if (seq !== this.overviewSeq) return
         this.overview = res
+        this.overviewError = null
+      } catch (e) {
+        // A superseded request's failure must not overwrite the state a
+        // still-in-flight newer one is about to fill.
+        if (seq === this.overviewSeq) this.overviewError = errMsg(e)
       } finally {
         if (seq === this.overviewSeq) this.loadingOverview = false
       }
@@ -331,6 +366,9 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
         this.revenueTotal = res.total
         this.revenuePeriodTotalMinor = res.periodTotalMinor
         this.revenuePeriodFaceTotalMinor = res.periodFaceTotalMinor
+        this.revenueError = null
+      } catch (e) {
+        if (seq === this.revenueSeq) this.revenueError = errMsg(e)
       } finally {
         if (seq === this.revenueSeq) this.loadingRevenue = false
       }
@@ -355,6 +393,9 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
         this.voidedInvoicesTotal = res.total
         this.voidedInvoicesSumMinor = res.voidedTotalMinor
         this.voidedInvoicesLoaded = true
+        this.voidedInvoicesError = null
+      } catch (e) {
+        this.voidedInvoicesError = errMsg(e)
       } finally {
         this.loadingVoidedInvoices = false
       }
@@ -379,6 +420,9 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
         this.topCompaniesTotal = res.total
         this.topCompaniesSpendMinor = res.totalSpendMinor
         this.topCompaniesLoaded = true
+        this.topCompaniesError = null
+      } catch (e) {
+        this.topCompaniesError = errMsg(e)
       } finally {
         this.loadingTopCompanies = false
       }
@@ -415,6 +459,9 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
         if (seq !== this.expensesSeq) return
         this.expenses = res.items
         this.expensesTotal = res.total
+        this.expensesError = null
+      } catch (e) {
+        if (seq === this.expensesSeq) this.expensesError = errMsg(e)
       } finally {
         if (seq === this.expensesSeq) this.loadingExpenses = false
       }
@@ -468,6 +515,9 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
         if (this.period.to) params.set('to', this.period.to)
         const qs = params.toString()
         this.aiUsage = await apiFetch<AiUsageReport>(`/admin/finance/ai-usage${qs ? `?${qs}` : ''}`)
+        this.aiUsageError = null
+      } catch (e) {
+        this.aiUsageError = errMsg(e)
       } finally {
         this.loadingAiUsage = false
       }
