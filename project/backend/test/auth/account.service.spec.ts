@@ -214,13 +214,30 @@ describe('AccountService', () => {
       prisma.__seedUser({ id: 'u1', totpEnabledAt: null, totpSecret: secret });
       const { authenticator } = await import('otplib');
       const code = authenticator.generate(secret);
-      const result = await svc.totpEnable('u1', code);
+      const result = await svc.totpEnable('u1', code, 'sess1');
       expect(result).toEqual({ ok: true });
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ totpEnabledAt: expect.any(Date) }),
         }),
       );
+    });
+
+    it('revokes every other session, keeping the current one', async () => {
+      const { svc, prisma, sessions } = makeService();
+      const secret = totp.generateSecret();
+      prisma.__seedUser({ id: 'u1', totpEnabledAt: null, totpSecret: secret });
+      const { authenticator } = await import('otplib');
+      await svc.totpEnable('u1', authenticator.generate(secret), 'sess1');
+      expect(sessions.revokeAllForUser).toHaveBeenCalledWith('u1', 'sess1');
+    });
+
+    it('does not revoke sessions when the code is rejected', async () => {
+      const { svc, prisma, sessions } = makeService();
+      const secret = totp.generateSecret();
+      prisma.__seedUser({ id: 'u1', totpEnabledAt: null, totpSecret: secret });
+      await expect(svc.totpEnable('u1', '000000', 'sess1')).rejects.toThrow(BadRequestException);
+      expect(sessions.revokeAllForUser).not.toHaveBeenCalled();
     });
   });
 
@@ -246,6 +263,23 @@ describe('AccountService', () => {
       const code = authenticator.generate(secret);
       const result = await svc.totpDisable('u1', code);
       expect(result).toEqual({ ok: true });
+    });
+
+    it('revokes every other session, keeping the current one', async () => {
+      const { svc, prisma, sessions } = makeService();
+      const secret = totp.generateSecret();
+      prisma.__seedUser({ id: 'u1', totpEnabledAt: new Date(), totpSecret: secret });
+      const { authenticator } = await import('otplib');
+      await svc.totpDisable('u1', authenticator.generate(secret), 'sess1');
+      expect(sessions.revokeAllForUser).toHaveBeenCalledWith('u1', 'sess1');
+    });
+
+    it('does not revoke sessions when the code is rejected', async () => {
+      const { svc, prisma, sessions } = makeService();
+      const secret = totp.generateSecret();
+      prisma.__seedUser({ id: 'u1', totpEnabledAt: new Date(), totpSecret: secret });
+      await expect(svc.totpDisable('u1', '000000', 'sess1')).rejects.toThrow(BadRequestException);
+      expect(sessions.revokeAllForUser).not.toHaveBeenCalled();
     });
   });
 });

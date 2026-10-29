@@ -212,7 +212,7 @@ export class AccountService {
     return { secret, otpauthUrl: this.totp.otpauthUrl(secret, user.email) };
   }
 
-  async totpEnable(userId: string, code: string): Promise<{ ok: true }> {
+  async totpEnable(userId: string, code: string, currentSessionId?: string): Promise<{ ok: true }> {
     const user = await this.requireUser(userId);
     if (user.totpEnabledAt) throw new ConflictException('Two-factor is already enabled');
     if (!user.totpSecret) throw new BadRequestException('Start the setup first');
@@ -223,6 +223,11 @@ export class AccountService {
       where: { id: userId },
       data: { totpEnabledAt: new Date() },
     });
+    // Same reasoning as changePassword: turning 2FA on is exactly what a user
+    // does to lock out an intruder, and a session cookie stolen beforehand
+    // would otherwise sail straight through it (sessions are checked, not
+    // re-authenticated). Keep the current session, drop the rest.
+    await this.sessions.revokeAllForUser(user.id, currentSessionId);
     void this.notifications
       .notify({
         userId,
@@ -244,7 +249,11 @@ export class AccountService {
     return { ok: true };
   }
 
-  async totpDisable(userId: string, code: string): Promise<{ ok: true }> {
+  async totpDisable(
+    userId: string,
+    code: string,
+    currentSessionId?: string,
+  ): Promise<{ ok: true }> {
     const user = await this.requireUser(userId);
     if (!user.totpEnabledAt || !user.totpSecret) {
       throw new BadRequestException('Two-factor is not enabled');
@@ -256,6 +265,10 @@ export class AccountService {
       where: { id: userId },
       data: { totpSecret: null, totpEnabledAt: null },
     });
+    // A 2FA change in either direction is a security-posture change: close
+    // every other session so the device that made the change is the only one
+    // left standing.
+    await this.sessions.revokeAllForUser(user.id, currentSessionId);
     void this.notifications
       .notify({
         userId,

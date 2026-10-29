@@ -1,6 +1,13 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CampaignService } from 'src/campaigns/campaign.service';
+import {
+  IP_CLICK_WINDOW_LIMIT,
+  IP_CLICK_WINDOW_MS,
+  ipScopeHash,
+  utcDay,
+  visitorFingerprint,
+} from 'src/campaigns/ad-click';
 
 function fakeAnalytics() {
   return {
@@ -513,6 +520,57 @@ describe('CampaignService', () => {
       );
       const result = await svc.registerClick('co1', '1.2.3.4', 'Mozilla/5.0');
       expect(result).toMatchObject({ billed: false, reason: 'no_campaign' });
+    });
+
+    // ---------------------------------------------------------------------
+    // The visitor fingerprint deliberately includes the User-Agent (two real
+    // people behind one carrier NAT are different visitors) — but the UA is
+    // attacker-controlled, so rotating it per request used to mint unlimited
+    // "distinct" billable clicks against one listing from a single IP. A
+    // second, UA-independent cap per (company, IP) per hour bounds that.
+    // ---------------------------------------------------------------------
+    it('rejects a click once one IP has already produced the hourly cap for this listing', async () => {
+      const { svc, prisma } = makeService();
+      prisma.adClick.count.mockResolvedValue(IP_CLICK_WINDOW_LIMIT);
+
+      const result = await svc.registerClick('co1', '1.2.3.4', 'Mozilla/5.0 Chrome/120');
+
+      expect(result).toMatchObject({ billed: false, reason: 'ip_rate' });
+      // Same shape as a repeat click: nothing recorded, nothing billed, no
+      // transaction opened at all.
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('counts only this listing + this IP scope, within the last hour', async () => {
+      const { svc, prisma } = makeService();
+      prisma.adClick.count.mockResolvedValue(IP_CLICK_WINDOW_LIMIT);
+
+      await svc.registerClick('co1', '1.2.3.4', 'Mozilla/5.0 Chrome/120');
+
+      const where = (prisma.adClick.count.mock.calls[0] as unknown as [{ where: any }])[0].where;
+      expect(where.companyId).toBe('co1');
+      expect(where.visitorHash.startsWith).toBe(ipScopeHash('1.2.3.4', 'co1', utcDay()));
+      // The prefix is the IP-only half of the fingerprint — the same for any
+      // UA from this IP, which is exactly what defeats UA rotation.
+      expect(
+        visitorFingerprint('1.2.3.4', 'another-ua', 'co1', utcDay()).startsWith(
+          where.visitorHash.startsWith,
+        ),
+      ).toBe(true);
+      const since = where.createdAt.gte as Date;
+      expect(Date.now() - since.getTime()).toBeGreaterThanOrEqual(IP_CLICK_WINDOW_MS - 5_000);
+      expect(Date.now() - since.getTime()).toBeLessThanOrEqual(IP_CLICK_WINDOW_MS + 5_000);
+    });
+
+    it('lets a click through while an IP is still below the cap', async () => {
+      const { svc, prisma } = makeService();
+      prisma.adClick.count.mockResolvedValue(IP_CLICK_WINDOW_LIMIT - 1);
+      prisma.$transaction.mockResolvedValue({ billed: true });
+
+      const result = await svc.registerClick('co1', '1.2.3.4', 'Mozilla/5.0 Chrome/120');
+
+      expect(result).toEqual({ billed: true });
+      expect(prisma.$transaction).toHaveBeenCalled();
     });
   });
 

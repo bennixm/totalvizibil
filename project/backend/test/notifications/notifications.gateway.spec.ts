@@ -51,8 +51,15 @@ function makeGateway(clientsByToken: Record<string, string[]> = {}) {
   return { gw, sessions, prisma, sockets };
 }
 
+/** The one origin a credentialed socket is allowed to connect from — stands in
+ *  for the ConfigService-validated `frontendOrigin` the REST layer uses. */
+const ALLOWED_ORIGIN = 'https://totalvizibil.test';
+
 function fakeConfig(overrides: Record<string, any> = {}) {
-  const defaults: Record<string, any> = { sessionCookieName: 'tvz_session' };
+  const defaults: Record<string, any> = {
+    sessionCookieName: 'tvz_session',
+    frontendOrigin: ALLOWED_ORIGIN,
+  };
   return { get: jest.fn((k: string) => ({ ...defaults, ...overrides })[k]) };
 }
 
@@ -65,9 +72,11 @@ function fakeServer() {
   return srv;
 }
 
-function fakeSocket(cookieHeader?: string) {
+/** Defaults to the allowed origin so the session-resolution tests below stay
+ *  about sessions; pass `origin` explicitly to exercise the CORS allowlist. */
+function fakeSocket(cookieHeader?: string, origin: string | undefined = ALLOWED_ORIGIN) {
   return {
-    handshake: { headers: { cookie: cookieHeader } },
+    handshake: { headers: { cookie: cookieHeader, origin } },
     data: {} as Record<string, any>,
     disconnect: jest.fn(),
     join: jest.fn(),
@@ -75,6 +84,101 @@ function fakeSocket(cookieHeader?: string) {
 }
 
 describe('NotificationsGateway', () => {
+  // ---------------------------------------------------------------------------
+  // Origin allowlist. The decorator's `cors.origin: true` reflects whatever
+  // Origin the client sent while `credentials: true` accepts the session
+  // cookie on it — so the real single-origin policy (the same one main.ts's
+  // `strictCors` applies to every authenticated REST route) is enforced here,
+  // in handleConnection, where the injected ConfigService is available.
+  // ---------------------------------------------------------------------------
+  describe('handleConnection — origin allowlist', () => {
+    /** Builds a gateway and runs `client` through the handshake. The session
+     *  mock is primed to SUCCEED, so a disconnect can only come from the
+     *  origin check itself. */
+    async function connect(client: any) {
+      const sessions = fakeSessions();
+      sessions.resolve.mockResolvedValue({ user: { id: 'u1', platformRoles: [] } });
+      const gw = new NotificationsGateway(
+        sessions as any,
+        fakePrisma() as any,
+        fakeConfig() as any,
+      );
+      await gw.handleConnection(client);
+      return { gw, sessions, client };
+    }
+
+    function expectRejected({ gw, sessions, client }: any) {
+      expect(client.disconnect).toHaveBeenCalledWith(true);
+      // The whole point of checking first: a cross-origin attempt must never
+      // reach the victim's session (nor cost a DB round-trip).
+      expect(sessions.resolve).not.toHaveBeenCalled();
+      expect(client.join).not.toHaveBeenCalled();
+      expect(client.data.userId).toBeUndefined();
+      // And it must not be registered for the revalidation timer either.
+      expect((gw as any).tokenByClientId.size).toBe(0);
+    }
+
+    it.each([
+      ['an unrelated site', 'https://evil.example'],
+      ['a lookalike suffix of our origin', 'https://totalvizibil.test.evil.example'],
+      ['a lookalike prefix of our origin', 'https://totalvizibil.test.co'],
+      ['the right host on the wrong scheme', 'http://totalvizibil.test'],
+      ['the right host with a port appended', 'https://totalvizibil.test:8443'],
+      ['a null origin (sandboxed iframe / privacy proxy)', 'null'],
+    ])('rejects a connection from %s before touching the session', async (_label, origin) => {
+      expectRejected(await connect(fakeSocket('tvz_session=validtoken', origin)));
+    });
+
+    it('rejects a handshake with no Origin header at all (non-browser client)', async () => {
+      // Every browser sends Origin on a WS upgrade, so treating "absent" as
+      // allowed would hand any non-browser client a free bypass.
+      const client = fakeSocket('tvz_session=validtoken');
+      delete client.handshake.headers.origin;
+
+      expectRejected(await connect(client));
+    });
+
+    it('accepts a connection from the configured frontend origin', async () => {
+      const { gw, sessions, client } = await connect(
+        fakeSocket('tvz_session=validtoken', ALLOWED_ORIGIN),
+      );
+
+      expect(client.disconnect).not.toHaveBeenCalled();
+      expect(sessions.resolve).toHaveBeenCalledWith('validtoken');
+      expect(client.join).toHaveBeenCalledWith('u1');
+      expect((gw as any).tokenByClientId.size).toBe(1);
+    });
+
+    it('reads the allowlist from the SAME config key the REST layer uses', async () => {
+      const config = fakeConfig();
+      new NotificationsGateway(fakeSessions() as any, fakePrisma() as any, config as any);
+
+      expect(config.get).toHaveBeenCalledWith('frontendOrigin', { infer: true });
+    });
+
+    it('follows the configured origin rather than a hardcoded one', async () => {
+      // A gateway configured for a DIFFERENT origin must reject the default
+      // one — proves the comparison is against config, not a baked-in string.
+      const sessions = fakeSessions();
+      const gw = new NotificationsGateway(
+        sessions as any,
+        fakePrisma() as any,
+        fakeConfig({ frontendOrigin: 'https://other.test' }) as any,
+      );
+
+      const outsider = fakeSocket('tvz_session=validtoken', ALLOWED_ORIGIN);
+      await gw.handleConnection(outsider);
+      expect(outsider.disconnect).toHaveBeenCalledWith(true);
+      expect(sessions.resolve).not.toHaveBeenCalled();
+
+      sessions.resolve.mockResolvedValue({ user: { id: 'u1', platformRoles: [] } });
+      const insider = fakeSocket('tvz_session=validtoken', 'https://other.test');
+      await gw.handleConnection(insider);
+      expect(insider.disconnect).not.toHaveBeenCalled();
+      expect(insider.join).toHaveBeenCalledWith('u1');
+    });
+  });
+
   describe('handleConnection', () => {
     it('disconnects client when no Cookie header', async () => {
       const sessions = fakeSessions();

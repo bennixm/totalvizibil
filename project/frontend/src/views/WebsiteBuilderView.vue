@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
+import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
 import { useProV2Store } from '@/stores/pro-v2'
 import { useToastStore } from '@/stores/toast'
@@ -23,6 +24,7 @@ import {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const companies = useCompaniesStore()
 const v2 = useProV2Store()
 const toasts = useToastStore()
@@ -36,7 +38,25 @@ const messagesEl = ref<HTMLElement | null>(null)
 // the owner-facing `?c=`) — that company isn't in the admin's own list, so it
 // bypasses the normal resolver, and "back" returns to that admin page instead
 // of the dashboard.
-const adminMode = computed(() => typeof route.query.companyId === 'string')
+//
+// This must be gated on the REAL platform role, not just the query param's
+// presence: this route is (correctly) `requiresAuth` only, since ordinary
+// business owners are its normal users, so without the role check ANY signed-in
+// user — an owner, or a `support`/`finance`/`moderator` staffer, none of which
+// should grant this — could type `?companyId=<any-uuid>` and flip themselves
+// into "admin mode". `pro-v2.service.ts` re-checks membership/role server-side
+// on every read and write, so that was never a data leak, but it did skip the
+// protective client-side checks below (the local builder-unlock pre-check and
+// the `advanced_builder_locked` → pay-screen redirect) and left the user in a
+// broken-looking admin shell for a company they can't touch. With the role
+// check, a non-admin carrying `?companyId=` falls through to exactly the normal
+// owner path, as if the param weren't there at all. Open-coded the same way
+// every other admin-only check in the app is (there is no `isAdmin` getter).
+const adminMode = computed(
+  () =>
+    typeof route.query.companyId === 'string' &&
+    (auth.user?.platformRoles.includes('admin') ?? false),
+)
 const backTarget = computed(() =>
   adminMode.value && companyId.value
     ? { name: 'admin-company', params: { id: companyId.value } }

@@ -3,6 +3,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { json, urlencoded, type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -28,7 +29,20 @@ import { AppConfig } from './config/env';
 const PUBLIC_API_PREFIX = '/api/v1/public';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: false });
+
+  // We always run behind exactly one nginx reverse proxy, which sets
+  // `X-Forwarded-For`. Without this, Express reports the proxy's own loopback
+  // address as `req.ip` for EVERY request — and since `@nestjs/throttler`
+  // keys its buckets by `req.ip`, every rate limit in the app (login,
+  // password reset, lead submission, ad clicks…) silently collapsed into a
+  // single global bucket shared by all visitors. Trusting exactly one hop
+  // (not `true`) means only nginx's own appended entry is honoured, so a
+  // client can't spoof its address by sending its own `X-Forwarded-For`.
+  // Must come before anything that reads `req.ip` — i.e. before every
+  // middleware and guard below.
+  app.set('trust proxy', 1);
+
   const config = app.get(ConfigService<AppConfig, true>);
 
   app.setGlobalPrefix('api/v1');

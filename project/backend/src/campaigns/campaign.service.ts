@@ -36,7 +36,14 @@ import { creditsToMinor, minorToCredits, money } from '../wallet/money';
 import { CampaignSuggestions, CampaignTier, suggestCampaign } from './campaign-advisor';
 import { analyzeCampaign } from './campaign-optimizer';
 import { autoBudgetCapMinor, autoResolvedCpcMinor } from './auto-cpc';
-import { isLikelyBot, utcDay, visitorFingerprint } from './ad-click';
+import {
+  IP_CLICK_WINDOW_LIMIT,
+  IP_CLICK_WINDOW_MS,
+  ipScopeHash,
+  isLikelyBot,
+  utcDay,
+  visitorFingerprint,
+} from './ad-click';
 import { SaveCampaignDto } from './dto/save-campaign.dto';
 
 /** Hint from the search that produced the impression — which Feed to price this click against. */
@@ -547,7 +554,9 @@ export class CampaignService implements OnModuleInit {
    * daily counter move together. Obvious bots and repeat visitors are
    * recorded but never charged; hitting the daily budget, an empty wallet, or
    * the Feed's CPC minim floor depletes/excludes the campaign until it
-   * recovers.
+   * recovers. A single IP is additionally capped at `IP_CLICK_WINDOW_LIMIT`
+   * clicks per listing per `IP_CLICK_WINDOW_MS` (`reason: 'ip_rate'`) so a
+   * rotating User-Agent can't manufacture unlimited billable visitors.
    */
   async registerClick(
     companyId: string,
@@ -557,6 +566,26 @@ export class CampaignService implements OnModuleInit {
   ): Promise<ClickResult> {
     const day = utcDay();
     const visitorHash = visitorFingerprint(ip, userAgent, companyId, day);
+
+    // Secondary, UA-independent cap: how many distinct visitors has this ONE
+    // IP already produced for this ONE listing in the last hour? The visitor
+    // fingerprint includes the (attacker-controlled) User-Agent, so without
+    // this an attacker could mint unlimited "distinct" billable clicks from a
+    // single IP just by rotating the header. Prefix-matching the stored
+    // `visitorHash` against the IP-only half of the fingerprint keys this off
+    // data we already persist — no raw IP, no extra column. The existing
+    // `@@index([companyId, createdAt])` narrows this to one company's last
+    // hour before the prefix is ever compared, so it stays cheap. Rejected
+    // the same way a repeat click is: an early, un-recorded, unbilled no-op.
+    const recentFromIp = await this.prisma.adClick.count({
+      where: {
+        companyId,
+        visitorHash: { startsWith: ipScopeHash(ip, companyId, day) },
+        createdAt: { gte: new Date(Date.now() - IP_CLICK_WINDOW_MS) },
+      },
+    });
+    if (recentFromIp >= IP_CLICK_WINDOW_LIMIT) return { billed: false, reason: 'ip_rate' };
+
     const cfg = await this.analytics.marginConfig();
 
     return this.prisma.$transaction(async (tx): Promise<ClickResult> => {

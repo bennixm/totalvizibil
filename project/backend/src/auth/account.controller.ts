@@ -42,14 +42,14 @@ export class AccountController {
   @HttpCode(200)
   @Post('totp/enable')
   totpEnable(@CurrentUser() user: AuthPrincipal, @Body() dto: TotpCodeDto) {
-    return this.account.totpEnable(user.id, dto.code);
+    return this.account.totpEnable(user.id, dto.code, user.sessionId);
   }
 
   @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @HttpCode(200)
   @Post('totp/disable')
   totpDisable(@CurrentUser() user: AuthPrincipal, @Body() dto: TotpCodeDto) {
-    return this.account.totpDisable(user.id, dto.code);
+    return this.account.totpDisable(user.id, dto.code, user.sessionId);
   }
 
   @Get('sessions')

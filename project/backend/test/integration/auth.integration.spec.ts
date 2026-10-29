@@ -27,14 +27,45 @@ describe('Auth', () => {
       expect(res.body).toMatchObject({ user: { email: 'ion@example.com', name: 'Ion' } });
     });
 
-    it('allows resubmitting the same still-unverified email instead of conflicting (onboarding email-edit step)', async () => {
+    it('allows the SAME browser to resubmit a still-unverified email (onboarding email-edit step)', async () => {
       const body = { email: 'ion@example.com', password: 'password123', name: 'Ion' };
-      await request(app.getHttpServer()).post('/api/v1/auth/register').send(body).expect(201);
+      const first = await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send(body)
+        .expect(201);
+      // The browser replays the pending-registration cookie it was issued.
+      const pendingCookie = (first.headers['set-cookie'] as unknown as string[])
+        .find((c) => c.startsWith('tvz_pending_reg='))
+        ?.split(';')[0];
+      expect(pendingCookie).toBeDefined();
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/register')
+        .set('Cookie', pendingCookie as string)
         .send({ ...body, name: 'Ion Updated' })
         .expect(201);
       expect(res.body).toMatchObject({ user: { email: 'ion@example.com', name: 'Ion Updated' } });
+    });
+
+    it('ignores a resubmit from a browser without the pending-registration cookie', async () => {
+      const body = { email: 'ion@example.com', password: 'password123', name: 'Ion' };
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send(body).expect(201);
+      const before = await prisma.user.findUniqueOrThrow({
+        where: { email: 'ion@example.com' },
+        select: { name: true, passwordHash: true },
+      });
+
+      // No cookie — indistinguishable from an attacker probing a pending email.
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({ ...body, password: 'attackerpass', name: 'Attacker' })
+        .expect(201);
+
+      expect(res.body).toMatchObject({ user: { email: 'ion@example.com', name: 'Ion' } });
+      const after = await prisma.user.findUniqueOrThrow({
+        where: { email: 'ion@example.com' },
+        select: { name: true, passwordHash: true },
+      });
+      expect(after).toEqual(before);
     });
 
     it('returns 409 when the email already belongs to a verified account', async () => {
