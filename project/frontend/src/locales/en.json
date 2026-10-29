@@ -4,6 +4,7 @@
     "tagline": "Where local businesses get built and found"
   },
   "common": {
+    "retry": "Try again",
     "loading": "Loading…",
     "save": "Save",
     "cancel": "Cancel",
@@ -102,6 +103,9 @@
     "searchPlaceholder": "Search a category or service…",
     "searchHint": "Type what you're looking for, like \"plumber\" or \"painting\".",
     "searchEmpty": "No matching category found.",
+    "browseErrorTitle": "We couldn't load this page",
+    "browseErrorText": "The category list failed to load, so we can't tell which page this address points to. Please try again.",
+    "retry": "Try again",
     "areaCounty": "County",
     "areaCountyPlaceholder": "Pick a county…",
     "areaAny": "Any location",
@@ -145,6 +149,11 @@
     "seoDesc": "Answer a few questions and the assistant builds your business website. Go simple, or take full control of design, sections and SEO."
   },
   "studio": {
+    "connectionError": "Couldn't reach the server. Check your connection and try again — your draft is safe.",
+    "reviewFailed": "Couldn't verify your text right now. Try again.",
+    "regenAiCapped": "You've used all the AI regenerations for this section. Further ones will use simpler, automatically generated copy.",
+    "restartConfirmTitle": "Start over?",
+    "restartConfirmText": "This discards your current draft and starts a brand-new site from scratch. It can't be undone.",
     "eyebrow": "AI builder · Free plan",
     "title": "Let’s build your site",
     "paneChat": "Chat",
@@ -315,7 +324,20 @@
     "categoryLeafEmpty": "Pick a category first",
     "categoryHint": "Pick the exact subcategories of your services, or \"All services\" if you offer all of them · this is how customers find you in the feed.",
     "categorySection": "What do you offer?",
-    "areaSection": "Coverage area"
+    "areaSection": "Coverage area",
+    "deletionPendingTitle": "Deletion scheduled",
+    "deletionPendingNote": "This business is scheduled for deletion and is frozen. Cancel the deletion from the dashboard to edit it again.",
+    "deletionPendingCta": "Go to dashboard",
+    "setupErrorTitle": "We couldn't load the data this step needs",
+    "setupErrorText": "Categories and counties failed to load. Check your connection and try again.",
+    "retry": "Try again",
+    "err": {
+      "company_pending_deletion": "This business is scheduled for deletion. Editing is locked.",
+      "forbidden": "Your role cannot edit this business.",
+      "not_found": "Business not found.",
+      "unknown_category": "One of the categories you picked is no longer available. Pick another one.",
+      "generic": "We couldn't save that. Please try again."
+    }
   },
   "category": {
     "eyebrow": "Category",
@@ -366,6 +388,7 @@
     }
   },
   "easyEditor": {
+    "saveErrorText": "That change wasn't saved. We've put the previous value back.",
     "eyebrow": "Simple site editor",
     "title": "Edit your site",
     "back": "Back to dashboard",
@@ -374,6 +397,10 @@
     "loadErrorTitle": "Couldn't open the editor",
     "loadErrorText": "Something went wrong loading the site. Try again.",
     "err": {
+      "notFound": "Business not found.",
+      "noWebsite": "This business has no website yet.",
+      "badValue": "That value isn't valid. Try a different one.",
+      "imageTooLarge": "That image is too large.",
       "not_a_simple_site": "This business uses the advanced builder, not the simple editor.",
       "forbidden": "You don't have edit access to this business.",
       "company_pending_deletion": "This business is scheduled for deletion. Editing is locked.",
@@ -496,6 +523,10 @@
     "invoicesNone": "No invoices yet",
     "invoicesLast": "Last: {number}",
     "invoicesCta": "View invoices",
+    "invoicesUnknownText": "We couldn't check your billing info",
+    "invoicesUnknownCta": "Try again",
+    "suspendedTitle": "Business suspended",
+    "suspendedBody": "An administrator suspended this business. It doesn't appear in the public feed and its campaign can't be activated. Contact support to find out why.",
     "editSite": "Edit site",
     "websiteSettings": "Website settings",
     "transactionsTitle": "Transactions",
@@ -733,6 +764,7 @@
     "currentPassword": "Current password",
     "emailChangeHint": "Confirm your password to change your email",
     "genericError": "Something went wrong. Please try again.",
+    "partialLoadError": "Some of your account data didn't load. Reload the page to see it.",
     "changePasswordTitle": "Change password",
     "changePasswordNote": "You stay signed in on this device; other sessions are signed out.",
     "newPassword": "New password",
@@ -1456,6 +1488,24 @@
     "iterations": "0 iterations | 1 iteration | {count} iterations"
   },
   "proV2": {
+    "attachTooLarge": "Skipped {n} image(s) — each one must be under {mb} MB.",
+    "attachTooMany": "You can attach at most {max} images to one message.",
+    "attachPartialFailure": "{ok} image(s) uploaded, {failed} failed. The message was sent with only the ones that uploaded.",
+    "bootErrorTitle": "The live preview sandbox couldn't start",
+    "bootErrorIsolation": "The server isn't sending the headers the sandbox needs (COOP/COEP). This is usually a temporary server configuration issue — try reloading the page, and contact support if it keeps happening.",
+    "bootErrorTimeout": "The sandbox took too long to start. Try again, or reload the page if it keeps happening.",
+    "bootErrorGeneric": "The live preview sandbox couldn't start. Try again or reload the page; contact support if it keeps happening.",
+    "bootErrorReload": "Reload the page",
+    "loadForbiddenTitle": "You don't have access to this project",
+    "loadForbiddenText": "Your role in this business can't edit the website. Ask the owner for edit access.",
+    "publishErr": {
+      "locked": "The builder isn't unlocked for this business.",
+      "noWebsite": "This business has no website yet to publish to.",
+      "noIndex": "The build has no index.html — we can't publish without the entry page.",
+      "tooLarge": "The built site is over the publish size limit.",
+      "tooManyFiles": "The build has too many files to publish.",
+      "forbidden": "Your role can't publish this project."
+    },
     "eyebrow": "AI website builder",
     "title": "Website Builder",
     "files": "Files",
@@ -1625,7 +1675,8 @@
     "cancelConfirmText": "{name}'s appointment will be canceled and the slot freed up again.",
     "deleteConfirmTitle": "Delete this appointment?",
     "deleteConfirmText": "The appointment is permanently deleted. This can't be undone.",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "loadMoreError": "We couldn't load more appointments. Please try again."
   },
   "analytics": {
     "intro": "Real data from your ad and site: billed clicks, calls, form messages and how fast you reply. The visibility score sets your feed order.",
@@ -1661,6 +1712,9 @@
     "scoreLabel": "Visibility score",
     "allGood": "The campaign is fully optimised",
     "allGoodText": "Every part of the visibility score is maxed out. Keep it up.",
+    "errorTitle": "We couldn't load the analysis",
+    "errorText": "The optimisation data failed to load. Check your connection and try again.",
+    "retry": "Try again",
     "gain": "+{n}% visibility",
     "weightNow": "Weight {weight}% · now {score}%",
     "sevHigh": "High priority",
@@ -2001,6 +2055,8 @@
     "emptyFiltered": "No transactions match these filters."
   },
   "websiteSettings": {
+    "loadError": "Couldn't load the website details. Try again.",
+    "filesLoadError": "Couldn't load the file list.",
     "eyebrow": "Website",
     "title": "Website settings",
     "none": "You don't have a website yet.",
@@ -2017,6 +2073,10 @@
     "exportNote": "The contact form and appointment booking call Totalvizibil's public API and work from any domain, including once you host the exported site on your own server.",
     "domainTitle": "Custom domain",
     "domainHint": "Buy your own domain for your business — the site stays on Totalvizibil too, in parallel.",
+    "domainManualNote": "Manual service: purchasing reserves the domain and charges your wallet, but DNS setup is finished manually by our team, not instantly.",
+    "domainPendingNote": "Manual setup in progress — we'll let you know here and by email once it's active.",
+    "domainDnsOk": "DNS configured — activation is being finalized.",
+    "domainFailedNote": "Setup failed. Contact support for details.",
     "domainPlaceholder": "example.com",
     "domainCheckCta": "Check availability",
     "domainAvailable": "{domain} is available.",
@@ -2033,13 +2093,16 @@
     },
     "appointmentsTitle": "Appointments",
     "appointmentsHint": "Let visitors book an appointment right from the site. Once turned on, it also appears in the menu for day-to-day management.",
+    "appointmentsUnavailable": "Currently unavailable: generated sites don't yet include a public booking form. You can still manage appointments from the panel independently of this switch.",
     "appointmentsOn": "Appointments turned on.",
     "appointmentsOff": "Appointments turned off.",
     "appointmentsManage": "Manage appointments",
     "domainErr": {
       "insufficient_credits": "Not enough credits for this domain.",
       "domain_not_available": "The domain is no longer available.",
-      "domain_already_registered": "This domain is already registered with us."
+      "domain_already_registered": "This domain is already registered with us.",
+      "not_your_company": "You don't have management rights for this business.",
+      "generic": "Something went wrong. Please try again."
     }
   },
   "spend": {
@@ -2544,6 +2607,8 @@
     }
   },
   "unlock": {
+    "loadErrorTitle": "Couldn't load the payment step",
+    "bonus": "{credits} credits land back in your wallet right after unlocking.",
     "title": "Unlock the advanced builder",
     "lead": "A one-time fee, paid from your wallet. After that, an AI assistant builds and keeps refining your site for as long as you want.",
     "pay": "Pay {credits} cr and continue",
@@ -2553,6 +2618,8 @@
     "back": "Back",
     "error": "Something went wrong. Try again.",
     "err": {
+      "forbidden": "Your role can't unlock the builder for this business.",
+      "not_found": "Business not found.",
       "insufficient_credits": "You don't have enough credits for the advanced builder.",
       "company_pending_deletion": "This business is scheduled for deletion. Cancel that from the dashboard first."
     }

@@ -82,6 +82,12 @@ onMounted(() => admin.fetchReferralsList())
     <div v-if="admin.loadingReferrals && !hasRows" class="ar__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
+    <!-- A failed fetch is NOT "no referrals" — see the store's `errMsg`. -->
+    <AdminEmptyState
+      v-else-if="admin.referralsError"
+      icon="mdi-alert-circle-outline"
+      :text="admin.referralsError"
+    />
     <AdminEmptyState v-else-if="!hasRows" icon="mdi-account-multiple-plus-outline" :text="t('adminRef.none')" />
 
     <div v-else class="rtable">

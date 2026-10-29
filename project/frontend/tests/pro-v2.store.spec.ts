@@ -370,3 +370,95 @@ describe('pro-v2 store — send() failure recovery (the "message vanishes, comes
     }
   })
 })
+
+describe('pro-v2 store — automatic repair reports never render as user chat', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    apiFetchMock.mockReset()
+  })
+
+  /** The literal first line the backend prefixes every automatic report with
+   *  (`ProV2AgentService.REPAIR_MARKER`). */
+  const report =
+    '[WebContainer error — automatic]\n' +
+    'Automatic report: the Vite dev server reported a build error after the last change — this was not written by the user.\n' +
+    'Likely affected file: src/components/Hero.vue\n' +
+    'Error:\n' +
+    'Failed to resolve import "./Missing.vue" from src/components/Hero.vue\n'
+
+  function loadWith(messages: unknown[]) {
+    apiFetchMock.mockResolvedValueOnce({
+      projectId: 'p1',
+      aiConfigured: true,
+      publishedAt: null,
+      files: [{ path: 'src/App.vue', content: 'x' }],
+      messages,
+    })
+  }
+
+  it('detects a repair report by its content prefix when the backend sends no marker field, and keeps it out of the chat feed', async () => {
+    const v2 = useProV2Store()
+    loadWith([
+      { role: 'user', content: 'Build me a bakery site' },
+      { role: 'assistant', content: 'Here you go.' },
+      { role: 'user', content: report },
+      { role: 'assistant', content: 'Fixed the missing import.' },
+    ])
+    await v2.load('c1')
+
+    expect(v2.messages).toHaveLength(4)
+    // Only the real exchange — no raw stack-trace bubble pretending to be the user.
+    expect(v2.chatMessages.map((m) => m.content)).toEqual([
+      'Build me a bakery site',
+      'Here you go.',
+    ])
+  })
+
+  it('also honours an explicit marker field on the message (whatever the backend settles on)', async () => {
+    const v2 = useProV2Store()
+    loadWith([
+      { role: 'user', content: 'Hello' },
+      { role: 'user', content: 'npm ERR! something exploded', kind: 'repair' },
+      { role: 'assistant', content: 'Patched package.json.' },
+    ])
+    await v2.load('c1')
+
+    expect(v2.chatMessages.map((m) => m.content)).toEqual(['Hello'])
+  })
+
+  it('reconstructs past repairs into the compact repair log on reload, instead of losing them', async () => {
+    const v2 = useProV2Store()
+    loadWith([
+      { role: 'user', content: report },
+      { role: 'assistant', content: 'Fixed the missing import.' },
+    ])
+    await v2.load('c1')
+
+    expect(v2.repairHistory).toHaveLength(1)
+    expect(v2.repairHistory[0]).toMatchObject({
+      kind: 'build',
+      status: 'fixed',
+      path: 'src/components/Hero.vue',
+      fixSummary: 'Fixed the missing import.',
+    })
+    expect(v2.repairHistory[0].errorSummary).toContain('Failed to resolve import')
+    expect(v2.allRepairs).toHaveLength(1)
+  })
+
+  it('marks an unanswered repair report as failed, not fixed', async () => {
+    const v2 = useProV2Store()
+    loadWith([{ role: 'user', content: report }])
+    await v2.load('c1')
+
+    expect(v2.repairHistory[0].status).toBe('failed')
+  })
+
+  it('leaves an ordinary user message that merely mentions an error in the chat', async () => {
+    const v2 = useProV2Store()
+    loadWith([{ role: 'user', content: 'There is an error on the contact page, please fix it' }])
+    await v2.load('c1')
+
+    expect(v2.chatMessages).toHaveLength(1)
+    expect(v2.repairHistory).toHaveLength(0)
+  })
+})

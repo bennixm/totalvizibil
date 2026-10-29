@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
-import { CustomDomain } from '@prisma/client';
+import { CompanyRole, CustomDomain } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
@@ -30,9 +30,18 @@ export class DomainsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  private async assertOwner(companyId: string, userId: string): Promise<void> {
-    const ownerId = await this.wallet.ownerIdForCompany(companyId);
-    if (ownerId !== userId) throw new ForbiddenException('not_your_company');
+  /** Owner or manager, matching every other company-editing surface
+   *  (companies.service.ts's `assertCanEditCompany`) — this used to be
+   *  owner-only, silently locking out managers with no explanation. */
+  private async assertCanManage(companyId: string, userId: string): Promise<void> {
+    const membership = await this.prisma.companyUser.findFirst({
+      where: { companyId, userId, status: 'active' },
+      select: { role: true },
+    });
+    const canManage: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager];
+    if (!membership || !canManage.includes(membership.role)) {
+      throw new ForbiddenException('not_your_company');
+    }
   }
 
   private toView(row: CustomDomain) {
@@ -49,7 +58,7 @@ export class DomainsService {
   }
 
   async checkAvailability(userId: string, companyId: string, domainRaw: string) {
-    await this.assertOwner(companyId, userId);
+    await this.assertCanManage(companyId, userId);
     const domain = domainRaw.trim().toLowerCase();
     const [avail, feeCredits, existing] = await Promise.all([
       this.registrar.checkAvailability(domain),
@@ -69,7 +78,7 @@ export class DomainsService {
   }
 
   async purchase(userId: string, companyId: string, domainRaw: string) {
-    await this.assertOwner(companyId, userId);
+    await this.assertCanManage(companyId, userId);
     const domain = domainRaw.trim().toLowerCase();
 
     const existing = await this.prisma.customDomain.findUnique({ where: { domain } });
@@ -144,7 +153,7 @@ export class DomainsService {
   }
 
   async listForCompany(userId: string, companyId: string) {
-    await this.assertOwner(companyId, userId);
+    await this.assertCanManage(companyId, userId);
     const rows = await this.prisma.customDomain.findMany({
       where: { companyId },
       orderBy: { createdAt: 'desc' },

@@ -171,6 +171,12 @@ function open(id: string): void {
     <div v-if="admin.loadingBusinesses && !admin.businesses.length" class="ab__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
+    <!-- A failed fetch is NOT "no businesses" — see the store's `errMsg`. -->
+    <AdminEmptyState
+      v-else-if="admin.businessesError"
+      icon="mdi-alert-circle-outline"
+      :text="admin.businessesError"
+    />
     <AdminEmptyState
       v-else-if="!admin.businesses.length"
       icon="mdi-domain"

@@ -139,6 +139,47 @@ describe('auth store', () => {
     expect(auth.isFinanceStaff).toBe(false)
   })
 
+  // The badge + sidebar mode switch hang off this one. `isPlatformStaff` is
+  // true for ANY role, `moderator` included — and `moderator` unlocks no
+  // backend endpoint and no nav item, so gating staff UI chrome on it
+  // advertised an admin area with zero reachable pages behind it.
+  it('hasReachableStaffArea is true only for admin/support/finance, never moderator alone', () => {
+    const auth = useAuthStore()
+    const withRoles = (platformRoles: PlatformRole[]) => {
+      auth.user = {
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'A',
+        platformRoles,
+        emailVerifiedAt: null,
+      }
+    }
+
+    withRoles([])
+    expect(auth.hasReachableStaffArea).toBe(false)
+
+    withRoles(['admin'])
+    expect(auth.hasReachableStaffArea).toBe(true)
+
+    withRoles(['support'])
+    expect(auth.hasReachableStaffArea).toBe(true)
+
+    withRoles(['finance'])
+    expect(auth.hasReachableStaffArea).toBe(true)
+
+    // The whole point: platform staff by `isPlatformStaff`, but with nothing
+    // anywhere it can actually open.
+    withRoles(['moderator'])
+    expect(auth.isPlatformStaff).toBe(true)
+    expect(auth.hasReachableStaffArea).toBe(false)
+
+    withRoles(['moderator', 'support'])
+    expect(auth.hasReachableStaffArea).toBe(true)
+
+    auth.user = null
+    expect(auth.hasReachableStaffArea).toBe(false)
+  })
+
   it('logout clears the user even if the request fails', async () => {
     apiFetchMock.mockResolvedValueOnce({
       user: { id: 'u1', email: 'a@b.com', name: 'A', platformRoles: [] },

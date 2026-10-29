@@ -41,15 +41,86 @@ export function filesToTree(files: ProjectFile[]): FileSystemTree {
  *  reverse proxy in production) — WebContainer defaults to assuming
  *  `require-corp` and fails the isolation check otherwise. */
 let containerPromise: Promise<WebContainer> | null = null
+
+/** Why a boot attempt failed, so the view can say something specific instead
+ *  of spinning forever. `not_isolated` is the one that actually happens in
+ *  production: WebContainer requires the page to be cross-origin isolated
+ *  (COOP/COEP response headers from the reverse proxy) and `boot()` simply
+ *  never settles when it isn't — an infinite spinner with no error. */
+export type SandboxBootFailure = 'not_isolated' | 'timeout' | 'boot_failed'
+
+export class SandboxBootError extends Error {
+  constructor(
+    readonly reason: SandboxBootFailure,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'SandboxBootError'
+  }
+}
+
+/** Even a boot that does attempt to start can hang (a blocked service worker,
+ *  a half-applied COEP header, StackBlitz infrastructure being down). Bound it
+ *  so the UI always reaches a definite state. A real boot is ~1-2s. */
+export const BOOT_TIMEOUT_MS = 30_000
+
+function isCrossOriginIsolated(): boolean {
+  // Explicitly `=== false` rather than falsy: a non-browser environment
+  // (SSR, jsdom in tests) simply doesn't define this, and must not be
+  // treated as "the proxy forgot the COEP headers".
+  const flag = (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated
+  return flag !== false
+}
+
+async function attemptBoot(): Promise<WebContainer> {
+  if (!isCrossOriginIsolated()) {
+    // Fail immediately — `WebContainer.boot()` would hang here, not reject.
+    throw new SandboxBootError(
+      'not_isolated',
+      'This page is not cross-origin isolated (missing COOP/COEP response headers), so the sandbox cannot start.',
+    )
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      WebContainer.boot({ forwardPreviewErrors: true, coep: 'credentialless' }),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new SandboxBootError('timeout', 'The sandbox took too long to start.')),
+          BOOT_TIMEOUT_MS,
+        )
+      }),
+    ])
+  } catch (err) {
+    if (err instanceof SandboxBootError) throw err
+    throw new SandboxBootError('boot_failed', err instanceof Error ? err.message : String(err))
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Kicks off (or returns the already-in-flight) WebContainer boot. Exported
  *  so the view can call this the instant it mounts — in parallel with the
  *  company/file-list fetch — instead of only starting the boot after that
  *  network round-trip resolves. `start()` below awaits this same cached
  *  promise, so calling it early costs nothing and just overlaps the ~1-2s
- *  boot with work that was happening anyway. */
+ *  boot with work that was happening anyway.
+ *
+ *  A SUCCESSFUL boot is cached forever (only one container may exist per
+ *  tab). A FAILED one deliberately is not: caching a rejected promise meant
+ *  every retry replayed the same dead rejection and only a hard page reload
+ *  could recover, so the cached reference is dropped on rejection and the
+ *  next call genuinely attempts a fresh boot. */
 export function bootContainer(): Promise<WebContainer> {
-  if (!containerPromise)
-    containerPromise = WebContainer.boot({ forwardPreviewErrors: true, coep: 'credentialless' })
+  if (!containerPromise) {
+    const attempt = attemptBoot()
+    containerPromise = attempt
+    // Attached here (not left to the caller) so a failure can never surface
+    // as an unhandled rejection; the caller still sees the same rejection.
+    attempt.catch(() => {
+      if (containerPromise === attempt) containerPromise = null
+    })
+  }
   return containerPromise
 }
 

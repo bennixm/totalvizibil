@@ -2,9 +2,11 @@
 import { onMounted, reactive, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import { useAdminStore } from '@/stores/admin'
+import { useAuthStore } from '@/stores/auth'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import type { AdminReferralsPage } from '@/stores/admin'
@@ -12,7 +14,22 @@ import { ApiError } from '@/services/api'
 
 const { t } = useI18n()
 const admin = useAdminStore()
+const auth = useAuthStore()
 const confirm = useConfirmStore()
+
+/**
+ * `GET /admin/settings` is `@PlatformRoles('admin','finance')` — a Contabil
+ * genuinely needs the VAT rate / refund fee / FX rate / invoice-issuer
+ * identity to reconcile anything — but every `PATCH` here is admin-only. So
+ * this page is read-only for a finance-only viewer: inputs disabled, the
+ * save bar and the maintenance broadcast hidden. Same shape as the
+ * stripe-row lock in `AdminFinanceExpensesView`: show WHY instead of letting
+ * them discover it as a 403.
+ */
+const isPlatformAdmin = computed(() => auth.user?.platformRoles.includes('admin') ?? false)
+const readOnly = computed(() => !isPlatformAdmin.value)
+const READ_ONLY_HINT =
+  'Vizualizare pentru contabilitate — doar un administrator poate modifica aceste setări.'
 
 const tab = ref<'pricing' | 'billing' | 'affiliate' | 'discount' | 'maintenance'>('pricing')
 const loading = ref(true)
@@ -74,7 +91,7 @@ async function doSendMaintenance() {
 // undo — worth a confirm step the same as the far smaller act of deleting an
 // empty category already gets.
 function sendMaintenance() {
-  if (!maintenanceValid.value) return
+  if (!maintenanceValid.value || readOnly.value) return
   confirm.ask(
     t('adminSettings.maintenanceConfirmTitle'),
     t('adminSettings.maintenanceConfirmText'),
@@ -290,7 +307,7 @@ async function load() {
 onMounted(load)
 
 async function save() {
-  if (!dirty.value || !valid.value) return
+  if (!dirty.value || !valid.value || readOnly.value) return
   saving.value = true
   try {
     await admin.updateSettings({
@@ -330,13 +347,28 @@ async function save() {
       <v-progress-circular indeterminate color="primary" />
     </div>
 
+    <!-- A failed `/admin/settings` used to render the whole form hydrated
+         from zeros — settings that looked real and saved real damage. -->
+    <AdminEmptyState
+      v-else-if="admin.settingsError || !admin.settings"
+      icon="mdi-alert-circle-outline"
+      :text="admin.settingsError ?? t('admin.genericError')"
+    />
+
     <template v-else>
+      <div v-if="readOnly" class="as__readonly">
+        <v-icon icon="mdi-lock-outline" size="16" />
+        <span>{{ READ_ONLY_HINT }}</span>
+      </div>
+
       <v-tabs v-model="tab" color="primary" class="as__tabs" show-arrows>
         <v-tab value="pricing" prepend-icon="mdi-cash-multiple">{{ t('adminSettings.tabPricing') }}</v-tab>
         <v-tab value="billing" prepend-icon="mdi-file-document-edit-outline">{{ t('adminSettings.tabBilling') }}</v-tab>
         <v-tab value="affiliate" prepend-icon="mdi-account-multiple-plus-outline">{{ t('adminSettings.tabAffiliate') }}</v-tab>
         <v-tab value="discount" prepend-icon="mdi-sale-outline">{{ t('adminSettings.tabDiscount') }}</v-tab>
-        <v-tab value="maintenance" prepend-icon="mdi-wrench-cog-outline">{{ t('adminSettings.tabMaintenance') }}</v-tab>
+        <!-- Pure write surface (broadcasts to every active user) — nothing
+             for a read-only finance viewer to see here. -->
+        <v-tab v-if="!readOnly" value="maintenance" prepend-icon="mdi-wrench-cog-outline">{{ t('adminSettings.tabMaintenance') }}</v-tab>
       </v-tabs>
 
       <v-window v-model="tab" class="as__window">
@@ -359,6 +391,7 @@ async function save() {
                   :max="f.max"
                   :step="f.step"
                   :suffix="f.suffix"
+                  :disabled="readOnly"
                   variant="outlined"
                   density="compact"
                   hide-details
@@ -385,6 +418,7 @@ async function save() {
                   :max="f.max"
                   :step="f.step"
                   :suffix="f.suffix"
+                  :disabled="readOnly"
                   variant="outlined"
                   density="compact"
                   hide-details
@@ -415,6 +449,7 @@ async function save() {
                   :max="f.max"
                   :step="f.step"
                   :suffix="f.suffix"
+                  :disabled="readOnly"
                   variant="outlined"
                   density="compact"
                   hide-details
@@ -430,6 +465,7 @@ async function save() {
                 :key="f.key"
                 v-model="issuer[f.key]"
                 :label="t(f.label)"
+                :disabled="readOnly"
                 variant="outlined"
                 density="compact"
                 hide-details
@@ -453,6 +489,7 @@ async function save() {
                   :max="f.max"
                   :step="f.step"
                   :suffix="f.suffix"
+                  :disabled="readOnly"
                   variant="outlined"
                   density="compact"
                   hide-details
@@ -476,6 +513,7 @@ async function save() {
               </div>
               <v-switch
                 v-model="affiliate.enabled"
+                :disabled="readOnly"
                 color="primary"
                 density="compact"
                 hide-details
@@ -497,6 +535,7 @@ async function save() {
                 :max="REWARD_MAX"
                 step="1"
                 suffix="cr"
+                :disabled="readOnly"
                 variant="outlined"
                 density="compact"
                 hide-details
@@ -519,6 +558,7 @@ async function save() {
                 :max="MIN_DEPOSIT_MAX"
                 step="1"
                 suffix="cr"
+                :disabled="readOnly"
                 variant="outlined"
                 density="compact"
                 hide-details
@@ -565,7 +605,7 @@ async function save() {
                 <label class="as__label">{{ t('adminSettings.discountEnabled') }}</label>
                 <p class="as__hint">{{ t('adminSettings.discountEnabledHint') }}</p>
               </div>
-              <v-switch v-model="discount.enabled" color="primary" density="compact" hide-details inset />
+              <v-switch v-model="discount.enabled" :disabled="readOnly" color="primary" density="compact" hide-details inset />
             </div>
 
             <div class="as__field">
@@ -582,6 +622,7 @@ async function save() {
                 :max="DISCOUNT_MAX"
                 step="1"
                 suffix="%"
+                :disabled="readOnly"
                 variant="outlined"
                 density="compact"
                 hide-details
@@ -593,7 +634,7 @@ async function save() {
         </v-window-item>
 
         <!-- Mentenanță -->
-        <v-window-item value="maintenance">
+        <v-window-item v-if="!readOnly" value="maintenance">
           <AdminSection :title="t('adminSettings.maintenanceTitle')" icon="mdi-wrench-cog-outline">
             <p class="as__sectionNote">{{ t('adminSettings.maintenanceNote') }}</p>
 
@@ -629,7 +670,7 @@ async function save() {
         </v-window-item>
       </v-window>
 
-      <div class="as__savebar" :class="{ 'as__savebar--dirty': dirty }">
+      <div v-if="!readOnly" class="as__savebar" :class="{ 'as__savebar--dirty': dirty }">
         <span v-if="dirty" class="as__dirty">
           <v-icon icon="mdi-circle-medium" size="18" />
           {{ t('adminSettings.unsaved') }}
@@ -657,6 +698,17 @@ async function save() {
 .as__tabs {
   border-bottom: 1px solid var(--tvz-hairline);
   margin-bottom: 1.4rem;
+}
+.as__readonly {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--tvz-radius-md);
+  background: rgba(var(--v-theme-on-surface), 0.05);
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  font-size: 0.82rem;
 }
 .as__window {
   margin-bottom: 1.2rem;

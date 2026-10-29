@@ -36,15 +36,26 @@ function errText(e: unknown, fallback: string) {
   return e instanceof ApiError ? e.message : fallback
 }
 
+// One failing sub-fetch used to sink the whole batch: the `Promise.all` had
+// no `catch` (neither did the individual promises), so e.g. a failed
+// sessions request rejected the lot as an unhandled rejection and left
+// profile / 2FA / sessions / billing / affiliate all empty with zero user
+// feedback. Every fetch now settles on its own, and whatever didn't load is
+// named in one non-blocking notice instead of silently blanking the page.
+const failedSections = ref<string[]>([])
 onMounted(async () => {
+  const parts: Array<{ key: string; run: () => Promise<unknown> }> = [
+    { key: 'account.tabProfile', run: () => account.loadSecurity() },
+    { key: 'account.tabSessions', run: () => account.loadSessions() },
+    { key: 'account.tabBilling', run: () => billing.load() },
+    { key: 'account.tabAffiliate', run: () => affiliate.load() },
+    { key: 'wallet.title', run: () => wallet.ensureSummary() },
+  ]
   try {
-    await Promise.all([
-      account.loadSecurity(),
-      account.loadSessions(),
-      billing.load(),
-      affiliate.load(),
-      wallet.ensureSummary(),
-    ])
+    const results = await Promise.allSettled(parts.map((p) => p.run()))
+    failedSections.value = parts
+      .filter((_, i) => results[i].status === 'rejected')
+      .map((p) => t(p.key))
   } finally {
     loading.value = false
   }
@@ -283,6 +294,17 @@ function shortDate(iso: string): string {
         </v-tab>
         <v-tab value="affiliate" prepend-icon="mdi-gift-outline">{{ t('account.tabAffiliate') }}</v-tab>
       </v-tabs>
+
+      <v-alert
+        v-if="!loading && failedSections.length"
+        type="warning"
+        variant="tonal"
+        density="compact"
+        icon="mdi-cloud-off-outline"
+        class="mb-4"
+      >
+        {{ t('account.partialLoadError') }} ({{ failedSections.join(', ') }})
+      </v-alert>
 
       <div v-if="loading" class="d-flex justify-center py-16">
         <v-progress-circular indeterminate color="primary" />

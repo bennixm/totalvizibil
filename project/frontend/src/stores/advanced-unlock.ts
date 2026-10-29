@@ -2,9 +2,14 @@ import { defineStore } from 'pinia'
 
 import { apiFetch, ApiError } from '@/services/api'
 
-interface UnlockView {
+export interface UnlockView {
   unlocked: boolean
   priceCredits: number
+  /** Credits handed back to the wallet right after unlocking — the same
+   *  admin-configurable figure the advanced-plan info screen advertises
+   *  (`CreateAdvancedInfoView`). The endpoint has always returned it; the
+   *  pay screen just never declared or showed it. */
+  bonusCredits: number
   wallet: { balance: { credits: number } }
 }
 

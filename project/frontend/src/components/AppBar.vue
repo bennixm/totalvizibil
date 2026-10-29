@@ -203,7 +203,10 @@ watch(() => auth.isAuthenticated, syncWallet)
                 <strong>{{ auth.user?.name }}</strong>
                 <span>{{ auth.user?.email }}</span>
               </div>
-              <span v-if="auth.isPlatformStaff" class="menu__staffTag">{{ t('nav.staff') }}</span>
+              <!-- Only roles with a staff area they can actually open get the
+                   badge — `isPlatformStaff` also covers `moderator`, which
+                   unlocks nothing anywhere. -->
+              <span v-if="auth.hasReachableStaffArea" class="menu__staffTag">{{ t('nav.staff') }}</span>
               <button
                 v-if="!mdAndUp"
                 type="button"

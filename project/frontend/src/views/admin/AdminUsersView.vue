@@ -138,6 +138,13 @@ function open(id: string): void {
     <div v-if="admin.loadingUsers && !admin.users.length" class="au__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
+    <!-- A failed fetch is NOT "no users" — a 403/timeout/500 used to render
+         as a calm empty list with nothing to indicate anything broke. -->
+    <AdminEmptyState
+      v-else-if="admin.usersError"
+      icon="mdi-alert-circle-outline"
+      :text="admin.usersError"
+    />
     <AdminEmptyState
       v-else-if="!admin.users.length"
       icon="mdi-account-search-outline"

@@ -8,6 +8,9 @@ import { DomainsService } from 'src/domains/domains.service';
 function fakePrisma() {
   const domains = new Map<string, any>();
   return {
+    companyUser: {
+      findFirst: jest.fn(async (): Promise<{ role: string } | null> => ({ role: 'owner' })),
+    },
     customDomain: {
       findUnique: jest.fn(async ({ where }: any) => domains.get(where.domain) ?? null),
       create: jest.fn(async ({ data }: any) => {
@@ -22,7 +25,6 @@ function fakePrisma() {
 
 function fakeWallet() {
   return {
-    ownerIdForCompany: jest.fn(async () => 'owner1'),
     spend: jest.fn(async () => ({ balanceMinor: 0, transactionId: 'txn1' })),
   };
 }
@@ -51,10 +53,23 @@ function makeService() {
 
 describe('DomainsService', () => {
   describe('purchase', () => {
-    it('throws ForbiddenException for a non-owner', async () => {
-      const { svc, wallet } = makeService();
-      wallet.ownerIdForCompany.mockResolvedValue('someone-else');
+    it('throws ForbiddenException for a non-member', async () => {
+      const { svc, prisma } = makeService();
+      prisma.companyUser.findFirst.mockResolvedValue(null);
       await expect(svc.purchase('owner1', 'co1', 'example.ro')).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws ForbiddenException for a member with a non-editing role (e.g. billing)', async () => {
+      const { svc, prisma } = makeService();
+      prisma.companyUser.findFirst.mockResolvedValue({ role: 'billing' });
+      await expect(svc.purchase('owner1', 'co1', 'example.ro')).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows a manager, not just the owner, to purchase a domain', async () => {
+      const { svc, prisma } = makeService();
+      prisma.companyUser.findFirst.mockResolvedValue({ role: 'manager' });
+      const result = await svc.purchase('manager1', 'co1', 'example.ro');
+      expect(result.status).toBe('pending');
     });
 
     it('throws BadRequestException when the domain is already registered', async () => {

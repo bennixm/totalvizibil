@@ -17,6 +17,7 @@ import {
   type AdminUserCompany,
   type AdminUserTxn,
 } from '@/stores/admin'
+import type { BillingKind } from '@/stores/billing'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
@@ -66,6 +67,22 @@ function initials(name: string) {
 const isSelf = computed(() => user.value?.id === auth.user?.id)
 const walletCur = computed(() => (user.value?.wallet.currency === 'RON' ? 'RON' : 'EUR'))
 
+/**
+ * This route is `allowedRoles: ['admin','finance']` — a Contabil reaches it
+ * by clicking a buyer name in the Facturi table. But only the wallet,
+ * invoice and billing-profile endpoints are `admin`+`finance`; everything
+ * that edits the ACCOUNT (`PATCH /admin/users/:id`,
+ * `POST /admin/users/:id/password`, `PATCH /admin/companies/:id/status`) and
+ * the company detail page behind "Administrează"
+ * (`GET /admin/companies/:id`) are admin-only. Those controls used to render
+ * with no gating at all, so a finance viewer got a full set of buttons that
+ * each 403'd on click — or, for "Administrează", a link that ejected them to
+ * /account. Mirrors the lock pattern in `AdminFinanceExpensesView`.
+ */
+const isAdmin = computed(() => auth.user?.platformRoles.includes('admin') ?? false)
+const ADMIN_ONLY_HINT =
+  'Editarea contului, securitatea și administrarea afacerilor sunt rezervate administratorilor. Ai acces de vizualizare plus portofel, facturi și date de facturare.'
+
 const ALL_ROLES: PlatformRole[] = ['admin', 'support', 'finance', 'moderator']
 const form = reactive({
   name: '',
@@ -80,12 +97,98 @@ const savingDetails = ref(false)
 const savingPassword = ref(false)
 const busy = ref<string | null>(null)
 
+/**
+ * The billing identity this user's invoices are made out to. `PATCH
+ * /admin/users/:id/billing-profile` is `admin`+`finance` on the backend but
+ * had ZERO frontend callers — a dead endpoint, and no way for anyone on
+ * staff to correct a wrong CUI/address while looking at the invoices it was
+ * snapshotted onto. Deliberately the SAME field set as the customer's own
+ * form in `AccountView.vue`, because the backend shares the DTO.
+ */
+const bf = reactive({
+  kind: 'individual' as BillingKind,
+  name: '',
+  taxId: '',
+  regCom: '',
+  vatPayer: false,
+  address: '',
+  city: '',
+  county: '',
+  postalCode: '',
+  country: 'RO',
+  billingEmail: '',
+  iban: '',
+  bankName: '',
+})
+const savingBilling = ref(false)
+const billingValid = computed(
+  () =>
+    bf.name.trim().length > 1 &&
+    bf.address.trim().length > 2 &&
+    bf.city.trim().length > 1 &&
+    (bf.kind === 'individual' || (bf.taxId.trim().length > 1 && bf.regCom.trim().length > 1)),
+)
+
+function hydrateBilling(u: AdminUserDetail) {
+  const p = u.billingProfile
+  if (!p) return
+  bf.kind = p.kind
+  bf.name = p.name
+  bf.taxId = p.taxId ?? ''
+  bf.regCom = p.regCom ?? ''
+  bf.vatPayer = p.vatPayer
+  bf.address = p.address
+  bf.city = p.city
+  bf.county = p.county ?? ''
+  bf.postalCode = p.postalCode ?? ''
+  bf.country = p.country
+  bf.billingEmail = p.billingEmail ?? ''
+  bf.iban = p.iban ?? ''
+  bf.bankName = p.bankName ?? ''
+}
+
+async function saveBilling() {
+  if (!billingValid.value || savingBilling.value) return
+  savingBilling.value = true
+  try {
+    const res = await admin.updateUserBillingProfile(id.value, {
+      kind: bf.kind,
+      name: bf.name.trim(),
+      taxId: bf.kind === 'company' ? bf.taxId.trim() : undefined,
+      regCom: bf.kind === 'company' ? bf.regCom.trim() : undefined,
+      vatPayer: bf.vatPayer,
+      address: bf.address.trim(),
+      city: bf.city.trim(),
+      county: bf.county.trim() || undefined,
+      postalCode: bf.postalCode.trim() || undefined,
+      country: bf.country.trim() || 'RO',
+      billingEmail: bf.billingEmail.trim() || undefined,
+      iban: bf.iban.trim() || undefined,
+      bankName: bf.bankName.trim() || undefined,
+    })
+    // Completing a previously-incomplete profile also backfills the pending
+    // invoices server-side, so the detail payload (and its invoice list) has
+    // to be re-read rather than patched locally.
+    await load()
+    flash(
+      res.invoicesIssued > 0
+        ? t('account.billingSavedBackfilled', { n: res.invoicesIssued })
+        : t('account.billingSaved'),
+    )
+  } catch (e) {
+    flash(errText(e, t('admin.genericError')), 'error')
+  } finally {
+    savingBilling.value = false
+  }
+}
+
 function hydrate(u: AdminUserDetail) {
   user.value = u
   form.name = u.name
   form.email = u.email
   form.status = u.status
   form.roles = [...u.platformRoles]
+  hydrateBilling(u)
   if (refundAmount.value == null) refundAmount.value = u.wallet.refundable.credits || null
 }
 
@@ -415,8 +518,9 @@ const txnColor: Record<string, string> = {
         </template>
 
         <template #actions>
+          <!-- `PATCH /admin/users/:id` is admin-only. -->
           <v-btn
-            v-if="!isSelf"
+            v-if="!isSelf && isAdmin"
             :color="user.status === 'active' ? 'error' : 'success'"
             :variant="user.status === 'active' ? 'tonal' : 'flat'"
             size="small"
@@ -454,7 +558,20 @@ const txnColor: Record<string, string> = {
         <!-- ============ OVERVIEW ============ -->
         <v-window-item value="overview">
           <div class="ud__stack ud__stack--narrow">
-            <AdminSection :title="t('admin.detailsTitle')" icon="mdi-card-account-details-outline">
+            <!-- Everything a finance-only viewer can't do, said once, instead
+                 of four buttons that each 403 on click. The account's name,
+                 email, status and roles are all already on the header above,
+                 so nothing readable is lost by hiding the form itself. -->
+            <div v-if="!isAdmin" class="ud__locked">
+              <v-icon icon="mdi-lock-outline" size="16" />
+              <span>{{ ADMIN_ONLY_HINT }}</span>
+            </div>
+
+            <AdminSection
+              v-if="isAdmin"
+              :title="t('admin.detailsTitle')"
+              icon="mdi-card-account-details-outline"
+            >
               <div class="ud__form">
                 <v-text-field
                   v-model="form.name"
@@ -524,7 +641,10 @@ const txnColor: Record<string, string> = {
               </div>
             </AdminSection>
 
-            <AdminSection :title="t('admin.securityTitle')" icon="mdi-shield-key-outline">
+            <!-- disable TOTP / revoke sessions / set password are all
+                 admin-only (`PATCH /admin/users/:id`,
+                 `POST /admin/users/:id/password`). -->
+            <AdminSection v-if="isAdmin" :title="t('admin.securityTitle')" icon="mdi-shield-key-outline">
               <p v-if="isSelf" class="ud__note mt-0 mb-3">{{ t('admin.selfSecurityHint') }}</p>
               <div class="ud__secRow">
                 <div>
@@ -717,6 +837,137 @@ const txnColor: Record<string, string> = {
                 </v-btn>
               </div>
             </AdminSection>
+
+            <!-- Billing identity — `admin`+`finance`, matching the backend's
+                 `PATCH /admin/users/:id/billing-profile`. Same field set as
+                 the customer's own form, so a staff edit can't produce a
+                 profile shape the self-service form never could. -->
+            <AdminSection
+              v-if="auth.isFinanceStaff"
+              :title="t('account.billingTitle')"
+              icon="mdi-file-document-outline"
+            >
+              <p v-if="!user.billingProfile" class="ud__note mt-0 mb-3">
+                {{ t('account.billingIncompleteAlert') }}
+              </p>
+              <p v-else class="ud__note mt-0 mb-3">{{ t('account.billingNote') }}</p>
+
+              <v-btn-toggle v-model="bf.kind" mandatory density="compact" class="mb-3" divided>
+                <v-btn value="individual" size="small">{{ t('account.billingKindIndividual') }}</v-btn>
+                <v-btn value="company" size="small">{{ t('account.billingKindCompany') }}</v-btn>
+              </v-btn-toggle>
+
+              <div class="ud__form">
+                <v-text-field
+                  v-model="bf.name"
+                  :label="bf.kind === 'company' ? t('account.billingLegalName') : t('account.billingFullName')"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                />
+                <template v-if="bf.kind === 'company'">
+                  <div class="ud__bfRow">
+                    <v-text-field
+                      v-model="bf.taxId"
+                      :label="t('account.billingTaxId')"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                    />
+                    <v-text-field
+                      v-model="bf.regCom"
+                      :label="t('account.billingRegCom')"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                    />
+                  </div>
+                  <v-checkbox
+                    v-model="bf.vatPayer"
+                    :label="t('account.billingVatPayer')"
+                    color="primary"
+                    density="compact"
+                    hide-details
+                  />
+                </template>
+                <v-text-field
+                  v-model="bf.address"
+                  :label="t('account.billingAddress')"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                />
+                <div class="ud__bfRow">
+                  <v-text-field
+                    v-model="bf.city"
+                    :label="t('account.billingCity')"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                  <v-text-field
+                    v-model="bf.county"
+                    :label="t('account.billingCounty')"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                </div>
+                <div class="ud__bfRow">
+                  <v-text-field
+                    v-model="bf.postalCode"
+                    :label="t('account.billingPostalCode')"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                  <v-text-field
+                    v-model="bf.country"
+                    :label="t('account.billingCountry')"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                </div>
+                <v-text-field
+                  v-model="bf.billingEmail"
+                  :label="t('account.billingEmail')"
+                  type="email"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                />
+                <div v-if="bf.kind === 'company'" class="ud__bfRow">
+                  <v-text-field
+                    v-model="bf.iban"
+                    :label="t('account.billingIban')"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                  <v-text-field
+                    v-model="bf.bankName"
+                    :label="t('account.billingBankName')"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                </div>
+                <div>
+                  <v-btn
+                    color="primary"
+                    variant="flat"
+                    rounded="pill"
+                    :loading="savingBilling"
+                    :disabled="!billingValid"
+                    prepend-icon="mdi-content-save-outline"
+                    @click="saveBilling"
+                  >
+                    {{ t('common.save') }}
+                  </v-btn>
+                </div>
+              </div>
+            </AdminSection>
           </div>
         </v-window-item>
 
@@ -770,7 +1021,11 @@ const txnColor: Record<string, string> = {
                   <span><em>{{ t('admin.bizConsumed') }}</em><b>{{ fmtCr(c.consumed.credits) }}</b></span>
                 </div>
 
-                <div class="bizrow__actions">
+                <!-- `admin-company` has no `allowedRoles` (admin-only) and
+                     `GET /admin/companies/:id` is genuinely admin-only, so
+                     this link used to eject a finance viewer to /account.
+                     `PATCH /admin/companies/:id/status` is admin-only too. -->
+                <div v-if="isAdmin" class="bizrow__actions">
                   <v-btn
                     :to="{ name: 'admin-company', params: { id: c.id } }"
                     size="small"
@@ -1034,6 +1289,24 @@ const txnColor: Record<string, string> = {
   width: 100%;
   font-size: 0.76rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.ud__bfRow {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.ud__bfRow > * {
+  flex: 1 1 180px;
+}
+.ud__locked {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--tvz-radius-md);
+  background: rgba(var(--v-theme-on-surface), 0.05);
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  font-size: 0.82rem;
 }
 .ud__facts {
   display: flex;

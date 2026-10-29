@@ -12,9 +12,11 @@ import CreditsValue from '@/components/CreditsValue.vue'
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import {
   ProV2Sandbox,
+  SandboxBootError,
   bootContainer,
   type LogLine,
   type SandboxStatus,
+  type SandboxBootFailure,
   type ExecutionError,
 } from '@/lib/webcontainer'
 
@@ -60,6 +62,12 @@ const logLines = ref<LogLine[]>([])
 const showLog = ref(false)
 const showRepairLog = ref(false)
 const isRepairing = ref(false)
+/** Set when the sandbox could not be started at all. Without this the view
+ *  sat on its "booting the sandbox" spinner forever with no error and no way
+ *  out — `WebContainer.boot()` never settles on a page that isn't
+ *  cross-origin isolated. */
+const bootFailure = ref<SandboxBootFailure | ''>('')
+const bootRetrying = ref(false)
 
 // Left panel: Chat is the primary surface, Files is opt-in. On narrow
 // viewports the same idea extends to a 3-way switch (chat/files/preview) —
@@ -78,6 +86,16 @@ function selectMobileTab(tab: 'chat' | 'files' | 'preview'): void {
 }
 
 // --- image attachments (chat composer) --------------------------------
+/** Mirrors the Easy Site upload flow's own pre-check (`MAX_UPLOAD` in
+ *  `EasyStudioAgent.vue`) and the backend's real decoded-byte cap
+ *  (`MAX_ASSET_BYTES` in `website-asset.service.ts`) — the SAME number in all
+ *  three, so there is no band of files that pass the client check and then
+ *  fail server-side with a generic error. */
+const MAX_UPLOAD_BYTES = 4_500_000
+/** Mirrors the Easy Site portfolio cap — a chat turn referencing more images
+ *  than this is a mistake, and the backend caps a company at 60 assets. */
+const MAX_ATTACHMENTS = 10
+
 interface PendingAttachment {
   file: File
   previewUrl: string
@@ -92,11 +110,27 @@ function onAttachClick(): void {
 function onFilesPicked(e: Event): void {
   const input = e.target as HTMLInputElement
   const files = Array.from(input.files ?? [])
+  let tooLarge = 0
+  let overflow = 0
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue
+    // Reject up front rather than letting a predictably-too-big photo fail
+    // server-side with a generic error.
+    if (file.size > MAX_UPLOAD_BYTES) {
+      tooLarge++
+      continue
+    }
+    if (pendingAttachments.value.length >= MAX_ATTACHMENTS) {
+      overflow++
+      continue
+    }
     pendingAttachments.value.push({ file, previewUrl: URL.createObjectURL(file) })
   }
   input.value = ''
+  if (tooLarge) {
+    toasts.error(t('proV2.attachTooLarge', { n: tooLarge, mb: Math.floor(MAX_UPLOAD_BYTES / 1_000_000) }))
+  }
+  if (overflow) toasts.error(t('proV2.attachTooMany', { max: MAX_ATTACHMENTS }))
 }
 function removeAttachment(index: number): void {
   const [removed] = pendingAttachments.value.splice(index, 1)
@@ -115,6 +149,9 @@ function clearAttachments(): void {
 const isBootingPhase = computed(() => status.value === 'booting' || status.value === 'installing' || status.value === 'starting')
 
 const statusLabel = computed(() => {
+  // A failed BOOT is not a failed repair — don't let the status pill read
+  // "Couldn't fix it" for a sandbox that never started.
+  if (bootFailure.value) return t('proV2.bootErrorTitle')
   switch (status.value) {
     case 'booting':
       return t('proV2.statusBooting')
@@ -181,7 +218,7 @@ async function scrollToEnd(): Promise<void> {
   await nextTick()
   messagesEl.value?.scrollTo({ top: messagesEl.value.scrollHeight, behavior: 'smooth' })
 }
-watch(() => v2.messages.length, scrollToEnd)
+watch(() => v2.chatMessages.length, scrollToEnd)
 
 async function submit(): Promise<void> {
   if (!companyId.value || v2.sending || uploadingAttachments.value) return
@@ -195,16 +232,23 @@ async function submit(): Promise<void> {
     uploadingAttachments.value = true
     try {
       const urls: string[] = []
+      let failed = 0
       for (const a of attachments) {
         const url = await v2.uploadAsset(companyId.value, a.file)
         if (url) urls.push(url)
+        else failed++
       }
-      if (urls.length) {
-        text = [text.trim(), ...urls.map((u) => `Uploaded image: ${u}`)].filter(Boolean).join('\n\n')
-      } else {
+      if (!urls.length) {
         toasts.error(t('proV2.attachUploadError'))
         return
       }
+      // A PARTIAL failure used to be silently swallowed: the turn went ahead
+      // referencing only what uploaded, and the agent built a site missing
+      // images the owner believed they had attached. Always say so.
+      if (failed) {
+        toasts.error(t('proV2.attachPartialFailure', { ok: urls.length, failed }))
+      }
+      text = [text.trim(), ...urls.map((u) => `Uploaded image: ${u}`)].filter(Boolean).join('\n\n')
     } finally {
       uploadingAttachments.value = false
     }
@@ -248,26 +292,129 @@ function onComposerKeydown(e: KeyboardEvent): void {
   }
 }
 
+// --- publish ----------------------------------------------------------
+/** The build step runs in the browser and can reject outright (a dead
+ *  sandbox process). That rejection used to escape `publish()` entirely —
+ *  so the button neither spun nor errored and clicking "Publish" visibly did
+ *  nothing. Everything below is inside one try/catch/finally, and the
+ *  SPECIFIC reason is kept rather than collapsed into one generic string. */
+const publishing = ref(false)
+const publishErrorReason = ref('')
+
+/** Known machine reasons the publish endpoint rejects with, mapped to real
+ *  copy. Anything unrecognised is shown verbatim rather than discarded —
+ *  a raw backend sentence beats "something went wrong". */
+function publishErrorText(reason: string): string {
+  if (!reason || reason === 'error') return t('proV2.publishError')
+  if (reason === 'advanced_builder_locked') return t('proV2.publishErr.locked')
+  if (/no website yet to publish/i.test(reason)) return t('proV2.publishErr.noWebsite')
+  if (/index\.html/i.test(reason)) return t('proV2.publishErr.noIndex')
+  if (/too large|exceeds the/i.test(reason)) return t('proV2.publishErr.tooLarge')
+  if (/at most .* files/i.test(reason)) return t('proV2.publishErr.tooManyFiles')
+  if (/cannot edit this project/i.test(reason)) return t('proV2.publishErr.forbidden')
+  return reason
+}
+const publishErrorDisplay = computed(() =>
+  publishErrorReason.value ? publishErrorText(publishErrorReason.value) : '',
+)
+
 /** Builds the CURRENT project in the same running sandbox and uploads the
  *  result as the company's live public bundle — only offered once the
  *  preview is actually healthy, so a broken site is never published. */
 async function publish(): Promise<void> {
-  if (!companyId.value || !sandbox.value || status.value !== 'ready') return
-  const result = await sandbox.value.build()
-  if (!result.ok) {
-    toasts.error(t('proV2.publishBuildFailed'))
-    return
+  if (!companyId.value || !sandbox.value || status.value !== 'ready' || publishing.value) return
+  publishing.value = true
+  publishErrorReason.value = ''
+  try {
+    const result = await sandbox.value.build()
+    if (!result.ok) {
+      // The build's own stderr/stdout tail is the actionable part — keep it
+      // instead of replacing it with the generic "build failed".
+      publishErrorReason.value = result.error
+      toasts.error(t('proV2.publishBuildFailed'))
+      return
+    }
+    const ok = await v2.publish(companyId.value, result.files)
+    if (ok) {
+      toasts.success(t('proV2.publishSuccess'))
+      return
+    }
+    publishErrorReason.value = v2.publishError
+    toasts.error(publishErrorText(v2.publishError))
+  } catch (err) {
+    publishErrorReason.value = err instanceof Error ? err.message : String(err)
+    toasts.error(publishErrorText(publishErrorReason.value))
+  } finally {
+    publishing.value = false
   }
-  const ok = await v2.publish(companyId.value, result.files)
-  toasts[ok ? 'success' : 'error'](ok ? t('proV2.publishSuccess') : t('proV2.publishError'))
 }
 
+// --- sandbox lifecycle -------------------------------------------------
+async function startSandbox(id: string, resume = true): Promise<void> {
+  bootFailure.value = ''
+  const box = new ProV2Sandbox()
+  box.onLog = pushLog
+  box.onStatus = (s) => (status.value = s)
+  box.onServerReady = (url) => (previewUrl.value = url)
+  box.onExecutionError = (err) => void handleSandboxError(err)
+
+  // If the last message is the user's own with no reply yet, a turn was
+  // still running when this page was last closed/reloaded — resume watching
+  // for it (sets `v2.sending` immediately, so the "thinking…" indicator
+  // shows right away) in parallel with booting the sandbox, since neither
+  // depends on the other until the reply actually lands.
+  // Only on the first mount — a boot RETRY must not restart the (up to
+  // 6-minute) in-flight poll, which has already run by then.
+  const resumePromise = resume ? v2.resumeIfInFlight(id) : null
+  try {
+    await box.start(v2.files)
+    sandbox.value = box
+  } catch (err) {
+    // No more infinite "Starting sandbox…" spinner: this surfaces a real,
+    // distinct, retry-able error state.
+    bootFailure.value = err instanceof SandboxBootError ? err.reason : 'boot_failed'
+    status.value = 'failed'
+    pushLog({ text: err instanceof Error ? err.message : String(err), kind: 'error' })
+  }
+  if (!resumePromise) return
+  const resumeResult = await resumePromise
+  if (resumeResult === 'resolved') {
+    await sandbox.value?.sync(v2.files)
+  } else if (resumeResult === 'timed_out') {
+    toasts.error(t('proV2.resumeTimedOut'))
+  }
+}
+
+function reloadPage(): void {
+  window.location.reload()
+}
+
+/** Retry after a failed boot. Meaningful because `bootContainer()` no longer
+ *  caches a rejected boot promise — this genuinely attempts a fresh boot. */
+async function retryBoot(): Promise<void> {
+  if (!companyId.value || bootRetrying.value) return
+  bootRetrying.value = true
+  status.value = 'booting'
+  try {
+    await startSandbox(companyId.value, false)
+  } finally {
+    bootRetrying.value = false
+  }
+}
+
+/** Retry the initial project/file load (item: the permission/role dead-end
+ *  pane had no retry and no way back). */
+async function retryLoad(): Promise<void> {
+  if (!companyId.value || v2.loading) return
+  await v2.load(companyId.value)
+  if (v2.files.length && !sandbox.value) await startSandbox(companyId.value, false)
+}
+
+const loadErrorIsPermission = computed(
+  () => /cannot edit this project/i.test(v2.error) || v2.error === 'Company not found',
+)
+
 onMounted(async () => {
-  // Fire the WebContainer boot immediately, in parallel with the company/file
-  // fetch below, instead of only starting it once that network round-trip
-  // resolves — `ProV2Sandbox.start()` awaits this same cached promise, so
-  // this simply overlaps two waits that were previously sequential.
-  void bootContainer()
   void wallet.load()
   await companies.fetchOverview().catch(() => {})
   const id = adminMode.value
@@ -278,6 +425,27 @@ onMounted(async () => {
     return
   }
   companyId.value = id
+
+  // Check the unlock flag BEFORE touching the sandbox. Entry points elsewhere
+  // route here on `website.mode === 'advanced'` alone, so an un-unlocked
+  // company used to mount this view, fire off a real (slow, expensive)
+  // WebContainer boot, and only then learn from the backend that it isn't
+  // unlocked and bounce to the pay screen. A platform admin is exempt — the
+  // backend heals the flag for them, and the company isn't in their list.
+  if (!adminMode.value) {
+    const entry = companies.overview.find((c) => c.id === id)
+    if (entry && !entry.builderUnlocked) {
+      void router.replace({ name: 'create-unlock', query: { c: id } })
+      return
+    }
+  }
+
+  // Only now is the boot worth starting — kicked off in parallel with the
+  // file fetch below, since `ProV2Sandbox.start()` awaits this same cached
+  // promise and the two waits were otherwise sequential.
+  void bootContainer().catch(() => {
+    /* reported through startSandbox()'s own catch below */
+  })
   await v2.load(id)
   // Direct navigation without having paid the one-time unlock fee — send the
   // owner to that step instead of showing a generic load-error screen.
@@ -286,27 +454,7 @@ onMounted(async () => {
     return
   }
   if (!v2.files.length) return
-
-  const box = new ProV2Sandbox()
-  box.onLog = pushLog
-  box.onStatus = (s) => (status.value = s)
-  box.onServerReady = (url) => (previewUrl.value = url)
-  box.onExecutionError = (err) => void handleSandboxError(err)
-  sandbox.value = box
-
-  // If the last message is the user's own with no reply yet, a turn was
-  // still running when this page was last closed/reloaded — resume watching
-  // for it (sets `v2.sending` immediately, so the "thinking…" indicator
-  // shows right away) in parallel with booting the sandbox, since neither
-  // depends on the other until the reply actually lands.
-  const resumePromise = v2.resumeIfInFlight(id)
-  await box.start(v2.files)
-  const resumeResult = await resumePromise
-  if (resumeResult === 'resolved') {
-    await sandbox.value?.sync(v2.files)
-  } else if (resumeResult === 'timed_out') {
-    toasts.error(t('proV2.resumeTimedOut'))
-  }
+  await startSandbox(id)
 })
 
 onBeforeUnmount(() => {
@@ -354,8 +502,8 @@ watch(
           color="primary"
           size="small"
           prepend-icon="mdi-cloud-upload-outline"
-          :disabled="status !== 'ready' || v2.publishing"
-          :loading="v2.publishing"
+          :disabled="status !== 'ready' || publishing || v2.publishing"
+          :loading="publishing || v2.publishing"
           @click="publish"
         >
           {{ v2.publishedAt ? t('proV2.republish') : t('proV2.publish') }}
@@ -377,14 +525,38 @@ watch(
       </div>
     </header>
 
+    <!-- The specific publish-rejection reason, which used to be captured in
+         the store and then never rendered anywhere. -->
+    <p v-if="publishErrorDisplay" class="v2__publishError">
+      <v-icon icon="mdi-alert-circle-outline" size="15" />
+      <span>{{ publishErrorDisplay }}</span>
+      <button type="button" class="v2__publishErrorX" @click="publishErrorReason = ''">×</button>
+    </p>
+
     <div v-if="v2.loading && !v2.files.length" class="v2__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
 
     <div v-else-if="!v2.files.length" class="v2__center v2__lock">
       <v-icon icon="mdi-alert-circle-outline" size="34" />
-      <h2>{{ t('pro.loadErrorTitle') }}</h2>
-      <p>{{ t('pro.loadErrorText') }}</p>
+      <h2>{{ loadErrorIsPermission ? t('proV2.loadForbiddenTitle') : t('pro.loadErrorTitle') }}</h2>
+      <p>{{ loadErrorIsPermission ? t('proV2.loadForbiddenText') : t('pro.loadErrorText') }}</p>
+      <div class="v2__lockActions">
+        <v-btn
+          v-if="!loadErrorIsPermission"
+          color="primary"
+          variant="tonal"
+          size="small"
+          prepend-icon="mdi-refresh"
+          :loading="v2.loading"
+          @click="retryLoad"
+        >
+          {{ t('common.retry') }}
+        </v-btn>
+        <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="backTarget">
+          {{ adminMode ? t('builder.backAdmin') : t('builder.back') }}
+        </v-btn>
+      </div>
     </div>
 
     <div
@@ -450,12 +622,16 @@ watch(
         <!-- CHAT -->
         <div v-show="leftTab === 'chat'" class="v2__chatPane">
           <div ref="messagesEl" class="v2__messages">
-            <div v-if="!v2.messages.length" class="v2__intro">
+            <div v-if="!v2.chatMessages.length" class="v2__intro">
               <v-icon icon="mdi-creation" size="26" />
               <h2>{{ t('proV2.introTitle') }}</h2>
               <p>{{ t('proV2.introText') }}</p>
             </div>
-            <div v-for="(m, i) in v2.messages" :key="i" class="v2__msg" :class="`v2__msg--${m.role}`">
+            <!-- `chatMessages` excludes the automatic sandbox repair reports
+                 (persisted with role 'user'); those render in the compact
+                 repair log instead of as fake user bubbles full of stack
+                 traces. -->
+            <div v-for="(m, i) in v2.chatMessages" :key="i" class="v2__msg" :class="`v2__msg--${m.role}`">
               <p class="v2__msgText">{{ m.content }}</p>
               <details v-if="m.toolCalls?.length" class="v2__steps">
                 <summary>{{ t('pro.whatIDid', m.toolCalls.length) }}</summary>
@@ -565,30 +741,60 @@ watch(
           </span>
           <div class="v2__previewBarActions">
             <button
-              v-if="v2.repairLog.length"
+              v-if="v2.allRepairs.length"
               type="button"
               class="v2__logToggle"
               @click="showRepairLog = !showRepairLog"
             >
-              {{ showRepairLog ? t('proV2.hideRepairLog') : t('proV2.showRepairLog', v2.repairLog.length) }}
+              {{ showRepairLog ? t('proV2.hideRepairLog') : t('proV2.showRepairLog', v2.allRepairs.length) }}
             </button>
             <button type="button" class="v2__logToggle" @click="showLog = !showLog">
               {{ showLog ? t('proV2.hideLog') : t('proV2.showLog') }}
             </button>
           </div>
         </div>
-        <div v-if="isBootingPhase" class="v2__previewBooting">
+        <!-- A failed boot is its own distinct, actionable, retry-able state —
+             NOT the "booting…" spinner left running forever. -->
+        <div v-if="bootFailure" class="v2__bootError">
+          <v-icon icon="mdi-cloud-off-outline" size="32" />
+          <h3>{{ t('proV2.bootErrorTitle') }}</h3>
+          <p>
+            {{
+              bootFailure === 'not_isolated'
+                ? t('proV2.bootErrorIsolation')
+                : bootFailure === 'timeout'
+                  ? t('proV2.bootErrorTimeout')
+                  : t('proV2.bootErrorGeneric')
+            }}
+          </p>
+          <div class="v2__bootErrorActions">
+            <v-btn
+              color="primary"
+              variant="tonal"
+              size="small"
+              prepend-icon="mdi-refresh"
+              :loading="bootRetrying"
+              @click="retryBoot"
+            >
+              {{ t('common.retry') }}
+            </v-btn>
+            <v-btn variant="text" size="small" @click="reloadPage">
+              {{ t('proV2.bootErrorReload') }}
+            </v-btn>
+          </div>
+        </div>
+        <div v-else-if="isBootingPhase" class="v2__previewBooting">
           <v-progress-circular indeterminate color="primary" size="28" />
           <p>{{ statusLabel }}</p>
         </div>
         <iframe
-          v-show="!isBootingPhase"
+          v-show="!isBootingPhase && !bootFailure"
           :src="previewUrl"
           class="v2__iframe"
           title="Live preview"
         />
         <div v-if="showRepairLog" class="v2__repairLog">
-          <div v-for="(r, i) in v2.repairLog" :key="i" class="v2__repairEntry" :class="`is-${r.status}`">
+          <div v-for="(r, i) in v2.allRepairs" :key="i" class="v2__repairEntry" :class="`is-${r.status}`">
             <p class="v2__repairError">
               <v-icon :icon="r.status === 'fixed' ? 'mdi-check-circle-outline' : r.status === 'failed' ? 'mdi-alert-circle-outline' : 'mdi-progress-wrench'" size="14" />
               {{ r.kind }}<span v-if="r.path"> · {{ r.path }}</span>
@@ -686,6 +892,66 @@ watch(
   text-align: center;
   gap: 0.5rem;
   color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.v2__lockActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.v2__publishError {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: rgba(var(--v-theme-error), 0.1);
+  color: rgb(var(--v-theme-error));
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+.v2__publishError span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.v2__publishErrorX {
+  flex: none;
+  font-size: 1rem;
+  line-height: 1;
+  color: inherit;
+}
+.v2__bootError {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.v2__bootError .v-icon {
+  color: rgb(var(--v-theme-error));
+}
+.v2__bootError h3 {
+  margin: 0;
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1rem;
+  color: rgb(var(--v-theme-on-surface));
+}
+.v2__bootError p {
+  margin: 0;
+  max-width: 44ch;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+.v2__bootErrorActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 /* Desktop: Chat mode is 2 columns (chat 35% / preview 65% — the preview is

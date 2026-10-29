@@ -1,10 +1,26 @@
 import { defineStore } from 'pinia'
 
-import { apiFetch, BASE_URL } from '@/services/api'
+import { apiFetch, ApiError, BASE_URL } from '@/services/api'
 import type { PlatformRole } from '@/stores/auth'
+import type { BillingProfile, BillingProfileInput } from '@/stores/billing'
 import type { CampaignPayload, FeedRankEntry, SaveCampaignInput } from '@/stores/campaign'
 import type { DashboardAnalytics, LocalizedName } from '@/stores/companies'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
+
+/**
+ * Why every fetcher below has a `catch`: they used to be
+ * `try { … } finally { loading = false }` with no catch at all, so ANY
+ * backend failure — a 403 for the wrong staff role, a timeout, a 500 —
+ * resolved into an untouched empty list and rendered as a perfectly calm
+ * "no data yet" page. The views read these `*Error` fields and surface the
+ * reason instead (same shape `AdminUserDetailView`'s `loadError` already
+ * used).
+ */
+function errMsg(e: unknown): string {
+  if (e instanceof ApiError) return e.message
+  if (e instanceof Error) return e.message
+  return 'request failed'
+}
 
 export interface AdminStats {
   users: {
@@ -163,6 +179,10 @@ export interface AdminUserDetail {
     blockedReason: string | null
     refundable: Money
   }
+  /** The billing identity every one of this user's invoices is made out to.
+   *  Null until they've declared one — which is itself why their purchases
+   *  may be blocked, so the panel has to be able to show that state. */
+  billingProfile: BillingProfile | null
   companies: AdminUserCompany[]
   transactions: AdminUserTxn[]
   invoices: AdminUserInvoice[]
@@ -312,6 +332,15 @@ export interface AdminCategoryGroup extends AdminCategory {
 
 interface AdminState {
   stats: AdminStats | null
+  /** Per-call failure reason, or null on success. See `errMsg` above for why
+   *  these exist at all; the views render them as an error empty-state. */
+  statsError: string | null
+  usersError: string | null
+  businessesError: string | null
+  invoicesError: string | null
+  referralsError: string | null
+  categoriesError: string | null
+  settingsError: string | null
   users: AdminUserRow[]
   usersTotal: number
   filters: UsersFilters
@@ -496,6 +525,13 @@ export interface AdminReferralsPage {
 export const useAdminStore = defineStore('admin', {
   state: (): AdminState => ({
     stats: null,
+    statsError: null,
+    usersError: null,
+    businessesError: null,
+    invoicesError: null,
+    referralsError: null,
+    categoriesError: null,
+    settingsError: null,
     users: [],
     usersTotal: 0,
     filters: { search: '', status: null, role: null, page: 1, pageSize: 20 },
@@ -531,7 +567,12 @@ export const useAdminStore = defineStore('admin', {
 
   actions: {
     async fetchStats(): Promise<void> {
-      this.stats = await apiFetch<AdminStats>('/admin/stats')
+      try {
+        this.stats = await apiFetch<AdminStats>('/admin/stats')
+        this.statsError = null
+      } catch (e) {
+        this.statsError = errMsg(e)
+      }
     },
 
     async fetchUsers(): Promise<void> {
@@ -553,6 +594,9 @@ export const useAdminStore = defineStore('admin', {
         )
         this.users = res.items
         this.usersTotal = res.total
+        this.usersError = null
+      } catch (e) {
+        this.usersError = errMsg(e)
       } finally {
         this.loadingUsers = false
       }
@@ -586,6 +630,11 @@ export const useAdminStore = defineStore('admin', {
         if (seq !== this.businessesRequestSeq) return
         this.businesses = res.items
         this.businessesTotal = res.total
+        this.businessesError = null
+      } catch (e) {
+        // A superseded request's failure must not overwrite the state a
+        // still-in-flight newer one is about to fill.
+        if (seq === this.businessesRequestSeq) this.businessesError = errMsg(e)
       } finally {
         if (seq === this.businessesRequestSeq) this.loadingBusinesses = false
       }
@@ -612,6 +661,9 @@ export const useAdminStore = defineStore('admin', {
         )
         this.invoices = res.items
         this.invoicesTotal = res.total
+        this.invoicesError = null
+      } catch (e) {
+        this.invoicesError = errMsg(e)
       } finally {
         this.loadingInvoices = false
       }
@@ -638,6 +690,9 @@ export const useAdminStore = defineStore('admin', {
         this.referralsTotalPending = res.totalPending
         this.referralsTotalRewarded = res.totalRewarded
         this.referralsCreditsPaid = res.creditsPaid
+        this.referralsError = null
+      } catch (e) {
+        this.referralsError = errMsg(e)
       } finally {
         this.loadingReferrals = false
       }
@@ -664,7 +719,12 @@ export const useAdminStore = defineStore('admin', {
     },
 
     async fetchSettings(): Promise<void> {
-      this.settings = await apiFetch<AdminSettings>('/admin/settings')
+      try {
+        this.settings = await apiFetch<AdminSettings>('/admin/settings')
+        this.settingsError = null
+      } catch (e) {
+        this.settingsError = errMsg(e)
+      }
     },
 
     async updateSettings(input: Partial<AdminSettings>): Promise<void> {
@@ -750,6 +810,21 @@ export const useAdminStore = defineStore('admin', {
         method: 'POST',
         body: { newPassword },
       })
+    },
+
+    /**
+     * Staff-side edit of the billing identity a user's invoices are made out
+     * to (`PATCH /admin/users/:id/billing-profile`, `admin`+`finance`). Takes
+     * exactly the field set the customer's own `/account/billing/profile`
+     * accepts, so a staff edit can't produce a shape the self-service form
+     * never could. `invoicesIssued` is non-zero when completing the profile
+     * also backfilled the user's pending invoices.
+     */
+    updateUserBillingProfile(
+      id: string,
+      input: BillingProfileInput,
+    ): Promise<{ profile: BillingProfile; isComplete: boolean; invoicesIssued: number }> {
+      return apiFetch(`/admin/users/${id}/billing-profile`, { method: 'PATCH', body: input })
     },
 
     blockWallet(id: string, blocked: boolean, reason?: string): Promise<AdminUserDetail> {
@@ -869,6 +944,9 @@ export const useAdminStore = defineStore('admin', {
       try {
         const res = await apiFetch<{ data: AdminCategoryGroup[] }>('/admin/categories')
         this.categories = res.data
+        this.categoriesError = null
+      } catch (e) {
+        this.categoriesError = errMsg(e)
       } finally {
         this.loadingCategories = false
       }

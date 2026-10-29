@@ -335,4 +335,107 @@ describe('ProV2AgentService — cross-provider escalation (DeepSeek configured)'
     const gateRejections = prisma.__usageRecords.filter((r) => r.provider === 'deepseek');
     expect(gateRejections).toHaveLength(2);
   });
+
+  it('escalates when the cheap tier answers an edit request in prose and calls NO tool at all', async () => {
+    const prisma = fakePrisma();
+    const projects = new ProV2Service(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const project = await projects.getOrCreateProject('c1', 'u1');
+    await projects.writeFile(
+      project.id,
+      'src/App.vue',
+      '<template><button>Old</button></template>',
+    );
+    await projects.appendMessage(project.id, 'assistant', 'Hi there.');
+
+    // The regression: the cheap model replies with prose and never calls a
+    // tool. `mutatingToolCallCount` is 0 and `changedPaths` is empty, so the
+    // old gate rule (precondition `mutatingToolCallCount > 0`) could not
+    // fire — the turn was accepted as final and billed for doing nothing.
+    const deepseek: AiProvider = {
+      name: 'deepseek',
+      configured: true,
+      agentMessage: jest.fn(async (_p: AgentCallParams) =>
+        endTurnResult('To rename the button, change the label text inside src/App.vue.'),
+      ),
+    };
+    const claude: AiProvider = {
+      name: 'claude',
+      configured: true,
+      agentMessage: jest.fn(async (_p: AgentCallParams) =>
+        endTurnResult('Renamed the button for you.'),
+      ),
+    };
+
+    const router = new ModelRouter(claude as never, deepseek as never, fakeConfig());
+    const usage = new AiUsageService(prisma as never, fakeWallet() as never);
+    const svc = new ProV2AgentService(
+      projects,
+      claude as never,
+      router,
+      usage,
+      { configured: false, search: jest.fn(async () => []) } as never,
+      prisma as never,
+      fakeNotifications as never,
+      fakeConfig(),
+    );
+
+    const result = await svc.sendMessage('u1', 'c1', 'Rename the button to Start now');
+
+    expect(deepseek.agentMessage).toHaveBeenCalledTimes(2); // flash, then pro
+    expect(claude.agentMessage).toHaveBeenCalledTimes(1);
+    expect(result.reply).toBe('Renamed the button for you.');
+    expect(result.usage.provider).toBe('claude');
+    expect(result.usage.escalations).toBe(2);
+  });
+
+  it('does NOT escalate when the cheap tier asks a genuine clarifying question', async () => {
+    const prisma = fakePrisma();
+    const projects = new ProV2Service(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const project = await projects.getOrCreateProject('c1', 'u1');
+    await projects.appendMessage(project.id, 'assistant', 'Hi there.');
+
+    const question = 'Which button do you mean — the hero CTA or the contact one?';
+    const deepseek: AiProvider = {
+      name: 'deepseek',
+      configured: true,
+      agentMessage: jest.fn(async (_p: AgentCallParams) => endTurnResult(question)),
+    };
+    const claude: AiProvider = {
+      name: 'claude',
+      configured: true,
+      agentMessage: jest.fn(async (_p: AgentCallParams) => endTurnResult('should not be reached')),
+    };
+
+    const router = new ModelRouter(claude as never, deepseek as never, fakeConfig());
+    const usage = new AiUsageService(prisma as never, fakeWallet() as never);
+    const svc = new ProV2AgentService(
+      projects,
+      claude as never,
+      router,
+      usage,
+      { configured: false, search: jest.fn(async () => []) } as never,
+      prisma as never,
+      fakeNotifications as never,
+      fakeConfig(),
+    );
+
+    const result = await svc.sendMessage('u1', 'c1', 'Rename the button to Start now');
+
+    expect(deepseek.agentMessage).toHaveBeenCalledTimes(1);
+    expect(claude.agentMessage).not.toHaveBeenCalled();
+    expect(result.reply).toBe(question);
+    expect(result.usage.escalations).toBe(0);
+  });
 });

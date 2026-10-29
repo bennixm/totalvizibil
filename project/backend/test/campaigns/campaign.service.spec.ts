@@ -196,7 +196,14 @@ function fakePrisma() {
       return c;
     },
     __seedWebsite: (companyId: string, data = {}) => {
-      const w = { companyId, mode: 'easy', content: null, status: 'published', ...data };
+      const w = {
+        companyId,
+        mode: 'easy',
+        content: null,
+        status: 'published',
+        publishedAt: null,
+        ...data,
+      };
       websites.set(companyId, w);
       return w;
     },
@@ -254,6 +261,44 @@ describe('CampaignService', () => {
     });
   });
 
+  describe('isListingWebsiteReady', () => {
+    it('is false with no website row at all', async () => {
+      const { svc } = makeService();
+      await expect(svc.isListingWebsiteReady('co1')).resolves.toBe(false);
+    });
+
+    it('is true for an easy-plan site (fully generated during onboarding)', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedWebsite('co1', { mode: 'easy' });
+      await expect(svc.isListingWebsiteReady('co1')).resolves.toBe(true);
+    });
+
+    // The regression this method existed for: `createFromDraft` seeds EVERY
+    // new website — advanced included — with the onboarding draft's
+    // placeholder one-page content, so the old `content.pages.length > 0`
+    // test was true before the owner ever opened the real builder, and the
+    // "finish your builder first" nudge could never fire.
+    it('is false for an advanced site that only has the seeded onboarding placeholder content', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedWebsite('co1', {
+        mode: 'advanced',
+        content: { pages: [{ sections: [] }] },
+        publishedAt: null,
+      });
+      await expect(svc.isListingWebsiteReady('co1')).resolves.toBe(false);
+    });
+
+    it('is true once the advanced site has actually been published from the builder', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedWebsite('co1', {
+        mode: 'advanced',
+        content: { pages: [{ sections: [] }] },
+        publishedAt: new Date('2026-10-01T10:00:00Z'),
+      });
+      await expect(svc.isListingWebsiteReady('co1')).resolves.toBe(true);
+    });
+  });
+
   describe('activate', () => {
     it('throws BadRequestException when no campaign exists', async () => {
       const { svc, prisma } = makeService();
@@ -269,6 +314,19 @@ describe('CampaignService', () => {
       prisma.__seedCampaign({ companyId: 'co1' });
       // no website seeded → not ready
       await expect(svc.activate('u1', 'co1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('blocks an advanced business whose builder was never published (placeholder content only)', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedMember('co1', 'u1', 'owner');
+      prisma.__seedCompany();
+      prisma.__seedCampaign({ companyId: 'co1' });
+      prisma.__seedWebsite('co1', {
+        mode: 'advanced',
+        content: { pages: [{ sections: [] }] },
+        publishedAt: null,
+      });
+      await expect(svc.activate('u1', 'co1')).rejects.toThrow('website_builder_incomplete');
     });
 
     it('throws BadRequestException when wallet cannot afford daily budget', async () => {

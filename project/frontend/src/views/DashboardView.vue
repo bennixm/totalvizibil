@@ -24,8 +24,13 @@ const router = useRouter()
 const companies = useCompaniesStore()
 const { overview } = storeToRefs(companies)
 const billing = useBillingStore()
-const { isComplete: billingComplete, unbilledCount, invoices, loading: billingLoading } =
-  storeToRefs(billing)
+const {
+  isComplete: billingComplete,
+  unbilledCount,
+  invoices,
+  loading: billingLoading,
+  error: billingError,
+} = storeToRefs(billing)
 const confirm = useConfirmStore()
 
 const loading = ref(true)
@@ -58,6 +63,18 @@ const deleteDaysLeft = computed(() => {
 const companyItems = computed(() =>
   overview.value.map((c) => ({ title: c.displayName, value: c.id })),
 )
+
+// `status` has three server-side values, not two. An admin-suspended business
+// used to collapse into the same generic "Draft" chip as one that simply
+// hasn't finished its setup — the only hint anything was wrong was an error
+// toast if the owner happened to press "Activate".
+const suspended = computed(() => company.value?.status === 'suspended')
+const statusChip = computed(() => {
+  const s = company.value?.status
+  if (s === 'active') return { color: 'success', label: t('dashboard.statusActive') }
+  if (s === 'suspended') return { color: 'error', label: t('dashboard.statusSuspended') }
+  return { color: 'default', label: t('dashboard.statusDraft') }
+})
 
 const website = computed(() => dash.value?.website ?? null)
 const websiteReady = computed(
@@ -136,7 +153,16 @@ const walletProblem = computed(() => {
 const tasks = computed(() => dash.value?.tasks ?? [])
 // Once a task is done it disappears from the top checklist entirely — its
 // action moves into the matching status card below instead.
-const pendingTasks = computed(() => tasks.value.filter((tk) => tk.status !== 'done'))
+//
+// A business pending deletion is fully frozen server-side: every page these
+// tasks link to (location, category, budget, builder) can now only error, so
+// the checklist would be pushing the owner into guaranteed failures. The
+// deletion banner right above already explains the state and offers Undo —
+// the same reason the Location/Category/Website cards below disable their own
+// "Edit" links in that state.
+const pendingTasks = computed(() =>
+  pendingDeletion.value ? [] : tasks.value.filter((tk) => tk.status !== 'done'),
+)
 const chartSeries = computed(() =>
   a.value
     ? [
@@ -216,10 +242,35 @@ function alertText(key: string): string {
   return t('dashboard.alert.' + key + 'Text')
 }
 
+// --- Billing profile ------------------------------------------------------
+// `billing.load()` is fire-and-forget on mount and swallows its failure into
+// the store's `error`, leaving `isComplete` at its initial `false` — exactly
+// what a genuinely incomplete profile looks like. Without consulting `error`
+// the card claimed "billing data incomplete" for a perfectly fine profile
+// whose fetch merely failed.
+const billingLoadFailed = computed(() => !!billingError.value && !billing.profile)
+function retryBilling(): void {
+  void billing.load()
+}
+
 // --- Upgrade to the advanced plan ----------------------------------------
 const advancedPrice = ref<number | null>(null)
 const canUpgrade = computed(
   () => websiteReady.value && website.value?.status !== 'none' && website.value?.mode === 'easy',
+)
+// An easy-plan business that hasn't paid the one-time unlock fee can't land
+// in the builder directly — it bounces through the unlock-payment step. Go
+// there explicitly instead, tagged `flow=upgrade` so that screen can tell an
+// already-live business upgrading its plan apart from a brand-new signup
+// walking the onboarding stepper. (CreateUnlockView doesn't branch on this
+// yet — it's owned elsewhere this round; see the report.)
+const builderUnlocked = computed(
+  () => !!overview.value.find((c) => c.id === companyId.value)?.builderUnlocked,
+)
+const upgradeTarget = computed(() =>
+  builderUnlocked.value
+    ? { name: 'website-builder', query: { c: companyId.value } }
+    : { name: 'create-unlock', query: { c: companyId.value, flow: 'upgrade' } },
 )
 
 function fmtNum(v: number, maxFractionDigits = 2): string {
@@ -406,14 +457,8 @@ watch(
               @update:model-value="switchCompany"
             />
             <h1 v-else>{{ company.displayName }}</h1>
-            <v-chip
-              :color="company.status === 'active' ? 'success' : 'default'"
-              size="small"
-              variant="flat"
-            >
-              {{
-                company.status === 'active' ? t('dashboard.statusActive') : t('dashboard.statusDraft')
-              }}
+            <v-chip :color="statusChip.color" size="small" variant="flat">
+              {{ statusChip.label }}
             </v-chip>
           </div>
         </div>
@@ -426,6 +471,24 @@ watch(
           {{ t('dashboard.addBusiness') }}
         </v-btn>
       </header>
+
+      <!-- Admin-suspended: offline, and nothing the owner can fix from here -->
+      <div v-if="suspended" class="dash__deleteBanner">
+        <v-icon icon="mdi-cancel" size="20" />
+        <div class="dash__deleteBody">
+          <strong>{{ t('dashboard.suspendedTitle') }}</strong>
+          <p>{{ t('dashboard.suspendedBody') }}</p>
+        </div>
+        <v-btn
+          color="primary"
+          variant="flat"
+          size="small"
+          prepend-icon="mdi-lifebuoy"
+          :to="{ name: 'support' }"
+        >
+          {{ t('nav.support') }}
+        </v-btn>
+      </div>
 
       <!-- Whole-business deletion scheduled — everything is offline; Undo until the date -->
       <div v-if="pendingDeletion" class="dash__deleteBanner">
@@ -516,7 +579,7 @@ watch(
             color="primary"
             variant="flat"
             append-icon="mdi-arrow-right"
-            :to="{ name: 'website-builder', query: { c: companyId } }"
+            :to="upgradeTarget"
           >
             {{ t('dashboard.upgradeCta') }}
           </v-btn>
@@ -677,10 +740,20 @@ watch(
         <article
           v-if="!billingLoading"
           class="dcard"
-          :class="{ 'dcard--alert': !billingComplete || unbilledCount > 0 }"
+          :class="{ 'dcard--alert': billingLoadFailed ? false : !billingComplete || unbilledCount > 0 }"
         >          <p class="dcard__k">{{ t('dashboard.invoicesTitle') }}</p>
           <div class="dcard__body">
-            <template v-if="!billingComplete">
+            <!-- The fetch itself failed: `isComplete` is still its initial
+                 `false`, which is indistinguishable from a genuinely
+                 incomplete profile — so say "couldn't check", not
+                 "incomplete", and offer a retry. -->
+            <template v-if="billingLoadFailed">
+              <p class="dcard__sub">{{ t('dashboard.invoicesUnknownText') }}</p>
+              <button type="button" class="dcard__go" :disabled="billingLoading" @click="retryBilling">
+                {{ t('dashboard.invoicesUnknownCta') }} <v-icon icon="mdi-refresh" size="15" />
+              </button>
+            </template>
+            <template v-else-if="!billingComplete">
               <p class="dcard__sub">{{ t('dashboard.invoicesIncompleteText') }}</p>
               <router-link class="dcard__go" :to="{ name: 'account', query: { tab: 'billing' } }">
                 {{ t('dashboard.invoicesIncompleteCta') }} <v-icon icon="mdi-arrow-right" size="15" />

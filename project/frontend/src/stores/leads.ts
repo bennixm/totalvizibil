@@ -188,6 +188,11 @@ export const useLeadsStore = defineStore('leads', {
     async remove(leadId: string): Promise<void> {
       if (!this.companyId) return
       this.working = true
+      // Reset BEFORE the attempt: the page toasts off `watch(error)`, so a
+      // retry that fails with the exact same message wouldn't change the
+      // value and the watcher would never fire again — leaving the second
+      // attempt with no feedback at all.
+      this.error = ''
       try {
         await apiFetch(`/companies/${this.companyId}/leads/${leadId}`, { method: 'DELETE' })
         this.items = this.items.filter((l) => l.id !== leadId)

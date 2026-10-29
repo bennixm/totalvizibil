@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
@@ -12,19 +12,42 @@ const { t } = useI18n()
 const store = useWebsiteDraftStore()
 const { draft, loading, error } = storeToRefs(store)
 
-function retry(): void {
-  void store.resumeOrCreate()
+/**
+ * Resume/create an EASY draft. If a stale advanced draft comes back (the
+ * owner picked "Easy" this time), swap it for a fresh easy one — and if that
+ * creation fails (e.g. the hourly create throttle), drop the local draft so
+ * the retry-able error state below renders instead of the easy studio trying
+ * to drive an advanced draft. `restart()` leaves the stored reference intact
+ * on failure, so a retry genuinely re-attempts the swap.
+ */
+async function ensureEasyDraft(): Promise<void> {
+  await store.resumeOrCreate()
+  if (store.draft?.mode === 'advanced') {
+    const ok = await store.restart()
+    if (!ok) store.draft = null
+  }
 }
+
+function retry(): void {
+  store.error = ''
+  void ensureEasyDraft()
+}
+
+/** `unreachable` is the new, distinct code for "the request never got a
+ *  verdict from the backend" — the draft is still safe server-side, so this
+ *  says so and offers a retry instead of silently dropping the owner into a
+ *  blank new draft (the old behaviour). */
+const errorText = computed(() => {
+  if (error.value === 'rate_limited') return t('studio.rateLimited')
+  if (error.value === 'unreachable') return t('studio.connectionError')
+  return t('studio.loadError')
+})
 
 // Mobile: toggle between the preview and the chat (the app-like split doesn't
 // fit a phone). Desktop shows both side by side.
 const mobilePane = ref<'chat' | 'preview'>('chat')
 
-onMounted(async () => {
-  await store.resumeOrCreate()
-  // If a stale advanced draft was resumed, start a fresh easy one (user picked "Easy").
-  if (store.draft?.mode === 'advanced') await store.restart()
-})
+onMounted(ensureEasyDraft)
 </script>
 
 <template>
@@ -83,7 +106,7 @@ onMounted(async () => {
         </div>
         <div v-else-if="error" class="studio__agentError">
           <v-icon icon="mdi-alert-circle-outline" size="28" />
-          <p>{{ error === 'rate_limited' ? t('studio.rateLimited') : t('studio.loadError') }}</p>
+          <p>{{ errorText }}</p>
           <v-btn color="primary" variant="tonal" size="small" @click="retry">
             {{ t('studio.retry') }}
           </v-btn>

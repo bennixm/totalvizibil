@@ -219,11 +219,48 @@ async function save(): Promise<void> {
   }
 }
 
-onMounted(async () => {
-  ;[catTree.value, counties.value] = await Promise.all([
-    fetchCategoryTree().catch(() => []),
-    fetchCounties().catch(() => []),
+/**
+ * Both lookups used to be `.catch(() => [])`, which made a failed fetch
+ * indistinguishable from a genuinely empty result: the visitor got two empty
+ * dropdowns and an empty county picker, "continue" stayed disabled (nothing
+ * could be selected) and NOTHING said why — on the very first page of
+ * signing a business up, so one transient failure silently killed the whole
+ * onboarding funnel. Track the failure explicitly and offer a retry.
+ */
+const setupFailed = ref(false)
+const retrying = ref(false)
+
+async function loadOptions(): Promise<void> {
+  retrying.value = true
+  const [cats, cts] = await Promise.all([
+    fetchCategoryTree().then(
+      (v) => ({ ok: true, v }) as const,
+      () => ({ ok: false, v: [] as CategoryGroup[] }) as const,
+    ),
+    fetchCounties().then(
+      (v) => ({ ok: true, v }) as const,
+      () => ({ ok: false, v: [] as string[] }) as const,
+    ),
   ])
+  catTree.value = cats.v
+  counties.value = cts.v
+  // A successful fetch that legitimately returns nothing is NOT this error.
+  setupFailed.value = !cats.ok || !cts.ok
+  retrying.value = false
+}
+
+async function retrySetup(): Promise<void> {
+  if (retrying.value) return
+  await loadOptions()
+  // Re-apply the draft's own picks once the lists they reference exist.
+  if (!setupFailed.value) {
+    preselectCategory(draftStore.draft?.categorySlugs)
+    await refreshOverview(++locSeq)
+  }
+}
+
+onMounted(async () => {
+  await loadOptions()
 
   const hasDraft = await draftStore.resumeIfAny()
   if (hasDraft && draftStore.draft?.ready) {
@@ -256,6 +293,26 @@ onMounted(async () => {
     <div v-if="!ready" class="loc__loading">
       <v-progress-circular indeterminate color="primary" />
     </div>
+
+    <template v-else-if="setupFailed">
+      <div class="loc__setupError">
+        <v-icon icon="mdi-cloud-off-outline" size="32" />
+        <h2>{{ t('location.setupErrorTitle') }}</h2>
+        <p>{{ t('location.setupErrorText') }}</p>
+        <v-btn
+          color="primary"
+          variant="flat"
+          prepend-icon="mdi-refresh"
+          :loading="retrying"
+          @click="retrySetup"
+        >
+          {{ t('location.retry') }}
+        </v-btn>
+        <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="backTarget">
+          {{ t('location.back') }}
+        </v-btn>
+      </div>
+    </template>
 
     <template v-else>
       <div class="loc__fieldhead">
@@ -416,6 +473,32 @@ onMounted(async () => {
   display: grid;
   place-items: center;
   min-height: 200px;
+}
+
+.loc__setupError {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.6rem;
+  padding: 2.5rem 1.5rem;
+  border-radius: var(--tvz-radius-md);
+  border: 1px solid var(--tvz-glass-border);
+  background: rgba(var(--v-theme-on-surface), 0.03);
+}
+.loc__setupError > .v-icon {
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.loc__setupError h2 {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1.2rem;
+  margin: 0;
+}
+.loc__setupError p {
+  margin: 0 0 0.4rem;
+  max-width: 44ch;
+  font-size: 0.88rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
 .loc__fieldhead {

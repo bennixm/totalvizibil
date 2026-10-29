@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import TrendChart from '@/components/TrendChart.vue'
@@ -165,6 +166,14 @@ const economyChart = computed(() => {
     <div v-if="loading" class="d-flex justify-center py-16">
       <v-progress-circular indeterminate color="primary" />
     </div>
+
+    <!-- Every block below lives inside `v-else-if="s"`, so a failed
+         `/admin/stats` left an entirely blank page behind the spinner. -->
+    <AdminEmptyState
+      v-else-if="admin.statsError"
+      icon="mdi-alert-circle-outline"
+      :text="admin.statsError"
+    />
 
     <template v-else-if="s">
       <!-- Hero KPIs -->

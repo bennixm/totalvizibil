@@ -112,9 +112,23 @@ async function clearDateFilter(): Promise<void> {
   await appointments.load(companyId.value)
 }
 
+// `appointments.loadMore()` has no internal error handling AND never touches
+// `loading`/`working` (those are only set by `load` and the mutations), so
+// the button's `:disabled="loading"` binding was dead and a failed page-2
+// fetch was just an unhandled rejection: no busy state, no message, nothing
+// visibly happening. Local flag + an explicit toast, exactly as LeadsView
+// does, without changing what `working` means for the row buttons.
+const loadingMore = ref(false)
 async function loadMore(): Promise<void> {
-  if (!nextCursor.value) return
-  await appointments.loadMore()
+  if (loadingMore.value || !nextCursor.value) return
+  loadingMore.value = true
+  try {
+    await appointments.loadMore()
+  } catch (e) {
+    toasts.error(e instanceof Error ? e.message : t('appointments.loadMoreError'))
+  } finally {
+    loadingMore.value = false
+  }
 }
 
 function askCancel(appt: Appointment): void {
@@ -417,7 +431,14 @@ watch(
           </div>
         </li>
       </ul>
-      <button v-if="nextCursor" type="button" class="apt__more" :disabled="loading" @click="loadMore">
+      <button
+        v-if="nextCursor"
+        type="button"
+        class="apt__more"
+        :disabled="loading || loadingMore"
+        @click="loadMore"
+      >
+        <v-progress-circular v-if="loadingMore" indeterminate size="14" width="2" class="me-1" />
         {{ t('appointments.loadMore') }}
       </button>
     </template>
@@ -787,6 +808,10 @@ watch(
 }
 .apt__more:hover:not(:disabled) {
   background: rgba(var(--v-theme-on-surface), 0.05);
+}
+.apt__more:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 @media (max-width: 640px) {

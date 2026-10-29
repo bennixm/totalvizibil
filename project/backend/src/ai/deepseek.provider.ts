@@ -5,11 +5,12 @@
  * Anthropic-shaped `AgentCallParams`/`AgentCallResult` at its own edges, so
  * nothing outside this file needs to know DeepSeek's wire format.
  *
- * NOTE: this has never been exercised against the real API in this codebase
- * — there is no DEEPSEEK_API_KEY configured in this environment. It is
- * written against DeepSeek's public documentation and unit-tested against a
- * mocked HTTP response, but its real-world behavior is unverified. See the
- * PRO V2 cost-optimization report.
+ * NOTE: written against DeepSeek's public documentation and unit-tested
+ * against a mocked HTTP response. Wherever its real wire behavior could
+ * differ from the docs, this translation prefers the response's actual
+ * CONTENT over its metadata (see `fromOpenAiResponse`) — when a key IS
+ * configured this path is live, and a mis-translated response here silently
+ * turns a real edit into a no-op the caller still pays for.
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -120,9 +121,15 @@ function fromOpenAiResponse(body: {
     }
     content.push({ type: 'tool_use', id: tc.id, name: tc.function?.name ?? '', input });
   }
+  // The CONTENT is authoritative, not `finish_reason`. If the response
+  // carries tool calls, the agent loop must run them — a provider that
+  // returns `tool_calls` alongside `finish_reason: "stop"` (or any other
+  // string) would otherwise have its tool calls silently discarded as plain
+  // text, leaving the user with a filler reply and an unchanged project.
+  const hasToolUse = content.some((block) => block.type === 'tool_use');
   return {
     content,
-    stop_reason: choice?.finish_reason === 'tool_calls' ? 'tool_use' : 'end_turn',
+    stop_reason: hasToolUse || choice?.finish_reason === 'tool_calls' ? 'tool_use' : 'end_turn',
     usage: {
       input_tokens: body.usage?.prompt_tokens ?? 0,
       output_tokens: body.usage?.completion_tokens ?? 0,

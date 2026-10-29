@@ -46,6 +46,14 @@ onMounted(() => finance.fetchAiUsage())
       <v-progress-circular indeterminate color="primary" />
     </div>
 
+    <!-- Everything below is inside `v-else-if="finance.aiUsage"`, so a failed
+         fetch left a blank page behind the spinner. -->
+    <AdminEmptyState
+      v-else-if="finance.aiUsageError"
+      icon="mdi-alert-circle-outline"
+      :text="finance.aiUsageError"
+    />
+
     <template v-else-if="finance.aiUsage">
       <p v-if="rangeLabel" class="afa__range">{{ rangeLabel }}</p>
       <div class="afa__kpis">

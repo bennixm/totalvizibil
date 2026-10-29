@@ -36,9 +36,17 @@ export function useAdminNavGroups() {
             ? [
                 { to: { name: 'admin-users' }, label: t('admin.navUsers'), icon: 'mdi-account-multiple-outline' },
                 { to: { name: 'admin-businesses' }, label: t('admin.navBusinesses'), icon: 'mdi-domain' },
-                { to: { name: 'admin-referrals' }, label: t('admin.navReferrals'), icon: 'mdi-account-multiple-plus-outline' },
-                { to: { name: 'admin-categories' }, label: t('admin.navCategories'), icon: 'mdi-shape-outline' },
               ]
+            : []),
+          // Recomandări is `admin`+`finance` on the backend (`GET
+          // /admin/referrals` and `/referrals/export`), but this link used to
+          // sit inside the admin-only block above — a Contabil had no way
+          // into a page the API had deliberately opened to them.
+          ...(isFinanceStaff.value
+            ? [{ to: { name: 'admin-referrals' }, label: t('admin.navReferrals'), icon: 'mdi-account-multiple-plus-outline' }]
+            : []),
+          ...(isAdmin.value
+            ? [{ to: { name: 'admin-categories' }, label: t('admin.navCategories'), icon: 'mdi-shape-outline' }]
             : []),
           ...(isSupportStaff.value
             ? [{ to: { name: 'support' }, label: t('admin.navSupport'), icon: 'mdi-face-agent' }]
@@ -59,7 +67,11 @@ export function useAdminNavGroups() {
       },
       {
         label: t('admin.navGroupConfig'),
-        items: isAdmin.value
+        // `GET /admin/settings` is `admin`+`finance`: the VAT rate, refund
+        // fee, FX rate and invoice-issuer identity are what a Contabil
+        // reconciles against. The view itself hides every write control for
+        // a finance-only viewer, so the link is safe to show them.
+        items: isFinanceStaff.value
           ? [{ to: { name: 'admin-settings' }, label: t('admin.navSettings'), icon: 'mdi-tune-variant' }]
           : [],
       },

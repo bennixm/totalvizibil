@@ -1358,22 +1358,35 @@ export class CampaignService implements OnModuleInit {
   }
 
   /**
-   * A campaign may only be listed once the business has a real website. Easy-plan
-   * sites are fully generated during onboarding, so they always pass. A PRO V2
-   * site (still stored as `mode: 'advanced'` internally) is ready once its
-   * composed `content.pages` is non-empty.
+   * A campaign may only be listed once the business has a real website.
+   * Easy-plan sites are fully generated during onboarding, so they always pass.
+   *
+   * A Website Builder site (PRO V2, still stored as `mode: 'advanced'`
+   * internally) is ready only once it has actually been PUBLISHED from the
+   * builder — i.e. `Website.publishedAt` is set, which only
+   * `ProV2Service.publishBundle` ever does.
+   *
+   * This used to test `content.pages.length > 0` instead, which was dead on
+   * arrival: `CompaniesService.createFromDraft` seeds EVERY new website —
+   * advanced ones included — with the onboarding draft's placeholder page
+   * content, so that was true from the moment the company row existed and the
+   * "finish your builder first" nudge could never fire. The only way it
+   * returned false was a company with no website row at all, which no
+   * frontend path creates. An advanced business could therefore activate a
+   * campaign and go live in the feed showing nothing but onboarding
+   * placeholder text — and `PublicCompanyService.bundleFile` would 404 for
+   * the real page, because a bundle is exactly what it never published.
    */
   async isListingWebsiteReady(companyId: string): Promise<boolean> {
     const website = await this.prisma.website.findUnique({
       where: { companyId },
-      select: { mode: true, content: true },
+      select: { mode: true, publishedAt: true },
     });
     // No website at all → not ready (a company must have a site to be listed).
     if (!website) return false;
     if (website.mode !== 'advanced') return true;
 
-    const content = website.content as { pages?: unknown[] } | null;
-    return Array.isArray(content?.pages) && content!.pages!.length > 0;
+    return website.publishedAt != null;
   }
 
   async activate(userId: string, companyId: string) {

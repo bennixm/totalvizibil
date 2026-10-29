@@ -190,6 +190,12 @@ onMounted(() => finance.fetchExpenses())
     <div v-if="finance.loadingExpenses && !hasRows" class="afe__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
+    <!-- A failed fetch is NOT "no expenses" — see the store's `errMsg`. -->
+    <AdminEmptyState
+      v-else-if="finance.expensesError"
+      icon="mdi-alert-circle-outline"
+      :text="finance.expensesError"
+    />
     <AdminEmptyState v-else-if="!hasRows" icon="mdi-cash-minus" :text="t('adminFinance.noExpenses')" />
 
     <div v-else class="rtable">
