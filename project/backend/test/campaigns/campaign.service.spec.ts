@@ -645,14 +645,19 @@ describe('CampaignService', () => {
       });
     });
 
-    it('only looks at depleted campaigns whose company is not pending deletion', async () => {
+    it('only looks at depleted campaigns whose company is not pending deletion and whose website is actually listable', async () => {
       const { svc, prisma } = makeService();
 
       await (svc as any).sweepDayRollover();
 
       const where = (prisma.campaign.findMany as jest.Mock).mock.calls[0][0].where;
       expect(where.status).toBe('depleted');
-      expect(where.company).toEqual({ deletionScheduledAt: null });
+      expect(where.company).toEqual({
+        deletionScheduledAt: null,
+        website: {
+          is: { OR: [{ mode: { not: 'advanced' } }, { publishedAt: { not: null } }] },
+        },
+      });
     });
 
     it('leaves a campaign depleted when the wallet cannot cover one click', async () => {

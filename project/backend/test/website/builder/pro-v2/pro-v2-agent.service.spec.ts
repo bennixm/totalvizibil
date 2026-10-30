@@ -253,6 +253,7 @@ function setup(claudeScript: AiProvider, wallet = fakeWallet()) {
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
   );
   const router = new ModelRouter(
     claudeScript as never,

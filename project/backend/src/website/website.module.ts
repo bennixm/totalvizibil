@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { CampaignModule } from '../campaigns/campaign.module';
 import { WebsiteDraftController } from './drafts/website-draft.controller';
 import { WebsiteDraftService } from './drafts/website-draft.service';
 import { WebsiteAssetController } from './assets/website-asset.controller';
@@ -15,7 +16,7 @@ import { AiUsageService } from './builder/pro-v2/ai-usage.service';
 import { PexelsSearchTool } from './builder/pro-v2/pexels-search-tool';
 
 @Module({
-  imports: [AuthModule, WalletModule],
+  imports: [AuthModule, WalletModule, CampaignModule],
   controllers: [
     WebsiteDraftController,
     WebsiteAssetController,

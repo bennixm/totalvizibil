@@ -1,13 +1,24 @@
 <script setup lang="ts">
 /**
- * Detailed lifetime spend for ONE business — the central place to see where
- * the budget went. Two small centered stat cards (clicks, total consumed),
- * the campaign spend trend, and a single filterable, paginated ledger
- * combining every billed click (its own județ + subcategorie + cost) and
- * every other spend category (Website Builder AI usage, its one-time unlock
- * fee, anything not yet categorized). The dashboard's own "Business spend"
- * card shows the same grand total (see `/wallet/spend-breakdown`); this page
- * is its detail view.
+ * Detailed lifetime spend for ONE business — the central place to see exactly
+ * where the budget went: a KPI summary, 14-day evolution (clicks + spend,
+ * each on its own scale), a full breakdown by search (județ + subcategorie —
+ * the atomic Feed a click was billed against, see `campaign.service.ts`
+ * `spendByFeedFor`), a click-quality panel (billed vs filtered, and why —
+ * nothing here ever charged the owner), everything else the business spent
+ * (Website Builder AI usage, its one-time unlock fee), and a unified,
+ * filterable, paginated ledger. Modelled on a Google Ads-style campaign
+ * report: one page that answers "where did the money go and why."
+ *
+ * All of this rides the SAME `campaign.loadSpend()` payload the Campaign hub
+ * (`CampaignSpendView.vue`) already fetches — `byFeed`/`feedRanks`/
+ * `clickQuality`/`runway`/`insights` were already computed server-side but,
+ * before this redesign, never rendered anywhere. No backend change needed.
+ *
+ * Explicitly NOT here: spend-to-lead attribution ("this county produced N
+ * leads"). `AdClick.visitorHash` and `Lead.visitorHash` use different hash
+ * schemes with no foreign key between them — not derivable without a schema
+ * change, so it isn't implied by anything on this page.
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -18,7 +29,7 @@ import TrendChart from '@/components/TrendChart.vue'
 import { apiFetch } from '@/services/api'
 import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
-import { useCampaignStore } from '@/stores/campaign'
+import { useCampaignStore, type FeedRankEntry, type FeedSpendEntry } from '@/stores/campaign'
 import { useWalletStore, type SpendCategory, type ConsumptionEntry } from '@/stores/wallet'
 
 const { t, n, locale } = useI18n()
@@ -26,7 +37,7 @@ const route = useRoute()
 const router = useRouter()
 const companies = useCompaniesStore()
 const campaign = useCampaignStore()
-const { spend: campaignSpend } = storeToRefs(campaign)
+const { spend: report } = storeToRefs(campaign)
 const walletStore = useWalletStore()
 const { consumption, consumptionNextCursor, loading: txnLoading } = storeToRefs(walletStore)
 const money = useMoney()
@@ -66,21 +77,6 @@ const otherCategories = computed(() =>
     .filter((c): c is CategoryRow => !!c),
 )
 
-// Campaign spend trend — the same daily series CampaignSpendView used to
-// chart itself; shown here instead so it isn't reported in two places.
-const campaignChart = computed(() => {
-  const pts = campaignSpend.value?.series ?? []
-  return {
-    labels: pts.map((p) => p.date.slice(5)),
-    series: [{ label: t('consumption.campaignChartLegend'), values: pts.map((p) => p.spent) }],
-  }
-})
-const hasCampaignHistory = computed(() => (campaignSpend.value?.series ?? []).some((p) => p.spent > 0))
-
-/** Real lifetime billed-click count — unlike a category's `count` (the
- *  number of underlying ledger rows), this is the actual number of clicks. */
-const totalClicks = computed(() => campaignSpend.value?.lifetime.clicks ?? 0)
-
 function catName(entry: { categoryName: { ro: string; en: string; de: string } | null }): string {
   return entry.categoryName?.[locale.value as 'ro' | 'en' | 'de'] ?? entry.categoryName?.en ?? ''
 }
@@ -88,10 +84,102 @@ function countyLabel(county: string | null): string {
   if (!county) return ''
   return county === 'nationwide' ? t('feed.coverageCountry') : county
 }
-
 function cr(v: number): string {
   return n(v, { maximumFractionDigits: 2 })
 }
+
+// --- Campaign report (hasCampaign may be false — a business can have spent
+// only on AI usage / the builder unlock and never run a campaign at all). ---
+const hasCampaign = computed(() => !!report.value?.hasCampaign)
+
+// --- KPI row ---------------------------------------------------------------
+const kpis = computed(() => {
+  const r = report.value
+  if (!r) return null
+  const runwayDays = r.runway.daysAtRecentPace ?? r.runway.daysAtBudget
+  return {
+    total: breakdown.value?.total.credits ?? 0,
+    clicksLifetime: r.lifetime.clicks,
+    clicksToday: r.today.clicks,
+    cpcEffective: r.lifetime.cpcEffective,
+    runwayDays,
+  }
+})
+
+// --- Evolution: clicks and spend, each on its own scale (never a shared/
+// dual axis — see the dataviz skill's one-axis rule). A "capped" day (the
+// daily budget ran out and stopped the campaign early) is called out below
+// the spend chart instead of as an in-chart marker, so TrendChart itself
+// stays a plain, reusable component. ---
+const chartClicks = computed(() => {
+  const pts = report.value?.series ?? []
+  return {
+    labels: pts.map((p) => p.date.slice(5)),
+    series: [{ label: t('spend.legendClicks'), values: pts.map((p) => p.clicks) }],
+  }
+})
+const chartSpend = computed(() => {
+  const pts = report.value?.series ?? []
+  return {
+    labels: pts.map((p) => p.date.slice(5)),
+    series: [{ label: t('spend.legendSpent'), values: pts.map((p) => p.spent) }],
+  }
+})
+function fmtCr(v: number): string {
+  return n(v, { maximumFractionDigits: 2 }) + ' cr'
+}
+const cappedDaysCount = computed(() => (report.value?.series ?? []).filter((p) => p.capped).length)
+
+// --- Consum pe căutare: every atomic Feed (județ + subcategorie) that ever
+// billed a click, joined against the company's CURRENT position in it (a
+// Feed can have spend history from before a category/location was edited,
+// in which case there's simply no current position to show). Already
+// sorted by spend server-side; `maxSpendMinor` drives the in-row share bar. ---
+const feedRankByKey = computed(() => {
+  const map = new Map<string, FeedRankEntry>()
+  for (const r of report.value?.feedRanks ?? []) map.set(`${r.county}|${r.categorySlug}`, r)
+  return map
+})
+interface FeedRow extends FeedSpendEntry {
+  rank: FeedRankEntry | null
+  sharePct: number
+}
+const byFeedRows = computed<FeedRow[]>(() => {
+  const rows = report.value?.byFeed ?? []
+  const maxMinor = Math.max(1, ...rows.map((r) => r.spent.minor))
+  return rows.map((r) => ({
+    ...r,
+    rank: feedRankByKey.value.get(`${r.county}|${r.categorySlug}`) ?? null,
+    sharePct: Math.round((r.spent.minor / maxMinor) * 100),
+  }))
+})
+
+// --- Calitatea click-urilor: billed vs filtered, and why — nothing here
+// ever charged the owner. Reason codes come straight from `ad_clicks.reason`
+// (see `campaign.service.ts` `spendReportFor`'s 30-day roll-up). ---
+const REASON_META: Record<string, { labelKey: string; tone: 'warning' | 'muted' | 'danger' }> = {
+  budget: { labelKey: 'consumption.reason.budget', tone: 'warning' },
+  off: { labelKey: 'consumption.reason.off', tone: 'muted' },
+  bot: { labelKey: 'consumption.reason.bot', tone: 'danger' },
+  insufficient: { labelKey: 'consumption.reason.insufficient', tone: 'danger' },
+}
+const qualityRows = computed(() => {
+  const total = report.value?.clickQuality.unbilled ?? 0
+  return (report.value?.clickQuality.byReason ?? []).map((r) => ({
+    ...r,
+    meta: REASON_META[r.reason] ?? { labelKey: 'consumption.reason.other', tone: 'muted' as const },
+    pct: total > 0 ? Math.round((r.count / total) * 100) : 0,
+  }))
+})
+const qualityTotal = computed(() => {
+  const q = report.value?.clickQuality
+  return q ? q.billed + q.unbilled : 0
+})
+const billedPct = computed(() => {
+  const q = report.value?.clickQuality
+  if (!q || qualityTotal.value === 0) return 100
+  return Math.round((q.billed / qualityTotal.value) * 100)
+})
 
 // --- filters: which category + which date range the ledger shows ---
 const CATEGORY_FILTER_ITEMS = computed(() => [
@@ -210,6 +298,7 @@ watch(
     <header class="cons__head">
       <p class="cons__eyebrow">{{ t('consumption.eyebrow') }}</p>
       <h1>{{ t('consumption.title') }}</h1>
+      <p class="cons__lead">{{ t('consumption.lead') }}</p>
     </header>
 
     <div v-if="loading && !breakdown" class="cons__center">
@@ -219,50 +308,158 @@ watch(
       <v-icon icon="mdi-alert-circle-outline" size="16" /> {{ error }}
     </div>
 
-    <template v-else-if="breakdown">
-      <!-- Two compact, centered stat cards — not full-width hero banners. -->
-      <div class="cons__stats">
+    <template v-else-if="breakdown && kpis">
+      <!-- Recommendations, if any — the same rule-based insights the
+           campaign hub surfaces, repeated here since this is the page
+           someone lands on specifically to understand *why* spend looks
+           the way it does. -->
+      <div v-if="hasCampaign && report && report.insights.length" class="cons__insights">
+        <p v-for="ins in report.insights" :key="ins.key" class="cons__insight">
+          <v-icon icon="mdi-lightbulb-on-outline" size="15" />
+          {{ t('spend.insight.' + ins.key, { n: ins.value }) }}
+        </p>
+      </div>
+
+      <!-- KPI summary row -->
+      <div class="kpis">
+        <div class="kpi kpi--hero">
+          <span class="kpi__icon"><v-icon icon="mdi-wallet-outline" size="20" /></span>
+          <strong class="kpi__value">
+            {{ cr(kpis.total) }}<v-icon icon="mdi-poker-chip" size="0.55em" class="cons__unit" />
+          </strong>
+          <span class="kpi__label">{{ t('consumption.totalLabel') }}</span>
+          <span class="kpi__sub">{{ money.approx(kpis.total) }}</span>
+        </div>
         <button
           type="button"
-          class="statCard statCard--btn"
+          class="kpi kpi--btn"
           :class="{ 'is-active': filterCategory === 'clicks' }"
           @click="filterByCategory('clicks')"
         >
-          <span class="statCard__icon"><v-icon icon="mdi-cursor-default-click-outline" size="22" /></span>
-          <strong class="statCard__value">{{ n(totalClicks, { maximumFractionDigits: 0 }) }}</strong>
-          <span class="statCard__label">{{ t('consumption.clicks') }}</span>
+          <span class="kpi__icon"><v-icon icon="mdi-cursor-default-click-outline" size="20" /></span>
+          <strong class="kpi__value">{{ n(kpis.clicksLifetime, { maximumFractionDigits: 0 }) }}</strong>
+          <span class="kpi__label">{{ t('consumption.clicks') }}</span>
+          <span v-if="hasCampaign" class="kpi__sub">{{ t('consumption.clicksTodaySub', { n: kpis.clicksToday }) }}</span>
         </button>
-        <div class="statCard">
-          <span class="statCard__icon"><v-icon icon="mdi-wallet-outline" size="22" /></span>
-          <strong class="statCard__value">
-            {{ cr(breakdown.total.credits) }}
-            <v-icon icon="mdi-poker-chip" size="0.55em" class="cons__unit" />
+        <div v-if="hasCampaign" class="kpi">
+          <span class="kpi__icon"><v-icon icon="mdi-currency-usd" size="20" /></span>
+          <strong class="kpi__value">
+            {{ kpis.cpcEffective ? cr(kpis.cpcEffective.credits) : '—' }}
+            <v-icon v-if="kpis.cpcEffective" icon="mdi-poker-chip" size="0.55em" class="cons__unit" />
           </strong>
-          <span class="statCard__label">{{ t('consumption.totalLabel') }}</span>
-          <span class="statCard__sub">{{ money.approx(breakdown.total.credits) }}</span>
+          <span class="kpi__label">{{ t('consumption.heroCpc') }}</span>
+          <span class="kpi__sub">{{ t('consumption.heroCpcSub') }}</span>
+        </div>
+        <div v-if="hasCampaign" class="kpi" :class="{ 'kpi--warn': kpis.runwayDays != null && kpis.runwayDays < 5 }">
+          <span class="kpi__icon"><v-icon icon="mdi-timer-sand" size="20" /></span>
+          <strong class="kpi__value">
+            {{ kpis.runwayDays != null ? n(kpis.runwayDays, { maximumFractionDigits: 1 }) : '—' }}
+          </strong>
+          <span class="kpi__label">{{ t('consumption.heroRunway') }}</span>
+          <span class="kpi__sub">{{ t('consumption.heroRunwaySub') }}</span>
         </div>
       </div>
 
-      <!-- Campaign spend trend — clicks and whatever else the campaign itself
-           consumes. CampaignSpendView links back here instead of repeating it. -->
-      <section v-if="hasCampaignHistory" class="cons__section">
+      <!-- Evolution: clicks + spend, 14 days -->
+      <section v-if="hasCampaign && report" class="cons__section">
         <div class="cons__sectionHead">
-          <h2 class="cons__sectionTitle">{{ t('consumption.campaignTitle') }}</h2>
-          <router-link
-            v-if="companyId"
-            :to="{ name: 'campaign', query: { c: companyId } }"
-            class="cons__sectionAction"
-          >
+          <h2 class="cons__sectionTitle">{{ t('consumption.evolutionTitle') }}</h2>
+          <router-link :to="{ name: 'campaign', query: { c: companyId } }" class="cons__sectionAction">
             {{ t('consumption.viewCampaign') }} <v-icon icon="mdi-arrow-right" size="13" />
           </router-link>
         </div>
         <div class="card cons__chart">
-          <TrendChart :labels="campaignChart.labels" :series="campaignChart.series" />
+          <div class="cons__chartGroup">
+            <p class="cons__chartLabel">{{ t('spend.legendClicks') }}</p>
+            <TrendChart :labels="chartClicks.labels" :series="chartClicks.series" />
+          </div>
+          <div class="cons__chartGroup">
+            <p class="cons__chartLabel">{{ t('spend.legendSpent') }}</p>
+            <TrendChart :labels="chartSpend.labels" :series="chartSpend.series" :format="fmtCr" />
+          </div>
+          <p v-if="cappedDaysCount > 0" class="cons__cappedNote">
+            <v-icon icon="mdi-alert-outline" size="14" />
+            {{ t('consumption.cappedNote', { n: cappedDaysCount }) }}
+          </p>
+        </div>
+      </section>
+
+      <!-- Consum pe căutare: every Feed (județ + subcategorie) a click was
+           ever billed against, with current position where still eligible. -->
+      <section v-if="hasCampaign && byFeedRows.length" class="cons__section">
+        <div class="cons__sectionHead">
+          <h2 class="cons__sectionTitle">{{ t('consumption.byFeedTitle') }}</h2>
+        </div>
+        <p class="cons__sectionHint">{{ t('consumption.byFeedHint') }}</p>
+        <div class="card cons__feedWrap">
+          <table class="cons__feedTable">
+            <thead>
+              <tr>
+                <th>{{ t('consumption.colFeed') }}</th>
+                <th>{{ t('consumption.colPosition') }}</th>
+                <th>{{ t('consumption.colClicks') }}</th>
+                <th>{{ t('consumption.colCpc') }}</th>
+                <th>{{ t('consumption.colSpentFeed') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(r, i) in byFeedRows" :key="r.county + r.categorySlug + i">
+                <td class="cons__feedName" :data-label="t('consumption.colFeed')">
+                  <v-icon icon="mdi-map-marker-outline" size="13" class="cons__feedPin" />
+                  {{ countyLabel(r.county) }} · {{ catName(r) }}
+                </td>
+                <td class="cons__feedPos" :data-label="t('consumption.colPosition')">
+                  <span v-if="r.rank" class="posChip" :class="{ 'is-top': r.rank.position === 1 }">
+                    #{{ r.rank.position }}<span class="posChip__of">/{{ r.rank.total }}</span>
+                  </span>
+                  <span v-else class="cons__dim">{{ t('consumption.colPositionNone') }}</span>
+                </td>
+                <td :data-label="t('consumption.colClicks')">{{ r.clicks }}</td>
+                <td :data-label="t('consumption.colCpc')">
+                  {{ r.cpcEffective ? cr(r.cpcEffective.credits) : '—' }}
+                </td>
+                <td class="cons__feedSpent" :data-label="t('consumption.colSpentFeed')">
+                  <span class="cons__feedBar"><span class="cons__feedBarFill" :style="{ width: r.sharePct + '%' }" /></span>
+                  {{ cr(r.spent.credits) }}
+                  <v-icon icon="mdi-poker-chip" size="0.6em" class="cons__unit" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Calitatea click-urilor — transparency on what DIDN'T cost anything. -->
+      <section v-if="hasCampaign && report && qualityTotal > 0" class="cons__section">
+        <div class="cons__sectionHead">
+          <h2 class="cons__sectionTitle">{{ t('consumption.qualityTitle') }}</h2>
+        </div>
+        <p class="cons__sectionHint">{{ t('consumption.qualityHint') }}</p>
+        <div class="card cons__quality">
+          <div class="qbar">
+            <span class="qbar__fill" :style="{ width: billedPct + '%' }" />
+          </div>
+          <div class="qsum">
+            <span class="qsum__item qsum__item--billed">
+              <i /> {{ t('consumption.qualityBilled') }}: <b>{{ report?.clickQuality.billed }}</b>
+            </span>
+            <span class="qsum__item">
+              <i /> {{ t('consumption.qualityUnbilled') }}: <b>{{ report?.clickQuality.unbilled }}</b>
+            </span>
+          </div>
+          <ul v-if="qualityRows.length" class="qlist">
+            <li v-for="row in qualityRows" :key="row.reason" class="qlist__row">
+              <span class="qlist__dot" :class="`qlist__dot--${row.meta.tone}`" />
+              <span class="qlist__label">{{ t(row.meta.labelKey) }}</span>
+              <span class="qlist__count">{{ row.count }}</span>
+              <span class="qlist__pct">{{ row.pct }}%</span>
+            </li>
+          </ul>
         </div>
       </section>
 
       <!-- Everything else: Website Builder AI usage, its unlock fee, other. -->
-      <section class="cons__section">
+      <section v-if="otherCategories.some((c) => c.count > 0) || !hasCampaign" class="cons__section">
         <div class="cons__sectionHead">
           <h2 class="cons__sectionTitle">{{ t('consumption.otherTitle') }}</h2>
         </div>
@@ -392,11 +589,11 @@ watch(
 
 <style scoped>
 .cons {
-  max-width: 760px;
+  max-width: 860px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
 }
 .cons__head {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 .cons__eyebrow {
   text-transform: uppercase;
@@ -412,6 +609,12 @@ watch(
   font-size: clamp(1.5rem, 4vw, 2.1rem);
   letter-spacing: -0.02em;
   margin: 0;
+}
+.cons__lead {
+  margin: 0.5rem 0 0;
+  font-size: 0.88rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  max-width: 54ch;
 }
 .cons__center {
   display: grid;
@@ -442,59 +645,101 @@ watch(
   margin: 0 0 0.9rem;
 }
 
-.cons__stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.8rem;
-  margin-bottom: 1.5rem;
-}
-.statCard {
+/* Recommendations ------------------------------------------------------ */
+.cons__insights {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.cons__insight {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--tvz-radius-md);
+  background: var(--tvz-ai-soft);
+  border: 1px solid var(--tvz-glass-border);
+  font-size: 0.84rem;
+  color: rgba(var(--v-theme-on-surface), 0.8);
+}
+.cons__insight .v-icon {
+  color: rgb(var(--v-theme-primary));
+  margin-top: 0.1rem;
+  flex: none;
+}
+
+/* KPI row ---------------------------------------------------------------- */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
   gap: 0.2rem;
-  padding: 1.1rem 1rem;
+  padding: 1.05rem 1rem;
   border: 1px solid var(--tvz-glass-border);
   border-radius: var(--tvz-radius-md);
   background: rgb(var(--v-theme-surface));
 }
-.statCard--btn {
+.kpi--hero {
+  background: linear-gradient(165deg, rgba(var(--v-theme-primary), 0.08), rgba(var(--v-theme-primary), 0.01));
+  border-color: rgba(var(--v-theme-primary), 0.25);
+}
+.kpi--btn {
   cursor: pointer;
+  text-align: left;
   transition: border-color var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
 }
-.statCard--btn:hover {
+.kpi--btn:hover {
   background: rgba(var(--v-theme-on-surface), 0.02);
 }
-.statCard--btn.is-active {
+.kpi--btn.is-active {
   border-color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.06);
 }
-.statCard__icon {
+.kpi--warn {
+  border-color: rgba(var(--v-theme-warning), 0.4);
+  background: rgba(var(--v-theme-warning), 0.05);
+}
+.kpi__icon {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.3rem;
   color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.1);
 }
-.statCard__value {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: rgb(var(--v-theme-primary));
+.kpi--warn .kpi__icon {
+  color: rgb(var(--v-theme-warning));
+  background: rgba(var(--v-theme-warning), 0.14);
 }
-.statCard__label {
+.kpi__value {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1.45rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.kpi__label {
   font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
-.statCard__sub {
-  font-size: 0.76rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
+.kpi__sub {
+  font-size: 0.74rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+
+.cons__unit {
+  margin-left: 0.2em;
+  opacity: 0.7;
 }
 
 .cons__section {
@@ -505,7 +750,7 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 0.7rem;
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.3rem;
 }
 .cons__sectionTitle {
   margin: 0;
@@ -515,6 +760,11 @@ watch(
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.cons__sectionHint {
+  margin: 0 0 0.65rem;
+  font-size: 0.8rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .cons__sectionAction {
   display: inline-flex;
@@ -529,8 +779,202 @@ watch(
 .cons__sectionAction:hover {
   text-decoration: underline;
 }
+
+/* Evolution charts -------------------------------------------------------- */
 .cons__chart {
-  padding: 1rem 1.1rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.1rem 1.1rem 0.6rem;
+}
+.cons__chartGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.cons__chartLabel {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.cons__cappedNote {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--tvz-hairline);
+  font-size: 0.78rem;
+  color: rgb(var(--v-theme-warning));
+}
+
+/* Consum pe căutare (by Feed) ---------------------------------------------- */
+.cons__feedWrap {
+  padding: 0.3rem 1rem 0.3rem;
+  overflow-x: auto;
+}
+.cons__feedTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+.cons__feedTable th {
+  text-align: left;
+  padding: 0.7rem 0.6rem 0.6rem 0;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cons__feedTable td {
+  padding: 0.7rem 0.6rem 0.7rem 0;
+  border-top: 1px solid var(--tvz-hairline);
+  white-space: nowrap;
+}
+.cons__feedName {
+  font-weight: 600;
+  white-space: normal;
+}
+.cons__feedPin {
+  color: rgba(var(--v-theme-on-surface), 0.4);
+  margin-right: 0.1rem;
+}
+.posChip {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: rgba(var(--v-theme-warning), 0.12);
+  color: rgb(var(--v-theme-warning));
+}
+.posChip.is-top {
+  background: rgba(var(--v-theme-success), 0.12);
+  color: rgb(var(--v-theme-success));
+}
+.posChip__of {
+  font-weight: 400;
+  opacity: 0.7;
+  margin-left: 0.05rem;
+}
+.cons__dim {
+  color: rgba(var(--v-theme-on-surface), 0.4);
+}
+.cons__feedSpent {
+  position: relative;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cons__feedBar {
+  display: block;
+  width: 56px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  overflow: hidden;
+  margin-bottom: 0.3rem;
+}
+.cons__feedBarFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-primary));
+}
+
+/* Calitatea click-urilor ---------------------------------------------------- */
+.cons__quality {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.qbar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(var(--v-theme-error), 0.18);
+}
+.qbar__fill {
+  display: block;
+  height: 100%;
+  background: rgb(var(--v-theme-success));
+  border-radius: 999px 0 0 999px;
+}
+.qsum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  font-size: 0.82rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.qsum__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.qsum__item i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: rgba(var(--v-theme-error), 0.5);
+}
+.qsum__item--billed i {
+  background: rgb(var(--v-theme-success));
+}
+.qsum__item b {
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--v-theme-on-surface));
+}
+.qlist {
+  list-style: none;
+  margin: 0;
+  padding: 0.7rem 0 0;
+  border-top: 1px solid var(--tvz-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.qlist__row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.82rem;
+}
+.qlist__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.qlist__dot--warning {
+  background: rgb(var(--v-theme-warning));
+}
+.qlist__dot--danger {
+  background: rgb(var(--v-theme-error));
+}
+.qlist__dot--muted {
+  background: rgba(var(--v-theme-on-surface), 0.35);
+}
+.qlist__label {
+  flex: 1;
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.qlist__count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.qlist__pct {
+  width: 3.2em;
+  text-align: right;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-variant-numeric: tabular-nums;
 }
 
 .cons__grid {
@@ -578,10 +1022,6 @@ watch(
   font-family: 'Space Grotesk Variable', sans-serif;
   font-size: 1.15rem;
   font-variant-numeric: tabular-nums;
-}
-.cons__unit {
-  margin-left: 0.2em;
-  opacity: 0.7;
 }
 .cons__cardCount {
   font-size: 0.7rem;
@@ -702,9 +1142,16 @@ watch(
   background: rgba(var(--v-theme-on-surface), 0.03);
 }
 
-/* Mobile: filters stack full-width (no more squeezed 12rem fields fighting
-   each other for room), and the ledger stops scrolling sideways — each row
-   becomes its own card instead, same information, no horizontal panning. */
+/* Mobile: KPI row stays 2-up, by-Feed table becomes cards, filters stack,
+   ledger stops scrolling sideways. */
+@media (max-width: 760px) {
+  .kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cons__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
 @media (max-width: 640px) {
   .cons__filters {
     flex-direction: column;
@@ -725,6 +1172,46 @@ watch(
   .cons__filterClear {
     justify-content: center;
     padding: 0.7rem 0.6rem;
+  }
+
+  .cons__feedWrap {
+    overflow-x: visible;
+    padding: 0.3rem 0.1rem;
+  }
+  .cons__feedTable thead {
+    display: none;
+  }
+  .cons__feedTable,
+  .cons__feedTable tbody,
+  .cons__feedTable tr,
+  .cons__feedTable td {
+    display: block;
+    width: 100%;
+  }
+  .cons__feedTable tr {
+    padding: 0.8rem 0.9rem;
+    margin-bottom: 0.6rem;
+    border: 1px solid var(--tvz-glass-border);
+    border-radius: var(--tvz-radius-md);
+  }
+  .cons__feedTable tr:last-child {
+    margin-bottom: 0;
+  }
+  .cons__feedTable td {
+    padding: 0.2rem 0;
+    border-top: none;
+    white-space: normal;
+  }
+  .cons__feedTable td::before {
+    content: attr(data-label) ': ';
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(var(--v-theme-on-surface), 0.45);
+    margin-right: 0.3rem;
+  }
+  .cons__feedName::before {
+    content: none;
   }
 
   .cons__ledgerWrap {
@@ -788,13 +1275,11 @@ watch(
   }
 }
 
-@media (max-width: 620px) {
-  .cons__grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
 @media (max-width: 420px) {
-  .cons__stats {
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+  .cons__grid {
     grid-template-columns: 1fr;
   }
 }

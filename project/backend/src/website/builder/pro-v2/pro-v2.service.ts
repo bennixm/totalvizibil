@@ -11,6 +11,7 @@ import { WalletService } from '../../../wallet/wallet.service';
 import { CREDIT_MINOR } from '../../../wallet/money';
 import { PlatformSettingsService } from '../../../platform-settings/platform-settings.service';
 import { NotificationsService } from '../../../notifications/notifications.service';
+import { CampaignService } from '../../../campaigns/campaign.service';
 import { WebsiteAssetService } from '../../assets/website-asset.service';
 import { STARTER_FILES } from './starter-project';
 import {
@@ -52,6 +53,7 @@ export class ProV2Service {
     private readonly settings: PlatformSettingsService,
     private readonly assets: WebsiteAssetService,
     private readonly notifications: NotificationsService,
+    private readonly campaigns: CampaignService,
   ) {}
 
   // --- ownership ---------------------------------------------------------
@@ -167,6 +169,17 @@ export class ProV2Service {
       });
       await tx.website.updateMany({ where: { companyId }, data: { mode: 'advanced' } });
     });
+
+    // An Easy-mode site needs no publish step to be listable; the moment
+    // this flips it to `advanced`, listing readiness starts requiring a
+    // published Website Builder bundle, which a same-day unlock (whether a
+    // fresh advanced signup with no campaign yet, or an Easy→Advanced
+    // upgrade with one already running) never has. A brand-new signup has
+    // no campaign to pause yet, so this is a no-op there — it only acts on
+    // the upgrade case, where it stops an already-"Active" campaign from
+    // silently keep billing clicks for a business the dashboard itself now
+    // says can't be listed.
+    await this.campaigns.pauseIfWebsiteNotReady(companyId);
 
     // The owner's own `unlock()` doesn't need a notification — they just
     // clicked the button and see the result immediately. The admin-initiated
