@@ -225,10 +225,12 @@ const campaignAlerts = computed<Alert[]>(() => {
       out.push({ key: 'response', severity: 'warn', icon: 'mdi-message-alert-outline',
         to: { name: 'leads', query: cq }, cta: 'dashboard.leadsCta' })
     }
-    if (!an.feedRank && c.status === 'active' && !budgetGone) {
-      // The campaign reads "Active" but isn't ranked in its own Feed — a real
-      // problem (not a soft suggestion), so it gets the same red treatment as
-      // the other hard-stop alerts above.
+    if (an.feedRanks.length === 0 && c.status === 'active' && !budgetGone) {
+      // The campaign reads "Active" but isn't ranked in ANY Feed it competes
+      // in — a real problem (not a soft suggestion), so it gets the same red
+      // treatment as the other hard-stop alerts above. Being absent from just
+      // one of several Feeds isn't this — that's `needsPositionUpgrade`
+      // territory on the optimize page, not a hard-stop here.
       out.push({ key: 'feed', severity: 'high', icon: 'mdi-radar',
         to: { name: 'campaign-optimize', query: cq }, cta: 'dashboard.optimizeCta' })
     }
@@ -241,6 +243,18 @@ function alertText(key: string): string {
   if (key === 'cpc') return t('dashboard.alert.cpcText', { n: Math.round(an?.visibility.parts.cpc ?? 0) })
   return t('dashboard.alert.' + key + 'Text')
 }
+/** The Feed-position line under the visibility meter — a company can compete
+ *  in several Feeds (județ + subcategorie) at once, so this summarizes across
+ *  all of them rather than naming just one. */
+const feedRankLine = computed(() => {
+  const ranks = a.value?.feedRanks ?? []
+  if (!ranks.length) return t('analytics.feedRankNone')
+  if (ranks.length === 1) {
+    return t('analytics.feedRank', { n: ranks[0].position, total: ranks[0].total })
+  }
+  const firstPlace = ranks.filter((r) => r.position === 1).length
+  return t('analytics.feedRankMulti', { ok: firstPlace, total: ranks.length })
+})
 
 // --- Billing profile ------------------------------------------------------
 // `billing.load()` is fire-and-forget on mount and swallows its failure into
@@ -807,13 +821,7 @@ watch(
           </div>
           <VisibilityMeter :score="a.visibility.score" :parts="a.visibility.parts" />
           <div class="ana__rank">
-            <p class="ana__rankLine">
-              {{
-                a.feedRank
-                  ? t('analytics.feedRank', { n: a.feedRank.position, total: a.feedRank.total })
-                  : t('analytics.feedRankNone')
-              }}
-            </p>
+            <p class="ana__rankLine">{{ feedRankLine }}</p>
             <v-btn
               size="small"
               variant="tonal"

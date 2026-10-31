@@ -255,6 +255,19 @@ function num(v: unknown): number {
 const budgetN = computed(() => num(budget.value))
 const cpcN = computed(() => num(cpc.value))
 
+/** Mirrors the owner-facing Dashboard's summary line — same source
+ *  (`feedStatus.feedRanks`, the real per-Feed standing), not the stale
+ *  single-Feed `analytics.feedRank`. */
+const feedRankLine = computed(() => {
+  const ranks = data.value?.feedStatus.feedRanks ?? []
+  if (!ranks.length) return t('analytics.feedRankNone')
+  if (ranks.length === 1) {
+    return t('analytics.feedRank', { n: ranks[0].position, total: ranks[0].total })
+  }
+  const firstPlace = ranks.filter((r) => r.position === 1).length
+  return t('analytics.feedRankMulti', { ok: firstPlace, total: ranks.length })
+})
+
 const camp = computed(() => data.value?.campaign.campaign ?? null)
 const status = computed<CampaignStatus | null>(() => camp.value?.status ?? null)
 const hasCampaign = computed(() => !!camp.value)
@@ -1166,16 +1179,7 @@ const leadStatusItems = computed(() => [
                     :score="data.analytics.visibility.score"
                     :parts="data.analytics.visibility.parts"
                   />
-                  <p class="ac__rank">
-                    {{
-                      data.analytics.feedRank
-                        ? t('analytics.feedRank', {
-                            n: data.analytics.feedRank.position,
-                            total: data.analytics.feedRank.total,
-                          })
-                        : t('analytics.feedRankNone')
-                    }}
-                  </p>
+                  <p class="ac__rank">{{ feedRankLine }}</p>
                 </div>
                 <div class="ac__statGrid">
                   <AdminStatCard
