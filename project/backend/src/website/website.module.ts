@@ -6,6 +6,8 @@ import { WebsiteDraftController } from './drafts/website-draft.controller';
 import { WebsiteDraftService } from './drafts/website-draft.service';
 import { WebsiteAssetController } from './assets/website-asset.controller';
 import { WebsiteAssetService } from './assets/website-asset.service';
+import { ASSET_STORAGE } from './assets/asset-storage';
+import { PostgresAssetStorageProvider } from './assets/postgres-asset-storage.provider';
 import { EasySiteController } from './easy-site/easy-site.controller';
 import { EasySiteService } from './easy-site/easy-site.service';
 import { ProV2Controller } from './builder/pro-v2/pro-v2.controller';
@@ -26,6 +28,10 @@ import { PexelsSearchTool } from './builder/pro-v2/pexels-search-tool';
   providers: [
     WebsiteDraftService,
     WebsiteAssetService,
+    // The bytes-storage backend behind WebsiteAssetService — bind this to a
+    // different class (and nothing else) to move uploads to a dedicated
+    // image cloud/CDN later. See asset-storage.ts.
+    { provide: ASSET_STORAGE, useClass: PostgresAssetStorageProvider },
     EasySiteService,
     ProV2Service,
     ProV2AgentService,

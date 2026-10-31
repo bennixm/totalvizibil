@@ -2,6 +2,8 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { WebsiteDraftService } from 'src/website/drafts/website-draft.service';
+import { WebsiteAssetService } from 'src/website/assets/website-asset.service';
+import { PostgresAssetStorageProvider } from 'src/website/assets/postgres-asset-storage.provider';
 
 // -------------------------------------------------------------------------
 // Helpers
@@ -98,7 +100,11 @@ function fakeAi() {
 function makeService() {
   const prisma = fakePrisma();
   const ai = fakeAi();
-  const svc = new WebsiteDraftService(prisma as any, ai as any);
+  const assets = new WebsiteAssetService(
+    prisma as any,
+    new PostgresAssetStorageProvider(prisma as any),
+  );
+  const svc = new WebsiteDraftService(prisma as any, ai as any, assets);
   return { svc, prisma, ai };
 }
 

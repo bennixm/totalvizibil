@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { NotFoundException } from '@nestjs/common';
 import { WebsiteDraftService } from 'src/website/drafts/website-draft.service';
+import { WebsiteAssetService } from 'src/website/assets/website-asset.service';
+import { PostgresAssetStorageProvider } from 'src/website/assets/postgres-asset-storage.provider';
 
 const TOKEN = 'draft-token-abc';
 const DRAFT_ID = 'draft-1';
@@ -70,7 +72,12 @@ function fakeAi() {
 function makeService(row: any = draftRow()) {
   const prisma = fakePrisma(row);
   const ai = fakeAi();
-  const svc = new WebsiteDraftService(prisma as any, ai as any);
+  // A real WebsiteAssetService + PostgresAssetStorageProvider pair, wired to
+  // the SAME fake prisma — so the existing `prisma.websiteAsset.create`
+  // assertions below still exercise the real write path end to end.
+  const storage = new PostgresAssetStorageProvider(prisma as any);
+  const assets = new WebsiteAssetService(prisma as any, storage);
+  const svc = new WebsiteDraftService(prisma as any, ai as any, assets);
   return { svc, prisma, ai };
 }
 
