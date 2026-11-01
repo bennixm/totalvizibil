@@ -217,6 +217,10 @@ function fakeConfig() {
   return { get: jest.fn().mockReturnValue('https://totalvizibil.ro') };
 }
 
+function fakeBusinessActionLog() {
+  return { log: jest.fn(async () => undefined) };
+}
+
 function makeService() {
   const prisma = fakePrisma();
   const drafts = fakeDrafts();
@@ -226,6 +230,7 @@ function makeService() {
   const analytics = fakeAnalytics();
   const settings = fakeSettings();
   const notifications = fakeNotifications();
+  const businessActionLog = fakeBusinessActionLog();
   const config = fakeConfig();
 
   const svc = new CompaniesService(
@@ -237,10 +242,11 @@ function makeService() {
     analytics as any,
     settings as any,
     notifications as any,
+    businessActionLog as any,
     config as any,
   );
 
-  return { svc, prisma, notifications, config };
+  return { svc, prisma, notifications, businessActionLog, config };
 }
 
 // ---------------------------------------------------------------------------

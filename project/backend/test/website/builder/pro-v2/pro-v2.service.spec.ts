@@ -211,6 +211,9 @@ function fakeCampaigns() {
 function fakeNotifications() {
   return { notify: jest.fn(async () => {}) };
 }
+function fakeBusinessActionLog() {
+  return { log: jest.fn(async () => undefined) };
+}
 
 describe('ProV2Service', () => {
   it('rejects a non-member (not found, not a security-revealing 403)', async () => {
@@ -222,6 +225,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     await expect(svc.getOrCreateProject('c1', 'u1')).rejects.toThrow(NotFoundException);
   });
@@ -235,6 +239,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     await expect(svc.getOrCreateProject('c1', 'u1')).rejects.toThrow(ForbiddenException);
   });
@@ -248,6 +253,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     await expect(svc.getOrCreateProject('c1', 'u1')).rejects.toThrow(ForbiddenException);
   });
@@ -262,6 +268,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     await expect(svc.getOrCreateProject('c1', 'admin1')).resolves.toBeDefined();
     expect(prisma.company.update).toHaveBeenCalledWith(
@@ -278,6 +285,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     const status = await svc.getUnlockStatus('c1', 'u1');
     expect(status).toEqual({
@@ -298,6 +306,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     await svc.unlock('c1', 'u1');
     expect(wallet.spendWithin).toHaveBeenCalledTimes(1);
@@ -326,6 +335,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
 
     await expect(svc.unlock('c1', 'u1')).rejects.toThrow('db hiccup');
@@ -346,6 +356,7 @@ describe('ProV2Service', () => {
       assets as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     const result = await svc.uploadAsset('c1', 'u1', 'data:image/png;base64,abc123');
     expect(assets.addCompanyAsset).toHaveBeenCalledWith(
@@ -366,6 +377,7 @@ describe('ProV2Service', () => {
       assets as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     await expect(svc.uploadAsset('c1', 'u1', 'data:image/png;base64,abc123')).rejects.toThrow(
       ForbiddenException,
@@ -382,6 +394,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     const p1 = await svc.getOrCreateProject('c1', 'u1');
     const p2 = await svc.getOrCreateProject('c1', 'u1');
@@ -399,6 +412,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     const project = await svc.getOrCreateProject('c1', 'u1');
     await svc.writeFile(project.id, 'src/components/Hero.vue', '<template>v1</template>');
@@ -418,6 +432,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     const project = await svc.getOrCreateProject('c1', 'u1');
     // Fill up to the cap with new files (starter files already count toward it).
@@ -439,6 +454,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     const project = await svc.getOrCreateProject('c1', 'u1');
     await svc.writeFile(project.id, 'src/App.vue', 'const a = 1;\nconst a = 1;\n');
@@ -465,6 +481,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     const project = await svc.getOrCreateProject('c1', 'u1');
     // Delete every file but one first.
@@ -484,6 +501,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     const project = await svc.getOrCreateProject('c1', 'u1');
     await svc.writeFile(
@@ -506,6 +524,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     const result = await svc.publishBundle('c1', 'u1', [
       { path: 'index.html', contentBase64: Buffer.from('<html></html>').toString('base64') },
@@ -533,6 +552,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     await svc.publishBundle('c1', 'u1', [
       { path: 'index.html', contentBase64: Buffer.from('<html></html>').toString('base64') },
@@ -559,6 +579,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     // Seed an existing value directly, as if a previous publish had found one.
     await prisma.website.update({
@@ -585,6 +606,7 @@ describe('ProV2Service', () => {
       fakeAssets() as never,
       fakeNotifications() as never,
       fakeCampaigns() as never,
+      fakeBusinessActionLog() as never,
     );
     await expect(
       svc.publishBundle('c1', 'u1', [

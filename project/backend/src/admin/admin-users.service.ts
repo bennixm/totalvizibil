@@ -227,7 +227,13 @@ export class AdminUsersService {
     };
   }
 
-  async update(callerId: string, callerSessionId: string, id: string, dto: UpdateUserDto) {
+  async update(
+    callerId: string,
+    callerSessionId: string,
+    id: string,
+    dto: UpdateUserDto,
+    actor: AuditActor,
+  ) {
     const target = await this.prisma.user.findUnique({
       where: { id },
       include: { platformRoles: true },
@@ -452,6 +458,30 @@ export class AdminUsersService {
         );
     }
 
+    const rolesChanged =
+      !!dto.platformRoles &&
+      JSON.stringify([...target.platformRoles.map((r) => r.role)].sort()) !==
+        JSON.stringify([...dto.platformRoles].sort());
+    if (dto.status !== undefined || emailChanged || rolesChanged) {
+      await this.audit.log({
+        actorId: actor.id,
+        actorRoles: actor.roles,
+        action: 'user.update',
+        targetType: 'user',
+        targetId: id,
+        before: {
+          status: target.status,
+          email: target.email,
+          platformRoles: target.platformRoles.map((r) => r.role),
+        },
+        after: {
+          status: dto.status ?? target.status,
+          email: dto.email ?? target.email,
+          platformRoles: dto.platformRoles ?? target.platformRoles.map((r) => r.role),
+        },
+      });
+    }
+
     return this.detail(id);
   }
 
@@ -479,7 +509,7 @@ export class AdminUsersService {
     ]);
   }
 
-  async setPassword(id: string, newPassword: string) {
+  async setPassword(id: string, newPassword: string, actor: AuditActor) {
     const target = await this.prisma.user.findUnique({ where: { id } });
     if (!target) throw new NotFoundException('User not found');
 
@@ -491,6 +521,14 @@ export class AdminUsersService {
       },
     });
     await this.sessions.revokeAllForUser(id);
+
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'user.password.reset',
+      targetType: 'user',
+      targetId: id,
+    });
 
     void this.notifications
       .notify({
@@ -568,10 +606,18 @@ export class AdminUsersService {
   /** Admin-initiated refund of up to the user's current wallet balance — same
    *  7-day hold + customer-cancelable flow as a self-service request (see
    *  WalletService.requestRefund). */
-  async refundBalance(id: string, credits: number, adminUserId: string) {
+  async refundBalance(id: string, credits: number, actor: AuditActor) {
     const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
     if (!target) throw new NotFoundException('User not found');
-    await this.wallet.requestRefund(id, credits, { initiatedByAdminId: adminUserId });
+    await this.wallet.requestRefund(id, credits, { initiatedByAdminId: actor.id });
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'wallet.refund.initiate',
+      targetType: 'wallet',
+      targetId: id,
+      after: { credits },
+    });
     return this.detail(id);
   }
 

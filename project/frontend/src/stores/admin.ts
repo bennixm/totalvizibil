@@ -330,6 +330,68 @@ export interface AdminCategoryGroup extends AdminCategory {
   children: AdminCategory[]
 }
 
+// --- jurnal / audit ----------------------------------------------------
+
+export interface AuditLogActor {
+  id: string
+  name: string
+  email: string
+}
+
+/** One staff-privileged write — the Nivel-1 log (admin/support/finance/moderator). */
+export interface AdminAuditLogRow {
+  id: string
+  actorId: string
+  /** Point-in-time snapshot of the actor's platform roles at the moment of the action. */
+  actorRoles: PlatformRole[]
+  action: string
+  targetType: string
+  targetId: string | null
+  before: unknown
+  after: unknown
+  reason: string | null
+  createdAt: string
+  actor: AuditLogActor
+}
+
+/** One owner/manager/editor/billing write on their own business — the Nivel-2 log. */
+export interface AdminBusinessActionLogRow {
+  id: string
+  companyId: string
+  actorId: string
+  actorRole: string
+  action: string
+  targetType: string
+  targetId: string | null
+  before: unknown
+  after: unknown
+  createdAt: string
+  actor: AuditLogActor
+  company: { id: string; displayName: string; slug: string }
+}
+
+export interface AuditLogFilters {
+  actor: string
+  action: string
+  targetType: string
+  /** `YYYY-MM-DD`, inclusive — empty means unbounded. */
+  dateFrom: string
+  dateTo: string
+  page: number
+  pageSize: number
+}
+
+export interface BusinessActionLogFilters {
+  companyId: string
+  company: string
+  actor: string
+  action: string
+  dateFrom: string
+  dateTo: string
+  page: number
+  pageSize: number
+}
+
 interface AdminState {
   stats: AdminStats | null
   /** Per-call failure reason, or null on success. See `errMsg` above for why
@@ -371,6 +433,16 @@ interface AdminState {
   referralsCreditsPaid: number
   referralFilters: ReferralsFilters
   loadingReferrals: boolean
+  auditLog: AdminAuditLogRow[]
+  auditLogTotal: number
+  auditLogFilters: AuditLogFilters
+  loadingAuditLog: boolean
+  auditLogError: string | null
+  businessActionLog: AdminBusinessActionLogRow[]
+  businessActionLogTotal: number
+  businessActionLogFilters: BusinessActionLogFilters
+  loadingBusinessActionLog: boolean
+  businessActionLogError: string | null
 }
 
 export interface UpdateUserInput {
@@ -563,6 +635,25 @@ export const useAdminStore = defineStore('admin', {
     referralsCreditsPaid: 0,
     referralFilters: { status: null, page: 1, pageSize: 20 },
     loadingReferrals: false,
+    auditLog: [],
+    auditLogTotal: 0,
+    auditLogFilters: { actor: '', action: '', targetType: '', dateFrom: '', dateTo: '', page: 1, pageSize: 20 },
+    loadingAuditLog: false,
+    auditLogError: null,
+    businessActionLog: [],
+    businessActionLogTotal: 0,
+    businessActionLogFilters: {
+      companyId: '',
+      company: '',
+      actor: '',
+      action: '',
+      dateFrom: '',
+      dateTo: '',
+      page: 1,
+      pageSize: 20,
+    },
+    loadingBusinessActionLog: false,
+    businessActionLogError: null,
   }),
 
   actions: {
@@ -973,6 +1064,74 @@ export const useAdminStore = defineStore('admin', {
         method: 'DELETE',
       })
       this.categories = res.data
+    },
+
+    // --- jurnal / audit -------------------------------------------------
+
+    async fetchAuditLog(): Promise<void> {
+      this.loadingAuditLog = true
+      try {
+        const f = this.auditLogFilters
+        const p = new URLSearchParams()
+        if (f.actor.trim()) p.set('actor', f.actor.trim())
+        if (f.action) p.set('action', f.action)
+        if (f.targetType) p.set('targetType', f.targetType)
+        if (f.dateFrom) p.set('dateFrom', f.dateFrom)
+        if (f.dateTo) p.set('dateTo', f.dateTo)
+        p.set('page', String(f.page))
+        p.set('pageSize', String(f.pageSize))
+        const res = await apiFetch<{ items: AdminAuditLogRow[]; total: number }>(
+          `/admin/audit-log?${p.toString()}`,
+        )
+        this.auditLog = res.items
+        this.auditLogTotal = res.total
+        this.auditLogError = null
+      } catch (e) {
+        this.auditLogError = errMsg(e)
+      } finally {
+        this.loadingAuditLog = false
+      }
+    },
+
+    setAuditLogFilter<K extends keyof AuditLogFilters>(key: K, value: AuditLogFilters[K]): void {
+      this.auditLogFilters[key] = value
+      if (key !== 'page') this.auditLogFilters.page = 1
+      void this.fetchAuditLog()
+    },
+
+    async fetchBusinessActionLog(): Promise<void> {
+      this.loadingBusinessActionLog = true
+      try {
+        const f = this.businessActionLogFilters
+        const p = new URLSearchParams()
+        if (f.companyId) p.set('companyId', f.companyId)
+        if (f.company.trim()) p.set('company', f.company.trim())
+        if (f.actor.trim()) p.set('actor', f.actor.trim())
+        if (f.action) p.set('action', f.action)
+        if (f.dateFrom) p.set('dateFrom', f.dateFrom)
+        if (f.dateTo) p.set('dateTo', f.dateTo)
+        p.set('page', String(f.page))
+        p.set('pageSize', String(f.pageSize))
+        const res = await apiFetch<{ items: AdminBusinessActionLogRow[]; total: number }>(
+          `/admin/business-action-log?${p.toString()}`,
+        )
+        this.businessActionLog = res.items
+        this.businessActionLogTotal = res.total
+        this.businessActionLogError = null
+      } catch (e) {
+        this.businessActionLogError = errMsg(e)
+      } finally {
+        this.loadingBusinessActionLog = false
+      }
+    },
+
+    setBusinessActionLogFilter<K extends keyof BusinessActionLogFilters>(
+      key: K,
+      value: BusinessActionLogFilters[K],
+    ): void {
+      this.businessActionLogFilters[key] = value
+      if (key !== 'page') this.businessActionLogFilters.page = 1
+      void this.fetchBusinessActionLog()
     },
   },
 })

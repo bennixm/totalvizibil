@@ -45,6 +45,7 @@ import {
   visitorFingerprint,
 } from './ad-click';
 import { SaveCampaignDto } from './dto/save-campaign.dto';
+import { BusinessActionLogService } from '../admin/business-action-log.service';
 
 /** Hint from the search that produced the impression — which Feed to price this click against. */
 export interface ClickFeedHint {
@@ -95,6 +96,7 @@ export class CampaignService implements OnModuleInit {
     private readonly analytics: AnalyticsService,
     private readonly affiliate: AffiliateService,
     private readonly notifications: NotificationsService,
+    private readonly businessActionLog: BusinessActionLogService,
     private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
@@ -289,7 +291,7 @@ export class CampaignService implements OnModuleInit {
    * deletion first before touching campaign/budget again, no partial actions
    * (even pausing) allowed in that state.
    */
-  private async assertCanEdit(companyId: string, userId: string): Promise<void> {
+  private async assertCanEdit(companyId: string, userId: string): Promise<CompanyRole> {
     const role = await this.memberRole(companyId, userId);
     if (!CAN_EDIT.includes(role)) {
       throw new ForbiddenException('Your role cannot manage the campaign');
@@ -299,6 +301,7 @@ export class CampaignService implements OnModuleInit {
       select: { deletionScheduledAt: true },
     });
     if (company?.deletionScheduledAt) throw new ForbiddenException('company_pending_deletion');
+    return role;
   }
 
   /** The company owner whose single wallet funds this campaign. */
@@ -1305,8 +1308,23 @@ export class CampaignService implements OnModuleInit {
   }
 
   async save(userId: string, companyId: string, dto: SaveCampaignDto) {
-    await this.assertCanEdit(companyId, userId);
-    return this.saveFor(companyId, dto, 'owner');
+    const role = await this.assertCanEdit(companyId, userId);
+    const result = await this.saveFor(companyId, dto, 'owner');
+    await this.businessActionLog.log({
+      companyId,
+      actorId: userId,
+      actorRole: role,
+      action: 'campaign.update',
+      targetType: 'campaign',
+      targetId: companyId,
+      after: {
+        dailyBudget: dto.dailyBudget,
+        cpc: dto.cpc,
+        appearFirst: dto.appearFirst,
+        autoOptimize: dto.autoOptimize,
+      },
+    });
+    return result;
   }
 
   /**
@@ -1316,7 +1334,7 @@ export class CampaignService implements OnModuleInit {
    * campaign.
    */
   async remove(userId: string, companyId: string): Promise<void> {
-    await this.assertCanEdit(companyId, userId);
+    const role = await this.assertCanEdit(companyId, userId);
     const [campaign, company] = await Promise.all([
       this.prisma.campaign.findUnique({ where: { companyId } }),
       this.prisma.company.findUnique({ where: { id: companyId }, select: { status: true } }),
@@ -1340,6 +1358,16 @@ export class CampaignService implements OnModuleInit {
       }),
       this.prisma.campaign.delete({ where: { id: campaign.id } }),
     ]);
+
+    await this.businessActionLog.log({
+      companyId,
+      actorId: userId,
+      actorRole: role,
+      action: 'campaign.remove',
+      targetType: 'campaign',
+      targetId: companyId,
+      before: { status: campaign.status },
+    });
   }
 
   /** Save the campaign numbers. `actor` is 'owner' for the owner's own
@@ -1493,7 +1521,7 @@ export class CampaignService implements OnModuleInit {
   }
 
   async activate(userId: string, companyId: string) {
-    await this.assertCanEdit(companyId, userId);
+    const role = await this.assertCanEdit(companyId, userId);
 
     const [campaign, company] = await Promise.all([
       this.prisma.campaign.findUnique({ where: { companyId } }),
@@ -1550,11 +1578,22 @@ export class CampaignService implements OnModuleInit {
         );
     }
 
+    await this.businessActionLog.log({
+      companyId,
+      actorId: userId,
+      actorRole: role,
+      action: 'campaign.activate',
+      targetType: 'campaign',
+      targetId: companyId,
+      before: { status: campaign.status },
+      after: { status: CampaignStatus.active },
+    });
+
     return this.get(userId, companyId);
   }
 
   async pause(userId: string, companyId: string) {
-    await this.assertCanEdit(companyId, userId);
+    const role = await this.assertCanEdit(companyId, userId);
     const campaign = await this.prisma.campaign.findUnique({ where: { companyId } });
     if (!campaign) throw new NotFoundException('No campaign');
     // Pausing turns AUTO off — otherwise reconcile would revive it immediately.
@@ -1567,6 +1606,16 @@ export class CampaignService implements OnModuleInit {
     if (campaign.status === CampaignStatus.active || campaign.status === CampaignStatus.depleted) {
       await this.setLive(companyId, campaign, CampaignStatus.paused);
     }
+    await this.businessActionLog.log({
+      companyId,
+      actorId: userId,
+      actorRole: role,
+      action: 'campaign.pause',
+      targetType: 'campaign',
+      targetId: companyId,
+      before: { status: campaign.status },
+      after: { status: CampaignStatus.paused },
+    });
     return this.get(userId, companyId);
   }
 

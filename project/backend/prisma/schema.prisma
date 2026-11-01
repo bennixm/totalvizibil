@@ -73,6 +73,7 @@ model User {
   notifications           Notification[]
   platformExpensesCreated PlatformExpense[]
   adminAuditLogs          AdminAuditLog[]
+  businessActionLogs      BusinessActionLog[]
 
   @@map("users")
 }
@@ -239,7 +240,6 @@ model PlatformExpense {
  * prerequisite for letting the `finance` role touch these endpoints at all
  * (before this, an admin-only action needed no attribution record because the
  * acting set was tiny; a wider staff set does).
- *
  * Deliberately append-only and deliberately SEPARATE from the row it
  * describes: an `Invoice` is immutable-by-design once issued (only
  * voidable), so "which staff member voided it" cannot live on the invoice —
@@ -255,7 +255,7 @@ model AdminAuditLog {
 
   // Short machine code: `wallet.adjust`, `wallet.block`, `wallet.unblock`,
   // `refund.cancel`, `invoice.void`, `invoice.unvoid`, `settings.update`,
-  // `billing_profile.update`.
+  // `billing_profile.update`, `company.update`, `company.status.update`, ...
   action     String
   targetType String  @map("target_type")
   targetId   String? @map("target_id")
@@ -273,7 +273,41 @@ model AdminAuditLog {
 
   @@index([targetType, targetId])
   @@index([actorId])
+  @@index([createdAt])
   @@map("admin_audit_logs")
+}
+
+/**
+ * Same append-only shape as `AdminAuditLog`, scoped to a company instead of
+ * the whole platform: the mutations a business owner (or manager/editor)
+ * makes to their own campaign and website — not staff actions, and not
+ * money (`WalletTransaction` already is that log for top-ups/spend).
+ */
+model BusinessActionLog {
+  id String @id @default(uuid()) @db.Uuid
+
+  companyId String      @map("company_id") @db.Uuid
+  actorId   String      @map("actor_id") @db.Uuid
+  actorRole CompanyRole @map("actor_role")
+
+  // Short machine code: `campaign.activate`, `campaign.pause`,
+  // `campaign.update`, `campaign.remove`, `company.publish`,
+  // `company.unpublish`, `website.bundle.publish`.
+  action     String
+  targetType String  @map("target_type")
+  targetId   String? @map("target_id")
+
+  before Json?
+  after  Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  actor   User    @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([actorId])
+  @@map("business_action_logs")
 }
 
 // ---------------------------------------------------------------------------
@@ -368,6 +402,7 @@ model Company {
   appointmentAvailability AppointmentAvailability[]
   appointments            Appointment[]
   customDomains           CustomDomain[]
+  businessActionLogs      BusinessActionLog[]
 
   @@index([ownerUserId])
   @@index([categoryId])

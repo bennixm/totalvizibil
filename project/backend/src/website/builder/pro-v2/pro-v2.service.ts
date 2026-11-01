@@ -24,6 +24,7 @@ import {
 } from './path-safety';
 import { isPublishableBundlePath, mimeForBundlePath } from './bundle-mime';
 import { extractHeroImageUrl } from './hero-image';
+import { BusinessActionLogService } from '../../../admin/business-action-log.service';
 
 const CAN_EDIT: CompanyRole[] = [CompanyRole.owner, CompanyRole.manager];
 
@@ -54,6 +55,7 @@ export class ProV2Service {
     private readonly assets: WebsiteAssetService,
     private readonly notifications: NotificationsService,
     private readonly campaigns: CampaignService,
+    private readonly businessActionLog: BusinessActionLogService,
   ) {}
 
   // --- ownership ---------------------------------------------------------
@@ -535,6 +537,25 @@ export class ProV2Service {
         },
       }),
     ]);
+
+    // Best-effort attribution: a platform admin publishing an un-unlocked
+    // company's builder (see `assertCanEdit` above) has no `CompanyRole` to
+    // log against — this is a Nivel-2 (owner-side) log, so that case is
+    // simply skipped rather than inventing a role that doesn't exist.
+    const member = await this.prisma.companyUser.findUnique({
+      where: { companyId_userId: { companyId, userId } },
+    });
+    if (member && member.status === 'active') {
+      await this.businessActionLog.log({
+        companyId,
+        actorId: userId,
+        actorRole: member.role,
+        action: 'website.bundle.publish',
+        targetType: 'website',
+        targetId: website.id,
+        after: { publishedAt, fileCount: rows.length },
+      });
+    }
 
     return { publishedAt, fileCount: rows.length };
   }

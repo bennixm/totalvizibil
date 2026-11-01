@@ -21,6 +21,7 @@ import { LeadsService } from '../leads/leads.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BusinessActionLogService } from '../admin/business-action-log.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { companyInclude, toCompanyView, CompanyView } from './company.view';
@@ -71,6 +72,7 @@ export class CompaniesService implements OnModuleInit {
     private readonly analytics: AnalyticsService,
     private readonly settings: PlatformSettingsService,
     private readonly notifications: NotificationsService,
+    private readonly businessActionLog: BusinessActionLogService,
     private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
@@ -859,7 +861,7 @@ export class CompaniesService implements OnModuleInit {
 
   /** Make the company + its website publicly visible in the feed (PRD §11). */
   async setPublished(userId: string, companyId: string, live: boolean) {
-    await this.assertCanEditCompany(companyId, userId);
+    const role = await this.assertCanEditCompany(companyId, userId);
 
     if (live) {
       const company = await this.prisma.company.findUnique({
@@ -892,6 +894,15 @@ export class CompaniesService implements OnModuleInit {
         data: { status: live ? 'published' : 'unpublished' },
       }),
     ]);
+
+    await this.businessActionLog.log({
+      companyId,
+      actorId: userId,
+      actorRole: role,
+      action: live ? 'company.publish' : 'company.unpublish',
+      targetType: 'company',
+      targetId: companyId,
+    });
 
     return this.dashboard(userId, companyId);
   }

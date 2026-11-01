@@ -317,6 +317,16 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['admin', 'finance'] },
         component: () => import('@/views/admin/AdminFinanceAiUsageView.vue'),
       },
+      {
+        path: 'jurnal',
+        name: 'admin-jurnal',
+        // `GET /admin/audit-log` is admin-only; `GET /admin/business-action-log`
+        // is `admin`+`support` (support needs it for ownership-dispute cases) —
+        // the wider of the two, same reasoning as the other split-access pages
+        // above. The view itself hides the staff-log tab for a non-admin.
+        meta: { allowedRoles: ['admin', 'support'] },
+        component: () => import('@/views/admin/AdminJurnalView.vue'),
+      },
     ],
   },
 

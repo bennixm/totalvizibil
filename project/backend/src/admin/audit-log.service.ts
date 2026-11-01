@@ -31,6 +31,18 @@ export interface AuditLogEntry {
   reason?: string | null;
 }
 
+export interface ListAuditLogParams {
+  /** Free-text match against the actor's name/email — a raw actor id isn't
+   *  something a staff member reading this screen would ever have on hand. */
+  actor?: string;
+  action?: string;
+  targetType?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+  page: number;
+  pageSize: number;
+}
+
 /**
  * Append-only "who did what to money" log.
  *
@@ -72,6 +84,38 @@ export class AuditLogService {
         err instanceof Error ? err.stack : err,
       );
     }
+  }
+
+  async list(params: ListAuditLogParams) {
+    const where: Prisma.AdminAuditLogWhereInput = {
+      action: params.action,
+      targetType: params.targetType,
+      createdAt:
+        params.dateFrom || params.dateTo ? { gte: params.dateFrom, lte: params.dateTo } : undefined,
+      ...(params.actor
+        ? {
+            actor: {
+              OR: [
+                { name: { contains: params.actor, mode: 'insensitive' } },
+                { email: { contains: params.actor, mode: 'insensitive' } },
+              ],
+            },
+          }
+        : {}),
+    };
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.adminAuditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (params.page - 1) * params.pageSize,
+        take: params.pageSize,
+        include: { actor: { select: { id: true, name: true, email: true } } },
+      }),
+      this.prisma.adminAuditLog.count({ where }),
+    ]);
+
+    return { items: rows, page: params.page, pageSize: params.pageSize, total };
   }
 }
 

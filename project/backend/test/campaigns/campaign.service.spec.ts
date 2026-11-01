@@ -221,12 +221,17 @@ function fakeConfig() {
   return { get: jest.fn().mockReturnValue('https://totalvizibil.ro') };
 }
 
+function fakeBusinessActionLog() {
+  return { log: jest.fn(async () => undefined) };
+}
+
 function makeService() {
   const prisma = fakePrisma();
   const wallet = fakeWallet();
   const analytics = fakeAnalytics();
   const affiliate = fakeAffiliate();
   const notifications = fakeNotifications();
+  const businessActionLog = fakeBusinessActionLog();
   const config = fakeConfig();
   const svc = new CampaignService(
     prisma as any,
@@ -234,9 +239,10 @@ function makeService() {
     analytics as any,
     affiliate as any,
     notifications as any,
+    businessActionLog as any,
     config as any,
   );
-  return { svc, prisma, wallet, analytics, affiliate, notifications, config };
+  return { svc, prisma, wallet, analytics, affiliate, notifications, businessActionLog, config };
 }
 
 describe('CampaignService', () => {

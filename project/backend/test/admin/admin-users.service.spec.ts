@@ -175,6 +175,8 @@ function fakeAudit() {
   return { log: jest.fn(async () => undefined) };
 }
 
+const actor = { id: 'admin1', roles: ['admin'] };
+
 function fakeConfig() {
   return { get: jest.fn(() => 'https://totalvizibil.ro') };
 }
@@ -308,7 +310,7 @@ describe('AdminUsersService', () => {
       // Stub detail so the complex read-side is skipped
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
-      await svc.update('admin1', 'admin1-session', 'u1', { status: 'suspended' });
+      await svc.update('admin1', 'admin1-session', 'u1', { status: 'suspended' }, actor);
 
       // user.update called with suspended status
       expect(prisma.user.update).toHaveBeenCalledWith(
@@ -332,7 +334,7 @@ describe('AdminUsersService', () => {
       prisma.__seedUser({ id: 'admin1', status: 'active' });
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
-      await svc.update('admin1', 'admin1-session', 'admin1', { revokeSessions: true });
+      await svc.update('admin1', 'admin1-session', 'admin1', { revokeSessions: true }, actor);
 
       // Must except the CALLER'S SESSION id, never the caller's user id —
       // `revokeAllForUser`'s second arg is matched against `Session.id`, so
@@ -348,7 +350,7 @@ describe('AdminUsersService', () => {
       prisma.__seedUser({ id: 'u1', totpEnabledAt: new Date(), totpSecret: 'secret' });
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
-      await svc.update('admin1', 'admin1-session', 'u1', { disableTotp: true });
+      await svc.update('admin1', 'admin1-session', 'u1', { disableTotp: true }, actor);
 
       expect(notifications.notify).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'u1', type: 'totp_disabled' }),
@@ -360,7 +362,7 @@ describe('AdminUsersService', () => {
       prisma.__seedUser({ id: 'u1', totpEnabledAt: null });
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
-      await svc.update('admin1', 'admin1-session', 'u1', { disableTotp: true });
+      await svc.update('admin1', 'admin1-session', 'u1', { disableTotp: true }, actor);
 
       expect(notifications.notify).not.toHaveBeenCalledWith(
         expect.objectContaining({ type: 'totp_disabled' }),
@@ -374,7 +376,7 @@ describe('AdminUsersService', () => {
       prisma.__seedUser({ id: 'u1', email: 'old@example.com', status: 'active' });
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
-      await svc.update('admin1', 'admin1-session', 'u1', { email: 'new@example.com' });
+      await svc.update('admin1', 'admin1-session', 'u1', { email: 'new@example.com' }, actor);
 
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -395,7 +397,7 @@ describe('AdminUsersService', () => {
       prisma.__seedUser({ id: 'u1', email: 'same@example.com', status: 'active' });
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
-      await svc.update('admin1', 'admin1-session', 'u1', { name: 'New Name' });
+      await svc.update('admin1', 'admin1-session', 'u1', { name: 'New Name' }, actor);
 
       expect(mail.send).not.toHaveBeenCalled();
       const data = (prisma.user.update as jest.Mock).mock.calls[0][0].data;
@@ -434,10 +436,10 @@ describe('AdminUsersService', () => {
       (prisma.platformRoleAssignment.count as jest.Mock).mockResolvedValue(0);
 
       await expect(
-        svc.update('admin1', 'admin1-session', 'u1', { platformRoles: [] }),
+        svc.update('admin1', 'admin1-session', 'u1', { platformRoles: [] }, actor),
       ).rejects.toThrow(ForbiddenException);
       await expect(
-        svc.update('admin1', 'admin1-session', 'u1', { platformRoles: [] }),
+        svc.update('admin1', 'admin1-session', 'u1', { platformRoles: [] }, actor),
       ).rejects.toThrow('cannot_remove_last_finance_role');
 
       // Nothing was written.
@@ -449,7 +451,7 @@ describe('AdminUsersService', () => {
       prisma.__seedUser({ id: 'u1', platformRoles: [{ role: 'finance' }] });
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
-      await svc.update('admin1', 'admin1-session', 'u1', { platformRoles: ['support'] });
+      await svc.update('admin1', 'admin1-session', 'u1', { platformRoles: ['support'] }, actor);
 
       expect(prisma.platformRoleAssignment.count).toHaveBeenCalledWith({
         where: { role: 'finance', userId: { not: 'u1' } },
@@ -463,7 +465,7 @@ describe('AdminUsersService', () => {
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
       await expect(
-        svc.update('admin1', 'admin1-session', 'u1', { platformRoles: [] }),
+        svc.update('admin1', 'admin1-session', 'u1', { platformRoles: [] }, actor),
       ).resolves.toBeDefined();
       expect(prisma.platformRoleAssignment.deleteMany).toHaveBeenCalled();
     });
@@ -473,7 +475,7 @@ describe('AdminUsersService', () => {
       prisma.__seedUser({ id: 'u1', platformRoles: [{ role: 'support' }] });
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
-      await svc.update('admin1', 'admin1-session', 'u1', { platformRoles: ['moderator'] });
+      await svc.update('admin1', 'admin1-session', 'u1', { platformRoles: ['moderator'] }, actor);
 
       expect(prisma.platformRoleAssignment.count).not.toHaveBeenCalled();
     });
@@ -483,9 +485,13 @@ describe('AdminUsersService', () => {
       prisma.__seedUser({ id: 'u1', platformRoles: [{ role: 'finance' }] });
       jest.spyOn(svc, 'detail').mockResolvedValue({} as any);
 
-      await svc.update('admin1', 'admin1-session', 'u1', {
-        platformRoles: ['finance', 'support'],
-      });
+      await svc.update(
+        'admin1',
+        'admin1-session',
+        'u1',
+        { platformRoles: ['finance', 'support'] },
+        actor,
+      );
 
       expect(prisma.platformRoleAssignment.count).not.toHaveBeenCalled();
     });
@@ -620,7 +626,7 @@ describe('AdminUsersService', () => {
       const { svc, prisma, sessions, passwords } = makeService();
       prisma.__seedUser({ id: 'u1' });
 
-      const result = await svc.setPassword('u1', 'newpassword123');
+      const result = await svc.setPassword('u1', 'newpassword123', actor);
 
       // password was hashed
       expect(passwords.hash).toHaveBeenCalledWith('newpassword123');
@@ -643,7 +649,7 @@ describe('AdminUsersService', () => {
     it('throws NotFoundException when user does not exist', async () => {
       const { svc } = makeService();
 
-      await expect(svc.setPassword('nonexistent', 'pass')).rejects.toThrow(NotFoundException);
+      await expect(svc.setPassword('nonexistent', 'pass', actor)).rejects.toThrow(NotFoundException);
     });
   });
 });
