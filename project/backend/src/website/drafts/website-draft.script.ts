@@ -9,9 +9,6 @@
  *
  * Assistant turns are returned as i18n KEYS (resolved under `studio.msg.*` on
  * the frontend), never as baked strings — the platform is RO/EN/DE.
- *
- * The tone/email/phone/list helpers here are also reused by the advanced
- * builder script (`builder/builder-script.ts`).
  */
 import { ToneOfVoice } from '../website.types';
 import { EasyAnswers } from './easy-compose';

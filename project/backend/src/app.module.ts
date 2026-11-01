@@ -25,6 +25,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { DomainsModule } from './domains/domains.module';
 import { AdminModule } from './admin/admin.module';
 import { AuditLogModule } from './admin/audit-log.module';
+import { BusinessActionLogModule } from './admin/business-action-log.module';
 import { SupportModule } from './support/support.module';
 import { HealthModule } from './health/health.module';
 import { FinanceModule } from './finance/finance.module';
@@ -36,6 +37,7 @@ import { FinanceModule } from './finance/finance.module';
     AiModule,
     PrismaModule,
     AuditLogModule,
+    BusinessActionLogModule,
     PlatformSettingsModule,
     StripeModule,
     MailModule,

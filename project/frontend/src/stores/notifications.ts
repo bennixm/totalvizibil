@@ -90,6 +90,9 @@ export function routeForNotification(n: Pick<NotificationItem, 'type' | 'data'>)
   if (n.type === 'pro_build_failed' && typeof companyId === 'string') {
     return { name: 'website-builder', query: { c: companyId } }
   }
+  if (n.type === 'campaign_paused_website_not_ready' && typeof companyId === 'string') {
+    return { name: 'campaign', query: { c: companyId } }
+  }
   if (
     (n.type === 'payment_succeeded' || n.type === 'referral_rewarded') &&
     typeof invoiceId === 'string'
@@ -131,6 +134,7 @@ const VISUALS: Record<string, NotificationVisual> = {
   business_reactivated: { icon: 'mdi-domain', tone: 'success' },
   campaign_activated: { icon: 'mdi-bullhorn-outline', tone: 'success' },
   campaign_paused_on_edit: { icon: 'mdi-pause-circle-outline', tone: 'warning' },
+  campaign_paused_website_not_ready: { icon: 'mdi-pause-circle-outline', tone: 'warning' },
   campaign_depleted: { icon: 'mdi-battery-alert-variant-outline', tone: 'warning' },
   wallet_low_balance: { icon: 'mdi-wallet-outline', tone: 'warning' },
   payment_succeeded: { icon: 'mdi-check-decagram-outline', tone: 'success' },

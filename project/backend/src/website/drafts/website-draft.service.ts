@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../../ai/ai.service';
 import { resolveLocationInput } from '../../geo/ro-cities';
+import { WebsiteAssetService } from '../assets/website-asset.service';
 import { ServiceItem } from '../website.types';
 import {
   EasyStep,
@@ -98,11 +99,7 @@ const REVIEW_LABELS: Record<StudioLocale, Record<string, string>> = {
   },
 };
 
-/** Max decoded size for an uploaded Simple-site image. */
-const MAX_ASSET_BYTES = 4_500_000;
-
 const ASSET_URL_RE = /^\/api\/v1\/website-assets\/[0-9a-fA-F-]{36}$/;
-const DATA_URI_RE = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/;
 
 export type { EasyPatch };
 
@@ -111,6 +108,7 @@ export class WebsiteDraftService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
+    private readonly assets: WebsiteAssetService,
   ) {}
 
   private static hash(token: string): string {
@@ -536,27 +534,7 @@ export class WebsiteDraftService {
     kind: string,
   ): Promise<{ id: string; url: string }> {
     const draft = await this.load(id, token);
-    if (kind !== 'landing' && kind !== 'portfolio' && kind !== 'logo') {
-      throw new BadRequestException('bad_kind');
-    }
-    const m = DATA_URI_RE.exec(dataUri.trim());
-    if (!m) throw new BadRequestException('bad_image');
-    const mime = m[1];
-    const bytes = Buffer.from(m[2].replace(/\s/g, ''), 'base64');
-    if (bytes.length === 0) throw new BadRequestException('bad_image');
-    if (bytes.length > MAX_ASSET_BYTES) throw new BadRequestException('image_too_large');
-
-    if (kind === 'portfolio') {
-      const count = await this.prisma.websiteAsset.count({
-        where: { draftId: draft.id, kind: 'portfolio' },
-      });
-      if (count >= 20) throw new BadRequestException('portfolio_full');
-    }
-
-    const row = await this.prisma.websiteAsset.create({
-      data: { draftId: draft.id, kind, mime, bytes, size: bytes.length },
-    });
-    return { id: row.id, url: `/api/v1/website-assets/${row.id}` };
+    return this.assets.addDraftAsset(draft.id, dataUri, kind);
   }
 
   // --- location + claim ----------------------------------------------

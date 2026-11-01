@@ -63,8 +63,14 @@ function renderOverview(): void {
       .addTo(map)
     overviewMarkers.push(marker)
   }
-  if (pts.length === 1) map.setView(pts[0], 9)
-  else if (pts.length > 1) map.fitBounds(L.latLngBounds(pts), { padding: [32, 32], maxZoom: 8 })
+  // A map whose container was just created (or re-created — see the mount-time
+  // race note on renderPin below) hasn't necessarily settled its internal
+  // pixel-origin/size yet; invalidateSize() forces Leaflet to recompute that
+  // against the CURRENT real layout right before we pan, so the pan lands
+  // correctly instead of being computed against a stale/zero-sized frame.
+  map.invalidateSize()
+  if (pts.length === 1) map.setView(pts[0], 9, { animate: false })
+  else if (pts.length > 1) map.fitBounds(L.latLngBounds(pts), { padding: [32, 32], maxZoom: 8, animate: false })
 }
 
 function renderPin(fit: boolean): void {
@@ -84,7 +90,21 @@ function renderPin(fit: boolean): void {
     centre.setLatLng(pos)
   }
 
-  if (fit) map.setView(pos, 11)
+  // Same invalidateSize()-before-pan fix as renderOverview() above. This
+  // matters most right after a fresh mount: the map is constructed with
+  // whatever lat/lng the parent happened to hold at that instant (often a
+  // stale default or the previous selection's city, since the real
+  // county-center lookup is async and hasn't resolved yet), then a SECOND
+  // setView() lands moments later once the lookup completes. Without
+  // invalidateSize() + animate:false, that second call was observed to
+  // silently no-op on a just-constructed map (confirmed via instrumentation:
+  // the watcher fires, props are correct, setView() runs, but the view
+  // visibly stayed on the first, wrong position) — the map never actually
+  // caught up, leaving the previous county's city on screen indefinitely.
+  if (fit) {
+    map.invalidateSize()
+    map.setView(pos, 11, { animate: false })
+  }
 }
 
 function render(fit: boolean): void {

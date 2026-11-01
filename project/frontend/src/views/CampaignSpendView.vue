@@ -14,7 +14,7 @@ import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { companyRoute } from '@/services/routes'
 import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
-import { useCampaignStore } from '@/stores/campaign'
+import { useCampaignStore, type FeedRankEntry } from '@/stores/campaign'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 
@@ -160,14 +160,38 @@ const lifetime = computed(() => {
 })
 
 // A partial preview of where the budget goes — the full, filterable,
-// paginated breakdown lives on the consumption page now.
-const spendPreview = computed(() => (s.value?.byFeed ?? []).slice(0, 3))
+// paginated breakdown (and click-quality detail) lives on the consumption
+// page now. The current position (from `feedRanks`) and a relative-share
+// bar are joined in here too, so even the preview tells the real story at
+// a glance instead of just three bare numbers.
+const feedRankByKey = computed(() => {
+  const map = new Map<string, FeedRankEntry>()
+  for (const r of s.value?.feedRanks ?? []) map.set(`${r.county}|${r.categorySlug}`, r)
+  return map
+})
+const spendPreview = computed(() => {
+  const rows = s.value?.byFeed ?? []
+  const maxMinor = Math.max(1, ...rows.map((r) => r.spent.minor))
+  return rows.slice(0, 3).map((r) => ({
+    ...r,
+    rank: feedRankByKey.value.get(`${r.county}|${r.categorySlug}`) ?? null,
+    sharePct: Math.round((r.spent.minor / maxMinor) * 100),
+  }))
+})
 function catName(entry: { categoryName: { ro: string; en: string; de: string } }): string {
   return entry.categoryName[locale.value as 'ro' | 'en' | 'de'] ?? entry.categoryName.en
 }
 function countyLabel(county: string): string {
   return county === 'nationwide' ? t('feed.coverageCountry') : county
 }
+
+// One-line click-quality signal next to the clicks hero — "✓ N billed · M
+// filtered" — the full breakdown (by reason) lives on the consumption page.
+const qualityInline = computed(() => {
+  const q = s.value?.clickQuality
+  if (!q || q.billed + q.unbilled === 0) return null
+  return { billed: q.billed, unbilled: q.unbilled }
+})
 
 // Two separate small trends, each on its own scale — clicks (small whole
 // numbers) and spend (credit decimals) were previously crammed onto one
@@ -463,6 +487,14 @@ watch(
           <span class="khero__k">{{ t('spend.hClicksToday') }}</span>
           <strong class="khero__v">{{ s.today.clicks }}</strong>
           <span class="khero__x">{{ t('spend.kClicksLifeSub', { n: s.lifetime.clicks }) }}</span>
+          <router-link
+            v-if="qualityInline"
+            :to="{ name: 'consumption', query: { c: companyId } }"
+            class="khero__quality"
+          >
+            <v-icon icon="mdi-shield-check-outline" size="13" />
+            {{ t('spend.qualityInline', { billed: qualityInline.billed, unbilled: qualityInline.unbilled }) }}
+          </router-link>
         </div>
         <div class="ktiles">
           <div v-for="tile in keyTiles" :key="tile.k" class="kt">
@@ -576,6 +608,7 @@ watch(
             <thead>
               <tr>
                 <th>{{ t('spend.previewColFeed') }}</th>
+                <th>{{ t('spend.previewColPosition') }}</th>
                 <th>{{ t('spend.previewColClicks') }}</th>
                 <th>{{ t('spend.previewColSpent') }}</th>
               </tr>
@@ -583,8 +616,15 @@ watch(
             <tbody>
               <tr v-for="(r, i) in spendPreview" :key="r.county + r.categorySlug + i">
                 <td>{{ countyLabel(r.county) }} · {{ catName(r) }}</td>
+                <td :data-label="t('spend.previewColPosition')">
+                  <span v-if="r.rank" class="previewPos" :class="{ 'is-top': r.rank.position === 1 }">
+                    #{{ r.rank.position }}<span class="previewPos__of">/{{ r.rank.total }}</span>
+                  </span>
+                  <span v-else class="previewPos__none">{{ t('spend.previewColPositionNone') }}</span>
+                </td>
                 <td :data-label="t('spend.previewColClicks')">{{ r.clicks }}</td>
-                <td :data-label="t('spend.previewColSpent')">
+                <td :data-label="t('spend.previewColSpent')" class="previewSpent">
+                  <span class="previewBar"><span class="previewBar__fill" :style="{ width: r.sharePct + '%' }" /></span>
                   {{ n(r.spent.credits, { maximumFractionDigits: 2 }) }} cr
                 </td>
               </tr>
@@ -910,6 +950,18 @@ watch(
   font-size: 0.72rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
+.khero__quality {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-success));
+}
+.khero__quality:hover {
+  text-decoration: underline;
+}
 .ktiles {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1098,8 +1150,48 @@ watch(
   padding: 0.55rem 0;
   border-top: 1px solid var(--tvz-hairline);
 }
+.previewPos {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: rgba(var(--v-theme-warning), 0.12);
+  color: rgb(var(--v-theme-warning));
+}
+.previewPos.is-top {
+  background: rgba(var(--v-theme-success), 0.12);
+  color: rgb(var(--v-theme-success));
+}
+.previewPos__of {
+  font-weight: 400;
+  opacity: 0.7;
+}
+.previewPos__none {
+  color: rgba(var(--v-theme-on-surface), 0.4);
+}
+.previewSpent {
+  font-weight: 700;
+}
+.previewBar {
+  display: inline-block;
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  overflow: hidden;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+.previewBar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-primary));
+}
 
-/* Mobile: stop forcing a 420px horizontal scroll for a 3-column preview —
+/* Mobile: stop forcing a 420px horizontal scroll for a 4-column preview —
    each feed becomes a card with clicks/spent on their own labeled lines. */
 @media (max-width: 640px) {
   .ov__spendTableWrap {

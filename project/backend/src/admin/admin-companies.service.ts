@@ -23,6 +23,7 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 import { LeadsQueryDto } from './dto/leads-query.dto';
 import { ListCompaniesQuery } from './dto/list-companies.query';
 import { SetCompanyLocationDto } from './dto/set-company-location.dto';
+import { AuditActor, AuditLogService } from './audit-log.service';
 
 /**
  * Admin-side controls over a single business: a full detail payload (profile,
@@ -43,6 +44,7 @@ export class AdminCompaniesService {
     private readonly builder: ProV2Service,
     private readonly settings: PlatformSettingsService,
     private readonly notifications: NotificationsService,
+    private readonly audit: AuditLogService,
     private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
@@ -329,9 +331,22 @@ export class AdminCompaniesService {
   }
 
   /** Admin: move a request through new → seen → resolved. */
-  async setLeadStatus(companyId: string, leadId: string, status: 'new' | 'seen' | 'resolved') {
+  async setLeadStatus(
+    companyId: string,
+    leadId: string,
+    status: 'new' | 'seen' | 'resolved',
+    actor: AuditActor,
+  ) {
     await this.loadCompany(companyId);
     await this.leads.updateFor(companyId, leadId, { status });
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'company.lead.status.update',
+      targetType: 'lead',
+      targetId: leadId,
+      after: { status },
+    });
     return this.detail(companyId);
   }
 
@@ -343,16 +358,24 @@ export class AdminCompaniesService {
    * if they can't afford it); otherwise it's free. Idempotent (re-running on an
    * already-unlocked site just returns the current detail).
    */
-  async upgradeToAdvanced(companyId: string, charge = false) {
+  async upgradeToAdvanced(companyId: string, charge: boolean, actor: AuditActor) {
     await this.loadCompany(companyId);
     await this.assertNotPendingDeletion(companyId);
     await this.builder.unlockForAdmin(companyId, { charge });
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'company.website.upgrade_advanced',
+      targetType: 'company',
+      targetId: companyId,
+      after: { charge },
+    });
     return this.detail(companyId);
   }
 
   // --- profile edit ---------------------------------------------
 
-  async updateCompany(companyId: string, dto: UpdateCompanyDto) {
+  async updateCompany(companyId: string, dto: UpdateCompanyDto, actor: AuditActor) {
     const existing = await this.loadCompany(companyId);
     await this.assertNotPendingDeletion(companyId);
     if (dto.categoryId) {
@@ -390,6 +413,26 @@ export class AdminCompaniesService {
       }
     });
 
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'company.update',
+      targetType: 'company',
+      targetId: companyId,
+      before: {
+        displayName: existing.displayName,
+        legalName: existing.legalName,
+        description: existing.description,
+        categoryId: existing.categoryId,
+      },
+      after: {
+        displayName: dto.displayName ?? existing.displayName,
+        legalName: dto.legalName ?? existing.legalName,
+        description: dto.description ?? existing.description,
+        categoryId: dto.categoryId ?? existing.categoryId,
+      },
+    });
+
     if (categoryChanged) {
       // Already committed — a notification hiccup must never mask this.
       void this.notifications
@@ -418,7 +461,7 @@ export class AdminCompaniesService {
    * or nationwide — a full-replace override, same as the owner-facing flow;
    * it must not leave other, previously-set județe stranded behind it.
    */
-  async setLocation(companyId: string, dto: SetCompanyLocationDto) {
+  async setLocation(companyId: string, dto: SetCompanyLocationDto, actor: AuditActor) {
     const company = await this.loadCompany(companyId);
     await this.assertNotPendingDeletion(companyId);
     const { nationwide, counties } = resolveLocationInput(dto);
@@ -449,6 +492,15 @@ export class AdminCompaniesService {
       this.prisma.companyLocation.createMany({ data: rows }),
     ]);
 
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'company.location.update',
+      targetType: 'company',
+      targetId: companyId,
+      after: { nationwide, counties },
+    });
+
     // Already committed — a notification hiccup must never mask this. Every
     // call here is a deliberate full-replace of the service area, unlike the
     // category edit above — no "did anything actually change" check needed.
@@ -473,7 +525,7 @@ export class AdminCompaniesService {
   }
 
   /** Admin: take the public website online / offline (does not touch business status). */
-  async setWebsitePublished(companyId: string, published: boolean) {
+  async setWebsitePublished(companyId: string, published: boolean, actor: AuditActor) {
     const outer = await this.loadCompany(companyId);
     await this.assertNotPendingDeletion(companyId);
     if (published) {
@@ -502,6 +554,14 @@ export class AdminCompaniesService {
     await this.prisma.website.updateMany({
       where: { companyId },
       data: { status: published ? 'published' : 'unpublished' },
+    });
+
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: published ? 'company.website.publish' : 'company.website.unpublish',
+      targetType: 'website',
+      targetId: companyId,
     });
 
     // Already committed — a notification hiccup must never mask this. The
@@ -542,10 +602,23 @@ export class AdminCompaniesService {
 
   // --- campaign editing ---------------------------------------
 
-  async saveCampaign(companyId: string, dto: SaveCampaignDto) {
+  async saveCampaign(companyId: string, dto: SaveCampaignDto, actor: AuditActor) {
     await this.loadCompany(companyId);
     await this.assertNotPendingDeletion(companyId);
     await this.campaigns.saveFor(companyId, dto, 'admin');
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'company.campaign.update',
+      targetType: 'campaign',
+      targetId: companyId,
+      after: {
+        dailyBudget: dto.dailyBudget,
+        cpc: dto.cpc,
+        appearFirst: dto.appearFirst,
+        autoOptimize: dto.autoOptimize,
+      },
+    });
     return this.detail(companyId);
   }
 
@@ -589,7 +662,7 @@ export class AdminCompaniesService {
     ]);
   }
 
-  async campaignAction(companyId: string, dto: CampaignActionDto) {
+  async campaignAction(companyId: string, dto: CampaignActionDto, actor: AuditActor) {
     const company = await this.loadCompany(companyId);
     await this.assertNotPendingDeletion(companyId);
     if (!company.campaign) throw new BadRequestException('This business has no campaign');
@@ -631,6 +704,15 @@ export class AdminCompaniesService {
             err instanceof Error ? err.stack : err,
           ),
         );
+      await this.audit.log({
+        actorId: actor.id,
+        actorRoles: actor.roles,
+        action: 'company.campaign.action',
+        targetType: 'campaign',
+        targetId: companyId,
+        before: { status: company.campaign.status },
+        after: { action: 'delete' },
+      });
       return { ok: true as const, action: 'delete' as const };
     }
 
@@ -671,6 +753,15 @@ export class AdminCompaniesService {
             ),
           );
       }
+      await this.audit.log({
+        actorId: actor.id,
+        actorRoles: actor.roles,
+        action: 'company.campaign.action',
+        targetType: 'campaign',
+        targetId: companyId,
+        before: { status: company.campaign.status },
+        after: { action: 'pause' },
+      });
       return { ok: true as const, action: 'pause' as const };
     }
 
@@ -737,10 +828,20 @@ export class AdminCompaniesService {
         ),
       );
 
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'company.campaign.action',
+      targetType: 'campaign',
+      targetId: companyId,
+      before: { status: company.campaign.status },
+      after: { action: 'activate' },
+    });
+
     return { ok: true as const, action: 'activate' as const };
   }
 
-  async setStatus(companyId: string, dto: SetCompanyStatusDto) {
+  async setStatus(companyId: string, dto: SetCompanyStatusDto, actor: AuditActor) {
     const company = await this.loadCompany(companyId);
     await this.assertNotPendingDeletion(companyId);
 
@@ -802,6 +903,16 @@ export class AdminCompaniesService {
           ),
         );
 
+      await this.audit.log({
+        actorId: actor.id,
+        actorRoles: actor.roles,
+        action: 'company.status.update',
+        targetType: 'company',
+        targetId: companyId,
+        before: { status: company.status },
+        after: { status: 'suspended' },
+      });
+
       return { ok: true as const, status: 'suspended' as const };
     }
 
@@ -832,6 +943,16 @@ export class AdminCompaniesService {
         ),
       );
 
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'company.status.update',
+      targetType: 'company',
+      targetId: companyId,
+      before: { status: company.status },
+      after: { status: 'draft' },
+    });
+
     return { ok: true as const, status: 'draft' as const };
   }
 
@@ -842,7 +963,7 @@ export class AdminCompaniesService {
    * for support cases where the owner can't get to their own panel in time.
    * A no-op past the grace window — the sweep may already be mid-wipe.
    */
-  async cancelDeletion(companyId: string) {
+  async cancelDeletion(companyId: string, actor: AuditActor) {
     const company = await this.loadCompany(companyId);
     if (!company.deletionScheduledAt) return this.detail(companyId);
     if (Date.now() - company.deletionScheduledAt.getTime() >= COMPANY_DELETE_GRACE_MS) {
@@ -851,6 +972,14 @@ export class AdminCompaniesService {
     await this.prisma.company.update({
       where: { id: companyId },
       data: { deletionScheduledAt: null, deletionReminderSentAt: null },
+    });
+
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'company.deletion.cancel',
+      targetType: 'company',
+      targetId: companyId,
     });
 
     void this.notifications

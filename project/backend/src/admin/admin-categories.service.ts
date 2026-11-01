@@ -3,12 +3,16 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { AuditActor, AuditLogService } from './audit-log.service';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 @Injectable()
 export class AdminCategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditLogService,
+  ) {}
 
   /** Full two-level tree including inactive nodes, with per-category company counts. */
   async tree() {
@@ -58,7 +62,7 @@ export class AdminCategoriesService {
     }
   }
 
-  async create(dto: CreateCategoryDto) {
+  async create(dto: CreateCategoryDto, actor: AuditActor) {
     this.assertSlug(dto.slug);
 
     const existing = await this.prisma.category.findUnique({ where: { slug: dto.slug } });
@@ -82,10 +86,18 @@ export class AdminCategoriesService {
         position: dto.position ?? 0,
       },
     });
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'category.create',
+      targetType: 'category',
+      targetId: created.id,
+      after: { slug: created.slug, parentId: created.parentId },
+    });
     return this.tree().then((t) => ({ tree: t.data, createdId: created.id }));
   }
 
-  async update(id: string, dto: UpdateCategoryDto) {
+  async update(id: string, dto: UpdateCategoryDto, actor: AuditActor) {
     const cat = await this.prisma.category.findUnique({
       where: { id },
       include: {
@@ -133,10 +145,29 @@ export class AdminCategoriesService {
         ...(dto.parentId !== undefined ? { parentId: dto.parentId || null } : {}),
       },
     });
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'category.update',
+      targetType: 'category',
+      targetId: id,
+      before: {
+        slug: cat.slug,
+        name: cat.nameI18n,
+        isActive: cat.isActive,
+        parentId: cat.parentId,
+      },
+      after: {
+        slug: dto.slug ?? cat.slug,
+        name: dto.name ?? cat.nameI18n,
+        isActive: dto.isActive ?? cat.isActive,
+        parentId: dto.parentId !== undefined ? dto.parentId || null : cat.parentId,
+      },
+    });
     return this.tree();
   }
 
-  async remove(id: string) {
+  async remove(id: string, actor: AuditActor) {
     const cat = await this.prisma.category.findUnique({
       where: { id },
       include: {
@@ -160,6 +191,14 @@ export class AdminCategoriesService {
       throw new BadRequestException('Delete or move the subcategories first');
     }
     await this.prisma.category.delete({ where: { id } });
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'category.delete',
+      targetType: 'category',
+      targetId: id,
+      before: { slug: cat.slug },
+    });
     return this.tree();
   }
 }

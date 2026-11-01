@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { apiFetch } from '@/services/api'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 import type { WalletSummary } from '@/stores/wallet'
-import type { CampaignData } from '@/stores/campaign'
+import type { CampaignData, FeedRankEntry } from '@/stores/campaign'
 
 export type CompanyRole = 'owner' | 'manager' | 'editor' | 'billing'
 export type CompanyStatus = 'draft' | 'active' | 'suspended'
@@ -91,15 +91,11 @@ export interface DashboardLeadsSummary {
   avgResponseMinutes: number | null
 }
 
-export interface FeedRank {
-  position: number
-  total: number
-}
-
 export interface DashboardAnalytics {
   planMode: string | null
-  /** Feed position in the company's category group — null when not live. */
-  feedRank: FeedRank | null
+  /** Position in every atomic Feed (județ + subcategorie) the company competes
+   *  in — can be several, or empty when not ranked anywhere. */
+  feedRanks: FeedRankEntry[]
   clicks: { total: number; today: number }
   calls: { total: number }
   messages: { total: number; new: number }

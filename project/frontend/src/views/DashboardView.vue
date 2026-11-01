@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
@@ -225,10 +225,12 @@ const campaignAlerts = computed<Alert[]>(() => {
       out.push({ key: 'response', severity: 'warn', icon: 'mdi-message-alert-outline',
         to: { name: 'leads', query: cq }, cta: 'dashboard.leadsCta' })
     }
-    if (!an.feedRank && c.status === 'active' && !budgetGone) {
-      // The campaign reads "Active" but isn't ranked in its own Feed — a real
-      // problem (not a soft suggestion), so it gets the same red treatment as
-      // the other hard-stop alerts above.
+    if (an.feedRanks.length === 0 && c.status === 'active' && !budgetGone) {
+      // The campaign reads "Active" but isn't ranked in ANY Feed it competes
+      // in — a real problem (not a soft suggestion), so it gets the same red
+      // treatment as the other hard-stop alerts above. Being absent from just
+      // one of several Feeds isn't this — that's `needsPositionUpgrade`
+      // territory on the optimize page, not a hard-stop here.
       out.push({ key: 'feed', severity: 'high', icon: 'mdi-radar',
         to: { name: 'campaign-optimize', query: cq }, cta: 'dashboard.optimizeCta' })
     }
@@ -241,6 +243,18 @@ function alertText(key: string): string {
   if (key === 'cpc') return t('dashboard.alert.cpcText', { n: Math.round(an?.visibility.parts.cpc ?? 0) })
   return t('dashboard.alert.' + key + 'Text')
 }
+/** The Feed-position line under the visibility meter — a company can compete
+ *  in several Feeds (județ + subcategorie) at once, so this summarizes across
+ *  all of them rather than naming just one. */
+const feedRankLine = computed(() => {
+  const ranks = a.value?.feedRanks ?? []
+  if (!ranks.length) return t('analytics.feedRankNone')
+  if (ranks.length === 1) {
+    return t('analytics.feedRank', { n: ranks[0].position, total: ranks[0].total })
+  }
+  const firstPlace = ranks.filter((r) => r.position === 1).length
+  return t('analytics.feedRankMulti', { ok: firstPlace, total: ranks.length })
+})
 
 // --- Billing profile ------------------------------------------------------
 // `billing.load()` is fire-and-forget on mount and swallows its failure into
@@ -251,6 +265,35 @@ function alertText(key: string): string {
 const billingLoadFailed = computed(() => !!billingError.value && !billing.profile)
 function retryBilling(): void {
   void billing.load()
+}
+
+// --- Card click-through ----------------------------------------------------
+// Several status cards have exactly one destination; clicking anywhere on the
+// card should go there, not just the small CTA pill, so the whole thing reads
+// as a big obvious target for first-time users. A click that lands on a real
+// <a>/<button> inside the card (the pill itself, or something like the
+// billing "retry" button) already navigates/acts on its own — skip the extra
+// push so it doesn't double-fire.
+function cardNav(e: MouseEvent | KeyboardEvent, to: RouteLocationRaw | null | undefined): void {
+  if (!to) return
+  if ((e.target as HTMLElement).closest('a,button')) return
+  void router.push(to)
+}
+
+// The invoices card's one action is a retry button (not a route) while the
+// billing fetch is failed — route everywhere else.
+const invoicesCardTo = computed<RouteLocationRaw | null>(() => {
+  if (billingLoadFailed.value) return null
+  if (!billingComplete.value) return { name: 'account', query: { tab: 'billing' } }
+  return { name: 'invoices' }
+})
+function invoicesCardClick(e: MouseEvent | KeyboardEvent): void {
+  if (billingLoadFailed.value) {
+    if ((e.target as HTMLElement).closest('a,button')) return
+    retryBilling()
+    return
+  }
+  cardNav(e, invoicesCardTo.value)
 }
 
 // --- Upgrade to the advanced plan ----------------------------------------
@@ -602,33 +645,39 @@ watch(
               </div>
               <div class="dcard__links">
                 <button type="button" class="dcard__go" @click="showSite = true">
-                  {{ t('dashboard.viewSite') }} <v-icon icon="mdi-arrow-right" size="15" />
+                  <v-icon icon="mdi-eye-outline" size="15" />
+                  {{ t('dashboard.viewSite') }}
                 </button>
                 <router-link
                   v-if="website.mode === 'advanced' && !pendingDeletion"
-                  class="dcard__go"
+                  class="dcard__go dcard__go--alt"
                   :to="{ name: 'website-builder', query: { c: companyId } }"
                 >
-                  {{ t('dashboard.editSite') }} <v-icon icon="mdi-arrow-right" size="15" />
+                  <v-icon icon="mdi-pencil-outline" size="15" />
+                  {{ t('dashboard.editSite') }}
                 </router-link>
-                <span v-else-if="website.mode === 'advanced'" class="dcard__go dcard__go--disabled">
+                <span v-else-if="website.mode === 'advanced'" class="dcard__go dcard__go--alt dcard__go--disabled">
+                  <v-icon icon="mdi-pencil-outline" size="15" />
                   {{ t('dashboard.editSite') }}
                 </span>
                 <router-link
                   v-if="website.mode === 'easy' && !pendingDeletion"
-                  class="dcard__go"
+                  class="dcard__go dcard__go--alt"
                   :to="{ name: 'easy-site-editor', query: { c: companyId } }"
                 >
-                  {{ t('dashboard.editSite') }} <v-icon icon="mdi-arrow-right" size="15" />
+                  <v-icon icon="mdi-pencil-outline" size="15" />
+                  {{ t('dashboard.editSite') }}
                 </router-link>
-                <span v-else-if="website.mode === 'easy'" class="dcard__go dcard__go--disabled">
+                <span v-else-if="website.mode === 'easy'" class="dcard__go dcard__go--alt dcard__go--disabled">
+                  <v-icon icon="mdi-pencil-outline" size="15" />
                   {{ t('dashboard.editSite') }}
                 </span>
                 <router-link
-                  class="dcard__go"
+                  class="dcard__go dcard__go--alt"
                   :to="{ name: 'website-settings', query: { c: companyId } }"
                 >
-                  {{ t('dashboard.websiteSettings') }} <v-icon icon="mdi-arrow-right" size="15" />
+                  <v-icon icon="mdi-cog-outline" size="15" />
+                  {{ t('dashboard.websiteSettings') }}
                 </router-link>
               </div>
             </template>
@@ -637,46 +686,62 @@ watch(
         </article>
 
         <!-- Location -->
-        <article class="dcard">          <p class="dcard__k">{{ t('dashboard.locationTitle') }}</p>
+        <article
+          class="dcard"
+          :class="{ 'dcard--clickable': !pendingDeletion }"
+          :tabindex="!pendingDeletion ? 0 : undefined"
+          :role="!pendingDeletion ? 'link' : undefined"
+          @click="cardNav($event, !pendingDeletion ? { name: 'location', query: { c: companyId } } : null)"
+          @keydown.enter="cardNav($event, !pendingDeletion ? { name: 'location', query: { c: companyId } } : null)"
+        >          <p class="dcard__k">{{ t('dashboard.locationTitle') }}</p>
           <div class="dcard__body">
             <template v-if="location">
               <p class="dcard__hero" :class="{ 'dcard__hero--wrap': locationCounties.length > 1 }">
                 <template v-if="locationIsNationwide">{{ t('dashboard.radiusCountry') }}</template>
                 <template v-else>{{ locationCounties.join(', ') }}</template>
               </p>
-              <router-link
-                v-if="!pendingDeletion"
-                class="dcard__go"
-                :to="{ name: 'location', query: { c: companyId } }"
-              >
-                {{ t('dashboard.taskEdit') }} <v-icon icon="mdi-arrow-right" size="15" />
-              </router-link>
-              <span v-else class="dcard__go dcard__go--disabled">{{ t('dashboard.taskEdit') }}</span>
+              <span class="dcard__go" :class="{ 'dcard__go--disabled': pendingDeletion }">
+                <v-icon icon="mdi-pencil-outline" size="15" />
+                {{ t('dashboard.taskEdit') }}
+                <v-icon icon="mdi-arrow-right" size="15" />
+              </span>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.locationNone') }}</p>
           </div>
         </article>
 
         <!-- Category -->
-        <article class="dcard">          <p class="dcard__k">{{ t('dashboard.categoryTitle') }}</p>
+        <article
+          class="dcard"
+          :class="{ 'dcard--clickable': !pendingDeletion }"
+          :tabindex="!pendingDeletion ? 0 : undefined"
+          :role="!pendingDeletion ? 'link' : undefined"
+          @click="cardNav($event, !pendingDeletion ? { name: 'category', query: { c: companyId } } : null)"
+          @keydown.enter="cardNav($event, !pendingDeletion ? { name: 'category', query: { c: companyId } } : null)"
+        >          <p class="dcard__k">{{ t('dashboard.categoryTitle') }}</p>
           <div class="dcard__body">
             <template v-if="category">
               <p class="dcard__hero dcard__hero--wrap">{{ catName(category.name) }}</p>
-              <router-link
-                v-if="!pendingDeletion"
-                class="dcard__go"
-                :to="{ name: 'category', query: { c: companyId } }"
-              >
-                {{ t('dashboard.taskEdit') }} <v-icon icon="mdi-arrow-right" size="15" />
-              </router-link>
-              <span v-else class="dcard__go dcard__go--disabled">{{ t('dashboard.taskEdit') }}</span>
+              <span class="dcard__go" :class="{ 'dcard__go--disabled': pendingDeletion }">
+                <v-icon icon="mdi-pencil-outline" size="15" />
+                {{ t('dashboard.taskEdit') }}
+                <v-icon icon="mdi-arrow-right" size="15" />
+              </span>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.categoryNone') }}</p>
           </div>
         </article>
 
         <!-- Wallet -->
-        <article v-if="wallet" class="dcard" :class="{ 'dcard--alert': walletProblem }">          <p class="dcard__k">
+        <article
+          v-if="wallet"
+          class="dcard dcard--clickable"
+          :class="{ 'dcard--alert': walletProblem }"
+          tabindex="0"
+          role="link"
+          @click="cardNav($event, { name: 'wallet' })"
+          @keydown.enter="cardNav($event, { name: 'wallet' })"
+        >          <p class="dcard__k">
             {{ t('dashboard.walletTitle') }}
             <InfoHint :text="t('dashboard.walletShared')" />
           </p>
@@ -685,14 +750,22 @@ watch(
               {{ fmtNum(wallet.balance.credits) }} <small>{{ t('dashboard.walletCredits') }}</small>
             </p>
             <p class="dcard__sub">{{ money.approx(wallet.balance.credits) }}</p>
-            <router-link class="dcard__go" :to="{ name: 'wallet' }">
-              {{ t('dashboard.walletCta') }} <v-icon icon="mdi-arrow-right" size="15" />
-            </router-link>
+            <span class="dcard__go">
+              <v-icon icon="mdi-wallet-plus-outline" size="15" />
+              {{ t('dashboard.walletCta') }}
+              <v-icon icon="mdi-arrow-right" size="15" />
+            </span>
           </div>
         </article>
 
         <!-- Transactions -->
-        <article class="dcard dcard--txns">          <p class="dcard__k">{{ t('dashboard.transactionsTitle') }}</p>
+        <article
+          class="dcard dcard--txns dcard--clickable"
+          tabindex="0"
+          role="link"
+          @click="cardNav($event, { name: 'wallet-transactions' })"
+          @keydown.enter="cardNav($event, { name: 'wallet-transactions' })"
+        >          <p class="dcard__k">{{ t('dashboard.transactionsTitle') }}</p>
           <div class="dcard__body">
             <ul v-if="recentTxns.length" class="dcard__txns">
               <li v-for="txn in recentTxns" :key="txn.id" class="dcard__txn">
@@ -704,14 +777,24 @@ watch(
               </li>
             </ul>
             <p v-else class="dcard__sub">{{ t('dashboard.transactionsNone') }}</p>
-            <router-link class="dcard__go" :to="{ name: 'wallet-transactions' }">
-              {{ t('dashboard.transactionsCta') }} <v-icon icon="mdi-arrow-right" size="15" />
-            </router-link>
+            <span class="dcard__go">
+              <v-icon icon="mdi-history" size="15" />
+              {{ t('dashboard.transactionsCta') }}
+              <v-icon icon="mdi-arrow-right" size="15" />
+            </span>
           </div>
         </article>
 
         <!-- Campaign -->
-        <article v-if="dash" class="dcard" :class="{ 'dcard--alert': campProblem }">          <p class="dcard__k">{{ t('dashboard.campaignTitle') }}</p>
+        <article
+          v-if="dash"
+          class="dcard dcard--clickable"
+          :class="{ 'dcard--alert': campProblem }"
+          tabindex="0"
+          role="link"
+          @click="cardNav($event, { name: 'campaign', query: { c: companyId } })"
+          @keydown.enter="cardNav($event, { name: 'campaign', query: { c: companyId } })"
+        >          <p class="dcard__k">{{ t('dashboard.campaignTitle') }}</p>
           <div class="dcard__body">
             <template v-if="dash.campaign">
               <div class="dcard__badges">
@@ -729,9 +812,11 @@ watch(
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.campaignNone') }}</p>
             <div class="dcard__links">
-              <router-link class="dcard__go" :to="{ name: 'campaign', query: { c: companyId } }">
-                {{ t('dashboard.campaignCta') }} <v-icon icon="mdi-arrow-right" size="15" />
-              </router-link>
+              <span class="dcard__go">
+                <v-icon icon="mdi-bullhorn-outline" size="15" />
+                {{ t('dashboard.campaignCta') }}
+                <v-icon icon="mdi-arrow-right" size="15" />
+              </span>
             </div>
           </div>
         </article>
@@ -739,8 +824,12 @@ watch(
         <!-- Invoices / Facturi -->
         <article
           v-if="!billingLoading"
-          class="dcard"
+          class="dcard dcard--clickable"
           :class="{ 'dcard--alert': billingLoadFailed ? false : !billingComplete || unbilledCount > 0 }"
+          tabindex="0"
+          role="link"
+          @click="invoicesCardClick"
+          @keydown.enter="invoicesCardClick"
         >          <p class="dcard__k">{{ t('dashboard.invoicesTitle') }}</p>
           <div class="dcard__body">
             <!-- The fetch itself failed: `isComplete` is still its initial
@@ -749,23 +838,28 @@ watch(
                  "incomplete", and offer a retry. -->
             <template v-if="billingLoadFailed">
               <p class="dcard__sub">{{ t('dashboard.invoicesUnknownText') }}</p>
-              <button type="button" class="dcard__go" :disabled="billingLoading" @click="retryBilling">
-                {{ t('dashboard.invoicesUnknownCta') }} <v-icon icon="mdi-refresh" size="15" />
-              </button>
+              <span class="dcard__go" :class="{ 'dcard__go--disabled': billingLoading }">
+                <v-icon icon="mdi-refresh" size="15" />
+                {{ t('dashboard.invoicesUnknownCta') }}
+              </span>
             </template>
             <template v-else-if="!billingComplete">
               <p class="dcard__sub">{{ t('dashboard.invoicesIncompleteText') }}</p>
-              <router-link class="dcard__go" :to="{ name: 'account', query: { tab: 'billing' } }">
-                {{ t('dashboard.invoicesIncompleteCta') }} <v-icon icon="mdi-arrow-right" size="15" />
-              </router-link>
+              <span class="dcard__go">
+                <v-icon icon="mdi-file-document-edit-outline" size="15" />
+                {{ t('dashboard.invoicesIncompleteCta') }}
+                <v-icon icon="mdi-arrow-right" size="15" />
+              </span>
             </template>
             <template v-else-if="unbilledCount > 0">
               <p class="dcard__hero">
                 {{ unbilledCount }} <small>{{ t('dashboard.invoicesUnbilledWord') }}</small>
               </p>
-              <router-link class="dcard__go" :to="{ name: 'invoices' }">
-                {{ t('dashboard.invoicesUnbilledCta') }} <v-icon icon="mdi-arrow-right" size="15" />
-              </router-link>
+              <span class="dcard__go">
+                <v-icon icon="mdi-file-document-outline" size="15" />
+                {{ t('dashboard.invoicesUnbilledCta') }}
+                <v-icon icon="mdi-arrow-right" size="15" />
+              </span>
             </template>
             <template v-else>
               <p class="dcard__hero">
@@ -774,15 +868,24 @@ watch(
               <p class="dcard__sub">
                 {{ invoices[0] ? t('dashboard.invoicesLast', { number: invoices[0].number }) : t('dashboard.invoicesNone') }}
               </p>
-              <router-link class="dcard__go" :to="{ name: 'invoices' }">
-                {{ t('dashboard.invoicesCta') }} <v-icon icon="mdi-arrow-right" size="15" />
-              </router-link>
+              <span class="dcard__go">
+                <v-icon icon="mdi-file-document-outline" size="15" />
+                {{ t('dashboard.invoicesCta') }}
+                <v-icon icon="mdi-arrow-right" size="15" />
+              </span>
             </template>
           </div>
         </article>
 
         <!-- Leads / Cereri (hidden only while an advanced-plan builder is unconfigured) -->
-        <article v-if="dash && !advancedBuilderPending" class="dcard">          <p class="dcard__k">{{ t('dashboard.leadsTitle') }}</p>
+        <article
+          v-if="dash && !advancedBuilderPending"
+          class="dcard dcard--clickable"
+          tabindex="0"
+          role="link"
+          @click="cardNav($event, { name: 'leads', query: { c: companyId } })"
+          @keydown.enter="cardNav($event, { name: 'leads', query: { c: companyId } })"
+        >          <p class="dcard__k">{{ t('dashboard.leadsTitle') }}</p>
           <div class="dcard__body">
             <p class="dcard__hero">
               {{ dash.leads.new }} <small>{{ t('dashboard.leadsNewWord') }}</small>
@@ -791,9 +894,11 @@ watch(
               {{ t('dashboard.leadsTotal', { n: dash.leads.total }) }} ·
               {{ t('dashboard.leadsBreakdown', { form: dash.leads.form, call: dash.leads.call }) }}
             </p>
-            <router-link class="dcard__go" :to="{ name: 'leads', query: { c: companyId } }">
-              {{ t('dashboard.leadsCta') }} <v-icon icon="mdi-arrow-right" size="15" />
-            </router-link>
+            <span class="dcard__go">
+              <v-icon icon="mdi-message-text-outline" size="15" />
+              {{ t('dashboard.leadsCta') }}
+              <v-icon icon="mdi-arrow-right" size="15" />
+            </span>
           </div>
         </article>
       </div>
@@ -807,13 +912,7 @@ watch(
           </div>
           <VisibilityMeter :score="a.visibility.score" :parts="a.visibility.parts" />
           <div class="ana__rank">
-            <p class="ana__rankLine">
-              {{
-                a.feedRank
-                  ? t('analytics.feedRank', { n: a.feedRank.position, total: a.feedRank.total })
-                  : t('analytics.feedRankNone')
-              }}
-            </p>
+            <p class="ana__rankLine">{{ feedRankLine }}</p>
             <v-btn
               size="small"
               variant="tonal"
@@ -1081,6 +1180,7 @@ watch(
      error colour and both re-tint — flat surface otherwise, no gradient
      wash or coloured glow. */
   --acc: var(--v-theme-primary);
+  --acc-on: var(--v-theme-on-primary);
   --acc-c: rgb(var(--acc));
   position: relative;
   overflow: hidden;
@@ -1108,8 +1208,34 @@ watch(
   border-color: color-mix(in srgb, var(--acc-c) 40%, var(--tvz-hairline));
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.07);
 }
+/* Cards whose only job is to open one destination: the whole surface is the
+   hit target (big and obvious for anyone who isn't sure where to click), the
+   visible pill underneath is just the explicit "yes, click me" affordance. */
+.dcard--clickable {
+  cursor: pointer;
+}
+.dcard--clickable:hover {
+  border-color: color-mix(in srgb, var(--acc-c) 55%, var(--tvz-hairline));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.09);
+}
+.dcard--clickable:hover .dcard__go:not(.dcard__go--disabled) {
+  background: var(--acc-c);
+  color: rgb(var(--acc-on));
+  border-color: var(--acc-c);
+}
+.dcard--clickable:hover .dcard__go:not(.dcard__go--disabled) .v-icon {
+  transform: translateX(2px);
+}
+.dcard--clickable:active {
+  transform: translateY(-1px) scale(0.995);
+}
+.dcard--clickable:focus-visible {
+  outline: 2px solid var(--acc-c);
+  outline-offset: 2px;
+}
 .dcard--alert {
   --acc: var(--v-theme-error);
+  --acc-on: var(--v-theme-on-error);
 }
 .dcard__k {
   display: flex;
@@ -1203,38 +1329,61 @@ watch(
   align-items: center;
   gap: 0.35rem;
   margin-top: auto;
-  padding-top: 0.9rem;
-  padding-inline: 0;
-  border: 0;
-  background: none;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--acc-c) 32%, transparent);
+  background: color-mix(in srgb, var(--acc-c) 11%, transparent);
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: rgb(var(--acc));
   text-decoration: none;
-  transition: gap 0.14s var(--tvz-ease-out);
+  transition:
+    background 0.16s var(--tvz-ease-out),
+    color 0.16s var(--tvz-ease-out),
+    border-color 0.16s var(--tvz-ease-out),
+    transform 0.16s var(--tvz-ease-out);
+}
+.dcard__go .v-icon {
+  transition: transform 0.16s var(--tvz-ease-out);
 }
 .dcard__go:hover {
-  gap: 0.6rem;
+  background: var(--acc-c);
+  color: rgb(var(--acc-on));
+  border-color: var(--acc-c);
+}
+.dcard__go:hover .v-icon {
+  transform: translateX(2px);
+}
+.dcard__go:active {
+  transform: scale(0.96);
 }
 .dcard__links {
   display: flex;
-  align-items: baseline;
-  gap: 1rem;
+  align-items: center;
+  gap: 0.6rem;
   flex-wrap: wrap;
   margin-top: auto;
+  padding-top:1rem;
 }
 .dcard__links .dcard__go {
   margin-top: 0;
 }
 .dcard__go--alt {
-  color: rgba(var(--v-theme-on-surface), 0.55);
+  background: transparent;
+  border-color: var(--tvz-hairline);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   font-weight: 500;
 }
 .dcard__go--alt:hover {
+  background: color-mix(in srgb, var(--acc-c) 11%, transparent);
+  border-color: color-mix(in srgb, var(--acc-c) 32%, transparent);
   color: rgb(var(--acc));
 }
-.dcard__go--disabled {
+.dcard__go--disabled,
+.dcard__go:disabled {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  border-color: transparent;
   color: rgba(var(--v-theme-on-surface), 0.35);
   cursor: not-allowed;
   pointer-events: none;

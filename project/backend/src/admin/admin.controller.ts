@@ -48,7 +48,10 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { BroadcastMaintenanceDto } from './dto/broadcast-maintenance.dto';
 import { BillingProfileDto } from '../billing/dto/billing-profile.dto';
 import { NotificationsService } from '../notifications/notifications.service';
-import { AuditActor } from './audit-log.service';
+import { AuditActor, AuditLogService } from './audit-log.service';
+import { BusinessActionLogService } from './business-action-log.service';
+import { ListAuditLogQuery } from './dto/list-audit-log.query';
+import { ListBusinessActionLogQuery } from './dto/list-business-action-log.query';
 
 /** The acting staff member, as every audit-logged handler below passes it
  *  down: id for attribution, roles for the point-in-time snapshot. */
@@ -85,11 +88,43 @@ export class AdminController {
     private readonly billing: BillingService,
     private readonly affiliate: AffiliateService,
     private readonly notifications: NotificationsService,
+    private readonly audit: AuditLogService,
+    private readonly businessActionLog: BusinessActionLogService,
   ) {}
 
   @Get('stats')
   overview() {
     return this.stats.overview();
+  }
+
+  // --- jurnal / audit -------------------------------------------------
+
+  @Get('audit-log')
+  listAuditLog(@Query() query: ListAuditLogQuery) {
+    return this.audit.list({
+      actor: query.actor,
+      action: query.action,
+      targetType: query.targetType,
+      dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+      dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+      page: query.page ?? 1,
+      pageSize: query.pageSize ?? 20,
+    });
+  }
+
+  @PlatformRoles('admin', 'support')
+  @Get('business-action-log')
+  listBusinessActionLog(@Query() query: ListBusinessActionLogQuery) {
+    return this.businessActionLog.list({
+      companyId: query.companyId,
+      company: query.company,
+      actor: query.actor,
+      action: query.action,
+      dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+      dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+      page: query.page ?? 1,
+      pageSize: query.pageSize ?? 20,
+    });
   }
 
   // C9: read-only. Finance needs the VAT rate, refund fee, FX rate and
@@ -231,7 +266,10 @@ export class AdminController {
    *  they typed, so its quality doesn't depend entirely on how carefully an
    *  admin writes under pressure. */
   @Post('maintenance/broadcast')
-  async broadcastMaintenance(@Body() dto: BroadcastMaintenanceDto) {
+  async broadcastMaintenance(
+    @CurrentUser() caller: AuthPrincipal,
+    @Body() dto: BroadcastMaintenanceDto,
+  ) {
     const notified = await this.notifications.notifyAll({
       type: 'maintenance',
       title: dto.title,
@@ -245,6 +283,14 @@ export class AdminController {
           'Echipa Totalvizibil',
         footerNote: 'Primești acest anunț pentru că ai un cont activ pe Totalvizibil.',
       },
+    });
+    const actor = actorOf(caller);
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'maintenance.broadcast',
+      targetType: 'notification_broadcast',
+      after: { title: dto.title, notified },
     });
     return { notified };
   }
@@ -270,12 +316,16 @@ export class AdminController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
   ) {
-    return this.users.update(caller.id, caller.sessionId, id, dto);
+    return this.users.update(caller.id, caller.sessionId, id, dto, actorOf(caller));
   }
 
   @Post('users/:id/password')
-  setUserPassword(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetUserPasswordDto) {
-    return this.users.setPassword(id, dto.newPassword);
+  setUserPassword(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetUserPasswordDto,
+  ) {
+    return this.users.setPassword(id, dto.newPassword, actorOf(caller));
   }
 
   // C2: the per-user ledger and its PDF export — read-only.
@@ -346,7 +396,7 @@ export class AdminController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RequestRefundDto,
   ) {
-    return this.users.refundBalance(id, dto.credits, caller.id);
+    return this.users.refundBalance(id, dto.credits, actorOf(caller));
   }
 
   @PlatformRoles('admin', 'finance')
@@ -400,54 +450,86 @@ export class AdminController {
   }
 
   @Patch('companies/:id')
-  updateCompany(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCompanyDto) {
-    return this.companies.updateCompany(id, dto);
+  updateCompany(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCompanyDto,
+  ) {
+    return this.companies.updateCompany(id, dto, actorOf(caller));
   }
 
   @Patch('companies/:id/location')
-  setCompanyLocation(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetCompanyLocationDto) {
-    return this.companies.setLocation(id, dto);
+  setCompanyLocation(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetCompanyLocationDto,
+  ) {
+    return this.companies.setLocation(id, dto, actorOf(caller));
   }
 
   @Patch('companies/:id/website')
-  setWebsitePublished(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetWebsitePublishedDto) {
-    return this.companies.setWebsitePublished(id, dto.published);
+  setWebsitePublished(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetWebsitePublishedDto,
+  ) {
+    return this.companies.setWebsitePublished(id, dto.published, actorOf(caller));
   }
 
   @Patch('companies/:id/status')
-  setCompanyStatus(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetCompanyStatusDto) {
-    return this.companies.setStatus(id, dto);
+  setCompanyStatus(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetCompanyStatusDto,
+  ) {
+    return this.companies.setStatus(id, dto, actorOf(caller));
   }
 
   @Post('companies/:id/cancel-deletion')
-  cancelCompanyDeletion(@Param('id', ParseUUIDPipe) id: string) {
-    return this.companies.cancelDeletion(id);
+  cancelCompanyDeletion(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.companies.cancelDeletion(id, actorOf(caller));
   }
 
   @Put('companies/:id/campaign')
-  saveCampaign(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SaveCampaignDto) {
-    return this.companies.saveCampaign(id, dto);
+  saveCampaign(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SaveCampaignDto,
+  ) {
+    return this.companies.saveCampaign(id, dto, actorOf(caller));
   }
 
   @Post('companies/:id/campaign')
-  campaignAction(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CampaignActionDto) {
-    return this.companies.campaignAction(id, dto);
+  campaignAction(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CampaignActionDto,
+  ) {
+    return this.companies.campaignAction(id, dto, actorOf(caller));
   }
 
   /** Grant the advanced website builder to this business (free, or charged to
    *  the owner's wallet when `charge: true`). */
   @Post('companies/:id/website/upgrade-advanced')
-  upgradeAdvanced(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpgradeAdvancedDto) {
-    return this.companies.upgradeToAdvanced(id, dto.charge ?? false);
+  upgradeAdvanced(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpgradeAdvancedDto,
+  ) {
+    return this.companies.upgradeToAdvanced(id, dto.charge ?? false, actorOf(caller));
   }
 
   @Patch('companies/:id/leads/:leadId')
   setLeadStatus(
+    @CurrentUser() caller: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('leadId', ParseUUIDPipe) leadId: string,
     @Body() dto: SetLeadStatusDto,
   ) {
-    return this.companies.setLeadStatus(id, leadId, dto.status);
+    return this.companies.setLeadStatus(id, leadId, dto.status, actorOf(caller));
   }
 
   // --- categories -------------------------------------------------
@@ -458,18 +540,22 @@ export class AdminController {
   }
 
   @Post('categories')
-  createCategory(@Body() dto: CreateCategoryDto) {
-    return this.categories.create(dto);
+  createCategory(@CurrentUser() caller: AuthPrincipal, @Body() dto: CreateCategoryDto) {
+    return this.categories.create(dto, actorOf(caller));
   }
 
   @Patch('categories/:id')
-  updateCategory(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCategoryDto) {
-    return this.categories.update(id, dto);
+  updateCategory(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    return this.categories.update(id, dto, actorOf(caller));
   }
 
   @Delete('categories/:id')
-  deleteCategory(@Param('id', ParseUUIDPipe) id: string) {
-    return this.categories.remove(id);
+  deleteCategory(@CurrentUser() caller: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.categories.remove(id, actorOf(caller));
   }
 
   // --- invoices -----------------------------------------------------

@@ -59,7 +59,7 @@ async function retryLoad(): Promise<void> {
     return
   }
   if (view.value?.unlocked) {
-    toBuilder()
+    void toBuilder()
     return
   }
   ready.value = true
@@ -71,7 +71,22 @@ async function retryLoad(): Promise<void> {
  *  both only make sense for the latter. */
 const isUpgrade = computed(() => route.query.flow === 'upgrade')
 
-function toBuilder(): void {
+async function toBuilder(): Promise<void> {
+  // The builder's own mount guard reads `companies.overview` (cached — see
+  // `fetchOverview()`) to decide whether the unlock actually went through,
+  // and bounces back here if it still looks locked. That overview was last
+  // fetched BEFORE this unlock (on this view's own mount, a few lines up),
+  // so without a forced refresh here it's stale the instant we paid: the
+  // builder sees `builderUnlocked: false`, redirects back to this exact
+  // screen, which re-checks via `unlock.load()` (not the stale cache) and
+  // sees `unlocked: true`, so it sends the user right back to the builder —
+  // which reads the still-stale cache again. The two screens volley forever
+  // until the backend's own rate limiter cuts in, at which point the user
+  // sees a generic "couldn't load" error despite having already paid
+  // successfully. Refreshing the cache here, before the one navigation that
+  // depends on it being current, is the one place that actually breaks the
+  // loop.
+  await companies.fetchOverview(true).catch(() => {})
   void router.replace({
     name: 'website-builder',
     query: isUpgrade.value
@@ -84,7 +99,7 @@ async function pay(): Promise<void> {
   if (!companyId.value || working.value) return
   error.value = ''
   const ok = await unlock.unlock(companyId.value)
-  if (ok) toBuilder()
+  if (ok) void toBuilder()
   else error.value = errText(unlock.error)
 }
 
@@ -106,7 +121,7 @@ onMounted(async () => {
   }
   // Already paid (back-nav, refresh, resumed flow) → straight to the editor.
   if (view.value?.unlocked) {
-    toBuilder()
+    void toBuilder()
     return
   }
   ready.value = true

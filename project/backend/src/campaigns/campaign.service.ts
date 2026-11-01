@@ -45,6 +45,7 @@ import {
   visitorFingerprint,
 } from './ad-click';
 import { SaveCampaignDto } from './dto/save-campaign.dto';
+import { BusinessActionLogService } from '../admin/business-action-log.service';
 
 /** Hint from the search that produced the impression — which Feed to price this click against. */
 export interface ClickFeedHint {
@@ -95,6 +96,7 @@ export class CampaignService implements OnModuleInit {
     private readonly analytics: AnalyticsService,
     private readonly affiliate: AffiliateService,
     private readonly notifications: NotificationsService,
+    private readonly businessActionLog: BusinessActionLogService,
     private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
@@ -142,10 +144,15 @@ export class CampaignService implements OnModuleInit {
    *
    * Revival conditions mirror `reconcile()` exactly: `depleted`, wallet not
    * blocked and able to cover one click, today's budget able to cover one
-   * click, and the company not pending deletion (`reconcile`'s own
-   * defense-in-depth guard — a business mid-deletion must never come back to
-   * life). `reconcile` does NOT re-check the Feed CPC minimum when reviving
-   * from `depleted` (that branch only matches `active`), so neither does this.
+   * click, the company not pending deletion, and the website actually
+   * listable (`isListingWebsiteReady`'s own rule, expressed as a `where`
+   * here instead of a per-row call — a depleted campaign can only have GOT
+   * there by having been legitimately `active`, but the site may since have
+   * switched to `advanced` mode with no published bundle yet; reviving
+   * without this would recreate the "Active, but can't be listed"
+   * contradiction `pauseIfWebsiteNotReady` exists to prevent). `reconcile`
+   * does NOT re-check the Feed CPC minimum when reviving from `depleted`
+   * (that branch only matches `active`), so neither does this.
    */
   private async sweepDayRollover(): Promise<void> {
     const today = startOfUtcDay();
@@ -168,7 +175,12 @@ export class CampaignService implements OnModuleInit {
     const candidates = await this.prisma.campaign.findMany({
       where: {
         status: CampaignStatus.depleted,
-        company: { deletionScheduledAt: null },
+        company: {
+          deletionScheduledAt: null,
+          // isListingWebsiteReady(): an Easy-mode site needs no publish step;
+          // an Advanced one needs a published Website Builder bundle.
+          website: { is: { OR: [{ mode: { not: 'advanced' } }, { publishedAt: { not: null } }] } },
+        },
       },
       select: {
         id: true,
@@ -279,7 +291,7 @@ export class CampaignService implements OnModuleInit {
    * deletion first before touching campaign/budget again, no partial actions
    * (even pausing) allowed in that state.
    */
-  private async assertCanEdit(companyId: string, userId: string): Promise<void> {
+  private async assertCanEdit(companyId: string, userId: string): Promise<CompanyRole> {
     const role = await this.memberRole(companyId, userId);
     if (!CAN_EDIT.includes(role)) {
       throw new ForbiddenException('Your role cannot manage the campaign');
@@ -289,6 +301,7 @@ export class CampaignService implements OnModuleInit {
       select: { deletionScheduledAt: true },
     });
     if (company?.deletionScheduledAt) throw new ForbiddenException('company_pending_deletion');
+    return role;
   }
 
   /** The company owner whose single wallet funds this campaign. */
@@ -349,6 +362,55 @@ export class CampaignService implements OnModuleInit {
       }),
     ]);
     return updated;
+  }
+
+  /**
+   * Keep an active campaign honest with the website's actual listing
+   * readiness. Nothing about switching a site to `advanced` mode (the
+   * one-time paid unlock, whether a brand-new advanced signup or an
+   * Easy→Advanced upgrade) touches the campaign — call this right after
+   * that switch. An Easy-mode site needs no publish step to be listable,
+   * so a campaign running on one is legitimately `active`; the instant the
+   * site becomes `advanced`, `isListingWebsiteReady()` starts requiring a
+   * published Website Builder bundle, which a same-day upgrade obviously
+   * doesn't have yet. Without this, that campaign kept showing "Active"
+   * and kept billing clicks while the dashboard simultaneously told the
+   * owner the business couldn't be listed — reported as a "logic error"
+   * (status says live, banner says it isn't) and confirmed as a real,
+   * everyday-reachable gap, not a one-off.
+   *
+   * A no-op if there's no campaign, it isn't currently `active`, or the
+   * website is already ready (the common case: a brand-new advanced
+   * signup has no campaign yet to pause).
+   */
+  async pauseIfWebsiteNotReady(companyId: string): Promise<void> {
+    const campaign = await this.prisma.campaign.findUnique({ where: { companyId } });
+    if (!campaign || campaign.status !== CampaignStatus.active) return;
+    if (await this.isListingWebsiteReady(companyId)) return;
+
+    await this.setLive(companyId, campaign, CampaignStatus.paused);
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { displayName: true, ownerUserId: true },
+    });
+    if (!company) return;
+    // Already committed — a notification hiccup must never mask this.
+    void this.notifications
+      .notify({
+        userId: company.ownerUserId,
+        type: 'campaign_paused_website_not_ready',
+        title: `Campania „${company.displayName}" a fost pusă pe pauză`,
+        body: `Ai trecut la planul avansat, așa că „${company.displayName}" nu mai poate fi listată până nu finalizezi și publici noul site cu AI. Campania a fost pusă automat pe pauză ca să nu mai consume buget — repornește-o din panou după ce publici.`,
+        channels: { panel: true, email: true },
+        data: { companyId },
+      })
+      .catch((err) =>
+        this.logger.error(
+          'Campaign-paused-website-not-ready notification failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
   }
 
   /** Pull a campaign out of the feed mid-serve (budget hit / wallet empty). */
@@ -502,11 +564,26 @@ export class CampaignService implements OnModuleInit {
       // `autoOptimize`, which is what normally keeps this branch from firing
       // — this is a second, independent guard in case that state is ever
       // reached some other way.
-      const pending = await this.prisma.company.findUnique({
-        where: { id: companyId },
-        select: { deletionScheduledAt: true },
-      });
-      if (!pending?.deletionScheduledAt) {
+      //
+      // Same idea for website readiness: a campaign can only have REACHED
+      // `depleted`/auto-`paused` by having been legitimately `active` first
+      // (an Easy-mode site that needed no publish step, or an Advanced one
+      // that genuinely had a published bundle at the time). If the site
+      // upgraded to `advanced` mode — or lost its bundle some other way —
+      // while the campaign sat depleted/paused, reviving it here without
+      // re-checking would recreate the exact "Active, but can't be listed"
+      // contradiction `pauseIfWebsiteNotReady` exists to prevent. Simply
+      // skipping the revival (not pausing further — it's already not
+      // `active`) is enough; the campaign stays depleted/paused until the
+      // owner finishes the site and reactivates manually.
+      const [pending, websiteReady] = await Promise.all([
+        this.prisma.company.findUnique({
+          where: { id: companyId },
+          select: { deletionScheduledAt: true },
+        }),
+        this.isListingWebsiteReady(companyId),
+      ]);
+      if (!pending?.deletionScheduledAt && websiteReady) {
         const d = await this.setLive(companyId, campaign, CampaignStatus.active);
         return { ...d, spentTodayMinor: spentToday };
       }
@@ -1231,8 +1308,23 @@ export class CampaignService implements OnModuleInit {
   }
 
   async save(userId: string, companyId: string, dto: SaveCampaignDto) {
-    await this.assertCanEdit(companyId, userId);
-    return this.saveFor(companyId, dto, 'owner');
+    const role = await this.assertCanEdit(companyId, userId);
+    const result = await this.saveFor(companyId, dto, 'owner');
+    await this.businessActionLog.log({
+      companyId,
+      actorId: userId,
+      actorRole: role,
+      action: 'campaign.update',
+      targetType: 'campaign',
+      targetId: companyId,
+      after: {
+        dailyBudget: dto.dailyBudget,
+        cpc: dto.cpc,
+        appearFirst: dto.appearFirst,
+        autoOptimize: dto.autoOptimize,
+      },
+    });
+    return result;
   }
 
   /**
@@ -1242,7 +1334,7 @@ export class CampaignService implements OnModuleInit {
    * campaign.
    */
   async remove(userId: string, companyId: string): Promise<void> {
-    await this.assertCanEdit(companyId, userId);
+    const role = await this.assertCanEdit(companyId, userId);
     const [campaign, company] = await Promise.all([
       this.prisma.campaign.findUnique({ where: { companyId } }),
       this.prisma.company.findUnique({ where: { id: companyId }, select: { status: true } }),
@@ -1266,6 +1358,16 @@ export class CampaignService implements OnModuleInit {
       }),
       this.prisma.campaign.delete({ where: { id: campaign.id } }),
     ]);
+
+    await this.businessActionLog.log({
+      companyId,
+      actorId: userId,
+      actorRole: role,
+      action: 'campaign.remove',
+      targetType: 'campaign',
+      targetId: companyId,
+      before: { status: campaign.status },
+    });
   }
 
   /** Save the campaign numbers. `actor` is 'owner' for the owner's own
@@ -1419,7 +1521,7 @@ export class CampaignService implements OnModuleInit {
   }
 
   async activate(userId: string, companyId: string) {
-    await this.assertCanEdit(companyId, userId);
+    const role = await this.assertCanEdit(companyId, userId);
 
     const [campaign, company] = await Promise.all([
       this.prisma.campaign.findUnique({ where: { companyId } }),
@@ -1476,11 +1578,22 @@ export class CampaignService implements OnModuleInit {
         );
     }
 
+    await this.businessActionLog.log({
+      companyId,
+      actorId: userId,
+      actorRole: role,
+      action: 'campaign.activate',
+      targetType: 'campaign',
+      targetId: companyId,
+      before: { status: campaign.status },
+      after: { status: CampaignStatus.active },
+    });
+
     return this.get(userId, companyId);
   }
 
   async pause(userId: string, companyId: string) {
-    await this.assertCanEdit(companyId, userId);
+    const role = await this.assertCanEdit(companyId, userId);
     const campaign = await this.prisma.campaign.findUnique({ where: { companyId } });
     if (!campaign) throw new NotFoundException('No campaign');
     // Pausing turns AUTO off — otherwise reconcile would revive it immediately.
@@ -1493,6 +1606,16 @@ export class CampaignService implements OnModuleInit {
     if (campaign.status === CampaignStatus.active || campaign.status === CampaignStatus.depleted) {
       await this.setLive(companyId, campaign, CampaignStatus.paused);
     }
+    await this.businessActionLog.log({
+      companyId,
+      actorId: userId,
+      actorRole: role,
+      action: 'campaign.pause',
+      targetType: 'campaign',
+      targetId: companyId,
+      before: { status: campaign.status },
+      after: { status: CampaignStatus.paused },
+    });
     return this.get(userId, companyId);
   }
 

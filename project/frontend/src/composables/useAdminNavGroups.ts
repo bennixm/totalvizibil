@@ -48,6 +48,12 @@ export function useAdminNavGroups() {
           ...(isAdmin.value
             ? [{ to: { name: 'admin-categories' }, label: t('admin.navCategories'), icon: 'mdi-shape-outline' }]
             : []),
+          // Jurnal staff is admin-only (the backend's `GET /admin/audit-log`
+          // is too); Jurnal acțiuni owner is open to support as well — the
+          // view itself hides whichever tab the signed-in role can't read.
+          ...(isAdmin.value || isSupportStaff.value
+            ? [{ to: { name: 'admin-jurnal' }, label: t('admin.navJurnal'), icon: 'mdi-clipboard-text-clock-outline' }]
+            : []),
           ...(isSupportStaff.value
             ? [{ to: { name: 'support' }, label: t('admin.navSupport'), icon: 'mdi-face-agent' }]
             : []),

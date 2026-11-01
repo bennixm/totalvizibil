@@ -208,29 +208,35 @@ infrastructure. All are in the PRD §17 target design.
       `spentToday` and lifetime billed `clicks`.
     - `req.ip` is the socket address in dev; set `trust proxy` behind a real
       load balancer so the per-visitor hash uses the true client IP.
-- **Milestone 10 (Advanced plan — paid multi-page builder, M7)** —
-  - `POST /website-drafts` now takes `{ mode?: 'advanced', seed?: {businessName,
-    businessType, city?} }`. An advanced draft is `plan: advanced`; a `seed`
-    generates a starter site immediately so the preview is never empty.
-  - `GET /platform/pricing` (public) — `{ advancedBuilderPriceCredits, eurRonRate }`.
-  - `Company.advancedUnlockedAt` (migration `advanced_builder`), `Website.builderSpec`
-    / `builderChat` (JSON) hold the advanced-builder state.
-  - `GET /companies/:id/website-builder` — `{ unlocked, priceCredits, wallet,
-    step, complete, transcript, theme, content }`.
-  - `POST .../website-builder/unlock` — one-time fee: `WalletService.spend()`
-    debits the price in credits (atomic, prepaid — `400 insufficient_credits`)
-    and sets `advancedUnlockedAt`. Records a `spend` `WalletTransaction`.
-  - `POST .../website-builder/messages` `{ text }` — a scripted advanced assistant
-    (`builder/builder-script.ts` — deterministic, not an LLM) walks pages / tone /
-    palette / typography / portfolio and re-runs the generator on the real
-    `Website`. Requires the unlock (`403 advanced_builder_locked`).
-  - Generator: `generateAdvanced()` composes **multiple pages** (`home` + any of
-    `about/services/portfolio/faq/contact`) and a `gallery` (portfolio) section.
-  - `set_campaign_budget` is preceded by an `unlock_advanced_builder` task for
-    advanced websites.
-  - `GET/PATCH /admin/settings` gains `advancedBuilderPriceCredits`.
-  - Not wired: a real LLM behind the advanced builder (the rule-based generator
-    stands in, same interface); real PSP for the unlock (paid from wallet credits).
+- **Milestone 10 (Advanced plan — AI-agent builder, PRO V2)** — `src/website/builder/pro-v2/`.
+  Superseded an earlier rule-based, scripted multi-page builder (`Website.builderSpec`
+  / `builderChat`, a deterministic `builder-script.ts` walking pages/tone/palette)
+  that has been fully removed (migration `drop_dead_advanced_builder_columns`); the
+  "Advanced" plan name stayed, the implementation behind it did not.
+  - A real Vue 3 + Vite project per company (`ProV2Project` → `ProV2File` rows,
+    content as plain text), booted client-side in a browser WebContainer sandbox —
+    not server-rendered, not a template/section system.
+  - `GET /companies/:id/pro-v2` — the file tree + chat history for the studio's
+    first load / WebContainer mount.
+  - `GET/POST .../pro-v2/unlock` — same one-time-fee gate as before
+    (`Company.advancedUnlockedAt`, debited via `WalletService.spend()`).
+  - `POST .../pro-v2/message` `{ content }` — one turn of `ProV2AgentService`: a
+    real Claude tool-use loop (`write_file`/`edit_file`/`delete_file`/`list_files`/
+    `read_file`/`search_images`) that edits the project directly. Requires the
+    unlock (`403 advanced_builder_locked`).
+  - `POST .../pro-v2/repair` — self-correction turn the frontend fires automatically
+    when the sandbox reports a real install/build/runtime failure.
+  - `POST .../pro-v2/publish` `{ files }` — the browser's own `npm run build`
+    output (base64, from its WebContainer), stored as `WebsiteBundleFile` rows and
+    served as the company's live static site.
+  - `POST .../pro-v2/assets` — an image attached in chat, stored the same way as
+    the Easy builder's uploads (bytes in Postgres, served at `/website-assets/:id`).
+  - `GET .../pro-v2/files` — path + size listing for the Website Settings file
+    viewer (never content — not an in-browser editor).
+  - `GET .../pro-v2/export?kind=source|dist` — the raw project or the last
+    published build, zipped; see WebsiteSettingsView for the self-hosting path
+    this enables (absolute API URLs in generated forms, open CORS on `/public/*`).
+  - `GET/PATCH /admin/settings` carries `advancedBuilderPriceCredits`, unchanged.
 
 - **Milestone 11 (Leads — contact form + call tracking, "Cereri")** — `src/leads/`
   + `src/mail/`.

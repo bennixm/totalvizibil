@@ -25,13 +25,6 @@ import {
  *  Score — see `responseAggFor`. */
 const RESPONSE_AGG_WINDOW_DAYS = 90;
 
-export interface FeedRank {
-  /** 1-based slot in the company's category group. */
-  position: number;
-  /** Active listings competing in that group. */
-  total: number;
-}
-
 export interface FeedRankEntry {
   /** Real județ, or the "nationwide" pseudo-county. */
   county: string;
@@ -254,41 +247,9 @@ export class AnalyticsService {
   // --- feed: where does one company rank -------------------------
 
   /**
-   * The company's 1-based position among the other firms eligible in its own
-   * primary Feed (județ + subcategorie primară), ranked by the Visibility
-   * Score (CPC — against that Feed's top bid — at 50%, blended with
-   * response/plan/age) + the "appear first" lift. A company competing in
-   * several Feeds (several counties/subcategories) is reported here only for
-   * its primary one — a per-Feed breakdown is a UI follow-up, not a backend
-   * limitation. `null` when the campaign is not live, the company has no
-   * resolvable Feed, or it isn't itself eligible there (CPC maxim < CPC minim).
-   */
-  async feedRankFor(companyId: string): Promise<FeedRank | null> {
-    const ctx = await this.feedContextFor(companyId);
-    if (!ctx || !ctx.peers.some((p) => p.companyId === companyId)) return null;
-    if (ctx.peers.length === 1) return { position: 1, total: 1 };
-
-    const ids = ctx.peers.map((p) => p.companyId);
-    const [vinputs, boosted] = await Promise.all([
-      this.visibilityInputsFor(ids),
-      this.prisma.campaign.findMany({
-        where: { companyId: { in: ids }, status: 'active', appearFirst: true },
-        select: { companyId: true },
-      }),
-    ]);
-    const boostSet = new Set(boosted.map((b) => b.companyId));
-    const ranked = rankPeersByFeedScore(ids, vinputs, ctx.maxBidMinor, boostSet);
-
-    const idx = ranked.findIndex((r) => r.companyId === companyId);
-    if (idx < 0) return null;
-    return { position: idx + 1, total: ranked.length };
-  }
-
-  /**
    * The company's 1-based position in EVERY atomic Feed it's eligible to
-   * compete in — one entry per (județ, subcategorie) it's tagged with. The
-   * multi-Feed-aware counterpart of `feedRankFor`'s single primary-Feed
-   * number: a company competing on several counties/subcategories has a
+   * compete in — one entry per (județ, subcategorie) it's tagged with. A
+   * company competing on several counties/subcategories has a
    * genuinely different hierarchy in each, so no one number can represent
    * "its position" overall. A Feed where the company isn't itself eligible
    * (CPC maxim below that Feed's CPC minim) is skipped entirely — it isn't
@@ -492,11 +453,11 @@ export class AnalyticsService {
     const v = visibilityScore(vin, DEFAULT_REFS, now);
     const pct = (n: number) => Math.round(n * 100);
 
-    const feedRank = campaign?.status === 'active' ? await this.feedRankFor(companyId) : null;
+    const feedRanks = campaign?.status === 'active' ? await this.feedRanksFor(companyId) : [];
 
     return {
       planMode: website?.mode ?? null,
-      feedRank,
+      feedRanks,
       clicks: { total: clicksTotal, today: clicksToday },
       calls: { total: calls },
       messages: { total: messagesTotal, new: messagesNew },

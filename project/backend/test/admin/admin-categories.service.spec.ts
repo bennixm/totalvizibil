@@ -20,6 +20,12 @@ function makeCategory(overrides: Record<string, any> = {}) {
   };
 }
 
+function fakeAudit() {
+  return { log: jest.fn(async () => undefined) };
+}
+
+const actor = { id: 'admin1', roles: ['admin'] };
+
 function fakePrisma() {
   const cats = new Map<string, ReturnType<typeof makeCategory>>();
   const bySlug = new Map<string, ReturnType<typeof makeCategory>>();
@@ -64,8 +70,8 @@ describe('AdminCategoriesService', () => {
   describe('create', () => {
     it('throws BadRequestException for invalid slug', async () => {
       const prisma = fakePrisma();
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.create({ slug: 'BAD SLUG', name: { ro: 'X' } } as any)).rejects.toThrow(
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.create({ slug: 'BAD SLUG', name: { ro: 'X' } } as any, actor)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -73,8 +79,8 @@ describe('AdminCategoriesService', () => {
     it('throws BadRequestException for duplicate slug', async () => {
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'p1', slug: 'services' });
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.create({ slug: 'services', name: { ro: 'X' } } as any)).rejects.toThrow(
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.create({ slug: 'services', name: { ro: 'X' } } as any, actor)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -82,16 +88,16 @@ describe('AdminCategoriesService', () => {
     it('throws BadRequestException for three-level nesting', async () => {
       const prisma = fakePrisma();
       const grandparent = prisma.__seedCat({ id: 'gp', slug: 'gp', parentId: 'root' });
-      const svc = new AdminCategoriesService(prisma as any);
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
       await expect(
-        svc.create({ slug: 'child', name: { ro: 'X' }, parentId: grandparent.id } as any),
+        svc.create({ slug: 'child', name: { ro: 'X' }, parentId: grandparent.id } as any, actor),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('creates category on happy path', async () => {
       const prisma = fakePrisma();
-      const svc = new AdminCategoriesService(prisma as any);
-      const result = await svc.create({ slug: 'new-cat', name: { ro: 'Nou' } } as any);
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      const result = await svc.create({ slug: 'new-cat', name: { ro: 'Nou' } } as any, actor);
       expect(result.createdId).toBeTruthy();
       expect(prisma.category.create).toHaveBeenCalled();
     });
@@ -100,15 +106,15 @@ describe('AdminCategoriesService', () => {
   describe('update', () => {
     it('throws NotFoundException when category not found', async () => {
       const prisma = fakePrisma();
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.update('missing', { slug: 'ok' } as any)).rejects.toThrow(NotFoundException);
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.update('missing', { slug: 'ok' } as any, actor)).rejects.toThrow(NotFoundException);
     });
 
     it('throws BadRequestException for self-parent', async () => {
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'c1', slug: 'cat' });
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.update('c1', { parentId: 'c1' } as any)).rejects.toThrow(
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.update('c1', { parentId: 'c1' } as any, actor)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -117,8 +123,8 @@ describe('AdminCategoriesService', () => {
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'p1', slug: 'parent', _count: { companies: 0, children: 2 } });
       const parent2 = prisma.__seedCat({ id: 'p2', slug: 'parent2' });
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.update('p1', { parentId: parent2.id } as any)).rejects.toThrow(
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.update('p1', { parentId: parent2.id } as any, actor)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -128,8 +134,8 @@ describe('AdminCategoriesService', () => {
       // renaming it on a still-in-use category would 404 every live link.
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'c1', slug: 'old-slug', _count: { companies: 2 } });
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.update('c1', { slug: 'new-slug' } as any)).rejects.toThrow(
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.update('c1', { slug: 'new-slug' } as any, actor)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -137,8 +143,8 @@ describe('AdminCategoriesService', () => {
     it('allows renaming the slug of an empty category', async () => {
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'c1', slug: 'old-slug' });
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.update('c1', { slug: 'new-slug' } as any)).resolves.toBeDefined();
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.update('c1', { slug: 'new-slug' } as any, actor)).resolves.toBeDefined();
       expect(prisma.category.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'c1' },
@@ -151,22 +157,22 @@ describe('AdminCategoriesService', () => {
   describe('remove', () => {
     it('throws NotFoundException when category not found', async () => {
       const prisma = fakePrisma();
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.remove('missing')).rejects.toThrow(NotFoundException);
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.remove('missing', actor)).rejects.toThrow(NotFoundException);
     });
 
     it('throws BadRequestException when category has companies', async () => {
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'c1', slug: 'cat', _count: { companies: 3, children: 0 } });
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.remove('c1')).rejects.toThrow(BadRequestException);
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.remove('c1', actor)).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException when category has children', async () => {
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'c1', slug: 'cat', _count: { companies: 0, children: 2 } });
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.remove('c1')).rejects.toThrow(BadRequestException);
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.remove('c1', actor)).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException when a company is tagged ONLY as a secondary category (companyCategories, no primary FK)', async () => {
@@ -175,15 +181,15 @@ describe('AdminCategoriesService', () => {
       // `company_categories` rows — be deleted while still in active use.
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'c1', slug: 'cat', _count: { companies: 0, companyCategories: 1 } });
-      const svc = new AdminCategoriesService(prisma as any);
-      await expect(svc.remove('c1')).rejects.toThrow(BadRequestException);
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await expect(svc.remove('c1', actor)).rejects.toThrow(BadRequestException);
     });
 
     it('deletes category on happy path', async () => {
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'c1', slug: 'cat', _count: { companies: 0, children: 0 } });
-      const svc = new AdminCategoriesService(prisma as any);
-      await svc.remove('c1');
+      const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
+      await svc.remove('c1', actor);
       expect(prisma.category.delete).toHaveBeenCalledWith({ where: { id: 'c1' } });
     });
   });

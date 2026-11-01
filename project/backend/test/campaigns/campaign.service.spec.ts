@@ -221,12 +221,17 @@ function fakeConfig() {
   return { get: jest.fn().mockReturnValue('https://totalvizibil.ro') };
 }
 
+function fakeBusinessActionLog() {
+  return { log: jest.fn(async () => undefined) };
+}
+
 function makeService() {
   const prisma = fakePrisma();
   const wallet = fakeWallet();
   const analytics = fakeAnalytics();
   const affiliate = fakeAffiliate();
   const notifications = fakeNotifications();
+  const businessActionLog = fakeBusinessActionLog();
   const config = fakeConfig();
   const svc = new CampaignService(
     prisma as any,
@@ -234,9 +239,10 @@ function makeService() {
     analytics as any,
     affiliate as any,
     notifications as any,
+    businessActionLog as any,
     config as any,
   );
-  return { svc, prisma, wallet, analytics, affiliate, notifications, config };
+  return { svc, prisma, wallet, analytics, affiliate, notifications, businessActionLog, config };
 }
 
 describe('CampaignService', () => {
@@ -645,14 +651,19 @@ describe('CampaignService', () => {
       });
     });
 
-    it('only looks at depleted campaigns whose company is not pending deletion', async () => {
+    it('only looks at depleted campaigns whose company is not pending deletion and whose website is actually listable', async () => {
       const { svc, prisma } = makeService();
 
       await (svc as any).sweepDayRollover();
 
       const where = (prisma.campaign.findMany as jest.Mock).mock.calls[0][0].where;
       expect(where.status).toBe('depleted');
-      expect(where.company).toEqual({ deletionScheduledAt: null });
+      expect(where.company).toEqual({
+        deletionScheduledAt: null,
+        website: {
+          is: { OR: [{ mode: { not: 'advanced' } }, { publishedAt: { not: null } }] },
+        },
+      });
     });
 
     it('leaves a campaign depleted when the wallet cannot cover one click', async () => {

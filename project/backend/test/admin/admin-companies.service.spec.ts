@@ -209,6 +209,12 @@ function fakeConfig() {
   return { get: jest.fn().mockReturnValue('https://totalvizibil.ro') };
 }
 
+function fakeAudit() {
+  return { log: jest.fn(async () => undefined) };
+}
+
+const actor = { id: 'admin1', roles: ['admin'] };
+
 function makeService() {
   const prisma = fakePrisma();
   const wallet = fakeWallet();
@@ -218,6 +224,7 @@ function makeService() {
   const builder = fakeBuilder();
   const settings = fakeSettings();
   const notifications = fakeNotifications();
+  const audit = fakeAudit();
   const config = fakeConfig();
 
   const svc = new AdminCompaniesService(
@@ -229,6 +236,7 @@ function makeService() {
     builder as any,
     settings as any,
     notifications as any,
+    audit as any,
     config as any,
   );
 
@@ -242,6 +250,7 @@ function makeService() {
     builder,
     settings,
     notifications,
+    audit,
     config,
   };
 }
@@ -311,7 +320,7 @@ describe('AdminCompaniesService', () => {
     it('throws NotFoundException when company does not exist', async () => {
       const { svc } = makeService();
 
-      await expect(svc.setStatus('nonexistent', { status: 'suspended' })).rejects.toThrow(
+      await expect(svc.setStatus('nonexistent', { status: 'suspended' }, actor)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -320,7 +329,7 @@ describe('AdminCompaniesService', () => {
       const { svc, prisma } = makeService();
       prisma.__seed({ id: 'company-1', status: 'active', campaign: null });
 
-      const result = await svc.setStatus('company-1', { status: 'suspended' });
+      const result = await svc.setStatus('company-1', { status: 'suspended' }, actor);
 
       expect(result).toMatchObject({ ok: true });
     });
@@ -345,7 +354,7 @@ describe('AdminCompaniesService', () => {
         }),
       });
 
-      const result = await svc.setStatus('company-1', { status: 'suspended' });
+      const result = await svc.setStatus('company-1', { status: 'suspended' }, actor);
 
       expect(result).toEqual({ ok: true, status: 'suspended' });
       expect(prisma.campaign.update).toHaveBeenCalledWith(
@@ -369,7 +378,7 @@ describe('AdminCompaniesService', () => {
         campaign: null,
       });
 
-      await svc.setStatus('company-1', { status: 'suspended' });
+      await svc.setStatus('company-1', { status: 'suspended' }, actor);
 
       // The notification is fired via void — flush the microtask queue.
       await new Promise<void>((resolve) => setImmediate(resolve));
@@ -391,7 +400,7 @@ describe('AdminCompaniesService', () => {
         campaign: null,
       });
 
-      const result = await svc.setStatus('company-1', { status: 'suspended' });
+      const result = await svc.setStatus('company-1', { status: 'suspended' }, actor);
 
       expect(result).toEqual({ ok: true, status: 'suspended' });
       expect(prisma.campaign.update).not.toHaveBeenCalled();
@@ -407,7 +416,7 @@ describe('AdminCompaniesService', () => {
         campaign: null,
       });
 
-      const result = await svc.setStatus('company-1', { status: 'active' });
+      const result = await svc.setStatus('company-1', { status: 'active' }, actor);
 
       expect(result).toEqual({ ok: true, status: 'draft' });
       expect(prisma.company.update).toHaveBeenCalledWith(
@@ -425,7 +434,7 @@ describe('AdminCompaniesService', () => {
         campaign: null,
       });
 
-      await svc.setStatus('company-1', { status: 'active' });
+      await svc.setStatus('company-1', { status: 'active' }, actor);
       await new Promise<void>((resolve) => setImmediate(resolve));
 
       expect(notifications.notify).toHaveBeenCalledWith(
@@ -445,7 +454,7 @@ describe('AdminCompaniesService', () => {
       prisma.__seed({ id: 'company-1', status: 'active' });
       const dto = { dailyBudgetMinor: 500, cpcMinor: 25 } as any;
 
-      await svc.saveCampaign('company-1', dto);
+      await svc.saveCampaign('company-1', dto, actor);
 
       expect(campaigns.saveFor).toHaveBeenCalledWith('company-1', dto, 'admin');
     });
@@ -453,7 +462,7 @@ describe('AdminCompaniesService', () => {
     it('throws NotFoundException before saving when company does not exist', async () => {
       const { svc, campaigns } = makeService();
 
-      await expect(svc.saveCampaign('nonexistent', {} as any)).rejects.toThrow(NotFoundException);
+      await expect(svc.saveCampaign('nonexistent', {} as any, actor)).rejects.toThrow(NotFoundException);
       expect(campaigns.saveFor).not.toHaveBeenCalled();
     });
   });
@@ -462,13 +471,13 @@ describe('AdminCompaniesService', () => {
 
   describe('pending-deletion freeze', () => {
     const PENDING_METHODS: [string, (svc: AdminCompaniesService) => Promise<unknown>][] = [
-      ['updateCompany', (svc) => svc.updateCompany('company-1', { displayName: 'New' } as any)],
-      ['setLocation', (svc) => svc.setLocation('company-1', { nationwide: true } as any)],
-      ['setWebsitePublished', (svc) => svc.setWebsitePublished('company-1', false)],
-      ['saveCampaign', (svc) => svc.saveCampaign('company-1', {} as any)],
-      ['campaignAction', (svc) => svc.campaignAction('company-1', { action: 'pause' } as any)],
-      ['setStatus', (svc) => svc.setStatus('company-1', { status: 'suspended' } as any)],
-      ['upgradeToAdvanced', (svc) => svc.upgradeToAdvanced('company-1')],
+      ['updateCompany', (svc) => svc.updateCompany('company-1', { displayName: 'New' } as any, actor)],
+      ['setLocation', (svc) => svc.setLocation('company-1', { nationwide: true } as any, actor)],
+      ['setWebsitePublished', (svc) => svc.setWebsitePublished('company-1', false, actor)],
+      ['saveCampaign', (svc) => svc.saveCampaign('company-1', {} as any, actor)],
+      ['campaignAction', (svc) => svc.campaignAction('company-1', { action: 'pause' } as any, actor)],
+      ['setStatus', (svc) => svc.setStatus('company-1', { status: 'suspended' } as any, actor)],
+      ['upgradeToAdvanced', (svc) => svc.upgradeToAdvanced('company-1', false, actor)],
     ];
 
     it.each(PENDING_METHODS)(
@@ -495,7 +504,7 @@ describe('AdminCompaniesService', () => {
         ownerUserId: 'user-1',
       });
 
-      const result = await svc.cancelDeletion('company-1');
+      const result = await svc.cancelDeletion('company-1', actor);
 
       expect(result).toBeDefined();
       expect(prisma.company.update).toHaveBeenCalledWith(
@@ -515,7 +524,7 @@ describe('AdminCompaniesService', () => {
         campaign: makeCampaign({ status: CampaignStatus.paused }),
       });
 
-      await svc.campaignAction('company-1', { action: 'delete' } as any);
+      await svc.campaignAction('company-1', { action: 'delete' } as any, actor);
 
       expect(prisma.company.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { featured: false } }),
@@ -531,7 +540,7 @@ describe('AdminCompaniesService', () => {
         campaign: makeCampaign({ status: CampaignStatus.active }),
       });
 
-      await svc.campaignAction('company-1', { action: 'delete' } as any);
+      await svc.campaignAction('company-1', { action: 'delete' } as any, actor);
 
       expect(prisma.__companies.get('company-1')?.status).toBe('draft');
     });
@@ -548,7 +557,7 @@ describe('AdminCompaniesService', () => {
         }),
       });
 
-      await expect(svc.campaignAction('company-1', { action: 'activate' } as any)).rejects.toThrow(
+      await expect(svc.campaignAction('company-1', { action: 'activate' } as any, actor)).rejects.toThrow(
         'cpc_below_feed_minimum',
       );
     });
@@ -565,7 +574,7 @@ describe('AdminCompaniesService', () => {
         }),
       });
 
-      const result = await svc.campaignAction('company-1', { action: 'activate' } as any);
+      const result = await svc.campaignAction('company-1', { action: 'activate' } as any, actor);
 
       expect(result).toEqual({ ok: true, action: 'activate' });
     });
@@ -579,7 +588,7 @@ describe('AdminCompaniesService', () => {
         campaign: makeCampaign({ status: CampaignStatus.active }),
       });
 
-      await svc.campaignAction('company-1', { action: 'pause' } as any);
+      await svc.campaignAction('company-1', { action: 'pause' } as any, actor);
       await new Promise<void>((resolve) => setImmediate(resolve));
 
       expect(notifications.notify).toHaveBeenCalledWith(
@@ -604,7 +613,7 @@ describe('AdminCompaniesService', () => {
         parentId: 'parent-1',
       });
 
-      await svc.updateCompany('company-1', { categoryId: 'new-cat' } as any);
+      await svc.updateCompany('company-1', { categoryId: 'new-cat' } as any, actor);
 
       expect(prisma.__companyCategoryRows).toEqual([
         { companyId: 'company-1', categoryId: 'new-cat', isPrimary: true },
@@ -616,7 +625,7 @@ describe('AdminCompaniesService', () => {
       const { svc, prisma } = makeService();
       prisma.__seed({ id: 'company-1', status: 'active' });
 
-      await svc.updateCompany('company-1', { displayName: 'Renamed' } as any);
+      await svc.updateCompany('company-1', { displayName: 'Renamed' } as any, actor);
 
       expect(prisma.companyCategory.deleteMany).not.toHaveBeenCalled();
       expect(prisma.companyCategory.create).not.toHaveBeenCalled();
@@ -631,7 +640,7 @@ describe('AdminCompaniesService', () => {
       prisma.__seed({ id: 'company-1', status: 'active' });
       prisma.__seedPrimaryLocation({ city: 'Cluj-Napoca', lat: 46.77, lng: 23.59 });
 
-      await svc.setLocation('company-1', { counties: ['Cluj', 'Sibiu'] } as any);
+      await svc.setLocation('company-1', { counties: ['Cluj', 'Sibiu'] } as any, actor);
 
       const [createManyCall] = (prisma.companyLocation.createMany as jest.Mock).mock.calls;
       const rows = createManyCall[0].data as any[];
