@@ -1081,7 +1081,9 @@ watch(
   border: 1px solid var(--tvz-hairline);
   border-left: 3px solid rgb(var(--v-theme-warning));
   border-radius: 10px;
-  background: rgb(var(--v-theme-surface));
+  background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
 }
 .dalert--high {
   border-left-color: rgb(var(--v-theme-error));
@@ -1190,7 +1192,9 @@ watch(
   padding: 1.25rem 1.35rem 1.3rem;
   border-radius: 14px;
   border: 1px solid var(--tvz-hairline);
-  background: rgb(var(--v-theme-surface));
+  background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   transition:
     transform 0.16s var(--tvz-ease-out),
     box-shadow 0.16s var(--tvz-ease-out),
@@ -1445,7 +1449,9 @@ watch(
   padding: 1.5rem 1.6rem;
   border-radius: 16px;
   border: 1px solid var(--tvz-glass-border);
-  background: rgb(var(--v-theme-surface));
+  background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
 }
 .ana__rank {
   display: flex;
@@ -1477,7 +1483,9 @@ watch(
   padding: 1.4rem 1.6rem 1.1rem;
   border-radius: 20px;
   border: 1px solid var(--tvz-glass-border);
-  background: rgb(var(--v-theme-surface));
+  background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
 }
 .ana__chartHead {
   margin-bottom: 0.7rem;

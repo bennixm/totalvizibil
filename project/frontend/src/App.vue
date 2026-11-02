@@ -52,6 +52,16 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
     <NotificationDrawer v-if="auth.isAuthenticated" />
 
     <v-main class="shell" :class="{ 'shell--mobile': !mdAndUp }">
+      <!-- Ambient light behind the panel only — never the public/marketing
+           pages. Three blurred blobs drifting via `transform` (GPU-
+           composited, cheap) so the glass sections sitting on top (.dcard,
+           AdminSection's .asec, .ana__hero/__chart — see tokens.scss
+           --tvz-glass-*) have something alive to show through. -->
+      <div v-if="showSidebar" class="shell__glow" aria-hidden="true">
+        <span class="shell__blob shell__blob--a" />
+        <span class="shell__blob shell__blob--b" />
+        <span class="shell__blob shell__blob--c" />
+      </div>
       <v-layout v-if="showSidebar" class="panel-layout">
         <AppSidebar :groups="sidebarGroups">
           <!-- `hasReachableStaffArea`, not `isPlatformStaff`: the latter is
@@ -88,6 +98,96 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
 </template>
 
 <style scoped>
+.shell__glow {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.shell__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(64px);
+  opacity: var(--tvz-glow-opacity, 0.2);
+  will-change: transform;
+}
+/* Dark ground: additive "light" blending instead of flat alpha compositing —
+   plus-lighter accumulates brightness like a real light source instead of
+   painting a flat tinted disc over near-black, which reads as more natural
+   AND hides the banding plain alpha-over-dark made visible as "pixelation". */
+.v-theme--dark .shell__blob {
+  mix-blend-mode: plus-lighter;
+}
+.shell__blob--a {
+  width: clamp(260px, 42vw, 560px);
+  height: clamp(260px, 42vw, 560px);
+  top: -12%;
+  left: -8%;
+  background: radial-gradient(
+    circle,
+    var(--tvz-brand-3) 0%,
+    color-mix(in srgb, var(--tvz-brand-3) 45%, transparent) 38%,
+    transparent 70%
+  );
+  animation: shellDriftA 42s var(--tvz-ease-out) infinite alternate;
+}
+.shell__blob--b {
+  width: clamp(220px, 34vw, 480px);
+  height: clamp(220px, 34vw, 480px);
+  bottom: -14%;
+  right: -6%;
+  background: radial-gradient(
+    circle,
+    var(--tvz-brand-1) 0%,
+    color-mix(in srgb, var(--tvz-brand-1) 45%, transparent) 38%,
+    transparent 70%
+  );
+  animation: shellDriftB 50s var(--tvz-ease-out) infinite alternate;
+}
+.shell__blob--c {
+  width: clamp(180px, 28vw, 400px);
+  height: clamp(180px, 28vw, 400px);
+  top: 36%;
+  left: 58%;
+  background: radial-gradient(
+    circle,
+    var(--tvz-brand-3) 0%,
+    color-mix(in srgb, var(--tvz-brand-3) 45%, transparent) 38%,
+    transparent 70%
+  );
+  animation: shellDriftC 58s var(--tvz-ease-out) infinite alternate;
+}
+@keyframes shellDriftA {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(7vw, 9vh) scale(1.12);
+  }
+}
+@keyframes shellDriftB {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(-8vw, -6vh) scale(1.08);
+  }
+}
+@keyframes shellDriftC {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(-5vw, 6vh) scale(0.94);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell__blob {
+    animation: none;
+  }
+}
+
 /* Clear the fixed mobile tab bar so page content is never hidden behind it. */
 .shell--mobile {
   padding-bottom: calc(var(--tvz-tabbar-h) + env(safe-area-inset-bottom, 0px) + 12px);
