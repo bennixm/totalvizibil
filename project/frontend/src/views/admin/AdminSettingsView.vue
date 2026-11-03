@@ -340,7 +340,6 @@ async function save() {
     <AdminPageHeader
       :title="t('admin.navSettings')"
       :eyebrow="t('admin.navGroupConfig')"
-      :sub="t('adminSettings.lead')"
     />
 
     <div v-if="loading" class="d-flex justify-center py-16">
@@ -375,7 +374,6 @@ async function save() {
         <!-- Prețuri & Monedă -->
         <v-window-item value="pricing">
           <AdminSection :title="t('adminSettings.pricingTitle')" icon="mdi-cash-multiple">
-            <p class="as__sectionNote">{{ t('adminSettings.pricingNote') }}</p>
             <div class="as__fields">
               <div v-for="f in pricingFields" :key="f.key" class="as__field">
                 <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>
@@ -432,8 +430,6 @@ async function save() {
         <!-- Facturare & Rambursări -->
         <v-window-item value="billing">
           <AdminSection :title="t('adminSettings.issuerTitle')" icon="mdi-file-document-edit-outline">
-            <p class="as__sectionNote">{{ t('adminSettings.billingNote') }}</p>
-
             <div class="as__fields">
               <div v-for="f in billingFields" :key="f.key" class="as__field">
                 <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>

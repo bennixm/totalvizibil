@@ -1623,7 +1623,6 @@
   "consumption": {
     "eyebrow": "Această afacere",
     "title": "Consum afacere",
-    "lead": "Tot ce a cheltuit această afacere, pe surse — ca să știi exact unde s-au dus banii.",
     "totalLabel": "Total consumat",
     "clicks": "Click-uri anunț",
     "clicksTodaySub": "{n} azi",
@@ -1648,14 +1647,12 @@
     "evolutionTitle": "Evoluție · 14 zile",
     "cappedNote": "{n} zile cu bugetul zilnic epuizat, în ultimele 14 zile.",
     "byFeedTitle": "Consum pe căutare",
-    "byFeedHint": "Fiecare rând e o căutare (județ + subcategorie) în care afacerea ta a apărut și a primit click-uri.",
     "colFeed": "Județ · Categorie",
     "colPosition": "Poziție",
     "colPositionNone": "—",
     "colCpc": "CPC efectiv",
     "colSpentFeed": "Cheltuit",
     "qualityTitle": "Calitatea click-urilor",
-    "qualityHint": "Nu plătești pentru click-urile filtrate mai jos — iată de ce au fost excluse.",
     "qualityBilled": "Facturate",
     "qualityUnbilled": "Filtrate",
     "reason": {

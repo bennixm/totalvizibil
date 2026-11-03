@@ -1623,7 +1623,6 @@
   "consumption": {
     "eyebrow": "This business",
     "title": "Consumption",
-    "lead": "Everything this business spent, by source — so you know exactly where the money went.",
     "totalLabel": "Total spent",
     "clicks": "Ad clicks",
     "clicksTodaySub": "{n} today",
@@ -1648,14 +1647,12 @@
     "evolutionTitle": "Evolution · 14 days",
     "cappedNote": "{n} days hit the daily budget cap, in the last 14 days.",
     "byFeedTitle": "Spend by search",
-    "byFeedHint": "Each row is one search (county + subcategory) your business showed up in and got clicks from.",
     "colFeed": "County · Category",
     "colPosition": "Position",
     "colPositionNone": "—",
     "colCpc": "Effective CPC",
     "colSpentFeed": "Spent",
     "qualityTitle": "Click quality",
-    "qualityHint": "You weren't charged for the filtered clicks below — here's why they were excluded.",
     "qualityBilled": "Billed",
     "qualityUnbilled": "Filtered",
     "reason": {

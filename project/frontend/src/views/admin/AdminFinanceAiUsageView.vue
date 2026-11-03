@@ -34,7 +34,7 @@ onMounted(() => finance.fetchAiUsage())
 
 <template>
   <div class="afa">
-    <AdminPageHeader :title="t('adminFinance.aiTitle')" :eyebrow="t('admin.navGroupFinance')" :sub="t('adminFinance.aiLead')">
+    <AdminPageHeader :title="t('adminFinance.aiTitle')" :eyebrow="t('admin.navGroupFinance')">
       <template #actions>
         <v-btn v-if="hasRows" :href="finance.aiUsageExportUrl()" variant="tonal" size="small" prepend-icon="mdi-file-pdf-box">
           {{ t('transactions.exportPdf') }}

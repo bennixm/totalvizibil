@@ -59,7 +59,7 @@ onMounted(() => finance.fetchRevenue())
 
 <template>
   <div class="afr">
-    <AdminPageHeader :title="t('adminFinance.revenueTitle')" :eyebrow="t('admin.navGroupFinance')" :count="finance.revenueTotal" :sub="t('adminFinance.revenueLead')">
+    <AdminPageHeader :title="t('adminFinance.revenueTitle')" :eyebrow="t('admin.navGroupFinance')" :count="finance.revenueTotal">
       <template #actions>
         <v-btn v-if="hasRows" :href="finance.revenueExportUrl()" variant="tonal" size="small" prepend-icon="mdi-file-pdf-box">
           {{ t('transactions.exportPdf') }}

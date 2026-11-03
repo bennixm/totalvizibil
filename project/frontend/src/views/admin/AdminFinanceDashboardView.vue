@@ -110,7 +110,7 @@ onMounted(() => finance.fetchOverview())
 
 <template>
   <div class="afd">
-    <AdminPageHeader :title="t('adminFinance.dashboardTitle')" :eyebrow="t('admin.navGroupFinance')" :sub="t('adminFinance.dashboardLead')">
+    <AdminPageHeader :title="t('adminFinance.dashboardTitle')" :eyebrow="t('admin.navGroupFinance')">
       <template #actions>
         <v-btn-toggle density="compact" mandatory variant="outlined" divided>
           <v-btn size="small" @click="setQuickRange(1)">{{ t('adminFinance.thisMonth') }}</v-btn>

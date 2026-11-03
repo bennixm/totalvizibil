@@ -76,7 +76,6 @@ function open(id: string): void {
       :title="t('admin.navBusinesses')"
       :eyebrow="t('admin.navGroupManage')"
       :count="admin.businessesTotal"
-      :sub="t('adminBiz.lead')"
     >
       <template #actions>
         <v-btn

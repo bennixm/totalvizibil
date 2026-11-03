@@ -1623,7 +1623,6 @@
   "consumption": {
     "eyebrow": "Dieses Unternehmen",
     "title": "Verbrauch",
-    "lead": "Alles, was dieses Unternehmen ausgegeben hat, nach Quelle — damit du genau weißt, wohin das Geld floss.",
     "totalLabel": "Gesamt ausgegeben",
     "clicks": "Anzeigenklicks",
     "clicksTodaySub": "{n} heute",
@@ -1648,14 +1647,12 @@
     "evolutionTitle": "Verlauf · 14 Tage",
     "cappedNote": "{n} Tage mit ausgeschöpftem Tagesbudget in den letzten 14 Tagen.",
     "byFeedTitle": "Verbrauch nach Suche",
-    "byFeedHint": "Jede Zeile ist eine Suche (Landkreis + Unterkategorie), in der dein Unternehmen erschien und Klicks erhielt.",
     "colFeed": "Landkreis · Kategorie",
     "colPosition": "Position",
     "colPositionNone": "—",
     "colCpc": "Effektiver CPC",
     "colSpentFeed": "Ausgegeben",
     "qualityTitle": "Klickqualität",
-    "qualityHint": "Für die unten gefilterten Klicks wurdest du nicht belastet — hier ist der Grund.",
     "qualityBilled": "Berechnet",
     "qualityUnbilled": "Gefiltert",
     "reason": {
