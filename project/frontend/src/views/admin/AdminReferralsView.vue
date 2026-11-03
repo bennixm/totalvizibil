@@ -32,7 +32,6 @@ onMounted(() => admin.fetchReferralsList())
       :title="t('admin.navReferrals')"
       :eyebrow="t('admin.navGroupManage')"
       :count="admin.referralsTotal"
-      :sub="t('adminRef.lead')"
     >
       <template #actions>
         <v-btn

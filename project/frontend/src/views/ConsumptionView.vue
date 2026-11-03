@@ -298,7 +298,6 @@ watch(
     <header class="cons__head">
       <p class="cons__eyebrow">{{ t('consumption.eyebrow') }}</p>
       <h1>{{ t('consumption.title') }}</h1>
-      <p class="cons__lead">{{ t('consumption.lead') }}</p>
     </header>
 
     <div v-if="loading && !breakdown" class="cons__center">
@@ -390,7 +389,6 @@ watch(
         <div class="cons__sectionHead">
           <h2 class="cons__sectionTitle">{{ t('consumption.byFeedTitle') }}</h2>
         </div>
-        <p class="cons__sectionHint">{{ t('consumption.byFeedHint') }}</p>
         <div class="card cons__feedWrap">
           <table class="cons__feedTable">
             <thead>
@@ -434,7 +432,6 @@ watch(
         <div class="cons__sectionHead">
           <h2 class="cons__sectionTitle">{{ t('consumption.qualityTitle') }}</h2>
         </div>
-        <p class="cons__sectionHint">{{ t('consumption.qualityHint') }}</p>
         <div class="card cons__quality">
           <div class="qbar">
             <span class="qbar__fill" :style="{ width: billedPct + '%' }" />
@@ -610,12 +607,6 @@ watch(
   letter-spacing: -0.02em;
   margin: 0;
 }
-.cons__lead {
-  margin: 0.5rem 0 0;
-  font-size: 0.88rem;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  max-width: 54ch;
-}
 .cons__center {
   display: grid;
   place-items: center;
@@ -760,11 +751,6 @@ watch(
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.cons__sectionHint {
-  margin: 0 0 0.65rem;
-  font-size: 0.8rem;
-  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .cons__sectionAction {
   display: inline-flex;

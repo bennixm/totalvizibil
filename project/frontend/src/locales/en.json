@@ -1009,7 +1009,6 @@
     "colType": "Type",
     "txnsRecentNote": "Showing the 20 most recent transactions.",
     "navJurnal": "Audit Log",
-    "jurnalSub": "Who did what, platform-wide and per business.",
     "tabStaffLog": "Staff Log",
     "tabOwnerLog": "Owner Actions",
     "jurnalSearchActorPlaceholder": "Search by name or email…",
@@ -1303,7 +1302,6 @@
   "optimize": {
     "eyebrow": "Campaign optimisation",
     "title": "Optimise the campaign",
-    "lead": "We analyse the campaign against the feed algorithm and show you where you lose position.",
     "back": "Back to campaign",
     "notInFeed": "The campaign is not running. Activate it to appear in the feed.",
     "scoreLead": "Your feed visibility score",
@@ -1339,7 +1337,6 @@
     }
   },
   "adminCat": {
-    "lead": "The two-level category structure that powers the create-flow selector and the feed filters.",
     "addGroup": "Add group",
     "addChild": "Add subcategory",
     "topLevel": "Top-level group (no parent)",
@@ -1468,7 +1465,6 @@
     "openPublic": "Open public page"
   },
   "adminBiz": {
-    "lead": "Every business on the platform. Click a row to manage it.",
     "searchPlaceholder": "Search by name, slug or owner email",
     "anyCampaign": "Any campaign",
     "noCampaign": "No campaign",
@@ -1483,7 +1479,6 @@
     "none": "No businesses"
   },
   "adminRef": {
-    "lead": "Every referral in the affiliate program.",
     "total": "Total",
     "pending": "Pending",
     "rewarded": "Rewarded",
@@ -1497,7 +1492,6 @@
   },
   "adminFinance": {
     "dashboardTitle": "Finance dashboard",
-    "dashboardLead": "Revenue, costs and net profit, as real cash.",
     "thisMonth": "This month",
     "last3Months": "3 months",
     "last12Months": "12 months",
@@ -1513,7 +1507,6 @@
     "paidTrafficHint": "Google Ads cost comes from manually logged \"Google Ads\" expenses, until the API integration lands.",
     "aiCost": "AI usage",
     "revenueTitle": "Revenue",
-    "revenueLead": "Confirmed top-ups and refunds.",
     "all": "All",
     "purchases": "Top-ups",
     "refunds": "Refunds",
@@ -1532,7 +1525,6 @@
     "colCalls": "Calls",
     "colTokens": "Tokens",
     "expensesTitle": "Expenses",
-    "expensesLead": "Platform operating costs, by category.",
     "addExpense": "Add expense",
     "editExpense": "Edit expense",
     "category": "Category",
@@ -1543,14 +1535,12 @@
     "deleteExpenseTitle": "Delete this expense?",
     "deleteExpenseConfirm": "This record will be permanently deleted and cannot be recovered.",
     "aiTitle": "AI usage",
-    "aiLead": "Estimated cost of calls to AI providers, by model.",
     "aiTotalCost": "Total cost",
     "aiTotalCalls": "Total calls",
     "aiTotalTokens": "Total tokens",
     "noAiUsage": "No AI usage for this period."
   },
   "adminSettings": {
-    "lead": "Values the platform can change without a deploy.",
     "pricingTitle": "Pricing & exchange rate",
     "saved": "Settings saved",
     "unsaved": "Unsaved changes",
@@ -1607,7 +1597,6 @@
     "tabAffiliate": "Affiliate",
     "tabDiscount": "Discounts",
     "tabMaintenance": "Maintenance",
-    "pricingNote": "Prices for the platform's paid features and the exchange rate used to display amounts in lei.",
     "feedPricingTitle": "Feed position pricing (CPC local)",
     "feedPricingNote": "A Feed's CPC minim = Cost promovare + Marjă profit. CPC local for a position = CPC minim + (eligible competitors − position) × Marjă poziționare. The amount actually charged per click is always capped at the business's own CPC maxim.",
     "feedCostPromovare": "Cost promovare",
@@ -1616,14 +1605,12 @@
     "feedMarjaProfitHint": "Added on top of the promotion cost to form a Feed's CPC minim.",
     "feedMarjaPozitionare": "Marjă poziționare",
     "feedMarjaPozitionareHint": "The price step between consecutive positions in the same Feed.",
-    "billingNote": "Fiscal details shown on every invoice issued, the VAT rate applied, and the fee withheld on a refund.",
     "refundTitle": "Refunds",
     "allSaved": "All changes saved"
   },
   "consumption": {
     "eyebrow": "This business",
     "title": "Consumption",
-    "lead": "Everything this business spent, by source — so you know exactly where the money went.",
     "totalLabel": "Total spent",
     "clicks": "Ad clicks",
     "clicksTodaySub": "{n} today",
@@ -1648,14 +1635,12 @@
     "evolutionTitle": "Evolution · 14 days",
     "cappedNote": "{n} days hit the daily budget cap, in the last 14 days.",
     "byFeedTitle": "Spend by search",
-    "byFeedHint": "Each row is one search (county + subcategory) your business showed up in and got clicks from.",
     "colFeed": "County · Category",
     "colPosition": "Position",
     "colPositionNone": "—",
     "colCpc": "Effective CPC",
     "colSpentFeed": "Spent",
     "qualityTitle": "Click quality",
-    "qualityHint": "You weren't charged for the filtered clicks below — here's why they were excluded.",
     "qualityBilled": "Billed",
     "qualityUnbilled": "Filtered",
     "reason": {
@@ -1812,9 +1797,7 @@
   "support": {
     "eyebrow": "Assistance",
     "title": "Support",
-    "lead": "Send us a ticket and we’ll get back to you as fast as we can.",
     "queueTitle": "Support queue",
-    "queueLead": "Every customer ticket · pick it up, reply, resolve.",
     "newTicket": "New ticket",
     "newTitle": "Open a ticket",
     "newLead": "Describe the issue or bug. The more detail you give us, the faster we can fix it.",

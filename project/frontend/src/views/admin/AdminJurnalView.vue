@@ -165,7 +165,6 @@ watch(tab, (v) => {
     <AdminPageHeader
       :title="t('admin.navJurnal')"
       :eyebrow="t('admin.navGroupManage')"
-      :sub="t('admin.jurnalSub')"
     />
 
     <v-tabs v-model="tab" color="primary" class="jrn__tabs" show-arrows>

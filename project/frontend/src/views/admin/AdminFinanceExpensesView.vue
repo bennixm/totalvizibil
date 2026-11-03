@@ -162,7 +162,7 @@ onMounted(() => finance.fetchExpenses())
 
 <template>
   <div class="afe">
-    <AdminPageHeader :title="t('adminFinance.expensesTitle')" :eyebrow="t('admin.navGroupFinance')" :count="finance.expensesTotal" :sub="t('adminFinance.expensesLead')">
+    <AdminPageHeader :title="t('adminFinance.expensesTitle')" :eyebrow="t('admin.navGroupFinance')" :count="finance.expensesTotal">
       <template #actions>
         <v-btn v-if="hasRows" :href="finance.expensesExportUrl()" variant="tonal" size="small" prepend-icon="mdi-file-pdf-box">
           {{ t('transactions.exportPdf') }}

@@ -139,8 +139,6 @@ watch(
     </div>
 
     <template v-else-if="o">
-      <p class="opt__lead">{{ t('optimize.lead') }}</p>
-
       <section class="opt__hero">
         <p v-if="o.status !== 'active'" class="opt__rankLine opt__rankLine--muted">
           {{ t('optimize.notInFeed') }}
@@ -260,12 +258,6 @@ watch(
   letter-spacing: -0.02em;
   margin: 0;
 }
-.opt__lead {
-  margin: 0 0 1.25rem;
-  color: rgba(var(--v-theme-on-surface), 0.66);
-  font-size: 0.92rem;
-}
-
 .opt__hero {
   display: flex;
   align-items: center;

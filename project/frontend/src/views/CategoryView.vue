@@ -147,7 +147,6 @@ watch(
     <header class="cat__head">
       <p class="cat__eyebrow">{{ t('category.eyebrow') }}</p>
       <h1>{{ t('category.title') }}</h1>
-      <p class="cat__lead">{{ t('location.categoryHint') }}</p>
     </header>
 
     <div v-if="!ready" class="cat__loading">
@@ -234,10 +233,6 @@ watch(
   font-size: clamp(1.5rem, 4vw, 2.1rem);
   letter-spacing: -0.02em;
   margin: 0;
-}
-.cat__lead {
-  margin: 0.6rem 0 0;
-  color: rgba(var(--v-theme-on-surface), 0.66);
 }
 .cat__loading {
   display: grid;
