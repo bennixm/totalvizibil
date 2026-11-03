@@ -1,10 +1,15 @@
 // ============================================================================
 //  Totalvizibil — Design tokens
 //  Single source of truth for the visual language.
-//  Cool, sapphire-led system: one strong colour (#0F52BA), calm cool neutrals,
-//  no decorative gradients / glow / glass. Light-first; the dark theme is the
-//  same product with the lights down.
+//  Cool, sapphire-led system: one strong colour (#0F52BA), calm cool neutrals.
+//  Light-first; the dark theme is the same product with the lights down.
 //  Colour values mirror the Vuetify themes in src/plugins/vuetify.ts.
+//
+//  The signed-in panel (App.vue's .shell__glow, gated to panel routes only —
+//  never the public/marketing pages) carries a slow-drifting ambient light
+//  behind it; --tvz-glass-* below is real translucency + blur, not a flat
+//  panel, so the panel's section containers (.dcard, AdminSection's .asec,
+//  …) read as glass over that light instead of a plain card.
 // ============================================================================
 
 :root {
@@ -63,11 +68,19 @@
   --tvz-gradient-text: none;
   --tvz-gradient-sheen: none;
 
-  // "Glass" is a plain panel — no blur, no translucency games.
-  --tvz-glass-bg: #ffffff;
-  --tvz-glass-bg-strong: #ffffff;
+  // Real glass: translucent + blurred, so the panel's ambient light (see
+  // App.vue .shell__glow) shows through section containers instead of
+  // sitting behind an opaque card.
+  --tvz-glass-bg: rgba(255, 255, 255, 0.6);
+  --tvz-glass-bg-strong: rgba(255, 255, 255, 0.82);
   --tvz-glass-border: #e2e6ee; // hairline
-  --tvz-glass-blur: 0px;
+  --tvz-glass-blur: 18px;
+
+  // Ambient panel light — colour comes from --tvz-brand-* below, this only
+  // tunes how strongly it reads against the paper ground. Needs more than
+  // you'd think: it's diluted again by every --tvz-glass-bg card sitting on
+  // top of it.
+  --tvz-glow-opacity: 0.22;
 
   // Shadows — cool, soft, diffuse. No coloured glow.
   --tvz-shadow-sm: 0 1px 2px rgba(19, 23, 34, 0.05), 0 3px 10px rgba(19, 23, 34, 0.05);
@@ -108,10 +121,16 @@
   --tvz-gradient-text: none;
   --tvz-gradient-sheen: none;
 
-  --tvz-glass-bg: #141b2d;
-  --tvz-glass-bg-strong: #10172b;
+  --tvz-glass-bg: rgba(20, 27, 45, 0.58);
+  --tvz-glass-bg-strong: rgba(16, 23, 43, 0.78);
   --tvz-glass-border: rgba(226, 232, 246, 0.1);
-  --tvz-glass-blur: 0px;
+  --tvz-glass-blur: 18px;
+
+  // Blended with `plus-lighter` (App.vue .shell__blob) rather than plain
+  // alpha — accumulates like real light instead of a flat tinted disc, and
+  // needs a bit more strength here since additive blending against near-
+  // black starts from so little.
+  --tvz-glow-opacity: 0.34;
 
   --tvz-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.42), 0 4px 12px rgba(0, 0, 0, 0.32);
   --tvz-shadow-md: 0 2px 6px rgba(0, 0, 0, 0.42), 0 12px 30px rgba(0, 0, 0, 0.36);

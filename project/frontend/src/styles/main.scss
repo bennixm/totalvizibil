@@ -99,14 +99,21 @@ h3 {
 }
 
 // --- Surfaces ----------------------------------------------------------
-// "Glass" is now opacity-only (no backdrop-filter) so it's cheap to composite.
+// Real glass — translucent background + blur, so the panel's ambient light
+// (App.vue .shell__glow) shows through. Kept off dense, many-at-once nested
+// tiles (stat chips inside an already-glass card, table rows, …) — blur-on-
+// blur there is both wasted cost and a muddier result, not a better one.
 .tvz-glass {
   background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   border: 1px solid var(--tvz-glass-border);
 }
 
 .tvz-glass--strong {
   background: var(--tvz-glass-bg-strong);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   border: 1px solid var(--tvz-glass-border);
 }
 

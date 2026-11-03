@@ -25,7 +25,9 @@ defineProps<{
 .asec {
   border: 1px solid var(--tvz-glass-border);
   border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-surface));
+  background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   padding: 1.3rem;
 }
 .asec--wide {
