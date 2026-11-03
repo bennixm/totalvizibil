@@ -108,78 +108,98 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
 .shell__blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(64px);
+  /* A light touch-up only — the softness now comes mainly from the gradient
+     itself (many stops, long fade), not this. A big `filter: blur()` on a
+     large element is a known Chromium pixelation trap: the blur gets
+     rasterised at reduced internal resolution, and animating `transform:
+     scale()` on top of that (the old version did) stretches the already-
+     blocky raster further. Analytic gradients don't have that failure mode
+     at any size, so that does the real work; this just rounds off the stops. */
+  filter: blur(20px);
   opacity: var(--tvz-glow-opacity, 0.2);
   will-change: transform;
 }
 /* Dark ground: additive "light" blending instead of flat alpha compositing —
    plus-lighter accumulates brightness like a real light source instead of
    painting a flat tinted disc over near-black, which reads as more natural
-   AND hides the banding plain alpha-over-dark made visible as "pixelation". */
+   and keeps what little rasterisation the blur above still does from
+   showing as visible steps. */
 .v-theme--dark .shell__blob {
   mix-blend-mode: plus-lighter;
 }
 .shell__blob--a {
-  width: clamp(260px, 42vw, 560px);
-  height: clamp(260px, 42vw, 560px);
-  top: -12%;
-  left: -8%;
+  width: clamp(320px, 48vw, 640px);
+  height: clamp(320px, 48vw, 640px);
+  top: -16%;
+  left: -12%;
   background: radial-gradient(
     circle,
     var(--tvz-brand-3) 0%,
-    color-mix(in srgb, var(--tvz-brand-3) 45%, transparent) 38%,
-    transparent 70%
+    color-mix(in srgb, var(--tvz-brand-3) 65%, transparent) 10%,
+    color-mix(in srgb, var(--tvz-brand-3) 40%, transparent) 24%,
+    color-mix(in srgb, var(--tvz-brand-3) 20%, transparent) 42%,
+    color-mix(in srgb, var(--tvz-brand-3) 7%, transparent) 62%,
+    transparent 85%
   );
   animation: shellDriftA 42s var(--tvz-ease-out) infinite alternate;
 }
 .shell__blob--b {
-  width: clamp(220px, 34vw, 480px);
-  height: clamp(220px, 34vw, 480px);
-  bottom: -14%;
-  right: -6%;
+  width: clamp(280px, 40vw, 560px);
+  height: clamp(280px, 40vw, 560px);
+  bottom: -18%;
+  right: -10%;
   background: radial-gradient(
     circle,
     var(--tvz-brand-1) 0%,
-    color-mix(in srgb, var(--tvz-brand-1) 45%, transparent) 38%,
-    transparent 70%
+    color-mix(in srgb, var(--tvz-brand-1) 65%, transparent) 10%,
+    color-mix(in srgb, var(--tvz-brand-1) 40%, transparent) 24%,
+    color-mix(in srgb, var(--tvz-brand-1) 20%, transparent) 42%,
+    color-mix(in srgb, var(--tvz-brand-1) 7%, transparent) 62%,
+    transparent 85%
   );
   animation: shellDriftB 50s var(--tvz-ease-out) infinite alternate;
 }
 .shell__blob--c {
-  width: clamp(180px, 28vw, 400px);
-  height: clamp(180px, 28vw, 400px);
-  top: 36%;
-  left: 58%;
+  width: clamp(240px, 34vw, 480px);
+  height: clamp(240px, 34vw, 480px);
+  top: 34%;
+  left: 56%;
   background: radial-gradient(
     circle,
     var(--tvz-brand-3) 0%,
-    color-mix(in srgb, var(--tvz-brand-3) 45%, transparent) 38%,
-    transparent 70%
+    color-mix(in srgb, var(--tvz-brand-3) 65%, transparent) 10%,
+    color-mix(in srgb, var(--tvz-brand-3) 40%, transparent) 24%,
+    color-mix(in srgb, var(--tvz-brand-3) 20%, transparent) 42%,
+    color-mix(in srgb, var(--tvz-brand-3) 7%, transparent) 62%,
+    transparent 85%
   );
   animation: shellDriftC 58s var(--tvz-ease-out) infinite alternate;
 }
+/* Translate only — no `scale()` — so the animated layer never resamples the
+   blurred texture at a different size mid-drift (the other half of the
+   pixelation fix above). */
 @keyframes shellDriftA {
   from {
-    transform: translate(0, 0) scale(1);
+    transform: translate(0, 0);
   }
   to {
-    transform: translate(7vw, 9vh) scale(1.12);
+    transform: translate(6vw, 8vh);
   }
 }
 @keyframes shellDriftB {
   from {
-    transform: translate(0, 0) scale(1);
+    transform: translate(0, 0);
   }
   to {
-    transform: translate(-8vw, -6vh) scale(1.08);
+    transform: translate(-7vw, -5vh);
   }
 }
 @keyframes shellDriftC {
   from {
-    transform: translate(0, 0) scale(1);
+    transform: translate(0, 0);
   }
   to {
-    transform: translate(-5vw, 6vh) scale(0.94);
+    transform: translate(-4vw, 5vh);
   }
 }
 @media (prefers-reduced-motion: reduce) {
