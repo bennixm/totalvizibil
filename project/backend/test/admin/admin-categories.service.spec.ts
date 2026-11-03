@@ -71,18 +71,18 @@ describe('AdminCategoriesService', () => {
     it('throws BadRequestException for invalid slug', async () => {
       const prisma = fakePrisma();
       const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
-      await expect(svc.create({ slug: 'BAD SLUG', name: { ro: 'X' } } as any, actor)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        svc.create({ slug: 'BAD SLUG', name: { ro: 'X' } } as any, actor),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException for duplicate slug', async () => {
       const prisma = fakePrisma();
       prisma.__seedCat({ id: 'p1', slug: 'services' });
       const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
-      await expect(svc.create({ slug: 'services', name: { ro: 'X' } } as any, actor)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        svc.create({ slug: 'services', name: { ro: 'X' } } as any, actor),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException for three-level nesting', async () => {
@@ -107,7 +107,9 @@ describe('AdminCategoriesService', () => {
     it('throws NotFoundException when category not found', async () => {
       const prisma = fakePrisma();
       const svc = new AdminCategoriesService(prisma as any, fakeAudit() as any);
-      await expect(svc.update('missing', { slug: 'ok' } as any, actor)).rejects.toThrow(NotFoundException);
+      await expect(svc.update('missing', { slug: 'ok' } as any, actor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws BadRequestException for self-parent', async () => {

@@ -462,7 +462,9 @@ describe('AdminCompaniesService', () => {
     it('throws NotFoundException before saving when company does not exist', async () => {
       const { svc, campaigns } = makeService();
 
-      await expect(svc.saveCampaign('nonexistent', {} as any, actor)).rejects.toThrow(NotFoundException);
+      await expect(svc.saveCampaign('nonexistent', {} as any, actor)).rejects.toThrow(
+        NotFoundException,
+      );
       expect(campaigns.saveFor).not.toHaveBeenCalled();
     });
   });
@@ -471,11 +473,17 @@ describe('AdminCompaniesService', () => {
 
   describe('pending-deletion freeze', () => {
     const PENDING_METHODS: [string, (svc: AdminCompaniesService) => Promise<unknown>][] = [
-      ['updateCompany', (svc) => svc.updateCompany('company-1', { displayName: 'New' } as any, actor)],
+      [
+        'updateCompany',
+        (svc) => svc.updateCompany('company-1', { displayName: 'New' } as any, actor),
+      ],
       ['setLocation', (svc) => svc.setLocation('company-1', { nationwide: true } as any, actor)],
       ['setWebsitePublished', (svc) => svc.setWebsitePublished('company-1', false, actor)],
       ['saveCampaign', (svc) => svc.saveCampaign('company-1', {} as any, actor)],
-      ['campaignAction', (svc) => svc.campaignAction('company-1', { action: 'pause' } as any, actor)],
+      [
+        'campaignAction',
+        (svc) => svc.campaignAction('company-1', { action: 'pause' } as any, actor),
+      ],
       ['setStatus', (svc) => svc.setStatus('company-1', { status: 'suspended' } as any, actor)],
       ['upgradeToAdvanced', (svc) => svc.upgradeToAdvanced('company-1', false, actor)],
     ];
@@ -557,9 +565,9 @@ describe('AdminCompaniesService', () => {
         }),
       });
 
-      await expect(svc.campaignAction('company-1', { action: 'activate' } as any, actor)).rejects.toThrow(
-        'cpc_below_feed_minimum',
-      );
+      await expect(
+        svc.campaignAction('company-1', { action: 'activate' } as any, actor),
+      ).rejects.toThrow('cpc_below_feed_minimum');
     });
 
     it('activate succeeds when CPC clears the Feed minim', async () => {
