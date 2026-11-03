@@ -649,7 +649,9 @@ describe('AdminUsersService', () => {
     it('throws NotFoundException when user does not exist', async () => {
       const { svc } = makeService();
 
-      await expect(svc.setPassword('nonexistent', 'pass', actor)).rejects.toThrow(NotFoundException);
+      await expect(svc.setPassword('nonexistent', 'pass', actor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });
