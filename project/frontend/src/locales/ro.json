@@ -1009,7 +1009,6 @@
     "colType": "Tip",
     "txnsRecentNote": "Se afișează cele mai recente 20 de tranzacții.",
     "navJurnal": "Jurnal",
-    "jurnalSub": "Cine a făcut ce, pe platformă și pe fiecare afacere.",
     "tabStaffLog": "Jurnal Staff",
     "tabOwnerLog": "Acțiuni Owner",
     "jurnalSearchActorPlaceholder": "Caută după nume sau email…",
@@ -1303,7 +1302,6 @@
   "optimize": {
     "eyebrow": "Optimizare campanie",
     "title": "Optimizează campania",
-    "lead": "Analizăm campania după algoritmul feedului și îți arătăm unde pierzi poziții.",
     "back": "Înapoi la campanie",
     "notInFeed": "Campania nu rulează. Activeaz-o ca să apari în feed.",
     "scoreLead": "Scorul tău de vizibilitate în feed",
@@ -1339,7 +1337,6 @@
     }
   },
   "adminCat": {
-    "lead": "Structura de categorii pe două niveluri care alimentează selectorul la creare și filtrele din feed.",
     "addGroup": "Adaugă grup",
     "addChild": "Adaugă subcategorie",
     "topLevel": "Grup principal (fără părinte)",
@@ -1468,7 +1465,6 @@
     "openPublic": "Deschide pagina publică"
   },
   "adminBiz": {
-    "lead": "Toate afacerile de pe platformă. Apasă un rând pentru administrare.",
     "searchPlaceholder": "Caută după nume, slug sau email proprietar",
     "anyCampaign": "Orice campanie",
     "noCampaign": "Fără campanie",
@@ -1483,7 +1479,6 @@
     "none": "Nicio afacere"
   },
   "adminRef": {
-    "lead": "Toate recomandările programului de afiliere.",
     "total": "Total",
     "pending": "În așteptare",
     "rewarded": "Recompensate",
@@ -1497,7 +1492,6 @@
   },
   "adminFinance": {
     "dashboardTitle": "Dashboard financiar",
-    "dashboardLead": "Venituri, costuri și profit net, ca bani lichizi.",
     "thisMonth": "Luna aceasta",
     "last3Months": "3 luni",
     "last12Months": "12 luni",
@@ -1513,7 +1507,6 @@
     "paidTrafficHint": "Costul Google Ads vine din costurile înregistrate manual la categoria „Google Ads”, până la integrarea API.",
     "aiCost": "Consum AI",
     "revenueTitle": "Venituri",
-    "revenueLead": "Încărcări și rambursări confirmate.",
     "all": "Toate",
     "purchases": "Încărcări",
     "refunds": "Rambursări",
@@ -1532,7 +1525,6 @@
     "colCalls": "Apeluri",
     "colTokens": "Tokeni",
     "expensesTitle": "Costuri",
-    "expensesLead": "Costuri operaționale ale platformei, pe categorie.",
     "addExpense": "Adaugă cost",
     "editExpense": "Editează cost",
     "category": "Categorie",
@@ -1543,14 +1535,12 @@
     "deleteExpenseTitle": "Șterge costul?",
     "deleteExpenseConfirm": "Această înregistrare va fi ștearsă definitiv și nu mai poate fi recuperată.",
     "aiTitle": "Consum AI",
-    "aiLead": "Costul estimat al apelurilor către furnizorii de AI, pe model.",
     "aiTotalCost": "Cost total",
     "aiTotalCalls": "Apeluri totale",
     "aiTotalTokens": "Tokeni totali",
     "noAiUsage": "Niciun consum AI în perioada selectată."
   },
   "adminSettings": {
-    "lead": "Valori pe care platforma le poate schimba fără un deploy.",
     "pricingTitle": "Prețuri și curs valutar",
     "saved": "Setări salvate",
     "unsaved": "Modificări nesalvate",
@@ -1607,7 +1597,6 @@
     "tabAffiliate": "Afiliere",
     "tabDiscount": "Reduceri",
     "tabMaintenance": "Mentenanță",
-    "pricingNote": "Prețurile funcționalităților plătite ale platformei și cursul valutar folosit la afișarea sumelor în lei.",
     "feedPricingTitle": "Preț poziție în Feed (CPC local)",
     "feedPricingNote": "CPC minim al unui Feed = Cost promovare + Marjă profit. CPC local pentru o poziție = CPC minim + (Nr. afaceri eligibile − Poziție) × Marjă poziționare. Suma taxată la click este mereu plafonată la CPC-ul maxim propriu al afacerii.",
     "feedCostPromovare": "Cost promovare",
@@ -1616,7 +1605,6 @@
     "feedMarjaProfitHint": "Adăugată peste costul promovării pentru a forma CPC-ul minim al unui Feed.",
     "feedMarjaPozitionare": "Marjă poziționare",
     "feedMarjaPozitionareHint": "Pasul de preț între poziții consecutive în același Feed.",
-    "billingNote": "Date fiscale afișate pe fiecare factură emisă, cota de TVA aplicată și taxa reținută la o rambursare.",
     "refundTitle": "Rambursări",
     "allSaved": "Toate modificările sunt salvate"
   },
@@ -1809,9 +1797,7 @@
   "support": {
     "eyebrow": "Asistență",
     "title": "Suport",
-    "lead": "Trimite-ne un ticket și îți răspundem cât putem de repede.",
     "queueTitle": "Coadă suport",
-    "queueLead": "Toate ticketele clienților · preia, răspunde, rezolvă.",
     "newTicket": "Ticket nou",
     "newTitle": "Deschide un ticket",
     "newLead": "Descrie problema sau bug-ul. Cu cât ne dai mai multe detalii, cu atât rezolvăm mai repede.",

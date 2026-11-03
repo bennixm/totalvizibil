@@ -97,7 +97,6 @@ onMounted(() => {
       <div class="sup__headText">
         <p class="sup__eyebrow">{{ t('support.eyebrow') }}</p>
         <h1>{{ isStaff ? t('support.queueTitle') : t('support.title') }}</h1>
-        <p class="sup__lead">{{ isStaff ? t('support.queueLead') : t('support.lead') }}</p>
       </div>
       <!-- Staff work the queue; they don't file tickets from here. -->
       <v-btn
@@ -294,12 +293,6 @@ onMounted(() => {
   font-size: clamp(1.6rem, 4vw, 2.15rem);
   letter-spacing: -0.025em;
   margin: 0;
-}
-.sup__lead {
-  margin: 0.6rem 0 0;
-  font-size: 0.92rem;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  max-width: 46ch;
 }
 .sup__new {
   border-radius: 9px;

@@ -1009,7 +1009,6 @@
     "colType": "Typ",
     "txnsRecentNote": "Die 20 neuesten Transaktionen werden angezeigt.",
     "navJurnal": "Protokoll",
-    "jurnalSub": "Wer hat was getan – plattformweit und je Unternehmen.",
     "tabStaffLog": "Mitarbeiter-Protokoll",
     "tabOwnerLog": "Inhaber-Aktionen",
     "jurnalSearchActorPlaceholder": "Suche nach Name oder E-Mail…",
@@ -1303,7 +1302,6 @@
   "optimize": {
     "eyebrow": "Kampagnen-Optimierung",
     "title": "Kampagne optimieren",
-    "lead": "Wir prüfen die Kampagne anhand des Feed-Algorithmus und zeigen, wo Sie Position verlieren.",
     "back": "Zurück zur Kampagne",
     "notInFeed": "Die Kampagne läuft nicht. Aktivieren Sie sie, um im Feed zu erscheinen.",
     "scoreLead": "Ihr Sichtbarkeits-Score im Feed",
@@ -1339,7 +1337,6 @@
     }
   },
   "adminCat": {
-    "lead": "Die zweistufige Kategoriestruktur für den Auswahldialog beim Erstellen und die Feed-Filter.",
     "addGroup": "Gruppe hinzufügen",
     "addChild": "Unterkategorie hinzufügen",
     "topLevel": "Oberste Ebene (ohne Übergeordnete)",
@@ -1468,7 +1465,6 @@
     "openPublic": "Öffentliche Seite öffnen"
   },
   "adminBiz": {
-    "lead": "Alle Unternehmen der Plattform. Zeile anklicken zum Verwalten.",
     "searchPlaceholder": "Suche nach Name, Slug oder Inhaber-E-Mail",
     "anyCampaign": "Beliebige Kampagne",
     "noCampaign": "Keine Kampagne",
@@ -1483,7 +1479,6 @@
     "none": "Keine Unternehmen"
   },
   "adminRef": {
-    "lead": "Alle Empfehlungen im Partnerprogramm.",
     "total": "Gesamt",
     "pending": "Ausstehend",
     "rewarded": "Belohnt",
@@ -1497,7 +1492,6 @@
   },
   "adminFinance": {
     "dashboardTitle": "Finanz-Dashboard",
-    "dashboardLead": "Einnahmen, Kosten und Nettogewinn, als echtes Geld.",
     "thisMonth": "Dieser Monat",
     "last3Months": "3 Monate",
     "last12Months": "12 Monate",
@@ -1513,7 +1507,6 @@
     "paidTrafficHint": "Die Google Ads-Kosten stammen aus manuell erfassten „Google Ads“-Kosten, bis die API-Integration fertig ist.",
     "aiCost": "KI-Nutzung",
     "revenueTitle": "Einnahmen",
-    "revenueLead": "Bestätigte Aufladungen und Rückerstattungen.",
     "all": "Alle",
     "purchases": "Aufladungen",
     "refunds": "Rückerstattungen",
@@ -1532,7 +1525,6 @@
     "colCalls": "Aufrufe",
     "colTokens": "Token",
     "expensesTitle": "Kosten",
-    "expensesLead": "Betriebskosten der Plattform, nach Kategorie.",
     "addExpense": "Kosten hinzufügen",
     "editExpense": "Kosten bearbeiten",
     "category": "Kategorie",
@@ -1543,14 +1535,12 @@
     "deleteExpenseTitle": "Kosten löschen?",
     "deleteExpenseConfirm": "Dieser Eintrag wird endgültig gelöscht und kann nicht wiederhergestellt werden.",
     "aiTitle": "KI-Nutzung",
-    "aiLead": "Geschätzte Kosten der Aufrufe an KI-Anbieter, nach Modell.",
     "aiTotalCost": "Gesamtkosten",
     "aiTotalCalls": "Aufrufe gesamt",
     "aiTotalTokens": "Token gesamt",
     "noAiUsage": "Keine KI-Nutzung im gewählten Zeitraum."
   },
   "adminSettings": {
-    "lead": "Werte, die die Plattform ohne Deploy ändern kann.",
     "pricingTitle": "Preise & Wechselkurs",
     "saved": "Einstellungen gespeichert",
     "unsaved": "Nicht gespeicherte Änderungen",
@@ -1607,7 +1597,6 @@
     "tabAffiliate": "Empfehlungsprogramm",
     "tabDiscount": "Rabatte",
     "tabMaintenance": "Wartung",
-    "pricingNote": "Preise für die kostenpflichtigen Funktionen der Plattform und der Wechselkurs für Beträge in Lei.",
     "feedPricingTitle": "Feed-Positionspreis (CPC local)",
     "feedPricingNote": "CPC minim eines Feeds = Cost promovare + Marjă profit. CPC local für eine Position = CPC minim + (zulässige Mitbewerber − Position) × Marjă poziționare. Der tatsächlich pro Klick berechnete Betrag ist immer auf das eigene CPC maxim des Unternehmens begrenzt.",
     "feedCostPromovare": "Cost promovare",
@@ -1616,7 +1605,6 @@
     "feedMarjaProfitHint": "Wird zu den Promotionskosten addiert, um das CPC minim eines Feeds zu bilden.",
     "feedMarjaPozitionare": "Marjă poziționare",
     "feedMarjaPozitionareHint": "Der Preisschritt zwischen aufeinanderfolgenden Positionen im selben Feed.",
-    "billingNote": "Steuerliche Angaben auf jeder ausgestellten Rechnung, der angewandte MwSt.-Satz und die bei einer Rückerstattung einbehaltene Gebühr.",
     "refundTitle": "Rückerstattungen",
     "allSaved": "Alle Änderungen gespeichert"
   },
@@ -1809,9 +1797,7 @@
   "support": {
     "eyebrow": "Hilfe",
     "title": "Support",
-    "lead": "Sende uns ein Ticket und wir melden uns so schnell wie möglich.",
     "queueTitle": "Support-Warteschlange",
-    "queueLead": "Jedes Kundenticket · übernehmen, antworten, lösen.",
     "newTicket": "Neues Ticket",
     "newTitle": "Ticket öffnen",
     "newLead": "Beschreibe das Problem oder den Bug. Je mehr Details, desto schneller die Lösung.",
