@@ -1,5 +1,5 @@
 name: Deploy to VPS
-# Re-save to retrigger a deploy run after updating repo secrets.
+# Re-save to retrigger a deploy run after updating repo secrets (attempt 2).
 
 on:
   push:
