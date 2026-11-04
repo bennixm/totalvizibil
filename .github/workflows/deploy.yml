@@ -1,5 +1,5 @@
 name: Deploy to VPS
-# Re-save to retrigger a deploy run after updating repo secrets (attempt 2).
+# Re-save to retrigger a deploy run after resetting VPS_SSH_KEY via `gh secret set` (attempt 3).
 
 on:
   push:
