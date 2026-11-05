@@ -127,6 +127,12 @@ function fmtCr(v: number): string {
   return n(v, { maximumFractionDigits: 2 }) + ' cr'
 }
 const cappedDaysCount = computed(() => (report.value?.series ?? []).filter((p) => p.capped).length)
+// A flat zero line reads as broken, not "no data yet" — same rule the
+// Dashboard's own trend chart already applies.
+const hasChartData = computed(() => {
+  const pts = report.value?.series ?? []
+  return pts.some((p) => p.clicks > 0 || p.spent > 0)
+})
 
 // --- Consum pe căutare: every atomic Feed (județ + subcategorie) that ever
 // billed a click, joined against the company's CURRENT position in it (a
@@ -349,8 +355,9 @@ watch(
         </div>
       </div>
 
-      <!-- Evolution: clicks + spend, 14 days -->
-      <section v-if="hasCampaign && report" class="cons__section">
+      <!-- Evolution: clicks + spend, 14 days — hidden until there's at
+           least one real point, same rule the Dashboard's trend chart uses. -->
+      <section v-if="hasCampaign && report && hasChartData" class="cons__section">
         <div class="cons__sectionHead">
           <h2 class="cons__sectionTitle">{{ t('consumption.evolutionTitle') }}</h2>
           <v-btn

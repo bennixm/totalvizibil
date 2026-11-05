@@ -640,6 +640,7 @@ export class CampaignService implements OnModuleInit {
     ip: string | undefined,
     userAgent: string | undefined,
     feedHint?: ClickFeedHint,
+    gclid?: string,
   ): Promise<ClickResult> {
     const day = utcDay();
     const visitorHash = visitorFingerprint(ip, userAgent, companyId, day);
@@ -663,7 +664,7 @@ export class CampaignService implements OnModuleInit {
     });
     if (recentFromIp >= IP_CLICK_WINDOW_LIMIT) return { billed: false, reason: 'ip_rate' };
 
-    const cfg = await this.analytics.marginConfig();
+    const cfg = await this.analytics.marginConfig({ gclid });
 
     return this.prisma.$transaction(async (tx): Promise<ClickResult> => {
       const company = await tx.company.findUnique({
@@ -782,6 +783,7 @@ export class CampaignService implements OnModuleInit {
           costMinor: cpc,
           feedCounty: feedId.county,
           feedCategoryId: feedId.leafId,
+          costSource: gclid ? 'google_ads' : 'organic',
         },
       });
 

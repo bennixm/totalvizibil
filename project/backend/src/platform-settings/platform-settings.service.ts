@@ -27,6 +27,9 @@ export const SETTING_KEYS = {
   feedMarjaProfitCredits: 'feed_marja_profit_credits',
   feedMarjaPozitionareCredits: 'feed_marja_pozitionare_credits',
   domainPurchaseFeeCredits: 'domain_purchase_fee_credits',
+  googleAdsAvgCpcData: 'google_ads_avg_cpc_data',
+  googleAdsCpcBufferPct: 'google_ads_cpc_buffer_pct',
+  googleAdsMaxCpcCredits: 'google_ads_max_cpc_credits',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -94,6 +97,34 @@ const MIN_FEED_COST_PROMOVARE_CREDITS = 0.01;
 const MAX_FEED_COST_PROMOVARE_CREDITS = 1000;
 const MIN_FEED_MARGIN_CREDITS = 0;
 const MAX_FEED_MARGIN_CREDITS = 1000;
+
+/**
+ * Google Ads rolling-average CPC — safety parameters around the dynamic
+ * `costPromovare` used for Google-Ads-attributed clicks (see
+ * GoogleAdsCpcSyncService / AnalyticsService.marginConfig). The average
+ * itself is never admin-edited (it's machine-written, every sync cycle);
+ * these two ARE admin-edited, because they're judgment calls, not data:
+ * `bufferPct` pads the average to absorb the gap between syncs, and
+ * `maxCpcCredits` is the ceiling used whenever the cached average is
+ * missing or stale (should mirror the real Max CPC bid set in Google Ads —
+ * Google itself never charges more than that bid, so using it as a
+ * fallback can never cause a loss).
+ */
+const DEFAULT_GOOGLE_ADS_CPC_BUFFER_PCT = 25;
+const MIN_GOOGLE_ADS_CPC_BUFFER_PCT = 0;
+const MAX_GOOGLE_ADS_CPC_BUFFER_PCT = 200;
+const DEFAULT_GOOGLE_ADS_MAX_CPC_CREDITS = 2;
+const MIN_GOOGLE_ADS_MAX_CPC_CREDITS = 0.01;
+const MAX_GOOGLE_ADS_MAX_CPC_CREDITS = 1000;
+/** Older than this, the cached average is treated as stale and the fallback
+ *  ceiling is used instead — keeps a dead/misconfigured sync job from
+ *  quietly pricing clicks off a number from hours or days ago. */
+export const GOOGLE_ADS_CPC_STALE_AFTER_MS = 30 * 60 * 1000;
+
+export interface GoogleAdsAvgCpc {
+  credits: number;
+  updatedAt: string;
+}
 
 export interface InvoiceIssuer {
   name: string;
@@ -576,6 +607,78 @@ export class PlatformSettingsService {
       credits,
       MIN_FEED_MARGIN_CREDITS,
       MAX_FEED_MARGIN_CREDITS,
+    );
+  }
+
+  // --- Google Ads rolling-average CPC -------------------------------------
+
+  /** Current cached average, or `null` if the sync job has never written one
+   *  (not configured yet, or hasn't completed a first cycle). Freshness is
+   *  the CALLER's job to check against `updatedAt` — this just reads what's
+   *  there, stale or not (see `GOOGLE_ADS_CPC_STALE_AFTER_MS`). */
+  async googleAdsAvgCpc(): Promise<GoogleAdsAvgCpc | null> {
+    const raw = await this.get(SETTING_KEYS.googleAdsAvgCpcData);
+    if (!raw) return null;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        typeof (parsed as GoogleAdsAvgCpc).credits === 'number' &&
+        typeof (parsed as GoogleAdsAvgCpc).updatedAt === 'string'
+      ) {
+        return parsed as GoogleAdsAvgCpc;
+      }
+    } catch {
+      /* fall through to null below */
+    }
+    this.logger.warn(`Ignoring malformed ${SETTING_KEYS.googleAdsAvgCpcData}=${raw}`);
+    return null;
+  }
+  /** Written only by `GoogleAdsCpcSyncService` — never exposed through the
+   *  admin settings PATCH (see `UpdateSettingsDto`). */
+  async setGoogleAdsAvgCpc(credits: number): Promise<void> {
+    await this.set(
+      SETTING_KEYS.googleAdsAvgCpcData,
+      JSON.stringify({ credits, updatedAt: new Date().toISOString() } satisfies GoogleAdsAvgCpc),
+    );
+  }
+
+  /** Safety margin (%) added on top of the raw average before it's charged. */
+  googleAdsCpcBufferPct(): Promise<number> {
+    return this.decimalCreditSetting(
+      SETTING_KEYS.googleAdsCpcBufferPct,
+      DEFAULT_GOOGLE_ADS_CPC_BUFFER_PCT,
+      MIN_GOOGLE_ADS_CPC_BUFFER_PCT,
+      MAX_GOOGLE_ADS_CPC_BUFFER_PCT,
+    );
+  }
+  setGoogleAdsCpcBufferPct(pct: number): Promise<number> {
+    return this.setDecimalCreditSetting(
+      SETTING_KEYS.googleAdsCpcBufferPct,
+      pct,
+      MIN_GOOGLE_ADS_CPC_BUFFER_PCT,
+      MAX_GOOGLE_ADS_CPC_BUFFER_PCT,
+    );
+  }
+
+  /** Fallback ceiling (credits) used whenever the cached average is missing
+   *  or stale — should mirror the real Max CPC bid set in the Google Ads
+   *  campaign itself. */
+  googleAdsMaxCpcCredits(): Promise<number> {
+    return this.decimalCreditSetting(
+      SETTING_KEYS.googleAdsMaxCpcCredits,
+      DEFAULT_GOOGLE_ADS_MAX_CPC_CREDITS,
+      MIN_GOOGLE_ADS_MAX_CPC_CREDITS,
+      MAX_GOOGLE_ADS_MAX_CPC_CREDITS,
+    );
+  }
+  setGoogleAdsMaxCpcCredits(credits: number): Promise<number> {
+    return this.setDecimalCreditSetting(
+      SETTING_KEYS.googleAdsMaxCpcCredits,
+      credits,
+      MIN_GOOGLE_ADS_MAX_CPC_CREDITS,
+      MAX_GOOGLE_ADS_MAX_CPC_CREDITS,
     );
   }
 

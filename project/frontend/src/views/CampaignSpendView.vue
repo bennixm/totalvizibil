@@ -9,7 +9,6 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
-import TrendChart from '@/components/TrendChart.vue'
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { companyRoute } from '@/services/routes'
 import { useMoney } from '@/composables/useMoney'
@@ -192,27 +191,6 @@ const qualityInline = computed(() => {
   if (!q || q.billed + q.unbilled === 0) return null
   return { billed: q.billed, unbilled: q.unbilled }
 })
-
-// Two separate small trends, each on its own scale — clicks (small whole
-// numbers) and spend (credit decimals) were previously crammed onto one
-// shared axis, which is what made the old single chart unreadable.
-const chartClicks = computed(() => {
-  const pts = s.value?.series ?? []
-  return {
-    labels: pts.map((p) => p.date.slice(5)),
-    series: [{ label: t('spend.legendClicks'), values: pts.map((p) => p.clicks) }],
-  }
-})
-const chartSpend = computed(() => {
-  const pts = s.value?.series ?? []
-  return {
-    labels: pts.map((p) => p.date.slice(5)),
-    series: [{ label: t('spend.legendSpent'), values: pts.map((p) => p.spent) }],
-  }
-})
-function fmtCr(v: number): string {
-  return n(v, { maximumFractionDigits: 2 }) + ' cr'
-}
 
 async function loadFor(id: string): Promise<void> {
   companyId.value = id
@@ -573,20 +551,10 @@ watch(
         </div>
       </section>
 
-      <!-- Trend: clicks and spend each get their own scale, stacked -->
-      <section class="card ov__chart">
-        <div class="ov__chartHead">
-          <h3>{{ t('spend.trendTitle') }}</h3>
-        </div>
-        <div class="ov__chartGroup">
-          <p class="ov__chartLabel">{{ t('spend.legendClicks') }}</p>
-          <TrendChart :labels="chartClicks.labels" :series="chartClicks.series" />
-        </div>
-        <div class="ov__chartGroup">
-          <p class="ov__chartLabel">{{ t('spend.legendSpent') }}</p>
-          <TrendChart :labels="chartSpend.labels" :series="chartSpend.series" :format="fmtCr" />
-        </div>
-      </section>
+      <!-- The 14-day trend chart used to be duplicated here AND on the
+           Consumption page with identical data — removed here; the
+           "Vezi tot" link below (and the quality-inline link above) hand
+           off to Consumption, which is now the one place it lives. -->
 
       <!-- Spend preview: a few rows, "Vezi tot" hands off to the full,
            filterable, paginated breakdown on the consumption page. -->
@@ -1097,10 +1065,9 @@ watch(
   font-weight: 600;
 }
 
-/* Chart ------------------------------------------------------------- */
-.ov__chart {
-  margin-bottom: 1rem;
-}
+/* Section header row (title + action button) — shared with Spend preview
+   below; the rest of the old "Chart" block was the trend chart itself,
+   removed (see the template comment above). */
 .ov__chartHead {
   display: flex;
   align-items: center;
@@ -1110,15 +1077,6 @@ watch(
 }
 .ov__chartHead h3 {
   margin: 0;
-}
-.ov__chartGroup + .ov__chartGroup {
-  margin-top: 1.5rem;
-}
-.ov__chartLabel {
-  margin: 0 0 0.4rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 /* Spend preview ------------------------------------------------------ */

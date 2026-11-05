@@ -29,6 +29,7 @@ import { BusinessActionLogModule } from './admin/business-action-log.module';
 import { SupportModule } from './support/support.module';
 import { HealthModule } from './health/health.module';
 import { FinanceModule } from './finance/finance.module';
+import { GoogleAdsModule } from './google-ads/google-ads.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { FinanceModule } from './finance/finance.module';
     SupportModule,
     HealthModule,
     FinanceModule,
+    GoogleAdsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

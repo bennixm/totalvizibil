@@ -146,10 +146,12 @@ export class AdminController {
       refundFeePct,
       creditsDiscountEnabled,
       creditsDiscountPct,
-      feedCostPromovareCredits,
       feedMarjaProfitCredits,
       feedMarjaPozitionareCredits,
       domainPurchaseFeeCredits,
+      googleAdsCpcBufferPct,
+      googleAdsMaxCpcCredits,
+      googleAdsAvgCpc,
     ] = await Promise.all([
       this.settings.eurRonRate(),
       this.settings.advancedBuilderPriceCredits(),
@@ -163,10 +165,12 @@ export class AdminController {
       this.settings.refundFeePct(),
       this.settings.creditsDiscountEnabled(),
       this.settings.creditsDiscountPct(),
-      this.settings.feedCostPromovareCredits(),
       this.settings.feedMarjaProfitCredits(),
       this.settings.feedMarjaPozitionareCredits(),
       this.settings.domainPurchaseFeeCredits(),
+      this.settings.googleAdsCpcBufferPct(),
+      this.settings.googleAdsMaxCpcCredits(),
+      this.settings.googleAdsAvgCpc(),
     ]);
     return {
       eurRonRate,
@@ -180,10 +184,14 @@ export class AdminController {
       refundFeePct,
       creditsDiscountEnabled,
       creditsDiscountPct,
-      feedCostPromovareCredits,
       feedMarjaProfitCredits,
       feedMarjaPozitionareCredits,
       domainPurchaseFeeCredits,
+      googleAdsCpcBufferPct,
+      googleAdsMaxCpcCredits,
+      // Read-only — never accepted back through PATCH, see UpdateSettingsDto.
+      googleAdsAvgCpcCredits: googleAdsAvgCpc?.credits ?? null,
+      googleAdsAvgCpcUpdatedAt: googleAdsAvgCpc?.updatedAt ?? null,
       invoiceIssuerName: invoiceIssuer.name,
       invoiceIssuerTaxId: invoiceIssuer.taxId,
       invoiceIssuerRegCom: invoiceIssuer.regCom,
@@ -231,9 +239,6 @@ export class AdminController {
         pct: dto.creditsDiscountPct,
       });
     }
-    if (dto.feedCostPromovareCredits !== undefined) {
-      await this.settings.setFeedCostPromovareCredits(dto.feedCostPromovareCredits);
-    }
     if (dto.feedMarjaProfitCredits !== undefined) {
       await this.settings.setFeedMarjaProfitCredits(dto.feedMarjaProfitCredits);
     }
@@ -242,6 +247,12 @@ export class AdminController {
     }
     if (dto.domainPurchaseFeeCredits !== undefined) {
       await this.settings.setDomainPurchaseFeeCredits(dto.domainPurchaseFeeCredits);
+    }
+    if (dto.googleAdsCpcBufferPct !== undefined) {
+      await this.settings.setGoogleAdsCpcBufferPct(dto.googleAdsCpcBufferPct);
+    }
+    if (dto.googleAdsMaxCpcCredits !== undefined) {
+      await this.settings.setGoogleAdsMaxCpcCredits(dto.googleAdsMaxCpcCredits);
     }
     const {
       invoiceIssuerName: name,

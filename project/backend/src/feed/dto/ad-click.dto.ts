@@ -16,4 +16,15 @@ export class AdClickDto {
   @IsString()
   @MaxLength(40)
   county?: string;
+
+  /** Google Click ID, carried from `?gclid=...` on landing (see
+   *  `router/index.ts`'s `tvz.gclid` capture, mirroring the existing
+   *  `tvz.ref` affiliate pattern) — present only when this visitor arrived
+   *  via a Google Ads referral within the attribution window. Switches this
+   *  click's `costPromovare` to the Google Ads rolling-average CPC instead
+   *  of the static default (see `AnalyticsService.marginConfig`). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  gclid?: string;
 }

@@ -1168,6 +1168,11 @@ model AdClick {
   // context could be resolved (company has no category/location at all).
   feedCounty     String?  @map("feed_county")
   feedCategoryId String?  @map("feed_category_id") @db.Uuid
+  // Which `costPromovare` priced this click's `costMinor` — 'organic' (the
+  // static admin/default floor) or 'google_ads' (the rolling-average CPC
+  // cache, see GoogleAdsCpcSyncService). Null on an unbilled click, where
+  // the question never arose.
+  costSource     String?  @map("cost_source")
   createdAt      DateTime @default(now()) @map("created_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

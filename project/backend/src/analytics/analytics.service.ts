@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import {
+  GOOGLE_ADS_CPC_STALE_AFTER_MS,
+  PlatformSettingsService,
+} from '../platform-settings/platform-settings.service';
 import { money, creditsToMinor } from '../wallet/money';
 import { utcDay } from '../campaigns/ad-click';
 import { round10 } from '../campaigns/campaign-advisor';
@@ -94,10 +97,20 @@ export class AnalyticsService {
     private readonly platformSettings: PlatformSettingsService,
   ) {}
 
-  /** Current CPC-local margin configuration, in minor units. */
-  async marginConfig(): Promise<FeedMarginConfig> {
+  /**
+   * Current CPC-local margin configuration, in minor units. `costPromovare`
+   * is the one component that varies: a click attributed to a Google Ads
+   * referral (`opts.gclid` set, by `CampaignService.registerClick`) prices
+   * off the Google Ads rolling-average CPC instead of the static default —
+   * see `GoogleAdsCpcSyncService` for how that cache gets filled, and
+   * `googleAdsCostPromovareCredits` below for the fallback chain. Every
+   * OTHER caller (none of which pass `gclid`) keeps today's exact behaviour.
+   */
+  async marginConfig(opts?: { gclid?: string | null }): Promise<FeedMarginConfig> {
     const [costPromovareCredits, marjaProfitCredits, marjaPozitionareCredits] = await Promise.all([
-      this.platformSettings.feedCostPromovareCredits(),
+      opts?.gclid
+        ? this.googleAdsCostPromovareCredits()
+        : this.platformSettings.feedCostPromovareCredits(),
       this.platformSettings.feedMarjaProfitCredits(),
       this.platformSettings.feedMarjaPozitionareCredits(),
     ]);
@@ -106,6 +119,29 @@ export class AnalyticsService {
       marjaProfitMinor: creditsToMinor(marjaProfitCredits),
       marjaPozitionareMinor: creditsToMinor(marjaPozitionareCredits),
     };
+  }
+
+  /**
+   * `costPromovare` for a Google-Ads-attributed click: the cached rolling
+   * average (see `GoogleAdsCpcSyncService`) plus its safety buffer, as long
+   * as that cache is fresh — `GOOGLE_ADS_CPC_STALE_AFTER_MS` old or younger.
+   * Missing or stale cache (sync job never ran, not configured, or has been
+   * failing) falls back to the admin-set Max CPC ceiling instead: Google
+   * itself never charges more than that bid, so pricing off it can never
+   * cause a loss, only a (safe) overcharge relative to the real average.
+   */
+  private async googleAdsCostPromovareCredits(): Promise<number> {
+    const cached = await this.platformSettings.googleAdsAvgCpc();
+    const freshCutoff = Date.now() - GOOGLE_ADS_CPC_STALE_AFTER_MS;
+    if (cached && new Date(cached.updatedAt).getTime() >= freshCutoff) {
+      const bufferPct = await this.platformSettings.googleAdsCpcBufferPct();
+      // Not `round10` — that rounds MINOR units to the nearest 10 (for tidy
+      // CPC suggestions elsewhere in this file). This is a credits float;
+      // `creditsToMinor` in the caller already rounds it to a clean minor
+      // integer, no pre-rounding needed here.
+      return cached.credits * (1 + bufferPct / 100);
+    }
+    return this.platformSettings.googleAdsMaxCpcCredits();
   }
 
   // --- shared: lead response aggregation -----------------------------
