@@ -96,13 +96,11 @@ const hasCampaign = computed(() => !!report.value?.hasCampaign)
 const kpis = computed(() => {
   const r = report.value
   if (!r) return null
-  const runwayDays = r.runway.daysAtRecentPace ?? r.runway.daysAtBudget
   return {
     total: breakdown.value?.total.credits ?? 0,
     clicksLifetime: r.lifetime.clicks,
     clicksToday: r.today.clicks,
     cpcEffective: r.lifetime.cpcEffective,
-    runwayDays,
   }
 })
 
@@ -349,23 +347,21 @@ watch(
           <span class="kpi__label">{{ t('consumption.heroCpc') }}</span>
           <span class="kpi__sub">{{ t('consumption.heroCpcSub') }}</span>
         </div>
-        <div v-if="hasCampaign" class="kpi" :class="{ 'kpi--warn': kpis.runwayDays != null && kpis.runwayDays < 5 }">
-          <span class="kpi__icon"><v-icon icon="mdi-timer-sand" size="20" /></span>
-          <strong class="kpi__value">
-            {{ kpis.runwayDays != null ? n(kpis.runwayDays, { maximumFractionDigits: 1 }) : '—' }}
-          </strong>
-          <span class="kpi__label">{{ t('consumption.heroRunway') }}</span>
-          <span class="kpi__sub">{{ t('consumption.heroRunwaySub') }}</span>
-        </div>
       </div>
 
       <!-- Evolution: clicks + spend, 14 days -->
       <section v-if="hasCampaign && report" class="cons__section">
         <div class="cons__sectionHead">
           <h2 class="cons__sectionTitle">{{ t('consumption.evolutionTitle') }}</h2>
-          <router-link :to="{ name: 'campaign', query: { c: companyId } }" class="cons__sectionAction">
-            {{ t('consumption.viewCampaign') }} <v-icon icon="mdi-arrow-right" size="13" />
-          </router-link>
+          <v-btn
+            variant="tonal"
+            size="small"
+            rounded="pill"
+            append-icon="mdi-arrow-right"
+            :to="{ name: 'campaign', query: { c: companyId } }"
+          >
+            {{ t('consumption.viewCampaign') }}
+          </v-btn>
         </div>
         <div class="card cons__chart">
           <div class="cons__chartGroup">
@@ -664,7 +660,7 @@ watch(
 /* KPI row ---------------------------------------------------------------- */
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.75rem;
   margin-bottom: 1.5rem;
 }
@@ -693,10 +689,6 @@ watch(
   border-color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.06);
 }
-.kpi--warn {
-  border-color: rgba(var(--v-theme-warning), 0.4);
-  background: rgba(var(--v-theme-warning), 0.05);
-}
 .kpi__icon {
   display: grid;
   place-items: center;
@@ -706,10 +698,6 @@ watch(
   margin-bottom: 0.3rem;
   color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.1);
-}
-.kpi--warn .kpi__icon {
-  color: rgb(var(--v-theme-warning));
-  background: rgba(var(--v-theme-warning), 0.14);
 }
 .kpi__value {
   font-family: 'Space Grotesk Variable', sans-serif;
@@ -751,19 +739,6 @@ watch(
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.cons__sectionAction {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  flex: none;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: rgb(var(--v-theme-primary));
-  white-space: nowrap;
-}
-.cons__sectionAction:hover {
-  text-decoration: underline;
 }
 
 /* Evolution charts -------------------------------------------------------- */

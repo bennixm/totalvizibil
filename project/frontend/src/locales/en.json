@@ -67,7 +67,11 @@
     "light": "Light",
     "dark": "Dark",
     "system": "System",
-    "toggle": "Toggle theme"
+    "toggle": "Toggle theme",
+    "bgEffectLabel": "Animated background",
+    "bgEffectToggle": "Animated background",
+    "bgEffectOn": "On",
+    "bgEffectOff": "Off"
   },
   "language": {
     "label": "Language",
@@ -1630,8 +1634,6 @@
     "otherTitle": "Other spend",
     "heroCpc": "Effective CPC",
     "heroCpcSub": "average across every billed click",
-    "heroRunway": "Wallet runway",
-    "heroRunwaySub": "days, at the recent pace",
     "evolutionTitle": "Evolution · 14 days",
     "cappedNote": "{n} days hit the daily budget cap, in the last 14 days.",
     "byFeedTitle": "Spend by search",

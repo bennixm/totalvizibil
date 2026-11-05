@@ -246,7 +246,9 @@ const tagline = computed(() => {
   padding: 1.5rem 1.7rem 1.5rem 2rem;
   border-radius: var(--tvz-radius-lg);
   border: 1px solid var(--tvz-glass-border);
-  background: rgb(var(--v-theme-surface));
+  background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   color: inherit;
   text-decoration: none;
   overflow: hidden;
@@ -409,7 +411,9 @@ const tagline = computed(() => {
   width: 100%;
   border-radius: var(--tvz-radius-lg);
   border: 1px solid var(--tvz-glass-border);
-  background: rgb(var(--v-theme-surface));
+  background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   color: inherit;
   text-decoration: none;
   overflow: hidden;

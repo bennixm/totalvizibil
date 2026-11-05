@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
 
 import AppBar from '@/components/AppBar.vue'
+import MeshGradientBg from '@/components/background/MeshGradientBg.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppToasts from '@/components/AppToasts.vue'
@@ -18,6 +19,7 @@ import { useSignOut } from '@/composables/useSignOut'
 import { useThemeSync } from '@/composables/useThemeSync'
 import { useUserNavGroups } from '@/composables/useUserNavGroups'
 import { useAuthStore } from '@/stores/auth'
+import { usePreferencesStore } from '@/stores/preferences'
 import { useUiStore } from '@/stores/ui'
 
 // Keep Vuetify theme + i18n locale in sync with the persisted preferences store.
@@ -28,6 +30,7 @@ const { mdAndUp } = useDisplay()
 const route = useRoute()
 const auth = useAuthStore()
 const ui = useUiStore()
+const prefs = usePreferencesStore()
 const { groups: userNavGroups } = useUserNavGroups()
 const { groups: adminNavGroups } = useAdminNavGroups()
 const { signOut } = useSignOut()
@@ -52,16 +55,12 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
     <NotificationDrawer v-if="auth.isAuthenticated" />
 
     <v-main class="shell" :class="{ 'shell--mobile': !mdAndUp }">
-      <!-- Ambient light behind the panel only — never the public/marketing
-           pages. Three blurred blobs drifting via `transform` (GPU-
-           composited, cheap) so the glass sections sitting on top (.dcard,
-           AdminSection's .asec, .ana__hero/__chart — see tokens.scss
-           --tvz-glass-*) have something alive to show through. -->
-      <div v-if="showSidebar" class="shell__glow" aria-hidden="true">
-        <span class="shell__blob shell__blob--a" />
-        <span class="shell__blob shell__blob--b" />
-        <span class="shell__blob shell__blob--c" />
-      </div>
+      <!-- App-wide ambient background (panel and public pages alike) — opt-
+           out via the "Fundal animat" toggle (AppBar top-left, AppFooter)
+           for users on weaker hardware; see MeshGradientBg.vue for the perf
+           guards (capped DPR, prefers-reduced-motion, silent no-op when
+           WebGL2 is unavailable). -->
+      <MeshGradientBg v-if="prefs.bgEffectEnabled" />
       <v-layout v-if="showSidebar" class="panel-layout">
         <AppSidebar :groups="sidebarGroups">
           <!-- `hasReachableStaffArea`, not `isPlatformStaff`: the latter is
@@ -98,116 +97,6 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
 </template>
 
 <style scoped>
-.shell__glow {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  pointer-events: none;
-}
-.shell__blob {
-  position: absolute;
-  border-radius: 50%;
-  /* A light touch-up only — the softness now comes mainly from the gradient
-     itself (many stops, long fade), not this. A big `filter: blur()` on a
-     large element is a known Chromium pixelation trap: the blur gets
-     rasterised at reduced internal resolution, and animating `transform:
-     scale()` on top of that (the old version did) stretches the already-
-     blocky raster further. Analytic gradients don't have that failure mode
-     at any size, so that does the real work; this just rounds off the stops. */
-  filter: blur(20px);
-  opacity: var(--tvz-glow-opacity, 0.2);
-  will-change: transform;
-}
-/* Dark ground: additive "light" blending instead of flat alpha compositing —
-   plus-lighter accumulates brightness like a real light source instead of
-   painting a flat tinted disc over near-black, which reads as more natural
-   and keeps what little rasterisation the blur above still does from
-   showing as visible steps. */
-.v-theme--dark .shell__blob {
-  mix-blend-mode: plus-lighter;
-}
-.shell__blob--a {
-  width: clamp(320px, 48vw, 640px);
-  height: clamp(320px, 48vw, 640px);
-  top: -16%;
-  left: -12%;
-  background: radial-gradient(
-    circle,
-    var(--tvz-brand-3) 0%,
-    color-mix(in srgb, var(--tvz-brand-3) 65%, transparent) 10%,
-    color-mix(in srgb, var(--tvz-brand-3) 40%, transparent) 24%,
-    color-mix(in srgb, var(--tvz-brand-3) 20%, transparent) 42%,
-    color-mix(in srgb, var(--tvz-brand-3) 7%, transparent) 62%,
-    transparent 85%
-  );
-  animation: shellDriftA 42s var(--tvz-ease-out) infinite alternate;
-}
-.shell__blob--b {
-  width: clamp(280px, 40vw, 560px);
-  height: clamp(280px, 40vw, 560px);
-  bottom: -18%;
-  right: -10%;
-  background: radial-gradient(
-    circle,
-    var(--tvz-brand-1) 0%,
-    color-mix(in srgb, var(--tvz-brand-1) 65%, transparent) 10%,
-    color-mix(in srgb, var(--tvz-brand-1) 40%, transparent) 24%,
-    color-mix(in srgb, var(--tvz-brand-1) 20%, transparent) 42%,
-    color-mix(in srgb, var(--tvz-brand-1) 7%, transparent) 62%,
-    transparent 85%
-  );
-  animation: shellDriftB 50s var(--tvz-ease-out) infinite alternate;
-}
-.shell__blob--c {
-  width: clamp(240px, 34vw, 480px);
-  height: clamp(240px, 34vw, 480px);
-  top: 34%;
-  left: 56%;
-  background: radial-gradient(
-    circle,
-    var(--tvz-brand-3) 0%,
-    color-mix(in srgb, var(--tvz-brand-3) 65%, transparent) 10%,
-    color-mix(in srgb, var(--tvz-brand-3) 40%, transparent) 24%,
-    color-mix(in srgb, var(--tvz-brand-3) 20%, transparent) 42%,
-    color-mix(in srgb, var(--tvz-brand-3) 7%, transparent) 62%,
-    transparent 85%
-  );
-  animation: shellDriftC 58s var(--tvz-ease-out) infinite alternate;
-}
-/* Translate only — no `scale()` — so the animated layer never resamples the
-   blurred texture at a different size mid-drift (the other half of the
-   pixelation fix above). */
-@keyframes shellDriftA {
-  from {
-    transform: translate(0, 0);
-  }
-  to {
-    transform: translate(6vw, 8vh);
-  }
-}
-@keyframes shellDriftB {
-  from {
-    transform: translate(0, 0);
-  }
-  to {
-    transform: translate(-7vw, -5vh);
-  }
-}
-@keyframes shellDriftC {
-  from {
-    transform: translate(0, 0);
-  }
-  to {
-    transform: translate(-4vw, 5vh);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .shell__blob {
-    animation: none;
-  }
-}
-
 /* Clear the fixed mobile tab bar so page content is never hidden behind it. */
 .shell--mobile {
   padding-bottom: calc(var(--tvz-tabbar-h) + env(safe-area-inset-bottom, 0px) + 12px);

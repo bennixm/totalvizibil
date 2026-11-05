@@ -540,10 +540,15 @@ function shortDate(iso: string): string {
             <v-card border flat class="tvz-card pa-5">
               <div class="d-flex align-center justify-space-between flex-wrap ga-2 mb-1">
                 <h2 class="acc__h2 mb-0">{{ t('account.billingTitle') }}</h2>
-                <router-link :to="{ name: 'invoices' }" class="acc__invoicesLink">
-                  <v-icon icon="mdi-receipt-text-outline" size="15" />
+                <v-btn
+                  variant="tonal"
+                  size="small"
+                  rounded="pill"
+                  prepend-icon="mdi-receipt-text-outline"
+                  :to="{ name: 'invoices' }"
+                >
                   {{ t('account.billingSeeInvoices') }}
-                </router-link>
+                </v-btn>
               </div>
               <p class="acc__note">{{ t('account.billingNote') }}</p>
 
@@ -771,15 +776,6 @@ function shortDate(iso: string): string {
   grid-template-columns: 1fr 1fr;
   gap: 0 1rem;
 }
-.acc__invoicesLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: rgb(var(--v-theme-primary));
-  white-space: nowrap;
-}
 .acc__h2 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-size: 1.05rem;
@@ -927,6 +923,13 @@ function shortDate(iso: string): string {
 /* Mobile: referred-client rows stop forcing a 480px horizontal scroll —
    each becomes a card with the client up top and the rest on labeled lines. */
 @media (max-width: 640px) {
+  /* Billing form's paired fields (CUI/Reg. Com., Oraș/Județ, ...) had no
+     mobile override at all — two text fields squeezed side by side on a
+     phone instead of stacking. */
+  .acc__row2 {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
   .acc__refTableWrap {
     overflow-x: visible;
   }
@@ -979,9 +982,13 @@ function shortDate(iso: string): string {
 @media (max-width: 560px) {
   .acc__refLink {
     flex-direction: column;
+    /* `align-items: flex-start` (set above for the row layout) shrinks every
+       item to its own content width once this flips to a column — collapsing
+       the readonly link input to a sliver too narrow to read the URL in. */
+    align-items: stretch;
   }
   .acc__refLink .v-btn {
-    align-self: flex-start;
+    align-self: stretch;
   }
   .acc__refStats {
     gap: 1.25rem;

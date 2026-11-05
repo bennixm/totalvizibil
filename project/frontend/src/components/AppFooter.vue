@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
+import BgEffectToggle from '@/components/BgEffectToggle.vue'
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 
@@ -26,6 +27,7 @@ const year = new Date().getFullYear()
 
         <div class="d-flex flex-column ga-4 align-start align-md-end">
           <ThemeToggle />
+          <BgEffectToggle />
           <div class="d-flex align-center ga-2">
             <span class="text-caption text-medium-emphasis">{{ t('language.label') }}</span>
             <LocaleSwitcher />

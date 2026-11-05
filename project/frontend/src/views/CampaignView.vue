@@ -906,19 +906,6 @@ watch(
   color: rgba(var(--v-theme-on-surface), 0.55);
   font-size: 0.9em;
 }
-.camp__spendLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  margin-top: 0.75rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: rgb(var(--v-theme-primary));
-  text-decoration: none;
-}
-.camp__spendLink:hover {
-  text-decoration: underline;
-}
 .camp__actions {
   display: flex;
   justify-content: flex-end;

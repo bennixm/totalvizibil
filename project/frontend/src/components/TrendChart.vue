@@ -185,9 +185,45 @@ const options = computed<ApexOptions>(() => {
 .tc:hover :deep(.apexcharts-toolbar) {
   opacity: 0.9;
 }
+/* Every toolbar icon's SVG uses `stroke="currentColor"`, but ApexCharts'
+   own stylesheet sets a fixed dark-grey `color` directly on each
+   `.apexcharts-*-icon` element (not just inherited from `.apexcharts-toolbar`)
+   — equal specificity to an ancestor-only rule here, so it was winning and
+   the icons stayed that same grey (invisible against a dark card) in both
+   themes. Targeting the icon elements themselves, not just their container,
+   is what actually overrides it. */
+.tc :deep(.apexcharts-menu-icon),
+.tc :deep(.apexcharts-reset-icon),
+.tc :deep(.apexcharts-zoom-icon),
+.tc :deep(.apexcharts-zoomin-icon),
+.tc :deep(.apexcharts-zoomout-icon),
+.tc :deep(.apexcharts-pan-icon),
+.tc :deep(.apexcharts-selection-icon) {
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  transition: color 0.15s ease;
+}
+.tc :deep(.apexcharts-menu-icon:hover),
+.tc :deep(.apexcharts-reset-icon:hover),
+.tc :deep(.apexcharts-zoom-icon:hover),
+.tc :deep(.apexcharts-zoomin-icon:hover),
+.tc :deep(.apexcharts-zoomout-icon:hover),
+.tc :deep(.apexcharts-pan-icon:hover),
+.tc :deep(.apexcharts-selection-icon:hover) {
+  color: rgb(var(--v-theme-on-surface));
+}
+/* The active tool (e.g. "zoom" selected) gets ApexCharts' own highlight
+   background — recolour it off our primary token instead of its default
+   light-only blue, which read as a flat grey smear on a dark card. */
+.tc :deep(.apexcharts-selected) {
+  background: rgba(var(--v-theme-primary), 0.16) !important;
+  border-radius: 4px;
+  color: rgb(var(--v-theme-primary)) !important;
+}
 .tc :deep(.apexcharts-menu-icon svg),
 .tc :deep(.apexcharts-reset-icon svg),
 .tc :deep(.apexcharts-zoom-icon svg),
+.tc :deep(.apexcharts-zoomin-icon svg),
+.tc :deep(.apexcharts-zoomout-icon svg),
 .tc :deep(.apexcharts-pan-icon svg),
 .tc :deep(.apexcharts-selection-icon svg) {
   width: 16px;

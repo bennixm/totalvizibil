@@ -67,7 +67,11 @@
     "light": "Hell",
     "dark": "Dunkel",
     "system": "System",
-    "toggle": "Design umschalten"
+    "toggle": "Design umschalten",
+    "bgEffectLabel": "Animierter Hintergrund",
+    "bgEffectToggle": "Animierter Hintergrund",
+    "bgEffectOn": "An",
+    "bgEffectOff": "Aus"
   },
   "language": {
     "label": "Sprache",
@@ -1630,8 +1634,6 @@
     "otherTitle": "Sonstige Ausgaben",
     "heroCpc": "Effektiver CPC",
     "heroCpcSub": "Durchschnitt über alle berechneten Klicks",
-    "heroRunway": "Guthaben-Reichweite",
-    "heroRunwaySub": "Tage, beim aktuellen Tempo",
     "evolutionTitle": "Verlauf · 14 Tage",
     "cappedNote": "{n} Tage mit ausgeschöpftem Tagesbudget in den letzten 14 Tagen.",
     "byFeedTitle": "Verbrauch nach Suche",
