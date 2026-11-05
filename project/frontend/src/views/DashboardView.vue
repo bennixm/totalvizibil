@@ -700,11 +700,13 @@ watch(
                 <template v-if="locationIsNationwide">{{ t('dashboard.radiusCountry') }}</template>
                 <template v-else>{{ locationCounties.join(', ') }}</template>
               </p>
-              <span class="dcard__go" :class="{ 'dcard__go--disabled': pendingDeletion }">
-                <v-icon icon="mdi-pencil-outline" size="15" />
-                {{ t('dashboard.taskEdit') }}
-                <v-icon icon="mdi-arrow-right" size="15" />
-              </span>
+              <div class="dcard__links">
+                <span class="dcard__go" :class="{ 'dcard__go--disabled': pendingDeletion }">
+                  <v-icon icon="mdi-pencil-outline" size="15" />
+                  {{ t('dashboard.taskEdit') }}
+                  <v-icon icon="mdi-arrow-right" size="15" />
+                </span>
+              </div>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.locationNone') }}</p>
           </div>
@@ -722,11 +724,13 @@ watch(
           <div class="dcard__body">
             <template v-if="category">
               <p class="dcard__hero dcard__hero--wrap">{{ catName(category.name) }}</p>
-              <span class="dcard__go" :class="{ 'dcard__go--disabled': pendingDeletion }">
-                <v-icon icon="mdi-pencil-outline" size="15" />
-                {{ t('dashboard.taskEdit') }}
-                <v-icon icon="mdi-arrow-right" size="15" />
-              </span>
+              <div class="dcard__links">
+                <span class="dcard__go" :class="{ 'dcard__go--disabled': pendingDeletion }">
+                  <v-icon icon="mdi-pencil-outline" size="15" />
+                  {{ t('dashboard.taskEdit') }}
+                  <v-icon icon="mdi-arrow-right" size="15" />
+                </span>
+              </div>
             </template>
             <p v-else class="dcard__sub">{{ t('dashboard.categoryNone') }}</p>
           </div>
@@ -750,11 +754,13 @@ watch(
               {{ fmtNum(wallet.balance.credits) }} <small>{{ t('dashboard.walletCredits') }}</small>
             </p>
             <p class="dcard__sub">{{ money.approx(wallet.balance.credits) }}</p>
-            <span class="dcard__go">
-              <v-icon icon="mdi-wallet-plus-outline" size="15" />
-              {{ t('dashboard.walletCta') }}
-              <v-icon icon="mdi-arrow-right" size="15" />
-            </span>
+            <div class="dcard__links">
+              <span class="dcard__go">
+                <v-icon icon="mdi-wallet-plus-outline" size="15" />
+                {{ t('dashboard.walletCta') }}
+                <v-icon icon="mdi-arrow-right" size="15" />
+              </span>
+            </div>
           </div>
         </article>
 
@@ -777,11 +783,13 @@ watch(
               </li>
             </ul>
             <p v-else class="dcard__sub">{{ t('dashboard.transactionsNone') }}</p>
-            <span class="dcard__go">
-              <v-icon icon="mdi-history" size="15" />
-              {{ t('dashboard.transactionsCta') }}
-              <v-icon icon="mdi-arrow-right" size="15" />
-            </span>
+            <div class="dcard__links">
+              <span class="dcard__go">
+                <v-icon icon="mdi-history" size="15" />
+                {{ t('dashboard.transactionsCta') }}
+                <v-icon icon="mdi-arrow-right" size="15" />
+              </span>
+            </div>
           </div>
         </article>
 
@@ -838,28 +846,34 @@ watch(
                  "incomplete", and offer a retry. -->
             <template v-if="billingLoadFailed">
               <p class="dcard__sub">{{ t('dashboard.invoicesUnknownText') }}</p>
-              <span class="dcard__go" :class="{ 'dcard__go--disabled': billingLoading }">
-                <v-icon icon="mdi-refresh" size="15" />
-                {{ t('dashboard.invoicesUnknownCta') }}
-              </span>
+              <div class="dcard__links">
+                <span class="dcard__go" :class="{ 'dcard__go--disabled': billingLoading }">
+                  <v-icon icon="mdi-refresh" size="15" />
+                  {{ t('dashboard.invoicesUnknownCta') }}
+                </span>
+              </div>
             </template>
             <template v-else-if="!billingComplete">
               <p class="dcard__sub">{{ t('dashboard.invoicesIncompleteText') }}</p>
-              <span class="dcard__go">
-                <v-icon icon="mdi-file-document-edit-outline" size="15" />
-                {{ t('dashboard.invoicesIncompleteCta') }}
-                <v-icon icon="mdi-arrow-right" size="15" />
-              </span>
+              <div class="dcard__links">
+                <span class="dcard__go">
+                  <v-icon icon="mdi-file-document-edit-outline" size="15" />
+                  {{ t('dashboard.invoicesIncompleteCta') }}
+                  <v-icon icon="mdi-arrow-right" size="15" />
+                </span>
+              </div>
             </template>
             <template v-else-if="unbilledCount > 0">
               <p class="dcard__hero">
                 {{ unbilledCount }} <small>{{ t('dashboard.invoicesUnbilledWord') }}</small>
               </p>
-              <span class="dcard__go">
-                <v-icon icon="mdi-file-document-outline" size="15" />
-                {{ t('dashboard.invoicesUnbilledCta') }}
-                <v-icon icon="mdi-arrow-right" size="15" />
-              </span>
+              <div class="dcard__links">
+                <span class="dcard__go">
+                  <v-icon icon="mdi-file-document-outline" size="15" />
+                  {{ t('dashboard.invoicesUnbilledCta') }}
+                  <v-icon icon="mdi-arrow-right" size="15" />
+                </span>
+              </div>
             </template>
             <template v-else>
               <p class="dcard__hero">
@@ -868,11 +882,13 @@ watch(
               <p class="dcard__sub">
                 {{ invoices[0] ? t('dashboard.invoicesLast', { number: invoices[0].number }) : t('dashboard.invoicesNone') }}
               </p>
-              <span class="dcard__go">
-                <v-icon icon="mdi-file-document-outline" size="15" />
-                {{ t('dashboard.invoicesCta') }}
-                <v-icon icon="mdi-arrow-right" size="15" />
-              </span>
+              <div class="dcard__links">
+                <span class="dcard__go">
+                  <v-icon icon="mdi-file-document-outline" size="15" />
+                  {{ t('dashboard.invoicesCta') }}
+                  <v-icon icon="mdi-arrow-right" size="15" />
+                </span>
+              </div>
             </template>
           </div>
         </article>
@@ -894,11 +910,13 @@ watch(
               {{ t('dashboard.leadsTotal', { n: dash.leads.total }) }} ·
               {{ t('dashboard.leadsBreakdown', { form: dash.leads.form, call: dash.leads.call }) }}
             </p>
-            <span class="dcard__go">
-              <v-icon icon="mdi-message-text-outline" size="15" />
-              {{ t('dashboard.leadsCta') }}
-              <v-icon icon="mdi-arrow-right" size="15" />
-            </span>
+            <div class="dcard__links">
+              <span class="dcard__go">
+                <v-icon icon="mdi-message-text-outline" size="15" />
+                {{ t('dashboard.leadsCta') }}
+                <v-icon icon="mdi-arrow-right" size="15" />
+              </span>
+            </div>
           </div>
         </article>
       </div>

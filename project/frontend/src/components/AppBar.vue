@@ -356,15 +356,16 @@ watch(() => auth.isAuthenticated, syncWallet)
   gap: 0.15rem;
   background: transparent;
 }
-/* Icon-only quick toggles (theme, animated background) had no resting
-   affordance of their own — against the mesh background behind the bar they
-   read as unlabelled marks instead of distinct controls. Currency/Locale
-   keep their text label, so they don't need this. */
-.topbar__upper__inner :deep(.v-btn--icon) {
+/* Every quick toggle in this strip (currency, theme, animated background,
+   locale) gets the same resting affordance — against the mesh background
+   behind the bar, an unstyled text/icon button reads as a loose label
+   instead of a distinct control. Previously only the icon-only pair (theme,
+   bg effect) had this; currency/locale (text-label buttons) were left bare. */
+.topbar__upper__inner :deep(.v-btn) {
   background: rgba(var(--v-theme-on-surface), 0.055);
   border-radius: 8px;
 }
-.topbar__upper__inner :deep(.v-btn--icon:hover) {
+.topbar__upper__inner :deep(.v-btn:hover) {
   background: rgba(var(--v-theme-on-surface), 0.1);
 }
 .topbar__spacer {
