@@ -217,7 +217,8 @@ function onNavigate(): void {
   text-align: center;
   font-size: 0.68rem;
   font-weight: 700;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   background: rgba(var(--v-theme-primary), 0.16);
   color: rgb(var(--v-theme-primary));
 }

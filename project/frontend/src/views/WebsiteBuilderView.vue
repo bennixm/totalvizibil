@@ -1448,7 +1448,8 @@ watch(
   width: 18px;
   height: 18px;
   line-height: 1;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   background: rgb(var(--v-theme-error));
   color: #fff;
   font-size: 13px;

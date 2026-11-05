@@ -420,7 +420,8 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .fc__searchClose:hover {
@@ -605,7 +606,8 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
   align-items: center;
   gap: 0.3rem;
   padding: 0.3rem 0.7rem 0.3rem 0.5rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-md);
   border: 1px solid var(--tvz-glass-border);
   background: rgb(var(--v-theme-surface));
   font-size: 0.78rem;
@@ -652,7 +654,8 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
 }
 .niche {
   padding: 0.42rem 0.9rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-md);
   font-size: 0.83rem;
   font-weight: 500;
   color: rgba(var(--v-theme-on-surface), 0.72);

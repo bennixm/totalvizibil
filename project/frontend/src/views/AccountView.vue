@@ -790,7 +790,8 @@ function shortDate(iso: string): string {
 .acc__currencyBtns {
   display: inline-flex;
   border: 1px solid var(--tvz-glass-border);
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-md);
   overflow: hidden;
   background: rgb(var(--v-theme-surface));
 }

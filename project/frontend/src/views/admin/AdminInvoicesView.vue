@@ -538,7 +538,8 @@ onMounted(() => admin.fetchInvoices())
   font-size: 0.68rem;
   font-weight: 700;
   padding: 0.18rem 0.55rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   background: rgba(var(--v-theme-on-surface), 0.08);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }

@@ -87,7 +87,8 @@ const currentIndex = computed(() => {
   align-items: center;
   gap: 0.3rem;
   padding: 0.2rem 0.25rem;
-  border-radius: var(--tvz-radius-pill);
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-size: 0.8125rem;
   line-height: 1;
   color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.55));
@@ -114,7 +115,8 @@ const currentIndex = computed(() => {
   width: 21px;
   height: 21px;
   flex: none;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   border: 1.5px solid var(--tvz-hairline, rgba(var(--v-theme-on-surface), 0.2));
   font-size: 0.7rem;
   font-weight: 600;

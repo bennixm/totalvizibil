@@ -259,7 +259,8 @@ async function confirm(): Promise<void> {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .topup__close:hover {

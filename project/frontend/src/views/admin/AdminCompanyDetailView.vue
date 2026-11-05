@@ -1729,7 +1729,8 @@ const leadStatusItems = computed(() => [
   align-items: center;
   gap: 0.35rem;
   padding: 0.4rem 0.4rem 0.4rem 0.7rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-md);
   background: rgba(var(--v-theme-primary), 0.1);
   border: 1px solid rgba(var(--v-theme-primary), 0.3);
   color: rgb(var(--v-theme-primary));
@@ -1746,7 +1747,8 @@ const leadStatusItems = computed(() => [
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   color: rgb(var(--v-theme-primary));
   opacity: 0.7;
 }
@@ -2234,7 +2236,8 @@ const leadStatusItems = computed(() => [
   display: inline-flex;
   align-items: baseline;
   padding: 0.1rem 0.45rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   background: rgba(var(--v-theme-warning), 0.12);

@@ -217,7 +217,8 @@ watch(
   display: none;
   gap: 0.35rem;
   padding: 0.25rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-md);
   background: rgba(var(--v-theme-on-surface), 0.06);
 }
 .ese__tabs button {
@@ -225,7 +226,8 @@ watch(
   align-items: center;
   gap: 0.35rem;
   padding: 0.4rem 0.85rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-size: 0.82rem;
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);

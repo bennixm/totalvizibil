@@ -1428,7 +1428,8 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
 .ag__chip {
   margin-top: 0.5rem;
   padding: 0.3rem 0.7rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-size: 0.72rem;
   font-weight: 600;
   background: rgba(255, 255, 255, 0.12);
@@ -1522,7 +1523,8 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   width: 24px;
   height: 24px;
   flex: none;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-size: 0.72rem;
   font-weight: 700;
   color: #fff;
@@ -1622,7 +1624,8 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   width: 38px;
   height: 38px;
   flex: none;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   color: #fff;
   background: var(--tvz-gradient-brand);
 }
@@ -1900,7 +1903,8 @@ textarea.fld {
   right: 2px;
   width: 18px;
   height: 18px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.6);
@@ -2011,7 +2015,8 @@ textarea.fld {
 }
 .tog {
   padding: 0.1rem 0.45rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.04em;

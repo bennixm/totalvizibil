@@ -872,7 +872,8 @@ onMounted(() => {
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .composer__pendingRemove:hover {

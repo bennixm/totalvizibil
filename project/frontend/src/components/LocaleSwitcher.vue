@@ -4,6 +4,11 @@ import { useI18n } from 'vue-i18n'
 import { usePreferencesStore } from '@/stores/preferences'
 import { SUPPORTED_LOCALES, type AppLocale } from '@/plugins/i18n'
 
+/** `compact` drops the leading translate icon — the locale code itself
+ *  ("RO"/"EN"/"DE") already carries the state, so on a narrow phone the
+ *  icon is purely decorative width the quick-toggle strip can't spare. */
+withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
+
 const { t } = useI18n()
 const prefs = usePreferencesStore()
 
@@ -23,10 +28,11 @@ function select(locale: AppLocale) {
     <template #activator="{ props }">
       <v-btn
         v-bind="props"
+        size="small"
         variant="text"
         class="text-none"
         :aria-label="t('language.label')"
-        prepend-icon="mdi-translate"
+        :prepend-icon="compact ? undefined : 'mdi-translate'"
       >
         {{ prefs.locale.toUpperCase() }}
       </v-btn>

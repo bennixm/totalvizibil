@@ -790,7 +790,8 @@ watch(
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 0.2rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   background: rgba(var(--v-theme-on-surface), 0.08);
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
@@ -1154,7 +1155,8 @@ watch(
   display: inline-flex;
   align-items: baseline;
   padding: 0.1rem 0.45rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   background: rgba(var(--v-theme-warning), 0.12);
