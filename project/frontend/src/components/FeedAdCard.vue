@@ -210,7 +210,8 @@ const tagline = computed(() => {
   align-items: center;
   gap: 0.4rem;
   padding: 0.6rem 1.1rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-md);
   font-size: 0.86rem;
   font-weight: 700;
   white-space: nowrap;
@@ -376,7 +377,8 @@ const tagline = computed(() => {
   font-size: 0.76rem;
   font-weight: 600;
   padding: 0.24rem 0.65rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.1);
   border: 1px solid rgba(var(--v-theme-primary), 0.2);

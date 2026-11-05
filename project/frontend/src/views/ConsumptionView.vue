@@ -694,7 +694,8 @@ watch(
   place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   margin-bottom: 0.3rem;
   color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.1);
@@ -809,7 +810,8 @@ watch(
   display: inline-flex;
   align-items: baseline;
   padding: 0.15rem 0.5rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   background: rgba(var(--v-theme-warning), 0.12);

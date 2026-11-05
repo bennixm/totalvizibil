@@ -127,7 +127,8 @@ watch(
   place-items: center;
   width: 38px;
   height: 38px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   color: #fff;
   background: linear-gradient(135deg, rgb(var(--v-theme-primary)), var(--tvz-ai));
   box-shadow: 0 0 0 4px var(--tvz-ai-soft);

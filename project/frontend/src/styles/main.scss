@@ -159,6 +159,46 @@ h3 {
   padding-block: var(--tvz-gap-section);
 }
 
+// --- Shape: chamfered corners, not pills/circles ------------------------
+// The house redesign — every element that used to be a stadium pill or a
+// perfect circle gets the same angular cut instead (see tokens.scss's
+// --tvz-hex-*). Vuetify's own utility classes carry !important, so beating
+// them needs !important too, not just cascade order.
+.rounded-pill {
+  border-radius: 0 !important;
+  clip-path: var(--tvz-hex-md) !important;
+}
+// Icon-only buttons (the toolbar's circular toggles, FABs, …) are smaller
+// and squarer than a wide pill CTA — the small cut reads as "cut corner",
+// the medium one would eat visibly into a 32–40px button.
+.rounded-circle,
+.v-btn--icon {
+  border-radius: 0 !important;
+  clip-path: var(--tvz-hex-sm) !important;
+}
+// `rounded="lg"`/`"xl"` large CTAs that also happen to be wide pills in
+// practice (hero buttons) read better with the bigger cut.
+.rounded-lg.rounded-pill,
+.rounded-xl.rounded-pill {
+  clip-path: var(--tvz-hex-lg) !important;
+}
+
+// Hooks for bespoke (non-Vuetify) pill/circle markup — chips, badges, the
+// custom nav/account-menu buttons — to opt into the same shape without
+// hand-rolling the clip-path each time.
+.tvz-hex {
+  border-radius: 0 !important;
+  clip-path: var(--tvz-hex-md);
+}
+.tvz-hex--sm {
+  border-radius: 0 !important;
+  clip-path: var(--tvz-hex-sm);
+}
+.tvz-hex--lg {
+  border-radius: 0 !important;
+  clip-path: var(--tvz-hex-lg);
+}
+
 // --- A11y --------------------------------------------------------------
 :focus-visible {
   outline: 2px solid rgb(var(--v-theme-primary));

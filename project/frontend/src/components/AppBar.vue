@@ -118,10 +118,10 @@ watch(() => auth.isAuthenticated, syncWallet)
   >
   <div class="topbar_content">
     <div class="topbar__upper__inner">
-      <CurrencyQuickToggle v-if="auth.isAuthenticated" />
+      <CurrencyQuickToggle v-if="auth.isAuthenticated" :compact="!mdAndUp" />
       <ThemeQuickToggle />
       <BgEffectQuickToggle />
-      <LocaleSwitcher />
+      <LocaleSwitcher :compact="!mdAndUp" />
     </div>
     <div class="topbar__inner">
       <button
@@ -172,8 +172,12 @@ watch(() => auth.isAuthenticated, syncWallet)
           <v-icon icon="mdi-wallet-outline" size="18" class="wallet-chip__ic" />
           <CreditsValue :credits="walletCredits" :approx="false" />
         </router-link>
+        <!-- Mobile drops this shortcut: the wallet chip right next to it
+             already opens /wallet, where top-up is one tap away, and on a
+             narrow phone this circle was exactly the width that pushed the
+             avatar past the bar's edge once the balance grew a few digits. -->
         <button
-          v-if="auth.isAuthenticated"
+          v-if="auth.isAuthenticated && mdAndUp"
           type="button"
           class="wallet-add-btn"
           :aria-label="t('wallet.topUpCta')"
@@ -332,6 +336,17 @@ watch(() => auth.isAuthenticated, syncWallet)
   width: 90%;
   height: 100%;
 }
+/* The 90% inset exists to line up with the desktop page content/sidebar
+   (see App.vue's `.panel-layout`, scoped to `min-width: 960px` there too) —
+   on phone/tablet nothing else on the page observes that inset, so it was
+   just clipping the bar's own content into a narrower strip than the
+   viewport actually gives it, on top of everything already fighting for
+   room (burger, brand, bell, wallet, avatar). Full width + a fixed gutter
+   instead of a percentage margin. */
+.topbar--mobile .topbar_content {
+  width: 100%;
+  padding-inline: 0.6rem;
+}
 .topbar__inner {
   background: var(--tvz-glass-bg-strong) !important;
   width: 100%;
@@ -344,6 +359,13 @@ watch(() => auth.isAuthenticated, syncWallet)
   padding-inline: 1rem;
   clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
 }
+/* The mobile gutter now lives on `.topbar_content` (above) and covers BOTH
+   rows uniformly, including the quick-toggle strip, which has no padding of
+   its own — without this, the main row's own 1rem would stack on top of
+   that and eat back the width the full-width fix just freed up. */
+.topbar--mobile .topbar__inner {
+  padding-inline: 0;
+}
 /* A quiet utility strip above the main bar, no background of its own — just
    the less-important controls (locale, theme) tucked out of the primary row. */
 .topbar__upper__inner {
@@ -353,7 +375,7 @@ watch(() => auth.isAuthenticated, syncWallet)
   flex-direction: row;
   justify-content: flex-end;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0.3rem;
   background: transparent;
 }
 /* Every quick toggle in this strip (currency, theme, animated background,
@@ -532,6 +554,22 @@ watch(() => auth.isAuthenticated, syncWallet)
   flex: none;
   color: var(--tvz-accept-green-darker);
 }
+/* A hard ceiling on the balance text's width — with no cap, a wallet balance
+   that grows a few digits widens this chip with nothing to stop it (the
+   `.topbar__spacer` next to it has already shrunk to 0 by then), and the
+   overflow pushes the avatar past the bar's own right edge. Ellipsis on the
+   figure itself (not the whole chip, so the icon never gets clipped) means
+   the worst case is a truncated number, never a button sticking out. */
+.topbar--mobile .wallet-chip {
+  max-width: 108px;
+}
+.topbar--mobile .wallet-chip :deep(.cv) {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
 .wallet-add-btn {
   display: grid;
   place-items: center;
@@ -539,7 +577,8 @@ watch(() => auth.isAuthenticated, syncWallet)
   height: 26px;
   flex: none;
   margin-left: -0.15rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   border: 0;
   background: var(--tvz-accept-green);
   color: #fff;

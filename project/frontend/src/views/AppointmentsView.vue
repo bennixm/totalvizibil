@@ -610,7 +610,8 @@ watch(
   display: inline-flex;
   gap: 0.25rem;
   padding: 0.25rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-md);
   background: rgba(var(--v-theme-on-surface), 0.06);
   max-width: 100%;
   overflow-x: auto;
@@ -618,7 +619,8 @@ watch(
 .apt__seg button {
   flex: none;
   padding: 0.35rem 0.75rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
@@ -755,7 +757,8 @@ watch(
   flex: none;
   align-self: center;
   padding: 0.2rem 0.55rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;

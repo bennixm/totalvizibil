@@ -114,7 +114,8 @@ function isActive(tab: Tab): boolean {
   place-items: center;
   width: 40px;
   height: 30px;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   transition:
     background var(--tvz-dur-med) var(--tvz-ease-out),
     transform var(--tvz-dur-med) var(--tvz-ease-spring);

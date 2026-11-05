@@ -1341,7 +1341,8 @@ watch(
   font-size: 0.66rem;
   font-weight: 600;
   padding: 0.24rem 0.58rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   border: 1px solid color-mix(in srgb, var(--acc-c) 32%, transparent);
   color: rgba(var(--v-theme-on-surface), 0.62);
   text-transform: capitalize;
@@ -1352,7 +1353,8 @@ watch(
   gap: 0.35rem;
   margin-top: auto;
   padding: 0.45rem 0.85rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-md);
   border: 1px solid color-mix(in srgb, var(--acc-c) 32%, transparent);
   background: color-mix(in srgb, var(--acc-c) 11%, transparent);
   cursor: pointer;

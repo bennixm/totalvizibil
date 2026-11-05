@@ -175,7 +175,8 @@ function pick(key: 'easy' | 'advanced'): void {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: 0.2rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   background: rgba(var(--v-theme-on-surface), 0.08);
   color: rgba(var(--v-theme-on-surface), 0.72);
 }

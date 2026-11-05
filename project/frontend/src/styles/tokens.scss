@@ -19,7 +19,50 @@
   --tvz-radius-md: 12px; // quiet card
   --tvz-radius-lg: 16px; // raised card / panel
   --tvz-radius-xl: 20px;
-  --tvz-radius-pill: 999px; // small buttons / avatars only
+  --tvz-radius-pill: 999px; // legacy — superseded by the chamfered cuts below
+                            // on every new pill/circle; kept only in case
+                            // something still reads it directly.
+
+  // Chamfered corners — the house shape for anything that used to be a full
+  // pill/circle (buttons, chips, badges, avatars). A flat 45°-ish cut on
+  // all four corners instead of a round end: angular without tipping into
+  // a true hexagon, which crowds text up against slanted edges. The cut
+  // size scales with the element so a small chip and a big CTA both read
+  // as "the same shape family" rather than one looking barely-cut and the
+  // other looking like a stop sign.
+  --tvz-cut-sm: 6px; // chips, icon buttons, small pills
+  --tvz-cut-md: 10px; // standard buttons
+  --tvz-cut-lg: 14px; // hero/large CTAs
+  --tvz-hex-sm: polygon(
+    var(--tvz-cut-sm) 0,
+    calc(100% - var(--tvz-cut-sm)) 0,
+    100% var(--tvz-cut-sm),
+    100% calc(100% - var(--tvz-cut-sm)),
+    calc(100% - var(--tvz-cut-sm)) 100%,
+    var(--tvz-cut-sm) 100%,
+    0 calc(100% - var(--tvz-cut-sm)),
+    0 var(--tvz-cut-sm)
+  );
+  --tvz-hex-md: polygon(
+    var(--tvz-cut-md) 0,
+    calc(100% - var(--tvz-cut-md)) 0,
+    100% var(--tvz-cut-md),
+    100% calc(100% - var(--tvz-cut-md)),
+    calc(100% - var(--tvz-cut-md)) 100%,
+    var(--tvz-cut-md) 100%,
+    0 calc(100% - var(--tvz-cut-md)),
+    0 var(--tvz-cut-md)
+  );
+  --tvz-hex-lg: polygon(
+    var(--tvz-cut-lg) 0,
+    calc(100% - var(--tvz-cut-lg)) 0,
+    100% var(--tvz-cut-lg),
+    100% calc(100% - var(--tvz-cut-lg)),
+    calc(100% - var(--tvz-cut-lg)) 100%,
+    var(--tvz-cut-lg) 100%,
+    0 calc(100% - var(--tvz-cut-lg)),
+    0 var(--tvz-cut-lg)
+  );
 
   // Spacing rhythm — 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 / 96 -------------
   --tvz-gap-section: clamp(3.5rem, 8vw, 6rem);

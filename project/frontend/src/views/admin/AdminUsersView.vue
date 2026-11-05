@@ -281,7 +281,8 @@ function open(id: string): void {
   width: 38px;
   height: 38px;
   flex: none;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-size: 0.74rem;
   font-weight: 700;
   color: rgb(var(--v-theme-on-primary));

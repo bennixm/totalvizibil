@@ -533,12 +533,14 @@ onMounted(async () => {
   display: flex;
   gap: 0.3rem;
   padding: 0.2rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-md);
   background: rgba(var(--v-theme-on-surface), 0.06);
 }
 .ws__tab {
   padding: 0.3rem 0.8rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   font-size: 0.76rem;
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
@@ -654,7 +656,8 @@ onMounted(async () => {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 0.2rem 0.55rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
 }
 .chip--success {
   background: rgba(var(--v-theme-success), 0.16);

@@ -52,7 +52,8 @@ const open = ref(false)
   display: inline-grid;
   place-items: center;
   padding: 2px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   color: rgba(var(--v-theme-on-surface), 0.45);
   cursor: pointer;
   vertical-align: middle;

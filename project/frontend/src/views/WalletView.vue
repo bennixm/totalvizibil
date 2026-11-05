@@ -579,7 +579,8 @@ watch(
 .wal__payTabs {
   display: inline-flex;
   border: 1px solid var(--tvz-glass-border);
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-md);
   overflow: hidden;
   background: rgb(var(--v-theme-surface));
 }
@@ -697,7 +698,8 @@ watch(
 .payrow__badge {
   font-size: 0.68rem;
   padding: 0.1rem 0.5rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
   background: rgba(var(--v-theme-on-surface), 0.08);
   white-space: nowrap;
 }

@@ -10,6 +10,11 @@ import { storeToRefs } from 'pinia'
 
 import { useWalletStore } from '@/stores/wallet'
 
+/** `compact` drops the leading currency icon — the code itself ("EUR"/"RON")
+ *  already carries the state, so on a narrow phone the icon is purely
+ *  decorative width the quick-toggle strip can't spare. */
+withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
+
 const { t } = useI18n()
 const wallet = useWalletStore()
 const { summary, working } = storeToRefs(wallet)
@@ -36,7 +41,7 @@ onMounted(() => {
         variant="text"
         class="text-none"
         :aria-label="t('wallet.currencyLabel')"
-        prepend-icon="mdi-currency-eur"
+        :prepend-icon="compact ? undefined : 'mdi-currency-eur'"
       >
         {{ t('wallet.currency' + currentCurrency) }}
       </v-btn>
