@@ -3,9 +3,10 @@ import { defineStore } from 'pinia'
 import { apiFetch, ApiError, BASE_URL } from '@/services/api'
 import type { PlatformRole } from '@/stores/auth'
 import type { BillingProfile, BillingProfileInput } from '@/stores/billing'
-import type { CampaignPayload, FeedRankEntry, SaveCampaignInput } from '@/stores/campaign'
+import type { CampaignPayload, CampaignSpend, FeedRankEntry, SaveCampaignInput } from '@/stores/campaign'
 import type { DashboardAnalytics, LocalizedName } from '@/stores/companies'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
+import type { ConsumptionEntry, SpendCategory } from '@/stores/wallet'
 
 /**
  * Why every fetcher below has a `catch`: they used to be
@@ -557,6 +558,19 @@ export interface AdminCompanyDetail {
   }
 }
 
+/** The campaign's full cost breakdown — see `AdminCompaniesService.costs`.
+ *  `report` is the exact same payload the owner's own Campaign/Consumption
+ *  pages read (`spendReportFor`); `breakdown`/`ledger` mirror `/wallet/
+ *  spend-breakdown` and `/wallet/consumption`, just admin-scoped. */
+export interface AdminCompanyCosts {
+  report: CampaignSpend
+  breakdown: {
+    total: { minor: number; credits: number }
+    categories: Array<{ key: SpendCategory; total: { minor: number; credits: number }; count: number }>
+  }
+  ledger: { items: ConsumptionEntry[]; nextCursor: string | null }
+}
+
 export interface UpdateCompanyInput {
   displayName?: string
   legalName?: string
@@ -1028,6 +1042,25 @@ export const useAdminStore = defineStore('admin', {
       if (params.limit) p.set('limit', String(params.limit))
       const qs = p.toString()
       return apiFetch(`/admin/companies/${id}/leads${qs ? `?${qs}` : ''}`)
+    },
+
+    fetchCompanyCosts(id: string): Promise<AdminCompanyCosts> {
+      return apiFetch(`/admin/companies/${id}/costs`)
+    },
+
+    companyCostsLedger(
+      id: string,
+      params: { category?: string; from?: string; to?: string; search?: string; cursor?: string; limit?: number } = {},
+    ): Promise<{ items: ConsumptionEntry[]; nextCursor: string | null }> {
+      const p = new URLSearchParams()
+      if (params.category) p.set('category', params.category)
+      if (params.from) p.set('from', params.from)
+      if (params.to) p.set('to', params.to)
+      if (params.search) p.set('search', params.search)
+      if (params.cursor) p.set('cursor', params.cursor)
+      if (params.limit) p.set('limit', String(params.limit))
+      const qs = p.toString()
+      return apiFetch(`/admin/companies/${id}/costs/ledger${qs ? `?${qs}` : ''}`)
     },
 
     async fetchCategories(): Promise<void> {

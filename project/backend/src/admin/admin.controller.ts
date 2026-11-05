@@ -449,6 +449,32 @@ export class AdminController {
     return this.companies.leadsPage(id, query);
   }
 
+  /** Full campaign cost breakdown — see `AdminCompaniesService.costs`. */
+  @Get('companies/:id/costs')
+  companyCosts(@Param('id', ParseUUIDPipe) id: string) {
+    return this.companies.costs(id);
+  }
+
+  @Get('companies/:id/costs/ledger')
+  companyCostsLedger(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('category') category?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('search') search?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.companies.costsLedger(id, {
+      category,
+      from,
+      to,
+      search,
+      cursor,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   @Patch('companies/:id')
   updateCompany(
     @CurrentUser() caller: AuthPrincipal,

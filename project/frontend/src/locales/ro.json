@@ -15,7 +15,8 @@
     "learnMore": "Află mai multe",
     "moreInfo": "Mai multe informații",
     "close": "Închide",
-    "delete": "Șterge"
+    "delete": "Șterge",
+    "refresh": "Reîmprospătează"
   },
   "nav": {
     "discover": "Descoperă",
@@ -1411,6 +1412,7 @@
     "tabWebsite": "Website",
     "tabCampaign": "Campanie",
     "tabRequests": "Cereri",
+    "tabCosts": "Costuri",
     "tabStats": "Statistici",
     "factsTitle": "Date afacere",
     "country": "Țară",

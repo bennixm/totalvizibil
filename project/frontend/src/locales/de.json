@@ -15,7 +15,8 @@
     "learnMore": "Mehr erfahren",
     "moreInfo": "Mehr Infos",
     "close": "Schließen",
-    "delete": "Löschen"
+    "delete": "Löschen",
+    "refresh": "Aktualisieren"
   },
   "nav": {
     "discover": "Entdecken",
@@ -1411,6 +1412,7 @@
     "tabWebsite": "Website",
     "tabCampaign": "Kampagne",
     "tabRequests": "Anfragen",
+    "tabCosts": "Kosten",
     "tabStats": "Statistik",
     "factsTitle": "Eckdaten",
     "country": "Land",
