@@ -7,6 +7,9 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 interface PreferencesState {
   themeMode: ThemeMode
   locale: AppLocale
+  /** The animated background shader (App.vue). Off entirely spares the GPU
+   *  cost for users on weaker hardware — opt-out, not a visual preference. */
+  bgEffectEnabled: boolean
 }
 
 /**
@@ -18,6 +21,7 @@ export const usePreferencesStore = defineStore('preferences', {
   state: (): PreferencesState => ({
     themeMode: 'system',
     locale: resolveInitialLocale(),
+    bgEffectEnabled: true,
   }),
 
   persist: {
@@ -30,6 +34,9 @@ export const usePreferencesStore = defineStore('preferences', {
     },
     setLocale(locale: AppLocale) {
       this.locale = locale
+    },
+    setBgEffectEnabled(on: boolean) {
+      this.bgEffectEnabled = on
     },
   },
 })

@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { storeToRefs } from 'pinia'
 
+import BgEffectQuickToggle from '@/components/BgEffectQuickToggle.vue'
 import CreditsValue from '@/components/CreditsValue.vue'
 import CurrencyQuickToggle from '@/components/CurrencyQuickToggle.vue'
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
@@ -119,6 +120,7 @@ watch(() => auth.isAuthenticated, syncWallet)
     <div class="topbar__upper__inner">
       <CurrencyQuickToggle v-if="auth.isAuthenticated" />
       <ThemeQuickToggle />
+      <BgEffectQuickToggle />
       <LocaleSwitcher />
     </div>
     <div class="topbar__inner">
@@ -351,7 +353,19 @@ watch(() => auth.isAuthenticated, syncWallet)
   flex-direction: row;
   justify-content: flex-end;
   align-items: center;
+  gap: 0.15rem;
   background: transparent;
+}
+/* Icon-only quick toggles (theme, animated background) had no resting
+   affordance of their own — against the mesh background behind the bar they
+   read as unlabelled marks instead of distinct controls. Currency/Locale
+   keep their text label, so they don't need this. */
+.topbar__upper__inner :deep(.v-btn--icon) {
+  background: rgba(var(--v-theme-on-surface), 0.055);
+  border-radius: 8px;
+}
+.topbar__upper__inner :deep(.v-btn--icon:hover) {
+  background: rgba(var(--v-theme-on-surface), 0.1);
 }
 .topbar__spacer {
   flex: 1;

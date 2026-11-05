@@ -67,7 +67,11 @@
     "light": "Luminos",
     "dark": "Întunecat",
     "system": "După sistem",
-    "toggle": "Comută tema"
+    "toggle": "Comută tema",
+    "bgEffectLabel": "Fundal animat",
+    "bgEffectToggle": "Fundal animat",
+    "bgEffectOn": "Activ",
+    "bgEffectOff": "Dezactivat"
   },
   "language": {
     "label": "Limbă",
@@ -1630,8 +1634,6 @@
     "otherTitle": "Alte cheltuieli",
     "heroCpc": "CPC efectiv",
     "heroCpcSub": "medie pe toate click-urile facturate",
-    "heroRunway": "Autonomie portofel",
-    "heroRunwaySub": "zile, la ritmul recent",
     "evolutionTitle": "Evoluție · 14 zile",
     "cappedNote": "{n} zile cu bugetul zilnic epuizat, în ultimele 14 zile.",
     "byFeedTitle": "Consum pe căutare",

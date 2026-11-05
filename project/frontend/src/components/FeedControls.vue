@@ -552,7 +552,9 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
   text-align: center;
   border-radius: var(--tvz-radius-lg);
   border: 1px solid var(--tvz-glass-border);
-  background: rgb(var(--v-theme-surface));
+  background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   box-shadow: var(--tvz-shadow-sm);
   overflow: hidden;
   cursor: pointer;
@@ -593,7 +595,9 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
   padding: 1.35rem 1.4rem 1.5rem;
   border-radius: var(--tvz-radius-lg);
   border: 1px solid var(--tvz-glass-border);
-  background: rgb(var(--v-theme-surface));
+  background: var(--tvz-glass-bg);
+  backdrop-filter: blur(var(--tvz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   box-shadow: var(--tvz-shadow-sm);
 }
 .focus__back {

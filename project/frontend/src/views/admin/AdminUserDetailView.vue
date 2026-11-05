@@ -1172,9 +1172,15 @@ const txnColor: Record<string, string> = {
 
             <AdminSection :title="t('admin.navInvoices')" icon="mdi-receipt-text-outline">
               <template #actions>
-                <RouterLink :to="{ name: 'admin-invoices' }" class="ud__link">
+                <v-btn
+                  variant="tonal"
+                  size="small"
+                  rounded="pill"
+                  append-icon="mdi-arrow-right"
+                  :to="{ name: 'admin-invoices' }"
+                >
                   {{ t('admin.invSeeAll') }}
-                </RouterLink>
+                </v-btn>
               </template>
               <AdminEmptyState
                 v-if="!user.invoices.length"
