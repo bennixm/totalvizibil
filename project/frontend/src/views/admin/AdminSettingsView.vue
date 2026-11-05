@@ -46,7 +46,8 @@ const form = reactive({
   additionalBusinessPriceCredits: 0,
   invoiceVatRatePct: 0,
   refundFeePct: 0,
-  feedCostPromovareCredits: 0,
+  googleAdsCpcBufferPct: 0,
+  googleAdsMaxCpcCredits: 0,
   feedMarjaProfitCredits: 0,
   feedMarjaPozitionareCredits: 0,
   domainPurchaseFeeCredits: 0,
@@ -167,17 +168,11 @@ const pricingFields = [
     suffix: 'cr',
   },
 ]
+// `costPromovare` (ex-"Cost promovare") no longer lives here — it's taken
+// over by the Google Ads rolling-average CPC sync job for Google-attributed
+// clicks (organic traffic keeps the code-level default); there's nothing
+// left for an admin to type in by hand.
 const feedPricingFields = [
-  {
-    key: 'feedCostPromovareCredits' as const,
-    label: 'adminSettings.feedCostPromovare',
-    hint: 'adminSettings.feedCostPromovareHint',
-    icon: 'mdi-bullhorn-outline',
-    min: 0.01,
-    max: 1000,
-    step: 0.01,
-    suffix: 'cr',
-  },
   {
     key: 'feedMarjaProfitCredits' as const,
     label: 'adminSettings.feedMarjaProfit',
@@ -223,9 +218,40 @@ const refundFields = [
     suffix: '%',
   },
 ]
+// Safety parameters around the Google Ads rolling-average CPC (see
+// GoogleAdsCpcSyncService) — the average itself is machine-written and
+// shown read-only below these, never editable here.
+const googleAdsFields = [
+  {
+    key: 'googleAdsCpcBufferPct' as const,
+    label: 'adminSettings.googleAdsBuffer',
+    hint: 'adminSettings.googleAdsBufferHint',
+    icon: 'mdi-shield-plus-outline',
+    min: 0,
+    max: 200,
+    step: 1,
+    suffix: '%',
+  },
+  {
+    key: 'googleAdsMaxCpcCredits' as const,
+    label: 'adminSettings.googleAdsMaxCpc',
+    hint: 'adminSettings.googleAdsMaxCpcHint',
+    icon: 'mdi-arrow-up-bold-hexagon-outline',
+    min: 0.01,
+    max: 1000,
+    step: 0.01,
+    suffix: 'cr',
+  },
+]
 // Combined only for validation/dirty-tracking — the template renders each
 // group in its own tab via the arrays above.
-const fields = [...pricingFields, ...feedPricingFields, ...billingFields, ...refundFields]
+const fields = [
+  ...pricingFields,
+  ...feedPricingFields,
+  ...billingFields,
+  ...refundFields,
+  ...googleAdsFields,
+]
 
 function hydrate() {
   if (!admin.settings) return
@@ -235,7 +261,8 @@ function hydrate() {
   form.additionalBusinessPriceCredits = admin.settings.additionalBusinessPriceCredits
   form.invoiceVatRatePct = admin.settings.invoiceVatRatePct
   form.refundFeePct = admin.settings.refundFeePct
-  form.feedCostPromovareCredits = admin.settings.feedCostPromovareCredits
+  form.googleAdsCpcBufferPct = admin.settings.googleAdsCpcBufferPct
+  form.googleAdsMaxCpcCredits = admin.settings.googleAdsMaxCpcCredits
   form.feedMarjaProfitCredits = admin.settings.feedMarjaProfitCredits
   form.feedMarjaPozitionareCredits = admin.settings.feedMarjaPozitionareCredits
   form.domainPurchaseFeeCredits = admin.settings.domainPurchaseFeeCredits
@@ -269,7 +296,8 @@ const dirty = computed(
       form.additionalBusinessPriceCredits !== admin.settings.additionalBusinessPriceCredits ||
       form.invoiceVatRatePct !== admin.settings.invoiceVatRatePct ||
       form.refundFeePct !== admin.settings.refundFeePct ||
-      form.feedCostPromovareCredits !== admin.settings.feedCostPromovareCredits ||
+      form.googleAdsCpcBufferPct !== admin.settings.googleAdsCpcBufferPct ||
+      form.googleAdsMaxCpcCredits !== admin.settings.googleAdsMaxCpcCredits ||
       form.feedMarjaProfitCredits !== admin.settings.feedMarjaProfitCredits ||
       form.feedMarjaPozitionareCredits !== admin.settings.feedMarjaPozitionareCredits ||
       form.domainPurchaseFeeCredits !== admin.settings.domainPurchaseFeeCredits ||
@@ -290,6 +318,21 @@ const valid = computed(
       return typeof v === 'number' && Number.isFinite(v) && v >= f.min && v <= f.max
     }),
 )
+
+// Mirrors the backend's GOOGLE_ADS_CPC_STALE_AFTER_MS (30 min) — purely a
+// display heuristic here, the real fallback decision is server-side.
+const GOOGLE_ADS_STALE_AFTER_MS = 30 * 60 * 1000
+const googleAdsStatus = computed(() => {
+  const credits = admin.settings?.googleAdsAvgCpcCredits ?? null
+  const updatedAt = admin.settings?.googleAdsAvgCpcUpdatedAt ?? null
+  if (credits == null || !updatedAt) return { state: 'unconfigured' as const, credits: null, updatedAt: null }
+  const ageMs = Date.now() - new Date(updatedAt).getTime()
+  return {
+    state: (ageMs <= GOOGLE_ADS_STALE_AFTER_MS ? 'fresh' : 'stale') as 'fresh' | 'stale',
+    credits,
+    updatedAt,
+  }
+})
 
 async function load() {
   loading.value = true
@@ -403,6 +446,62 @@ async function save() {
             <p class="as__sectionNote">{{ t('adminSettings.feedPricingNote') }}</p>
             <div class="as__fields">
               <div v-for="f in feedPricingFields" :key="f.key" class="as__field">
+                <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>
+                <div class="as__body">
+                  <label :for="f.key" class="as__label">{{ t(f.label) }}</label>
+                  <p class="as__hint">{{ t(f.hint) }}</p>
+                </div>
+                <v-text-field
+                  :id="f.key"
+                  v-model.number="form[f.key]"
+                  type="number"
+                  :min="f.min"
+                  :max="f.max"
+                  :step="f.step"
+                  :suffix="f.suffix"
+                  :disabled="readOnly"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="as__input"
+                />
+              </div>
+            </div>
+          </AdminSection>
+
+          <AdminSection :title="t('adminSettings.googleAdsTitle')" icon="mdi-google" class="mt-4">
+            <p class="as__sectionNote">{{ t('adminSettings.googleAdsNote') }}</p>
+
+            <div class="as__googleAdsStatus" :class="`is-${googleAdsStatus.state}`">
+              <v-icon
+                :icon="
+                  googleAdsStatus.state === 'fresh'
+                    ? 'mdi-check-circle-outline'
+                    : googleAdsStatus.state === 'stale'
+                      ? 'mdi-clock-alert-outline'
+                      : 'mdi-connection'
+                "
+                size="18"
+              />
+              <span v-if="googleAdsStatus.state === 'unconfigured'">
+                {{ t('adminSettings.googleAdsUnconfigured') }}
+              </span>
+              <span v-else>
+                {{ t('adminSettings.googleAdsCurrentAvg', { n: googleAdsStatus.credits!.toFixed(4) }) }}
+                ·
+                {{
+                  t(
+                    googleAdsStatus.state === 'fresh'
+                      ? 'adminSettings.googleAdsFresh'
+                      : 'adminSettings.googleAdsStale',
+                    { t: new Date(googleAdsStatus.updatedAt!).toLocaleTimeString() },
+                  )
+                }}
+              </span>
+            </div>
+
+            <div class="as__fields">
+              <div v-for="f in googleAdsFields" :key="f.key" class="as__field">
                 <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>
                 <div class="as__body">
                   <label :for="f.key" class="as__label">{{ t(f.label) }}</label>
@@ -807,6 +906,26 @@ async function save() {
   margin-top: 1.4rem;
   padding-top: 1.2rem;
   border-top: 1px solid var(--tvz-hairline);
+}
+.as__googleAdsStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.2rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--tvz-radius-sm, 8px);
+  font-size: 0.84rem;
+  font-weight: 600;
+  background: rgba(var(--v-theme-on-surface), 0.05);
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.as__googleAdsStatus.is-fresh {
+  background: rgba(var(--v-theme-success), 0.12);
+  color: rgb(var(--v-theme-success));
+}
+.as__googleAdsStatus.is-stale {
+  background: rgba(var(--v-theme-warning), 0.12);
+  color: rgb(var(--v-theme-warning));
 }
 .as__issuerGrid {
   display: grid;

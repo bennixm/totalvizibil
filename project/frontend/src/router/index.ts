@@ -372,6 +372,22 @@ router.beforeEach(async (to) => {
     }
   }
 
+  // Google Ads click attribution — unlike `tvz.ref` above, this one DOES get
+  // overwritten on every fresh `?gclid=`: a visitor can arrive from Google
+  // Ads more than once over weeks, and each arrival should restart its own
+  // short attribution window, not keep stamping a feed click against
+  // whichever `gclid` happened to land first. The window itself (how old is
+  // too old to still count) is enforced at read time, in `services/ads.ts`.
+  const gclid = typeof to.query.gclid === 'string' ? to.query.gclid.trim().slice(0, 120) : ''
+  if (gclid) {
+    try {
+      localStorage.setItem('tvz.gclid', gclid)
+      localStorage.setItem('tvz.gclid_at', String(Date.now()))
+    } catch {
+      /* storage unavailable — ignore */
+    }
+  }
+
   const auth = useAuthStore()
   if (!auth.ready) await auth.bootstrap()
 

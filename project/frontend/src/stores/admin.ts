@@ -87,10 +87,15 @@ export interface AdminSettings {
   refundFeePct: number
   creditsDiscountEnabled: boolean
   creditsDiscountPct: number
-  feedCostPromovareCredits: number
   feedMarjaProfitCredits: number
   feedMarjaPozitionareCredits: number
   domainPurchaseFeeCredits: number
+  googleAdsCpcBufferPct: number
+  googleAdsMaxCpcCredits: number
+  /** Machine-written by the sync job, never admin-edited — null until it
+   *  has completed a first cycle (not configured, or no clicks yet today). */
+  googleAdsAvgCpcCredits: number | null
+  googleAdsAvgCpcUpdatedAt: string | null
   invoiceIssuerName: string
   invoiceIssuerTaxId: string
   invoiceIssuerRegCom: string

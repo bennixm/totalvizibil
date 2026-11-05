@@ -390,6 +390,16 @@ watch(() => auth.isAuthenticated, syncWallet)
 .topbar__upper__inner :deep(.v-btn:hover) {
   background: rgba(var(--v-theme-on-surface), 0.1);
 }
+/* Vuetify sizes icon-only buttons (Theme, Fundal animat) larger than a
+   text-label button at the same `size="small"` — icon variants add +12px
+   on top of the size's base height as extra touch-target padding, so they
+   rendered at 40px next to the text buttons' 28px. Pin both to the same
+   28px square/height so the row reads as one consistent set, not two
+   different button scales. */
+.topbar__upper__inner :deep(.v-btn--icon) {
+  width: 28px;
+  height: 28px;
+}
 .topbar__spacer {
   flex: 1;
 }

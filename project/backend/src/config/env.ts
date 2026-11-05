@@ -31,6 +31,26 @@ export interface AppConfig {
    *  the dev stub confirm flow and refunds are unavailable (nothing real to
    *  refund). */
   stripeSecretKey: string;
+  /**
+   * Google Ads API credentials — feed the rolling-average CPC sync job that
+   * prices Google-Ads-attributed feed clicks (replaces the old manual "Cost
+   * promovare" admin setting for that traffic; see GoogleAdsCpcSyncService).
+   * All of them are required together for the job to run; any one missing ⇒
+   * it logs once and stays idle (never crashes the app). See
+   * `GOOGLE_ADS_SETUP.md` for exactly where each value comes from.
+   */
+  googleAdsDeveloperToken: string;
+  googleAdsClientId: string;
+  googleAdsClientSecret: string;
+  googleAdsRefreshToken: string;
+  googleAdsCustomerId: string;
+  /** Only needed if the account above is accessed through a Manager (MCC)
+   *  account — the MCC's own customer id. Empty ⇒ omitted from the API call. */
+  googleAdsLoginCustomerId: string;
+  /** Scopes the sync job to one campaign (the one promoting the platform).
+   *  Empty ⇒ averages cost/clicks across the WHOLE account, which is wrong
+   *  the moment a second, unrelated campaign exists on the same account. */
+  googleAdsCampaignId: string;
   /** Gmail SMTP, for testing real outbound mail. Empty user/pass ⇒ MailService
    *  keeps its dev-log-only fallback (nothing is ever faked as sent). */
   smtpHost: string;
@@ -111,6 +131,13 @@ export function loadConfig(): AppConfig {
     visualQa: (process.env.VISUAL_QA?.trim().toLowerCase() ?? '') === 'on',
     screenshotUrl: process.env.SCREENSHOT_URL?.trim() ?? '',
     stripeSecretKey: process.env.STRIPE_SECRET_KEY?.trim() ?? '',
+    googleAdsDeveloperToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim() ?? '',
+    googleAdsClientId: process.env.GOOGLE_ADS_CLIENT_ID?.trim() ?? '',
+    googleAdsClientSecret: process.env.GOOGLE_ADS_CLIENT_SECRET?.trim() ?? '',
+    googleAdsRefreshToken: process.env.GOOGLE_ADS_REFRESH_TOKEN?.trim() ?? '',
+    googleAdsCustomerId: process.env.GOOGLE_ADS_CUSTOMER_ID?.trim() ?? '',
+    googleAdsLoginCustomerId: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim() ?? '',
+    googleAdsCampaignId: process.env.GOOGLE_ADS_CAMPAIGN_ID?.trim() ?? '',
     smtpHost: process.env.SMTP_HOST?.trim() || 'smtp.gmail.com',
     smtpPort: Number(process.env.SMTP_PORT ?? 587),
     smtpUser: process.env.SMTP_USER?.trim() ?? '',

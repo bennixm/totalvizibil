@@ -112,13 +112,9 @@ export class UpdateSettingsDto {
   creditsDiscountPct?: number;
 
   // --- Feed CPC-local pricing (see AnalyticsModule / feed-pricing.ts) ---
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0.01)
-  @Max(1000)
-  feedCostPromovareCredits?: number;
+  // `costPromovare` itself is no longer admin-editable here — it's being
+  // replaced by the Google Ads rolling-average CPC sync job (see env.ts's
+  // GOOGLE_ADS_* vars), not set by hand.
 
   @IsOptional()
   @Type(() => Number)
@@ -133,6 +129,24 @@ export class UpdateSettingsDto {
   @Min(0)
   @Max(1000)
   feedMarjaPozitionareCredits?: number;
+
+  // --- Google Ads rolling-average CPC (see GoogleAdsCpcSyncService) ---
+  // The average itself is machine-written every sync cycle, never here —
+  // these two are the judgment-call safety parameters around it.
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(200)
+  googleAdsCpcBufferPct?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  @Max(1000)
+  googleAdsMaxCpcCredits?: number;
 
   // --- custom domains (see DomainsModule) ---
 
