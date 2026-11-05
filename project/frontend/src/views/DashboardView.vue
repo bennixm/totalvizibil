@@ -1394,7 +1394,13 @@ watch(
   margin-top: 0;
 }
 .dcard__go--alt {
-  background: transparent;
+  /* A bare border used to be enough to read as a button on a plain pill —
+     now that the shape is chamfered (see --tvz-hex-md), the border itself
+     gets visually cut at the corners and the pill reads as empty space
+     without a fill of its own. A faint neutral tint keeps the secondary/
+     muted look (vs. the accent-tinted default .dcard__go) while still
+     being visibly a button at rest, not just on hover. */
+  background: rgba(var(--v-theme-on-surface), 0.05);
   border-color: var(--tvz-hairline);
   color: rgba(var(--v-theme-on-surface), 0.6);
   font-weight: 500;

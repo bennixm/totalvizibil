@@ -422,6 +422,7 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
   height: 26px;
   border-radius: 0;
   clip-path: var(--tvz-hex-sm);
+  background: rgba(var(--v-theme-on-surface), 0.05);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .fc__searchClose:hover {
@@ -679,7 +680,11 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
   border-color: rgba(var(--v-theme-primary), 0.35);
 }
 .niche--complete:not(.niche--on) {
-  background: transparent;
+  /* Was fully transparent, relying on the border alone to read as a chip —
+     breaks at the chamfered corners now (see --tvz-hex-md on .niche). A
+     faint primary tint keeps it visually distinct from a plain .niche
+     without looking selected. */
+  background: rgba(var(--v-theme-primary), 0.05);
 }
 .niche:disabled {
   cursor: not-allowed;
