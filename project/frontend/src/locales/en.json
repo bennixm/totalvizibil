@@ -15,7 +15,8 @@
     "learnMore": "Learn more",
     "moreInfo": "More info",
     "close": "Close",
-    "delete": "Delete"
+    "delete": "Delete",
+    "refresh": "Refresh"
   },
   "nav": {
     "discover": "Discover",
@@ -1411,6 +1412,7 @@
     "tabWebsite": "Website",
     "tabCampaign": "Campaign",
     "tabRequests": "Requests",
+    "tabCosts": "Costs",
     "tabStats": "Statistics",
     "factsTitle": "Business facts",
     "country": "Country",

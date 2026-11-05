@@ -12,11 +12,17 @@ import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import { useMoney } from '@/composables/useMoney'
-import { useAdminStore, type AdminCompanyDetail, type AdminCompanyLead } from '@/stores/admin'
+import {
+  useAdminStore,
+  type AdminCompanyCosts,
+  type AdminCompanyDetail,
+  type AdminCompanyLead,
+} from '@/stores/admin'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
-import type { CampaignTier, CampaignStatus } from '@/stores/campaign'
+import type { CampaignTier, CampaignStatus, FeedRankEntry } from '@/stores/campaign'
 import type { LocalizedName } from '@/stores/companies'
+import type { ConsumptionEntry, SpendCategory } from '@/stores/wallet'
 import { ApiError } from '@/services/api'
 import { fetchCounties, countyCenter } from '@/services/geo'
 import LocationMap from '@/components/LocationMap.vue'
@@ -40,7 +46,7 @@ function isBusy(key: string): boolean {
   return busy.value.has(key)
 }
 
-const tab = ref<'overview' | 'website' | 'campaign' | 'requests' | 'stats'>('overview')
+const tab = ref<'overview' | 'website' | 'campaign' | 'requests' | 'costs' | 'stats'>('overview')
 
 function initials(name: string): string {
   return name
@@ -615,6 +621,196 @@ async function moreLeads() {
 }
 watch(leadFilter, reloadLeads)
 
+// --- costs: lazy-loaded the first time the tab is opened (a full campaign
+// cost report runs several extra aggregate queries — no point paying for it
+// on every company detail load, most of which never open this tab). ---
+const costs = ref<AdminCompanyCosts | null>(null)
+const costsLoading = ref(false)
+const costsError = ref('')
+let costsLoaded = false
+
+async function loadCosts(force = false) {
+  if (costsLoaded && !force) return
+  costsLoading.value = true
+  costsError.value = ''
+  try {
+    costs.value = await admin.fetchCompanyCosts(id.value)
+    costsLedgerRows.value = costs.value.ledger.items
+    costsLedgerCursor.value = costs.value.ledger.nextCursor
+    costsLoaded = true
+  } catch (e) {
+    costsError.value = errText(e, t('consumption.loadError'))
+  } finally {
+    costsLoading.value = false
+  }
+}
+watch(tab, (v) => {
+  if (v === 'costs') void loadCosts()
+})
+function refreshCosts() {
+  costsFilter.category = ''
+  costsFilter.from = ''
+  costsFilter.to = ''
+  costsFilter.search = ''
+  void loadCosts(true)
+}
+
+const costsHasCampaign = computed(() => !!costs.value?.report.hasCampaign)
+function fmtActiveDuration(seconds: number): string {
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  if (d <= 0) return t('spend.hoursN', { n: h })
+  return t('spend.daysHours', { d, h })
+}
+const costsChartClicks = computed(() => {
+  const pts = costs.value?.report.series ?? []
+  return {
+    labels: pts.map((p) => p.date.slice(5)),
+    series: [{ label: t('spend.legendClicks'), values: pts.map((p) => p.clicks) }],
+  }
+})
+const costsChartSpend = computed(() => {
+  const pts = costs.value?.report.series ?? []
+  return {
+    labels: pts.map((p) => p.date.slice(5)),
+    series: [{ label: t('spend.legendSpent'), values: pts.map((p) => p.spent) }],
+  }
+})
+function fmtCrSuffix(v: number): string {
+  return fmt(v) + ' cr'
+}
+const costsFeedRankByKey = computed(() => {
+  const map = new Map<string, FeedRankEntry>()
+  for (const r of costs.value?.report.feedRanks ?? []) map.set(`${r.county}|${r.categorySlug}`, r)
+  return map
+})
+const costsByFeedRows = computed(() => {
+  const rows = costs.value?.report.byFeed ?? []
+  const maxMinor = Math.max(1, ...rows.map((r) => r.spent.minor))
+  return rows.map((r) => ({
+    ...r,
+    rank: costsFeedRankByKey.value.get(`${r.county}|${r.categorySlug}`) ?? null,
+    sharePct: Math.round((r.spent.minor / maxMinor) * 100),
+  }))
+})
+function countyLbl(county: string | null): string {
+  if (!county) return ''
+  return county === 'nationwide' ? t('feed.coverageCountry') : county
+}
+const COST_REASON_META: Record<string, { labelKey: string; tone: 'warning' | 'muted' | 'danger' }> = {
+  budget: { labelKey: 'consumption.reason.budget', tone: 'warning' },
+  off: { labelKey: 'consumption.reason.off', tone: 'muted' },
+  bot: { labelKey: 'consumption.reason.bot', tone: 'danger' },
+  insufficient: { labelKey: 'consumption.reason.insufficient', tone: 'danger' },
+}
+const costsQualityRows = computed(() => {
+  const total = costs.value?.report.clickQuality.unbilled ?? 0
+  return (costs.value?.report.clickQuality.byReason ?? []).map((r) => ({
+    ...r,
+    meta: COST_REASON_META[r.reason] ?? { labelKey: 'consumption.reason.other', tone: 'muted' as const },
+    pct: total > 0 ? Math.round((r.count / total) * 100) : 0,
+  }))
+})
+const costsQualityTotal = computed(() => {
+  const q = costs.value?.report.clickQuality
+  return q ? q.billed + q.unbilled : 0
+})
+const costsBilledPct = computed(() => {
+  const q = costs.value?.report.clickQuality
+  if (!q || costsQualityTotal.value === 0) return 100
+  return Math.round((q.billed / costsQualityTotal.value) * 100)
+})
+const COST_CATEGORY_META: Record<SpendCategory, { icon: string; labelKey: string }> = {
+  clicks: { icon: 'mdi-cursor-default-click-outline', labelKey: 'consumption.clicks' },
+  aiUsage: { icon: 'mdi-robot-outline', labelKey: 'consumption.aiUsage' },
+  builderUnlock: { icon: 'mdi-rocket-launch-outline', labelKey: 'consumption.builderUnlock' },
+  other: { icon: 'mdi-dots-horizontal', labelKey: 'consumption.other' },
+}
+const costsOtherCategories = computed(() => {
+  const map = new Map((costs.value?.breakdown.categories ?? []).map((c) => [c.key, c]))
+  return (['aiUsage', 'builderUnlock', 'other'] as SpendCategory[])
+    .map((k) => map.get(k))
+    .filter((c): c is NonNullable<typeof c> => !!c)
+})
+
+// --- costs ledger: unified filterable/paginated list (billed clicks + every
+// other spend category), mirroring the owner-facing Consumption page. ---
+const costsLedgerRows = ref<ConsumptionEntry[]>([])
+const costsLedgerCursor = ref<string | null>(null)
+const costsLedgerLoading = ref(false)
+const costsFilter = reactive({ category: '' as '' | SpendCategory, from: '', to: '', search: '' })
+const costsFilterItems = computed(() => [
+  { value: '', title: t('consumption.filterAllTypes') },
+  ...(['clicks', 'aiUsage', 'builderUnlock', 'other'] as SpendCategory[]).map((key) => ({
+    value: key,
+    title: t(COST_CATEGORY_META[key].labelKey),
+  })),
+])
+const costsHasActiveFilters = computed(
+  () => !!costsFilter.category || !!costsFilter.from || !!costsFilter.to || !!costsFilter.search,
+)
+async function applyCostsFilters() {
+  if (!costsLoaded) return
+  costsLedgerLoading.value = true
+  try {
+    const res = await admin.companyCostsLedger(id.value, {
+      category: costsFilter.category || undefined,
+      from: costsFilter.from || undefined,
+      to: costsFilter.to || undefined,
+      search: costsFilter.search || undefined,
+      limit: 20,
+    })
+    costsLedgerRows.value = res.items
+    costsLedgerCursor.value = res.nextCursor
+  } finally {
+    costsLedgerLoading.value = false
+  }
+}
+function clearCostsFilters() {
+  costsFilter.category = ''
+  costsFilter.from = ''
+  costsFilter.to = ''
+  costsFilter.search = ''
+  void applyCostsFilters()
+}
+let costsSearchDebounce: ReturnType<typeof setTimeout> | undefined
+watch(() => costsFilter.search, () => {
+  clearTimeout(costsSearchDebounce)
+  costsSearchDebounce = setTimeout(applyCostsFilters, 300)
+})
+function filterByCostsCategory(key: SpendCategory) {
+  costsFilter.category = costsFilter.category === key ? '' : key
+  void applyCostsFilters()
+}
+async function moreCostsLedger() {
+  if (!costsLedgerCursor.value) return
+  costsLedgerLoading.value = true
+  try {
+    const res = await admin.companyCostsLedger(id.value, {
+      category: costsFilter.category || undefined,
+      from: costsFilter.from || undefined,
+      to: costsFilter.to || undefined,
+      search: costsFilter.search || undefined,
+      cursor: costsLedgerCursor.value,
+      limit: 20,
+    })
+    costsLedgerRows.value = [...costsLedgerRows.value, ...res.items]
+    costsLedgerCursor.value = res.nextCursor
+  } finally {
+    costsLedgerLoading.value = false
+  }
+}
+function costsShortId(idv: string): string {
+  return '#' + idv.slice(0, 8)
+}
+function costsEntryLabel(e: ConsumptionEntry): string {
+  if (e.kind === 'click') return `${countyLbl(e.county)} · ${e.categoryName ? nm(e.categoryName) : ''}`
+  if (e.category === 'clicks') return t('consumption.clicksRollup', { n: e.clicks ?? 0 })
+  if (e.category === 'aiUsage') return t('consumption.aiUsage')
+  if (e.category === 'builderUnlock') return t('consumption.builderUnlock')
+  return e.description ?? t('consumption.txnOther')
+}
+
 const chartSeries = computed(() => {
   const a = data.value?.analytics
   return a
@@ -737,6 +933,7 @@ const leadStatusItems = computed(() => [
         <v-tab value="requests" prepend-icon="mdi-inbox-outline">
           {{ t('adminCo.tabRequests') }} ({{ data.leads.summary.total }})
         </v-tab>
+        <v-tab value="costs" prepend-icon="mdi-cash-multiple">{{ t('adminCo.tabCosts') }}</v-tab>
         <v-tab value="stats" prepend-icon="mdi-chart-box-outline">{{ t('adminCo.tabStats') }}</v-tab>
       </v-tabs>
 
@@ -1167,6 +1364,216 @@ const leadStatusItems = computed(() => [
               {{ t('adminCo.loadMore') }}
             </v-btn>
           </AdminSection>
+        </v-window-item>
+
+        <!-- ============ COSTS ============ -->
+        <v-window-item value="costs">
+          <div v-if="costsLoading && !costs" class="ac__center" style="min-height: 220px">
+            <v-progress-circular indeterminate color="primary" />
+          </div>
+          <div v-else-if="costsError && !costs" class="ac__costsErr">
+            <v-icon icon="mdi-alert-circle-outline" size="16" /> {{ costsError }}
+          </div>
+          <div v-else-if="costs" class="ac__stack">
+            <AdminSection :title="t('consumption.totalLabel')" icon="mdi-cash-multiple">
+              <template #actions>
+                <v-btn
+                  variant="text"
+                  size="small"
+                  :loading="costsLoading"
+                  prepend-icon="mdi-refresh"
+                  @click="refreshCosts"
+                >
+                  {{ t('common.refresh') }}
+                </v-btn>
+              </template>
+              <div v-if="costsHasCampaign && costs.report.insights.length" class="ac__costsInsights">
+                <p v-for="ins in costs.report.insights" :key="ins.key" class="ac__costsInsight">
+                  <v-icon icon="mdi-lightbulb-on-outline" size="15" />
+                  {{ t('spend.insight.' + ins.key, { n: ins.value }) }}
+                </p>
+              </div>
+              <div class="ac__counts">
+                <AdminStatCard
+                  :label="t('consumption.totalLabel')"
+                  :value="fmtCrSuffix(costs.breakdown.total.credits)"
+                  :sub="ownerEq(costs.breakdown.total.credits)"
+                />
+                <AdminStatCard :label="t('consumption.clicks')" :value="fmtInt(costs.report.lifetime.clicks)" />
+                <AdminStatCard
+                  :label="t('consumption.heroCpc')"
+                  :value="costs.report.lifetime.cpcEffective ? fmtCrSuffix(costs.report.lifetime.cpcEffective.credits) : '—'"
+                  :sub="t('consumption.heroCpcSub')"
+                />
+                <AdminStatCard
+                  v-if="costsHasCampaign"
+                  :label="t('spend.lRunning')"
+                  :value="fmtActiveDuration(costs.report.lifetime.activeSeconds)"
+                />
+              </div>
+            </AdminSection>
+
+            <AdminSection v-if="costsHasCampaign" :title="t('consumption.evolutionTitle')" icon="mdi-chart-line">
+              <div class="ac__costsChartGroup">
+                <p class="ac__costsChartLabel">{{ t('spend.legendClicks') }}</p>
+                <TrendChart :labels="costsChartClicks.labels" :series="costsChartClicks.series" />
+              </div>
+              <div class="ac__costsChartGroup">
+                <p class="ac__costsChartLabel">{{ t('spend.legendSpent') }}</p>
+                <TrendChart :labels="costsChartSpend.labels" :series="costsChartSpend.series" :format="fmtCrSuffix" />
+              </div>
+            </AdminSection>
+
+            <AdminSection v-if="costsByFeedRows.length" :title="t('consumption.byFeedTitle')" icon="mdi-map-marker-radius-outline">
+              <div class="ac__tableWrap">
+                <table class="ac__table">
+                  <thead>
+                    <tr>
+                      <th>{{ t('consumption.colFeed') }}</th>
+                      <th>{{ t('consumption.colPosition') }}</th>
+                      <th class="num">{{ t('consumption.colClicks') }}</th>
+                      <th class="num">{{ t('consumption.colCpc') }}</th>
+                      <th class="num">{{ t('consumption.colSpentFeed') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(r, i) in costsByFeedRows" :key="r.county + r.categorySlug + i">
+                      <td :data-label="t('consumption.colFeed')">{{ countyLbl(r.county) }} · {{ nm(r.categoryName) }}</td>
+                      <td :data-label="t('consumption.colPosition')">
+                        <span v-if="r.rank" class="ac__feedPos" :class="{ 'is-top': r.rank.position === 1 }">
+                          #{{ r.rank.position }}<span class="ac__feedPosOf">/{{ r.rank.total }}</span>
+                        </span>
+                        <span v-else class="ac__muted">{{ t('consumption.colPositionNone') }}</span>
+                      </td>
+                      <td class="num" :data-label="t('consumption.colClicks')">{{ r.clicks }}</td>
+                      <td class="num" :data-label="t('consumption.colCpc')">
+                        {{ r.cpcEffective ? fmtCrSuffix(r.cpcEffective.credits) : '—' }}
+                      </td>
+                      <td class="num ac__costsFeedSpent" :data-label="t('consumption.colSpentFeed')">
+                        <span class="ac__feedBar"><span class="ac__feedBarFill" :style="{ width: r.sharePct + '%' }" /></span>
+                        {{ fmtCrSuffix(r.spent.credits) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </AdminSection>
+
+            <AdminSection v-if="costsQualityTotal > 0" :title="t('consumption.qualityTitle')" icon="mdi-shield-check-outline">
+              <div class="ac__qbar"><span class="ac__qbarFill" :style="{ width: costsBilledPct + '%' }" /></div>
+              <div class="ac__qsum">
+                <span class="ac__qsumItem ac__qsumItem--billed">
+                  {{ t('consumption.qualityBilled') }}: <b>{{ costs.report.clickQuality.billed }}</b>
+                </span>
+                <span class="ac__qsumItem">
+                  {{ t('consumption.qualityUnbilled') }}: <b>{{ costs.report.clickQuality.unbilled }}</b>
+                </span>
+              </div>
+              <ul v-if="costsQualityRows.length" class="ac__qlist">
+                <li v-for="row in costsQualityRows" :key="row.reason" class="ac__qlistRow">
+                  <span class="ac__qlistDot" :class="`ac__qlistDot--${row.meta.tone}`" />
+                  <span class="ac__qlistLabel">{{ t(row.meta.labelKey) }}</span>
+                  <span class="ac__qlistCount">{{ row.count }}</span>
+                  <span class="ac__qlistPct">{{ row.pct }}%</span>
+                </li>
+              </ul>
+            </AdminSection>
+
+            <AdminSection v-if="costsOtherCategories.length" :title="t('consumption.otherTitle')" icon="mdi-dots-horizontal">
+              <div class="ac__costsGrid">
+                <button
+                  v-for="c in costsOtherCategories"
+                  :key="c.key"
+                  type="button"
+                  class="ac__costsCard"
+                  :class="{ 'is-active': costsFilter.category === c.key }"
+                  @click="filterByCostsCategory(c.key)"
+                >
+                  <span class="ac__costsCardIcon"><v-icon :icon="COST_CATEGORY_META[c.key].icon" size="18" /></span>
+                  <span class="ac__costsCardLabel">{{ t(COST_CATEGORY_META[c.key].labelKey) }}</span>
+                  <strong class="ac__costsCardValue">{{ fmtCrSuffix(c.total.credits) }}</strong>
+                  <span class="ac__muted">
+                    {{ c.count ? t('consumption.txnCount', { n: c.count }) : t('consumption.none') }}
+                  </span>
+                </button>
+              </div>
+            </AdminSection>
+
+            <AdminSection :title="t('consumption.recentTitle')" icon="mdi-receipt-text-outline">
+              <div class="ac__costsFilters">
+                <v-text-field
+                  v-model="costsFilter.search"
+                  :label="t('transactions.filterId')"
+                  :placeholder="t('transactions.filterIdPlaceholder')"
+                  prepend-inner-icon="mdi-magnify"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  clearable
+                  class="ac__costsFilterId"
+                />
+                <v-select
+                  v-model="costsFilter.category"
+                  :items="costsFilterItems"
+                  :label="t('consumption.filterType')"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  class="ac__costsFilterType"
+                  @update:model-value="applyCostsFilters"
+                />
+                <label class="ac__costsFilterDate">
+                  <span>{{ t('consumption.filterFrom') }}</span>
+                  <input v-model="costsFilter.from" type="date" @change="applyCostsFilters" />
+                </label>
+                <label class="ac__costsFilterDate">
+                  <span>{{ t('consumption.filterTo') }}</span>
+                  <input v-model="costsFilter.to" type="date" @change="applyCostsFilters" />
+                </label>
+                <button v-if="costsHasActiveFilters" type="button" class="ac__costsFilterClear" @click="clearCostsFilters">
+                  <v-icon icon="mdi-close" size="14" /> {{ t('consumption.filterClear') }}
+                </button>
+              </div>
+
+              <AdminEmptyState
+                v-if="!costsLedgerRows.length && !costsLedgerLoading"
+                :text="costsHasActiveFilters ? t('consumption.emptyFiltered') : t('consumption.empty')"
+                icon="mdi-receipt-text-outline"
+              />
+              <div v-else class="ac__tableWrap">
+                <table class="ac__table">
+                  <thead>
+                    <tr>
+                      <th>{{ t('consumption.colDate') }}</th>
+                      <th>{{ t('consumption.colDetail') }}</th>
+                      <th class="num">{{ t('consumption.colClicks') }}</th>
+                      <th class="num">{{ t('consumption.colAmount') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="e in costsLedgerRows" :key="e.id">
+                      <td class="ac__date" :data-label="t('consumption.colDate')">{{ dt(e.createdAt) }}</td>
+                      <td :data-label="t('consumption.colDetail')">
+                        <span class="ac__costsRowId">{{ costsShortId(e.id) }}</span> {{ costsEntryLabel(e) }}
+                      </td>
+                      <td class="num" :data-label="t('consumption.colClicks')">{{ e.clicks ?? '—' }}</td>
+                      <td class="num" :data-label="t('consumption.colAmount')">{{ fmtCrSuffix(Math.abs(e.amount.credits)) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <v-btn
+                v-if="costsLedgerCursor"
+                variant="text"
+                size="small"
+                :loading="costsLedgerLoading"
+                class="mt-2"
+                @click="moreCostsLedger"
+              >
+                {{ t('consumption.loadMore') }}
+              </v-btn>
+            </AdminSection>
+          </div>
         </v-window-item>
 
         <!-- ============ STATISTICS ============ -->
@@ -1790,5 +2197,214 @@ const leadStatusItems = computed(() => [
   .ac__ana {
     grid-template-columns: 1fr;
   }
+}
+
+/* costs tab ----------------------------------------------------------- */
+.ac__costsErr {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: rgb(var(--v-theme-error));
+  font-size: 0.85rem;
+}
+.ac__costsInsights {
+  margin-bottom: 1rem;
+}
+.ac__costsInsight {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.86rem;
+  color: rgba(var(--v-theme-on-surface), 0.82);
+}
+.ac__costsInsight:last-child {
+  margin-bottom: 0;
+}
+.ac__costsChartGroup + .ac__costsChartGroup {
+  margin-top: 1.5rem;
+}
+.ac__costsChartLabel {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.ac__feedPos {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: rgba(var(--v-theme-warning), 0.12);
+  color: rgb(var(--v-theme-warning));
+}
+.ac__feedPos.is-top {
+  background: rgba(var(--v-theme-success), 0.12);
+  color: rgb(var(--v-theme-success));
+}
+.ac__feedPosOf {
+  font-weight: 400;
+  opacity: 0.7;
+}
+.ac__costsFeedSpent {
+  font-weight: 700;
+}
+.ac__feedBar {
+  display: inline-block;
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  overflow: hidden;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+.ac__feedBarFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-primary));
+}
+.ac__qbar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-error), 0.15);
+  overflow: hidden;
+  margin-bottom: 0.8rem;
+}
+.ac__qbarFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-success));
+}
+.ac__qsum {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  font-size: 0.84rem;
+  margin-bottom: 0.9rem;
+}
+.ac__qsumItem {
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.ac__qsumItem--billed {
+  color: rgb(var(--v-theme-success));
+}
+.ac__qlist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ac__qlistRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.84rem;
+}
+.ac__qlistDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: rgba(var(--v-theme-on-surface), 0.3);
+}
+.ac__qlistDot--warning {
+  background: rgb(var(--v-theme-warning));
+}
+.ac__qlistDot--danger {
+  background: rgb(var(--v-theme-error));
+}
+.ac__qlistLabel {
+  flex: 1;
+  color: rgba(var(--v-theme-on-surface), 0.8);
+}
+.ac__qlistCount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ac__qlistPct {
+  width: 3.2em;
+  text-align: right;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.ac__costsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.7rem;
+}
+.ac__costsCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: var(--tvz-radius-md);
+  background: rgb(var(--v-theme-surface));
+  transition: border-color var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
+}
+.ac__costsCard.is-active {
+  border-color: rgb(var(--v-theme-primary));
+}
+.ac__costsCardIcon {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.ac__costsCardLabel {
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  margin-top: 0.3rem;
+}
+.ac__costsCardValue {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1.1rem;
+}
+.ac__costsFilters {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.ac__costsFilterId {
+  max-width: 220px;
+}
+.ac__costsFilterType {
+  max-width: 190px;
+}
+.ac__costsFilterDate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.68rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.ac__costsFilterDate input {
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+  font-size: 0.82rem;
+}
+.ac__costsFilterClear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.ac__costsFilterClear:hover {
+  color: rgb(var(--v-theme-error));
+}
+.ac__costsRowId {
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+  margin-right: 0.3rem;
 }
 </style>

@@ -320,6 +320,43 @@ export class AdminCompaniesService {
     };
   }
 
+  /**
+   * The campaign's full cost breakdown — the same "where did the money go"
+   * report the owner's own Consumption page reads (`spendReportFor`'s
+   * byFeed/series/clickQuality/lifetime/runway), plus the category split
+   * (clicks / AI usage / builder unlock / other) and the first page of the
+   * unified per-click+transaction ledger. The admin company page had no
+   * equivalent of this at all — just the campaign editor's today/consumed
+   * summary, with nothing explaining HOW it got spent.
+   */
+  async costs(companyId: string) {
+    const company = await this.loadCompany(companyId);
+    const [report, breakdown, ledger] = await Promise.all([
+      this.campaigns.spendReportFor(companyId),
+      this.wallet.spendBreakdownFor(company.ownerUserId, companyId),
+      this.wallet.consumptionLedgerFor(company.ownerUserId, companyId, { limit: 20 }),
+    ]);
+    return { report, breakdown, ledger };
+  }
+
+  /** Paginated/filterable continuation of the ledger above — mirrors the
+   *  owner-facing `GET /wallet/consumption`, just without the ownership gate
+   *  (the platform-admin guard on the controller is the gate here). */
+  async costsLedger(
+    companyId: string,
+    opts: {
+      category?: string;
+      from?: string;
+      to?: string;
+      search?: string;
+      cursor?: string;
+      limit?: number;
+    },
+  ) {
+    const company = await this.loadCompany(companyId);
+    return this.wallet.consumptionLedgerFor(company.ownerUserId, companyId, opts);
+  }
+
   async leadsPage(companyId: string, query: LeadsQueryDto) {
     await this.loadCompany(companyId);
     return this.leads.listFor(companyId, {
