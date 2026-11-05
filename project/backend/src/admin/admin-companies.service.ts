@@ -540,12 +540,15 @@ export class AdminCompaniesService {
         select: {
           categoryId: true,
           website: { select: { id: true } },
-          locations: { select: { nationwide: true, lat: true, lng: true } },
+          locations: { select: { nationwide: true, county: true } },
         },
       });
       if (!company?.website) throw new BadRequestException('website_missing');
       if (!company.categoryId) throw new BadRequestException('category_required');
-      const loc = company.locations.find((l) => l.nationwide || (l.lat != null && l.lng != null));
+      // See the same fix/comment in companies.service.ts#setPublished —
+      // lat/lng are only the optional single-county map pin, not a signal
+      // of whether coverage is actually configured.
+      const loc = company.locations.find((l) => l.nationwide || l.county != null);
       if (!loc) throw new BadRequestException('location_required');
       if (!(await this.campaigns.isListingWebsiteReady(companyId))) {
         throw new BadRequestException('website_builder_incomplete');

@@ -775,8 +775,14 @@ export class CompaniesService implements OnModuleInit {
             {
               key: 'set_location' as const,
               required: true,
+              // `lat`/`lng` are only the optional map-pin shown for a single-
+              // county business (see CompanyLocation's doc comment) — they're
+              // never set at all once 2+ counties are chosen, which used to
+              // leave this task stuck on "todo" forever for any multi-county
+              // business. County/nationwide coverage is what actually makes
+              // the business feed-eligible, so that's what "done" means here.
               status:
-                primaryLocation && (primaryLocation.lat != null || primaryLocation.nationwide)
+                primaryLocation && (primaryLocation.county != null || primaryLocation.nationwide)
                   ? ('done' as const)
                   : ('todo' as const),
             },
@@ -869,12 +875,17 @@ export class CompaniesService implements OnModuleInit {
         select: {
           categoryId: true,
           website: { select: { id: true } },
-          locations: { select: { nationwide: true, lat: true, lng: true } },
+          locations: { select: { nationwide: true, county: true } },
         },
       });
       if (!company?.website) throw new BadRequestException('website_missing');
       if (!company.categoryId) throw new BadRequestException('category_required');
-      const loc = company.locations.find((l) => l.nationwide || (l.lat != null && l.lng != null));
+      // `lat`/`lng` are only the optional single-county map pin (see
+      // CompanyLocation's doc comment) — feed matching is by county/
+      // nationwide alone, so requiring a pin here blocked every real
+      // multi-county business from ever activating (LocationView.vue only
+      // ever sends lat/lng when exactly one county is chosen).
+      const loc = company.locations.find((l) => l.nationwide || l.county != null);
       if (!loc) throw new BadRequestException('location_required');
       if (!(await this.campaigns.isListingWebsiteReady(companyId))) {
         throw new BadRequestException('website_builder_incomplete');
