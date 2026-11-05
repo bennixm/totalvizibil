@@ -1,7 +1,4 @@
 <script lang="ts">
-/** Module-level counter so gradient ids stay unique across chart instances. */
-const TrendChartSeq = { n: 0 }
-
 /** Compact k / M number formatting for axis labels and callouts. */
 function compact(v: number): string {
   const a = Math.abs(v)
@@ -9,10 +6,29 @@ function compact(v: number): string {
   if (a >= 1e3) return (v / 1e3).toFixed(a >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'k'
   return String(Math.round(v))
 }
+
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
 </script>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useTheme } from 'vuetify'
+// Modular ApexCharts build — only the pieces this chart actually uses
+// (area type + legend/toolbar features), not the full library with every
+// chart type (candlestick, treemap, pictograms, ...). Cuts the lazy-loaded
+// chunk from ~175KB gzip to a fraction of that. See the "Tree-shaking"
+// section of apexcharts' README for the full list of entry points.
+import VueApexCharts from 'vue3-apexcharts/core'
+import 'apexcharts/area'
+import 'apexcharts/features/legend'
+import 'apexcharts/features/toolbar'
+import type { ApexOptions } from 'apexcharts'
 
 interface Series {
   label: string
@@ -23,239 +39,158 @@ const props = withDefaults(
   defineProps<{
     labels: string[]
     series: Series[] // 1 or 2
-    /** Format a y value for the axis / last-point callout. */
+    /** Format a y value for the axis / tooltip / last-point callout. */
     format?: (v: number) => string
   }>(),
   { format: compact },
 )
 
-// Unique gradient ids per instance (multiple charts on one page).
-const uid = `tc${(TrendChartSeq.n += 1)}`
+const theme = useTheme()
 
-const W = 720
-const H = 300
-const PAD = { l: 10, r: 10, t: 20, b: 30 }
-const plotW = W - PAD.l - PAD.r
-const plotH = H - PAD.t - PAD.b
-
-const max = computed(() => Math.max(1, ...props.series.flatMap((s) => s.values)))
-const count = computed(() => Math.max(props.labels.length, 1))
-
-function px(i: number): number {
-  return count.value <= 1 ? PAD.l + plotW / 2 : PAD.l + (i / (count.value - 1)) * plotW
-}
-function py(v: number): number {
-  return PAD.t + plotH - (v / max.value) * plotH
-}
-
-/** Catmull-Rom → cubic Bézier smoothing (low tension to limit overshoot). */
-function smooth(pts: { x: number; y: number }[]): string {
-  if (pts.length === 0) return ''
-  if (pts.length === 1) return `M${pts[0].x},${pts[0].y}`
-  const d = [`M${pts[0].x},${pts[0].y}`]
-  const k = 0.11
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] ?? pts[i]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = pts[i + 2] ?? p2
-    d.push(
-      `C${p1.x + (p2.x - p0.x) * k},${p1.y + (p2.y - p0.y) * k} ` +
-        `${p2.x - (p3.x - p1.x) * k},${p2.y - (p3.y - p1.y) * k} ` +
-        `${p2.x},${p2.y}`,
-    )
+// Resolved literal colors (never CSS var() strings) so every value baked
+// into the chart's options object — gradients, marker strokes, the tooltip
+// theme flag — is correct the instant it's built. The component is re-keyed
+// by theme name below, so a theme toggle fully remounts it with fresh colors
+// rather than relying on ApexCharts to pick up a live CSS variable change.
+const palette = computed(() => {
+  const colors = theme.current.value.colors as Record<string, string>
+  const vars = theme.current.value.variables as Record<string, string>
+  return {
+    series: [colors.primary, colors.secondary],
+    surface: colors.surface,
+    ink: vars['border-color'] ?? (theme.current.value.dark ? '#EEF1F7' : '#131722'),
   }
-  return d.join(' ')
-}
+})
 
-const plotted = computed(() =>
-  props.series.map((s, si) => {
-    const pts = s.values.map((v, i) => ({ x: px(i), y: py(v) }))
-    const line = smooth(pts)
-    const base = PAD.t + plotH
-    const area = pts.length
-      ? `${line} L${pts[pts.length - 1].x},${base} L${pts[0].x},${base} Z`
-      : ''
-    const lastVal = s.values.length ? s.values[s.values.length - 1] : 0
-    return { si, label: s.label, line, area, last: pts[pts.length - 1], lastVal }
-  }),
-)
+const reduceMotion =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-const gridLines = computed(() =>
-  [0.4, 0.8].map((f) => ({ y: PAD.t + plotH - f * plotH, v: props.format(f * max.value) })),
-)
+const apexSeries = computed(() => props.series.map((s) => ({ name: s.label, data: s.values })))
 
-const xTicks = computed(() => {
-  const n = count.value
-  const idx = n <= 1 ? [0] : n <= 4 ? props.labels.map((_, i) => i) : [0, Math.floor((n - 1) / 2), n - 1]
-  return idx.map((i) => ({ x: px(i), label: props.labels[i] ?? '' }))
+const lastValues = computed(() => props.series.map((s) => s.values[s.values.length - 1] ?? 0))
+
+const lastIndex = computed(() => props.labels.length - 1)
+
+const options = computed<ApexOptions>(() => {
+  const { series: seriesColors, surface, ink } = palette.value
+  const inkFaint = hexToRgba(ink, 0.08)
+  const inkDim = hexToRgba(ink, 0.45)
+  const inkLabel = hexToRgba(ink, 0.6)
+
+  return {
+    chart: {
+      type: 'area',
+      fontFamily: "'Inter Variable', sans-serif",
+      foreColor: inkDim,
+      background: 'transparent',
+      toolbar: {
+        show: true,
+        tools: {
+          download: false,
+          selection: false,
+          zoom: true,
+          zoomin: true,
+          zoomout: true,
+          pan: true,
+          reset: true,
+        },
+      },
+      zoom: { enabled: true, autoScaleYaxis: true },
+      animations: { enabled: !reduceMotion, speed: 280 },
+    },
+    colors: seriesColors,
+    stroke: { curve: 'smooth', width: 2.25, lineCap: 'round' },
+    fill: {
+      type: 'gradient',
+      gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.02, stops: [0, 100] },
+    },
+    dataLabels: { enabled: false },
+    markers: {
+      size: 0,
+      hover: { size: 5 },
+      strokeWidth: 2,
+      strokeColors: surface,
+      discrete: props.series.map((_, si) => ({
+        seriesIndex: si,
+        dataPointIndex: lastIndex.value,
+        size: 3.5,
+        fillColor: seriesColors[si % seriesColors.length],
+        strokeColor: surface,
+        strokeWidth: 2,
+      })),
+    },
+    grid: {
+      borderColor: inkFaint,
+      strokeDashArray: 0,
+      xaxis: { lines: { show: false } },
+      padding: { left: 8, right: 8, top: 0, bottom: 0 },
+    },
+    xaxis: {
+      categories: props.labels,
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      labels: { style: { colors: inkDim, fontSize: '12px' }, rotate: 0 },
+      tooltip: { enabled: false },
+      crosshairs: { stroke: { color: inkFaint, width: 1, dashArray: 0 } },
+    },
+    yaxis: {
+      labels: {
+        formatter: (v: number) => props.format(v),
+        style: { colors: inkDim, fontSize: '12px' },
+      },
+    },
+    legend: {
+      show: props.series.length > 1,
+      position: 'top',
+      horizontalAlign: 'left',
+      fontSize: '13px',
+      fontWeight: 600,
+      labels: { colors: inkLabel },
+      markers: { size: 5, offsetX: -2 },
+      itemMargin: { horizontal: 14, vertical: 6 },
+      formatter: (name: string, opts?: { seriesIndex: number }) =>
+        `${name}  ${props.format(lastValues.value[opts?.seriesIndex ?? 0] ?? 0)}`,
+    },
+    tooltip: {
+      theme: theme.current.value.dark ? 'dark' : 'light',
+      shared: true,
+      intersect: false,
+      y: { formatter: (v: number) => props.format(v) },
+    },
+  }
 })
 </script>
 
 <template>
-  <div class="tc">
-    <div v-if="series.length > 1" class="tc__legend">
-      <span v-for="(s, i) in series" :key="s.label" class="tc__key" :class="`tc__key--${i}`">
-        <i /> {{ s.label }}
-        <b>{{ format(plotted[i]?.lastVal ?? 0) }}</b>
-      </span>
-    </div>
-
-    <svg :viewBox="`0 0 ${W} ${H}`" class="tc__svg" preserveAspectRatio="xMidYMid meet" role="img">
-      <defs>
-        <linearGradient v-for="i in series.length" :id="`${uid}g${i - 1}`" :key="i" x1="0" y1="0" x2="0" y2="1">
-          <stop :class="`tc__stopA tc__stopA--${i - 1}`" offset="0" />
-          <stop :class="`tc__stopB tc__stopB--${i - 1}`" offset="1" />
-        </linearGradient>
-        <clipPath :id="`${uid}clip`">
-          <rect :x="0" :y="PAD.t - 8" :width="W" :height="plotH + 8" />
-        </clipPath>
-      </defs>
-
-      <g class="tc__grid">
-        <template v-for="g in gridLines" :key="g.y">
-          <line :x1="PAD.l" :x2="W - PAD.r" :y1="g.y" :y2="g.y" />
-          <text :x="PAD.l" :y="g.y - 5">{{ g.v }}</text>
-        </template>
-        <line
-          :x1="PAD.l"
-          :x2="W - PAD.r"
-          :y1="PAD.t + plotH"
-          :y2="PAD.t + plotH"
-          class="tc__axis"
-        />
-      </g>
-
-      <g :clip-path="`url(#${uid}clip)`">
-        <g v-for="p in [...plotted].reverse()" :key="p.si">
-          <path :d="p.area" :fill="`url(#${uid}g${p.si})`" class="tc__area" />
-          <path :d="p.line" class="tc__line" :class="`tc__line--${p.si}`" />
-        </g>
-      </g>
-      <circle
-        v-for="p in plotted"
-        v-show="p.last"
-        :key="p.si"
-        :cx="p.last?.x"
-        :cy="p.last?.y"
-        r="3.5"
-        class="tc__dot"
-        :class="`tc__dot--${p.si}`"
-      />
-
-      <g class="tc__xticks">
-        <text v-for="tk in xTicks" :key="tk.x" :x="tk.x" :y="H - 6">{{ tk.label }}</text>
-      </g>
-    </svg>
-  </div>
+  <VueApexCharts
+    :key="theme.global.name.value"
+    class="tc"
+    type="area"
+    height="260"
+    :options="options"
+    :series="apexSeries"
+  />
 </template>
 
 <style scoped>
 .tc {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-.tc__legend {
-  display: flex;
-  gap: 1.25rem;
-  font-size: 0.76rem;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.tc__key {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.tc__key i {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-}
-.tc__key b {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  color: rgba(var(--v-theme-on-surface), 0.9);
-  font-variant-numeric: tabular-nums;
-}
-.tc__key--0 i {
-  background: rgb(var(--v-theme-primary));
-}
-.tc__key--1 i {
-  background: rgb(var(--v-theme-secondary));
-}
-
-.tc__svg {
   width: 100%;
-  height: auto;
-  display: block;
-  overflow: visible;
 }
-
-.tc__stopA--0 {
-  stop-color: rgb(var(--v-theme-primary));
-  stop-opacity: 0.26;
+.tc :deep(.apexcharts-toolbar) {
+  opacity: 0.45;
+  transition: opacity 0.15s ease;
 }
-.tc__stopB--0 {
-  stop-color: rgb(var(--v-theme-primary));
-  stop-opacity: 0.01;
+.tc:hover :deep(.apexcharts-toolbar) {
+  opacity: 0.9;
 }
-.tc__stopA--1 {
-  stop-color: rgb(var(--v-theme-secondary));
-  stop-opacity: 0.2;
-}
-.tc__stopB--1 {
-  stop-color: rgb(var(--v-theme-secondary));
-  stop-opacity: 0.01;
-}
-
-.tc__grid line {
-  stroke: rgba(var(--v-theme-on-surface), 0.08);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-.tc__grid .tc__axis {
-  stroke: rgba(var(--v-theme-on-surface), 0.16);
-}
-.tc__grid text {
-  fill: rgba(var(--v-theme-on-surface), 0.38);
-  font-size: 13px;
-  text-anchor: start;
-}
-
-.tc__line {
-  fill: none;
-  stroke-width: 2.25;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-.tc__line--0 {
-  stroke: rgb(var(--v-theme-primary));
-}
-.tc__line--1 {
-  stroke: rgb(var(--v-theme-secondary));
-}
-.tc__dot--0 {
-  fill: rgb(var(--v-theme-primary));
-}
-.tc__dot--1 {
-  fill: rgb(var(--v-theme-secondary));
-}
-.tc__dot {
-  stroke: rgb(var(--v-theme-surface));
-  stroke-width: 2;
-}
-
-.tc__xticks text {
-  fill: rgba(var(--v-theme-on-surface), 0.45);
-  font-size: 14px;
-  text-anchor: middle;
-}
-.tc__xticks text:first-child {
-  text-anchor: start;
-}
-.tc__xticks text:last-child {
-  text-anchor: end;
+.tc :deep(.apexcharts-menu-icon svg),
+.tc :deep(.apexcharts-reset-icon svg),
+.tc :deep(.apexcharts-zoom-icon svg),
+.tc :deep(.apexcharts-pan-icon svg),
+.tc :deep(.apexcharts-selection-icon svg) {
+  width: 16px;
+  height: 16px;
 }
 </style>

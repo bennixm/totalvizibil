@@ -24,6 +24,7 @@
     "@fontsource-variable/space-grotesk": "^5.1.1",
     "@mdi/font": "^7.4.47",
     "@webcontainer/api": "^1.6.4",
+    "apexcharts": "^5.16.0",
     "leaflet": "^1.9.4",
     "pinia": "^3.0.1",
     "pinia-plugin-persistedstate": "^4.2.0",
@@ -32,6 +33,7 @@
     "vue": "^3.5.13",
     "vue-i18n": "^11.1.0",
     "vue-router": "^4.5.0",
+    "vue3-apexcharts": "^1.11.3",
     "vuetify": "^3.7.6"
   },
   "devDependencies": {
