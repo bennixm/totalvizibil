@@ -35,14 +35,25 @@ export interface AppConfig {
    * Google Ads API credentials — feed the rolling-average CPC sync job that
    * prices Google-Ads-attributed feed clicks (replaces the old manual "Cost
    * promovare" admin setting for that traffic; see GoogleAdsCpcSyncService).
-   * All of them are required together for the job to run; any one missing ⇒
-   * it logs once and stays idle (never crashes the app). See
-   * `GOOGLE_ADS_SETUP.md` for exactly where each value comes from.
+   *
+   * Auth is via a GCP service account (its own email/key pair, added as a
+   * Standard user directly on the Google Ads account — Admin > Access and
+   * security > Users in the Ads UI) rather than the old OAuth
+   * user-consent/refresh-token flow: no human has to re-click through a
+   * consent screen, ever, and (unlike that flow) this isn't affected by
+   * Google's 2026-08-05 passkey requirement for *new* refresh tokens, since
+   * a service account never goes through user consent at all. This does
+   * NOT need Google Workspace / domain-wide delegation — that's a different,
+   * more restrictive mechanism for impersonating a human identity.
+   *
+   * Service-account key + customer-id are both required for the job to run;
+   * either missing ⇒ it logs once and stays idle (never crashes the app).
    */
-  googleAdsDeveloperToken: string;
-  googleAdsClientId: string;
-  googleAdsClientSecret: string;
-  googleAdsRefreshToken: string;
+  /** Base64 of the service account's downloaded JSON key file (the whole
+   *  file, not just the private key) — base64 sidesteps every quoting/
+   *  newline issue a raw JSON blob (its PEM key has literal `\n`s) would hit
+   *  sitting in a single `.env` line. Decoded in GoogleAdsCpcSyncService. */
+  googleAdsServiceAccountKeyBase64: string;
   googleAdsCustomerId: string;
   /** Only needed if the account above is accessed through a Manager (MCC)
    *  account — the MCC's own customer id. Empty ⇒ omitted from the API call. */
@@ -131,12 +142,17 @@ export function loadConfig(): AppConfig {
     visualQa: (process.env.VISUAL_QA?.trim().toLowerCase() ?? '') === 'on',
     screenshotUrl: process.env.SCREENSHOT_URL?.trim() ?? '',
     stripeSecretKey: process.env.STRIPE_SECRET_KEY?.trim() ?? '',
-    googleAdsDeveloperToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim() ?? '',
-    googleAdsClientId: process.env.GOOGLE_ADS_CLIENT_ID?.trim() ?? '',
-    googleAdsClientSecret: process.env.GOOGLE_ADS_CLIENT_SECRET?.trim() ?? '',
-    googleAdsRefreshToken: process.env.GOOGLE_ADS_REFRESH_TOKEN?.trim() ?? '',
-    googleAdsCustomerId: process.env.GOOGLE_ADS_CUSTOMER_ID?.trim() ?? '',
-    googleAdsLoginCustomerId: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim() ?? '',
+    googleAdsServiceAccountKeyBase64:
+      process.env.GOOGLE_ADS_SERVICE_ACCOUNT_KEY_BASE64?.trim() ?? '',
+    // Google Ads API wants digits only (no dashes) — accept either format
+    // here (123-456-7890 or 1234567890) rather than silently failing every
+    // API call the moment someone pastes it exactly as Google's own UI
+    // displays it, dashes included.
+    googleAdsCustomerId: (process.env.GOOGLE_ADS_CUSTOMER_ID ?? '').replace(/[^0-9]/g, ''),
+    googleAdsLoginCustomerId: (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ?? '').replace(
+      /[^0-9]/g,
+      '',
+    ),
     googleAdsCampaignId: process.env.GOOGLE_ADS_CAMPAIGN_ID?.trim() ?? '',
     smtpHost: process.env.SMTP_HOST?.trim() || 'smtp.gmail.com',
     smtpPort: Number(process.env.SMTP_PORT ?? 587),
