@@ -443,5 +443,15 @@ watch(
     align-items: flex-start;
     gap: 0.75rem;
   }
+  /* `.opt__scoreChip` keeps `align-items: flex-end` for the desktop
+     side-by-side layout (right-aligned next to the rank line). Once the
+     hero stacks into a column, that right-alignment left the number/label
+     floating oddly to the right of its own auto-width box instead of
+     reading as a normal stacked block — flip it to match the rest of the
+     column. */
+  .opt__scoreChip {
+    align-items: flex-start;
+    width: 100%;
+  }
 }
 </style>

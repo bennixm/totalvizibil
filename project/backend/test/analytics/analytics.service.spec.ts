@@ -6,6 +6,9 @@ function fakePlatformSettings() {
     feedMarjaProfitCredits: jest.fn().mockResolvedValue(1),
     feedMarjaPozitionareCredits: jest.fn().mockResolvedValue(1),
     eurRonRate: jest.fn().mockResolvedValue(5.05),
+    googleAdsAvgCpc: jest.fn().mockResolvedValue(null),
+    googleAdsCpcBufferPct: jest.fn().mockResolvedValue(10),
+    googleAdsMaxCpcCredits: jest.fn().mockResolvedValue(50), // deliberately far above the organic floor
   };
 }
 
@@ -70,6 +73,40 @@ describe('AnalyticsService', () => {
         marjaProfitMinor: 100,
         marjaPozitionareMinor: 100,
       });
+    });
+  });
+
+  describe('marginConfig({ gclid }) — Google Ads cost fallback', () => {
+    it('prices off the fresh cached rolling average + buffer when the cache is fresh', async () => {
+      const { svc, settings } = makeService();
+      settings.googleAdsAvgCpc.mockResolvedValue({
+        credits: 2,
+        updatedAt: new Date().toISOString(),
+      });
+      const cfg = await svc.marginConfig({ gclid: 'abc' });
+      expect(cfg.costPromovareMinor).toBe(220); // 2 credits * 1.10 buffer = 2.2 credits = 220 minor
+    });
+
+    it('falls back to the ordinary organic floor — NOT the Max CPC ceiling — when the cache is missing', async () => {
+      const { svc, settings } = makeService();
+      settings.googleAdsAvgCpc.mockResolvedValue(null);
+      const cfg = await svc.marginConfig({ gclid: 'abc' });
+      // Same floor every non-Google click already uses (feedCostPromovareCredits=1 → 100 minor),
+      // never the much higher googleAdsMaxCpcCredits=50 — a stale/missing sync cache must not
+      // raise a Google-attributed click's eligibility floor above the ordinary one, or it starts
+      // excluding (and failing to bill) companies the platform already paid Google to send here.
+      expect(cfg.costPromovareMinor).toBe(100);
+      expect(settings.googleAdsMaxCpcCredits).not.toHaveBeenCalled();
+    });
+
+    it('falls back the same way when the cache is stale', async () => {
+      const { svc, settings } = makeService();
+      settings.googleAdsAvgCpc.mockResolvedValue({
+        credits: 2,
+        updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(), // a week old
+      });
+      const cfg = await svc.marginConfig({ gclid: 'abc' });
+      expect(cfg.costPromovareMinor).toBe(100);
     });
   });
 

@@ -867,7 +867,7 @@ const leadStatusItems = computed(() => [
           <v-chip v-if="camp?.autoOptimize" size="small" color="primary" variant="tonal" prepend-icon="mdi-robot-outline">
             {{ t('dashboard.campaignAuto') }}
           </v-chip>
-          <v-chip size="small" variant="outlined" :prepend-icon="isEasy ? 'mdi-flash-outline' : 'mdi-tune-vertical'">
+          <v-chip size="small" color="default" variant="tonal" :prepend-icon="isEasy ? 'mdi-flash-outline' : 'mdi-tune-vertical'">
             {{ isEasy ? t('dashboard.modeEasy') : t('dashboard.modeAdvanced') }}
           </v-chip>
         </template>

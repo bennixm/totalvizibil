@@ -1,6 +1,8 @@
 import {
   IP_CLICK_WINDOW_LIMIT,
+  IP_CLICK_WINDOW_LIMIT_MAX,
   IP_CLICK_WINDOW_MS,
+  ipClickWindowLimit,
   ipScopeHash,
   isLikelyBot,
   utcDay,
@@ -82,6 +84,40 @@ describe('ipScopeHash', () => {
     expect(IP_CLICK_WINDOW_MS).toBe(3_600_000);
     expect(IP_CLICK_WINDOW_LIMIT).toBeGreaterThan(1);
     expect(IP_CLICK_WINDOW_LIMIT).toBeLessThan(20);
+  });
+});
+
+describe('ipClickWindowLimit', () => {
+  it('falls back to the flat floor when the campaign is unknown', () => {
+    expect(ipClickWindowLimit(null)).toBe(IP_CLICK_WINDOW_LIMIT);
+    expect(ipClickWindowLimit(undefined)).toBe(IP_CLICK_WINDOW_LIMIT);
+  });
+
+  it('never drops below the floor for a tiny campaign', () => {
+    // 10 clicks/day worth of budget * 30% share would round to 3 — still
+    // clamped up to the floor so a small campaign is never weaker than before.
+    expect(ipClickWindowLimit({ dailyBudgetMinor: 1000, cpcMinor: 200 })).toBe(
+      IP_CLICK_WINDOW_LIMIT,
+    );
+  });
+
+  it('scales up for a campaign whose budget buys many more clicks a day', () => {
+    // 100 clicks/day worth of budget * 30% share = 30, clamped to the ceiling.
+    expect(ipClickWindowLimit({ dailyBudgetMinor: 20_000, cpcMinor: 200 })).toBe(
+      IP_CLICK_WINDOW_LIMIT_MAX,
+    );
+    // 25 clicks/day * 30% share = 8 — between the floor and the ceiling.
+    expect(ipClickWindowLimit({ dailyBudgetMinor: 5000, cpcMinor: 200 })).toBe(8);
+  });
+
+  it('never exceeds the absolute ceiling no matter how large the budget', () => {
+    expect(ipClickWindowLimit({ dailyBudgetMinor: 10_000_000, cpcMinor: 1 })).toBe(
+      IP_CLICK_WINDOW_LIMIT_MAX,
+    );
+  });
+
+  it('falls back to the floor for a zero/invalid CPC rather than dividing by zero', () => {
+    expect(ipClickWindowLimit({ dailyBudgetMinor: 5000, cpcMinor: 0 })).toBe(IP_CLICK_WINDOW_LIMIT);
   });
 });
 

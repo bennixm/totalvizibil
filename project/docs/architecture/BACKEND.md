@@ -183,23 +183,47 @@ infrastructure. All are in the PRD §17 target design.
   - Roles `owner | manager | billing` can edit; any member can view.
   - The dashboard `set_campaign_budget` task is now `todo` / `done` (was
     `blocked`) and its payload carries a `campaign` summary.
-  - **CPC metering** — `POST /feed/click` `{ companyId }` (public, throttled
-    40/min/IP). Fired by the feed card on click; the client doesn't wait on it.
-    `CampaignService.registerClick(companyId, ip, ua)` bills one `cpcMinor` from
-    the owner's wallet **in a single transaction** (click row + wallet debit +
-    daily counter) and returns `{ billed, reason? }`. The debit uses
-    `WalletService.chargeClickWithin` which **rolls up into one "Ad clicks"
-    ledger row per company per UTC day** (amount + click count accumulate on it —
-    `provider = 'cpc'`, `providerRef` = count) rather than one transaction per
-    click, so the wallet history stays readable under real traffic.
+  - **CPC metering** — billed as part of `GET /public/companies/:slug?click=1`
+    (public, throttled 300/min/IP — the same generous limit as `list`/`facets`,
+    since most hits here are plain organic page loads, not billing calls).
+    The frontend's `FeedAdCard` stashes a short-lived "this is a click-through"
+    signal (`services/ads.ts`'s `markFeedClick`) before navigating; the company
+    page's own unavoidable data load (`consumeFeedClickQuery`) attaches it as
+    `click=1` (+ `category`/`county`/`gclid`/`vid`) to the SAME request that
+    fetches the page content, then `PublicCompanyController.bySlug` fires
+    `CampaignService.registerClick(companyId, ip, ua, hint, gclid, visitorId)`
+    fire-and-forget (never fails the page load). This replaced a separate
+    `POST /feed/click` beacon (removed — `FeedController` only has `list`/`facets`
+    now) because
+    that beacon's URL — literally containing "click" — is exactly what
+    ad-blocking/tracking-protection extensions filter by default: a real
+    visitor's click could silently never reach the backend, so the business
+    was never billed for a genuine visit. Folding the signal into the page's
+    own mandatory request removes that failure mode — there's no separate
+    "tracking-shaped" request left to block.
+    `registerClick` bills one `cpcMinor` from the owner's wallet **in a single
+    transaction** (click row + wallet debit + daily counter) and returns
+    `{ billed, reason? }`. The debit uses `WalletService.chargeClickWithin`
+    which **rolls up into one "Ad clicks" ledger row per company per UTC day**
+    (amount + click count accumulate on it — `provider = 'cpc'`, `providerRef`
+    = count) rather than one transaction per click, so the wallet history
+    stays readable under real traffic.
     - **One charge per person per listing per UTC day.** `ad_clicks` has a
       `UNIQUE(company_id, visitor_hash)` where `visitor_hash =
-      sha256(ip | ua | companyId | yyyy-mm-dd)` (only the hash is stored). A
-      repeat that day collides → free (`reason: repeat`).
+      sha256(ip | ua | companyId | yyyy-mm-dd | visitorId)` (only the hash is
+      stored; `visitorId` is an optional, client-generated, fully
+      attacker-forgeable anonymous device id — it only ever splits up IP+UA
+      collisions between genuinely different real visitors, e.g. behind
+      carrier-grade NAT, never grants more "distinctness" than IP+UA alone).
+      A repeat that day collides → free (`reason: repeat`).
     - Not billed (row still recorded for analytics): `bot` (UA looks like a
       crawler / is empty — `src/campaigns/ad-click.ts`), `no_campaign` (campaign
       not `active`), `budget` (would exceed `dailyBudgetMinor` for the day),
-      `insufficient` (wallet can't cover one more click).
+      `insufficient` (wallet can't cover one more click), `ip_rate` (one IP hit
+      its per-listing hourly cap — `ipClickWindowLimit`, scaled to the
+      campaign's own daily budget rather than one flat number, so a popular
+      listing's genuine shared-IP traffic isn't throttled as hard as a tiny
+      campaign's).
     - Hitting the daily budget or an empty wallet **depletes** the campaign
       (out of the feed). `spentTodayMinor` / `spendDay` reset lazily at the UTC
       day boundary in `reconcile()`, which also auto-revives a `depleted`

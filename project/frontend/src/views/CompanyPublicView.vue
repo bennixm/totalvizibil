@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
 import { apiFetch, ApiError, BASE_URL } from '@/services/api'
+import { consumeFeedClickQuery } from '@/services/ads'
 import { trackCall } from '@/services/leads'
 import { useSeo } from '@/composables/useSeo'
 import { companyCrumbs, companyRoute } from '@/services/routes'
@@ -57,7 +58,12 @@ async function load(s: string) {
   loading.value = true
   notFound.value = false
   try {
-    company.value = await apiFetch<PublicCompany>(`/public/companies/${s}`)
+    // Consumes (and clears) the pending-click signal `FeedAdCard` left before
+    // navigating here — a direct/organic visit to this same URL has none, so
+    // this resolves to `''` and the request is unbilled, same as today.
+    company.value = await apiFetch<PublicCompany>(
+      `/public/companies/${s}${consumeFeedClickQuery(s)}`,
+    )
     // Redirect a bare or mis-prefixed URL to the canonical category path.
     const canonical = companyCrumbs(company.value)
     if (props.crumbs.join('/') !== canonical.join('/')) {

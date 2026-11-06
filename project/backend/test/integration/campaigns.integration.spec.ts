@@ -89,8 +89,13 @@ describe('Campaigns', () => {
     });
   });
 
-  describe('POST /feed/click', () => {
-    it('returns { billed: false, reason: "bot" } for bot user-agent', async () => {
+  // `POST /feed/click` used to be the click-billing entry point; it was
+  // replaced by `click=1` on the company page's own data load (see
+  // `public-company.controller.ts`) because that beacon's URL — literally
+  // containing "click" — is exactly what ad-blocking/tracking-protection
+  // extensions filter by default, silently losing real billable clicks.
+  describe('GET /public/companies/:slug?click=1', () => {
+    it('serves the page and never bills a bot user-agent', async () => {
       const user = await createAndLoginUser(app, prisma, {
         email: 'owner@example.com',
         password: 'password123',
@@ -101,13 +106,27 @@ describe('Campaigns', () => {
         .set('Cookie', user.cookie)
         .send({ displayName: 'Acme SRL' });
       const companyId = createRes.body.id;
+      const slug = createRes.body.slug;
+      // `PublicCompanyService.bySlug` only serves `active` companies — a
+      // fresh company defaults to `draft`.
+      await prisma.company.update({ where: { id: companyId }, data: { status: 'active' } });
 
       const res = await request(app.getHttpServer())
-        .post('/api/v1/feed/click')
+        .get(`/api/v1/public/companies/${slug}?click=1`)
         .set('User-Agent', 'Googlebot/2.1')
-        .send({ companyId })
-        .expect(201);
-      expect(res.body).toMatchObject({ billed: false, reason: 'bot' });
+        .expect(200);
+      // The page still renders; billing is a fire-and-forget side effect that
+      // never surfaces in this response.
+      expect(res.body).toMatchObject({ id: companyId, slug });
+
+      // Billing is fire-and-forget (see the controller's doc comment) — it
+      // may still be in flight when the response above already resolved.
+      let clicks: Awaited<ReturnType<typeof prisma.adClick.findMany>> = [];
+      for (let i = 0; i < 20 && clicks.length === 0; i++) {
+        clicks = await prisma.adClick.findMany({ where: { companyId } });
+        if (clicks.length === 0) await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(clicks).toMatchObject([{ billed: false, reason: 'bot' }]);
     });
   });
 });

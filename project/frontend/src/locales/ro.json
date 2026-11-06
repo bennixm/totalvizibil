@@ -1093,6 +1093,7 @@
     "attachTooMany": "Poți atașa cel mult {max} imagini într-un mesaj.",
     "attachPartialFailure": "{ok} imagine(i) s-au încărcat, {failed} nu. Mesajul a fost trimis doar cu cele încărcate.",
     "bootErrorTitle": "Previzualizarea live nu a putut porni",
+    "bootErrorMobile": "Builder-ul Website rulează un mediu de dezvoltare real în browser și nu funcționează pe telefon sau tabletă — deschide pagina asta de pe un calculator ca să vezi previzualizarea live și să continui editarea.",
     "bootErrorIsolation": "Serverul nu trimite antetele necesare pentru sandbox (COOP/COEP). De obicei e o problemă temporară de configurare — reîncarcă pagina, iar dacă persistă contactează suportul.",
     "bootErrorTimeout": "Sandbox-ul a durat prea mult să pornească. Reîncearcă, iar dacă persistă reîncarcă pagina.",
     "bootErrorGeneric": "Sandbox-ul de previzualizare nu a pornit. Reîncearcă sau reîncarcă pagina; dacă persistă, contactează suportul.",

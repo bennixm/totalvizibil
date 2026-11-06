@@ -113,7 +113,7 @@ E un **scor de vizibilitate recalculat la fiecare cerere**, nimic precalculat/ca
 **Nimic stocat, nimic cache-uit, niciun cron de precalcul.** Fiecare cerere `/feed` și fiecare citire de „rank” din dashboard rulează din nou întreaga scanare + scorare + sortare peste tot setul de companii active al categoriei. E un calcul O(n) per cerere, fără `LIMIT`/`ORDER BY` împins spre Postgres — cel mai clar bottleneck de scalare la 10k+ utilizatori concurenți pe o categorie populară.
 
 ### 2.2 Facturarea per-click
-Un singur punct de intrare: `POST /feed/click` → `FeedController.click` → `CampaignService.registerClick` (`campaign.service.ts:239-319`). Throttle `40/60s` per apelant (in-memory, per proces).
+*(Actualizat 2026-11-06 — restul secțiunii e o fotografie veche, de dinainte de fix-ul de la §2.3.)* Punctul de intrare curent: `GET /public/companies/:slug?click=1` → `PublicCompanyController.bySlug` → `CampaignService.registerClick` (`public-company.controller.ts`). Vechiul `POST /feed/click` a fost eliminat — beacon separat, blocabil de ad-blockere (URL-ul conținea literal "click"). Throttle `300/60s` per apelant pe acest endpoint (acoperă și traficul organic, nu doar click-urile taxate); protecția anti-fraudă precisă e capul per-(companie, IP) din `registerClick` (`ipClickWindowLimit`), scalat cu bugetul propriu al campaniei, nu un număr fix.
 
 **Complet sincron, într-un singur `$transaction`:**
 1. `tx.adClick.create({ companyId, visitorHash })` — `visitorHash = sha256(ip|userAgent|companyId|zi)`.

@@ -1093,6 +1093,7 @@
     "attachTooMany": "Du kannst höchstens {max} Bilder an eine Nachricht anhängen.",
     "attachPartialFailure": "{ok} Bild(er) hochgeladen, {failed} fehlgeschlagen. Die Nachricht wurde nur mit den hochgeladenen gesendet.",
     "bootErrorTitle": "Die Live-Vorschau konnte nicht starten",
+    "bootErrorMobile": "Der Website Builder führt eine echte Entwicklungsumgebung im Browser aus und funktioniert nicht auf Handys oder Tablets — öffne diese Seite auf einem Computer, um die Live-Vorschau zu sehen und weiter zu bearbeiten.",
     "bootErrorIsolation": "Der Server sendet die für die Sandbox nötigen Header nicht (COOP/COEP). Das ist meist ein temporäres Serverkonfigurationsproblem — lade die Seite neu und wende dich an den Support, wenn es bestehen bleibt.",
     "bootErrorTimeout": "Die Sandbox hat zu lange zum Starten gebraucht. Versuche es erneut oder lade die Seite neu.",
     "bootErrorGeneric": "Die Vorschau-Sandbox konnte nicht starten. Versuche es erneut oder lade die Seite neu; wende dich an den Support, wenn es bestehen bleibt.",
