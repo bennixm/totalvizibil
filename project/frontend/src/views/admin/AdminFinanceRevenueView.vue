@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
+import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import { useAdminFinanceStore, type RevenueTxnType } from '@/stores/adminFinance'
 
 const { t } = useI18n()
@@ -66,6 +67,28 @@ onMounted(() => finance.fetchRevenue())
         </v-btn>
       </template>
     </AdminPageHeader>
+
+    <!-- Same real-money figure the Dashboard's "Bani încasați (total)" KPI
+         shows for the same period/types — reconciles exactly since both
+         read from the same ledger rows, just via different endpoints. -->
+    <div class="afr__kpis">
+      <AdminStatCard
+        :label="t('adminFinance.collectedRevenue')"
+        :value="eur(finance.revenuePeriodTotalMinor)"
+        icon="mdi-bank-transfer-in"
+        tone="primary"
+        :to="{ name: 'admin-financiar' }"
+      />
+      <AdminStatCard
+        label="Valoare nominală (credite)"
+        :value="eur(finance.revenuePeriodFaceTotalMinor)"
+        icon="mdi-tag-outline"
+      />
+    </div>
+    <p class="afr__hint">
+      "Bani încasați (consumați)" — câtă parte din aceste încasări e deja profit realizat —
+      se vede în Dashboard-ul financiar, calculată pe tot consumul de credit al perioadei.
+    </p>
 
     <div class="afr__filters">
       <v-btn-toggle v-model="typeFilter" density="compact" mandatory variant="outlined" divided>
@@ -162,6 +185,12 @@ onMounted(() => finance.fetchRevenue())
 .afr {
   max-width: 1100px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
+}
+.afr__kpis {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.7rem;
+  margin-top: 1rem;
 }
 .afr__filters {
   display: flex;

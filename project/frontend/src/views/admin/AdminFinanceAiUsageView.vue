@@ -29,7 +29,15 @@ const rangeLabel = computed(() => {
   return `${from} – ${to}`
 })
 
-onMounted(() => finance.fetchAiUsage())
+/** `aiBuilder` (revenue/profit) lives on `/admin/finance/overview`, not this
+ *  page's own `/admin/finance/ai-usage` — fetched already when the admin
+ *  came from the Dashboard (same `finance.period`), but NOT if this page is
+ *  opened directly (bookmark, deep link), so it's fetched here too, guarded
+ *  so an already-warm overview is never re-fetched pointlessly. */
+onMounted(() => {
+  void finance.fetchAiUsage()
+  if (!finance.overview) void finance.fetchOverview()
+})
 </script>
 
 <template>
@@ -56,8 +64,22 @@ onMounted(() => finance.fetchAiUsage())
 
     <template v-else-if="finance.aiUsage">
       <p v-if="rangeLabel" class="afa__range">{{ rangeLabel }}</p>
-      <div class="afa__kpis">
+
+      <!-- Money first: what customers paid for AI usage (real money) vs
+           what the platform paid the providers for it. Only shown once the
+           Dashboard's overview has loaded (see onMounted above). -->
+      <div v-if="finance.overview" class="afa__kpis">
+        <AdminStatCard :label="t('adminFinance.aiRevenue')" :value="eur(finance.overview.aiBuilder.promptRevenueRealMoneyMinor)" icon="mdi-bank-transfer-in" tone="primary" />
         <AdminStatCard :label="t('adminFinance.aiTotalCost')" :value="eur(finance.aiUsage.totalCostMinor)" icon="mdi-cash-minus" tone="error" />
+        <AdminStatCard
+          :label="t('adminFinance.aiProfit')"
+          :value="eur(finance.overview.aiBuilder.promptProfitMinor)"
+          icon="mdi-piggy-bank-outline"
+          :tone="finance.overview.aiBuilder.promptProfitMinor >= 0 ? 'success' : 'error'"
+        />
+      </div>
+
+      <div class="afa__kpis afa__kpis--two">
         <AdminStatCard :label="t('adminFinance.aiTotalCalls')" :value="n(finance.aiUsage.totalCalls)" icon="mdi-swap-horizontal" />
         <AdminStatCard :label="t('adminFinance.aiTotalTokens')" :value="n(finance.aiUsage.totalTokens)" icon="mdi-counter" />
       </div>
@@ -106,6 +128,9 @@ onMounted(() => finance.fetchAiUsage())
   grid-template-columns: repeat(3, 1fr);
   gap: 0.7rem;
   margin: 0.6rem 0 1.4rem;
+}
+.afa__kpis--two {
+  grid-template-columns: repeat(2, 1fr);
 }
 .afa__list {
   list-style: none;

@@ -22,17 +22,35 @@ const auth = useAuthStore()
 const confirm = useConfirmStore()
 const toasts = useToastStore()
 
-/** `stripe_api` rows are auto-captured Stripe-fee bookkeeping: editing or
- *  deleting one breaks reconciliation against Stripe's own payout report, so
- *  the backend only lets a full `admin` touch them (403
- *  `stripe_expense_readonly`). Mirrored here so a Contabil sees WHY the
- *  actions are unavailable instead of discovering it as a failed request. */
+/** Any non-`manual` row is auto-captured bookkeeping (Stripe fees, the daily
+ *  real Google Ads cost): editing or deleting one breaks reconciliation
+ *  against that external system's own record, so the backend only lets a
+ *  full `admin` touch them (403 `automated_expense_readonly`). Mirrored here
+ *  so a Contabil sees WHY the actions are unavailable instead of discovering
+ *  it as a failed request. */
 const isPlatformAdmin = computed(() => auth.user?.platformRoles.includes('admin') ?? false)
 function isLocked(row: ExpenseRow): boolean {
-  return row.source === 'stripe_api' && !isPlatformAdmin.value
+  return row.source !== 'manual' && !isPlatformAdmin.value
 }
-const LOCKED_HINT =
-  'Înregistrare automată din Stripe — se poate modifica doar de un administrator, pentru ca reconcilierea cu Stripe să rămână validă.'
+const LOCKED_HINTS: Record<Exclude<ExpenseRow['source'], 'manual'>, string> = {
+  stripe_api:
+    'Înregistrare automată din Stripe — se poate modifica doar de un administrator, pentru ca reconcilierea cu Stripe să rămână validă.',
+  google_ads_api:
+    'Cost real preluat automat din Google Ads — se poate modifica doar de un administrator, pentru ca reconcilierea cu Google Ads să rămână validă.',
+}
+function lockedHint(row: ExpenseRow): string {
+  return row.source === 'manual' ? '' : LOCKED_HINTS[row.source]
+}
+function sourceLabel(row: ExpenseRow): string {
+  if (row.source === 'manual') return t('adminFinance.manual')
+  if (row.source === 'google_ads_api') return t('adminFinance.automaticGoogleAds')
+  return t('adminFinance.automaticStripe')
+}
+function sourceChipClass(row: ExpenseRow): string {
+  if (row.source === 'manual') return 'chip--manual'
+  if (row.source === 'google_ads_api') return 'chip--auto-ads'
+  return 'chip--auto'
+}
 function errText(e: unknown, fb: string): string {
   return e instanceof ApiError ? e.message : fb
 }
@@ -213,14 +231,14 @@ onMounted(() => finance.fetchExpenses())
           <span class="rrow__cell">{{ dt(r.incurredOn) }}</span>
           <span class="rrow__cell">{{ categoryLabel(r.category) }}</span>
           <span class="rrow__cell">
-            <span class="chip" :class="r.source === 'stripe_api' ? 'chip--auto' : 'chip--manual'">
-              {{ r.source === 'stripe_api' ? t('adminFinance.automatic') : t('adminFinance.manual') }}
+            <span class="chip" :class="sourceChipClass(r)">
+              {{ sourceLabel(r) }}
             </span>
           </span>
           <span class="rrow__cell afe__note">{{ r.note ?? '—' }}</span>
           <span class="rrow__cell"><b>{{ amount(r.amountMinor, r.currency) }}</b></span>
           <span class="afe__actions">
-            <v-tooltip v-if="isLocked(r)" :text="LOCKED_HINT" location="top">
+            <v-tooltip v-if="isLocked(r)" :text="lockedHint(r)" location="top">
               <template #activator="{ props: tip }">
                 <span v-bind="tip" class="afe__lock">
                   <v-icon icon="mdi-lock-outline" size="18" />
@@ -386,6 +404,10 @@ onMounted(() => finance.fetchExpenses())
 .chip--auto {
   background: rgba(var(--v-theme-primary), 0.14);
   color: rgb(var(--v-theme-primary));
+}
+.chip--auto-ads {
+  background: rgba(var(--v-theme-info), 0.14);
+  color: rgb(var(--v-theme-info));
 }
 
 @media (max-width: 860px) {

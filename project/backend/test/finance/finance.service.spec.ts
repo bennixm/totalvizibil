@@ -40,12 +40,23 @@ function fakePrisma() {
       _count: { _all: number };
     }[],
   };
+  // `profitForRange()` (Today/This month/This year — see `finalProfit`) runs
+  // 3 more `walletTransaction.findMany` (purchases) calls AFTER the original
+  // 4, outside the `$transaction` tuple. This fake doesn't actually filter by
+  // date (none of its canned state is date-range-aware), so — same
+  // approximation the rest of this fake already makes for cpcSpends/
+  // otherSpends — those 3 extra calls just replay the SAME `state.purchases`
+  // used for the main period. `finalProfit`'s per-range fidelity isn't
+  // exercised here; only "doesn't crash, shape is right" is.
   let walletTxCall = 0;
   const walletTxSequence = () => [
     state.purchases,
     state.refunds,
     state.cpcSpends,
     state.otherSpends,
+    state.purchases, // profitForRange: today
+    state.purchases, // profitForRange: month
+    state.purchases, // profitForRange: year
   ];
   let walletAggregateCall = 0;
 
@@ -56,8 +67,18 @@ function fakePrisma() {
         walletTxCall++;
         return result;
       }),
-      // In `overview()`'s order: refund-in-flight, then refund fee income.
-      aggregate: jest.fn(async () => {
+      aggregate: jest.fn(async (args: { where?: { type?: string } } = {}) => {
+        // `profitForRange()`'s spend-sum aggregate — args-aware (not
+        // call-order) since it fires 3 extra times (today/month/year)
+        // interleaved with nothing else that matches this shape.
+        if (args.where?.type === 'spend') {
+          const totalSpendMinor = [...state.cpcSpends, ...state.otherSpends].reduce(
+            (s, r) => s + r.amountMinor,
+            0,
+          );
+          return { _sum: { amountMinor: totalSpendMinor } };
+        }
+        // In `overview()`'s order: refund-in-flight, then refund fee income.
         const n = walletAggregateCall++;
         return n === 0
           ? { _sum: { amountMinor: state.refundInFlightMinor } }
@@ -82,9 +103,19 @@ function fakePrisma() {
       aggregate: jest.fn(async () => ({ _sum: { totalMinor: 0 } })),
     },
     company: { findMany: jest.fn(async () => []) },
-    platformExpense: { findMany: jest.fn(async () => state.expenses) },
+    platformExpense: {
+      findMany: jest.fn(async () => state.expenses),
+      // `profitForRange()`'s cost-sum aggregate (today/month/year) — same
+      // "ignores the actual date range" approximation as the rest of this fake.
+      aggregate: jest.fn(async () => ({
+        _sum: { amountMinor: state.expenses.reduce((s, r) => s + r.amountMinor, 0) },
+      })),
+    },
     aiUsageRecord: {
       findMany: jest.fn(async () => state.aiRows),
+      aggregate: jest.fn(async () => ({
+        _sum: { estimatedCostUsd: state.aiRows.reduce((s, r) => s + r.estimatedCostUsd, 0) },
+      })),
     },
     $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
     __state: state,
@@ -160,8 +191,8 @@ function makeLedgerService(rows: LedgerRow[]) {
   return { svc: new FinanceService(prisma as any), prisma };
 }
 
-/** Expense fake for the `stripe_api` mutation guard. */
-function makeExpenseService(source: 'manual' | 'stripe_api') {
+/** Expense fake for the automated-source mutation guard. */
+function makeExpenseService(source: 'manual' | 'stripe_api' | 'google_ads_api') {
   const prisma = {
     platformExpense: {
       findUnique: jest.fn(async () => ({ id: 'e1', source, amountMinor: 1000 })),
@@ -444,6 +475,82 @@ describe('FinanceService', () => {
     });
   });
 
+  describe('overview — consumption-based profit (real earned revenue)', () => {
+    it('weights ALL consumption (CPC + one-off fees), not just CPC, into consumedRevenueRealMoneyMinor', async () => {
+      const { svc, prisma } = makeService();
+      // Flat 20% discount => ratio 0.8.
+      prisma.__state.purchases = [
+        { amountMinor: 100_000, eurCents: 80_000, createdAt: new Date('2026-01-05') },
+      ];
+      prisma.__state.cpcSpends = [{ amountMinor: -10_000 }];
+      prisma.__state.otherSpends = [
+        { amountMinor: -5_000, provider: 'ai-usage', description: 'Website Builder usage' },
+      ];
+
+      const result = await svc.overview({});
+
+      // (10000 + 5000) * 0.8
+      expect(result.consumedRevenueRealMoneyMinor).toBe(12_000);
+      // revenueMinor (80000, no refunds) minus the above.
+      expect(result.unconsumedRevenueMinor).toBe(80_000 - 12_000);
+    });
+
+    it('bases profitMinor on consumed revenue, NOT money collected — unconsumed credit is not profit', async () => {
+      const { svc, prisma } = makeService();
+      // Collected 100000 real money; nothing consumed yet (no spend rows at
+      // all) — every credit sold is still sitting in a wallet, refundable.
+      prisma.__state.purchases = [
+        { amountMinor: 100_000, eurCents: 100_000, createdAt: new Date('2026-01-05') },
+      ];
+
+      const result = await svc.overview({});
+
+      expect(result.revenueMinor).toBe(100_000);
+      // `toBeCloseTo` (not `toBe`): an empty-rows reduce negated to "no
+      // consumption yet" is mathematically 0 but can come out as -0.
+      expect(result.consumedRevenueRealMoneyMinor).toBeCloseTo(0);
+      // Old (wrong) behaviour would have shown 100000 - totalCostMinor here.
+      expect(result.profitMinor).toBeCloseTo(0 - result.totalCostMinor);
+    });
+
+    it('computes aiBuilder profit as (AI usage revenue - AI provider cost) + builder-unlock revenue', async () => {
+      const { svc, prisma } = makeService();
+      // Flat 50% discount => ratio 0.5, to make the math obvious.
+      prisma.__state.purchases = [
+        { amountMinor: 100_000, eurCents: 50_000, createdAt: new Date('2026-01-05') },
+      ];
+      prisma.__state.otherSpends = [
+        { amountMinor: -4_000, provider: 'ai-usage', description: 'Website Builder usage' },
+        { amountMinor: -9_900, provider: null, description: 'Advanced website builder' },
+      ];
+      prisma.__state.aiRows = [{ estimatedCostUsd: 10, createdAt: new Date('2026-01-05') }]; // $10 -> 1000 minor
+
+      const result = await svc.overview({});
+
+      expect(result.aiBuilder.promptRevenueRealMoneyMinor).toBe(2_000); // 4000 * 0.5
+      expect(result.aiBuilder.providerCostMinor).toBe(1_000);
+      expect(result.aiBuilder.promptProfitMinor).toBe(1_000); // 2000 - 1000
+      expect(result.aiBuilder.builderUnlockRevenueRealMoneyMinor).toBe(4_950); // 9900 * 0.5
+      expect(result.aiBuilder.totalProfitMinor).toBe(1_000 + 4_950);
+      // Not built yet — a clear placeholder, not a fabricated figure.
+      expect(result.aiBuilder.campaignAgentAvailable).toBe(false);
+      expect(result.aiBuilder.campaignAgentCostMinor).toBe(0);
+    });
+
+    it('exposes finalProfit for today/this month/this year, each shaped like {consumedRevenueRealMoneyMinor, totalCostMinor, profitMinor}', async () => {
+      const { svc } = makeService();
+
+      const result = await svc.overview({});
+
+      for (const key of ['today', 'month', 'year'] as const) {
+        const f = result.finalProfit[key];
+        expect(typeof f.consumedRevenueRealMoneyMinor).toBe('number');
+        expect(typeof f.totalCostMinor).toBe('number');
+        expect(f.profitMinor).toBe(f.consumedRevenueRealMoneyMinor - f.totalCostMinor);
+      }
+    });
+  });
+
   describe('listRevenue — money accuracy', () => {
     it('reports the real money per row and a period total matching overview, not the credit face value, under a discount', async () => {
       const discountedPurchase = row({
@@ -579,11 +686,11 @@ describe('FinanceService', () => {
       expect(prisma.platformExpense.delete).not.toHaveBeenCalled();
     });
 
-    it('rejects with the machine code stripe_expense_readonly', async () => {
+    it('rejects with the machine code automated_expense_readonly', async () => {
       const { svc } = makeExpenseService('stripe_api');
 
       await expect(svc.deleteExpense('e1', FINANCE_ACTOR)).rejects.toMatchObject({
-        response: { message: 'stripe_expense_readonly' },
+        response: { message: 'automated_expense_readonly' },
       });
     });
 
@@ -595,6 +702,23 @@ describe('FinanceService', () => {
 
       expect(prisma.platformExpense.update).toHaveBeenCalled();
       expect(prisma.platformExpense.delete).toHaveBeenCalled();
+    });
+
+    it('refuses a finance-only user editing an auto-captured Google Ads expense', async () => {
+      const { svc, prisma } = makeExpenseService('google_ads_api');
+
+      await expect(svc.updateExpense('e1', { amountMinor: 2_000 }, FINANCE_ACTOR)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.platformExpense.update).not.toHaveBeenCalled();
+    });
+
+    it('lets a full admin edit a Google-Ads-sourced expense', async () => {
+      const { svc, prisma } = makeExpenseService('google_ads_api');
+
+      await svc.updateExpense('e1', { amountMinor: 2_000 }, ADMIN_ACTOR);
+
+      expect(prisma.platformExpense.update).toHaveBeenCalled();
     });
 
     it('leaves manual expenses editable by finance', async () => {
