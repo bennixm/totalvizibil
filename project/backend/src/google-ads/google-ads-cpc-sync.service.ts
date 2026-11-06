@@ -1,10 +1,23 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GoogleAdsApi, fromMicros, type Customer } from 'google-ads-api';
+import { JWT } from 'google-auth-library';
 import { AppConfig } from '../config/env';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 
 const SYNC_INTERVAL_MS = 10 * 60 * 1000;
+const GOOGLE_ADS_SCOPE = 'https://www.googleapis.com/auth/adwords';
+// Matches the Google Ads API version this project's dev tooling has been
+// verified against. Bump in lockstep if GAQL/report shapes ever change.
+const GOOGLE_ADS_API_VERSION = 'v25';
+
+interface GoogleAdsSearchRow {
+  customer?: { currencyCode?: string };
+  metrics?: { costMicros?: string; clicks?: string };
+}
+interface GoogleAdsSearchResponse {
+  results?: GoogleAdsSearchRow[];
+  error?: { message?: string };
+}
 
 /**
  * Keeps `PlatformSettingsService`'s Google Ads average-CPC cache warm — the
@@ -18,49 +31,69 @@ const SYNC_INTERVAL_MS = 10 * 60 * 1000;
  * check at the read side (`GOOGLE_ADS_CPC_STALE_AFTER_MS`) falls back to
  * the admin-configured Max CPC ceiling once that value gets too old.
  *
- * Needs ALL of GOOGLE_ADS_DEVELOPER_TOKEN / _CLIENT_ID / _CLIENT_SECRET /
- * _REFRESH_TOKEN / _CUSTOMER_ID (env.ts) to do anything — missing any one of
- * them, the job logs once at boot and stays idle forever (no retry storm,
- * no crash).
+ * Auth: a GCP service account added directly as a Standard user on the
+ * Google Ads account (no Workspace/domain-wide delegation, no human
+ * consent screen, nothing to regenerate). `google-auth-library`'s `JWT`
+ * client mints short-lived access tokens straight from the service
+ * account's key — this bypasses the `google-ads-api` npm package entirely
+ * for this job, because that package hard-wires the older OAuth
+ * user-consent refresh-token flow (`UserRefreshClient`) with no injection
+ * point for a service-account credential (confirmed by reading its
+ * compiled `service.js`), so the query goes to the REST endpoint directly
+ * instead of through that library's gRPC client.
  */
 @Injectable()
 export class GoogleAdsCpcSyncService implements OnModuleInit {
   private readonly logger = new Logger(GoogleAdsCpcSyncService.name);
-  private readonly customer: Customer | null;
+  private readonly jwtClient: JWT | null;
+  private readonly customerId: string;
+  private readonly loginCustomerId: string;
   private readonly campaignId: string;
 
   constructor(
     config: ConfigService<AppConfig, true>,
     private readonly settings: PlatformSettingsService,
   ) {
-    const developerToken = config.get('googleAdsDeveloperToken', { infer: true });
-    const clientId = config.get('googleAdsClientId', { infer: true });
-    const clientSecret = config.get('googleAdsClientSecret', { infer: true });
-    const refreshToken = config.get('googleAdsRefreshToken', { infer: true });
-    const customerId = config.get('googleAdsCustomerId', { infer: true });
-    const loginCustomerId = config.get('googleAdsLoginCustomerId', { infer: true });
+    const keyBase64 = config.get('googleAdsServiceAccountKeyBase64', { infer: true });
+    this.customerId = config.get('googleAdsCustomerId', { infer: true });
+    this.loginCustomerId = config.get('googleAdsLoginCustomerId', { infer: true });
     this.campaignId = config.get('googleAdsCampaignId', { infer: true });
 
-    if (!developerToken || !clientId || !clientSecret || !refreshToken || !customerId) {
-      this.customer = null;
+    if (!keyBase64 || !this.customerId) {
+      this.jwtClient = null;
       this.logger.log(
-        'Google Ads credentials not fully configured — CPC sync job stays idle. ' +
+        'Google Ads service-account key / customer id not configured — CPC sync job stays idle. ' +
           'Google-attributed feed clicks fall back to the admin-set Max CPC ceiling ' +
           '(platform setting googleAdsMaxCpcCredits) until this is set up.',
       );
       return;
     }
 
-    const client = new GoogleAdsApi({
-      client_id: clientId,
-      client_secret: clientSecret,
-      developer_token: developerToken,
+    let key: { client_email?: string; private_key?: string };
+    try {
+      key = JSON.parse(Buffer.from(keyBase64, 'base64').toString('utf8')) as typeof key;
+    } catch (err) {
+      this.jwtClient = null;
+      this.logger.error(
+        'GOOGLE_ADS_SERVICE_ACCOUNT_KEY_BASE64 is not valid base64-encoded JSON — CPC sync job stays idle.',
+        err instanceof Error ? err.stack : err,
+      );
+      return;
+    }
+    if (!key.client_email || !key.private_key) {
+      this.jwtClient = null;
+      this.logger.error(
+        "Service account key JSON is missing 'client_email'/'private_key' — CPC sync job stays idle.",
+      );
+      return;
+    }
+
+    this.jwtClient = new JWT({
+      email: key.client_email,
+      key: key.private_key,
+      scopes: [GOOGLE_ADS_SCOPE],
     });
-    this.customer = client.Customer({
-      customer_id: customerId,
-      login_customer_id: loginCustomerId || undefined,
-      refresh_token: refreshToken,
-    });
+
     if (!this.campaignId) {
       this.logger.warn(
         'GOOGLE_ADS_CAMPAIGN_ID not set — averaging cost/clicks across the WHOLE ' +
@@ -71,35 +104,57 @@ export class GoogleAdsCpcSyncService implements OnModuleInit {
   }
 
   onModuleInit(): void {
-    if (!this.customer) return;
+    if (!this.jwtClient) return;
     void this.sync();
     setInterval(() => void this.sync(), SYNC_INTERVAL_MS);
   }
 
   private async sync(): Promise<void> {
-    if (!this.customer) return;
+    if (!this.jwtClient) return;
     try {
-      const rows = await this.customer.report({
-        entity: 'campaign',
-        // The customer (account) resource joins in for free alongside
-        // campaign — no separate lookup needed to know what currency
-        // `cost_micros` below is actually denominated in, and it's read
-        // fresh every cycle so a currency change on the account (rare, but
-        // possible) is picked up automatically instead of needing a
-        // deploy to fix a silently wrong conversion.
-        attributes: ['customer.currency_code'],
-        metrics: ['metrics.cost_micros', 'metrics.clicks'],
-        constraints: this.campaignId ? { 'campaign.id': this.campaignId } : undefined,
-        date_constant: 'TODAY',
-      });
+      const { token } = await this.jwtClient.getAccessToken();
+      if (!token) throw new Error('google-auth-library returned no access token');
+
+      const query = [
+        'SELECT customer.currency_code, metrics.cost_micros, metrics.clicks',
+        'FROM campaign',
+        'WHERE segments.date DURING TODAY',
+        this.campaignId ? `AND campaign.id = ${this.campaignId}` : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        // Deliberately NOT sending `developer-token` at all. Google's own
+        // guidance since the 2026-09-09 retirement is to omit it entirely
+        // going forward — confirmed live: sending it as an empty string
+        // (rather than leaving it off) gets rejected as
+        // DEVELOPER_TOKEN_PARAMETER_MISSING, i.e. the API still treats an
+        // empty value as "present but invalid", only a fully absent header
+        // is accepted.
+      };
+      if (this.loginCustomerId) headers['login-customer-id'] = this.loginCustomerId;
+
+      const res = await fetch(
+        `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}/googleAds:search`,
+        { method: 'POST', headers, body: JSON.stringify({ query }) },
+      );
+      const data = (await res.json()) as GoogleAdsSearchResponse;
+      if (!res.ok) {
+        throw new Error(
+          `Google Ads API ${res.status}: ${data.error?.message ?? JSON.stringify(data)}`,
+        );
+      }
 
       let costMicros = 0;
       let clicks = 0;
       let currencyCode: string | undefined;
-      for (const row of rows) {
-        costMicros += Number(row.metrics?.cost_micros ?? 0);
+      for (const row of data.results ?? []) {
+        costMicros += Number(row.metrics?.costMicros ?? 0);
         clicks += Number(row.metrics?.clicks ?? 0);
-        currencyCode ??= row.customer?.currency_code ?? undefined;
+        currencyCode ??= row.customer?.currencyCode;
       }
 
       if (clicks <= 0) {
@@ -107,7 +162,7 @@ export class GoogleAdsCpcSyncService implements OnModuleInit {
         return;
       }
 
-      const avgCostAccountCurrency = fromMicros(costMicros) / clicks;
+      const avgCostAccountCurrency = costMicros / clicks / 1_000_000;
       const avgCostCredits = await this.toCredits(avgCostAccountCurrency, currencyCode);
       if (avgCostCredits == null) return; // already logged inside toCredits()
 
@@ -127,7 +182,7 @@ export class GoogleAdsCpcSyncService implements OnModuleInit {
   /**
    * Credits are pegged 1 credit ≈ 1 EUR everywhere else in the platform
    * (see wallet/money.ts). Converts whatever the Google Ads account's own
-   * currency is — read fresh from `customer.currency_code` above, never
+   * currency is — read fresh from `customer.currencyCode` above, never
    * assumed — into that same peg. RON goes through the platform's own
    * live EUR→RON rate (the same one the wallet/invoicing already use, not
    * a second, possibly-drifted source of truth). Any other currency has no
