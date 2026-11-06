@@ -493,6 +493,11 @@ watch(
   border-radius: 0;
   clip-path: var(--tvz-hex-md);
   overflow: hidden;
+  /* Missing here while every sibling segmented control (WalletView's
+     `.wal__payTabs`, TransactionsView's `.txn__tabs`) fills its own hex
+     cut — without it the off (non-`.is-on`) options were fully
+     transparent, just an outline floating over the page. */
+  background: rgb(var(--v-theme-surface));
 }
 .lds__seg button {
   padding: 0.32rem 0.8rem;

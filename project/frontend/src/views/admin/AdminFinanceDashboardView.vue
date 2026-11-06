@@ -22,6 +22,9 @@ function pct(value: number): string {
 function dt(s: string): string {
   return new Date(s).toLocaleDateString('ro-RO')
 }
+function profitTone(minor: number): 'success' | 'error' {
+  return minor >= 0 ? 'success' : 'error'
+}
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   hosting: 'Hosting',
@@ -133,32 +136,69 @@ onMounted(() => finance.fetchOverview())
     />
 
     <template v-else-if="finance.overview">
-      <div class="afd__kpis">
-        <AdminStatCard :label="t('adminFinance.revenue')" :value="eur(finance.overview.revenueMinor)" icon="mdi-cash-plus" tone="primary" />
+      <!-- The headline: real profit, always Today/This month/This year —
+           independent of the period picker above (same reasoning as the
+           point-in-time balance-sheet figures further down the page). -->
+      <AdminSection :title="t('adminFinance.finalProfitTitle')" icon="mdi-piggy-bank-outline" class="afd__hero">
+        <div class="afd__kpis afd__kpis--three">
+          <AdminStatCard
+            :label="t('adminFinance.today')"
+            :value="eur(finance.overview.finalProfit.today.profitMinor)"
+            icon="mdi-calendar-today-outline"
+            :tone="profitTone(finance.overview.finalProfit.today.profitMinor)"
+          />
+          <AdminStatCard
+            :label="t('adminFinance.thisMonth')"
+            :value="eur(finance.overview.finalProfit.month.profitMinor)"
+            icon="mdi-calendar-month-outline"
+            :tone="profitTone(finance.overview.finalProfit.month.profitMinor)"
+          />
+          <AdminStatCard
+            :label="t('adminFinance.thisYear')"
+            :value="eur(finance.overview.finalProfit.year.profitMinor)"
+            icon="mdi-calendar-blank-outline"
+            :tone="profitTone(finance.overview.finalProfit.year.profitMinor)"
+          />
+        </div>
+        <p class="afd__hint">{{ t('adminFinance.finalProfitHint') }}</p>
+      </AdminSection>
+
+      <!-- Bani încasați → costuri → profit, for the SELECTED period (the
+           picker above) — the same formula as "Profit final" above, just
+           over whichever range is currently chosen, so the two can never
+           silently disagree. -->
+      <div class="afd__kpis afd__kpis--four">
+        <AdminStatCard
+          :label="t('adminFinance.collectedRevenue')"
+          :value="eur(finance.overview.revenueMinor)"
+          :sub="`${eur(finance.overview.unconsumedRevenueMinor)} ${t('adminFinance.unconsumedRevenue').toLowerCase()}`"
+          icon="mdi-cash-plus"
+        />
+        <AdminStatCard
+          :label="t('adminFinance.consumedRevenue')"
+          :value="eur(finance.overview.consumedRevenueRealMoneyMinor)"
+          :sub="t('adminFinance.consumedRevenueHint')"
+          icon="mdi-bank-transfer-in"
+          tone="primary"
+        />
         <AdminStatCard :label="t('adminFinance.costs')" :value="eur(finance.overview.totalCostMinor)" icon="mdi-cash-minus" tone="error" />
         <AdminStatCard
           :label="t('adminFinance.netProfit')"
           :value="eur(finance.overview.profitMinor)"
-          icon="mdi-piggy-bank-outline"
-          :tone="finance.overview.profitMinor >= 0 ? 'success' : 'error'"
+          icon="mdi-chart-line"
+          :tone="profitTone(finance.overview.profitMinor)"
         />
       </div>
+      <p class="afd__hint">{{ t('adminFinance.unconsumedRevenueHint') }}</p>
 
       <!-- Gross (credit face value sold) vs net (money collected); the delta
            is what the discount cost over this period. -->
-      <div class="afd__kpis afd__kpis--four">
+      <div class="afd__kpis afd__kpis--three">
         <AdminStatCard
           label="Valoare nominală vândută"
           :value="eur(finance.overview.grossRevenueMinor)"
           sub="Credite la preț de listă"
           icon="mdi-tag-outline"
-        />
-        <AdminStatCard
-          label="Bani încasați"
-          :value="eur(finance.overview.netRevenueMinor)"
-          sub="Fără rambursări"
-          icon="mdi-bank-transfer-in"
-          tone="primary"
         />
         <AdminStatCard
           label="Cost discount"
@@ -173,36 +213,6 @@ onMounted(() => finance.fetchOverview())
           sub="Venit reținut din rambursări"
           icon="mdi-cash-refund"
           tone="success"
-        />
-      </div>
-
-      <!-- Point-in-time balance-sheet figures: these ignore the period
-           filter on purpose (a liability is what's owed right now). -->
-      <div class="afd__kpis afd__kpis--four">
-        <AdminStatCard
-          label="Credit în circulație"
-          :value="eur(finance.overview.walletLiabilityMinor)"
-          sub="Vândut, neconsumat (total)"
-          icon="mdi-wallet-outline"
-          tone="warning"
-        />
-        <AdminStatCard
-          label="Sold blocat"
-          :value="eur(finance.overview.blockedWalletBalanceMinor)"
-          sub="Portofele înghețate (total)"
-          icon="mdi-lock-outline"
-        />
-        <AdminStatCard
-          label="Rambursări în curs"
-          :value="eur(finance.overview.refundLiabilityInFlightMinor)"
-          sub="Promise, neplătite (total)"
-          icon="mdi-progress-clock"
-        />
-        <AdminStatCard
-          label="Rată rambursări"
-          :value="pct(finance.overview.refundRatioPct)"
-          :sub="`${eur(finance.overview.refundsMoneyMinor)} returnați`"
-          icon="mdi-undo-variant"
         />
       </div>
 
@@ -240,7 +250,7 @@ onMounted(() => finance.fetchOverview())
           <p v-else class="afd__muted">{{ t('adminFinance.noCosts') }}</p>
         </AdminSection>
 
-        <AdminSection :title="t('adminFinance.paidTraffic')" icon="mdi-google-ads">
+        <AdminSection :title="t('adminFinance.promotionProfitTitle')" icon="mdi-google-ads">
           <ul class="afd__catlist">
             <li class="afd__catrow">
               <span class="afd__catlabel">{{ t('adminFinance.cpcRevenue') }} (credite)</span>
@@ -260,6 +270,39 @@ onMounted(() => finance.fetchOverview())
             </li>
           </ul>
           <p class="afd__hint">{{ t('adminFinance.paidTrafficHint') }}</p>
+        </AdminSection>
+
+        <!-- Profit/cost split for the website-builder AI: what customers'
+             wallets actually paid for prompts + the unlock fee (real money)
+             vs. what the platform paid Claude/DeepSeek for it. The campaign
+             agent row is a placeholder — that feature doesn't exist yet. -->
+        <AdminSection :title="t('adminFinance.aiBuilderTitle')" icon="mdi-robot-outline">
+          <ul class="afd__catlist">
+            <li class="afd__catrow">
+              <span class="afd__catlabel">{{ t('adminFinance.aiBuilderPromptProfit') }}</span>
+              <span class="afd__catvalue">{{ eur(finance.overview.aiBuilder.promptProfitMinor) }}</span>
+            </li>
+            <li class="afd__catrow">
+              <span class="afd__catlabel">{{ t('adminFinance.aiBuilderUnlockProfit') }}</span>
+              <span class="afd__catvalue">{{ eur(finance.overview.aiBuilder.builderUnlockRevenueRealMoneyMinor) }}</span>
+            </li>
+            <li class="afd__catrow afd__catrow--total">
+              <span class="afd__catlabel">{{ t('adminFinance.aiBuilderProfit') }}</span>
+              <span class="afd__catvalue">{{ eur(finance.overview.aiBuilder.totalProfitMinor) }}</span>
+            </li>
+            <li class="afd__catrow afd__catrow--sub">
+              <span class="afd__catlabel">{{ t('adminFinance.aiBuilderCost') }}</span>
+              <span class="afd__catvalue">{{ eur(finance.overview.aiBuilder.providerCostMinor) }}</span>
+            </li>
+            <li class="afd__catrow afd__catrow--sub">
+              <span class="afd__catlabel">
+                {{ t('adminFinance.campaignAgentCost') }}
+                <v-chip size="x-small" variant="tonal" density="compact" class="afd__soon">{{ t('adminFinance.comingSoon') }}</v-chip>
+              </span>
+              <span class="afd__catvalue">{{ eur(finance.overview.aiBuilder.campaignAgentCostMinor) }}</span>
+            </li>
+          </ul>
+          <p class="afd__hint">{{ t('adminFinance.campaignAgentHint') }}</p>
         </AdminSection>
 
         <!-- The CPC-vs-one-off split, labelled for what it is. -->
@@ -316,6 +359,38 @@ onMounted(() => finance.fetchOverview())
             Sumele sunt în moneda facturii (RON pentru facturile fiscale), nu convertite.
           </p>
         </AdminSection>
+      </div>
+
+      <!-- Point-in-time balance-sheet figures: these ignore the period
+           filter on purpose (a liability is what's owed right now).
+           Reconciliation detail, not a headline figure — kept near the
+           bottom, right before the drill-downs it's most related to. -->
+      <div class="afd__kpis afd__kpis--four">
+        <AdminStatCard
+          label="Credit în circulație"
+          :value="eur(finance.overview.walletLiabilityMinor)"
+          sub="Vândut, neconsumat (total)"
+          icon="mdi-wallet-outline"
+          tone="warning"
+        />
+        <AdminStatCard
+          label="Sold blocat"
+          :value="eur(finance.overview.blockedWalletBalanceMinor)"
+          sub="Portofele înghețate (total)"
+          icon="mdi-lock-outline"
+        />
+        <AdminStatCard
+          label="Rambursări în curs"
+          :value="eur(finance.overview.refundLiabilityInFlightMinor)"
+          sub="Promise, neplătite (total)"
+          icon="mdi-progress-clock"
+        />
+        <AdminStatCard
+          label="Rată rambursări"
+          :value="pct(finance.overview.refundRatioPct)"
+          :sub="`${eur(finance.overview.refundsMoneyMinor)} returnați`"
+          icon="mdi-undo-variant"
+        />
       </div>
 
       <!-- Drill-downs on the same page: no new routes. -->
@@ -437,8 +512,24 @@ onMounted(() => finance.fetchOverview())
 .afd__kpis--four {
   grid-template-columns: repeat(4, 1fr);
 }
+.afd__kpis--three {
+  grid-template-columns: repeat(3, 1fr);
+}
 .afd__chart {
   margin-bottom: 1rem;
+}
+/* The one section meant to read as the page's headline, not just another
+   card group — a subtle accent border/tint, same glass surface otherwise. */
+.afd__hero {
+  margin-bottom: 1.4rem;
+  border-color: rgba(var(--v-theme-primary), 0.35);
+}
+.afd__hero .afd__kpis {
+  margin-bottom: 0;
+}
+.afd__soon {
+  margin-left: 0.4rem;
+  vertical-align: middle;
 }
 .afd__grid {
   display: grid;

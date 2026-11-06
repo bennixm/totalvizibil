@@ -205,6 +205,11 @@ enum ExpenseCategory {
 enum ExpenseSource {
   manual
   stripe_api
+  // Daily real Google Ads campaign cost, auto-captured by
+  // GoogleAdsCpcSyncService from the Google Ads API — see its `externalRef`
+  // idempotency key (`google_ads_daily:...`) for how it stays a single row
+  // per day instead of double-booking on every sync tick.
+  google_ads_api
 }
 
 model PlatformExpense {

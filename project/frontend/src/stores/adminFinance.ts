@@ -53,13 +53,44 @@ export interface FinanceTrendPoint {
   refundRatioPct: number
 }
 
+/** `consumedRevenueRealMoneyMinor`/`totalCostMinor` for an arbitrary range —
+ *  the shape behind `FinanceOverview.finalProfit`'s Today/Month/Year trio. */
+export interface FinalProfitFigures {
+  consumedRevenueRealMoneyMinor: number
+  totalCostMinor: number
+  profitMinor: number
+}
+
+export interface AiBuilderFigures {
+  promptRevenueRealMoneyMinor: number
+  providerCostMinor: number
+  promptProfitMinor: number
+  builderUnlockRevenueRealMoneyMinor: number
+  totalProfitMinor: number
+  /** Always 0 for now — the Google Ads campaign-management AI agent doesn't
+   *  exist yet. `campaignAgentAvailable` is false until it does. */
+  campaignAgentCostMinor: number
+  campaignAgentAvailable: boolean
+}
+
 export interface FinanceOverview {
   range: { from: string; to: string }
   revenueMinor: number
+  /** Real money behind credits ALREADY consumed in the period — the actual
+   *  basis for `profitMinor` (an unspent credit is still refundable, so
+   *  collecting the money for it isn't profit yet). */
+  consumedRevenueRealMoneyMinor: number
+  /** `revenueMinor` minus the above — money collected for credits still
+   *  sitting unconsumed in a wallet. */
+  unconsumedRevenueMinor: number
   operatingCostMinor: number
   aiCostMinor: number
   totalCostMinor: number
   profitMinor: number
+  /** Always Today/This month/This year (UTC) — independent of the page's
+   *  adjustable period filter, like the point-in-time wallet figures below. */
+  finalProfit: { today: FinalProfitFigures; month: FinalProfitFigures; year: FinalProfitFigures }
+  aiBuilder: AiBuilderFigures
   expensesByCategory: Record<ExpenseCategory, number>
   paidTraffic: {
     cpcRevenueMinor: number
@@ -114,7 +145,7 @@ export interface ExpenseRow {
   incurredOn: string
   amountMinor: number
   currency: string
-  source: 'manual' | 'stripe_api'
+  source: 'manual' | 'stripe_api' | 'google_ads_api'
   note: string | null
   createdBy: { name: string } | null
 }

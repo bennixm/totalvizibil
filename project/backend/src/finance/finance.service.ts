@@ -284,6 +284,19 @@ export class FinanceService {
     const grossToNetRatio = grossRevenueMinor > 0 ? netRevenueMinor / grossRevenueMinor : 1;
     const cpcRevenueRealMoneyMinor = Math.round(cpcConsumedMinor * grossToNetRatio);
 
+    // Same real-money weighting, generalized to ALL credit consumption in the
+    // period (CPC + AI usage + builder unlock + other one-off fees), not
+    // just CPC — this is the platform's actually-earned revenue for the
+    // period: money collected for credits a customer has ALREADY spent, and
+    // can therefore never claw back via a refund. `revenueMinor` above (money
+    // collected regardless of consumption) still includes credits sitting
+    // unconsumed in a wallet, which remain a liability until spent — see
+    // `unconsumedRevenueMinor` below.
+    const consumedRevenueRealMoneyMinor = Math.round(
+      (cpcConsumedMinor + otherFeesConsumedMinor) * grossToNetRatio,
+    );
+    const unconsumedRevenueMinor = revenueMinor - consumedRevenueRealMoneyMinor;
+
     const walletLiabilityMinor = walletTotals._sum.balanceMinor ?? 0;
     const blockedWalletBalanceMinor = blockedWalletTotals._sum.balanceMinor ?? 0;
     // Refund rows carry a negative `amountMinor` (credit leaving the wallet);
@@ -309,9 +322,36 @@ export class FinanceService {
     const aiCostMinor = usdToEurMinor(aiRows.reduce((s, r) => s + r.estimatedCostUsd, 0));
     const operatingCostMinor = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
     const totalCostMinor = operatingCostMinor + aiCostMinor;
-    const profitMinor = revenueMinor - totalCostMinor;
+    // Real profit = earned revenue (credits actually consumed, real money)
+    // minus EVERY cost — never `revenueMinor` (money collected): an unspent
+    // credit is still refundable, so it isn't profit yet, per the same
+    // principle `consumedRevenueRealMoneyMinor` above already applies.
+    const profitMinor = consumedRevenueRealMoneyMinor - totalCostMinor;
 
     const adSpendMinor = expensesByCategory.google_ads;
+
+    // AI Builder profitability: what customers' wallets actually paid for AI
+    // usage (real money, same blended weighting as everything else here)
+    // minus what the platform actually paid Claude/DeepSeek for it, plus the
+    // builder-unlock one-off fee (same weighting) — together "Profit Builder
+    // AI". `campaignAgentCostMinor` is a placeholder: the Google-Ads
+    // campaign-management AI agent doesn't exist yet (a future addition),
+    // so there is nothing real to sum here — `campaignAgentAvailable: false`
+    // lets the UI show "coming soon" instead of a misleading €0,00.
+    const aiPromptRevenueRealMoneyMinor = Math.round(otherFeesByCategory.aiUsage * grossToNetRatio);
+    const aiPromptProfitMinor = aiPromptRevenueRealMoneyMinor - aiCostMinor;
+    const aiBuilderUnlockRevenueRealMoneyMinor = Math.round(
+      otherFeesByCategory.builderUnlock * grossToNetRatio,
+    );
+    const aiBuilder = {
+      promptRevenueRealMoneyMinor: aiPromptRevenueRealMoneyMinor,
+      providerCostMinor: aiCostMinor,
+      promptProfitMinor: aiPromptProfitMinor,
+      builderUnlockRevenueRealMoneyMinor: aiBuilderUnlockRevenueRealMoneyMinor,
+      totalProfitMinor: aiPromptProfitMinor + aiBuilderUnlockRevenueRealMoneyMinor,
+      campaignAgentCostMinor: 0,
+      campaignAgentAvailable: false,
+    };
 
     // Daily trend for the chart — bucket every row into its UTC day. AI cost
     // is accumulated as raw (unrounded) USD per day and converted to minor
@@ -370,13 +410,40 @@ export class FinanceService {
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
+    // "Profit final" — always Today/This month/This year (UTC), independent
+    // of the page's adjustable period filter above, same reasoning as the
+    // point-in-time wallet-liability figures: an owner wants these three
+    // fixed at a glance, not re-derived by fiddling with the date picker.
+    // Same formula as `profitMinor` above (consumed-revenue basis), so
+    // picking "this month" in the period filter reproduces `finalProfit.month`
+    // exactly — the two can never silently disagree.
+    const now = new Date();
+    const [todayFigures, monthFigures, yearFigures] = await Promise.all([
+      this.profitForRange(
+        new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())),
+        endOfUtcDay(now),
+      ),
+      this.profitForRange(startOfUtcMonth(now), endOfUtcDay(now)),
+      this.profitForRange(new Date(Date.UTC(now.getUTCFullYear(), 0, 1)), endOfUtcDay(now)),
+    ]);
+
     return {
       range: { from: from.toISOString(), to: to.toISOString() },
       revenueMinor,
+      /** Real money behind credits ALREADY consumed in the period — the
+       *  actual basis for `profitMinor` (see its own comment above). */
+      consumedRevenueRealMoneyMinor,
+      /** `revenueMinor` minus the above: money collected for credits still
+       *  sitting unconsumed in a wallet — not profit, still refundable. */
+      unconsumedRevenueMinor,
       operatingCostMinor,
       aiCostMinor,
       totalCostMinor,
       profitMinor,
+      /** Always Today/This month/This year (UTC) — see the comment above
+       *  `todayFigures` for why these ignore the period filter. */
+      finalProfit: { today: todayFigures, month: monthFigures, year: yearFigures },
+      aiBuilder,
       expensesByCategory,
       paidTraffic: {
         /** Credit face value of CPC clicks billed — unchanged. */
@@ -417,6 +484,66 @@ export class FinanceService {
       refundLiabilityInFlightMinor,
       vatBreakdown,
       trend,
+    };
+  }
+
+  /**
+   * The same "consumed revenue (real money) minus every cost" formula
+   * `overview()` uses for its headline `profitMinor`, reusable for an
+   * arbitrary range — the engine behind `finalProfit`'s Today/This
+   * month/This year figures. Deliberately computes its OWN gross→net ratio
+   * from purchases within THIS range (consistent with how `overview()`
+   * already weights the selected period's own consumption), not a global
+   * all-time ratio — a range with no purchases of its own (e.g. a quiet day)
+   * falls back to ratio=1 (full face value, no discount assumed), the same
+   * conservative default `overview()`'s own `grossToNetRatio` already uses.
+   */
+  private async profitForRange(
+    from: Date,
+    to: Date,
+  ): Promise<{
+    consumedRevenueRealMoneyMinor: number;
+    totalCostMinor: number;
+    profitMinor: number;
+  }> {
+    const dateFilter = { createdAt: { gte: from, lte: to } };
+    const [purchaseRows, spendAgg, expenseAgg, aiAgg] = await Promise.all([
+      this.prisma.walletTransaction.findMany({
+        where: { type: 'purchase', status: 'completed', ...dateFilter, ...NOT_VOIDED_INVOICE },
+        select: { amountMinor: true, eurCents: true },
+      }),
+      this.prisma.walletTransaction.aggregate({
+        where: { type: 'spend', status: 'completed', ...dateFilter },
+        _sum: { amountMinor: true },
+      }),
+      this.prisma.platformExpense.aggregate({
+        where: { incurredOn: { gte: from, lte: to } },
+        _sum: { amountMinor: true },
+      }),
+      this.prisma.aiUsageRecord.aggregate({
+        where: dateFilter,
+        _sum: { estimatedCostUsd: true },
+      }),
+    ]);
+
+    const grossRevenueMinor = purchaseRows.reduce((s, r) => s + r.amountMinor, 0);
+    const netRevenueMinor = purchaseRows.reduce((s, r) => s + purchaseMoneyMinor(r), 0);
+    const grossToNetRatio = grossRevenueMinor > 0 ? netRevenueMinor / grossRevenueMinor : 1;
+    // All completed spend rows (CPC daily rollups + one-off fees alike) —
+    // the same union `cpcConsumedMinor + otherFeesConsumedMinor` partitions
+    // in `overview()`, summed directly here since no per-category breakdown
+    // is needed for this range.
+    const consumedFaceMinor = -(spendAgg._sum.amountMinor ?? 0);
+    const consumedRevenueRealMoneyMinor = Math.round(consumedFaceMinor * grossToNetRatio);
+
+    const operatingCostMinor = expenseAgg._sum.amountMinor ?? 0;
+    const aiCostMinor = usdToEurMinor(aiAgg._sum.estimatedCostUsd ?? 0);
+    const totalCostMinor = operatingCostMinor + aiCostMinor;
+
+    return {
+      consumedRevenueRealMoneyMinor,
+      totalCostMinor,
+      profitMinor: consumedRevenueRealMoneyMinor - totalCostMinor,
     };
   }
 
@@ -655,19 +782,21 @@ export class FinanceService {
     });
   }
 
-  /** A `stripe_api` expense row is auto-captured Stripe-fee bookkeeping: it
-   *  exists so the platform's books reconcile against Stripe's own payout
-   *  report. Editing or deleting one breaks that reconciliation silently, so
-   *  it takes a full `admin` — the `finance` role alone (which otherwise has
-   *  complete access to this module) is not enough. */
+  /** Any non-`manual` expense row is auto-captured bookkeeping (Stripe fees,
+   *  the daily real Google Ads cost — see `GoogleAdsCpcSyncService`, and any
+   *  future automated source): it exists so the platform's books reconcile
+   *  against an external system's own record. Editing or deleting one breaks
+   *  that reconciliation silently, so it takes a full `admin` — the
+   *  `finance` role alone (which otherwise has complete access to this
+   *  module) is not enough. */
   private assertMayMutate(
     expense: { source: string },
     actor: Pick<AuthPrincipal, 'platformRoles'>,
   ): void {
-    if (expense.source !== 'stripe_api') return;
+    if (expense.source === 'manual') return;
     if (actor.platformRoles.includes('admin')) return;
     throw new ForbiddenException({
-      message: 'stripe_expense_readonly',
+      message: 'automated_expense_readonly',
       statusCode: 403,
     });
   }

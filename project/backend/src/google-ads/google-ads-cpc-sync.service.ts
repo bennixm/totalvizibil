@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JWT } from 'google-auth-library';
 import { AppConfig } from '../config/env';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 const SYNC_INTERVAL_MS = 10 * 60 * 1000;
 const GOOGLE_ADS_SCOPE = 'https://www.googleapis.com/auth/adwords';
@@ -41,6 +42,14 @@ interface GoogleAdsSearchResponse {
  * point for a service-account credential (confirmed by reading its
  * compiled `service.js`), so the query goes to the REST endpoint directly
  * instead of through that library's gRPC client.
+ *
+ * Same sync tick also auto-books the day's REAL Google Ads cost as a
+ * `PlatformExpense` (category `google_ads`, source `google_ads_api`) — see
+ * `recordDailyCost()`. Reuses the exact same query response (`costMicros`)
+ * already fetched for the CPC average, so this is zero extra API calls.
+ * Replaces the old all-manual `google_ads` expense category for everything
+ * going forward; existing manual rows are untouched and the category still
+ * accepts manual entries (e.g. to backfill a day this job missed).
  */
 @Injectable()
 export class GoogleAdsCpcSyncService implements OnModuleInit {
@@ -53,6 +62,7 @@ export class GoogleAdsCpcSyncService implements OnModuleInit {
   constructor(
     config: ConfigService<AppConfig, true>,
     private readonly settings: PlatformSettingsService,
+    private readonly prisma: PrismaService,
   ) {
     const keyBase64 = config.get('googleAdsServiceAccountKeyBase64', { infer: true });
     this.customerId = config.get('googleAdsCustomerId', { infer: true });
@@ -157,6 +167,12 @@ export class GoogleAdsCpcSyncService implements OnModuleInit {
         currencyCode ??= row.customer?.currencyCode;
       }
 
+      // Booked regardless of clicks — a campaign can accrue cost (e.g.
+      // impression-based line items) without a click, and this is the
+      // platform's bookkeeping of record for that spend, not just an input
+      // to the CPC average below.
+      await this.recordDailyCost(costMicros, currencyCode);
+
       if (clicks <= 0) {
         this.logger.debug('No Google Ads clicks yet today — keeping the previous cached average.');
         return;
@@ -177,6 +193,41 @@ export class GoogleAdsCpcSyncService implements OnModuleInit {
         err instanceof Error ? err.stack : err,
       );
     }
+  }
+
+  /**
+   * Upserts today's running total Google Ads cost as a `PlatformExpense` —
+   * `externalRef` (`google_ads_daily:<customerId>:<date>`) is the row's
+   * idempotency key, so every 10-minute tick this cycle just replaces the
+   * same day's figure with Google's latest running total instead of
+   * double-booking. The row effectively "finalizes" once the UTC day rolls
+   * over and this job starts querying the next day instead.
+   */
+  private async recordDailyCost(
+    costMicros: number,
+    currencyCode: string | undefined,
+  ): Promise<void> {
+    if (costMicros <= 0 || !currencyCode) return;
+    // `toCredits()` doubles as a EUR converter here — 1 credit ≡ 1 EUR.
+    const costEur = await this.toCredits(costMicros / 1_000_000, currencyCode);
+    if (costEur == null) return; // already logged inside toCredits()
+
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const externalRef = `google_ads_daily:${this.customerId}:${dateKey}`;
+    const amountMinor = Math.round(costEur * 100);
+
+    await this.prisma.platformExpense.upsert({
+      where: { externalRef },
+      update: { amountMinor },
+      create: {
+        category: 'google_ads',
+        incurredOn: new Date(dateKey),
+        amountMinor,
+        currency: 'EUR',
+        source: 'google_ads_api',
+        externalRef,
+      },
+    });
   }
 
   /**
