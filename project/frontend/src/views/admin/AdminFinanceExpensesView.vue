@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
+import AdminPeriodFilter, { type PeriodPreset } from '@/components/admin/AdminPeriodFilter.vue'
 import {
   useAdminFinanceStore,
   type ExpenseCategory,
@@ -21,6 +22,43 @@ const finance = useAdminFinanceStore()
 const auth = useAuthStore()
 const confirm = useConfirmStore()
 const toasts = useToastStore()
+
+// Independent period filter, same pattern as Venituri/Dashboard — defaults
+// to this month for consistency with the rest of the finance section
+// (this endpoint's own backend default, absent a filter, is actually
+// lifetime; `onMounted` below explicitly asks for this month instead so
+// the three finance pages behave the same way out of the box).
+const activePreset = ref<PeriodPreset>('month')
+const customFrom = ref('')
+const customTo = ref('')
+
+function setQuickRange(preset: Exclude<PeriodPreset, 'custom'>): void {
+  activePreset.value = preset
+  if (preset === 'lifetime') {
+    finance.setExpensesPeriod(null, null, true)
+    return
+  }
+  const months = { month: 1, '3months': 3, '12months': 12 }[preset]
+  const now = new Date()
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1))
+  finance.setExpensesPeriod(from.toISOString().slice(0, 10), null)
+}
+
+const canApplyCustom = computed(
+  () => !!customFrom.value && (!customTo.value || customTo.value >= customFrom.value),
+)
+function applyCustomRange(): void {
+  if (!canApplyCustom.value) return
+  activePreset.value = 'custom'
+  finance.setExpensesPeriod(customFrom.value, customTo.value || null)
+}
+
+const activeRangeLabel = computed(() => {
+  const r = finance.expensesRange
+  if (!r) return ''
+  if (!r.from && !r.to) return t('adminFinance.lifetime')
+  return `${r.from ? dt(r.from) : '…'} – ${r.to ? dt(r.to) : '…'}`
+})
 
 /** Any non-`manual` row is auto-captured bookkeeping (Stripe fees, the daily
  *  real Google Ads cost): editing or deleting one breaks reconciliation
@@ -175,7 +213,7 @@ async function remove(id: string): Promise<void> {
   }
 }
 
-onMounted(() => finance.fetchExpenses())
+onMounted(() => setQuickRange('month'))
 </script>
 
 <template>
@@ -190,6 +228,16 @@ onMounted(() => finance.fetchExpenses())
         </v-btn>
       </template>
     </AdminPageHeader>
+
+    <AdminPeriodFilter
+      v-model:custom-from="customFrom"
+      v-model:custom-to="customTo"
+      :preset="activePreset"
+      :can-apply-custom="canApplyCustom"
+      :active-range-label="activeRangeLabel"
+      @preset="setQuickRange"
+      @apply="applyCustomRange"
+    />
 
     <div class="afe__filters">
       <v-select

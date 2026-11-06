@@ -622,6 +622,26 @@ describe('FinanceService', () => {
       expect(where.createdAt.lte).toBeInstanceOf(Date);
     });
 
+    it('all:true widens the lower bound to the Unix epoch — no guessed cutoff date', async () => {
+      const { svc, prisma } = makeLedgerService([]);
+
+      await svc.listRevenue({ all: true });
+
+      const where = prisma.__captured[0].where;
+      expect(where.createdAt.gte.getTime()).toBe(0);
+      expect(where.createdAt.lte).toBeInstanceOf(Date);
+    });
+
+    it('all:true still respects an explicit `to` — "everything up to date X"', async () => {
+      const { svc, prisma } = makeLedgerService([]);
+
+      await svc.listRevenue({ all: true, to: '2026-01-15' });
+
+      const where = prisma.__captured[0].where;
+      expect(where.createdAt.gte.getTime()).toBe(0);
+      expect(where.createdAt.lte.toISOString().slice(0, 10)).toBe('2026-01-15');
+    });
+
     it('widens the ledger to wallet adjustments when types= asks for them', async () => {
       const adjustment = row({
         id: 'a1',

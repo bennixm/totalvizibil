@@ -351,7 +351,10 @@ watch(
             <v-icon v-if="kpis.cpcEffective" icon="mdi-poker-chip" size="0.55em" class="cons__unit" />
           </strong>
           <span class="kpi__label">{{ t('consumption.heroCpc') }}</span>
-          <span class="kpi__sub">{{ t('consumption.heroCpcSub') }}</span>
+          <span class="kpi__sub">
+            {{ t('consumption.heroCpcSub') }}
+            <template v-if="kpis.cpcEffective"> · {{ money.approx(kpis.cpcEffective.credits) }}</template>
+          </span>
         </div>
       </div>
 
@@ -417,12 +420,17 @@ watch(
                 </td>
                 <td :data-label="t('consumption.colClicks')">{{ r.clicks }}</td>
                 <td :data-label="t('consumption.colCpc')">
-                  {{ r.cpcEffective ? cr(r.cpcEffective.credits) : '—' }}
+                  <template v-if="r.cpcEffective">
+                    {{ cr(r.cpcEffective.credits) }}
+                    <span class="cons__fx">{{ money.approx(r.cpcEffective.credits) }}</span>
+                  </template>
+                  <template v-else>—</template>
                 </td>
                 <td class="cons__feedSpent" :data-label="t('consumption.colSpentFeed')">
                   <span class="cons__feedBar"><span class="cons__feedBarFill" :style="{ width: r.sharePct + '%' }" /></span>
                   {{ cr(r.spent.credits) }}
                   <v-icon icon="mdi-poker-chip" size="0.6em" class="cons__unit" />
+                  <span class="cons__fx">{{ money.approx(r.spent.credits) }}</span>
                 </td>
               </tr>
             </tbody>
@@ -478,6 +486,7 @@ watch(
               {{ cr(c.total.credits) }}
               <v-icon icon="mdi-poker-chip" size="0.6em" class="cons__unit" />
             </strong>
+            <span class="cons__fx">{{ money.approx(c.total.credits) }}</span>
             <span class="cons__cardCount">
               {{ c.count ? t('consumption.txnCount', { n: c.count }) : t('consumption.none') }}
             </span>
@@ -568,6 +577,7 @@ watch(
                 <td class="cons__ledgerAmount">
                   {{ cr(Math.abs(e.amount.credits)) }}
                   <v-icon icon="mdi-poker-chip" size="0.6em" class="cons__unit" />
+                  <span class="cons__fx">{{ money.approx(Math.abs(e.amount.credits)) }}</span>
                 </td>
               </tr>
             </tbody>
@@ -727,6 +737,16 @@ watch(
 .cons__unit {
   margin-left: 0.2em;
   opacity: 0.7;
+}
+/* The fiat "≈ €x.xx" / "≈ y lei" equivalent shown under every credit cost —
+   same muted small-text treatment as `.kpi__sub`. */
+.cons__fx {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 400;
+  white-space: nowrap;
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
 .cons__section {

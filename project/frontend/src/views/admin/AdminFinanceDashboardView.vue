@@ -7,14 +7,21 @@ import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
+import AdminPeriodFilter, { type PeriodPreset } from '@/components/admin/AdminPeriodFilter.vue'
 import TrendChart from '@/components/TrendChart.vue'
+import { useMoney } from '@/composables/useMoney'
 import { useAdminFinanceStore, type ExpenseCategory } from '@/stores/adminFinance'
 
 const { t } = useI18n()
 const finance = useAdminFinanceStore()
+const money = useMoney()
 
+// 1 credit ≡ 1 EUR everywhere in the platform — `money.fiat()` already
+// knows how to render in whichever currency the global EUR/RON toggle (top
+// nav) is set to; every admin-finance figure is EUR minor units, so this is
+// the only conversion needed to make that toggle actually affect this page.
 function eur(minor: number): string {
-  return `${(minor / 100).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+  return money.fiat(minor / 100)
 }
 function pct(value: number): string {
   return `${value.toLocaleString('ro-RO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
@@ -102,11 +109,42 @@ watch(
   { immediate: true },
 )
 
-function setQuickRange(months: number): void {
+// Drives the filter bar's highlighted preset — `v-btn-toggle` had no
+// `value` on its children before, so nothing was ever shown as active no
+// matter which range was actually applied.
+const activePreset = ref<PeriodPreset>('month')
+const customFrom = ref('')
+const customTo = ref('')
+
+function setQuickRange(preset: Exclude<PeriodPreset, 'custom'>): void {
+  activePreset.value = preset
+  if (preset === 'lifetime') {
+    finance.setPeriod(null, null, true)
+    return
+  }
+  const months = { month: 1, '3months': 3, '12months': 12 }[preset]
   const now = new Date()
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1))
   finance.setPeriod(from.toISOString().slice(0, 10), null)
 }
+
+const canApplyCustom = computed(
+  () => !!customFrom.value && (!customTo.value || customTo.value >= customFrom.value),
+)
+function applyCustomRange(): void {
+  if (!canApplyCustom.value) return
+  activePreset.value = 'custom'
+  finance.setPeriod(customFrom.value, customTo.value || null)
+}
+
+// What's actually being shown right now, straight from the resolved
+// server-side range — so switching a preset or a custom range always has a
+// visible, unambiguous confirmation instead of the admin having to guess.
+const activeRangeLabel = computed(() => {
+  const r = finance.overview?.range
+  if (!r) return ''
+  return `${dt(r.from)} – ${dt(r.to)}`
+})
 
 onMounted(() => finance.fetchOverview())
 </script>
@@ -114,14 +152,17 @@ onMounted(() => finance.fetchOverview())
 <template>
   <div class="afd">
     <AdminPageHeader :title="t('adminFinance.dashboardTitle')" :eyebrow="t('admin.navGroupFinance')">
-      <template #actions>
-        <v-btn-toggle density="compact" mandatory variant="outlined" divided>
-          <v-btn size="small" @click="setQuickRange(1)">{{ t('adminFinance.thisMonth') }}</v-btn>
-          <v-btn size="small" @click="setQuickRange(3)">{{ t('adminFinance.last3Months') }}</v-btn>
-          <v-btn size="small" @click="setQuickRange(12)">{{ t('adminFinance.last12Months') }}</v-btn>
-        </v-btn-toggle>
-      </template>
     </AdminPageHeader>
+
+    <AdminPeriodFilter
+      v-model:custom-from="customFrom"
+      v-model:custom-to="customTo"
+      :preset="activePreset"
+      :can-apply-custom="canApplyCustom"
+      :active-range-label="activeRangeLabel"
+      @preset="setQuickRange"
+      @apply="applyCustomRange"
+    />
 
     <div v-if="finance.loadingOverview && !finance.overview" class="afd__center">
       <v-progress-circular indeterminate color="primary" />

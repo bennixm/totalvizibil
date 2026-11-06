@@ -132,7 +132,7 @@ const keyTiles = computed(() => {
     {
       k: 'kSpentToday',
       main: `${n(d.today.spent.credits, { maximumFractionDigits: 2 })} / ${n(d.dailyBudget.credits, { maximumFractionDigits: 2 })}`,
-      sub: `${d.today.pct}%`,
+      sub: `${d.today.pct}% · ${money.approx(d.today.spent.credits)}`,
     },
     {
       k: 'kCpcMax',
@@ -147,7 +147,10 @@ const keyTiles = computed(() => {
           ? n(d.lifetime.cpcEffective.credits, { maximumFractionDigits: 2 })
           : t('spend.cpcEffectiveNone'),
       unit: d.lifetime.cpcEffective != null ? ('credits' as const) : undefined,
-      sub: t('spend.cpcEffectiveSub'),
+      sub:
+        d.lifetime.cpcEffective != null
+          ? `${t('spend.cpcEffectiveSub')} · ${money.approx(d.lifetime.cpcEffective.credits)}`
+          : t('spend.cpcEffectiveSub'),
     },
   ] as Array<{ k: string; main: string; unit?: 'credits'; sub: string }>
 })
@@ -435,6 +438,9 @@ watch(
             {{ t('spend.runwayLineShort', { bal: cr(s.runway.walletBalance.credits) }) }} ·
             {{ t('spend.dailyBudgetEq', { n: cr(s.dailyBudget.credits) }) }}
           </p>
+          <p class="ov__fx">
+            {{ money.approx(s.runway.walletBalance.credits) }} · {{ money.approx(s.dailyBudget.credits) }}
+          </p>
         </div>
         <v-btn size="small" variant="flat" color="primary" :to="{ name: 'wallet' }">
           {{ t('spend.addCredits') }}
@@ -448,6 +454,7 @@ watch(
         <div>
           <strong>{{ t('spend.positionUpgradeTitle') }}</strong>
           <p>{{ t('spend.positionUpgradeText', { cpc: cr(s.recommendedCpc.credits) }) }}</p>
+          <p class="ov__fx">{{ money.approx(s.recommendedCpc.credits) }}</p>
         </div>
         <v-btn
           size="small"
@@ -538,6 +545,7 @@ watch(
                   })
                 : t('spend.runwayLineShort', { bal: cr(s.runway.walletBalance.credits) })
             }}
+            <small class="ov__fxInline"> · {{ money.approx(s.runway.walletBalance.credits) }}</small>
           </span>
           <v-btn
             v-if="runwayLow"
@@ -594,6 +602,7 @@ watch(
                 <td :data-label="t('spend.previewColSpent')" class="previewSpent">
                   <span class="previewBar"><span class="previewBar__fill" :style="{ width: r.sharePct + '%' }" /></span>
                   {{ n(r.spent.credits, { maximumFractionDigits: 2 }) }} cr
+                  <span class="ov__fx">{{ money.approx(r.spent.credits) }}</span>
                 </td>
               </tr>
             </tbody>
@@ -1008,6 +1017,22 @@ watch(
 .today__eqSep {
   margin: 0 0.15rem;
   opacity: 0.5;
+}
+/* The fiat "≈ €x.xx" / "≈ y lei" equivalent shown under a credit cost —
+   block so it stacks under the figure it belongs to. */
+.ov__fx {
+  display: block;
+  margin: 0.15rem 0 0;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+/* Same figure, trailing the existing sentence on one line instead of
+   stacking (the runway line, which already reads as a single short row). */
+.ov__fxInline {
+  font-size: 0.85em;
+  font-weight: 400;
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .today__track {
   height: 8px;

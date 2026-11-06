@@ -1,43 +1,61 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
+import AdminPeriodFilter, { type PeriodPreset } from '@/components/admin/AdminPeriodFilter.vue'
+import { useMoney } from '@/composables/useMoney'
 import { useAdminFinanceStore } from '@/stores/adminFinance'
 
 const { t, n } = useI18n()
 const finance = useAdminFinanceStore()
+const money = useMoney()
 
 function eur(minor: number): string {
-  return `${(minor / 100).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+  return money.fiat(minor / 100)
+}
+function dt(s: string): string {
+  return new Date(s).toLocaleDateString('ro-RO')
 }
 
 const hasRows = computed(() => (finance.aiUsage?.byModel.length ?? 0) > 0)
 
-/** This page has no period control of its own — it silently inherits
- *  `finance.period` from the Dashboard page, which is otherwise invisible
- *  here (looks identical to the default current-month window on a fresh
- *  page load). Surfacing the backend-returned range at least tells the
- *  admin what window the numbers below actually cover. */
-const rangeLabel = computed(() => {
-  const range = finance.aiUsage?.range
-  if (!range) return ''
-  const from = new Date(range.from).toLocaleDateString('ro-RO')
-  const to = new Date(range.to).toLocaleDateString('ro-RO')
-  return `${from} – ${to}`
+// Independent period filter — its own state/fetch (`setAiUsagePeriod`),
+// same pattern as Venituri/Costuri/Dashboard. Used to silently inherit the
+// Dashboard's period instead, with no control of its own to change it.
+const activePreset = ref<PeriodPreset>('month')
+const customFrom = ref('')
+const customTo = ref('')
+
+function setQuickRange(preset: Exclude<PeriodPreset, 'custom'>): void {
+  activePreset.value = preset
+  if (preset === 'lifetime') {
+    finance.setAiUsagePeriod(null, null, true)
+    return
+  }
+  const months = { month: 1, '3months': 3, '12months': 12 }[preset]
+  const now = new Date()
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1))
+  finance.setAiUsagePeriod(from.toISOString().slice(0, 10), null)
+}
+
+const canApplyCustom = computed(
+  () => !!customFrom.value && (!customTo.value || customTo.value >= customFrom.value),
+)
+function applyCustomRange(): void {
+  if (!canApplyCustom.value) return
+  activePreset.value = 'custom'
+  finance.setAiUsagePeriod(customFrom.value, customTo.value || null)
+}
+
+const activeRangeLabel = computed(() => {
+  const r = finance.aiUsage?.range
+  return r ? `${dt(r.from)} – ${dt(r.to)}` : ''
 })
 
-/** `aiBuilder` (revenue/profit) lives on `/admin/finance/overview`, not this
- *  page's own `/admin/finance/ai-usage` — fetched already when the admin
- *  came from the Dashboard (same `finance.period`), but NOT if this page is
- *  opened directly (bookmark, deep link), so it's fetched here too, guarded
- *  so an already-warm overview is never re-fetched pointlessly. */
-onMounted(() => {
-  void finance.fetchAiUsage()
-  if (!finance.overview) void finance.fetchOverview()
-})
+onMounted(() => setQuickRange('month'))
 </script>
 
 <template>
@@ -49,6 +67,16 @@ onMounted(() => {
         </v-btn>
       </template>
     </AdminPageHeader>
+
+    <AdminPeriodFilter
+      v-model:custom-from="customFrom"
+      v-model:custom-to="customTo"
+      :preset="activePreset"
+      :can-apply-custom="canApplyCustom"
+      :active-range-label="activeRangeLabel"
+      @preset="setQuickRange"
+      @apply="applyCustomRange"
+    />
 
     <div v-if="finance.loadingAiUsage && !finance.aiUsage" class="afa__center">
       <v-progress-circular indeterminate color="primary" />
@@ -63,19 +91,19 @@ onMounted(() => {
     />
 
     <template v-else-if="finance.aiUsage">
-      <p v-if="rangeLabel" class="afa__range">{{ rangeLabel }}</p>
-
       <!-- Money first: what customers paid for AI usage (real money) vs
-           what the platform paid the providers for it. Only shown once the
-           Dashboard's overview has loaded (see onMounted above). -->
-      <div v-if="finance.overview" class="afa__kpis">
-        <AdminStatCard :label="t('adminFinance.aiRevenue')" :value="eur(finance.overview.aiBuilder.promptRevenueRealMoneyMinor)" icon="mdi-bank-transfer-in" tone="primary" />
+           what the platform paid the providers for it. `aiUsageOverview` is
+           scoped to THIS page's own filter above — never the Dashboard's —
+           so these cards can never silently show a different period than
+           the cost/calls/tokens figures right below them. -->
+      <div v-if="finance.aiUsageOverview" class="afa__kpis">
+        <AdminStatCard :label="t('adminFinance.aiRevenue')" :value="eur(finance.aiUsageOverview.aiBuilder.promptRevenueRealMoneyMinor)" icon="mdi-bank-transfer-in" tone="primary" />
         <AdminStatCard :label="t('adminFinance.aiTotalCost')" :value="eur(finance.aiUsage.totalCostMinor)" icon="mdi-cash-minus" tone="error" />
         <AdminStatCard
           :label="t('adminFinance.aiProfit')"
-          :value="eur(finance.overview.aiBuilder.promptProfitMinor)"
+          :value="eur(finance.aiUsageOverview.aiBuilder.promptProfitMinor)"
           icon="mdi-piggy-bank-outline"
-          :tone="finance.overview.aiBuilder.promptProfitMinor >= 0 ? 'success' : 'error'"
+          :tone="finance.aiUsageOverview.aiBuilder.promptProfitMinor >= 0 ? 'success' : 'error'"
         />
       </div>
 
@@ -117,11 +145,6 @@ onMounted(() => {
   display: grid;
   place-items: center;
   min-height: 200px;
-}
-.afa__range {
-  margin: 1rem 0 0;
-  font-size: 0.78rem;
-  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .afa__kpis {
   display: grid;
