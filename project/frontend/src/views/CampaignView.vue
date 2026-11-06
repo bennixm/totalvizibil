@@ -403,6 +403,7 @@ watch(
                 ? t('campaign.autoMarket', { n: fmt(marketCpc) })
                 : t('campaign.autoMarketNone')
             }}
+            <small v-if="marketCpc > 0" class="tier__fx">({{ money.approx(marketCpc) }})</small>
           </p>
           <p v-if="data.autoBudgetLimited" class="camp__autoWarn">
             <v-icon icon="mdi-alert-outline" size="14" /> {{ t('campaign.autoBudgetLimited') }}
@@ -428,9 +429,13 @@ watch(
           >
             <span class="tier__dot" />
             <span class="tier__name">{{ t('campaign.tierStandard') }}</span>
-            <span class="tier__cpc">{{ t('campaign.cpcMaxShort') }} {{ fmt(data.suggestions.standard.cpc.credits) }}</span>
+            <span class="tier__cpc">
+              {{ t('campaign.cpcMaxShort') }} {{ fmt(data.suggestions.standard.cpc.credits) }}
+              <small class="tier__fx">({{ money.approx(data.suggestions.standard.cpc.credits) }})</small>
+            </span>
             <span class="tier__budget">
               {{ t('campaign.perDay', { n: fmt(data.suggestions.standard.dailyBudget.credits) }) }}
+              <small class="tier__fx">({{ money.approx(data.suggestions.standard.dailyBudget.credits) }})</small>
             </span>
           </button>
           <button
@@ -446,9 +451,13 @@ watch(
             <span class="tier__name">
               <v-icon icon="mdi-rocket-launch-outline" size="15" /> {{ t('campaign.tierFirst') }}
             </span>
-            <span class="tier__cpc">{{ t('campaign.cpcMaxShort') }} {{ fmt(data.suggestions.appearFirst.cpc.credits) }}</span>
+            <span class="tier__cpc">
+              {{ t('campaign.cpcMaxShort') }} {{ fmt(data.suggestions.appearFirst.cpc.credits) }}
+              <small class="tier__fx">({{ money.approx(data.suggestions.appearFirst.cpc.credits) }})</small>
+            </span>
             <span class="tier__budget">
               {{ t('campaign.perDay', { n: fmt(data.suggestions.appearFirst.dailyBudget.credits) }) }}
+              <small class="tier__fx">({{ money.approx(data.suggestions.appearFirst.dailyBudget.credits) }})</small>
             </span>
           </button>
         </div>
@@ -460,36 +469,42 @@ watch(
       <!-- Form -->
       <section class="camp__form">
         <div class="camp__row">
-          <v-text-field
-            v-model.number="dailyBudget"
-            type="number"
-            :min="1"
-            :label="t('campaign.dailyBudget')"
-            suffix="cr"
-            variant="outlined"
-            density="comfortable"
-            hide-details
-            :disabled="pendingDeletion"
-          />
-          <v-text-field
-            v-model.number="cpc"
-            type="number"
-            :min="0.05"
-            :max="Number.isFinite(cpcMax) ? cpcMax : undefined"
-            step="0.05"
-            suffix="cr"
-            variant="outlined"
-            density="comfortable"
-            :disabled="auto || pendingDeletion"
-            :error="!cpcValid"
-            :hint="cpcHint"
-            persistent-hint
-          >
-            <template #label>
-              {{ t('campaign.cpc') }}
-              <InfoHint :text="t('campaign.cpcMaxNote')" :size="14" />
-            </template>
-          </v-text-field>
+          <div class="camp__field">
+            <v-text-field
+              v-model.number="dailyBudget"
+              type="number"
+              :min="1"
+              :label="t('campaign.dailyBudget')"
+              suffix="cr"
+              variant="outlined"
+              density="comfortable"
+              hide-details
+              :disabled="pendingDeletion"
+            />
+            <p class="camp__fx">{{ money.approx(budgetN) }}</p>
+          </div>
+          <div class="camp__field">
+            <v-text-field
+              v-model.number="cpc"
+              type="number"
+              :min="0.05"
+              :max="Number.isFinite(cpcMax) ? cpcMax : undefined"
+              step="0.05"
+              suffix="cr"
+              variant="outlined"
+              density="comfortable"
+              :disabled="auto || pendingDeletion"
+              :error="!cpcValid"
+              :hint="cpcHint"
+              persistent-hint
+            >
+              <template #label>
+                {{ t('campaign.cpc') }}
+                <InfoHint :text="t('campaign.cpcMaxNote')" :size="14" />
+              </template>
+            </v-text-field>
+            <p class="camp__fx">{{ money.approx(cpcN) }}</p>
+          </div>
         </div>
         <div v-if="!auto" class="camp__first">
           <v-checkbox-btn
@@ -514,7 +529,7 @@ watch(
         <div class="camp__funding" :class="{ 'is-short': !funded }">
           <span>
             {{ t('campaign.needCredits', { need: fmt(required), balance: fmt(balance) }) }}
-            <span class="camp__fundEq">{{ money.approx(balance) }}</span>
+            <span class="camp__fundEq">{{ money.approx(required) }} / {{ money.approx(balance) }}</span>
             <InfoHint :text="t('campaign.consumedNote', { n: fmt(consumed) })" />
           </span>
           <v-btn
@@ -811,12 +826,27 @@ watch(
   font-size: 0.78rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
+/* The fiat "(≈ €x.xx)" / "(≈ y lei)" equivalent trailing a credit figure —
+   shared by the tier cards and the auto-mode market-CPC note. */
+.tier__fx {
+  font-weight: 400;
+  opacity: 0.75;
+}
 
 .camp__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
   margin-bottom: 0.5rem;
+}
+.camp__field {
+  display: flex;
+  flex-direction: column;
+}
+.camp__fx {
+  margin: 0.3rem 0 0;
+  font-size: 0.74rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .camp__first {
   display: flex;

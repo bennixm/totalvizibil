@@ -478,15 +478,7 @@ watch(() => auth.isAuthenticated, syncWallet)
   gap: 0.3rem;
   height: 100%;
   padding: 0.3rem 1rem 0.4rem;
-  border-radius: 0;
-  /* Was plain `border-radius: 10px` with no fill of its own — every other
-     button in this same toolbar (the EUR/theme/locale icon pills, the
-     wallet chip's "+", the avatar) is a chamfered hex with a resting
-     background; this one sat there as bare text+icon with nothing behind
-     it until hover. Matches its siblings now: the hex cut plus the same
-     subtle resting tint Vuetify's own text-variant icon buttons use. */
-  clip-path: var(--tvz-hex-md);
-  background: rgba(var(--v-theme-on-surface), 0.055);
+  border-radius: 10px;
   font-size: 0.64rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -496,7 +488,6 @@ watch(() => auth.isAuthenticated, syncWallet)
   isolation: isolate;
   transition:
     color var(--tvz-dur-slow) var(--tvz-ease-out),
-    background var(--tvz-dur-slow) var(--tvz-ease-out),
     transform var(--tvz-dur-slow) var(--tvz-ease-out);
 }
 .navlink::before,
@@ -534,10 +525,6 @@ watch(() => auth.isAuthenticated, syncWallet)
 }
 .navlink.router-link-active {
   color: rgb(var(--v-theme-primary));
-  /* Same active-tint value the admin/owner sidebar's `.sbar__link` already
-     uses for its own active state — one "this is the current section"
-     language across both the top nav and the sidebar. */
-  background: rgba(var(--v-theme-primary), 0.12);
 }
 .navlink.router-link-active::after {
   opacity: 1;

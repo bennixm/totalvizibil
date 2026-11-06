@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
 
 const CATEGORIES = [
   'hosting',
@@ -23,6 +23,18 @@ export class ListExpensesQuery {
   @IsOptional()
   @IsISO8601()
   to?: string;
+
+  /** Explicit "ignore from/to, show every row ever" — same effect as
+   *  sending neither, spelled out so the period-filter UI has one
+   *  consistent "Lifetime" action across every finance page instead of
+   *  this endpoint's absence-means-everything convention being a special
+   *  case callers have to remember. Query strings arrive as the literal
+   *  string `"true"`/`"false"`, not a real boolean — normalised before
+   *  `@IsBoolean()` checks it. */
+  @IsOptional()
+  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean()
+  all?: boolean;
 
   @IsOptional()
   @Type(() => Number)

@@ -17,6 +17,18 @@ function errMsg(e: unknown): string {
   return 'request failed'
 }
 
+/** `from`/`to`/`all` → query params, shared by every finance endpoint that
+ *  takes this same period shape — `all` wins over `from`/`to` server-side
+ *  (see `FinanceService.resolveRange()`), but both are still sent as-is so
+ *  switching back off `all` doesn't require clearing them first. */
+function periodFilterParams(f: { from: string | null; to: string | null; all?: boolean }): URLSearchParams {
+  const params = new URLSearchParams()
+  if (f.from) params.set('from', f.from)
+  if (f.to) params.set('to', f.to)
+  if (f.all) params.set('all', 'true')
+  return params
+}
+
 export type ExpenseCategory =
   | 'hosting'
   | 'call_center'
@@ -191,6 +203,9 @@ export interface AiUsageReport {
 export interface PeriodFilter {
   from: string | null
   to: string | null
+  /** "Ignore from/to, show literally every row ever" — see the backend's
+   *  `FinanceService.resolveRange()`. Wins over `from`/`to` when set. */
+  all?: boolean
 }
 
 interface AdminFinanceState {
@@ -212,6 +227,8 @@ interface AdminFinanceState {
   revenuePeriodTotalMinor: number
   /** Credit face value net total of the whole filtered period. */
   revenuePeriodFaceTotalMinor: number
+  /** The resolved range the ledger is actually filtered to right now. */
+  revenueRange: { from: string; to: string } | null
   revenueFilters: PeriodFilter & {
     type: 'purchase' | 'refund' | null
     /** Adds `adjustment` rows (manual wallet corrections, affiliate rewards)
@@ -239,20 +256,35 @@ interface AdminFinanceState {
   expenses: ExpenseRow[]
   expensesTotal: number
   expenseFilters: PeriodFilter & { category: ExpenseCategory | null; page: number; pageSize: number }
+  /** The filter as actually applied — `{from: null, to: null}` means
+   *  lifetime (this endpoint's own default when nothing is set). */
+  expensesRange: { from: string | null; to: string | null } | null
   loadingExpenses: boolean
 
   aiUsage: AiUsageReport | null
+  // Independent of `period` (the Dashboard's own filter) — this used to
+  // silently inherit it instead, so opening Consum AI directly (no visit to
+  // the Dashboard first) showed whatever period happened to be left over,
+  // with no filter control of its own to change it.
+  aiUsageFilters: PeriodFilter
+  /** A SEPARATE `overview()` snapshot scoped to `aiUsageFilters` (not the
+   *  Dashboard's own `overview`/`period`) — the page's revenue/profit cards
+   *  read `aiBuilder` off this, so they can never show a different period
+   *  than the cost/calls/tokens figures on the very same page. */
+  aiUsageOverview: FinanceOverview | null
   loadingAiUsage: boolean
 
-  // Bumped on every `fetchOverview`/`fetchRevenue`/`fetchExpenses` call —
-  // each in-flight request is tagged with the value it saw, and discards its
-  // own result if a newer call (a fast follow-up filter change) has started
-  // in the meantime. Without this, clicking through period/filter options
-  // quickly can let a slower, earlier request's response land AFTER a
-  // faster, newer one and silently overwrite it with stale data.
+  // Bumped on every `fetchOverview`/`fetchRevenue`/`fetchExpenses`/
+  // `fetchAiUsage` call — each in-flight request is tagged with the value it
+  // saw, and discards its own result if a newer call (a fast follow-up
+  // filter change) has started in the meantime. Without this, clicking
+  // through period/filter options quickly can let a slower, earlier
+  // request's response land AFTER a faster, newer one and silently
+  // overwrite it with stale data.
   overviewSeq: number
   revenueSeq: number
   expensesSeq: number
+  aiUsageSeq: number
 }
 
 export const useAdminFinanceStore = defineStore('adminFinance', {
@@ -272,6 +304,7 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     revenueTotal: 0,
     revenuePeriodTotalMinor: 0,
     revenuePeriodFaceTotalMinor: 0,
+    revenueRange: null,
     revenueFilters: {
       from: null,
       to: null,
@@ -299,19 +332,23 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     expenses: [],
     expensesTotal: 0,
     expenseFilters: { from: null, to: null, category: null, page: 1, pageSize: 20 },
+    expensesRange: null,
     loadingExpenses: false,
 
     aiUsage: null,
+    aiUsageFilters: { from: null, to: null },
+    aiUsageOverview: null,
     loadingAiUsage: false,
 
     overviewSeq: 0,
     revenueSeq: 0,
     expensesSeq: 0,
+    aiUsageSeq: 0,
   }),
 
   actions: {
-    setPeriod(from: string | null, to: string | null): void {
-      this.period = { from, to }
+    setPeriod(from: string | null, to: string | null, all = false): void {
+      this.period = { from, to, all }
       void this.fetchOverview()
       // The dashboard's two drill-down tables share the same period, so they
       // must not keep showing the previous one's numbers — but only refresh
@@ -326,22 +363,16 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
       }
     },
 
-    /** `from`/`to` of the dashboard period, as query params. */
+    /** `from`/`to`/`all` of the dashboard period, as query params. */
     periodParams(): URLSearchParams {
-      const params = new URLSearchParams()
-      if (this.period.from) params.set('from', this.period.from)
-      if (this.period.to) params.set('to', this.period.to)
-      return params
+      return periodFilterParams(this.period)
     },
 
     async fetchOverview(): Promise<void> {
       const seq = ++this.overviewSeq
       this.loadingOverview = true
       try {
-        const params = new URLSearchParams()
-        if (this.period.from) params.set('from', this.period.from)
-        if (this.period.to) params.set('to', this.period.to)
-        const qs = params.toString()
+        const qs = this.periodParams().toString()
         const res = await apiFetch<FinanceOverview>(`/admin/finance/overview${qs ? `?${qs}` : ''}`)
         if (seq !== this.overviewSeq) return
         this.overview = res
@@ -364,17 +395,26 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
       void this.fetchRevenue()
     },
 
+    /** Sets from/to/all together (one fetch, not three) — the period-preset
+     *  side of the filter bar; `setRevenueFilter` above stays for the
+     *  single-field controls (type toggle, adjustments switch, paging). */
+    setRevenuePeriod(from: string | null, to: string | null, all = false): void {
+      this.revenueFilters.from = from
+      this.revenueFilters.to = to
+      this.revenueFilters.all = all
+      this.revenueFilters.page = 1
+      void this.fetchRevenue()
+    },
+
     /** Shared by the ledger list and its PDF export, so the download can
      *  never cover a different slice than the table on screen. */
     revenueParams(): URLSearchParams {
       const f = this.revenueFilters
-      const params = new URLSearchParams()
+      const params = periodFilterParams(f)
       if (f.type) params.set('type', f.type)
       else if (f.includeAdjustments) {
         for (const t of ['purchase', 'refund', 'adjustment']) params.append('types', t)
       }
-      if (f.from) params.set('from', f.from)
-      if (f.to) params.set('to', f.to)
       return params
     },
 
@@ -389,12 +429,14 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
         const res = await apiFetch<{
           items: RevenueRow[]
           total: number
+          range: { from: string; to: string }
           periodTotalMinor: number
           periodFaceTotalMinor: number
         }>(`/admin/finance/revenue?${params.toString()}`)
         if (seq !== this.revenueSeq) return
         this.revenue = res.items
         this.revenueTotal = res.total
+        this.revenueRange = res.range
         this.revenuePeriodTotalMinor = res.periodTotalMinor
         this.revenuePeriodFaceTotalMinor = res.periodFaceTotalMinor
         this.revenueError = null
@@ -473,23 +515,40 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
       void this.fetchExpenses()
     },
 
+    /** Sets from/to/all together (one fetch, not three) — mirrors
+     *  `setRevenuePeriod`. */
+    setExpensesPeriod(from: string | null, to: string | null, all = false): void {
+      this.expenseFilters.from = from
+      this.expenseFilters.to = to
+      this.expenseFilters.all = all
+      this.expenseFilters.page = 1
+      void this.fetchExpenses()
+    },
+
+    expensesParams(): URLSearchParams {
+      const f = this.expenseFilters
+      const params = periodFilterParams(f)
+      if (f.category) params.set('category', f.category)
+      return params
+    },
+
     async fetchExpenses(): Promise<void> {
       const seq = ++this.expensesSeq
       this.loadingExpenses = true
       try {
         const f = this.expenseFilters
-        const params = new URLSearchParams()
-        if (f.category) params.set('category', f.category)
-        if (f.from) params.set('from', f.from)
-        if (f.to) params.set('to', f.to)
+        const params = this.expensesParams()
         params.set('page', String(f.page))
         params.set('pageSize', String(f.pageSize))
-        const res = await apiFetch<{ items: ExpenseRow[]; total: number }>(
-          `/admin/finance/expenses?${params.toString()}`,
-        )
+        const res = await apiFetch<{
+          items: ExpenseRow[]
+          total: number
+          range: { from: string | null; to: string | null }
+        }>(`/admin/finance/expenses?${params.toString()}`)
         if (seq !== this.expensesSeq) return
         this.expenses = res.items
         this.expensesTotal = res.total
+        this.expensesRange = res.range
         this.expensesError = null
       } catch (e) {
         if (seq === this.expensesSeq) this.expensesError = errMsg(e)
@@ -499,12 +558,7 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     },
 
     expensesExportUrl(): string {
-      const f = this.expenseFilters
-      const params = new URLSearchParams()
-      if (f.category) params.set('category', f.category)
-      if (f.from) params.set('from', f.from)
-      if (f.to) params.set('to', f.to)
-      const q = params.toString()
+      const q = this.expensesParams().toString()
       return `${BASE_URL}/admin/finance/expenses/export${q ? `?${q}` : ''}`
     },
 
@@ -538,27 +592,48 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
       await Promise.all([this.fetchExpenses(), this.fetchOverview()])
     },
 
+    /** Independent of the Dashboard's `period` — see `aiUsageFilters`'s own doc. */
+    setAiUsagePeriod(from: string | null, to: string | null, all = false): void {
+      this.aiUsageFilters = { from, to, all }
+      void this.fetchAiUsage()
+      void this.fetchAiUsageOverview()
+    },
+
     async fetchAiUsage(): Promise<void> {
+      const seq = ++this.aiUsageSeq
       this.loadingAiUsage = true
       try {
-        const params = new URLSearchParams()
-        if (this.period.from) params.set('from', this.period.from)
-        if (this.period.to) params.set('to', this.period.to)
-        const qs = params.toString()
-        this.aiUsage = await apiFetch<AiUsageReport>(`/admin/finance/ai-usage${qs ? `?${qs}` : ''}`)
+        const qs = periodFilterParams(this.aiUsageFilters).toString()
+        const res = await apiFetch<AiUsageReport>(`/admin/finance/ai-usage${qs ? `?${qs}` : ''}`)
+        if (seq !== this.aiUsageSeq) return
+        this.aiUsage = res
         this.aiUsageError = null
       } catch (e) {
-        this.aiUsageError = errMsg(e)
+        if (seq === this.aiUsageSeq) this.aiUsageError = errMsg(e)
       } finally {
-        this.loadingAiUsage = false
+        if (seq === this.aiUsageSeq) this.loadingAiUsage = false
+      }
+    },
+
+    /** `aiBuilder` (revenue/profit) lives on `overview()`, not the
+     *  `ai-usage` endpoint — fetched separately, scoped to THIS page's own
+     *  `aiUsageFilters`, never the Dashboard's `period` (see
+     *  `aiUsageOverview`'s own doc on why those must not be conflated). */
+    async fetchAiUsageOverview(): Promise<void> {
+      try {
+        const qs = periodFilterParams(this.aiUsageFilters).toString()
+        this.aiUsageOverview = await apiFetch<FinanceOverview>(
+          `/admin/finance/overview${qs ? `?${qs}` : ''}`,
+        )
+      } catch {
+        // Non-fatal: the page's cost/calls/tokens figures (from `aiUsage`)
+        // still render without the revenue/profit cards on top.
+        this.aiUsageOverview = null
       }
     },
 
     aiUsageExportUrl(): string {
-      const params = new URLSearchParams()
-      if (this.period.from) params.set('from', this.period.from)
-      if (this.period.to) params.set('to', this.period.to)
-      const q = params.toString()
+      const q = periodFilterParams(this.aiUsageFilters).toString()
       return `${BASE_URL}/admin/finance/ai-usage/export${q ? `?${q}` : ''}`
     },
   },

@@ -7,7 +7,14 @@ import { companyRoute } from '@/services/routes'
 import type { FeedItem } from '@/stores/feed'
 import type { LocalizedName } from '@/stores/companies'
 
-const props = defineProps<{ item: FeedItem }>()
+const props = defineProps<{
+  item: FeedItem
+  /** The single niche the visitor is actually browsing, when there is one
+   *  clean niche to anchor to (see `FeedView`'s `singleBrowsedNicheName`) —
+   *  falls back to the item's own (possibly unrelated) stored category when
+   *  absent, e.g. a bare group view or a multi-niche selection. */
+  browsedCategory?: string | null
+}>()
 
 const { t, locale } = useI18n()
 
@@ -29,17 +36,37 @@ function loc(n?: LocalizedName): string | null {
 }
 
 const catName = computed(() => loc(props.item.category?.name))
-const parentName = computed(() => loc(props.item.category?.parent?.name ?? undefined))
 
-const shownServices = computed(() => props.item.services.slice(0, 6))
+/** "{subcategorie} {oraș}" — e.g. "Reparații acoperișuri Cluj-Napoca" — the
+ *  card's own title, replacing the business name there (which moves to a
+ *  secondary line, see `.lst__brand`/`.fc__brand`). `browsedCategory` wins
+ *  when set (it's what the visitor actually searched for); otherwise falls
+ *  back to the item's own stored category, then to the business name itself
+ *  if there's truly no category info to anchor to. */
+const cardTitle = computed(() => {
+  const category = props.browsedCategory || catName.value
+  if (!category) return props.item.displayName
+  const city = props.item.location?.nationwide ? null : props.item.location?.city
+  return city ? `${category} ${city}` : category
+})
+
+// Capped at 4 (was 6) — the formal category pills that used to sit above
+// these were dropped (redundant with the title, which already names the
+// matched category), so this is the card's only tag row now; fewer, more
+// legible chips suit that better than a long row.
+const shownServices = computed(() => props.item.services.slice(0, 4))
 const extraServices = computed(() =>
   Math.max(0, props.item.servicesTotal - shownServices.value.length),
 )
 
-// Formal subcategory tags (the taxonomy, not the owner's free-text service
-// list) — every one the business is tagged with, primary first.
-const shownSubcats = computed(() => props.item.categories.slice(0, 5))
-const extraSubcats = computed(() => Math.max(0, props.item.categories.length - 5))
+/** County only — the city is already in `cardTitle` whenever one exists, so
+ *  repeating it here ("📍 Constanța · Constanța") was pure duplication. */
+const locationLabel = computed(() => {
+  const loc = props.item.location
+  if (!loc) return null
+  if (loc.nationwide) return null // handled by the dedicated i18n string below
+  return loc.county
+})
 
 // Advanced-builder sites get the media-forward "own website" card.
 const featured = computed(() => props.item.builtWithBuilder)
@@ -100,34 +127,21 @@ const tagline = computed(() => {
     </div>
 
     <div class="fc__body">
-      <p v-if="catName" class="fc__crumb">
-        <span v-if="parentName">{{ parentName }}</span>
-        <v-icon v-if="parentName" icon="mdi-chevron-right" size="12" />
-        <span class="fc__niche">{{ catName }}</span>
-      </p>
+      <h3 class="fc__name">{{ cardTitle }}</h3>
 
       <div class="fc__ident">
         <span class="fc__logo" :class="{ 'fc__logo--ph': !item.logoUrl }">
           <img v-if="item.logoUrl" :src="item.logoUrl" alt="" loading="lazy" />
           <v-icon v-else icon="mdi-storefront-outline" size="20" />
         </span>
-        <h3 class="fc__name">{{ item.displayName }}</h3>
+        <span class="fc__brand">{{ item.displayName }}</span>
       </div>
       <p v-if="blurb" class="fc__blurb">{{ blurb }}</p>
 
-      <p v-if="item.location" class="fc__loc">
+      <p v-if="item.location?.nationwide || locationLabel" class="fc__loc">
         <v-icon icon="mdi-map-marker" size="17" />
-        <template v-if="item.location.nationwide">{{ t('feed.coverageCountry') }}</template>
-        <template v-else>
-          {{ item.location.county
-          }}<span v-if="item.location.city"> · {{ item.location.city }}</span>
-        </template>
+        {{ item.location?.nationwide ? t('feed.coverageCountry') : locationLabel }}
       </p>
-
-      <div v-if="shownSubcats.length" class="subcats">
-        <span v-for="c in shownSubcats" :key="c.slug" class="subcat">{{ loc(c.name) }}</span>
-        <span v-if="extraSubcats" class="subcat subcat--more">+{{ extraSubcats }}</span>
-      </div>
 
       <div v-if="shownServices.length" class="tags">
         <span v-for="s in shownServices" :key="s" class="tag">{{ s }}</span>
@@ -146,28 +160,14 @@ const tagline = computed(() => {
     </div>
 
     <div class="lst__main">
-      <p v-if="catName" class="lst__crumb">
-        <span v-if="parentName">{{ parentName }}</span>
-        <v-icon v-if="parentName" icon="mdi-chevron-right" size="13" />
-        <span class="lst__niche">{{ catName }}</span>
-      </p>
-
-      <h3 class="lst__name">{{ item.displayName }}</h3>
+      <h3 class="lst__name">{{ cardTitle }}</h3>
+      <p class="lst__brand">{{ item.displayName }}</p>
       <p v-if="tagline" class="lst__tagline">{{ tagline }}</p>
 
-      <p v-if="item.location" class="lst__loc">
+      <p v-if="item.location?.nationwide || locationLabel" class="lst__loc">
         <v-icon icon="mdi-map-marker" size="17" />
-        <template v-if="item.location.nationwide">{{ t('feed.coverageCountry') }}</template>
-        <template v-else>
-          {{ item.location.county
-          }}<span v-if="item.location.city"> · {{ item.location.city }}</span>
-        </template>
+        {{ item.location?.nationwide ? t('feed.coverageCountry') : locationLabel }}
       </p>
-
-      <div v-if="shownSubcats.length" class="subcats">
-        <span v-for="c in shownSubcats" :key="c.slug" class="subcat">{{ loc(c.name) }}</span>
-        <span v-if="extraSubcats" class="subcat subcat--more">+{{ extraSubcats }}</span>
-      </div>
 
       <p v-if="item.description" class="lst__desc">{{ item.description }}</p>
 
@@ -326,21 +326,6 @@ const tagline = computed(() => {
   flex-direction: column;
   gap: 0.32rem;
 }
-.lst__crumb,
-.fc__crumb {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
-}
-.lst__niche,
-.fc__niche {
-  color: rgb(var(--v-theme-primary));
-}
 .lst__name {
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
   font-weight: 600;
@@ -348,6 +333,15 @@ const tagline = computed(() => {
   letter-spacing: -0.01em;
   line-height: 1.16;
   margin: 0;
+}
+/* The actual business name — secondary now that the title above anchors to
+   what the visitor searched for (subcategory + city), not the brand. */
+.lst__brand,
+.fc__brand {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .lst__tagline {
   margin: 0;
@@ -364,30 +358,6 @@ const tagline = computed(() => {
   font-size: 0.9rem;
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
-}
-
-/* ---------- subcategory tags ---------- */
-.subcats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.45rem;
-}
-.subcat {
-  font-size: 0.76rem;
-  font-weight: 600;
-  padding: 0.24rem 0.65rem;
-  border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
-  color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.1);
-  border: 1px solid rgba(var(--v-theme-primary), 0.2);
-  white-space: nowrap;
-}
-.subcat--more {
-  color: rgba(var(--v-theme-on-surface), 0.55);
-  background: rgba(var(--v-theme-on-surface), 0.06);
-  border-color: transparent;
 }
 .lst__desc {
   margin: 0.25rem 0 0;

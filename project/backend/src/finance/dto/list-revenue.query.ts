@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayNotEmpty,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -49,6 +50,13 @@ export class ListRevenueQuery {
   @IsOptional()
   @IsISO8601()
   to?: string;
+
+  /** Query strings arrive as the literal string `"true"`/`"false"`, not a
+   *  real boolean — normalised before `@IsBoolean()` checks it. */
+  @IsOptional()
+  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean()
+  all?: boolean;
 
   @IsOptional()
   @Type(() => Number)

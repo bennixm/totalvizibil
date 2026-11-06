@@ -50,6 +50,23 @@ const activeNames = computed<{ group: string | null; niche: string | null }>(() 
   return { group: groupName, niche: names.join(', ') }
 })
 
+/** The single niche name to anchor every card's title to, when the visitor
+ *  is browsing exactly one clean niche — not a bare group view, not a
+ *  multi-niche selection, not the "complete services" sentinel. A business
+ *  can land in these results via a SECONDARY category tag (see
+ *  `feed.service.ts`'s `categoryAssignments`), so its own `category` field
+ *  (always the stored PRIMARY one) can name something the visitor never
+ *  searched for — this is "what they actually searched for" instead, and
+ *  `FeedAdCard` falls back to the item's own category only when this is
+ *  null (group-only / multi-select / complete-services views). */
+const singleBrowsedNicheName = computed<string | null>(() => {
+  const niche = routeNiche.value
+  if (!niche || niche.includes(',') || isCompleteServicesSlug(niche)) return null
+  const grp = feed.facets.categories.find((p) => p.slug === routeGroup.value)
+  const child = grp?.children.find((c) => c.slug === niche)
+  return child ? catName(child.name) : null
+})
+
 const seoTitle = computed(() => {
   const { group, niche } = activeNames.value
   if (niche) return t('feed.seoTitleNiche', { niche, group })
@@ -205,7 +222,12 @@ async function go(n: number): Promise<void> {
 
         <!-- Results -->
         <div v-else-if="items.length" class="feed__list">
-          <FeedAdCard v-for="item in items" :key="item.id" :item="item" />
+          <FeedAdCard
+            v-for="item in items"
+            :key="item.id"
+            :item="item"
+            :browsed-category="singleBrowsedNicheName"
+          />
         </div>
 
         <!-- Empty for this category -->

@@ -138,11 +138,19 @@ const EXPENSE_CATEGORIES = [
 export class FinanceService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Both ends inclusive; defaults to the current calendar month (UTC). */
-  private resolveRange(q: FinancePeriodQuery): { from: Date; to: Date } {
+  /** Both ends inclusive; defaults to the current calendar month (UTC).
+   *  `all: true` asks for literally every row instead — the lower bound
+   *  becomes the Unix epoch (no real row predates it, so this is an exact
+   *  "no lower bound", not a guessed business-specific cutoff date), while
+   *  `to` still defaults to today (or an explicit `to`, if given one
+   *  alongside `all` — "everything up to date X"). */
+  private resolveRange(q: { from?: string; to?: string; all?: boolean }): { from: Date; to: Date } {
     const now = new Date();
-    const from = q.from ? new Date(q.from) : startOfUtcMonth(now);
     const to = q.to ? endOfUtcDay(new Date(q.to)) : endOfUtcDay(now);
+    if (q.all) {
+      return { from: new Date(0), to };
+    }
+    const from = q.from ? new Date(q.from) : startOfUtcMonth(now);
     if (from.getTime() > to.getTime()) {
       throw new BadRequestException('from must be before to');
     }
@@ -587,6 +595,7 @@ export class FinanceService {
 
   async listRevenue(q: ListRevenueQuery) {
     const where = this.revenueWhere(q);
+    const { from, to } = this.resolveRange(q);
     const page = q.page ?? 1;
     const pageSize = q.pageSize ?? 20;
 
@@ -630,6 +639,10 @@ export class FinanceService {
       total,
       page,
       pageSize,
+      /** The resolved range this list is actually filtered to — so the UI
+       *  can show an unambiguous confirmation of what's on screen, the same
+       *  way `overview()`'s own `range` already does. */
+      range: { from: from.toISOString(), to: to.toISOString() },
       /** Real-money net total of the whole filtered period. With the default
        *  types over the same range this equals `overview().revenueMinor`. */
       periodTotalMinor: allRows.reduce((s, r) => s + rowMoneyMinor(r), 0),
@@ -663,7 +676,7 @@ export class FinanceService {
     return generateTablePdf({
       title: 'Venituri',
       ownerName: 'Totalvizibil',
-      subtitle: `${dayKey(from)} – ${dayKey(to)}`,
+      subtitle: q.all ? 'Dintotdeauna' : `${dayKey(from)} – ${dayKey(to)}`,
       columns: [
         { label: 'Data', width: 0.13 },
         { label: 'Tip', width: 0.13 },
@@ -706,7 +719,7 @@ export class FinanceService {
   private expensesWhere(q: ListExpensesQuery) {
     return {
       ...(q.category ? { category: q.category } : {}),
-      ...(q.from || q.to
+      ...(!q.all && (q.from || q.to)
         ? {
             incurredOn: {
               ...(q.from ? { gte: new Date(q.from) } : {}),
@@ -733,7 +746,19 @@ export class FinanceService {
       this.prisma.platformExpense.count({ where }),
     ]);
 
-    return { items, total, page, pageSize };
+    // Unlike `resolveRange()`'s callers, this endpoint has no implicit
+    // default — absent `from`/`to` already means "every row ever". Echoed
+    // back as-given (not resolved into concrete dates, there's nothing to
+    // resolve) so the UI can show the same unambiguous "what's applied"
+    // confirmation the other finance pages get from their own `range`.
+    const isLifetime = !!q.all || (!q.from && !q.to);
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      range: { from: isLifetime ? null : (q.from ?? null), to: isLifetime ? null : (q.to ?? null) },
+    };
   }
 
   async exportExpensesPdf(q: ListExpensesQuery): Promise<Buffer> {
@@ -747,7 +772,11 @@ export class FinanceService {
     return generateTablePdf({
       title: 'Costuri',
       ownerName: 'Totalvizibil',
-      subtitle: q.from || q.to ? `${q.from ?? '...'} – ${q.to ?? '...'}` : undefined,
+      subtitle: q.all
+        ? 'Dintotdeauna'
+        : q.from || q.to
+          ? `${q.from ?? '...'} – ${q.to ?? '...'}`
+          : undefined,
       columns: [
         { label: 'Data', width: 0.15 },
         { label: 'Categorie', width: 0.2 },
@@ -1025,7 +1054,11 @@ export class FinanceService {
     return generateTablePdf({
       title: 'Consum AI',
       ownerName: 'Totalvizibil',
-      subtitle: q.from || q.to ? `${q.from ?? '...'} – ${q.to ?? '...'}` : undefined,
+      subtitle: q.all
+        ? 'Dintotdeauna'
+        : q.from || q.to
+          ? `${q.from ?? '...'} – ${q.to ?? '...'}`
+          : undefined,
       columns: [
         { label: 'Furnizor', width: 0.2 },
         { label: 'Model', width: 0.3 },
