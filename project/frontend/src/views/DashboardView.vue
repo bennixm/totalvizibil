@@ -998,7 +998,7 @@ watch(
           <span>{{ t('dashboard.deleteText') }}</span>
         </div>
         <v-btn
-          variant="outlined"
+          variant="tonal"
           color="error"
           size="small"
           prepend-icon="mdi-trash-can-outline"

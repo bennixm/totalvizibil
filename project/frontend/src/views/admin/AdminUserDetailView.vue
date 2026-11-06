@@ -506,9 +506,9 @@ const txnColor: Record<string, string> = {
           </v-chip>
           <v-chip
             size="small"
-            variant="outlined"
+            variant="tonal"
             :prepend-icon="user.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'"
-            :color="user.twoFactorEnabled ? 'success' : undefined"
+            :color="user.twoFactorEnabled ? 'success' : 'default'"
           >
             {{ user.twoFactorEnabled ? t('account.twoFaOn') : t('account.twoFaOff') }}
           </v-chip>
@@ -994,7 +994,7 @@ const txnColor: Record<string, string> = {
                     >
                       {{ c.status === 'active' ? t('dashboard.statusActive') : c.status === 'suspended' ? t('dashboard.statusSuspended') : t('dashboard.statusDraft') }}
                     </v-chip>
-                    <v-chip v-if="c.isOwner" size="x-small" variant="outlined">
+                    <v-chip v-if="c.isOwner" size="x-small" color="default" variant="tonal">
                       {{ t('admin.owner') }}
                     </v-chip>
                     <span v-else class="bizrow__role">{{ c.role }}</span>

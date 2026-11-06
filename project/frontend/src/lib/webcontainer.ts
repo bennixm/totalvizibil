@@ -46,8 +46,26 @@ let containerPromise: Promise<WebContainer> | null = null
  *  of spinning forever. `not_isolated` is the one that actually happens in
  *  production: WebContainer requires the page to be cross-origin isolated
  *  (COOP/COEP response headers from the reverse proxy) and `boot()` simply
- *  never settles when it isn't — an infinite spinner with no error. */
-export type SandboxBootFailure = 'not_isolated' | 'timeout' | 'boot_failed'
+ *  never settles when it isn't — an infinite spinner with no error.
+ *  `mobile_unsupported` is caught before `boot()` is even attempted — see
+ *  `isMobileOs()`. */
+export type SandboxBootFailure = 'not_isolated' | 'timeout' | 'boot_failed' | 'mobile_unsupported'
+
+/** WebContainers run a real Node.js build via WebAssembly with SharedArrayBuffer
+ *  + threads — mobile browser engines (iOS WebKit, Android Chrome/WebView)
+ *  don't support that combination, which is a StackBlitz platform limitation,
+ *  not something this app's COOP/COEP headers can work around. Without this
+ *  check, the sandbox silently burned the whole `BOOT_TIMEOUT_MS` window on a
+ *  phone before failing with a generic error that didn't explain why — this
+ *  catches it immediately and says so plainly instead. UA sniffing is the
+ *  right tool here specifically because the failure tracks the mobile OS
+ *  (WASM thread support), not viewport size — a touchscreen laptop or a
+ *  tablet docked with a keyboard works fine; this must not key off screen
+ *  width or `pointer: coarse`. */
+function isMobileOs(): boolean {
+  const ua = (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent ?? ''
+  return /Android|iPhone|iPad|iPod/i.test(ua)
+}
 
 export class SandboxBootError extends Error {
   constructor(
@@ -73,6 +91,12 @@ function isCrossOriginIsolated(): boolean {
 }
 
 async function attemptBoot(): Promise<WebContainer> {
+  if (isMobileOs()) {
+    throw new SandboxBootError(
+      'mobile_unsupported',
+      'WebContainer sandboxes do not run on mobile browsers.',
+    )
+  }
   if (!isCrossOriginIsolated()) {
     // Fail immediately — `WebContainer.boot()` would hang here, not reject.
     throw new SandboxBootError(

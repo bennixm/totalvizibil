@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { pingAdClick } from '@/services/ads'
+import { markFeedClick } from '@/services/ads'
 import { companyRoute } from '@/services/routes'
 import type { FeedItem } from '@/stores/feed'
 import type { LocalizedName } from '@/stores/companies'
@@ -28,7 +28,7 @@ const to = computed(() =>
 )
 
 function onOpen(): void {
-  pingAdClick(props.item.id, props.item.clickHint)
+  markFeedClick(props.item.slug, props.item.clickHint)
 }
 
 function loc(n?: LocalizedName): string | null {

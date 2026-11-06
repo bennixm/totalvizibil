@@ -10,16 +10,18 @@ const THROTTLER_SKIP = 'THROTTLER:SKIP';
 
 /**
  * Regression guard for a real vulnerability: the controller used to carry a
- * class-level `@SkipThrottle()` next to a per-method `@Throttle()` on the
- * billable `click` handler. Those two decorators write to DIFFERENT metadata
- * keys (`THROTTLER:SKIP` vs `THROTTLER:TTL` / `THROTTLER:LIMIT`) and
- * `ThrottlerGuard` consults the skip flag first and independently — so the
- * class-level skip won and `POST /feed/click`, which spends an advertiser's
- * money, was effectively unlimited.
+ * class-level `@SkipThrottle()` next to a per-method `@Throttle()` on its
+ * (since-removed) billable `click` handler. Those two decorators write to
+ * DIFFERENT metadata keys (`THROTTLER:SKIP` vs `THROTTLER:TTL` /
+ * `THROTTLER:LIMIT`) and `ThrottlerGuard` consults the skip flag first and
+ * independently — so the class-level skip won and that endpoint was
+ * effectively unlimited. The billable endpoint has since moved to
+ * `PublicCompanyController.bySlug` (see its own throttle test), but this
+ * guard stays here — against whatever handlers THIS controller carries now —
+ * so a future class-level skip on `FeedController` still fails loudly.
  *
  * These are metadata-reflection assertions on purpose: they're what actually
- * broke (the decorator combination, not the guard), and they fail loudly if
- * anyone reintroduces a class-level skip or drops a handler's own limit.
+ * broke (the decorator combination, not the guard).
  */
 describe('FeedController throttling', () => {
   const ttl = (fn: unknown) => Reflect.getMetadata(`${THROTTLER_TTL}default`, fn as object);
@@ -27,18 +29,9 @@ describe('FeedController throttling', () => {
 
   it('has no class-level (or handler-level) throttle skip anywhere', () => {
     expect(Reflect.getMetadata(`${THROTTLER_SKIP}default`, FeedController)).toBeUndefined();
-    for (const fn of [
-      FeedController.prototype.list,
-      FeedController.prototype.facets,
-      FeedController.prototype.click,
-    ]) {
+    for (const fn of [FeedController.prototype.list, FeedController.prototype.facets]) {
       expect(Reflect.getMetadata(`${THROTTLER_SKIP}default`, fn)).toBeUndefined();
     }
-  });
-
-  it('rate-limits the billable click endpoint at 40/min', () => {
-    expect(ttl(FeedController.prototype.click)).toBe(60_000);
-    expect(limit(FeedController.prototype.click)).toBe(40);
   });
 
   it('gives the public browsing reads a generous but finite 300/min', () => {
@@ -52,7 +45,7 @@ describe('FeedController throttling', () => {
     const handlers = Object.getOwnPropertyNames(FeedController.prototype).filter(
       (k) => k !== 'constructor',
     );
-    expect(handlers.sort()).toEqual(['click', 'facets', 'list']);
+    expect(handlers.sort()).toEqual(['facets', 'list']);
     for (const name of handlers) {
       const fn = (FeedController.prototype as unknown as Record<string, unknown>)[name];
       expect(typeof limit(fn)).toBe('number');

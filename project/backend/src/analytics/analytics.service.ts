@@ -125,10 +125,20 @@ export class AnalyticsService {
    * `costPromovare` for a Google-Ads-attributed click: the cached rolling
    * average (see `GoogleAdsCpcSyncService`) plus its safety buffer, as long
    * as that cache is fresh — `GOOGLE_ADS_CPC_STALE_AFTER_MS` old or younger.
+   *
    * Missing or stale cache (sync job never ran, not configured, or has been
-   * failing) falls back to the admin-set Max CPC ceiling instead: Google
-   * itself never charges more than that bid, so pricing off it can never
-   * cause a loss, only a (safe) overcharge relative to the real average.
+   * failing) falls back to the FLAT organic default (`feedCostPromovareCredits`)
+   * — the same floor every non-Google click already prices against — rather
+   * than the admin-set Max CPC ceiling. The ceiling is a worst-case bound on
+   * what the platform might pay Google per click, not a sane *floor* for Feed
+   * eligibility: `isEligibleForFeed` excludes a company outright once this
+   * number exceeds its own CPC maxim (`feed-pricing.ts`), so inflating it
+   * during a sync outage doesn't just risk a smaller margin — it silently
+   * turns Google-attributed clicks the platform already paid for into
+   * `below_minimum` free clicks for any company whose cap sits between the
+   * organic floor and the Max CPC ceiling. Falling back to the same floor
+   * normal clicks use keeps a sync outage from excluding MORE companies than
+   * the ordinary (non-Google) path already would.
    */
   private async googleAdsCostPromovareCredits(): Promise<number> {
     const cached = await this.platformSettings.googleAdsAvgCpc();
@@ -141,7 +151,7 @@ export class AnalyticsService {
       // integer, no pre-rounding needed here.
       return cached.credits * (1 + bufferPct / 100);
     }
-    return this.platformSettings.googleAdsMaxCpcCredits();
+    return this.platformSettings.feedCostPromovareCredits();
   }
 
   // --- shared: lead response aggregation -----------------------------

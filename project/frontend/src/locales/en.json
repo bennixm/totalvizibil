@@ -1093,6 +1093,7 @@
     "attachTooMany": "You can attach at most {max} images to one message.",
     "attachPartialFailure": "{ok} image(s) uploaded, {failed} failed. The message was sent with only the ones that uploaded.",
     "bootErrorTitle": "The live preview sandbox couldn't start",
+    "bootErrorMobile": "The Website Builder runs a real development environment in your browser and doesn't work on phones or tablets — open this page on a computer to see the live preview and keep editing.",
     "bootErrorIsolation": "The server isn't sending the headers the sandbox needs (COOP/COEP). This is usually a temporary server configuration issue — try reloading the page, and contact support if it keeps happening.",
     "bootErrorTimeout": "The sandbox took too long to start. Try again, or reload the page if it keeps happening.",
     "bootErrorGeneric": "The live preview sandbox couldn't start. Try again or reload the page; contact support if it keeps happening.",

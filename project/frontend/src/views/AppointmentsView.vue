@@ -828,5 +828,21 @@ watch(
     order: 4;
     width: 100%;
   }
+
+  /* Same fix as WalletView/ConsumptionView's date-range filters: a native
+     `<input type="date">` won't shrink below its own content width, so
+     letting two of them share a row via `flex-wrap` alone risks squeezing
+     past the viewport on a phone. One per line avoids the floor entirely. */
+  .apt__dateFilter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .apt__dateField,
+  .apt__dateField input[type='date'] {
+    width: 100%;
+  }
+  .apt__dateClear {
+    align-self: flex-start;
+  }
 }
 </style>

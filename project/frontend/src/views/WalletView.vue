@@ -754,14 +754,24 @@ watch(
     flex-direction: column;
     align-items: stretch;
   }
+  /* Stacked, not side-by-side: a native `<input type="date">` has a wide
+     intrinsic min-content width (calendar icon + day/month/year segments)
+     that flex items don't shrink below by default (`min-width: auto`), so
+     fitting "De la" + "Până la" on the same row — even at `flex: 1 1 auto`
+     — squeezed/clipped the inputs and pushed the row past the viewport
+     width on a phone. One field per line has no such floor to hit. */
   .wal__payDates {
+    flex-direction: column;
     align-items: stretch;
   }
   .wal__payDateField {
-    flex: 1 1 auto;
+    width: 100%;
   }
   .wal__payDateField input[type='date'] {
     width: 100%;
+  }
+  .wal__payDateClear {
+    align-self: flex-start;
   }
 
   .wal__payTable {

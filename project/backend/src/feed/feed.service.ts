@@ -445,7 +445,8 @@ export class FeedService {
         services: c.services.map((s) => s.name),
         servicesTotal: c._count.services,
         hasWebsite,
-        // Echo back verbatim on `/feed/click` — pins the click to the exact
+        // Echoed back on the click-through (`markFeedClick`/`consumeFeedClickQuery`
+        // in the frontend's `services/ads.ts`) — pins the click to the exact
         // atomic Feed this listing was ranked in, so billing matches display.
         clickHint: { category: row.feedCategorySlug, county: row.feedId.county },
         score: Number(row.score.toFixed(4)),

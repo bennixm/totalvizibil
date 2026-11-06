@@ -780,14 +780,20 @@ watch(
           <h3>{{ t('proV2.bootErrorTitle') }}</h3>
           <p>
             {{
-              bootFailure === 'not_isolated'
-                ? t('proV2.bootErrorIsolation')
-                : bootFailure === 'timeout'
-                  ? t('proV2.bootErrorTimeout')
-                  : t('proV2.bootErrorGeneric')
+              bootFailure === 'mobile_unsupported'
+                ? t('proV2.bootErrorMobile')
+                : bootFailure === 'not_isolated'
+                  ? t('proV2.bootErrorIsolation')
+                  : bootFailure === 'timeout'
+                    ? t('proV2.bootErrorTimeout')
+                    : t('proV2.bootErrorGeneric')
             }}
           </p>
-          <div class="v2__bootErrorActions">
+          <!-- A device limitation, not a transient failure — retrying or
+               reloading on the same phone can't change what WebAssembly
+               threading the browser engine supports, so neither action is
+               offered here. -->
+          <div v-if="bootFailure !== 'mobile_unsupported'" class="v2__bootErrorActions">
             <v-btn
               color="primary"
               variant="tonal"

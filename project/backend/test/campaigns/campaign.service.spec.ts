@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { CampaignService } from 'src/campaigns/campaign.service';
 import {
   IP_CLICK_WINDOW_LIMIT,
+  IP_CLICK_WINDOW_LIMIT_MAX,
   IP_CLICK_WINDOW_MS,
   ipScopeHash,
   utcDay,
@@ -577,6 +578,37 @@ describe('CampaignService', () => {
 
       expect(result).toEqual({ billed: true });
       expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    // ---------------------------------------------------------------------
+    // The flat IP_CLICK_WINDOW_LIMIT used to apply to every campaign alike,
+    // so a popular listing with a bigger budget silently lost real revenue
+    // the moment 6+ genuine visitors shared one egress IP (common on mobile
+    // carrier-grade NAT) within an hour. The cap now scales with the
+    // campaign's own budget — this is that fix.
+    // ---------------------------------------------------------------------
+    it('raises the cap for a campaign whose budget buys well beyond the flat floor', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedCampaign({ companyId: 'co1', cpcMinor: 200, dailyBudgetMinor: 20_000 });
+      // Above the old flat cap (5) but below the budget-scaled one (15, the
+      // ceiling, for this campaign) — would have been rejected before this fix.
+      prisma.adClick.count.mockResolvedValue(10);
+      prisma.$transaction.mockResolvedValue({ billed: true });
+
+      const result = await svc.registerClick('co1', '1.2.3.4', 'Mozilla/5.0 Chrome/120');
+
+      expect(result).toEqual({ billed: true });
+    });
+
+    it('still rejects once that same campaign hits its own, larger cap', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedCampaign({ companyId: 'co1', cpcMinor: 200, dailyBudgetMinor: 20_000 });
+      prisma.adClick.count.mockResolvedValue(IP_CLICK_WINDOW_LIMIT_MAX);
+
+      const result = await svc.registerClick('co1', '1.2.3.4', 'Mozilla/5.0 Chrome/120');
+
+      expect(result).toMatchObject({ billed: false, reason: 'ip_rate' });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 
