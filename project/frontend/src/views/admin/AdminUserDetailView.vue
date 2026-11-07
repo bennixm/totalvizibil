@@ -80,8 +80,6 @@ const walletCur = computed(() => (user.value?.wallet.currency === 'RON' ? 'RON' 
  * /account. Mirrors the lock pattern in `AdminFinanceExpensesView`.
  */
 const isAdmin = computed(() => auth.user?.platformRoles.includes('admin') ?? false)
-const ADMIN_ONLY_HINT =
-  'Editarea contului, securitatea și administrarea afacerilor sunt rezervate administratorilor. Ai acces de vizualizare plus portofel, facturi și date de facturare.'
 
 const ALL_ROLES: PlatformRole[] = ['admin', 'support', 'finance', 'moderator']
 const form = reactive({
@@ -565,7 +563,7 @@ const txnColor: Record<string, string> = {
                  so nothing readable is lost by hiding the form itself. -->
             <div v-if="!isAdmin" class="ud__locked">
               <v-icon icon="mdi-lock-outline" size="16" />
-              <span>{{ ADMIN_ONLY_HINT }}</span>
+              <span>{{ t('admin.adminOnlyHint') }}</span>
             </div>
 
             <AdminSection

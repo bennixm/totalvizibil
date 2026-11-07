@@ -14,6 +14,7 @@ import { ListExpensesQuery } from './dto/list-expenses.query';
 import { DEFAULT_REVENUE_TXN_TYPES, ListRevenueQuery } from './dto/list-revenue.query';
 import { FinancePeriodQuery } from './dto/finance-period.query';
 import { PagedPeriodQuery } from './dto/paged-period.query';
+import { CREDITS_PER_USD } from '../website/builder/pro-v2/ai-usage.service';
 
 /** AI spend is tracked in USD (see `AiUsageRecord.estimatedCostUsd`); every
  *  other figure in this module is EUR cents. Treated 1:1 (USD ≈ EUR) for this
@@ -21,6 +22,14 @@ import { PagedPeriodQuery } from './dto/paged-period.query';
  *  its own credit-charging math, not a new approximation introduced here. */
 function usdToEurMinor(usd: number): number {
   return Math.round(usd * 100);
+}
+
+/** What the client's wallet was actually charged for that AI cost — the same
+ *  fixed markup `AiUsageService.record()` charges at write time
+ *  (`CREDITS_PER_USD` credits per $1, 1 credit = 1 EUR), so this always
+ *  matches the real `chargeAiUsage` amount rather than drifting from it. */
+function usdToChargedMinor(usd: number): number {
+  return Math.round(usd * CREDITS_PER_USD * 100);
 }
 
 function dayKey(d: Date): string {
@@ -1016,7 +1025,11 @@ export class FinanceService {
     const totalTokens = rows.reduce((s, r) => s + r.inputTokens + r.outputTokens, 0);
 
     const byModelMinor = Array.from(byModel.values())
-      .map(({ costUsd, ...rest }) => ({ ...rest, costMinor: usdToEurMinor(costUsd) }))
+      .map(({ costUsd, ...rest }) => ({
+        ...rest,
+        costMinor: usdToEurMinor(costUsd),
+        chargedMinor: usdToChargedMinor(costUsd),
+      }))
       .sort((a, b) => b.costMinor - a.costMinor);
 
     return {
@@ -1060,14 +1073,19 @@ export class FinanceService {
           ? `${q.from ?? '...'} – ${q.to ?? '...'}`
           : undefined,
       columns: [
-        { label: 'Furnizor', width: 0.2 },
-        { label: 'Model', width: 0.3 },
-        { label: 'Apeluri', width: 0.15, align: 'right' },
+        { label: 'Furnizor', width: 0.17 },
+        { label: 'Model', width: 0.25 },
+        { label: 'Apeluri', width: 0.13, align: 'right' },
         { label: 'Tokeni', width: 0.15, align: 'right' },
-        { label: 'Cost', width: 0.2, align: 'right' },
+        { label: 'Cost', width: 0.15, align: 'right' },
+        { label: 'Încasat', width: 0.15, align: 'right' },
       ],
       rows: Array.from(byModel.values())
-        .map(({ costUsd, ...rest }) => ({ ...rest, costMinor: usdToEurMinor(costUsd) }))
+        .map(({ costUsd, ...rest }) => ({
+          ...rest,
+          costMinor: usdToEurMinor(costUsd),
+          chargedMinor: usdToChargedMinor(costUsd),
+        }))
         .sort((a, b) => b.costMinor - a.costMinor)
         .map((b) => [
           b.provider,
@@ -1075,6 +1093,7 @@ export class FinanceService {
           String(b.calls),
           b.tokens.toLocaleString('ro-RO'),
           `${(b.costMinor / 100).toFixed(2)} €`,
+          `${(b.chargedMinor / 100).toFixed(2)} €`,
         ]),
       emptyText: 'Niciun consum AI în perioada selectată.',
     });

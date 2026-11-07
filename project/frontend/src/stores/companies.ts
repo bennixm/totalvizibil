@@ -129,6 +129,8 @@ export interface DashboardPayload {
     slug: string
     status: CompanyStatus
     category: { id: string; slug: string; name: LocalizedName } | null
+    /** Full subcategory tagging (one or several real leaves) — `category` above is just the primary. */
+    categories: { id: string; slug: string; name: LocalizedName; isPrimary: boolean }[]
     primaryLocation: CompanyLocation | null
     locations: CompanyLocation[]
     contactsCount: number

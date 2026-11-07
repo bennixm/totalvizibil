@@ -31,7 +31,9 @@ const { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, apply
 
 const activeRangeLabel = computed(() => {
   const r = finance.aiUsage?.range
-  return r ? `${dt(r.from)} – ${dt(r.to)}` : ''
+  if (!r) return ''
+  if (!r.from && !r.to) return t('adminFinance.lifetime')
+  return `${r.from ? dt(r.from) : '…'} – ${r.to ? dt(r.to) : '…'}`
 })
 
 onMounted(() => setQuickRange('month'))
@@ -100,14 +102,18 @@ onMounted(() => setQuickRange('month'))
           <span>{{ t('adminFinance.colCalls') }}</span>
           <span>{{ t('adminFinance.colTokens') }}</span>
           <span>{{ t('adminFinance.colAmount') }}</span>
+          <span>{{ t('adminFinance.colCharged') }}</span>
         </div>
         <ul class="afa__list">
           <li v-for="row in finance.aiUsage.byModel" :key="`${row.provider}:${row.model}`" class="rrow">
-            <span class="rrow__cell">{{ row.provider }}</span>
-            <span class="rrow__cell">{{ row.model }}</span>
-            <span class="rrow__cell">{{ n(row.calls) }}</span>
-            <span class="rrow__cell">{{ n(row.tokens) }}</span>
-            <span class="rrow__cell"><b>{{ eur(row.costMinor) }}</b></span>
+            <span class="rrow__cell" :data-label="t('adminFinance.colProvider')">{{ row.provider }}</span>
+            <span class="rrow__cell" :data-label="t('adminFinance.colModel')">{{ row.model }}</span>
+            <span class="rrow__cell" :data-label="t('adminFinance.colCalls')">{{ n(row.calls) }}</span>
+            <span class="rrow__cell" :data-label="t('adminFinance.colTokens')">{{ n(row.tokens) }}</span>
+            <span class="rrow__cell" :data-label="t('adminFinance.colAmount')">{{ eur(row.costMinor) }}</span>
+            <span class="rrow__cell" :data-label="t('adminFinance.colCharged')">
+              <b>{{ eur(row.chargedMinor) }}</b>
+            </span>
           </li>
         </ul>
       </div>
@@ -148,7 +154,7 @@ onMounted(() => setQuickRange('month'))
 .rtable__head,
 .rrow {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(0, 0.6fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(0, 0.6fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
   align-items: center;
   gap: 1rem;
 }
@@ -190,6 +196,11 @@ onMounted(() => setQuickRange('month'))
   .rrow {
     grid-template-columns: 1fr 1fr;
     row-gap: 0.4rem;
+  }
+  .rrow__cell[data-label]::before {
+    content: attr(data-label) ': ';
+    color: rgba(var(--v-theme-on-surface), 0.45);
+    font-size: 0.72rem;
   }
 }
 </style>

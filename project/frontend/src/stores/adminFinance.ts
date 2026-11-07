@@ -190,6 +190,9 @@ export interface AiUsageModelRow {
   calls: number
   tokens: number
   costMinor: number
+  /** What the client's wallet was actually charged for this model's usage —
+   *  the fixed per-request markup, not a 1:1 pass-through of `costMinor`. */
+  chargedMinor: number
 }
 
 export interface AiUsageReport {

@@ -28,8 +28,6 @@ const confirm = useConfirmStore()
  */
 const isPlatformAdmin = computed(() => auth.user?.platformRoles.includes('admin') ?? false)
 const readOnly = computed(() => !isPlatformAdmin.value)
-const READ_ONLY_HINT =
-  'Vizualizare pentru contabilitate — doar un administrator poate modifica aceste setări.'
 
 const tab = ref<'pricing' | 'billing' | 'affiliate' | 'discount' | 'maintenance'>('pricing')
 const loading = ref(true)
@@ -400,7 +398,7 @@ async function save() {
     <template v-else>
       <div v-if="readOnly" class="as__readonly">
         <v-icon icon="mdi-lock-outline" size="16" />
-        <span>{{ READ_ONLY_HINT }}</span>
+        <span>{{ t('adminSettings.readOnlyHint') }}</span>
       </div>
 
       <v-tabs v-model="tab" color="primary" class="as__tabs" show-arrows>
