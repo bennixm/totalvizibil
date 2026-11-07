@@ -2,6 +2,11 @@
 import type { RouteLocationRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 
+import BgEffectQuickToggle from '@/components/BgEffectQuickToggle.vue'
+import CurrencyQuickToggle from '@/components/CurrencyQuickToggle.vue'
+import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
+import ThemeQuickToggle from '@/components/ThemeQuickToggle.vue'
+import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
 export interface SidebarNavItem {
@@ -26,6 +31,7 @@ defineProps<{
 
 const { mdAndUp } = useDisplay()
 const ui = useUiStore()
+const auth = useAuthStore()
 
 function onNavigate(): void {
   if (!mdAndUp.value) ui.closeSidebar()
@@ -67,6 +73,20 @@ function onNavigate(): void {
           </RouterLink>
         </div>
       </nav>
+
+      <!-- Mobile only: the navbar's own quiet utility strip (currency,
+           theme, animated-background, locale) has no room left once the
+           drawer takes over as the primary mobile nav — tucked in here,
+           below the real nav links and above sign-out, instead of eating
+           into the top bar's height on every single mobile page. Desktop
+           keeps them in AppBar's upper row (a permanent sidebar right next
+           to it would just duplicate them). -->
+      <div v-if="!mdAndUp" class="sbar__quick">
+        <CurrencyQuickToggle v-if="auth.isAuthenticated" compact />
+        <ThemeQuickToggle />
+        <BgEffectQuickToggle />
+        <LocaleSwitcher compact />
+      </div>
 
       <div v-if="$slots.footer" class="sbar__footer">
         <slot name="footer" />
@@ -221,6 +241,29 @@ function onNavigate(): void {
   clip-path: var(--tvz-hex-sm);
   background: rgba(var(--v-theme-primary), 0.16);
   color: rgb(var(--v-theme-primary));
+}
+
+.sbar__quick {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--tvz-hairline);
+}
+/* Same resting affordance AppBar's own upper strip gives these (a quiet
+   background so an unstyled text/icon button doesn't read as a loose
+   label floating in the drawer) — duplicated rather than shared because
+   that strip is scoped to AppBar.vue and teleported menus (Currency/
+   Locale's own v-menu) escape a plain parent selector anyway. */
+.sbar__quick :deep(.v-btn) {
+  background: rgba(var(--v-theme-on-surface), 0.055);
+  border-radius: 8px;
+}
+.sbar__quick :deep(.v-btn--icon) {
+  width: 28px;
+  height: 28px;
 }
 
 .sbar__footer {

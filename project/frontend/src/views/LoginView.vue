@@ -19,6 +19,7 @@ useSeo(() => ({ title: t('auth.loginTitle'), noindex: true }))
 
 const email = ref('')
 const password = ref('')
+const showPassword = ref(false)
 const totpCode = ref('')
 const needsTotp = ref(false)
 const loading = ref(false)
@@ -180,10 +181,12 @@ onUnmounted(() => {
                 <v-text-field
                   v-model="password"
                   :label="t('auth.password')"
-                  type="password"
+                  :type="showPassword ? 'text' : 'password'"
                   autocomplete="current-password"
                   prepend-inner-icon="mdi-lock-outline"
+                  :append-inner-icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
                   required
+                  @click:append-inner="showPassword = !showPassword"
                 />
                 <div class="d-flex justify-end mb-1">
                   <v-btn

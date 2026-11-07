@@ -15,6 +15,7 @@ import SidebarCampaignSwitch from '@/components/SidebarCampaignSwitch.vue'
 import SidebarModeSwitch from '@/components/SidebarModeSwitch.vue'
 import { useAdminNavGroups } from '@/composables/useAdminNavGroups'
 import { useLocaleSync } from '@/composables/useLocaleSync'
+import { usePublicNavGroups } from '@/composables/usePublicNavGroups'
 import { useSignOut } from '@/composables/useSignOut'
 import { useThemeSync } from '@/composables/useThemeSync'
 import { useUserNavGroups } from '@/composables/useUserNavGroups'
@@ -33,6 +34,7 @@ const ui = useUiStore()
 const prefs = usePreferencesStore()
 const { groups: userNavGroups } = useUserNavGroups()
 const { groups: adminNavGroups } = useAdminNavGroups()
+const { groups: publicNavGroups } = usePublicNavGroups()
 const { signOut } = useSignOut()
 
 // One persistent sidebar for the whole signed-in app, admin included — it
@@ -41,10 +43,24 @@ const { signOut } = useSignOut()
 // used to cause a visible flash of the old sidebar while the new route
 // chunk loaded; a single instance patches in place instead.
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
-const showSidebar = computed(
+// The desktop sidebar: a real column next to the page, only where it always
+// was (the business panel, or anywhere under /admin).
+const showFullSidebar = computed(
   () => (Boolean(route.meta.panel) && auth.isAuthenticated) || isAdminRoute.value,
 )
-const sidebarGroups = computed(() => (isAdminRoute.value ? adminNavGroups.value : userNavGroups.value))
+// On a phone there's no room for a permanent column, so this instead decides
+// whether the SLIDING drawer exists at all. It used to inherit
+// `showFullSidebar`'s condition exactly — a visitor who wasn't signed in (or
+// was, but on a non-panel page like /support or /account) got no drawer and
+// no menu button at all: just whatever fit in the navbar's own cramped
+// single row. The drawer is temporary/overlay on mobile either way, so
+// making it always available there costs nothing while it's closed.
+const showSidebar = computed(() => showFullSidebar.value || !mdAndUp.value)
+const sidebarGroups = computed(() => {
+  if (isAdminRoute.value) return adminNavGroups.value
+  if (auth.isAuthenticated) return userNavGroups.value
+  return publicNavGroups.value
+})
 const showMenuToggle = computed(() => showSidebar.value && !mdAndUp.value)
 watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
 </script>
@@ -66,19 +82,31 @@ watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
           <!-- `hasReachableStaffArea`, not `isPlatformStaff`: the latter is
                true for ANY platform role, so a `moderator`-only account was
                shown an "Admin" switch leading to a page that rejects it. -->
-          <template v-if="auth.hasReachableStaffArea || !isAdminRoute" #top>
+          <!-- `hasReachableStaffArea`, not `isPlatformStaff` (see above) —
+               and now also gated on being signed in at all: the mobile
+               drawer reaches this same slot for a logged-out visitor too
+               (see `showSidebar`), and both switches below render nothing
+               meaningful without an account, which used to leave an empty,
+               oddly-spaced wrapper div above the nav links. -->
+          <template v-if="auth.isAuthenticated && (auth.hasReachableStaffArea || !isAdminRoute)" #top>
             <SidebarModeSwitch v-if="auth.hasReachableStaffArea" />
             <SidebarCampaignSwitch v-if="!isAdminRoute" />
           </template>
           <template #footer>
-            <RouterLink :to="{ name: 'account' }" class="sfoot__row">
-              <v-icon icon="mdi-account-cog-outline" size="17" />
-              {{ $t('nav.account') }}
+            <template v-if="auth.isAuthenticated">
+              <RouterLink :to="{ name: 'account' }" class="sfoot__row">
+                <v-icon icon="mdi-account-cog-outline" size="17" />
+                {{ $t('nav.account') }}
+              </RouterLink>
+              <button type="button" class="sfoot__row sfoot__row--danger" @click="signOut">
+                <v-icon icon="mdi-logout" size="17" />
+                {{ $t('account.signOut') }}
+              </button>
+            </template>
+            <RouterLink v-else :to="{ name: 'login' }" class="sfoot__row">
+              <v-icon icon="mdi-login-variant" size="17" />
+              {{ $t('nav.login') }}
             </RouterLink>
-            <button type="button" class="sfoot__row sfoot__row--danger" @click="signOut">
-              <v-icon icon="mdi-logout" size="17" />
-              {{ $t('account.signOut') }}
-            </button>
           </template>
         </AppSidebar>
         <v-main class="panel-content">
