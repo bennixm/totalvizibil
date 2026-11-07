@@ -10,6 +10,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { apiFetch, BASE_URL } from '@/services/api'
 import { useMoney } from '@/composables/useMoney'
+import { useAppointmentsStore } from '@/stores/appointments'
 import { useCompaniesStore, type DashboardPayload } from '@/stores/companies'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
@@ -53,6 +54,7 @@ const companies = useCompaniesStore()
 const confirm = useConfirmStore()
 const toasts = useToastStore()
 const money = useMoney()
+const appointments = useAppointmentsStore()
 
 const companyId = ref<string | null>(null)
 const loading = ref(true)
@@ -101,6 +103,23 @@ function fmtBytes(b: number): string {
   if (b < 1024) return `${b} B`
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// --- appointments --------------------------------------------------------
+const savingAppointments = ref(false)
+async function toggleAppointments(v: boolean | null): Promise<void> {
+  if (!companyId.value) return
+  savingAppointments.value = true
+  try {
+    appointments.companyId = companyId.value
+    await appointments.saveSettings({ enabled: !!v })
+    await companies.fetchOverview(true)
+    toasts.success(t(v ? 'websiteSettings.appointmentsOn' : 'websiteSettings.appointmentsOff'))
+  } catch (e) {
+    toasts.error(e instanceof Error ? e.message : t('websiteSettings.appointmentsSaveError'))
+  } finally {
+    savingAppointments.value = false
+  }
 }
 
 // --- custom domain -----------------------------------------------------
@@ -421,21 +440,22 @@ onMounted(async () => {
         </div>
       </section>
 
-      <!-- Appointments — the public booking widget has no generator support
-           yet (no site produces an actual booking section), so the toggle
-           is disabled rather than promising a feature the live site can't
-           deliver. Re-enable once a builder can emit a real booking section. -->
-      <section class="card ws__section">
+      <!-- Advanced/PRO only — the PRO V2 agent knows how to wire a real
+           booking form against the appointments API when asked to; the Easy
+           one-pager template has no such section and never will, so owners
+           on that tier never see this control at all. -->
+      <section v-if="isAdvanced" class="card ws__section">
         <h2>{{ t('websiteSettings.appointmentsTitle') }}</h2>
         <p class="ws__hint">{{ t('websiteSettings.appointmentsHint') }}</p>
-        <p class="ws__hint ws__hint--muted">{{ t('websiteSettings.appointmentsUnavailable') }}</p>
         <v-switch
           :model-value="companies.currentOverview?.appointmentsEnabled ?? false"
           :label="t('appointments.enableToggle')"
           color="primary"
           density="comfortable"
           hide-details
-          disabled
+          :loading="savingAppointments"
+          :disabled="savingAppointments"
+          @update:model-value="toggleAppointments"
         />
         <router-link
           v-if="companies.currentOverview?.appointmentsEnabled"

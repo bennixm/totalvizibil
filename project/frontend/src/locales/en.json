@@ -1739,7 +1739,7 @@
     },
     "appointmentsTitle": "Appointments",
     "appointmentsHint": "Let visitors book an appointment right from the site. Once turned on, it also appears in the menu for day-to-day management.",
-    "appointmentsUnavailable": "Currently unavailable: generated sites don't yet include a public booking form. You can still manage appointments from the panel independently of this switch.",
+    "appointmentsSaveError": "Couldn't save this setting. Please try again.",
     "appointmentsOn": "Appointments turned on.",
     "appointmentsOff": "Appointments turned off.",
     "appointmentsManage": "Manage appointments",
