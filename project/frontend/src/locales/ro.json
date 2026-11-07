@@ -1739,7 +1739,7 @@
     },
     "appointmentsTitle": "Programări",
     "appointmentsHint": "Permite vizitatorilor să rezerve o programare direct de pe site. Odată activată, apare și în meniu, pentru administrare.",
-    "appointmentsUnavailable": "Momentan indisponibilă: site-urile generate nu includ încă un formular public de rezervare. Poți gestiona programările din panou independent de acest comutator.",
+    "appointmentsSaveError": "Nu am putut salva setarea. Încearcă din nou.",
     "appointmentsOn": "Programările au fost activate.",
     "appointmentsOff": "Programările au fost dezactivate.",
     "appointmentsManage": "Administrează programările",

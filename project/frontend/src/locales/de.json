@@ -1739,7 +1739,7 @@
     },
     "appointmentsTitle": "Termine",
     "appointmentsHint": "Lässt Besucher direkt auf der Website einen Termin buchen. Sobald aktiviert, erscheint der Punkt auch im Menü zur Verwaltung.",
-    "appointmentsUnavailable": "Derzeit nicht verfügbar: Generierte Websites enthalten noch kein öffentliches Buchungsformular. Termine können unabhängig von diesem Schalter weiterhin im Bedienfeld verwaltet werden.",
+    "appointmentsSaveError": "Einstellung konnte nicht gespeichert werden. Bitte erneut versuchen.",
     "appointmentsOn": "Termine wurden aktiviert.",
     "appointmentsOff": "Termine wurden deaktiviert.",
     "appointmentsManage": "Termine verwalten",
