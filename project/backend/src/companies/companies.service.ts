@@ -730,6 +730,9 @@ export class CompaniesService implements OnModuleInit {
         slug: company.slug,
         status: company.status,
         category: company.category,
+        /** Full subcategory tagging (see `setCategories`) — `category` above
+         *  is just the primary. The dashboard's category card shows both. */
+        categories: company.categories,
         primaryLocation,
         locations: company.locations,
         contactsCount: company.contacts.length,

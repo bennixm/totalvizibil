@@ -49,14 +49,12 @@ const isPlatformAdmin = computed(() => auth.user?.platformRoles.includes('admin'
 function isLocked(row: ExpenseRow): boolean {
   return row.source !== 'manual' && !isPlatformAdmin.value
 }
-const LOCKED_HINTS: Record<Exclude<ExpenseRow['source'], 'manual'>, string> = {
-  stripe_api:
-    'Înregistrare automată din Stripe — se poate modifica doar de un administrator, pentru ca reconcilierea cu Stripe să rămână validă.',
-  google_ads_api:
-    'Cost real preluat automat din Google Ads — se poate modifica doar de un administrator, pentru ca reconcilierea cu Google Ads să rămână validă.',
+const LOCKED_HINT_KEYS: Record<Exclude<ExpenseRow['source'], 'manual'>, string> = {
+  stripe_api: 'adminFinance.lockedHintStripe',
+  google_ads_api: 'adminFinance.lockedHintGoogleAds',
 }
 function lockedHint(row: ExpenseRow): string {
-  return row.source === 'manual' ? '' : LOCKED_HINTS[row.source]
+  return row.source === 'manual' ? '' : t(LOCKED_HINT_KEYS[row.source])
 }
 function sourceLabel(row: ExpenseRow): string {
   if (row.source === 'manual') return t('adminFinance.manual')
@@ -87,17 +85,17 @@ function localDateStr(d = new Date()): string {
   return `${y}-${m}-${day}`
 }
 
-const CATEGORIES: { value: ExpenseCategory; label: string }[] = [
-  { value: 'hosting', label: 'Hosting' },
-  { value: 'call_center', label: 'Centrală apeluri' },
-  { value: 'cloud_storage', label: 'Stocare cloud' },
-  { value: 'domains', label: 'Domenii' },
-  { value: 'google_ads', label: 'Google Ads' },
-  { value: 'stripe_fees', label: 'Comision Stripe' },
-  { value: 'other', label: 'Altele' },
-]
+const CATEGORIES = computed<{ value: ExpenseCategory; label: string }[]>(() => [
+  { value: 'hosting', label: t('adminFinance.catHosting') },
+  { value: 'call_center', label: t('adminFinance.catCallCenter') },
+  { value: 'cloud_storage', label: t('adminFinance.catCloudStorage') },
+  { value: 'domains', label: t('adminFinance.catDomains') },
+  { value: 'google_ads', label: t('adminFinance.catGoogleAds') },
+  { value: 'stripe_fees', label: t('adminFinance.catStripeFees') },
+  { value: 'other', label: t('adminFinance.catOther') },
+])
 function categoryLabel(c: ExpenseCategory): string {
-  return CATEGORIES.find((x) => x.value === c)?.label ?? c
+  return CATEGORIES.value.find((x) => x.value === c)?.label ?? c
 }
 const CURRENCIES: ExpenseCurrency[] = ['EUR', 'RON', 'USD']
 const CURRENCY_SUFFIX: Record<string, string> = { EUR: '€', RON: 'lei', USD: '$' }
@@ -314,7 +312,7 @@ onMounted(() => setQuickRange('month'))
             <v-select
               v-model="editor.currency"
               :items="CURRENCIES"
-              label="Monedă"
+              :label="t('adminFinance.currency')"
               density="comfortable"
               style="max-width: 120px"
             />

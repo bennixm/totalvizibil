@@ -29,7 +29,9 @@ const { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, apply
 
 const activeRangeLabel = computed(() => {
   const r = finance.revenueRange
-  return r ? `${dt(r.from)} – ${dt(r.to)}` : ''
+  if (!r) return ''
+  if (!r.from && !r.to) return t('adminFinance.lifetime')
+  return `${r.from ? dt(r.from) : '…'} – ${r.to ? dt(r.to) : '…'}`
 })
 
 const hasRows = computed(() => finance.revenue.length > 0)
@@ -47,15 +49,10 @@ const includeAdjustments = computed({
   set: (v: boolean) => finance.setRevenueFilter('includeAdjustments', v),
 })
 
-const TYPE_LABELS: Record<RevenueTxnType, string> = {
-  purchase: 'Încărcare',
-  refund: 'Rambursare',
-  adjustment: 'Ajustare',
-}
 function typeLabel(type: RevenueTxnType): string {
   if (type === 'purchase') return t('adminFinance.purchase')
   if (type === 'refund') return t('adminFinance.refund')
-  return TYPE_LABELS[type]
+  return t('wallet.txnType.adjustment')
 }
 function typeClass(type: RevenueTxnType): string {
   if (type === 'purchase') return 'chip--ok'
@@ -107,15 +104,12 @@ onMounted(() => setQuickRange('month'))
         :to="{ name: 'admin-financiar' }"
       />
       <AdminStatCard
-        label="Valoare nominală (credite)"
+        :label="t('adminFinance.faceValueCredits')"
         :value="eur(finance.revenuePeriodFaceTotalMinor)"
         icon="mdi-tag-outline"
       />
     </div>
-    <p class="afr__hint">
-      "Bani încasați (consumați)" — câtă parte din aceste încasări e deja profit realizat —
-      se vede în Dashboard-ul financiar, calculată pe tot consumul de credit al perioadei.
-    </p>
+    <p class="afr__hint">{{ t('adminFinance.consumedRevenueCrossRefHint') }}</p>
 
     <div class="afr__filters">
       <v-btn-toggle v-model="typeFilter" density="compact" mandatory color="primary" divided>
@@ -126,7 +120,7 @@ onMounted(() => setQuickRange('month'))
       <v-switch
         v-model="includeAdjustments"
         :disabled="finance.revenueFilters.type !== null"
-        label="Include ajustări de portofel"
+        :label="t('adminFinance.includeAdjustments')"
         color="primary"
         density="compact"
         hide-details
@@ -151,25 +145,25 @@ onMounted(() => setQuickRange('month'))
         <span>{{ t('adminFinance.colType') }}</span>
         <span>{{ t('adminFinance.colClient') }}</span>
         <span>{{ t('adminFinance.colBusiness') }}</span>
-        <span>Credite</span>
-        <span>Bani încasați</span>
+        <span>{{ t('adminFinance.colCredits') }}</span>
+        <span>{{ t('adminFinance.colCollected') }}</span>
       </div>
 
       <ul class="afr__list">
         <li v-for="r in finance.revenue" :key="r.id" class="rrow">
-          <span class="rrow__cell" data-label="Dată">{{ dt(r.createdAt) }}</span>
-          <span class="rrow__cell" data-label="Tip">
+          <span class="rrow__cell" :data-label="t('adminFinance.colDate')">{{ dt(r.createdAt) }}</span>
+          <span class="rrow__cell" :data-label="t('adminFinance.colType')">
             <span class="chip" :class="typeClass(r.type)">{{ typeLabel(r.type) }}</span>
           </span>
           <span class="rrow__person">
             <span class="rrow__name">{{ r.userName ?? '—' }}</span>
             <span class="rrow__email">{{ r.userEmail }}</span>
           </span>
-          <span class="rrow__cell" data-label="Afacere">{{ r.companyName ?? '—' }}</span>
-          <span class="rrow__cell rrow__face" data-label="Credite">
+          <span class="rrow__cell" :data-label="t('adminFinance.colBusiness')">{{ r.companyName ?? '—' }}</span>
+          <span class="rrow__cell rrow__face" :data-label="t('adminFinance.colCredits')">
             {{ eur(r.amountMinor) }}
           </span>
-          <span class="rrow__cell" data-label="Bani încasați">
+          <span class="rrow__cell" :data-label="t('adminFinance.colCollected')">
             <b>{{ eur(r.moneyMinor) }}</b>
           </span>
         </li>
@@ -179,23 +173,22 @@ onMounted(() => setQuickRange('month'))
            this page) — what an accountant reconciling a month needs. -->
       <div class="rtable__foot">
         <span class="rtable__footlabel">
-          Total perioadă
-          <small>{{ finance.revenueTotal }} tranzacții</small>
+          {{ t('adminFinance.periodTotalLabel') }}
+          <small>{{ t('adminFinance.periodTotalTxnCount', { n: finance.revenueTotal }) }}</small>
         </span>
         <span class="rtable__footvals">
           <span class="rtable__footval rtable__footval--muted">
-            <small>Credite</small>
+            <small>{{ t('adminFinance.colCredits') }}</small>
             {{ eur(finance.revenuePeriodFaceTotalMinor) }}
           </span>
           <span class="rtable__footval">
-            <small>Bani încasați</small>
+            <small>{{ t('adminFinance.colCollected') }}</small>
             <b>{{ eur(finance.revenuePeriodTotalMinor) }}</b>
           </span>
         </span>
       </div>
       <p v-if="discountDeltaMinor !== 0" class="afr__hint">
-        Diferența de {{ eur(discountDeltaMinor) }} este costul discountului din perioadă
-        (valoare nominală în credite minus banii încasați efectiv).
+        {{ t('adminFinance.discountDeltaHint', { amount: eur(discountDeltaMinor) }) }}
       </p>
     </div>
 

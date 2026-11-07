@@ -110,6 +110,12 @@ const locationIsNationwide = computed(
   () => dash.value?.company.locations.some((l) => l.nationwide) ?? false,
 )
 const category = computed(() => dash.value?.company.category ?? null)
+// The primary is also the first entry in `categories` — shown separately
+// below the chip row (see the Category card), so it's excluded here to
+// avoid listing it twice.
+const subcategories = computed(() =>
+  (dash.value?.company.categories ?? []).filter((c) => !c.isPrimary),
+)
 function catName(n: { ro: string; en: string; de: string }): string {
   return n[locale.value as 'ro' | 'en' | 'de'] ?? n.en
 }
@@ -723,7 +729,13 @@ watch(
         >          <p class="dcard__k">{{ t('dashboard.categoryTitle') }}</p>
           <div class="dcard__body">
             <template v-if="category">
-              <p class="dcard__hero dcard__hero--wrap">{{ catName(category.name) }}</p>
+              <div v-if="subcategories.length" class="dcat__chips">
+                <span v-for="c in subcategories" :key="c.id" class="dcat__chip">{{ catName(c.name) }}</span>
+              </div>
+              <p class="dcard__hero dcard__hero--wrap dcat__primary">
+                <v-icon icon="mdi-star" size="13" class="dcat__primaryIcon" />
+                {{ catName(category.name) }}
+              </p>
               <div class="dcard__links">
                 <span class="dcard__go" :class="{ 'dcard__go--disabled': pendingDeletion }">
                   <v-icon icon="mdi-pencil-outline" size="15" />
@@ -1302,6 +1314,29 @@ watch(
   margin: 0.35rem 0 0;
   font-size: 0.82rem;
   color: rgba(var(--v-theme-on-surface), 0.62);
+}
+.dcat__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+}
+.dcat__chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.dcat__primary {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.dcat__primaryIcon {
+  color: rgb(var(--acc));
+  flex: none;
 }
 .dcard__badges {
   display: flex;

@@ -34,37 +34,37 @@ function profitTone(minor: number): 'success' | 'error' {
   return minor >= 0 ? 'success' : 'error'
 }
 
-const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  hosting: 'Hosting',
-  call_center: 'Centrală apeluri',
-  cloud_storage: 'Stocare cloud',
-  domains: 'Domenii',
-  google_ads: 'Google Ads',
-  stripe_fees: 'Comision Stripe',
-  other: 'Altele',
+const CATEGORY_LABEL_KEYS: Record<ExpenseCategory, string> = {
+  hosting: 'adminFinance.catHosting',
+  call_center: 'adminFinance.catCallCenter',
+  cloud_storage: 'adminFinance.catCloudStorage',
+  domains: 'adminFinance.catDomains',
+  google_ads: 'adminFinance.catGoogleAds',
+  stripe_fees: 'adminFinance.catStripeFees',
+  other: 'adminFinance.catOther',
 }
 
 const categoryRows = computed(() => {
   const o = finance.overview
   if (!o) return []
-  return (Object.keys(CATEGORY_LABELS) as ExpenseCategory[])
-    .map((key) => ({ key, label: CATEGORY_LABELS[key], amountMinor: o.expensesByCategory[key] }))
+  return (Object.keys(CATEGORY_LABEL_KEYS) as ExpenseCategory[])
+    .map((key) => ({ key, label: t(CATEGORY_LABEL_KEYS[key]), amountMinor: o.expensesByCategory[key] }))
     .concat([{ key: 'ai_api' as ExpenseCategory, label: t('adminFinance.aiCost'), amountMinor: o.aiCostMinor }])
     .filter((r) => r.amountMinor > 0)
     .sort((a, b) => b.amountMinor - a.amountMinor)
 })
 
-const ONE_OFF_LABELS = {
-  aiUsage: 'Consum AI (builder)',
-  builderUnlock: 'Deblocare builder avansat',
-  other: 'Alte taxe unice',
+const ONE_OFF_LABEL_KEYS = {
+  aiUsage: 'adminFinance.oneOffAiUsage',
+  builderUnlock: 'adminFinance.oneOffBuilderUnlock',
+  other: 'adminFinance.oneOffOther',
 } as const
 
 const oneOffRows = computed(() => {
   const o = finance.overview
   if (!o) return []
-  return (Object.keys(ONE_OFF_LABELS) as (keyof typeof ONE_OFF_LABELS)[])
-    .map((key) => ({ key, label: ONE_OFF_LABELS[key], amountMinor: o.otherFeesByCategory[key] }))
+  return (Object.keys(ONE_OFF_LABEL_KEYS) as (keyof typeof ONE_OFF_LABEL_KEYS)[])
+    .map((key) => ({ key, label: t(ONE_OFF_LABEL_KEYS[key]), amountMinor: o.otherFeesByCategory[key] }))
     .filter((r) => r.amountMinor > 0)
     .sort((a, b) => b.amountMinor - a.amountMinor)
 })
@@ -87,7 +87,7 @@ const moneySeries = computed(() => {
 })
 const refundRatioSeries = computed(() => [
   {
-    label: 'Rambursări / venit',
+    label: t('adminFinance.refundRatioLabel'),
     values: (finance.overview?.trend ?? []).map((p) => p.refundRatioPct),
   },
 ])
@@ -122,7 +122,8 @@ const { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, apply
 const activeRangeLabel = computed(() => {
   const r = finance.overview?.range
   if (!r) return ''
-  return `${dt(r.from)} – ${dt(r.to)}`
+  if (!r.from && !r.to) return t('adminFinance.lifetime')
+  return `${r.from ? dt(r.from) : '…'} – ${r.to ? dt(r.to) : '…'}`
 })
 
 // `setQuickRange` (not a bare `fetchOverview()`) so the "Luna aceasta" preset
@@ -219,48 +220,45 @@ onMounted(() => setQuickRange('month'))
            is what the discount cost over this period. -->
       <div class="afd__kpis afd__kpis--three">
         <AdminStatCard
-          label="Valoare nominală vândută"
+          :label="t('adminFinance.grossRevenue')"
           :value="eur(finance.overview.grossRevenueMinor)"
-          sub="Credite la preț de listă"
+          :sub="t('adminFinance.grossRevenueSub')"
           icon="mdi-tag-outline"
         />
         <AdminStatCard
-          label="Cost discount"
+          :label="t('adminFinance.discountCost')"
           :value="eur(finance.overview.discountCostMinor)"
-          :sub="`Încasat ${pct(finance.overview.grossToNetRatio * 100)} din nominal`"
+          :sub="t('adminFinance.discountCostSub', { pct: pct(finance.overview.grossToNetRatio * 100) })"
           icon="mdi-sale"
           :tone="finance.overview.discountCostMinor > 0 ? 'warning' : undefined"
         />
         <AdminStatCard
-          label="Comisioane rambursare"
+          :label="t('adminFinance.refundFeeIncome')"
           :value="eur(finance.overview.refundFeeIncomeMinor)"
-          sub="Venit reținut din rambursări"
+          :sub="t('adminFinance.refundFeeIncomeSub')"
           icon="mdi-cash-refund"
           tone="success"
         />
       </div>
 
-      <AdminSection title="Evoluție zilnică" icon="mdi-chart-line" class="afd__chart">
+      <AdminSection :title="t('adminFinance.dailyTrendTitle')" icon="mdi-chart-line" class="afd__chart">
         <TrendChart
           v-if="hasTrend"
           :labels="trendLabels"
           :series="moneySeries"
           :format="eurAxis"
         />
-        <p v-else class="afd__muted">Nicio mișcare în perioada selectată.</p>
+        <p v-else class="afd__muted">{{ t('adminFinance.noTrendData') }}</p>
       </AdminSection>
 
       <AdminSection
         v-if="hasTrend"
-        title="Rambursări ca procent din venitul zilei"
+        :title="t('adminFinance.refundRatioTitle')"
         icon="mdi-chart-bell-curve-cumulative"
         class="afd__chart"
       >
         <TrendChart :labels="trendLabels" :series="refundRatioSeries" :format="pctAxis" />
-        <p class="afd__hint">
-          Raportul dintre banii returnați și banii încasați în aceeași zi, calculat cu
-          aceleași reguli (comision reținut, discount) ca venitul din capul paginii.
-        </p>
+        <p class="afd__hint">{{ t('adminFinance.refundRatioHint') }}</p>
       </AdminSection>
 
       <div class="afd__grid">
@@ -277,11 +275,11 @@ onMounted(() => setQuickRange('month'))
         <AdminSection :title="t('adminFinance.promotionProfitTitle')" icon="mdi-google-ads">
           <ul class="afd__catlist">
             <li class="afd__catrow">
-              <span class="afd__catlabel">{{ t('adminFinance.cpcRevenue') }} (credite)</span>
+              <span class="afd__catlabel">{{ t('adminFinance.cpcRevenueCredits') }}</span>
               <span class="afd__catvalue">{{ eur(finance.overview.paidTraffic.cpcRevenueMinor) }}</span>
             </li>
             <li class="afd__catrow">
-              <span class="afd__catlabel">{{ t('adminFinance.cpcRevenue') }} (bani reali)</span>
+              <span class="afd__catlabel">{{ t('adminFinance.cpcRevenueRealMoney') }}</span>
               <span class="afd__catvalue">{{ eur(finance.overview.paidTraffic.cpcRevenueRealMoneyMinor) }}</span>
             </li>
             <li class="afd__catrow">
@@ -289,7 +287,7 @@ onMounted(() => setQuickRange('month'))
               <span class="afd__catvalue">{{ eur(finance.overview.paidTraffic.adSpendMinor) }}</span>
             </li>
             <li class="afd__catrow afd__catrow--total">
-              <span class="afd__catlabel">{{ t('adminFinance.trafficProfit') }} (bani reali)</span>
+              <span class="afd__catlabel">{{ t('adminFinance.trafficProfitRealMoney') }}</span>
               <span class="afd__catvalue">{{ eur(finance.overview.paidTraffic.realMoneyProfitMinor) }}</span>
             </li>
           </ul>
@@ -330,14 +328,14 @@ onMounted(() => setQuickRange('month'))
         </AdminSection>
 
         <!-- The CPC-vs-one-off split, labelled for what it is. -->
-        <AdminSection title="Consum de credit: recurent vs unic" icon="mdi-repeat-variant">
+        <AdminSection :title="t('adminFinance.creditConsumptionTitle')" icon="mdi-repeat-variant">
           <ul class="afd__catlist">
             <li class="afd__catrow">
-              <span class="afd__catlabel">Recurent (clicuri CPC)</span>
+              <span class="afd__catlabel">{{ t('adminFinance.recurringCpc') }}</span>
               <span class="afd__catvalue">{{ eur(finance.overview.creditConsumption.recurringMinor) }}</span>
             </li>
             <li class="afd__catrow">
-              <span class="afd__catlabel">Unic (taxe punctuale)</span>
+              <span class="afd__catlabel">{{ t('adminFinance.oneTimeFees') }}</span>
               <span class="afd__catvalue">{{ eur(finance.overview.creditConsumption.oneTimeMinor) }}</span>
             </li>
             <li v-for="row in oneOffRows" :key="row.key" class="afd__catrow afd__catrow--sub">
@@ -345,43 +343,38 @@ onMounted(() => setQuickRange('month'))
               <span class="afd__catvalue">{{ eur(row.amountMinor) }}</span>
             </li>
             <li class="afd__catrow afd__catrow--total">
-              <span class="afd__catlabel">Total consumat</span>
+              <span class="afd__catlabel">{{ t('adminFinance.totalConsumed') }}</span>
               <span class="afd__catvalue">
                 {{ eur(finance.overview.creditConsumption.recurringMinor + finance.overview.creditConsumption.oneTimeMinor) }}
               </span>
             </li>
           </ul>
-          <p class="afd__hint">
-            Valoare nominală în credite. Taxele unice sunt clasificate identic cu
-            defalcarea din portofelul clientului.
-          </p>
+          <p class="afd__hint">{{ t('adminFinance.creditConsumptionHint') }}</p>
         </AdminSection>
 
-        <AdminSection title="TVA pe cote (facturi valide)" icon="mdi-percent-outline" wide>
+        <AdminSection :title="t('adminFinance.vatTitle')" icon="mdi-percent-outline" wide>
           <div v-if="finance.overview.vatBreakdown.length" class="afd__vat">
             <div class="afd__vathead" aria-hidden="true">
-              <span>Cotă</span>
-              <span>Facturi</span>
-              <span>Bază</span>
-              <span>TVA</span>
-              <span>Total</span>
+              <span>{{ t('adminFinance.vatColRate') }}</span>
+              <span>{{ t('adminFinance.vatColInvoices') }}</span>
+              <span>{{ t('adminFinance.vatColBase') }}</span>
+              <span>{{ t('adminFinance.vatColVat') }}</span>
+              <span>{{ t('adminFinance.vatColTotal') }}</span>
             </div>
             <div
               v-for="row in finance.overview.vatBreakdown"
               :key="`${row.vatRatePct}-${row.currency}`"
               class="afd__vatrow"
             >
-              <span data-label="Cotă">{{ row.vatRatePct }}% · {{ row.currency }}</span>
-              <span data-label="Facturi">{{ row.invoiceCount }}</span>
-              <span data-label="Bază">{{ eur(row.subtotalMinor) }}</span>
-              <span data-label="TVA">{{ eur(row.vatMinor) }}</span>
-              <span data-label="Total"><b>{{ eur(row.totalMinor) }}</b></span>
+              <span :data-label="t('adminFinance.vatColRate')">{{ row.vatRatePct }}% · {{ row.currency }}</span>
+              <span :data-label="t('adminFinance.vatColInvoices')">{{ row.invoiceCount }}</span>
+              <span :data-label="t('adminFinance.vatColBase')">{{ eur(row.subtotalMinor) }}</span>
+              <span :data-label="t('adminFinance.vatColVat')">{{ eur(row.vatMinor) }}</span>
+              <span :data-label="t('adminFinance.vatColTotal')"><b>{{ eur(row.totalMinor) }}</b></span>
             </div>
           </div>
-          <p v-else class="afd__muted">Nicio factură emisă în perioada selectată.</p>
-          <p class="afd__hint">
-            Sumele sunt în moneda facturii (RON pentru facturile fiscale), nu convertite.
-          </p>
+          <p v-else class="afd__muted">{{ t('adminFinance.noInvoicesInPeriod') }}</p>
+          <p class="afd__hint">{{ t('adminFinance.vatCurrencyHint') }}</p>
         </AdminSection>
       </div>
 
@@ -391,28 +384,28 @@ onMounted(() => setQuickRange('month'))
            bottom, right before the drill-downs it's most related to. -->
       <div class="afd__kpis afd__kpis--four">
         <AdminStatCard
-          label="Credit în circulație"
+          :label="t('adminFinance.walletLiability')"
           :value="eur(finance.overview.walletLiabilityMinor)"
-          sub="Vândut, neconsumat (total)"
+          :sub="t('adminFinance.walletLiabilitySub')"
           icon="mdi-wallet-outline"
           tone="warning"
         />
         <AdminStatCard
-          label="Sold blocat"
+          :label="t('adminFinance.blockedBalance')"
           :value="eur(finance.overview.blockedWalletBalanceMinor)"
-          sub="Portofele înghețate (total)"
+          :sub="t('adminFinance.blockedBalanceSub')"
           icon="mdi-lock-outline"
         />
         <AdminStatCard
-          label="Rambursări în curs"
+          :label="t('adminFinance.refundInFlight')"
           :value="eur(finance.overview.refundLiabilityInFlightMinor)"
-          sub="Promise, neplătite (total)"
+          :sub="t('adminFinance.refundInFlightSub')"
           icon="mdi-progress-clock"
         />
         <AdminStatCard
-          label="Rată rambursări"
+          :label="t('adminFinance.refundRate')"
           :value="pct(finance.overview.refundRatioPct)"
-          :sub="`${eur(finance.overview.refundsMoneyMinor)} returnați`"
+          :sub="t('adminFinance.refundRateSub', { amount: eur(finance.overview.refundsMoneyMinor) })"
           icon="mdi-undo-variant"
         />
       </div>
@@ -420,14 +413,14 @@ onMounted(() => setQuickRange('month'))
       <!-- Drill-downs on the same page: no new routes. -->
       <AdminSection class="afd__drill" wide>
         <v-tabs v-model="drillTab" density="compact" class="afd__tabs">
-          <v-tab value="voided">Facturi anulate</v-tab>
-          <v-tab value="companies">Top afaceri (CPC)</v-tab>
+          <v-tab value="voided">{{ t('adminFinance.tabVoidedInvoices') }}</v-tab>
+          <v-tab value="companies">{{ t('adminFinance.tabTopCompanies') }}</v-tab>
         </v-tabs>
 
         <v-window v-model="drillTab" class="afd__window">
           <v-window-item value="voided">
             <div class="afd__drillhead">
-              <span>{{ finance.voidedInvoicesTotal }} facturi anulate în perioadă</span>
+              <span>{{ t('adminFinance.voidedCountInPeriod', { n: finance.voidedInvoicesTotal }) }}</span>
               <b>{{ eur(finance.voidedInvoicesSumMinor) }}</b>
             </div>
             <div v-if="finance.loadingVoidedInvoices" class="afd__center">
@@ -439,26 +432,26 @@ onMounted(() => setQuickRange('month'))
               :text="finance.voidedInvoicesError"
             />
             <p v-else-if="!finance.voidedInvoices.length" class="afd__muted">
-              Nicio factură anulată în perioada selectată.
+              {{ t('adminFinance.noVoidedInvoices') }}
             </p>
             <div v-else class="afd__rows">
               <div class="afd__rowhead afd__rowhead--voided" aria-hidden="true">
-                <span>Număr</span>
-                <span>Client</span>
-                <span>Anulată la</span>
-                <span>Motiv</span>
-                <span>Total</span>
+                <span>{{ t('adminFinance.colNumber') }}</span>
+                <span>{{ t('adminFinance.colClient') }}</span>
+                <span>{{ t('adminFinance.colVoidedAt') }}</span>
+                <span>{{ t('adminFinance.colReason') }}</span>
+                <span>{{ t('adminFinance.vatColTotal') }}</span>
               </div>
               <div
                 v-for="inv in finance.voidedInvoices"
                 :key="inv.id"
                 class="afd__row afd__row--voided"
               >
-                <span data-label="Număr"><b>{{ inv.number }}</b></span>
-                <span data-label="Client">{{ inv.buyerName }}</span>
-                <span data-label="Anulată la">{{ dt(inv.voidedAt) }}</span>
-                <span data-label="Motiv" class="afd__reason">{{ inv.voidReason ?? '—' }}</span>
-                <span data-label="Total">
+                <span :data-label="t('adminFinance.colNumber')"><b>{{ inv.number }}</b></span>
+                <span :data-label="t('adminFinance.colClient')">{{ inv.buyerName }}</span>
+                <span :data-label="t('adminFinance.colVoidedAt')">{{ dt(inv.voidedAt) }}</span>
+                <span :data-label="t('adminFinance.colReason')" class="afd__reason">{{ inv.voidReason ?? '—' }}</span>
+                <span :data-label="t('adminFinance.vatColTotal')">
                   {{ (inv.totalMinor / 100).toLocaleString('ro-RO', { minimumFractionDigits: 2 }) }}
                   {{ inv.currency }}
                 </span>
@@ -474,7 +467,7 @@ onMounted(() => setQuickRange('month'))
 
           <v-window-item value="companies">
             <div class="afd__drillhead">
-              <span>{{ finance.topCompaniesTotal }} afaceri cu consum CPC în perioadă</span>
+              <span>{{ t('adminFinance.companiesCountInPeriod', { n: finance.topCompaniesTotal }) }}</span>
               <b>{{ eur(finance.topCompaniesSpendMinor) }}</b>
             </div>
             <div v-if="finance.loadingTopCompanies" class="afd__center">
@@ -486,22 +479,22 @@ onMounted(() => setQuickRange('month'))
               :text="finance.topCompaniesError"
             />
             <p v-else-if="!finance.topCompanies.length" class="afd__muted">
-              Nicio afacere nu a consumat buget CPC în perioada selectată.
+              {{ t('adminFinance.noCompaniesCpcSpend') }}
             </p>
             <div v-else class="afd__rows">
               <div class="afd__rowhead afd__rowhead--company" aria-hidden="true">
-                <span>Afacere</span>
-                <span>Clicuri</span>
-                <span>Consum</span>
+                <span>{{ t('adminFinance.colBusiness') }}</span>
+                <span>{{ t('adminFinance.colClicks') }}</span>
+                <span>{{ t('adminFinance.colSpend') }}</span>
               </div>
               <div
                 v-for="c in finance.topCompanies"
                 :key="c.companyId"
                 class="afd__row afd__row--company"
               >
-                <span data-label="Afacere"><b>{{ c.companyName ?? '—' }}</b></span>
-                <span data-label="Clicuri">{{ c.clicks.toLocaleString('ro-RO') }}</span>
-                <span data-label="Consum">{{ eur(c.spendMinor) }}</span>
+                <span :data-label="t('adminFinance.colBusiness')"><b>{{ c.companyName ?? '—' }}</b></span>
+                <span :data-label="t('adminFinance.colClicks')">{{ c.clicks.toLocaleString('ro-RO') }}</span>
+                <span :data-label="t('adminFinance.colSpend')">{{ eur(c.spendMinor) }}</span>
               </div>
             </div>
             <AdminPager
