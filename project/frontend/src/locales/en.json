@@ -83,7 +83,7 @@
   "feed": {
     "eyebrow": "Local business network",
     "title": "Find a local business you can trust",
-    "lead": "Browse active local businesses. Order is strictly our visibility score · you only filter by category and area.",
+    "lead": "Search by category and area to find the right business for you.",
     "searchPlaceholder": "Search a service, e.g. “roof repair”",
     "city": "City",
     "allCategories": "All",
@@ -115,8 +115,6 @@
     "areaCountyPlaceholder": "Pick a county…",
     "areaAny": "Any location",
     "areaNationwide": "Whole country",
-    "areaNote": "Businesses covering {county} county.",
-    "areaNoteNationwide": "Only businesses that operate nationwide.",
     "browseCategories": "Browse by category",
     "clearCategory": "All categories",
     "backToCategories": "All categories",

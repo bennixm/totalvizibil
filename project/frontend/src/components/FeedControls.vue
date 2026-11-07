@@ -262,15 +262,19 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
         </div>
       </div>
 
-      <!-- Județ filter -->
+      <!-- Județ filter — a plain text summary in place of Vuetify's default
+           per-item chip row (`#selection`, index 0 only): with a handful of
+           județe picked, that chip row wraps into a messy multi-line stack
+           right inside the field. Same fix LocationView already uses for
+           the identical business-side picker. The line of explanatory text
+           that used to sit below this (repeating back exactly what the
+           field itself already shows) is gone entirely, not just hidden. -->
       <div class="fc__area">
         <v-select
           :model-value="countySelections"
           :items="countyItems"
           hide-details
           multiple
-          chips
-          closable-chips
           :label="t('feed.areaCounty')"
           :placeholder="t('feed.areaCountyPlaceholder')"
           prepend-inner-icon="mdi-map-marker-outline"
@@ -280,15 +284,19 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
           density="comfortable"
           class="fc__city"
           @update:model-value="onCountySelectionsChange"
-        />
-        <p v-if="feed.filters.county" class="fc__areaNote">
-          <v-icon icon="mdi-map-marker-check-outline" size="14" />
-          {{
-            feed.filters.county === NATIONWIDE
-              ? t('feed.areaNoteNationwide')
-              : t('feed.areaNote', { county: countySelections.join(', ') })
-          }}
-        </p>
+        >
+          <template #selection="{ index }">
+            <span v-if="index === 0" class="fc__areaSummary">
+              {{
+                countySelections.includes(NATIONWIDE)
+                  ? t('feed.areaNationwide')
+                  : countySelections.includes(ANY_LOCATION)
+                    ? t('feed.areaAny')
+                    : t('location.selectedCount', { n: countySelections.length })
+              }}
+            </span>
+          </template>
+        </v-select>
       </div>
     </div>
 
@@ -522,13 +530,8 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
 .fc__city {
   max-width: 420px;
 }
-.fc__areaNote {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-  font-size: 0.8rem;
-  color: rgb(var(--v-theme-primary));
+.fc__areaSummary {
+  color: rgba(var(--v-theme-on-surface), 0.75);
 }
 
 /* --- category grid --- */

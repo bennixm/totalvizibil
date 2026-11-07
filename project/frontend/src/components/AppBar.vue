@@ -112,16 +112,21 @@ watch(() => auth.isAuthenticated, syncWallet)
   <v-app-bar
     color="transparent"
     flat
-    :height="128"
+    :height="mdAndUp ? 128 : 100"
     class="topbar"
     :class="{ 'topbar--mobile': !mdAndUp }"
   >
   <div class="topbar_content">
-    <div class="topbar__upper__inner">
-      <CurrencyQuickToggle v-if="auth.isAuthenticated" :compact="!mdAndUp" />
+    <!-- Desktop only now — on mobile these quick toggles moved into the
+         sidebar drawer (AppSidebar's `.sbar__quick`), which also exists for
+         a signed-out visitor; this strip never did. Dropping it here is what
+         lets the mobile bar start closer to the top instead of reserving a
+         whole extra row for it on every page. -->
+    <div v-if="mdAndUp" class="topbar__upper__inner">
+      <CurrencyQuickToggle v-if="auth.isAuthenticated" />
       <ThemeQuickToggle />
       <BgEffectQuickToggle />
-      <LocaleSwitcher :compact="!mdAndUp" />
+      <LocaleSwitcher />
     </div>
     <div class="topbar__inner">
       <button
@@ -325,6 +330,15 @@ watch(() => auth.isAuthenticated, syncWallet)
   display: flex;
   flex-direction: column !important;
 }
+/* Mirrors the `:height="mdAndUp ? 128 : 100"` prop binding above (that inline
+   style is what actually wins — Vuetify sets it directly on the root — this
+   is just so the number isn't only readable from the template). No more
+   upper utility row to reserve 40px for on mobile; the remaining 28px goes
+   to `topbar_content`'s own top padding below, the small gap before the bar
+   starts that used to not exist at all. */
+.topbar--mobile {
+  height: 100px;
+}
 .topbar :deep(.v-toolbar__content) {
   padding-inline: 0;
   height: 100% !important;
@@ -345,7 +359,18 @@ watch(() => auth.isAuthenticated, syncWallet)
    instead of a percentage margin. */
 .topbar--mobile .topbar_content {
   width: 100%;
-  padding-inline: 0.6rem;
+  /* A thin outer gutter only — just enough that the pill's own hex-cut
+     corners (see `.topbar__inner`'s clip-path) read as a deliberate cut
+     instead of getting clipped by the screen edge itself. The real
+     breathing room around the actual content (brand, icons, avatar) is
+     `.topbar__inner`'s own padding right below — that one used to be
+     zeroed out, which is what left the brand mark / menu button / avatar
+     sitting flush against the glass pill's inner edge with no padding
+     at all. */
+  padding-inline: 0.35rem;
+  /* The small top gap the mobile bar now starts with, instead of the glass
+     pill butting straight up against the very edge of the screen. */
+  padding-top: 12px;
 }
 .topbar__inner {
   background: var(--tvz-glass-bg-strong) !important;
@@ -359,12 +384,13 @@ watch(() => auth.isAuthenticated, syncWallet)
   padding-inline: 1rem;
   clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
 }
-/* The mobile gutter now lives on `.topbar_content` (above) and covers BOTH
-   rows uniformly, including the quick-toggle strip, which has no padding of
-   its own — without this, the main row's own 1rem would stack on top of
-   that and eat back the width the full-width fix just freed up. */
+/* Real content padding, smaller than desktop's 1rem (not zero — that left
+   the brand mark/menu button on one end and the wallet chip/avatar on the
+   other sitting flush against the pill's own inner edge, no breathing room
+   at all) but tight enough to leave room for an already-tight row (burger,
+   brand, bell, wallet, avatar) on a narrow phone. */
 .topbar--mobile .topbar__inner {
-  padding-inline: 0;
+  padding-inline: 0.75rem;
 }
 /* A quiet utility strip above the main bar, no background of its own — just
    the less-important controls (locale, theme) tucked out of the primary row. */

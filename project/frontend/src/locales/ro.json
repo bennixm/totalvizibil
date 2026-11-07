@@ -83,7 +83,7 @@
   "feed": {
     "eyebrow": "Rețea de afaceri locale",
     "title": "Găsește o afacere locală în care ai încredere",
-    "lead": "Vezi afacerile locale active. Ordinea e strict scorul nostru de vizibilitate · filtrezi doar după categorie și zonă.",
+    "lead": "Caută după categorie și zonă ca să vezi afacerile potrivite pentru tine.",
     "searchPlaceholder": "Caută un serviciu, ex: „reparații acoperiș”",
     "city": "Oraș",
     "allCategories": "Toate",
@@ -115,8 +115,6 @@
     "areaCountyPlaceholder": "Alege județul…",
     "areaAny": "Orice locație",
     "areaNationwide": "Toată țara",
-    "areaNote": "Afaceri care acoperă județul {county}.",
-    "areaNoteNationwide": "Doar afaceri care operează în toată țara.",
     "browseCategories": "Explorează pe categorii",
     "clearCategory": "Toate categoriile",
     "backToCategories": "Toate categoriile",

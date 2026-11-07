@@ -71,10 +71,11 @@
   --tvz-read-width: 680px; // long-form text: ~60–75 chars/line
 
   // App shell dimensions
-  // Two stacked rows now: a quiet utility strip (locale/theme, 40px) above
-  // the main bar (88px, tall enough for the nav-link hourglass gradient) —
-  // every view below computing "100dvh minus the topbar" relies on this
-  // staying in sync with AppBar.vue's own :height.
+  // Desktop: two stacked rows — a quiet utility strip (locale/theme, 40px)
+  // above the main bar (88px, tall enough for the nav-link hourglass
+  // gradient). Every view below computing "100dvh minus the topbar" relies
+  // on this staying in sync with AppBar.vue's own :height — see the mobile
+  // override right after this block for that same contract below 960px.
   --tvz-topbar-h: 128px;
   --tvz-tabbar-h: 64px;
 
@@ -89,6 +90,19 @@
   --tvz-hue-primary: 217; // sapphire #0F52BA
   --tvz-hue-secondary: 217;
   --tvz-hue-accent: 217; // monochromatic — one blue
+}
+
+// Mobile topbar: no upper utility row (moved into the sidebar drawer — see
+// AppSidebar.vue's `.sbar__quick`), just the 88px main row plus a 12px gap
+// before it. Must stay in sync with AppBar.vue's own `:height="mdAndUp ?
+// 128 : 100"` — every view computing "100dvh minus the topbar" (the
+// notification drawer, the builder preview panes, …) depends on this
+// matching what's actually rendered below 960px, same contract the desktop
+// value already carries above.
+@media (max-width: 959px) {
+  :root {
+    --tvz-topbar-h: 100px;
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,11 @@
 import type { RouteLocationRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 
+import BgEffectQuickToggle from '@/components/BgEffectQuickToggle.vue'
+import CurrencyQuickToggle from '@/components/CurrencyQuickToggle.vue'
+import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
+import ThemeQuickToggle from '@/components/ThemeQuickToggle.vue'
+import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
 export interface SidebarNavItem {
@@ -26,6 +31,7 @@ defineProps<{
 
 const { mdAndUp } = useDisplay()
 const ui = useUiStore()
+const auth = useAuthStore()
 
 function onNavigate(): void {
   if (!mdAndUp.value) ui.closeSidebar()
@@ -67,6 +73,20 @@ function onNavigate(): void {
           </RouterLink>
         </div>
       </nav>
+
+      <!-- Mobile only: the navbar's own quiet utility strip (currency,
+           theme, animated-background, locale) has no room left once the
+           drawer takes over as the primary mobile nav — tucked in here,
+           below the real nav links and above sign-out, instead of eating
+           into the top bar's height on every single mobile page. Desktop
+           keeps them in AppBar's upper row (a permanent sidebar right next
+           to it would just duplicate them). -->
+      <div v-if="!mdAndUp" class="sbar__quick">
+        <CurrencyQuickToggle v-if="auth.isAuthenticated" compact />
+        <ThemeQuickToggle />
+        <BgEffectQuickToggle />
+        <LocaleSwitcher compact />
+      </div>
 
       <div v-if="$slots.footer" class="sbar__footer">
         <slot name="footer" />
@@ -152,10 +172,19 @@ function onNavigate(): void {
 .sbar__nav {
   /* No flex-grow: sized by its own content, so the footer sits right below
      the last nav item instead of being pushed to the bottom of a much
-     taller sidebar. Still shrinks (and scrolls internally) if the nav list
-     is ever taller than the available height. */
+     taller sidebar. Shrinks (and scrolls internally, on its OWN scrollbar —
+     not the whole drawer's) if the nav list is ever taller than the
+     available height — but only down to `min-height` below, never further:
+     on a short phone screen, `.sbar__top`/`.sbar__quick`/`.sbar__footer`
+     (none of which shrink — they're all `flex: none`) used to be able to
+     squeeze this down to a sliver, sometimes 0, so the actual page links
+     were the first thing to disappear instead of the last. This floor
+     guarantees a handful of links stay visible+scrollable no matter what;
+     if the drawer genuinely can't fit everything even at the floor,
+     Vuetify's own `.v-navigation-drawer__content` wrapper (already
+     `overflow-y: auto`) scrolls the whole sidebar as the fallback. */
   flex: 0 1 auto;
-  min-height: 0;
+  min-height: 200px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -221,6 +250,29 @@ function onNavigate(): void {
   clip-path: var(--tvz-hex-sm);
   background: rgba(var(--v-theme-primary), 0.16);
   color: rgb(var(--v-theme-primary));
+}
+
+.sbar__quick {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--tvz-hairline);
+}
+/* Same resting affordance AppBar's own upper strip gives these (a quiet
+   background so an unstyled text/icon button doesn't read as a loose
+   label floating in the drawer) — duplicated rather than shared because
+   that strip is scoped to AppBar.vue and teleported menus (Currency/
+   Locale's own v-menu) escape a plain parent selector anyway. */
+.sbar__quick :deep(.v-btn) {
+  background: rgba(var(--v-theme-on-surface), 0.055);
+  border-radius: 8px;
+}
+.sbar__quick :deep(.v-btn--icon) {
+  width: 28px;
+  height: 28px;
 }
 
 .sbar__footer {
