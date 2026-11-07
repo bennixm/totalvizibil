@@ -420,7 +420,8 @@ function shortDate(iso: string): string {
                 <h2 class="acc__h2 mb-0">{{ t('account.twoFaTitle') }}</h2>
                 <v-chip
                   size="small"
-                  :color="twoFa?.enabled ? 'success' : 'default'"
+                  :color="twoFa?.enabled ? 'success' : undefined"
+                  :class="{ 'tvz-chip-neutral': !twoFa?.enabled }"
                   variant="tonal"
                   :prepend-icon="twoFa?.enabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'"
                 >
@@ -699,7 +700,8 @@ function shortDate(iso: string): string {
                       <td :data-label="t('affiliate.colStatus')">
                         <v-chip
                           size="x-small"
-                          :color="r.status === 'rewarded' ? 'success' : 'default'"
+                          :color="r.status === 'rewarded' ? 'success' : undefined"
+                          :class="{ 'tvz-chip-neutral': r.status !== 'rewarded' }"
                           variant="tonal"
                         >
                           {{ r.status === 'rewarded' ? t('affiliate.statusRewarded') : t('affiliate.statusPending') }}

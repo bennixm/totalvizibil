@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
-import AdminPeriodFilter, { type PeriodPreset } from '@/components/admin/AdminPeriodFilter.vue'
+import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
 import {
   useAdminFinanceStore,
   type ExpenseCategory,
@@ -16,6 +16,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/services/api'
+import { usePeriodFilter } from '@/composables/usePeriodFilter'
 
 const { t } = useI18n()
 const finance = useAdminFinanceStore()
@@ -28,30 +29,8 @@ const toasts = useToastStore()
 // (this endpoint's own backend default, absent a filter, is actually
 // lifetime; `onMounted` below explicitly asks for this month instead so
 // the three finance pages behave the same way out of the box).
-const activePreset = ref<PeriodPreset>('month')
-const customFrom = ref('')
-const customTo = ref('')
-
-function setQuickRange(preset: Exclude<PeriodPreset, 'custom'>): void {
-  activePreset.value = preset
-  if (preset === 'lifetime') {
-    finance.setExpensesPeriod(null, null, true)
-    return
-  }
-  const months = { month: 1, '3months': 3, '12months': 12 }[preset]
-  const now = new Date()
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1))
-  finance.setExpensesPeriod(from.toISOString().slice(0, 10), null)
-}
-
-const canApplyCustom = computed(
-  () => !!customFrom.value && (!customTo.value || customTo.value >= customFrom.value),
-)
-function applyCustomRange(): void {
-  if (!canApplyCustom.value) return
-  activePreset.value = 'custom'
-  finance.setExpensesPeriod(customFrom.value, customTo.value || null)
-}
+const { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, applyCustomRange } =
+  usePeriodFilter((from, to, lifetime) => finance.setExpensesPeriod(from, to, lifetime))
 
 const activeRangeLabel = computed(() => {
   const r = finance.expensesRange

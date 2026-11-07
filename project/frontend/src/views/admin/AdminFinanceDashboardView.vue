@@ -7,9 +7,10 @@ import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
-import AdminPeriodFilter, { type PeriodPreset } from '@/components/admin/AdminPeriodFilter.vue'
+import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
 import TrendChart from '@/components/TrendChart.vue'
 import { useMoney } from '@/composables/useMoney'
+import { usePeriodFilter } from '@/composables/usePeriodFilter'
 import { useAdminFinanceStore, type ExpenseCategory } from '@/stores/adminFinance'
 
 const { t } = useI18n()
@@ -112,30 +113,8 @@ watch(
 // Drives the filter bar's highlighted preset — `v-btn-toggle` had no
 // `value` on its children before, so nothing was ever shown as active no
 // matter which range was actually applied.
-const activePreset = ref<PeriodPreset>('month')
-const customFrom = ref('')
-const customTo = ref('')
-
-function setQuickRange(preset: Exclude<PeriodPreset, 'custom'>): void {
-  activePreset.value = preset
-  if (preset === 'lifetime') {
-    finance.setPeriod(null, null, true)
-    return
-  }
-  const months = { month: 1, '3months': 3, '12months': 12 }[preset]
-  const now = new Date()
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1))
-  finance.setPeriod(from.toISOString().slice(0, 10), null)
-}
-
-const canApplyCustom = computed(
-  () => !!customFrom.value && (!customTo.value || customTo.value >= customFrom.value),
-)
-function applyCustomRange(): void {
-  if (!canApplyCustom.value) return
-  activePreset.value = 'custom'
-  finance.setPeriod(customFrom.value, customTo.value || null)
-}
+const { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, applyCustomRange } =
+  usePeriodFilter((from, to, lifetime) => finance.setPeriod(from, to, lifetime))
 
 // What's actually being shown right now, straight from the resolved
 // server-side range — so switching a preset or a custom range always has a
@@ -146,7 +125,11 @@ const activeRangeLabel = computed(() => {
   return `${dt(r.from)} – ${dt(r.to)}`
 })
 
-onMounted(() => finance.fetchOverview())
+// `setQuickRange` (not a bare `fetchOverview()`) so the "Luna aceasta" preset
+// shown as active on first paint is also the range actually requested —
+// otherwise the toggle claimed "this month" while the data underneath was
+// whatever the backend's own unrelated default happened to be.
+onMounted(() => setQuickRange('month'))
 </script>
 
 <template>

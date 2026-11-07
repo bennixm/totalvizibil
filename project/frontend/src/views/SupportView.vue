@@ -363,6 +363,10 @@ onMounted(() => {
   border-radius: 9px;
   overflow: hidden;
   height: 40px;
+  /* Missing here (same bug as the sibling segmented controls — Transactions'
+     `.txn__tabs`, Wallet's `.wal__payTabs`, Leads' `.lds__seg`) left the
+     off options fully transparent, just a border floating over the page. */
+  background: rgb(var(--v-theme-surface));
 }
 .seg button {
   padding: 0 1rem;
