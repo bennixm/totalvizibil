@@ -83,7 +83,7 @@
   "feed": {
     "eyebrow": "Netzwerk lokaler Unternehmen",
     "title": "Finden Sie ein lokales Unternehmen, dem Sie vertrauen",
-    "lead": "Aktive lokale Unternehmen entdecken. Die Reihenfolge ist strikt unser Sichtbarkeitswert · Sie filtern nur nach Kategorie und Gebiet.",
+    "lead": "Nach Kategorie und Gebiet suchen, um das passende Unternehmen zu finden.",
     "searchPlaceholder": "Dienstleistung suchen, z. B. „Dachreparatur”",
     "city": "Stadt",
     "allCategories": "Alle",
@@ -115,8 +115,6 @@
     "areaCountyPlaceholder": "Kreis wählen…",
     "areaAny": "Beliebiger Ort",
     "areaNationwide": "Ganzes Land",
-    "areaNote": "Unternehmen, die den Kreis {county} abdecken.",
-    "areaNoteNationwide": "Nur Unternehmen, die landesweit tätig sind.",
     "browseCategories": "Nach Kategorie stöbern",
     "clearCategory": "Alle Kategorien",
     "backToCategories": "Alle Kategorien",

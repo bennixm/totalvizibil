@@ -172,10 +172,19 @@ function onNavigate(): void {
 .sbar__nav {
   /* No flex-grow: sized by its own content, so the footer sits right below
      the last nav item instead of being pushed to the bottom of a much
-     taller sidebar. Still shrinks (and scrolls internally) if the nav list
-     is ever taller than the available height. */
+     taller sidebar. Shrinks (and scrolls internally, on its OWN scrollbar —
+     not the whole drawer's) if the nav list is ever taller than the
+     available height — but only down to `min-height` below, never further:
+     on a short phone screen, `.sbar__top`/`.sbar__quick`/`.sbar__footer`
+     (none of which shrink — they're all `flex: none`) used to be able to
+     squeeze this down to a sliver, sometimes 0, so the actual page links
+     were the first thing to disappear instead of the last. This floor
+     guarantees a handful of links stay visible+scrollable no matter what;
+     if the drawer genuinely can't fit everything even at the floor,
+     Vuetify's own `.v-navigation-drawer__content` wrapper (already
+     `overflow-y: auto`) scrolls the whole sidebar as the fallback. */
   flex: 0 1 auto;
-  min-height: 0;
+  min-height: 200px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
