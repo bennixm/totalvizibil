@@ -440,7 +440,11 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="card ws__section">
+      <!-- Advanced/PRO only — the PRO V2 agent knows how to wire a real
+           booking form against the appointments API when asked to; the Easy
+           one-pager template has no such section and never will, so owners
+           on that tier never see this control at all. -->
+      <section v-if="isAdvanced" class="card ws__section">
         <h2>{{ t('websiteSettings.appointmentsTitle') }}</h2>
         <p class="ws__hint">{{ t('websiteSettings.appointmentsHint') }}</p>
         <v-switch

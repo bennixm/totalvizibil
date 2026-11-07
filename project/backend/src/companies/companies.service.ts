@@ -599,14 +599,6 @@ export class CompaniesService implements OnModuleInit {
                 : { easyConfig: (draft.answers ?? {}) as Prisma.InputJsonValue }),
             },
           },
-          // Easy-studio sites always ship a live booking widget (see
-          // easy-compose.ts), so bookings start ON — the owner opts out from
-          // the site settings rather than opting in. Advanced/PRO sites have
-          // no generator-side booking section yet, so they keep the default
-          // `false` until that builder gains the same support.
-          ...(draft.mode === 'advanced'
-            ? {}
-            : { appointmentSettings: { create: { enabled: true } } }),
         },
         include: companyInclude,
       });

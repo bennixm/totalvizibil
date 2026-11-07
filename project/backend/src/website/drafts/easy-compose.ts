@@ -127,8 +127,6 @@ interface Labels {
   ctaTitle: (name: string) => string;
   ctaButton: string;
   contactTitle: string;
-  appointmentTitle: string;
-  appointmentSubtitle: string;
   /** Deterministic copy used when the AI call is unavailable; `i` rotates a few phrasings. */
   fallbackDesc: (name: string, i: number) => string;
   seoDesc: (name: string, trade: string) => string;
@@ -171,8 +169,6 @@ const LABELS: Record<StudioLocale, Labels> = {
     ctaTitle: (name) => `Gata să începem? Contactează ${name}`,
     ctaButton: 'Cere o ofertă',
     contactTitle: 'Contact',
-    appointmentTitle: 'Programează-te online',
-    appointmentSubtitle: 'Alege o zi și o oră convenabilă — confirmăm rapid.',
     fallbackDesc: (name, i) =>
       [
         `${cap(name)} executat de o echipă cu experiență, cu materiale de calitate și termene respectate.`,
@@ -217,8 +213,6 @@ const LABELS: Record<StudioLocale, Labels> = {
     ctaTitle: (name) => `Ready to start? Get in touch with ${name}`,
     ctaButton: 'Request a quote',
     contactTitle: 'Contact',
-    appointmentTitle: 'Book online',
-    appointmentSubtitle: 'Pick a day and time that works — we confirm quickly.',
     fallbackDesc: (name, i) =>
       [
         `${cap(name)} handled by an experienced team, with quality materials and deadlines you can count on.`,
@@ -266,9 +260,6 @@ const LABELS: Record<StudioLocale, Labels> = {
     ctaTitle: (name) => `Bereit loszulegen? Kontaktieren Sie ${name}`,
     ctaButton: 'Angebot anfragen',
     contactTitle: 'Kontakt',
-    appointmentTitle: 'Online Termin buchen',
-    appointmentSubtitle:
-      'Wählen Sie einen passenden Tag und eine Uhrzeit — wir bestätigen schnell.',
     fallbackDesc: (name, i) =>
       [
         `${cap(name)} von einem erfahrenen Team, mit hochwertigen Materialien und verlässlichen Terminen.`,
@@ -340,7 +331,6 @@ type SectionKind =
   | 'testimonials'
   | 'faq'
   | 'cta'
-  | 'appointment'
   | 'contact';
 
 interface TemplateSpec {
@@ -371,7 +361,6 @@ const TEMPLATES: Record<TemplateKey, TemplateSpec> = {
       'testimonials',
       'faq',
       'cta',
-      'appointment',
       'contact',
     ],
     defaults: { about: true, stats: false, whyUs: true, process: true, cta: true },
@@ -393,7 +382,6 @@ const TEMPLATES: Record<TemplateKey, TemplateSpec> = {
       'about',
       'faq',
       'cta',
-      'appointment',
       'contact',
     ],
     defaults: { about: true, stats: false, whyUs: true, process: true, cta: true },
@@ -413,7 +401,6 @@ const TEMPLATES: Record<TemplateKey, TemplateSpec> = {
       'testimonials',
       'faq',
       'cta',
-      'appointment',
       'contact',
     ],
     defaults: { about: true, stats: false, whyUs: false, process: false, cta: true },
@@ -542,16 +529,6 @@ export function composeEasySite(a: EasyAnswers): GeneratedWebsite {
       email: a.email?.trim() || undefined,
       city: city || undefined,
       hours: a.hours?.trim() || undefined,
-    },
-    // Always included — the live widget itself degrades to a "not available"
-    // message until the owner turns bookings on from the site settings, so
-    // there's no `show*` toggle gating this like the opt-in sections below.
-    appointment: {
-      id: 'appointment',
-      type: 'appointment',
-      visible: true,
-      title: L.appointmentTitle,
-      subtitle: L.appointmentSubtitle,
     },
   };
 
