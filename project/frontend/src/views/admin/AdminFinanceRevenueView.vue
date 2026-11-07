@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
-import AdminPeriodFilter, { type PeriodPreset } from '@/components/admin/AdminPeriodFilter.vue'
+import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
 import { useMoney } from '@/composables/useMoney'
+import { usePeriodFilter } from '@/composables/usePeriodFilter'
 import { useAdminFinanceStore, type RevenueTxnType } from '@/stores/adminFinance'
 
 const { t } = useI18n()
@@ -23,30 +24,8 @@ function dt(s: string): string {
 
 // Independent period filter — own state here, own fetch via
 // `setRevenuePeriod`, same pattern as the Dashboard's filter bar.
-const activePreset = ref<PeriodPreset>('month')
-const customFrom = ref('')
-const customTo = ref('')
-
-function setQuickRange(preset: Exclude<PeriodPreset, 'custom'>): void {
-  activePreset.value = preset
-  if (preset === 'lifetime') {
-    finance.setRevenuePeriod(null, null, true)
-    return
-  }
-  const months = { month: 1, '3months': 3, '12months': 12 }[preset]
-  const now = new Date()
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1))
-  finance.setRevenuePeriod(from.toISOString().slice(0, 10), null)
-}
-
-const canApplyCustom = computed(
-  () => !!customFrom.value && (!customTo.value || customTo.value >= customFrom.value),
-)
-function applyCustomRange(): void {
-  if (!canApplyCustom.value) return
-  activePreset.value = 'custom'
-  finance.setRevenuePeriod(customFrom.value, customTo.value || null)
-}
+const { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, applyCustomRange } =
+  usePeriodFilter((from, to, lifetime) => finance.setRevenuePeriod(from, to, lifetime))
 
 const activeRangeLabel = computed(() => {
   const r = finance.revenueRange
@@ -90,7 +69,10 @@ const discountDeltaMinor = computed(
   () => finance.revenuePeriodFaceTotalMinor - finance.revenuePeriodTotalMinor,
 )
 
-onMounted(() => finance.fetchRevenue())
+// `setQuickRange` (not a bare `fetchRevenue()`) — see the Dashboard's own
+// identical fix: the "Luna aceasta" preset shown as active on first paint
+// must be the range actually requested, not the backend's unrelated default.
+onMounted(() => setQuickRange('month'))
 </script>
 
 <template>
@@ -136,7 +118,7 @@ onMounted(() => finance.fetchRevenue())
     </p>
 
     <div class="afr__filters">
-      <v-btn-toggle v-model="typeFilter" density="compact" mandatory variant="outlined" divided>
+      <v-btn-toggle v-model="typeFilter" density="compact" mandatory color="primary" divided>
         <v-btn value="all" size="small">{{ t('adminFinance.all') }}</v-btn>
         <v-btn value="purchase" size="small">{{ t('adminFinance.purchases') }}</v-btn>
         <v-btn value="refund" size="small">{{ t('adminFinance.refunds') }}</v-btn>

@@ -259,6 +259,10 @@ onMounted(() => {
   border: 1px solid var(--tvz-hairline);
   border-radius: 8px;
   overflow: hidden;
+  /* Same missing-background bug as the sibling segmented controls elsewhere
+     (Support's `.seg`, Transactions' `.txn__tabs`, …) — the off options were
+     fully transparent, just a border floating over the page. */
+  background: rgb(var(--v-theme-surface));
 }
 .pseg button {
   padding: 0.5rem 1rem;

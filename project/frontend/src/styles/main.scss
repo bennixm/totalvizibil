@@ -199,6 +199,26 @@ h3 {
   clip-path: var(--tvz-hex-lg);
 }
 
+// --- Neutral chip fill ---------------------------------------------------
+// A "default"-colored `v-chip`/`v-btn` (the un-set branch of a binary status
+// — 2FA off, a pending referral, an Easy/Advanced mode tag, an "Owner"
+// badge) renders its tonal overlay as `currentColor` — on-surface — at a
+// fixed low opacity (~0.12–0.16). On this app's DARK theme that's a near-
+// white wash at ~12% opacity: next to a colored sibling chip (success green
+// at the same opacity) it reads as having no fill at all, which is exactly
+// the "looks broken, no background" bug reported across the platform after
+// the hex-shape redesign. `rgba(var(--v-theme-on-surface), 0.1)` is the same
+// theme-adaptive neutral fill the hand-rolled segmented controls already use
+// elsewhere (TransactionsView's `.trow__badge`, FeedAdCard's `.tag`, …) —
+// visible light grey on dark, visible light grey on light, always legible
+// against its own text. `!important` because Vuetify sets the underlay's
+// background via its own scoped style, not a simple class a later rule
+// would naturally win against.
+.tvz-chip-neutral .v-chip__underlay {
+  background-color: rgb(var(--v-theme-on-surface)) !important;
+  opacity: 0.1 !important;
+}
+
 // --- A11y --------------------------------------------------------------
 :focus-visible {
   outline: 2px solid rgb(var(--v-theme-primary));

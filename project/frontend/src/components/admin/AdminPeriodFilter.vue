@@ -36,7 +36,7 @@ const { t } = useI18n()
 
 <template>
   <div class="apf">
-    <v-btn-toggle :model-value="preset" density="compact" mandatory variant="outlined" divided>
+    <v-btn-toggle :model-value="preset" density="compact" mandatory color="primary" divided>
       <v-btn size="small" value="month" @click="emit('preset', 'month')">
         {{ t('adminFinance.thisMonth') }}
       </v-btn>

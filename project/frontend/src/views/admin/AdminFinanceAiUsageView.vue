@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
-import AdminPeriodFilter, { type PeriodPreset } from '@/components/admin/AdminPeriodFilter.vue'
+import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
 import { useMoney } from '@/composables/useMoney'
+import { usePeriodFilter } from '@/composables/usePeriodFilter'
 import { useAdminFinanceStore } from '@/stores/adminFinance'
 
 const { t, n } = useI18n()
@@ -25,30 +26,8 @@ const hasRows = computed(() => (finance.aiUsage?.byModel.length ?? 0) > 0)
 // Independent period filter — its own state/fetch (`setAiUsagePeriod`),
 // same pattern as Venituri/Costuri/Dashboard. Used to silently inherit the
 // Dashboard's period instead, with no control of its own to change it.
-const activePreset = ref<PeriodPreset>('month')
-const customFrom = ref('')
-const customTo = ref('')
-
-function setQuickRange(preset: Exclude<PeriodPreset, 'custom'>): void {
-  activePreset.value = preset
-  if (preset === 'lifetime') {
-    finance.setAiUsagePeriod(null, null, true)
-    return
-  }
-  const months = { month: 1, '3months': 3, '12months': 12 }[preset]
-  const now = new Date()
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1))
-  finance.setAiUsagePeriod(from.toISOString().slice(0, 10), null)
-}
-
-const canApplyCustom = computed(
-  () => !!customFrom.value && (!customTo.value || customTo.value >= customFrom.value),
-)
-function applyCustomRange(): void {
-  if (!canApplyCustom.value) return
-  activePreset.value = 'custom'
-  finance.setAiUsagePeriod(customFrom.value, customTo.value || null)
-}
+const { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, applyCustomRange } =
+  usePeriodFilter((from, to, lifetime) => finance.setAiUsagePeriod(from, to, lifetime))
 
 const activeRangeLabel = computed(() => {
   const r = finance.aiUsage?.range
