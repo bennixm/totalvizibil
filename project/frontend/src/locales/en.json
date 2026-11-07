@@ -1236,6 +1236,8 @@
     "statTotal": "Total",
     "scheduleTitle": "Available schedule",
     "enableToggle": "Booking is live on the site",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
     "disabledHint": "While disabled, the booking form doesn't appear on your site.",
     "slotDuration": "Appointment length",
     "slotMinutesLabel": "{m} min",

@@ -1236,6 +1236,8 @@
     "statTotal": "Gesamt",
     "scheduleTitle": "Verfügbarer Zeitplan",
     "enableToggle": "Terminbuchung ist auf der Website aktiv",
+    "statusActive": "Aktiv",
+    "statusInactive": "Inaktiv",
     "disabledHint": "Solange deaktiviert, erscheint das Buchungsformular nicht auf deiner Website.",
     "slotDuration": "Termindauer",
     "slotMinutesLabel": "{m} Min.",
