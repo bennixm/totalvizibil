@@ -229,7 +229,13 @@ watch(
     <header class="apt__head">
       <div>
         <p class="apt__eyebrow">{{ t('appointments.eyebrow') }}</p>
-        <h1>{{ t('appointments.title') }}</h1>
+        <div class="apt__titleRow">
+          <h1>{{ t('appointments.title') }}</h1>
+          <span v-if="settings" class="apt__status" :class="settings.enabled ? 'is-on' : 'is-off'">
+            <span class="apt__statusDot" aria-hidden="true" />
+            {{ t(settings.enabled ? 'appointments.statusActive' : 'appointments.statusInactive') }}
+          </span>
+        </div>
       </div>
     </header>
 
@@ -466,6 +472,43 @@ watch(
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
   font-size: clamp(1.35rem, 3vw, 1.7rem);
+}
+.apt__titleRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.apt__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.6rem 0.22rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+.apt__statusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.apt__status.is-on {
+  background: rgba(var(--v-theme-success), 0.14);
+  color: rgb(var(--v-theme-success));
+}
+.apt__status.is-on .apt__statusDot {
+  background: rgb(var(--v-theme-success));
+  box-shadow: 0 0 0 3px rgba(var(--v-theme-success), 0.18);
+}
+.apt__status.is-off {
+  background: rgba(var(--v-theme-on-surface), 0.07);
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.apt__status.is-off .apt__statusDot {
+  background: rgba(var(--v-theme-on-surface), 0.4);
 }
 .apt__center {
   display: grid;

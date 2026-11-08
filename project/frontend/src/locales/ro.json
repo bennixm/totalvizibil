@@ -1236,6 +1236,8 @@
     "statTotal": "Total",
     "scheduleTitle": "Program disponibil",
     "enableToggle": "Programările sunt active pe site",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
     "disabledHint": "Cât timp e dezactivat, formularul de programare nu apare pe site-ul tău.",
     "slotDuration": "Durata unei programări",
     "slotMinutesLabel": "{m} min",
