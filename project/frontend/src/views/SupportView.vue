@@ -602,6 +602,25 @@ onMounted(() => {
   .sup__stats {
     grid-template-columns: 1fr 1fr;
   }
+  /* Filters had no mobile rule at all — the fixed max/min-widths below just
+     wrapped into a cramped, uneven multi-row pile on a phone. Stack them
+     full-width instead, same pattern as the other filter bars on this page. */
+  .sup__filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .seg {
+    align-self: stretch;
+  }
+  .seg button {
+    flex: 1;
+  }
+  .sup__filter,
+  .sup__search {
+    max-width: none;
+    min-width: 0;
+    width: 100%;
+  }
   /* The side column used to be `display: none` here, which silently dropped
      the timestamp, priority and assignee on phones. Stack it under the
      subject instead, one labeled fact per line. */

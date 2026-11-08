@@ -297,6 +297,7 @@ function daysLeft(processAt: string): number {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
   margin-bottom: 1.25rem;
 }
@@ -526,6 +527,13 @@ function daysLeft(processAt: string): number {
    2 lines), filters stack full-width, and the table stops scrolling
    sideways — each row becomes its own card instead. */
 @media (max-width: 640px) {
+  .txn__head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .txn__headActions {
+    justify-content: flex-start;
+  }
   .txn__toolbar {
     flex-direction: column;
     align-items: stretch;
