@@ -35,7 +35,9 @@ function fakeNotifications() {
 function fakeSettings(overrides: { enabled?: boolean; intervalMinutes?: number } = {}) {
   return {
     googleAdsAgentEnabled: jest.fn().mockResolvedValue(overrides.enabled ?? true),
-    googleAdsAgentContentIntervalMinutes: jest.fn().mockResolvedValue(overrides.intervalMinutes ?? 360),
+    googleAdsAgentContentIntervalMinutes: jest
+      .fn()
+      .mockResolvedValue(overrides.intervalMinutes ?? 360),
   } as never;
 }
 
@@ -75,13 +77,15 @@ const MAPPING = {
   },
 };
 
-function makeService(overrides: {
-  client?: ReturnType<typeof fakeClient>;
-  ai?: ReturnType<typeof fakeAi>;
-  settings?: ReturnType<typeof fakeSettings>;
-  prisma?: ReturnType<typeof fakePrisma>;
-  notifications?: ReturnType<typeof fakeNotifications>;
-} = {}) {
+function makeService(
+  overrides: {
+    client?: ReturnType<typeof fakeClient>;
+    ai?: ReturnType<typeof fakeAi>;
+    settings?: ReturnType<typeof fakeSettings>;
+    prisma?: ReturnType<typeof fakePrisma>;
+    notifications?: ReturnType<typeof fakeNotifications>;
+  } = {},
+) {
   return new GoogleAdsAgentContentService(
     (overrides.client ?? fakeClient()) as any,
     (overrides.ai ?? fakeAi()) as any,
@@ -124,7 +128,9 @@ describe('GoogleAdsAgentContentService', () => {
 
     it('runs once the admin-configured interval has elapsed since the last run', async () => {
       const longAgo = new Date(Date.now() - 400 * 60 * 1000);
-      const prisma = fakePrisma({ existingRun: { id: 'run-0', startedAt: longAgo, status: 'success' } });
+      const prisma = fakePrisma({
+        existingRun: { id: 'run-0', startedAt: longAgo, status: 'success' },
+      });
       const svc = makeService({ settings: fakeSettings({ intervalMinutes: 360 }), prisma });
       await (svc as any).tick();
       expect((prisma as any).googleAdsAgentRun.create).toHaveBeenCalled();
@@ -143,14 +149,17 @@ describe('GoogleAdsAgentContentService', () => {
     // 3 keyword ops + 1 ad op + 1 campaign-enable op.
     expect(ops).toHaveLength(5);
     expect(ops.filter((o: any) => o.adGroupCriterionOperation)).toHaveLength(3);
-    expect(ops.find((o: any) => o.adGroupAdOperation).adGroupAdOperation.create.ad.finalUrls).toEqual([
-      'https://totalvizibil.ro/constructii/electricieni',
-    ]);
+    expect(
+      ops.find((o: any) => o.adGroupAdOperation).adGroupAdOperation.create.ad.finalUrls,
+    ).toEqual(['https://totalvizibil.ro/constructii/electricieni']);
     const enableOp = ops.find((o: any) => o.campaignOperation);
     expect(enableOp.campaignOperation.update.status).toBe('ENABLED');
 
     expect((prisma as any).googleAdsSubcategoryCampaign.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'map-1' }, data: expect.objectContaining({ status: 'active' }) }),
+      expect.objectContaining({
+        where: { id: 'map-1' },
+        data: expect.objectContaining({ status: 'active' }),
+      }),
     );
     expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: 'keywords.updated' }) }),
@@ -169,7 +178,9 @@ describe('GoogleAdsAgentContentService', () => {
     expect((prisma as any).googleAdsSubcategoryCampaign.update).not.toHaveBeenCalled();
     expect((prisma as any).googleAdsAgentAction.create).not.toHaveBeenCalled();
     expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'success', actionsTaken: 0 }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'success', actionsTaken: 0 }),
+      }),
     );
   });
 

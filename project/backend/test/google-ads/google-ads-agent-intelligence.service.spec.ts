@@ -34,9 +34,11 @@ function fakeNotifications() {
 
 function fakeAnalytics() {
   return {
-    marginConfig: jest
-      .fn()
-      .mockResolvedValue({ costPromovareMinor: 100, marjaProfitMinor: 10, marjaPozitionareMinor: 10 }),
+    marginConfig: jest.fn().mockResolvedValue({
+      costPromovareMinor: 100,
+      marjaProfitMinor: 10,
+      marjaPozitionareMinor: 10,
+    }),
   } as never;
 }
 
@@ -143,7 +145,9 @@ describe('GoogleAdsAgentIntelligenceService.run()', () => {
 
     expect((ai as any).googleAdsBudgetIntelligence).not.toHaveBeenCalled();
     expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'success', categoriesScanned: 0 }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'success', categoriesScanned: 0 }),
+      }),
     );
   });
 
@@ -151,12 +155,21 @@ describe('GoogleAdsAgentIntelligenceService.run()', () => {
     const mutate = jest.fn().mockResolvedValue([]);
     const proposals = jest.fn().mockResolvedValue({
       proposals: [
-        { categorySlug: 'electricieni', proposedDailyBudgetCredits: 3, proposedMaxCpcCredits: 0.8, reasoning: 'Cerere mai mică.' },
+        {
+          categorySlug: 'electricieni',
+          proposedDailyBudgetCredits: 3,
+          proposedMaxCpcCredits: 0.8,
+          reasoning: 'Cerere mai mică.',
+        },
       ],
       costEstimateMinor: 1,
     });
     const prisma = fakePrisma();
-    const { svc } = makeService({ client: fakeClient({ mutate }), ai: fakeAi({ proposals }), prisma });
+    const { svc } = makeService({
+      client: fakeClient({ mutate }),
+      ai: fakeAi({ proposals }),
+      prisma,
+    });
 
     await svc.run();
 
@@ -175,11 +188,17 @@ describe('GoogleAdsAgentIntelligenceService.run()', () => {
       }),
     ]);
     expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ action: 'cpc.adjusted', status: 'applied' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'cpc.adjusted', status: 'applied' }),
+      }),
     );
     expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: 'success', actionsTaken: 1, actionsPendingApproval: 0 }),
+        data: expect.objectContaining({
+          status: 'success',
+          actionsTaken: 1,
+          actionsPendingApproval: 0,
+        }),
       }),
     );
   });
@@ -188,19 +207,31 @@ describe('GoogleAdsAgentIntelligenceService.run()', () => {
     const mutate = jest.fn();
     const proposals = jest.fn().mockResolvedValue({
       proposals: [
-        { categorySlug: 'electricieni', proposedDailyBudgetCredits: 10, proposedMaxCpcCredits: 1, reasoning: 'Cerere în creștere.' },
+        {
+          categorySlug: 'electricieni',
+          proposedDailyBudgetCredits: 10,
+          proposedMaxCpcCredits: 1,
+          reasoning: 'Cerere în creștere.',
+        },
       ],
       costEstimateMinor: 1,
     });
     const prisma = fakePrisma();
-    const { svc } = makeService({ client: fakeClient({ mutate }), ai: fakeAi({ proposals }), prisma });
+    const { svc } = makeService({
+      client: fakeClient({ mutate }),
+      ai: fakeAi({ proposals }),
+      prisma,
+    });
 
     await svc.run();
 
     expect(mutate).not.toHaveBeenCalled();
     expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ action: 'budget.increase.proposed', status: 'pending_approval' }),
+        data: expect.objectContaining({
+          action: 'budget.increase.proposed',
+          status: 'pending_approval',
+        }),
       }),
     );
     expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
@@ -214,7 +245,12 @@ describe('GoogleAdsAgentIntelligenceService.run()', () => {
     const mutate = jest.fn();
     const proposals = jest.fn().mockResolvedValue({
       proposals: [
-        { categorySlug: 'electricieni', proposedDailyBudgetCredits: 999, proposedMaxCpcCredits: 999, reasoning: 'x' },
+        {
+          categorySlug: 'electricieni',
+          proposedDailyBudgetCredits: 999,
+          proposedMaxCpcCredits: 999,
+          reasoning: 'x',
+        },
       ],
       costEstimateMinor: 1,
     });
@@ -242,19 +278,30 @@ describe('GoogleAdsAgentIntelligenceService.run()', () => {
     const mutate = jest.fn();
     const proposals = jest.fn().mockResolvedValue({
       proposals: [
-        { categorySlug: 'electricieni', proposedDailyBudgetCredits: 5, proposedMaxCpcCredits: 1, reasoning: 'x' },
+        {
+          categorySlug: 'electricieni',
+          proposedDailyBudgetCredits: 5,
+          proposedMaxCpcCredits: 1,
+          reasoning: 'x',
+        },
       ],
       costEstimateMinor: 1,
     });
     const prisma = fakePrisma();
-    const { svc } = makeService({ client: fakeClient({ mutate }), ai: fakeAi({ proposals }), prisma });
+    const { svc } = makeService({
+      client: fakeClient({ mutate }),
+      ai: fakeAi({ proposals }),
+      prisma,
+    });
 
     await svc.run();
 
     expect(mutate).not.toHaveBeenCalled();
     expect((prisma as any).googleAdsAgentAction.create).not.toHaveBeenCalled();
     expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ actionsTaken: 0, actionsPendingApproval: 0 }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ actionsTaken: 0, actionsPendingApproval: 0 }),
+      }),
     );
   });
 
@@ -352,7 +399,9 @@ describe('GoogleAdsAgentIntelligenceService.tick() gating', () => {
 
   it('runs once the admin-configured interval has elapsed since the last run', async () => {
     const longAgo = new Date(Date.now() - 2000 * 60 * 1000); // ~33h ago > 24h interval
-    const prisma = fakePrisma({ existingRun: { id: 'run-0', startedAt: longAgo, status: 'success' } });
+    const prisma = fakePrisma({
+      existingRun: { id: 'run-0', startedAt: longAgo, status: 'success' },
+    });
     const { svc } = makeService({ prisma, settings: fakeSettings({ intervalMinutes: 1440 }) });
     const runSpy = jest.spyOn(svc, 'run').mockResolvedValue(undefined);
     await (svc as any).tick();
@@ -386,10 +435,14 @@ describe('GoogleAdsAgentIntelligenceService.approveProposal / rejectProposal', (
 
     expect(mutate).toHaveBeenCalledWith([
       expect.objectContaining({
-        campaignBudgetOperation: expect.objectContaining({ update: expect.objectContaining({ amountMicros: '10000000' }) }),
+        campaignBudgetOperation: expect.objectContaining({
+          update: expect.objectContaining({ amountMicros: '10000000' }),
+        }),
       }),
       expect.objectContaining({
-        adGroupOperation: expect.objectContaining({ update: expect.objectContaining({ cpcBidMicros: '2000000' }) }),
+        adGroupOperation: expect.objectContaining({
+          update: expect.objectContaining({ cpcBidMicros: '2000000' }),
+        }),
       }),
     ]);
     expect((prisma as any).googleAdsAgentAction.update).toHaveBeenCalledWith(

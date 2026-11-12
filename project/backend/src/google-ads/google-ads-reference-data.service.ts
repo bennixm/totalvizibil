@@ -34,7 +34,7 @@ export class GoogleAdsReferenceDataService {
       return this.geoTargetConstantRo.value;
     }
     const rows = await this.client.search(
-      "SELECT geo_target_constant.resource_name FROM geo_target_constant " +
+      'SELECT geo_target_constant.resource_name FROM geo_target_constant ' +
         "WHERE geo_target_constant.country_code = 'RO' AND geo_target_constant.target_type = 'Country'",
     );
     const resourceName = rows[0]?.geoTargetConstant?.resourceName;
@@ -54,7 +54,7 @@ export class GoogleAdsReferenceDataService {
       return this.languageConstantRo.value;
     }
     const rows = await this.client.search(
-      "SELECT language_constant.resource_name FROM language_constant " +
+      'SELECT language_constant.resource_name FROM language_constant ' +
         "WHERE language_constant.code = 'ro'",
     );
     const resourceName = rows[0]?.languageConstant?.resourceName;

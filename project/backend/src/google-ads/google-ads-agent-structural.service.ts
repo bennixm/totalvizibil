@@ -161,7 +161,13 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
       const errorSummary = err instanceof Error ? err.message : String(err);
       await this.prisma.googleAdsAgentRun.update({
         where: { id: run.id },
-        data: { status: 'failed', finishedAt: new Date(), categoriesScanned, actionsTaken, errorSummary },
+        data: {
+          status: 'failed',
+          finishedAt: new Date(),
+          categoriesScanned,
+          actionsTaken,
+          errorSummary,
+        },
       });
       await notifyAdminsOfFailedGoogleAdsAgentRun(
         this.notifications,
@@ -285,15 +291,21 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
    * see the class doc comment for why that makes this safe to auto-apply.
    */
   private async createSkeleton(category: CategoryWithMapping): Promise<void> {
-    const [geoResourceName, langResourceName, currencyCode, eurRonRate, dailyBudgetCredits, maxCpcCredits] =
-      await Promise.all([
-        this.refData.getGeoTargetConstantRo(),
-        this.refData.getLanguageConstantRo(),
-        this.refData.getAccountCurrencyCode(),
-        this.settings.eurRonRate(),
-        this.settings.googleAdsAgentDefaultDailyBudgetCredits(),
-        this.settings.googleAdsAgentDefaultMaxCpcCredits(),
-      ]);
+    const [
+      geoResourceName,
+      langResourceName,
+      currencyCode,
+      eurRonRate,
+      dailyBudgetCredits,
+      maxCpcCredits,
+    ] = await Promise.all([
+      this.refData.getGeoTargetConstantRo(),
+      this.refData.getLanguageConstantRo(),
+      this.refData.getAccountCurrencyCode(),
+      this.settings.eurRonRate(),
+      this.settings.googleAdsAgentDefaultDailyBudgetCredits(),
+      this.settings.googleAdsAgentDefaultMaxCpcCredits(),
+    ]);
 
     const budgetMicros = creditsToAmountMicros(dailyBudgetCredits, currencyCode, eurRonRate);
     const cpcMicros = creditsToAmountMicros(maxCpcCredits, currencyCode, eurRonRate);

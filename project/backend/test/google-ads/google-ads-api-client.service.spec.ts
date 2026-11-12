@@ -139,7 +139,9 @@ describe('GoogleAdsApiClient', () => {
     expect(headers.Authorization).toBe('Bearer mock-token');
     expect(headers['login-customer-id']).toBe('9999999999');
     expect(headers['developer-token']).toBeUndefined();
-    expect(JSON.parse(init?.body as string)).toEqual({ query: 'SELECT metrics.clicks FROM campaign' });
+    expect(JSON.parse(init?.body as string)).toEqual({
+      query: 'SELECT metrics.clicks FROM campaign',
+    });
     expect(results).toEqual([{ metrics: { costMicros: '5000000', clicks: '2' } }]);
   });
 

@@ -287,7 +287,9 @@ export class AdminController {
       );
     }
     if (dto.googleAdsAgentDefaultMaxCpcCredits !== undefined) {
-      await this.settings.setGoogleAdsAgentDefaultMaxCpcCredits(dto.googleAdsAgentDefaultMaxCpcCredits);
+      await this.settings.setGoogleAdsAgentDefaultMaxCpcCredits(
+        dto.googleAdsAgentDefaultMaxCpcCredits,
+      );
     }
     if (dto.googleAdsAgentMaxDailyBudgetCapCredits !== undefined) {
       await this.settings.setGoogleAdsAgentMaxDailyBudgetCapCredits(

@@ -6,9 +6,9 @@ function fakeClient(search: jest.Mock) {
 
 describe('GoogleAdsReferenceDataService', () => {
   it('resolves the RO geo target constant via a live lookup, then caches it', async () => {
-    const search = jest.fn().mockResolvedValue([
-      { geoTargetConstant: { resourceName: 'geoTargetConstants/2642' } },
-    ]);
+    const search = jest
+      .fn()
+      .mockResolvedValue([{ geoTargetConstant: { resourceName: 'geoTargetConstants/2642' } }]);
     const svc = new GoogleAdsReferenceDataService(fakeClient(search));
 
     expect(await svc.getGeoTargetConstantRo()).toBe('geoTargetConstants/2642');
@@ -18,9 +18,9 @@ describe('GoogleAdsReferenceDataService', () => {
   });
 
   it('resolves the RO language constant via a live lookup', async () => {
-    const search = jest.fn().mockResolvedValue([
-      { languageConstant: { resourceName: 'languageConstants/1032' } },
-    ]);
+    const search = jest
+      .fn()
+      .mockResolvedValue([{ languageConstant: { resourceName: 'languageConstants/1032' } }]);
     const svc = new GoogleAdsReferenceDataService(fakeClient(search));
 
     expect(await svc.getLanguageConstantRo()).toBe('languageConstants/1032');
