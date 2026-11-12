@@ -46,6 +46,7 @@ import {
 } from './ad-click';
 import { SaveCampaignDto } from './dto/save-campaign.dto';
 import { BusinessActionLogService } from '../admin/business-action-log.service';
+import { GoogleAdsAgentStructuralService } from '../google-ads/google-ads-agent-structural.service';
 
 /** Hint from the search that produced the impression — which Feed to price this click against. */
 export interface ClickFeedHint {
@@ -98,6 +99,7 @@ export class CampaignService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly businessActionLog: BusinessActionLogService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly googleAdsAgent: GoogleAdsAgentStructuralService,
   ) {}
 
   /** Same plain-timer pattern as CompaniesService / NotificationsSweepService
@@ -361,6 +363,24 @@ export class CampaignService implements OnModuleInit {
         data: { status: live ? 'published' : 'unpublished' },
       }),
     ]);
+
+    // Research doc, Direction 5: a client starting/stopping their OWN feed
+    // campaign should (debounced) trigger the Google Ads agent to
+    // create/resume or re-check the subcategory campaign(s) for this
+    // company, instead of waiting up to 6h for the next scheduled
+    // structural pass. Fire-and-forget — already logged inside
+    // `scheduleRecheck` on failure, and this write is already committed.
+    if (live !== wasLive) {
+      void this.googleAdsAgent
+        .scheduleRecheck(companyId)
+        .catch((err) =>
+          this.logger.error(
+            'Google Ads agent scheduleRecheck failed',
+            err instanceof Error ? err.stack : err,
+          ),
+        );
+    }
+
     return updated;
   }
 

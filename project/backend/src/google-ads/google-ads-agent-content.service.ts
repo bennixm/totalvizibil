@@ -3,12 +3,24 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import { AppConfig } from '../config/env';
+import { PexelsProvider } from '../website/builder/generator/image-provider/pexels.provider';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { notifyAdminsOfFailedGoogleAdsAgentRun } from './google-ads-agent-alerts';
 import { GoogleAdsApiClient } from './google-ads-api-client.service';
 import { subcategoryLandingUrl } from './google-ads-landing-url';
+import { pushNegativesOntoSiblings } from './google-ads-negative-keywords';
+
+/** ValueTrack suffix appended to every ad's final URL (research doc,
+ *  Direction 6) — `{loc_physical_ms}` is the geo-target id of the click's
+ *  PHYSICAL location (not `{loc_interest_ms}`, which is the location of
+ *  INTEREST that triggered the ad, a different signal); `{gclid}` is
+ *  Google's own click id. The frontend resolves `loc` back to a județ via
+ *  `GET /geo/resolve-google-ads-county` and auto-filters the feed. Written
+ *  WITHOUT a leading `?`/`&` — Google Ads appends the right separator
+ *  itself based on whether the final URL already has a query string. */
+const FINAL_URL_SUFFIX = 'loc={loc_physical_ms}&gclid={gclid}';
 
 /** Fixed, short poll period — only "is it time yet" is admin-configurable
  *  (`googleAdsAgentContentIntervalMinutes`, read live on every tick via
@@ -40,6 +52,7 @@ type MappingWithCategory = Prisma.GoogleAdsSubcategoryCampaignGetPayload<{
 export class GoogleAdsAgentContentService implements OnModuleInit {
   private readonly logger = new Logger(GoogleAdsAgentContentService.name);
   private readonly frontendOrigin: string;
+  private readonly pexels: PexelsProvider;
 
   constructor(
     private readonly client: GoogleAdsApiClient,
@@ -50,6 +63,7 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
     config: ConfigService<AppConfig, true>,
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
+    this.pexels = new PexelsProvider(config.get('pexelsApiKey', { infer: true }) ?? '');
   }
 
   onModuleInit(): void {
@@ -115,6 +129,18 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
     let hadError = false;
 
     try {
+      // Direction 3 (research doc): the one account-wide conversion action,
+      // created once and reused forever. Best-effort — a failure here must
+      // never stop ad content from going live; it only means the frontend's
+      // `/platform/google-ads-conversion-tag` stays `configured: false` for
+      // one more cycle.
+      await this.ensureConversionAction().catch((err) =>
+        this.logger.warn(
+          'ensureConversionAction() failed — continuing without conversion tracking this run.',
+          err instanceof Error ? err.stack : String(err),
+        ),
+      );
+
       const pending = await this.prisma.googleAdsSubcategoryCampaign.findMany({
         where: { status: 'pending_creation' },
         include: { category: { include: { parent: true } } },
@@ -249,6 +275,10 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
           status: 'ENABLED',
           ad: {
             finalUrls: [landingUrl],
+            // Direction 6 (research doc): carries the click's physical
+            // județ + Google's own click id through to the feed, which
+            // auto-filters to it — see `FINAL_URL_SUFFIX`.
+            finalUrlSuffix: FINAL_URL_SUFFIX,
             responsiveSearchAd: {
               headlines: plan.headlines.map((text) => ({ text })),
               descriptions: plan.descriptions.map((text) => ({ text })),
@@ -290,6 +320,39 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       }),
     ]);
 
+    // Direction 1 (research doc): push this subcategory's own keywords as
+    // negatives onto every SIBLING subcategory's shared set. Best-effort —
+    // never blocks this campaign from activating (it already did, above).
+    if (category.parentId) {
+      try {
+        await pushNegativesOntoSiblings(this.client, this.prisma, this.logger, {
+          parentCategoryId: category.parentId,
+          ownCategoryId: category.id,
+          terms: plan.keywords,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `pushNegativesOntoSiblings failed for '${category.slug}' — its own campaign is live regardless.`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
+    }
+
+    // Direction 2 (research doc): optional ad assets (callouts + one stock
+    // image) that improve Ad Strength without being required for the ad to
+    // run — a SEPARATE, best-effort mutate call, never one that can block
+    // the keywords+ad+enable batch above from going out.
+    await this.addOptionalAdAssets(
+      campaignResourceName,
+      plan.callouts,
+      plan.imageSearchQuery,
+    ).catch((err) =>
+      this.logger.warn(
+        `addOptionalAdAssets failed for '${category.slug}' — its ad is live regardless.`,
+        err instanceof Error ? err.stack : String(err),
+      ),
+    );
+
     return {
       activated: true,
       costEstimateMinor: plan.costEstimateMinor,
@@ -297,6 +360,93 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       outputTokens: plan.outputTokens,
       model: plan.model,
     };
+  }
+
+  /**
+   * Callout assets (short trust/benefit phrases, no URL needed) and ONE
+   * stock image asset (via Pexels, already used by the website builder),
+   * both attached directly to the campaign. Sitelinks are deliberately NOT
+   * implemented here — every subcategory has exactly one landing page, so
+   * sitelinks would all point to the same URL, which Google's own guidance
+   * treats as low-quality rather than genuinely useful. No-ops quietly
+   * when there's nothing to add (empty `callouts`, no `imageSearchQuery`,
+   * or Pexels not configured).
+   */
+  private async addOptionalAdAssets(
+    campaignResourceName: string,
+    callouts: string[] | undefined,
+    imageSearchQuery: string | undefined,
+  ): Promise<void> {
+    const ops: { assetOperation: { create: Record<string, unknown> } }[] = (callouts ?? []).map(
+      (text) => ({
+        assetOperation: { create: { calloutAsset: { calloutText: text } } },
+      }),
+    );
+
+    let imageAssetIndex = -1;
+    if (imageSearchQuery && this.pexels.configured) {
+      const { photos } = await this.pexels.search(imageSearchQuery, {
+        orientation: 'landscape',
+        perPage: 1,
+      });
+      const photo = photos[0];
+      if (photo) {
+        const res = await fetch(photo.src.medium);
+        if (res.ok) {
+          const base64 = Buffer.from(await res.arrayBuffer()).toString('base64');
+          imageAssetIndex = ops.length;
+          ops.push({ assetOperation: { create: { imageAsset: { data: base64 } } } });
+        }
+      }
+    }
+
+    if (!ops.length) return;
+    const results = await this.client.mutate(ops);
+
+    const attachOps = results
+      .map((r, i) => ({
+        resourceName: r.assetResult?.resourceName,
+        isImage: i === imageAssetIndex,
+      }))
+      .filter((r): r is { resourceName: string; isImage: boolean } => !!r.resourceName)
+      .map(({ resourceName, isImage }) => ({
+        campaignAssetOperation: {
+          create: {
+            campaign: campaignResourceName,
+            asset: resourceName,
+            fieldType: isImage ? 'AD_IMAGE' : 'CALLOUT',
+          },
+        },
+      }));
+    if (attachOps.length) await this.client.mutate(attachOps);
+  }
+
+  /** Direction 3 (research doc): creates the ONE account-wide conversion
+   *  action the gtag-based click-through tracking needs, if it doesn't
+   *  exist yet — never recreated once `googleAdsConversionActionResourceName`
+   *  is set. `type: 'WEBPAGE'` + `category: 'DEFAULT'` is the plain
+   *  website-conversion shape a client-side `gtag('event', 'conversion')`
+   *  call fires against (not the now-closed server-side click-upload path
+   *  — see the research doc, Direction 3, for why that path was rejected). */
+  private async ensureConversionAction(): Promise<void> {
+    if (await this.settings.googleAdsConversionActionResourceName()) return;
+    const results = await this.client.mutate([
+      {
+        conversionActionOperation: {
+          create: {
+            name: 'TVZ Feed Click-Through',
+            type: 'WEBPAGE',
+            category: 'DEFAULT',
+            status: 'ENABLED',
+          },
+        },
+      },
+    ]);
+    const resourceName = results[0]?.conversionActionResult?.resourceName;
+    if (!resourceName) {
+      throw new Error('Conversion action creation returned no resource name.');
+    }
+    await this.settings.setGoogleAdsConversionActionResourceName(resourceName);
   }
 
   private plainName(nameI18n: Prisma.JsonValue): string {

@@ -44,6 +44,14 @@ export interface GoogleAdsKeywordPlan {
   keywords: string[];
   headlines: string[];
   descriptions: string[];
+  /** Short benefit/trust phrases (≤25 chars) for callout assets — Ad
+   *  Strength research doc, Direction 2. No URL needed, unlike sitelinks
+   *  (which this platform skips: every subcategory has exactly ONE landing
+   *  page, so distinct sitelink destinations don't exist here). */
+  callouts: string[];
+  /** A short English search phrase for sourcing a generic stock photo
+   *  (Pexels) to attach as an image asset — Direction 2. */
+  imageSearchQuery: string;
   /** Rough cost estimate (minor credit units) for this one call — see
    *  `estimateClaudeCostMinor()`. For the admin panel's cost-tracking tab
    *  (`GoogleAdsAgentRun.claudeCostEstimateMinor`), not real billing. */
@@ -550,10 +558,16 @@ export class AiService {
       '',
       'Generează un plan de cuvinte cheie + reclamă Google Ads (Search, Responsive Search Ad) ' +
         'pentru a atrage vizitatori din România către această subcategorie pe o platformă de ' +
-        'listare de firme locale (marketplace, nu o singură firmă). Răspunde STRICT JSON: ' +
-        '{"keywords": string[8-15, în română, fraze scurte de căutare], ' +
-        '"headlines": string[5-10, max 30 caractere FIECARE, română], ' +
-        '"descriptions": string[3-4, max 90 caractere FIECARE, română]}. ' +
+        'listare de firme locale (marketplace, nu o singură firmă). Pentru Ad Strength "Excellent" ' +
+        'ai nevoie de CÂT MAI MULTE titluri/descrieri UNICE, cu unghiuri diferite (beneficiu, call-to-' +
+        'action, localizare+subcategorie) — nu repeta aceeași formulare cu sinonime. Răspunde STRICT ' +
+        'JSON: {"keywords": string[8-15, în română, fraze scurte de căutare], ' +
+        '"headlines": string[10-15, max 30 caractere FIECARE, română, unghiuri variate], ' +
+        '"descriptions": string[4, max 90 caractere FIECARE, română, unghiuri variate], ' +
+        '"callouts": string[4-8, max 25 caractere FIECARE, română, fraze scurte de încredere/beneficiu ' +
+        'fără URL — ex. "Firme verificate"], ' +
+        '"imageSearchQuery": string (o frază scurtă ÎN ENGLEZĂ pentru căutarea unei fotografii stock ' +
+        'generice relevante pentru această subcategorie, ex. "car mechanic repair shop")}. ' +
         'Nu promite preț/discount specific. Nu numi o singură firmă din exemple ca fiind "cea mai bună".',
     ]
       .filter(Boolean)
@@ -562,13 +576,15 @@ export class AiService {
     const result = await this.anthropicJsonWithUsage(
       'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
       user,
-      { maxTokens: 1200, effort: 'medium', model: this.anthropicModelFast },
+      { maxTokens: 1600, effort: 'medium', model: this.anthropicModelFast },
     );
     if (!result) return null;
     const parsed = result.data as {
       keywords?: unknown[];
       headlines?: unknown[];
       descriptions?: unknown[];
+      callouts?: unknown[];
+      imageSearchQuery?: unknown;
     };
 
     const asStrings = (v: unknown[] | undefined, maxLen: number): string[] =>
@@ -579,6 +595,11 @@ export class AiService {
     const keywords = asStrings(parsed.keywords, 80).slice(0, 15);
     const headlines = asStrings(parsed.headlines, 30).slice(0, 15);
     const descriptions = asStrings(parsed.descriptions, 90).slice(0, 4);
+    const callouts = asStrings(parsed.callouts, 25).slice(0, 8);
+    const imageSearchQuery =
+      typeof parsed.imageSearchQuery === 'string'
+        ? parsed.imageSearchQuery.trim().slice(0, 100)
+        : '';
 
     // Google Ads' own minimums for a Responsive Search Ad / a usable keyword
     // list — below this, writing the ad would just be rejected by the API,
@@ -595,6 +616,8 @@ export class AiService {
       keywords,
       headlines,
       descriptions,
+      callouts,
+      imageSearchQuery,
       costEstimateMinor: estimateClaudeCostMinor(result.usage),
       inputTokens: result.usage.input_tokens,
       outputTokens: result.usage.output_tokens,

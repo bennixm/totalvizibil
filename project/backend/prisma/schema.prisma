@@ -352,6 +352,15 @@ model GoogleAdsSubcategoryCampaign {
   googleAdGroupId        String? @map("google_ad_group_id")
   googleBudgetResourceId String? @map("google_budget_resource_id")
 
+  // This subcategory's OWN `NEGATIVE_KEYWORDS` SharedSet (research doc,
+  // Direction 1) — created once by the structural pass and attached to this
+  // campaign. Holds every SIBLING subcategory's distinguishing terms as
+  // negatives, so this campaign never bids in the same auction as a sibling
+  // under the same parent category. Never holds this subcategory's own
+  // terms (those go on the siblings' sets instead) — see
+  // `google-ads-negative-keywords.ts`.
+  negativeKeywordSetResourceId String? @map("negative_keyword_set_resource_id")
+
   status           GoogleAdsCampaignStatus @default(pending_creation)
   dailyBudgetMinor Int                     @default(0) @map("daily_budget_minor")
   maxCpcMinor      Int                     @default(0) @map("max_cpc_minor")

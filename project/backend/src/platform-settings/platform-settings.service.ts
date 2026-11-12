@@ -42,6 +42,11 @@ export const SETTING_KEYS = {
   googleAdsAgentStructuralIntervalMinutes: 'google_ads_agent_structural_interval_minutes',
   googleAdsAgentContentIntervalMinutes: 'google_ads_agent_content_interval_minutes',
   googleAdsAgentIntelligenceIntervalMinutes: 'google_ads_agent_intelligence_interval_minutes',
+  // Machine-written only (never exposed through the admin settings PATCH) —
+  // the one account-wide conversion action created once (research doc,
+  // Direction 3) and reused by every subcategory campaign's ads.
+  googleAdsConversionActionResourceName: 'google_ads_conversion_action_resource_name',
+  googleAdsAgentAutoApplyRecommendationTypes: 'google_ads_agent_auto_apply_recommendation_types',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -154,6 +159,21 @@ const MAX_GOOGLE_ADS_AGENT_MAX_DAILY_BUDGET_CAP_CREDITS = 100_000;
 const DEFAULT_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS = 5;
 const MIN_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS = 0.01;
 const MAX_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS = 1000;
+
+/** Recommendation `type` strings (research doc, Direction 4) the agent is
+ *  allowed to auto-apply with no human review. Defaults to EMPTY, not a
+ *  guessed list — the exact `recommendation.type` enum strings Google
+ *  returns were not confirmed live during research (flagged in the doc),
+ *  so starting with real maintenance-only types hardcoded here risks
+ *  silently auto-applying something that touches bid/targeting. Everything
+ *  the pass reads is still visible in the admin panel's action log (kind
+ *  `recommendation.*`); an admin adds a type here (comma-separated) only
+ *  once they've confirmed, from that log, exactly what it means for THIS
+ *  account. Anything not in this allowlist and not hard-blocked (targeting/
+ *  Display expansion — never auto-applied, see
+ *  `google-ads-agent-recommendations.service.ts`) is queued for manual
+ *  approval, same as a budget/CPC increase. */
+const DEFAULT_AUTO_APPLY_RECOMMENDATION_TYPES = '';
 
 /** How often each Google Ads agent pass is allowed to run, in minutes since
  *  its own last run — read live on every poll tick (see the 3
@@ -816,6 +836,33 @@ export class PlatformSettingsService {
       MIN_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS,
       MAX_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS,
     );
+  }
+
+  /** The one account-wide conversion action's resource name (research doc,
+   *  Direction 3), created once (lazily, by whichever pass needs it first)
+   *  and reused forever after — never recreated. `null` until then. */
+  async googleAdsConversionActionResourceName(): Promise<string | null> {
+    return (await this.get(SETTING_KEYS.googleAdsConversionActionResourceName))?.trim() || null;
+  }
+  async setGoogleAdsConversionActionResourceName(resourceName: string): Promise<void> {
+    await this.set(SETTING_KEYS.googleAdsConversionActionResourceName, resourceName.trim());
+  }
+
+  /** Recommendation `type` strings allowed to auto-apply with no review —
+   *  see `DEFAULT_AUTO_APPLY_RECOMMENDATION_TYPES` for why this starts empty. */
+  async googleAdsAgentAutoApplyRecommendationTypes(): Promise<string[]> {
+    const raw =
+      (await this.get(SETTING_KEYS.googleAdsAgentAutoApplyRecommendationTypes)) ??
+      DEFAULT_AUTO_APPLY_RECOMMENDATION_TYPES;
+    return raw
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+  }
+  async setGoogleAdsAgentAutoApplyRecommendationTypes(types: string[]): Promise<string[]> {
+    const cleaned = types.map((t) => t.trim().toUpperCase()).filter(Boolean);
+    await this.set(SETTING_KEYS.googleAdsAgentAutoApplyRecommendationTypes, cleaned.join(','));
+    return cleaned;
   }
 
   // --- Google Ads account (credentials the agent + the legacy CPC sync both

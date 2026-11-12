@@ -71,6 +71,10 @@ function fakeNotifications() {
   return { notify: jest.fn().mockResolvedValue(undefined) } as never;
 }
 
+function fakeRecommendations() {
+  return { reconcile: jest.fn().mockResolvedValue(false) } as never;
+}
+
 function fakePrisma(
   opts: {
     categories?: any[];
@@ -122,6 +126,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
       await (svc as any).tick();
       expect((prisma as any).googleAdsAgentRun.create).not.toHaveBeenCalled();
@@ -135,6 +140,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings({ enabled: false }),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
       await (svc as any).tick();
       expect((prisma as any).googleAdsAgentRun.create).not.toHaveBeenCalled();
@@ -148,6 +154,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings({ intervalMinutes: 360 }),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
       await (svc as any).tick();
       expect((prisma as any).googleAdsAgentRun.create).not.toHaveBeenCalled();
@@ -164,6 +171,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings({ intervalMinutes: 360 }),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
       await (svc as any).tick();
       expect((prisma as any).googleAdsAgentRun.create).toHaveBeenCalled();
@@ -177,6 +185,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
       await (svc as any).tick();
       expect((prisma as any).googleAdsAgentRun.create).toHaveBeenCalled();
@@ -197,6 +206,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         notifications,
+        fakeRecommendations(),
       );
 
       await expect(svc.run()).rejects.toThrow('db exploded');
@@ -225,6 +235,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
       await svc.run();
       expect((prisma as any).googleAdsAgentRun.create).not.toHaveBeenCalled();
@@ -242,6 +253,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
       await svc.run();
       expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
@@ -268,6 +280,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -301,7 +314,12 @@ describe('GoogleAdsAgentStructuralService', () => {
 
     it('resumes a paused campaign when ≥1 company is active again', async () => {
       const mutate = jest.fn().mockResolvedValue([]);
-      const mapping = { id: 'map-1', googleCampaignId: '111', status: 'paused' };
+      const mapping = {
+        id: 'map-1',
+        googleCampaignId: '111',
+        status: 'paused',
+        negativeKeywordSetResourceId: '999',
+      };
       const prisma = fakePrisma({
         categories: [{ ...CATEGORY, googleAdsCampaign: mapping }],
         activeCompanyCounts: [2],
@@ -312,6 +330,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -333,7 +352,15 @@ describe('GoogleAdsAgentStructuralService', () => {
 
     it('does nothing (just touches the timestamp) for an active campaign that still has companies', async () => {
       const mutate = jest.fn();
-      const mapping = { id: 'map-1', googleCampaignId: '111', status: 'active' };
+      // Already has its negative-keyword set from a previous tick (Direction
+      // 1, research doc) — otherwise `ensureNegativeKeywordSet()` would make
+      // its one-time backfill mutate call here instead of truly no-op'ing.
+      const mapping = {
+        id: 'map-1',
+        googleCampaignId: '111',
+        status: 'active',
+        negativeKeywordSetResourceId: '999',
+      };
       const prisma = fakePrisma({
         categories: [{ ...CATEGORY, googleAdsCampaign: mapping }],
         activeCompanyCounts: [3],
@@ -344,6 +371,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -373,6 +401,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -385,12 +414,17 @@ describe('GoogleAdsAgentStructuralService', () => {
     it('creates a full skeleton (budget + campaign + geo/language targeting + ad group) for a new subcategory with ≥1 active company', async () => {
       const mutate = jest
         .fn()
-        .mockResolvedValue([
+        .mockResolvedValueOnce([
           { campaignBudgetResult: { resourceName: 'customers/1234567890/campaignBudgets/555' } },
           { campaignResult: { resourceName: 'customers/1234567890/campaigns/666' } },
           { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~111' } },
           { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~222' } },
           { adGroupResult: { resourceName: 'customers/1234567890/adGroups/777' } },
+        ])
+        // The negative-keyword shared-set creation `ensureNegativeKeywordSet()`
+        // makes right after the skeleton itself (Direction 1, research doc).
+        .mockResolvedValueOnce([
+          { sharedSetResult: { resourceName: 'customers/1234567890/sharedSets/999' } },
         ]);
       const prisma = fakePrisma({
         categories: [{ ...CATEGORY, googleAdsCampaign: null }],
@@ -402,11 +436,12 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings({ dailyBudget: 5, maxCpc: 1, eurRon: 5 }),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
 
-      expect(mutate).toHaveBeenCalledTimes(1);
+      expect(mutate).toHaveBeenCalledTimes(2);
       const ops = mutate.mock.calls[0][0];
       expect(ops).toHaveLength(5);
       expect(ops[0].campaignBudgetOperation.create.amountMicros).toBe('5000000'); // 5 credits EUR
@@ -444,6 +479,21 @@ describe('GoogleAdsAgentStructuralService', () => {
       expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ action: 'campaign.create' }) }),
       );
+      // Direction 1 (research doc) — the new campaign's own negative-
+      // keyword shared set gets created and persisted right away.
+      const sharedSetOp = mutate.mock.calls[1][0];
+      expect(sharedSetOp).toEqual([
+        expect.objectContaining({
+          sharedSetOperation: expect.objectContaining({
+            create: expect.objectContaining({ type: 'NEGATIVE_KEYWORDS' }),
+          }),
+        }),
+      ]);
+      expect((prisma as any).googleAdsSubcategoryCampaign.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ negativeKeywordSetResourceId: '999' }),
+        }),
+      );
     });
 
     it('does not record a mapping when the mutate response is missing a resource name, and marks the run partial', async () => {
@@ -464,6 +514,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -491,6 +542,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -533,6 +585,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -574,6 +627,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -609,6 +663,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -630,7 +685,12 @@ describe('GoogleAdsAgentStructuralService', () => {
           },
         },
       ]);
-      const mapping = { id: 'map-1', googleCampaignId: '111', status: 'active' };
+      const mapping = {
+        id: 'map-1',
+        googleCampaignId: '111',
+        status: 'active',
+        negativeKeywordSetResourceId: '999',
+      };
       const prisma = fakePrisma({
         categories: [{ ...CATEGORY, googleAdsCampaign: mapping }],
         activeCompanyCounts: [1],
@@ -643,6 +703,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -669,7 +730,15 @@ describe('GoogleAdsAgentStructuralService', () => {
 
     it("doesn't touch geo targeting (no mutate, no action row) when it already matches", async () => {
       const mutate = jest.fn().mockResolvedValue([]);
-      const mapping = { id: 'map-1', googleCampaignId: '111', status: 'active' };
+      // Already has its negative-keyword set (Direction 1, research doc) —
+      // otherwise `ensureNegativeKeywordSet()` would make its one-time
+      // backfill mutate call here too.
+      const mapping = {
+        id: 'map-1',
+        googleCampaignId: '111',
+        status: 'active',
+        negativeKeywordSetResourceId: '999',
+      };
       const prisma = fakePrisma({
         categories: [{ ...CATEGORY, googleAdsCampaign: mapping }],
         activeCompanyCounts: [1],
@@ -681,6 +750,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();
@@ -712,6 +782,7 @@ describe('GoogleAdsAgentStructuralService', () => {
         fakeSettings(),
         prisma,
         fakeNotifications(),
+        fakeRecommendations(),
       );
 
       await svc.run();

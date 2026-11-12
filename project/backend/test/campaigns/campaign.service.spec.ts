@@ -226,6 +226,10 @@ function fakeBusinessActionLog() {
   return { log: jest.fn(async () => undefined) };
 }
 
+function fakeGoogleAdsAgent() {
+  return { scheduleRecheck: jest.fn(async () => undefined) };
+}
+
 function makeService() {
   const prisma = fakePrisma();
   const wallet = fakeWallet();
@@ -234,6 +238,7 @@ function makeService() {
   const notifications = fakeNotifications();
   const businessActionLog = fakeBusinessActionLog();
   const config = fakeConfig();
+  const googleAdsAgent = fakeGoogleAdsAgent();
   const svc = new CampaignService(
     prisma as any,
     wallet as any,
@@ -242,8 +247,19 @@ function makeService() {
     notifications as any,
     businessActionLog as any,
     config as any,
+    googleAdsAgent as any,
   );
-  return { svc, prisma, wallet, analytics, affiliate, notifications, businessActionLog, config };
+  return {
+    svc,
+    prisma,
+    wallet,
+    analytics,
+    affiliate,
+    notifications,
+    businessActionLog,
+    config,
+    googleAdsAgent,
+  };
 }
 
 describe('CampaignService', () => {
@@ -354,7 +370,7 @@ describe('CampaignService', () => {
     });
 
     it('calls affiliate.maybeReward on first activation', async () => {
-      const { svc, prisma, wallet, affiliate } = makeService();
+      const { svc, prisma, wallet, affiliate, googleAdsAgent } = makeService();
       prisma.__seedMember('co1', 'u1', 'owner');
       prisma.__seedCompany({ id: 'co1', ownerUserId: 'owner1' });
       prisma.__seedCampaign({ companyId: 'co1', activatedAt: null });
@@ -375,6 +391,9 @@ describe('CampaignService', () => {
       });
       await svc.activate('u1', 'co1');
       expect(affiliate.maybeReward).toHaveBeenCalledWith('owner1');
+      // Research doc, Direction 5: activating a client's own feed campaign
+      // debounced-triggers the Google Ads agent for that company.
+      expect(googleAdsAgent.scheduleRecheck).toHaveBeenCalledWith('co1');
     });
   });
 
@@ -387,7 +406,7 @@ describe('CampaignService', () => {
     });
 
     it('calls setLive with paused for active campaign', async () => {
-      const { svc, prisma } = makeService();
+      const { svc, prisma, googleAdsAgent } = makeService();
       prisma.__seedMember('co1', 'u1', 'owner');
       prisma.__seedCompany({ id: 'co1', ownerUserId: 'owner1' });
       prisma.campaign.findUnique.mockResolvedValue(
@@ -405,6 +424,7 @@ describe('CampaignService', () => {
       await svc.pause('u1', 'co1');
       const calls = (prisma.$transaction as jest.Mock).mock.calls;
       expect(calls.length).toBeGreaterThan(0);
+      expect(googleAdsAgent.scheduleRecheck).toHaveBeenCalledWith('co1');
     });
   });
 

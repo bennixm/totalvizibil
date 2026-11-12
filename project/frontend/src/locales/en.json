@@ -97,6 +97,8 @@
     "error": "Couldn't load the results.",
     "pickCategoryTitle": "Choose a category to see businesses",
     "pickCategoryHint": "Pick a field above. Listings only appear once you select at least a category.",
+    "geoAutoFilterBanner": "Showing results for {county} county.",
+    "geoAutoFilterClear": "See all counties",
     "seoTitleGroup": "{group} · local businesses",
     "seoTitleNiche": "{niche} ({group}) · local businesses",
     "seoDesc": "Active {category} businesses on Totalvizibil · ranked by visibility score, filtered by area.",

@@ -11,6 +11,7 @@ import DiscountBanner from '@/components/DiscountBanner.vue'
 import { useFeedStore, isCompleteServicesSlug } from '@/stores/feed'
 import { useSeo } from '@/composables/useSeo'
 import { feedCategoryRoute } from '@/services/routes'
+import { apiFetch } from '@/services/api'
 import type { LocalizedName } from '@/stores/companies'
 
 const props = defineProps<{ group?: string | null; niche?: string | null }>()
@@ -120,6 +121,40 @@ function syncCategory(): void {
   feed.loadFeed()
 }
 
+/**
+ * Research doc, Direction 6: when a visitor arrives from a Google Ads click,
+ * the ad's ValueTrack suffix carries `?loc=<geoTargetId>` (the click's
+ * physical județ). Resolved server-side (never ships the full geo table to
+ * the client) and, when it matches a known județ, pre-applies that as the
+ * feed's own county filter — so a Cluj searcher clicking a Cluj-targeted ad
+ * lands pre-filtered to Cluj listings. Best-effort and silent on failure:
+ * an unresolved/missing `loc` just leaves the feed unfiltered, same as
+ * today. Never overrides a county the visitor (or a prior auto-filter)
+ * already picked.
+ */
+const geoAutoFilterCounty = ref<string | null>(null)
+
+async function applyGeoAutoFilter(): Promise<void> {
+  const loc = typeof route.query.loc === 'string' ? route.query.loc : null
+  if (!loc || feed.filters.county) return
+  try {
+    const res = await apiFetch<{ county: string | null }>(
+      `/geo/resolve-google-ads-county?geoTargetId=${encodeURIComponent(loc)}`,
+    )
+    if (res.county) {
+      feed.setCounty(res.county)
+      geoAutoFilterCounty.value = res.county
+    }
+  } catch {
+    // Best-effort personalization — a lookup failure must never break the page.
+  }
+}
+
+function clearGeoAutoFilter(): void {
+  geoAutoFilterCounty.value = null
+  feed.setCounty(null)
+}
+
 onMounted(async () => {
   // `loadFacets()` has no internal error handling — an unguarded rejection
   // here (a network hiccup) used to kill this WHOLE `onMounted`, so
@@ -142,6 +177,9 @@ onMounted(async () => {
     }
   }
 
+  // Before syncCategory()'s own loadFeed, so the first fetch already carries
+  // the resolved county instead of fetching twice.
+  await applyGeoAutoFilter()
   syncCategory()
 })
 
@@ -196,6 +234,14 @@ async function go(n: number): Promise<void> {
         {{ t('nav.createBusiness') }}
       </v-btn>
     </header>
+
+    <div v-if="geoAutoFilterCounty" class="feed__geo-banner">
+      <v-icon icon="mdi-map-marker-outline" size="18" />
+      <span>{{ t('feed.geoAutoFilterBanner', { county: geoAutoFilterCounty }) }}</span>
+      <button type="button" class="feed__geo-banner-clear" @click="clearGeoAutoFilter">
+        {{ t('feed.geoAutoFilterClear') }}
+      </button>
+    </div>
 
     <DiscountBanner v-if="!routeCategory" class="feed__affiliate" />
     <AffiliateBanner v-if="!routeCategory" class="feed__affiliate" />
@@ -309,6 +355,38 @@ async function go(n: number): Promise<void> {
   width: var(--feed-w);
   margin-inline: auto;
   margin-bottom: 2rem;
+}
+.feed__geo-banner {
+  width: var(--feed-w);
+  margin-inline: auto;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--tvz-radius-lg);
+  border: 1px solid var(--tvz-glass-border);
+  background: rgba(var(--v-theme-primary), 0.07);
+  color: rgba(var(--v-theme-on-surface), 0.8);
+  font-size: 0.85rem;
+}
+.feed__geo-banner .v-icon {
+  color: rgb(var(--v-theme-primary));
+  flex: none;
+}
+.feed__geo-banner span {
+  flex: 1 1 auto;
+}
+.feed__geo-banner-clear {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  cursor: pointer;
+  text-decoration: underline;
 }
 .feed__body {
   width: var(--feed-w);
