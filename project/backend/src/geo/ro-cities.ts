@@ -66,7 +66,11 @@ export const RO_COUNTIES: readonly string[] = [
   'Vrancea',
 ];
 
-function foldCounty(s: string): string {
+/** Diacritic-insensitive, case-insensitive normalizer for a județ name —
+ *  exported so any service can match a județ against an external source
+ *  that doesn't use our diacritics (e.g. Google Ads' own ASCII county
+ *  names) without re-implementing this. */
+export function foldCounty(s: string): string {
   return (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 

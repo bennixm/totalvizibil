@@ -17,7 +17,16 @@ const CREDENTIAL_REFRESH_INTERVAL_MS = 60_000;
 export interface GoogleAdsSearchRow {
   customer?: { currencyCode?: string };
   metrics?: { costMicros?: string; clicks?: string };
-  geoTargetConstant?: { resourceName?: string; countryCode?: string; targetType?: string };
+  geoTargetConstant?: {
+    resourceName?: string;
+    countryCode?: string;
+    targetType?: string;
+    name?: string;
+  };
+  campaignCriterion?: {
+    resourceName?: string;
+    location?: { geoTargetConstant?: string };
+  };
   languageConstant?: { resourceName?: string; code?: string };
   [key: string]: unknown;
 }
@@ -61,6 +70,13 @@ interface GoogleAdsOperationBody {
    *  in `updateMask` — the Google Ads API rejects an update without one. */
   update?: Record<string, unknown>;
   updateMask?: string;
+  /** The resource name to delete — mutually exclusive with `create`/
+   *  `update` (Google Ads' own oneof). Used for criteria (e.g. dropping a
+   *  stale geo-targeting county) a campaign no longer needs; a *campaign*
+   *  itself can't be removed this way through `status` (Google rejects
+   *  `status: 'REMOVED'` on an update — this `remove` field is the only
+   *  path), confirmed live. */
+  remove?: string;
 }
 
 export interface GoogleAdsMutateResult {

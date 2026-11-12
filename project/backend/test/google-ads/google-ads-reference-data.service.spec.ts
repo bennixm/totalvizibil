@@ -55,6 +55,35 @@ describe('GoogleAdsReferenceDataService', () => {
     await expect(svc.getAccountCurrencyCode()).rejects.toThrow(/no result/i);
   });
 
+  it('resolves every județ to its geoTargetConstant, keyed diacritic/case-insensitively, then caches it', async () => {
+    const search = jest
+      .fn()
+      .mockResolvedValue([
+        { geoTargetConstant: { name: 'Constanta', resourceName: 'geoTargetConstants/20899' } },
+        { geoTargetConstant: { name: 'Cluj', resourceName: 'geoTargetConstants/20828' } },
+      ]);
+    const svc = new GoogleAdsReferenceDataService(fakeClient(search));
+
+    const map = await svc.getCountyGeoTargetConstants();
+    // Looking up with the canonical (diacritic) spelling must still match
+    // Google's own ASCII-only name.
+    expect(map.get('constanța'.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase())).toBe(
+      'geoTargetConstants/20899',
+    );
+    expect(map.get('cluj')).toBe('geoTargetConstants/20828');
+
+    await svc.getCountyGeoTargetConstants();
+    expect(search).toHaveBeenCalledTimes(1); // second call hit the cache
+    expect(search.mock.calls[0][0]).toContain("target_type = 'County'");
+  });
+
+  it('throws rather than guessing when the county lookup returns nothing', async () => {
+    const search = jest.fn().mockResolvedValue([]);
+    const svc = new GoogleAdsReferenceDataService(fakeClient(search));
+
+    await expect(svc.getCountyGeoTargetConstants()).rejects.toThrow(/no result/i);
+  });
+
   it('clearCache() forces a fresh lookup', async () => {
     const search = jest
       .fn()

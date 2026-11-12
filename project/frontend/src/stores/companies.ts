@@ -128,7 +128,14 @@ export interface DashboardPayload {
     displayName: string
     slug: string
     status: CompanyStatus
-    category: { id: string; slug: string; name: LocalizedName } | null
+    category: {
+      id: string
+      slug: string
+      name: LocalizedName
+      /** The top-level category (e.g. "Instalații") — null only for a
+       *  (non-leaf) category with no parent of its own. */
+      parent: { id: string; slug: string; name: LocalizedName } | null
+    } | null
     /** Full subcategory tagging (one or several real leaves) — `category` above is just the primary. */
     categories: { id: string; slug: string; name: LocalizedName; isPrimary: boolean }[]
     primaryLocation: CompanyLocation | null
