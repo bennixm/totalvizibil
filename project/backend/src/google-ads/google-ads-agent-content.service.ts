@@ -114,6 +114,10 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
     let categoriesScanned = 0;
     let actionsTaken = 0;
     let claudeCostEstimateMinor = 0;
+    let claudeInputTokens = 0;
+    let claudeOutputTokens = 0;
+    let claudeCallCount = 0;
+    let claudeModel: string | null = null;
     let hadError = false;
 
     try {
@@ -128,6 +132,12 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
           const result = await this.generateAndActivate(mapping);
           if (result.activated) actionsTaken++;
           claudeCostEstimateMinor += result.costEstimateMinor;
+          if (result.model) {
+            claudeInputTokens += result.inputTokens;
+            claudeOutputTokens += result.outputTokens;
+            claudeCallCount += 1;
+            claudeModel = result.model;
+          }
         } catch (err) {
           hadError = true;
           this.logger.error(
@@ -145,6 +155,10 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
           categoriesScanned,
           actionsTaken,
           claudeCostEstimateMinor,
+          claudeModel,
+          claudeInputTokens,
+          claudeOutputTokens,
+          claudeCallCount,
         },
       });
     } catch (err) {
@@ -157,6 +171,10 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
           categoriesScanned,
           actionsTaken,
           claudeCostEstimateMinor,
+          claudeModel,
+          claudeInputTokens,
+          claudeOutputTokens,
+          claudeCallCount,
           errorSummary,
         },
       });
@@ -170,7 +188,13 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
    *  itself failed — no partial usage to estimate from). */
   private async generateAndActivate(
     mapping: MappingWithCategory,
-  ): Promise<{ activated: boolean; costEstimateMinor: number }> {
+  ): Promise<{
+    activated: boolean;
+    costEstimateMinor: number;
+    inputTokens: number;
+    outputTokens: number;
+    model: string | null;
+  }> {
     const category = mapping.category;
     const businessNames = (
       await this.prisma.company.findMany({
@@ -194,7 +218,7 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       this.logger.warn(
         `No usable Google Ads keyword plan for category '${category.slug}' — leaving it pending_creation.`,
       );
-      return { activated: false, costEstimateMinor: 0 };
+      return { activated: false, costEstimateMinor: 0, inputTokens: 0, outputTokens: 0, model: null };
     }
 
     if (!mapping.googleAdGroupId || !mapping.googleCampaignId) {
@@ -261,7 +285,13 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       }),
     ]);
 
-    return { activated: true, costEstimateMinor: plan.costEstimateMinor };
+    return {
+      activated: true,
+      costEstimateMinor: plan.costEstimateMinor,
+      inputTokens: plan.inputTokens,
+      outputTokens: plan.outputTokens,
+      model: plan.model,
+    };
   }
 
   private plainName(nameI18n: Prisma.JsonValue): string {

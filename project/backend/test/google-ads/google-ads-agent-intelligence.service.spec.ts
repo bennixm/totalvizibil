@@ -277,15 +277,29 @@ describe('GoogleAdsAgentIntelligenceService.run()', () => {
     );
   });
 
-  it('records the rough Claude cost estimate on the run row', async () => {
-    const proposals = jest.fn().mockResolvedValue({ proposals: [], costEstimateMinor: 7 });
+  it('records the rough Claude cost estimate and token/model usage on the run row (finance module reads these)', async () => {
+    const proposals = jest.fn().mockResolvedValue({
+      proposals: [],
+      costEstimateMinor: 7,
+      inputTokens: 400,
+      outputTokens: 150,
+      model: 'claude-sonnet-5',
+    });
     const prisma = fakePrisma();
     const { svc } = makeService({ ai: fakeAi({ proposals }), prisma });
 
     await svc.run();
 
     expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ claudeCostEstimateMinor: 7 }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({
+          claudeCostEstimateMinor: 7,
+          claudeModel: 'claude-sonnet-5',
+          claudeInputTokens: 400,
+          claudeOutputTokens: 150,
+          claudeCallCount: 1,
+        }),
+      }),
     );
   });
 

@@ -48,6 +48,11 @@ export interface GoogleAdsKeywordPlan {
    *  `estimateClaudeCostMinor()`. For the admin panel's cost-tracking tab
    *  (`GoogleAdsAgentRun.claudeCostEstimateMinor`), not real billing. */
   costEstimateMinor: number;
+  /** Raw usage, so the caller can roll it into `GoogleAdsAgentRun`'s own
+   *  token/model columns for the finance module's "Consum AI" report. */
+  inputTokens: number;
+  outputTokens: number;
+  model: string;
 }
 
 /** Google Ads agent — daily batch budget/CPC proposal, one Claude call
@@ -75,6 +80,10 @@ export interface GoogleAdsBudgetIntelligenceResult {
   proposals: GoogleAdsBudgetProposal[];
   /** See `GoogleAdsKeywordPlan.costEstimateMinor`. */
   costEstimateMinor: number;
+  /** See `GoogleAdsKeywordPlan.inputTokens`/`outputTokens`/`model`. */
+  inputTokens: number;
+  outputTokens: number;
+  model: string;
 }
 
 const TIMEOUT_MS = 20_000;
@@ -579,7 +588,15 @@ export class AiService {
       );
       return null;
     }
-    return { keywords, headlines, descriptions, costEstimateMinor: estimateClaudeCostMinor(result.usage) };
+    return {
+      keywords,
+      headlines,
+      descriptions,
+      costEstimateMinor: estimateClaudeCostMinor(result.usage),
+      inputTokens: result.usage.input_tokens,
+      outputTokens: result.usage.output_tokens,
+      model: this.anthropicModelFast,
+    };
   }
 
   /**
@@ -635,6 +652,12 @@ export class AiService {
         reasoning: String(o.reasoning ?? '').trim().slice(0, 500),
       });
     }
-    return { proposals, costEstimateMinor: estimateClaudeCostMinor(result.usage) };
+    return {
+      proposals,
+      costEstimateMinor: estimateClaudeCostMinor(result.usage),
+      inputTokens: result.usage.input_tokens,
+      outputTokens: result.usage.output_tokens,
+      model: this.anthropicModelFast,
+    };
   }
 }

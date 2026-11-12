@@ -447,7 +447,15 @@ model GoogleAdsAgentRun {
 
   // Credits (same minor-unit convention as the wallet), estimated from
   // Claude usage tokens — rough, for the admin panel's cost tracking tab only.
+  // Also rolled into the finance module's "Consum AI" report/export and its
+  // overall cost/profit totals — see finance.service.ts's `campaignAgentCostMinor`.
   claudeCostEstimateMinor Int?    @map("claude_cost_estimate_minor")
+  // The model actually used for this run's Claude call(s) — null for a run
+  // that made none (e.g. a structural pass, or one that found no proposals).
+  claudeModel             String? @map("claude_model")
+  claudeInputTokens       Int     @default(0) @map("claude_input_tokens")
+  claudeOutputTokens      Int     @default(0) @map("claude_output_tokens")
+  claudeCallCount         Int     @default(0) @map("claude_call_count")
   errorSummary            String? @map("error_summary")
 
   @@index([kind, status])

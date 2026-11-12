@@ -186,6 +186,7 @@ export class FinanceService {
         otherSpendRows,
         expenseRows,
         aiRows,
+        googleAdsAgentAgg,
         walletTotals,
         blockedWalletTotals,
         refundInFlightTotals,
@@ -232,6 +233,13 @@ export class FinanceService {
         this.prisma.aiUsageRecord.findMany({
           where: dateFilter,
           select: { estimatedCostUsd: true, createdAt: true },
+        }),
+        // Google Ads campaign-management agent's own Claude spend — a real
+        // platform operating cost, never charged to any customer wallet
+        // (there's no "revenue" counterpart, unlike `aiRows` above).
+        this.prisma.googleAdsAgentRun.aggregate({
+          where: { startedAt: { gte: from, lte: to } },
+          _sum: { claudeCostEstimateMinor: true },
         }),
         // --- point-in-time balance-sheet figures (deliberately NOT period
         // scoped: a liability is what's owed right now, not what was owed
@@ -337,8 +345,12 @@ export class FinanceService {
     for (const row of expenseRows) expensesByCategory[row.category] += row.amountMinor;
 
     const aiCostMinor = usdToEurMinor(aiRows.reduce((s, r) => s + r.estimatedCostUsd, 0));
+    // Already EUR-minor units at write time (see `GoogleAdsAgentRun.claudeCostEstimateMinor`'s
+    // field comment) — not USD, so no `usdToEurMinor` pass here (that would double-apply
+    // the *100 conversion).
+    const campaignAgentCostMinor = googleAdsAgentAgg._sum.claudeCostEstimateMinor ?? 0;
     const operatingCostMinor = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
-    const totalCostMinor = operatingCostMinor + aiCostMinor;
+    const totalCostMinor = operatingCostMinor + aiCostMinor + campaignAgentCostMinor;
     // Real profit = earned revenue (credits actually consumed, real money)
     // minus EVERY cost — never `revenueMinor` (money collected): an unspent
     // credit is still refundable, so it isn't profit yet, per the same
@@ -351,10 +363,12 @@ export class FinanceService {
     // usage (real money, same blended weighting as everything else here)
     // minus what the platform actually paid Claude/DeepSeek for it, plus the
     // builder-unlock one-off fee (same weighting) — together "Profit Builder
-    // AI". `campaignAgentCostMinor` is a placeholder: the Google-Ads
-    // campaign-management AI agent doesn't exist yet (a future addition),
-    // so there is nothing real to sum here — `campaignAgentAvailable: false`
-    // lets the UI show "coming soon" instead of a misleading €0,00.
+    // AI". `campaignAgentCostMinor` is deliberately NOT subtracted from
+    // `aiPromptProfitMinor` here: the campaign agent has no "prompt revenue"
+    // counterpart (nobody's wallet is charged for it — see its own cost row
+    // below), so folding it in would misattribute an unrelated cost to the
+    // builder's own profit figure. It's still a real operating cost, so it IS
+    // included in `totalCostMinor`/`profitMinor` above.
     const aiPromptRevenueRealMoneyMinor = Math.round(otherFeesByCategory.aiUsage * grossToNetRatio);
     const aiPromptProfitMinor = aiPromptRevenueRealMoneyMinor - aiCostMinor;
     const aiBuilderUnlockRevenueRealMoneyMinor = Math.round(
@@ -366,8 +380,8 @@ export class FinanceService {
       promptProfitMinor: aiPromptProfitMinor,
       builderUnlockRevenueRealMoneyMinor: aiBuilderUnlockRevenueRealMoneyMinor,
       totalProfitMinor: aiPromptProfitMinor + aiBuilderUnlockRevenueRealMoneyMinor,
-      campaignAgentCostMinor: 0,
-      campaignAgentAvailable: false,
+      campaignAgentCostMinor,
+      campaignAgentAvailable: true,
     };
 
     // Daily trend for the chart — bucket every row into its UTC day. AI cost
@@ -524,7 +538,7 @@ export class FinanceService {
     profitMinor: number;
   }> {
     const dateFilter = { createdAt: { gte: from, lte: to } };
-    const [purchaseRows, spendAgg, expenseAgg, aiAgg] = await Promise.all([
+    const [purchaseRows, spendAgg, expenseAgg, aiAgg, googleAdsAgentAgg] = await Promise.all([
       this.prisma.walletTransaction.findMany({
         where: { type: 'purchase', status: 'completed', ...dateFilter, ...NOT_VOIDED_INVOICE },
         select: { amountMinor: true, eurCents: true },
@@ -541,6 +555,10 @@ export class FinanceService {
         where: dateFilter,
         _sum: { estimatedCostUsd: true },
       }),
+      this.prisma.googleAdsAgentRun.aggregate({
+        where: { startedAt: { gte: from, lte: to } },
+        _sum: { claudeCostEstimateMinor: true },
+      }),
     ]);
 
     const grossRevenueMinor = purchaseRows.reduce((s, r) => s + r.amountMinor, 0);
@@ -555,7 +573,9 @@ export class FinanceService {
 
     const operatingCostMinor = expenseAgg._sum.amountMinor ?? 0;
     const aiCostMinor = usdToEurMinor(aiAgg._sum.estimatedCostUsd ?? 0);
-    const totalCostMinor = operatingCostMinor + aiCostMinor;
+    // Already EUR-minor at write time — see the matching comment in `overview()`.
+    const campaignAgentCostMinor = googleAdsAgentAgg._sum.claudeCostEstimateMinor ?? 0;
+    const totalCostMinor = operatingCostMinor + aiCostMinor + campaignAgentCostMinor;
 
     return {
       consumedRevenueRealMoneyMinor,
@@ -979,29 +999,55 @@ export class FinanceService {
 
   private async aiRows(q: FinancePeriodQuery) {
     const { from, to } = this.resolveRange(q);
-    const rows = await this.prisma.aiUsageRecord.findMany({
-      where: { createdAt: { gte: from, lte: to } },
-      select: {
-        provider: true,
-        model: true,
-        taskCategory: true,
-        inputTokens: true,
-        outputTokens: true,
-        estimatedCostUsd: true,
-        createdAt: true,
-      },
-    });
-    return { rows, from, to };
+    const [rows, googleAdsAgentRuns] = await Promise.all([
+      this.prisma.aiUsageRecord.findMany({
+        where: { createdAt: { gte: from, lte: to } },
+        select: {
+          provider: true,
+          model: true,
+          taskCategory: true,
+          inputTokens: true,
+          outputTokens: true,
+          estimatedCostUsd: true,
+          createdAt: true,
+        },
+      }),
+      // The Google Ads campaign-management agent's own Claude spend — kept
+      // under a distinct `provider` ("google-ads-agent", never "claude") so
+      // it can never silently merge into — and get mistaken for — ordinary
+      // builder usage of the same underlying model.
+      this.prisma.googleAdsAgentRun.findMany({
+        where: { startedAt: { gte: from, lte: to }, claudeCostEstimateMinor: { not: null } },
+        select: {
+          claudeModel: true,
+          claudeInputTokens: true,
+          claudeOutputTokens: true,
+          claudeCostEstimateMinor: true,
+          claudeCallCount: true,
+        },
+      }),
+    ]);
+    return { rows, googleAdsAgentRuns, from, to };
   }
 
-  async aiUsageReport(q: FinancePeriodQuery) {
-    const { rows, from, to } = await this.aiRows(q);
-
-    // Accumulate raw (unrounded) USD per model and round to minor units
-    // exactly ONCE at the end — rounding each row first (as this used to)
-    // drops every sub-cent call to 0 individually, so a model made up of
-    // many cheap calls could show €0,00 here while still contributing real
-    // cost to `totalCostMinor` below, which rounds its sum only once.
+  /** Builds the same "accumulate raw USD, round once" per-(provider,model)
+   *  map `aiUsageReport`/`exportAiUsagePdf` both render, folding in the
+   *  campaign agent's runs (already EUR-minor at write time — see
+   *  `GoogleAdsAgentRun.claudeCostEstimateMinor`'s field comment — divided
+   *  back by 100 here so it accumulates in the same raw-USD unit as every
+   *  other bucket, and reassembled into minor units the same way for all of
+   *  them below). Never charged to any customer, unlike the AiUsageRecord
+   *  rows, so its bucket is never included in `usdToChargedMinor`. */
+  private buildAiByModelMap(
+    rows: { provider: string; model: string; inputTokens: number; outputTokens: number; estimatedCostUsd: number }[],
+    googleAdsAgentRuns: {
+      claudeModel: string | null;
+      claudeInputTokens: number;
+      claudeOutputTokens: number;
+      claudeCostEstimateMinor: number | null;
+      claudeCallCount: number;
+    }[],
+  ) {
     const byModel = new Map<
       string,
       { provider: string; model: string; calls: number; tokens: number; costUsd: number }
@@ -1020,15 +1066,53 @@ export class FinanceService {
       bucket.costUsd += r.estimatedCostUsd;
       byModel.set(key, bucket);
     }
+    for (const r of googleAdsAgentRuns) {
+      const model = r.claudeModel ?? 'necunoscut';
+      const key = `google-ads-agent:${model}`;
+      const bucket = byModel.get(key) ?? {
+        provider: 'google-ads-agent',
+        model,
+        calls: 0,
+        tokens: 0,
+        costUsd: 0,
+      };
+      bucket.calls += r.claudeCallCount;
+      bucket.tokens += r.claudeInputTokens + r.claudeOutputTokens;
+      bucket.costUsd += (r.claudeCostEstimateMinor ?? 0) / 100;
+      byModel.set(key, bucket);
+    }
+    return byModel;
+  }
 
-    const totalCostMinor = usdToEurMinor(rows.reduce((s, r) => s + r.estimatedCostUsd, 0));
-    const totalTokens = rows.reduce((s, r) => s + r.inputTokens + r.outputTokens, 0);
+  async aiUsageReport(q: FinancePeriodQuery) {
+    const { rows, googleAdsAgentRuns, from, to } = await this.aiRows(q);
+    const byModel = this.buildAiByModelMap(rows, googleAdsAgentRuns);
 
+    const campaignAgentCostMinor = googleAdsAgentRuns.reduce(
+      (s, r) => s + (r.claudeCostEstimateMinor ?? 0),
+      0,
+    );
+    // Accumulate raw (unrounded) USD per model and round to minor units
+    // exactly ONCE at the end — rounding each row first (as this used to)
+    // drops every sub-cent call to 0 individually, so a model made up of
+    // many cheap calls could show €0,00 here while still contributing real
+    // cost to `totalCostMinor` below, which rounds its sum only once.
+    const totalCostMinor =
+      usdToEurMinor(rows.reduce((s, r) => s + r.estimatedCostUsd, 0)) + campaignAgentCostMinor;
+    const totalTokens =
+      rows.reduce((s, r) => s + r.inputTokens + r.outputTokens, 0) +
+      googleAdsAgentRuns.reduce((s, r) => s + r.claudeInputTokens + r.claudeOutputTokens, 0);
+    const totalCalls =
+      rows.length + googleAdsAgentRuns.reduce((s, r) => s + r.claudeCallCount, 0);
+
+    // `chargedMinor` only ever applies to the AiUsageRecord-backed buckets —
+    // the campaign agent's own spend is never billed to any customer wallet.
     const byModelMinor = Array.from(byModel.values())
-      .map(({ costUsd, ...rest }) => ({
+      .map(({ costUsd, provider, ...rest }) => ({
+        provider,
         ...rest,
         costMinor: usdToEurMinor(costUsd),
-        chargedMinor: usdToChargedMinor(costUsd),
+        chargedMinor: provider === 'google-ads-agent' ? 0 : usdToChargedMinor(costUsd),
       }))
       .sort((a, b) => b.costMinor - a.costMinor);
 
@@ -1036,33 +1120,14 @@ export class FinanceService {
       range: { from: from.toISOString(), to: to.toISOString() },
       totalCostMinor,
       totalTokens,
-      totalCalls: rows.length,
+      totalCalls,
       byModel: byModelMinor,
     };
   }
 
   async exportAiUsagePdf(q: FinancePeriodQuery): Promise<Buffer> {
-    const { rows } = await this.aiRows(q);
-
-    // Same "round once, at the end" fix as `aiUsageReport` — see its comment.
-    const byModel = new Map<
-      string,
-      { provider: string; model: string; calls: number; tokens: number; costUsd: number }
-    >();
-    for (const r of rows) {
-      const key = `${r.provider}:${r.model}`;
-      const bucket = byModel.get(key) ?? {
-        provider: r.provider,
-        model: r.model,
-        calls: 0,
-        tokens: 0,
-        costUsd: 0,
-      };
-      bucket.calls += 1;
-      bucket.tokens += r.inputTokens + r.outputTokens;
-      bucket.costUsd += r.estimatedCostUsd;
-      byModel.set(key, bucket);
-    }
+    const { rows, googleAdsAgentRuns } = await this.aiRows(q);
+    const byModel = this.buildAiByModelMap(rows, googleAdsAgentRuns);
 
     return generateTablePdf({
       title: 'Consum AI',
@@ -1081,10 +1146,11 @@ export class FinanceService {
         { label: 'Încasat', width: 0.15, align: 'right' },
       ],
       rows: Array.from(byModel.values())
-        .map(({ costUsd, ...rest }) => ({
+        .map(({ costUsd, provider, ...rest }) => ({
+          provider,
           ...rest,
           costMinor: usdToEurMinor(costUsd),
-          chargedMinor: usdToChargedMinor(costUsd),
+          chargedMinor: provider === 'google-ads-agent' ? 0 : usdToChargedMinor(costUsd),
         }))
         .sort((a, b) => b.costMinor - a.costMinor)
         .map((b) => [

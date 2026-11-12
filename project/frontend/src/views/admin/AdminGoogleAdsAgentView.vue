@@ -402,6 +402,46 @@ function cancelEditCredentials() {
               </div>
             </div>
           </AdminSection>
+
+          <AdminSection :title="t('adminGoogleAds.feedCpcTitle')" icon="mdi-currency-usd" wide>
+            <div class="feedcpc">
+              <div class="feedcpc__row">
+                <span class="feedcpc__label">{{ t('adminGoogleAds.feedCpcActive') }}</span>
+                <span class="feedcpc__value feedcpc__value--main">
+                  {{ credits(admin.googleAdsAgentOverview.feedCpc.activeCostPromovareCredits) }}
+                </span>
+                <span
+                  class="chip"
+                  :class="admin.googleAdsAgentOverview.feedCpc.fresh ? 'chip--success' : 'chip--warning'"
+                >
+                  {{ t(admin.googleAdsAgentOverview.feedCpc.fresh ? 'adminGoogleAds.feedCpcFresh' : 'adminGoogleAds.feedCpcStale') }}
+                </span>
+              </div>
+              <div class="feedcpc__row">
+                <span class="feedcpc__label">{{ t('adminGoogleAds.feedCpcRaw') }}</span>
+                <span class="feedcpc__value">
+                  {{ admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits != null
+                    ? credits(admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits)
+                    : '—' }}
+                </span>
+              </div>
+              <div class="feedcpc__row">
+                <span class="feedcpc__label">{{ t('adminGoogleAds.feedCpcBuffer') }}</span>
+                <span class="feedcpc__value">{{ admin.googleAdsAgentOverview.feedCpc.bufferPct }}%</span>
+              </div>
+              <div class="feedcpc__row">
+                <span class="feedcpc__label">{{ t('adminGoogleAds.feedCpcFallback') }}</span>
+                <span class="feedcpc__value">{{ credits(admin.googleAdsAgentOverview.feedCpc.fallbackCredits) }}</span>
+              </div>
+              <div class="feedcpc__row">
+                <span class="feedcpc__label">{{ t('adminGoogleAds.feedCpcUpdatedAt') }}</span>
+                <span class="feedcpc__value">{{ fmtDate(admin.googleAdsAgentOverview.feedCpc.updatedAt) }}</span>
+              </div>
+            </div>
+            <p class="gaa__hint">
+              {{ t('adminGoogleAds.feedCpcHint', { minutes: admin.googleAdsAgentOverview.feedCpc.staleAfterMinutes }) }}
+            </p>
+          </AdminSection>
         </div>
       </v-window-item>
 
@@ -845,6 +885,35 @@ function cancelEditCredentials() {
 .runs__meta {
   font-size: 0.78rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+.feedcpc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.feedcpc__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.2rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.feedcpc__row:last-child {
+  border-bottom: none;
+}
+.feedcpc__label {
+  min-width: 14rem;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.feedcpc__value {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.feedcpc__value--main {
+  font-size: 1.1rem;
 }
 
 .plist,

@@ -79,8 +79,9 @@ export interface AiBuilderFigures {
   promptProfitMinor: number
   builderUnlockRevenueRealMoneyMinor: number
   totalProfitMinor: number
-  /** Always 0 for now — the Google Ads campaign-management AI agent doesn't
-   *  exist yet. `campaignAgentAvailable` is false until it does. */
+  /** The Google Ads campaign-management agent's own real Claude spend —
+   *  never charged to any customer, so it has no revenue/profit counterpart
+   *  the way `providerCostMinor` above does. */
   campaignAgentCostMinor: number
   campaignAgentAvailable: boolean
 }

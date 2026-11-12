@@ -653,6 +653,21 @@ export interface GoogleAdsAgentRunRow {
   errorSummary: string | null
 }
 
+/** The real Google cost-per-click the FEED algorithm prices Google-Ads-
+ *  attributed clicks against (`AnalyticsService.marginConfig()` ->
+ *  `googleAdsCostPromovareCredits()`), mirrored here so the admin page shows
+ *  exactly what's in effect right now — not just the raw synced average. */
+export interface GoogleAdsFeedCpc {
+  rawAvgCpcCredits: number | null
+  updatedAt: string | null
+  bufferPct: number
+  bufferedCredits: number | null
+  fresh: boolean
+  staleAfterMinutes: number
+  fallbackCredits: number
+  activeCostPromovareCredits: number
+}
+
 export interface GoogleAdsAgentOverview {
   enabled: boolean
   campaigns: { active: number; paused: number; pendingCreation: number }
@@ -661,6 +676,7 @@ export interface GoogleAdsAgentOverview {
   spendThisMonthCredits: number
   subcategoriesWithoutCampaign: number
   lastRuns: Record<'structural' | 'content' | 'intelligence', GoogleAdsAgentRunRow | null>
+  feedCpc: GoogleAdsFeedCpc
 }
 
 export interface GoogleAdsAgentCategoryRef {
