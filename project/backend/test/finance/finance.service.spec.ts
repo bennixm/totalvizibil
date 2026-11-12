@@ -561,7 +561,7 @@ describe('FinanceService', () => {
       expect(result.aiBuilder.campaignAgentCostMinor).toBe(0);
     });
 
-    it('rolls the Google Ads agent\'s own Claude spend into total cost/profit, WITHOUT touching aiBuilder\'s prompt profit', async () => {
+    it("rolls the Google Ads agent's own Claude spend into total cost/profit, WITHOUT touching aiBuilder's prompt profit", async () => {
       const { svc, prisma } = makeService();
       prisma.__state.purchases = [
         { amountMinor: 100_000, eurCents: 100_000, createdAt: new Date('2026-01-05') },
@@ -569,8 +569,20 @@ describe('FinanceService', () => {
       prisma.__state.aiRows = [{ estimatedCostUsd: 10, createdAt: new Date('2026-01-05') }]; // 1000 minor
       // Already EUR-minor at write time (two runs: 300 + 200).
       prisma.__state.googleAdsAgentRuns = [
-        { claudeModel: 'claude-sonnet-5', claudeInputTokens: 500, claudeOutputTokens: 200, claudeCostEstimateMinor: 300, claudeCallCount: 1 },
-        { claudeModel: 'claude-sonnet-5', claudeInputTokens: 400, claudeOutputTokens: 150, claudeCostEstimateMinor: 200, claudeCallCount: 1 },
+        {
+          claudeModel: 'claude-sonnet-5',
+          claudeInputTokens: 500,
+          claudeOutputTokens: 200,
+          claudeCostEstimateMinor: 300,
+          claudeCallCount: 1,
+        },
+        {
+          claudeModel: 'claude-sonnet-5',
+          claudeInputTokens: 400,
+          claudeOutputTokens: 150,
+          claudeCostEstimateMinor: 200,
+          claudeCallCount: 1,
+        },
       ];
 
       const result = await svc.overview({});

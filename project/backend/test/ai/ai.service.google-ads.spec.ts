@@ -144,7 +144,11 @@ describe('AiService.googleAdsBudgetIntelligence', () => {
             reasoning: 'Cerere în creștere.',
           },
           { categorySlug: 'nu-exista', proposedDailyBudgetCredits: 100, proposedMaxCpcCredits: 10 },
-          { categorySlug: 'electricieni', proposedDailyBudgetCredits: -5, proposedMaxCpcCredits: 1 },
+          {
+            categorySlug: 'electricieni',
+            proposedDailyBudgetCredits: -5,
+            proposedMaxCpcCredits: 1,
+          },
         ],
       }),
     );
@@ -176,7 +180,9 @@ describe('AiService.googleAdsBudgetIntelligence', () => {
 describe('estimateClaudeCostMinor', () => {
   it('prices input/output tokens at the Sonnet-tier rate ($2/$10 per MTok)', () => {
     // 1,000,000 input + 1,000,000 output => $2 + $10 = $12 => 1200 minor units.
-    expect(estimateClaudeCostMinor({ input_tokens: 1_000_000, output_tokens: 1_000_000 })).toBe(1200);
+    expect(estimateClaudeCostMinor({ input_tokens: 1_000_000, output_tokens: 1_000_000 })).toBe(
+      1200,
+    );
   });
 
   it('rounds to the nearest minor unit', () => {

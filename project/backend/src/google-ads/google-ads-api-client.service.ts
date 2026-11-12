@@ -82,7 +82,11 @@ interface GoogleAdsMutateResponse {
  *  the actual field path/reason. Logged in full (server-side only) and
  *  summarized into the thrown error so a real API rejection is diagnosable
  *  from this service's own logs, not just "it failed". */
-function formatApiError(status: number, error: GoogleAdsApiError | undefined, logger: Logger): Error {
+function formatApiError(
+  status: number,
+  error: GoogleAdsApiError | undefined,
+  logger: Logger,
+): Error {
   const message = error?.message ?? 'unknown error';
   if (error?.details?.length) {
     logger.error(`Google Ads API ${status} full error details: ${JSON.stringify(error.details)}`);

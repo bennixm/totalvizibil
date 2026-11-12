@@ -81,11 +81,13 @@ export class AdminGoogleAdsService {
   }
 
   async setGoogleAdsCredentials(input: GoogleAdsCredentialsInput) {
-    if (input.customerId !== undefined) await this.settings.setGoogleAdsCustomerId(input.customerId);
+    if (input.customerId !== undefined)
+      await this.settings.setGoogleAdsCustomerId(input.customerId);
     if (input.loginCustomerId !== undefined) {
       await this.settings.setGoogleAdsLoginCustomerId(input.loginCustomerId);
     }
-    if (input.campaignId !== undefined) await this.settings.setGoogleAdsCampaignId(input.campaignId);
+    if (input.campaignId !== undefined)
+      await this.settings.setGoogleAdsCampaignId(input.campaignId);
     if (input.serviceAccountKeyBase64 !== undefined) {
       await this.settings.setGoogleAdsServiceAccountKeyBase64(input.serviceAccountKeyBase64);
     }
@@ -171,7 +173,8 @@ export class AdminGoogleAdsService {
       fresh,
       staleAfterMinutes: GOOGLE_ADS_CPC_STALE_AFTER_MS / 60_000,
       fallbackCredits,
-      activeCostPromovareCredits: fresh && bufferedCredits != null ? bufferedCredits : fallbackCredits,
+      activeCostPromovareCredits:
+        fresh && bufferedCredits != null ? bufferedCredits : fallbackCredits,
     };
   }
 
@@ -179,7 +182,10 @@ export class AdminGoogleAdsService {
     const kinds = ['structural', 'content', 'intelligence'] as const;
     const rows = await Promise.all(
       kinds.map((kind) =>
-        this.prisma.googleAdsAgentRun.findFirst({ where: { kind }, orderBy: { startedAt: 'desc' } }),
+        this.prisma.googleAdsAgentRun.findFirst({
+          where: { kind },
+          orderBy: { startedAt: 'desc' },
+        }),
       ),
     );
     const out: Record<string, unknown> = {};

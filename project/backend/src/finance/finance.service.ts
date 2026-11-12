@@ -1039,7 +1039,13 @@ export class FinanceService {
    *  them below). Never charged to any customer, unlike the AiUsageRecord
    *  rows, so its bucket is never included in `usdToChargedMinor`. */
   private buildAiByModelMap(
-    rows: { provider: string; model: string; inputTokens: number; outputTokens: number; estimatedCostUsd: number }[],
+    rows: {
+      provider: string;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+      estimatedCostUsd: number;
+    }[],
     googleAdsAgentRuns: {
       claudeModel: string | null;
       claudeInputTokens: number;
@@ -1102,8 +1108,7 @@ export class FinanceService {
     const totalTokens =
       rows.reduce((s, r) => s + r.inputTokens + r.outputTokens, 0) +
       googleAdsAgentRuns.reduce((s, r) => s + r.claudeInputTokens + r.claudeOutputTokens, 0);
-    const totalCalls =
-      rows.length + googleAdsAgentRuns.reduce((s, r) => s + r.claudeCallCount, 0);
+    const totalCalls = rows.length + googleAdsAgentRuns.reduce((s, r) => s + r.claudeCallCount, 0);
 
     // `chargedMinor` only ever applies to the AiUsageRecord-backed buckets —
     // the campaign agent's own spend is never billed to any customer wallet.

@@ -35,9 +35,13 @@ function fakeSettings(
   return {
     googleAdsAgentEnabled: jest.fn().mockResolvedValue(overrides.enabled ?? true),
     eurRonRate: jest.fn().mockResolvedValue(overrides.eurRon ?? 5),
-    googleAdsAgentDefaultDailyBudgetCredits: jest.fn().mockResolvedValue(overrides.dailyBudget ?? 5),
+    googleAdsAgentDefaultDailyBudgetCredits: jest
+      .fn()
+      .mockResolvedValue(overrides.dailyBudget ?? 5),
     googleAdsAgentDefaultMaxCpcCredits: jest.fn().mockResolvedValue(overrides.maxCpc ?? 1),
-    googleAdsAgentStructuralIntervalMinutes: jest.fn().mockResolvedValue(overrides.intervalMinutes ?? 360),
+    googleAdsAgentStructuralIntervalMinutes: jest
+      .fn()
+      .mockResolvedValue(overrides.intervalMinutes ?? 360),
   } as never;
 }
 
@@ -45,7 +49,9 @@ function fakeNotifications() {
   return { notify: jest.fn().mockResolvedValue(undefined) } as never;
 }
 
-function fakePrisma(opts: { categories?: any[]; activeCompanyCounts?: number[]; existingRun?: any } = {}) {
+function fakePrisma(
+  opts: { categories?: any[]; activeCompanyCounts?: number[]; existingRun?: any } = {},
+) {
   const categories = opts.categories ?? [];
   const counts = opts.activeCompanyCounts ?? [];
   let countCallIndex = 0;
@@ -118,7 +124,9 @@ describe('GoogleAdsAgentStructuralService', () => {
 
     it('runs once the admin-configured interval has elapsed since the last run', async () => {
       const longAgo = new Date(Date.now() - 400 * 60 * 1000); // 400min ago > 360min interval
-      const prisma = fakePrisma({ existingRun: { id: 'run-0', startedAt: longAgo, status: 'success' } });
+      const prisma = fakePrisma({
+        existingRun: { id: 'run-0', startedAt: longAgo, status: 'success' },
+      });
       const svc = new GoogleAdsAgentStructuralService(
         fakeClient(),
         fakeRefData(),
@@ -132,7 +140,13 @@ describe('GoogleAdsAgentStructuralService', () => {
 
     it('always runs on the very first tick, when there is no prior run at all', async () => {
       const prisma = fakePrisma({ existingRun: null });
-      const svc = new GoogleAdsAgentStructuralService(fakeClient(), fakeRefData(), fakeSettings(), prisma, fakeNotifications());
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient(),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
       await (svc as any).tick();
       expect((prisma as any).googleAdsAgentRun.create).toHaveBeenCalled();
     });
@@ -164,7 +178,9 @@ describe('GoogleAdsAgentStructuralService', () => {
         }),
       );
       expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ status: 'failed', errorSummary: 'db exploded' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'failed', errorSummary: 'db exploded' }),
+        }),
       );
     });
   });
@@ -172,18 +188,36 @@ describe('GoogleAdsAgentStructuralService', () => {
   describe('run() locking', () => {
     it('skips the run when another one is already in progress and fresh', async () => {
       const prisma = fakePrisma({ existingRun: { id: 'run-0', startedAt: new Date() } });
-      const svc = new GoogleAdsAgentStructuralService(fakeClient(), fakeRefData(), fakeSettings(), prisma, fakeNotifications());
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient(),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
       await svc.run();
       expect((prisma as any).googleAdsAgentRun.create).not.toHaveBeenCalled();
     });
 
     it('treats a stale in_progress lock as abandoned and runs anyway', async () => {
       const staleStart = new Date(Date.now() - 60 * 60 * 1000); // 1h ago > 30min stale threshold
-      const prisma = fakePrisma({ existingRun: { id: 'run-0', startedAt: staleStart }, categories: [] });
-      const svc = new GoogleAdsAgentStructuralService(fakeClient(), fakeRefData(), fakeSettings(), prisma, fakeNotifications());
+      const prisma = fakePrisma({
+        existingRun: { id: 'run-0', startedAt: staleStart },
+        categories: [],
+      });
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient(),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
       await svc.run();
       expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'run-0' }, data: expect.objectContaining({ status: 'failed' }) }),
+        expect.objectContaining({
+          where: { id: 'run-0' },
+          data: expect.objectContaining({ status: 'failed' }),
+        }),
       );
       expect((prisma as any).googleAdsAgentRun.create).toHaveBeenCalled();
     });
@@ -197,7 +231,13 @@ describe('GoogleAdsAgentStructuralService', () => {
         categories: [{ ...CATEGORY, googleAdsCampaign: mapping }],
         activeCompanyCounts: [0],
       });
-      const svc = new GoogleAdsAgentStructuralService(fakeClient({ mutate }), fakeRefData(), fakeSettings(), prisma, fakeNotifications());
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
 
       await svc.run();
 
@@ -213,13 +253,18 @@ describe('GoogleAdsAgentStructuralService', () => {
         }),
       ]);
       expect((prisma as any).googleAdsSubcategoryCampaign.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'map-1' }, data: expect.objectContaining({ status: 'paused' }) }),
+        expect.objectContaining({
+          where: { id: 'map-1' },
+          data: expect.objectContaining({ status: 'paused' }),
+        }),
       );
       expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ action: 'campaign.pause' }) }),
       );
       expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ status: 'success', actionsTaken: 1 }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'success', actionsTaken: 1 }),
+        }),
       );
     });
 
@@ -230,7 +275,13 @@ describe('GoogleAdsAgentStructuralService', () => {
         categories: [{ ...CATEGORY, googleAdsCampaign: mapping }],
         activeCompanyCounts: [2],
       });
-      const svc = new GoogleAdsAgentStructuralService(fakeClient({ mutate }), fakeRefData(), fakeSettings(), prisma, fakeNotifications());
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
 
       await svc.run();
 
@@ -256,7 +307,13 @@ describe('GoogleAdsAgentStructuralService', () => {
         categories: [{ ...CATEGORY, googleAdsCampaign: mapping }],
         activeCompanyCounts: [3],
       });
-      const svc = new GoogleAdsAgentStructuralService(fakeClient({ mutate }), fakeRefData(), fakeSettings(), prisma, fakeNotifications());
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
 
       await svc.run();
 
@@ -279,7 +336,13 @@ describe('GoogleAdsAgentStructuralService', () => {
         categories: [{ ...CATEGORY, googleAdsCampaign: null }],
         activeCompanyCounts: [0],
       });
-      const svc = new GoogleAdsAgentStructuralService(fakeClient({ mutate }), fakeRefData(), fakeSettings(), prisma, fakeNotifications());
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
 
       await svc.run();
 
@@ -289,13 +352,15 @@ describe('GoogleAdsAgentStructuralService', () => {
     });
 
     it('creates a full skeleton (budget + campaign + geo/language targeting + ad group) for a new subcategory with ≥1 active company', async () => {
-      const mutate = jest.fn().mockResolvedValue([
-        { campaignBudgetResult: { resourceName: 'customers/1234567890/campaignBudgets/555' } },
-        { campaignResult: { resourceName: 'customers/1234567890/campaigns/666' } },
-        { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~111' } },
-        { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~222' } },
-        { adGroupResult: { resourceName: 'customers/1234567890/adGroups/777' } },
-      ]);
+      const mutate = jest
+        .fn()
+        .mockResolvedValue([
+          { campaignBudgetResult: { resourceName: 'customers/1234567890/campaignBudgets/555' } },
+          { campaignResult: { resourceName: 'customers/1234567890/campaigns/666' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~111' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~222' } },
+          { adGroupResult: { resourceName: 'customers/1234567890/adGroups/777' } },
+        ]);
       const prisma = fakePrisma({
         categories: [{ ...CATEGORY, googleAdsCampaign: null }],
         activeCompanyCounts: [1],
@@ -362,7 +427,13 @@ describe('GoogleAdsAgentStructuralService', () => {
         categories: [{ ...CATEGORY, googleAdsCampaign: null }],
         activeCompanyCounts: [1],
       });
-      const svc = new GoogleAdsAgentStructuralService(fakeClient({ mutate }), fakeRefData(), fakeSettings(), prisma, fakeNotifications());
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
 
       await svc.run();
 
@@ -383,14 +454,24 @@ describe('GoogleAdsAgentStructuralService', () => {
         ],
         activeCompanyCounts: [0, 0],
       });
-      const svc = new GoogleAdsAgentStructuralService(fakeClient({ mutate }), fakeRefData(), fakeSettings(), prisma, fakeNotifications());
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
 
       await svc.run();
 
       expect(mutate).toHaveBeenCalledTimes(2);
       expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: 'partial', categoriesScanned: 2, actionsTaken: 1 }),
+          data: expect.objectContaining({
+            status: 'partial',
+            categoriesScanned: 2,
+            actionsTaken: 1,
+          }),
         }),
       );
     });

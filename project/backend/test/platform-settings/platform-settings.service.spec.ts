@@ -210,7 +210,9 @@ describe('PlatformSettingsService', () => {
       await expect(svc.setGoogleAdsAgentDefaultDailyBudgetCredits(0)).rejects.toThrow(
         BadRequestException,
       );
-      await expect(svc.setGoogleAdsAgentDefaultMaxCpcCredits(0)).rejects.toThrow(BadRequestException);
+      await expect(svc.setGoogleAdsAgentDefaultMaxCpcCredits(0)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -246,7 +248,9 @@ describe('PlatformSettingsService', () => {
         fakeConfig() as any,
         fakeAudit() as any,
       );
-      await expect(svc.setGoogleAdsAgentMaxDailyBudgetCapCredits(0)).rejects.toThrow(BadRequestException);
+      await expect(svc.setGoogleAdsAgentMaxDailyBudgetCapCredits(0)).rejects.toThrow(
+        BadRequestException,
+      );
       await expect(svc.setGoogleAdsAgentMaxCpcCapCredits(0)).rejects.toThrow(BadRequestException);
     });
   });

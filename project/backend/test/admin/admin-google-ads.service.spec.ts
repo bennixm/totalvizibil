@@ -24,7 +24,9 @@ function fakeSettings(
   } as never;
 }
 
-function fakeClient(overrides: { configured?: boolean; customerId?: string; email?: string | null } = {}) {
+function fakeClient(
+  overrides: { configured?: boolean; customerId?: string; email?: string | null } = {},
+) {
   return {
     configured: overrides.configured ?? false,
     customerId: overrides.customerId ?? '',
@@ -116,7 +118,7 @@ describe('AdminGoogleAdsService', () => {
     });
   });
 
-  describe('overview() — feedCpc (the feed algorithm\'s real Google cost-per-click)', () => {
+  describe("overview() — feedCpc (the feed algorithm's real Google cost-per-click)", () => {
     it('reports the buffered average as the active cost when the cache is fresh', async () => {
       const { svc } = makeService({
         settings: {
@@ -210,7 +212,11 @@ describe('AdminGoogleAdsService', () => {
 
   describe('googleAdsCredentials / setGoogleAdsCredentials', () => {
     it('never returns the raw secret — only whether one is configured', async () => {
-      const client = fakeClient({ configured: true, customerId: '123', email: 'svc@x.iam.gserviceaccount.com' });
+      const client = fakeClient({
+        configured: true,
+        customerId: '123',
+        email: 'svc@x.iam.gserviceaccount.com',
+      });
       const { svc, settings } = makeService({ client });
       (settings as any).googleAdsServiceAccountKeyBase64.mockResolvedValue('c29tZS1zZWNyZXQ=');
 
@@ -243,7 +249,9 @@ describe('AdminGoogleAdsService', () => {
 
       await svc.setGoogleAdsCredentials({ serviceAccountKeyBase64: 'bmV3LWtleQ==' });
 
-      expect((settings as any).setGoogleAdsServiceAccountKeyBase64).toHaveBeenCalledWith('bmV3LWtleQ==');
+      expect((settings as any).setGoogleAdsServiceAccountKeyBase64).toHaveBeenCalledWith(
+        'bmV3LWtleQ==',
+      );
     });
   });
 });

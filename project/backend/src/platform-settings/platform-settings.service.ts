@@ -946,7 +946,12 @@ export class PlatformSettingsService {
   }
 
   /** Read a whole-number setting with a sane fallback. */
-  private async intSetting(key: string, fallback: number, min: number, max: number): Promise<number> {
+  private async intSetting(
+    key: string,
+    fallback: number,
+    min: number,
+    max: number,
+  ): Promise<number> {
     const raw = await this.get(key);
     const parsed = raw != null ? Number(raw) : NaN;
     if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
@@ -955,7 +960,12 @@ export class PlatformSettingsService {
     }
     return parsed;
   }
-  private async setIntSetting(key: string, value: number, min: number, max: number): Promise<number> {
+  private async setIntSetting(
+    key: string,
+    value: number,
+    min: number,
+    max: number,
+  ): Promise<number> {
     if (!Number.isInteger(value) || value < min || value > max) {
       throw new BadRequestException(`${key} out of range`);
     }

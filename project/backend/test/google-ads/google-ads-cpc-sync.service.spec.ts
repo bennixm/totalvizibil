@@ -10,7 +10,9 @@ function fakeConfig(campaignId = '') {
   return { get: () => campaignId } as never;
 }
 
-function fakeClient(overrides: { configured?: boolean; customerId?: string; search?: jest.Mock } = {}) {
+function fakeClient(
+  overrides: { configured?: boolean; customerId?: string; search?: jest.Mock } = {},
+) {
   return {
     configured: overrides.configured ?? true,
     customerId: overrides.customerId ?? '1234567890',
@@ -44,9 +46,11 @@ describe('GoogleAdsCpcSyncService', () => {
   });
 
   it('books daily cost and syncs avg CPC in EUR, with clicks today', async () => {
-    const search = jest.fn().mockResolvedValue([
-      { customer: { currencyCode: 'EUR' }, metrics: { costMicros: '10000000', clicks: '2' } },
-    ]);
+    const search = jest
+      .fn()
+      .mockResolvedValue([
+        { customer: { currencyCode: 'EUR' }, metrics: { costMicros: '10000000', clicks: '2' } },
+      ]);
     const client = fakeClient({ search });
     const settings = fakeSettings();
     const prisma = fakePrisma();
@@ -60,7 +64,9 @@ describe('GoogleAdsCpcSyncService', () => {
     // costMicros 10_000_000 => 10 EUR, booked as 1000 minor units (cents).
     expect((prisma as any).platformExpense.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { externalRef: expect.stringMatching(/^google_ads_daily:1234567890:\d{4}-\d{2}-\d{2}$/) },
+        where: {
+          externalRef: expect.stringMatching(/^google_ads_daily:1234567890:\d{4}-\d{2}-\d{2}$/),
+        },
         update: { amountMinor: 1000 },
         create: expect.objectContaining({
           category: 'google_ads',
@@ -77,7 +83,12 @@ describe('GoogleAdsCpcSyncService', () => {
   it('includes the campaign filter in the query, falling back to the env var when no DB value is set', async () => {
     const search = jest.fn().mockResolvedValue([]);
     const client = fakeClient({ search });
-    const svc = new GoogleAdsCpcSyncService(fakeConfig('999'), client, fakeSettings(), fakePrisma());
+    const svc = new GoogleAdsCpcSyncService(
+      fakeConfig('999'),
+      client,
+      fakeSettings(),
+      fakePrisma(),
+    );
 
     await (svc as any).sync();
 
@@ -100,9 +111,11 @@ describe('GoogleAdsCpcSyncService', () => {
   });
 
   it('converts RON cost/CPC through the live EUR/RON rate', async () => {
-    const search = jest.fn().mockResolvedValue([
-      { customer: { currencyCode: 'RON' }, metrics: { costMicros: '50000000', clicks: '1' } },
-    ]);
+    const search = jest
+      .fn()
+      .mockResolvedValue([
+        { customer: { currencyCode: 'RON' }, metrics: { costMicros: '50000000', clicks: '1' } },
+      ]);
     const client = fakeClient({ search });
     const settings = fakeSettings(5); // 1 EUR = 5 RON
     const prisma = fakePrisma();
@@ -118,9 +131,11 @@ describe('GoogleAdsCpcSyncService', () => {
   });
 
   it('books cost but skips the CPC average when there are no clicks today', async () => {
-    const search = jest.fn().mockResolvedValue([
-      { customer: { currencyCode: 'EUR' }, metrics: { costMicros: '3000000', clicks: '0' } },
-    ]);
+    const search = jest
+      .fn()
+      .mockResolvedValue([
+        { customer: { currencyCode: 'EUR' }, metrics: { costMicros: '3000000', clicks: '0' } },
+      ]);
     const client = fakeClient({ search });
     const settings = fakeSettings();
     const prisma = fakePrisma();
@@ -133,9 +148,11 @@ describe('GoogleAdsCpcSyncService', () => {
   });
 
   it('skips the write (no crash) on an unconvertible currency', async () => {
-    const search = jest.fn().mockResolvedValue([
-      { customer: { currencyCode: 'USD' }, metrics: { costMicros: '3000000', clicks: '1' } },
-    ]);
+    const search = jest
+      .fn()
+      .mockResolvedValue([
+        { customer: { currencyCode: 'USD' }, metrics: { costMicros: '3000000', clicks: '1' } },
+      ]);
     const client = fakeClient({ search });
     const settings = fakeSettings();
     const prisma = fakePrisma();

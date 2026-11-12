@@ -93,7 +93,10 @@ const PLAN_TIMEOUT_MS = 60_000;
  *  an explicit simplification for a cost-TRACKING estimate, not a real
  *  invoice), priced at the "fast" model tier's rates (Sonnet-class: $2/$10
  *  per MTok input/output) — the tier both Google Ads agent calls use. */
-export function estimateClaudeCostMinor(usage: { input_tokens: number; output_tokens: number }): number {
+export function estimateClaudeCostMinor(usage: {
+  input_tokens: number;
+  output_tokens: number;
+}): number {
   const usd = (usage.input_tokens / 1_000_000) * 2 + (usage.output_tokens / 1_000_000) * 10;
   return Math.round(usd * 100);
 }
@@ -649,7 +652,9 @@ export class AiService {
         categorySlug,
         proposedDailyBudgetCredits,
         proposedMaxCpcCredits,
-        reasoning: String(o.reasoning ?? '').trim().slice(0, 500),
+        reasoning: String(o.reasoning ?? '')
+          .trim()
+          .slice(0, 500),
       });
     }
     return {

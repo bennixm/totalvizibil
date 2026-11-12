@@ -155,7 +155,13 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
         const errorSummary = 'Claude unavailable or returned no usable proposals';
         await this.prisma.googleAdsAgentRun.update({
           where: { id: run.id },
-          data: { status: 'failed', finishedAt: new Date(), categoriesScanned, actionsTaken, errorSummary },
+          data: {
+            status: 'failed',
+            finishedAt: new Date(),
+            categoriesScanned,
+            actionsTaken,
+            errorSummary,
+          },
         });
         await notifyAdminsOfFailedGoogleAdsAgentRun(
           this.notifications,
@@ -245,7 +251,11 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
   /** Returns 'applied' | 'pending' | 'skipped'. */
   private async applyOrQueueProposal(
     mapping: { id: string; categoryId: string; dailyBudgetMinor: number; maxCpcMinor: number },
-    proposal: { proposedDailyBudgetCredits: number; proposedMaxCpcCredits: number; reasoning: string },
+    proposal: {
+      proposedDailyBudgetCredits: number;
+      proposedMaxCpcCredits: number;
+      reasoning: string;
+    },
     maxDailyBudgetCapCredits: number,
     maxCpcCapCredits: number,
   ): Promise<'applied' | 'pending' | 'skipped'> {
@@ -279,8 +289,14 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
           categoryId: mapping.categoryId,
           action: 'cpc.adjusted',
           status: 'applied',
-          before: { dailyBudgetCredits: currentDailyBudgetCredits, maxCpcCredits: currentMaxCpcCredits },
-          after: { dailyBudgetCredits: proposedDailyBudgetCredits, maxCpcCredits: proposedMaxCpcCredits },
+          before: {
+            dailyBudgetCredits: currentDailyBudgetCredits,
+            maxCpcCredits: currentMaxCpcCredits,
+          },
+          after: {
+            dailyBudgetCredits: proposedDailyBudgetCredits,
+            maxCpcCredits: proposedMaxCpcCredits,
+          },
           reasoning: proposal.reasoning,
         },
       });
@@ -292,7 +308,10 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
         categoryId: mapping.categoryId,
         action: 'budget.increase.proposed',
         status: 'pending_approval',
-        before: { dailyBudgetCredits: currentDailyBudgetCredits, maxCpcCredits: currentMaxCpcCredits },
+        before: {
+          dailyBudgetCredits: currentDailyBudgetCredits,
+          maxCpcCredits: currentMaxCpcCredits,
+        },
         after: {
           proposedDailyBudgetCredits: proposedDailyBudgetCredits,
           proposedMaxCpcCredits: proposedMaxCpcCredits,
@@ -359,10 +378,17 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
    *  the real Google Ads mutate only now. */
   async approveProposal(actionId: string, approvedByUserId: string): Promise<void> {
     const action = await this.prisma.googleAdsAgentAction.findUnique({ where: { id: actionId } });
-    if (!action || action.status !== 'pending_approval' || action.action !== 'budget.increase.proposed') {
+    if (
+      !action ||
+      action.status !== 'pending_approval' ||
+      action.action !== 'budget.increase.proposed'
+    ) {
       throw new BadRequestException('No pending budget proposal with that id');
     }
-    const after = action.after as { proposedDailyBudgetCredits?: number; proposedMaxCpcCredits?: number } | null;
+    const after = action.after as {
+      proposedDailyBudgetCredits?: number;
+      proposedMaxCpcCredits?: number;
+    } | null;
     const dailyBudgetCredits = Number(after?.proposedDailyBudgetCredits);
     const maxCpcCredits = Number(after?.proposedMaxCpcCredits);
     if (!Number.isFinite(dailyBudgetCredits) || !Number.isFinite(maxCpcCredits)) {

@@ -20,12 +20,6 @@ type MappingWithCategory = Prisma.GoogleAdsSubcategoryCampaignGetPayload<{
   include: { category: { include: { parent: true } } };
 }>;
 
-function resourceId(resourceName: string | undefined): string | null {
-  if (!resourceName) return null;
-  const id = resourceName.split('/').pop();
-  return id || null;
-}
-
 /**
  * Faza 3 (docs/ai/GOOGLE-ADS-AGENT-PLAN.md), content half: turns a
  * `pending_creation` campaign skeleton (created by the structural pass,
@@ -178,7 +172,12 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
           errorSummary,
         },
       });
-      await notifyAdminsOfFailedGoogleAdsAgentRun(this.notifications, this.prisma, 'content', errorSummary);
+      await notifyAdminsOfFailedGoogleAdsAgentRun(
+        this.notifications,
+        this.prisma,
+        'content',
+        errorSummary,
+      );
       throw err;
     }
   }
@@ -186,9 +185,7 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
   /** Returns whether the campaign was actually activated this run, and a
    *  rough Claude cost estimate for the one call made (0 if the call
    *  itself failed — no partial usage to estimate from). */
-  private async generateAndActivate(
-    mapping: MappingWithCategory,
-  ): Promise<{
+  private async generateAndActivate(mapping: MappingWithCategory): Promise<{
     activated: boolean;
     costEstimateMinor: number;
     inputTokens: number;
@@ -206,7 +203,9 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
 
     const landingUrl = subcategoryLandingUrl(category, this.frontendOrigin);
     const categoryName = this.plainName(category.nameI18n);
-    const parentCategoryName = category.parent ? this.plainName(category.parent.nameI18n) : undefined;
+    const parentCategoryName = category.parent
+      ? this.plainName(category.parent.nameI18n)
+      : undefined;
 
     const plan = await this.ai.googleAdsKeywordPlan({
       categoryName,
@@ -218,7 +217,13 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       this.logger.warn(
         `No usable Google Ads keyword plan for category '${category.slug}' — leaving it pending_creation.`,
       );
-      return { activated: false, costEstimateMinor: 0, inputTokens: 0, outputTokens: 0, model: null };
+      return {
+        activated: false,
+        costEstimateMinor: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        model: null,
+      };
     }
 
     if (!mapping.googleAdGroupId || !mapping.googleCampaignId) {
