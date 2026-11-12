@@ -22,12 +22,22 @@ export interface GoogleAdsSearchRow {
     countryCode?: string;
     targetType?: string;
     name?: string;
+    id?: string;
   };
   campaignCriterion?: {
     resourceName?: string;
     location?: { geoTargetConstant?: string };
   };
   languageConstant?: { resourceName?: string; code?: string };
+  campaignSharedSet?: { resourceName?: string };
+  sharedCriterion?: { resourceName?: string; keyword?: { text?: string } };
+  adGroupCriterion?: { resourceName?: string; keyword?: { text?: string } };
+  recommendation?: { resourceName?: string; type?: string; campaign?: string };
+  conversionAction?: {
+    resourceName?: string;
+    id?: string;
+    tagSnippets?: { globalSiteTag?: string; eventSnippet?: string }[];
+  };
   [key: string]: unknown;
 }
 
@@ -61,6 +71,18 @@ export interface GoogleAdsMutateOperation {
   adGroupOperation?: GoogleAdsOperationBody;
   adGroupCriterionOperation?: GoogleAdsOperationBody;
   adGroupAdOperation?: GoogleAdsOperationBody;
+  /** `SharedSet` (e.g. a `NEGATIVE_KEYWORDS` list) — Direction 1. */
+  sharedSetOperation?: GoogleAdsOperationBody;
+  /** Attaches a `SharedSet` to a campaign — Direction 1. */
+  campaignSharedSetOperation?: GoogleAdsOperationBody;
+  /** One criterion (e.g. a negative keyword) inside a `SharedSet` — Direction 1. */
+  sharedCriterionOperation?: GoogleAdsOperationBody;
+  /** A reusable `Asset` (sitelink/callout/structured-snippet/image) — Direction 2. */
+  assetOperation?: GoogleAdsOperationBody;
+  /** Attaches an `Asset` to a campaign (e.g. as a sitelink) — Direction 2. */
+  campaignAssetOperation?: GoogleAdsOperationBody;
+  /** The one account-wide conversion action — Direction 3. */
+  conversionActionOperation?: GoogleAdsOperationBody;
 }
 
 interface GoogleAdsOperationBody {
@@ -86,6 +108,12 @@ export interface GoogleAdsMutateResult {
   adGroupResult?: { resourceName?: string };
   adGroupCriterionResult?: { resourceName?: string };
   adGroupAdResult?: { resourceName?: string };
+  sharedSetResult?: { resourceName?: string };
+  campaignSharedSetResult?: { resourceName?: string };
+  sharedCriterionResult?: { resourceName?: string };
+  assetResult?: { resourceName?: string };
+  campaignAssetResult?: { resourceName?: string };
+  conversionActionResult?: { resourceName?: string };
 }
 
 interface GoogleAdsMutateResponse {
@@ -310,5 +338,37 @@ export class GoogleAdsApiClient implements OnModuleInit {
       throw formatApiError(res.status, data.error, this.logger);
     }
     return data.mutateOperationResponses ?? [];
+  }
+
+  /**
+   * `customers/{id}:applyRecommendation` — a separate RPC from `mutate`
+   * (Direction 4). One bare `{resourceName}` operation per recommendation;
+   * most of the maintenance-only types this agent auto-applies need no
+   * extra parameters. Returns the resource names Google actually applied —
+   * NOT `partialFailure`-safe the way `mutate` is, so callers that send more
+   * than one id in a batch where one might be stale should expect the whole
+   * call to fail together and retry individually instead.
+   */
+  async applyRecommendations(resourceNames: string[]): Promise<string[]> {
+    if (!resourceNames.length) return [];
+    const headers = await this.headers();
+    const res = await fetch(
+      `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}:applyRecommendation`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          operations: resourceNames.map((resourceName) => ({ resourceName })),
+        }),
+      },
+    );
+    const data = (await res.json()) as {
+      results?: { resourceName?: string }[];
+      error?: GoogleAdsApiError;
+    };
+    if (!res.ok) {
+      throw formatApiError(res.status, data.error, this.logger);
+    }
+    return (data.results ?? []).map((r) => r.resourceName).filter((r): r is string => !!r);
   }
 }

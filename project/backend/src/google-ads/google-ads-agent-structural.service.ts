@@ -7,7 +7,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { notifyAdminsOfFailedGoogleAdsAgentRun } from './google-ads-agent-alerts';
 import { GoogleAdsApiClient, GoogleAdsMutateOperation } from './google-ads-api-client.service';
 import { creditsToAmountMicros } from './google-ads-money';
+import { fetchOwnKeywords, pushNegativesOntoSiblings } from './google-ads-negative-keywords';
+import { GoogleAdsAgentRecommendationsService } from './google-ads-agent-recommendations.service';
 import { GoogleAdsReferenceDataService } from './google-ads-reference-data.service';
+
+/** Near-real-time recheck of a category after a client's OWN feed campaign
+ *  starts/stops (research doc, Direction 5) — debounced so several clients
+ *  toggling the same subcategory in a short window collapse into one
+ *  reconcile, rather than hammering Google Ads on every toggle. There is no
+ *  Google-documented "safe" number of days for pause/resume churn, so this
+ *  debounce — not a magic day count — is the actual mitigation. */
+const RECHECK_DEBOUNCE_MS = 5 * 60 * 1000;
 
 /** Fixed, short poll period — only "is it time yet" is admin-configurable
  *  (`googleAdsAgentStructuralIntervalMinutes`, read live on every tick via
@@ -58,6 +68,11 @@ function resourceId(resourceName: string | undefined): string | null {
 @Injectable()
 export class GoogleAdsAgentStructuralService implements OnModuleInit {
   private readonly logger = new Logger(GoogleAdsAgentStructuralService.name);
+  /** categoryId -> pending debounce timer (Direction 5). In-process only —
+   *  consistent with this whole module's "single instance" assumption
+   *  (see the class doc comment); a missed debounce on restart just means
+   *  the next scheduled structural tick catches it instead. */
+  private readonly pendingRechecks = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
     private readonly client: GoogleAdsApiClient,
@@ -65,6 +80,7 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
     private readonly settings: PlatformSettingsService,
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly recommendations: GoogleAdsAgentRecommendationsService,
   ) {}
 
   onModuleInit(): void {
@@ -180,6 +196,50 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
     }
   }
 
+  /**
+   * Called by `CampaignService.setLive()` whenever a client's OWN feed
+   * campaign starts or stops (research doc, Direction 5) — debounces a
+   * near-real-time reconcile of just that company's subcategories, instead
+   * of waiting for the next scheduled structural pass (up to 6h away) or
+   * reconciling on every single toggle. Fire-and-forget from the caller's
+   * side; errors are logged here, never thrown back at the campaign flow.
+   */
+  async scheduleRecheck(companyId: string): Promise<void> {
+    if (!this.client.configured) return;
+    const assignments = await this.prisma.companyCategory.findMany({
+      where: { companyId, category: { parentId: { not: null } } },
+      select: { categoryId: true },
+    });
+    for (const { categoryId } of assignments) {
+      const existing = this.pendingRechecks.get(categoryId);
+      if (existing) clearTimeout(existing);
+      const timer = setTimeout(
+        () => void this.runDebouncedRecheck(categoryId),
+        RECHECK_DEBOUNCE_MS,
+      );
+      this.pendingRechecks.set(categoryId, timer);
+    }
+  }
+
+  private async runDebouncedRecheck(categoryId: string): Promise<void> {
+    this.pendingRechecks.delete(categoryId);
+    if (!this.client.configured) return;
+    if (!(await this.settings.googleAdsAgentEnabled())) return;
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+      include: { parent: true, googleAdsCampaign: true },
+    });
+    if (!category || !category.isActive) return;
+    try {
+      await this.reconcileCategory(category);
+    } catch (err) {
+      this.logger.error(
+        `Debounced recheck failed for category '${category.slug}' (${categoryId}).`,
+        err instanceof Error ? err.stack : err,
+      );
+    }
+  }
+
   /** Returns true iff this category caused a real action (create/pause/resume). */
   private async reconcileCategory(category: CategoryWithMapping): Promise<boolean> {
     const activeCompanyCount = await this.prisma.companyCategory.count({
@@ -209,8 +269,128 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
     // nobody served before, or the last nationwide business leaving should
     // all narrow/widen targeting on the next tick, not just at creation.
     const geoChanged = await this.syncGeoTargeting(category, mapping);
+    // Direction 1 (research doc): every campaign carries its own negative-
+    // keyword shared set. Idempotent — a no-op once it exists and is
+    // attached, so this runs unconditionally on every tick, which is also
+    // how the 9 campaigns that predate this feature get backfilled, with no
+    // separate migration step.
+    const negativeSetChanged = await this.ensureNegativeKeywordSet(category, mapping);
+    // Direction 4 (research doc): read + classify + auto-apply/queue this
+    // campaign's live Google Ads Recommendations. Only for a campaign
+    // that's actually `active` — a `pending_creation`/paused one has no
+    // real traffic yet for Google to base a recommendation on. Best-effort:
+    // never lets a recommendations read/apply hiccup block the rest of
+    // this category's reconcile.
+    let recommendationsChanged = false;
+    if (mapping.status === 'active' && mapping.googleCampaignId) {
+      try {
+        recommendationsChanged = await this.recommendations.reconcile(
+          category.id,
+          `customers/${this.client.customerId}/campaigns/${mapping.googleCampaignId}`,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Recommendations reconcile failed for '${category.slug}' — skipping this tick.`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
+    }
     if (!resumed) await this.touch(mapping.id);
-    return resumed || geoChanged;
+    return resumed || geoChanged || negativeSetChanged || recommendationsChanged;
+  }
+
+  /**
+   * Ensures this category's campaign has its own `NEGATIVE_KEYWORDS`
+   * shared set (research doc, Direction 1), creating + attaching it the
+   * first time this runs for this mapping. On that FIRST creation for a
+   * campaign that's already `active` (i.e. this is the one-time backfill
+   * for a pre-existing campaign, not a brand-new skeleton), also reads this
+   * campaign's own current keywords live from Google and pushes them onto
+   * every sibling's set — the retroactive half of Direction 1. Returns
+   * true iff anything was actually created/attached this call.
+   */
+  private async ensureNegativeKeywordSet(
+    category: CategoryWithMapping,
+    mapping: NonNullable<CategoryWithMapping['googleAdsCampaign']>,
+  ): Promise<boolean> {
+    const customerId = this.client.customerId;
+    let sharedSetId = mapping.negativeKeywordSetResourceId;
+    let justCreated = false;
+
+    if (!sharedSetId) {
+      const results = await this.client.mutate([
+        {
+          sharedSetOperation: {
+            create: {
+              name: `TVZ Negatives - ${category.slug} - ${category.id.slice(0, 8)}`,
+              type: 'NEGATIVE_KEYWORDS',
+            },
+          },
+        },
+      ]);
+      sharedSetId = resourceId(results[0]?.sharedSetResult?.resourceName);
+      if (!sharedSetId) {
+        throw new Error(
+          `Negative-keyword shared-set creation for '${category.slug}' returned no resource name.`,
+        );
+      }
+      await this.prisma.googleAdsSubcategoryCampaign.update({
+        where: { id: mapping.id },
+        data: { negativeKeywordSetResourceId: sharedSetId },
+      });
+      justCreated = true;
+    }
+
+    const sharedSetResourceName = `customers/${customerId}/sharedSets/${sharedSetId}`;
+    const campaignResourceName = `customers/${customerId}/campaigns/${mapping.googleCampaignId}`;
+    const linked = await this.client.search(
+      'SELECT campaign_shared_set.resource_name FROM campaign_shared_set ' +
+        `WHERE campaign_shared_set.campaign = '${campaignResourceName}' ` +
+        `AND campaign_shared_set.shared_set = '${sharedSetResourceName}'`,
+    );
+    let attached = false;
+    if (!linked.length) {
+      await this.client.mutate([
+        {
+          campaignSharedSetOperation: {
+            create: { campaign: campaignResourceName, sharedSet: sharedSetResourceName },
+          },
+        },
+      ]);
+      attached = true;
+    }
+
+    // Retroactive backfill: this is a pre-existing ACTIVE campaign getting
+    // its set for the very first time — its own keywords only ever existed
+    // on Google's side, never stored locally, so read them back live and
+    // push them onto every sibling now instead of waiting for a content
+    // regeneration that will never happen for an already-active campaign.
+    if (
+      justCreated &&
+      mapping.status === 'active' &&
+      category.parentId &&
+      mapping.googleAdGroupId
+    ) {
+      try {
+        const ownTerms = await fetchOwnKeywords(
+          this.client,
+          `customers/${customerId}/adGroups/${mapping.googleAdGroupId}`,
+        );
+        await pushNegativesOntoSiblings(this.client, this.prisma, this.logger, {
+          parentCategoryId: category.parentId,
+          ownCategoryId: category.id,
+          terms: ownTerms,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Retroactive negative-keyword backfill failed for '${category.slug}' — its own set still ` +
+            'got created; siblings will pick up its terms on their own next activation.',
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
+    }
+
+    return justCreated || attached;
   }
 
   /**
@@ -517,7 +697,7 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
       );
     }
 
-    await this.prisma.$transaction([
+    const [newMapping] = await this.prisma.$transaction([
       this.prisma.googleAdsSubcategoryCampaign.create({
         data: {
           categoryId: category.id,
@@ -548,5 +728,23 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
         },
       }),
     ]);
+
+    // Direction 1 (research doc): give the brand-new campaign its own
+    // negative-keyword shared set right away, so a sibling activated later
+    // can push negatives into it from day one. Best-effort — a failure here
+    // must never un-create the campaign skeleton that just succeeded.
+    try {
+      await this.ensureNegativeKeywordSet(category, {
+        ...newMapping,
+        googleCampaignId: campaignId,
+        googleAdGroupId: adGroupId,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Negative-keyword set creation failed right after creating campaign for '${category.slug}' — ` +
+          'will retry on the next structural tick.',
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
   }
 }

@@ -84,6 +84,30 @@ describe('GoogleAdsReferenceDataService', () => {
     await expect(svc.getCountyGeoTargetConstants()).rejects.toThrow(/no result/i);
   });
 
+  it('resolves a geo-target id (ValueTrack {loc_physical_ms}) back to our canonical județ spelling', async () => {
+    const search = jest
+      .fn()
+      .mockResolvedValue([
+        { geoTargetConstant: { id: '20899', name: 'Constanta' } },
+        { geoTargetConstant: { id: '20828', name: 'Cluj' } },
+      ]);
+    const svc = new GoogleAdsReferenceDataService(fakeClient(search));
+
+    expect(await svc.getCountyByGeoTargetId('20899')).toBe('Constanța');
+    expect(await svc.getCountyByGeoTargetId('20828')).toBe('Cluj');
+    expect(await svc.getCountyByGeoTargetId('999999')).toBeNull(); // unknown id, not an error
+
+    await svc.getCountyByGeoTargetId('20899');
+    expect(search).toHaveBeenCalledTimes(1); // second+ lookups hit the cache
+  });
+
+  it('throws rather than guessing when the geo-target-id reverse lookup returns nothing', async () => {
+    const search = jest.fn().mockResolvedValue([]);
+    const svc = new GoogleAdsReferenceDataService(fakeClient(search));
+
+    await expect(svc.getCountyByGeoTargetId('20899')).rejects.toThrow(/no result/i);
+  });
+
   it('clearCache() forces a fresh lookup', async () => {
     const search = jest
       .fn()

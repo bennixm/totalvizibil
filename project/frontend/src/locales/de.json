@@ -97,6 +97,8 @@
     "error": "Ergebnisse konnten nicht geladen werden.",
     "pickCategoryTitle": "Wähle eine Kategorie, um Unternehmen zu sehen",
     "pickCategoryHint": "Wähle oben einen Bereich. Einträge erscheinen erst, wenn mindestens eine Kategorie gewählt ist.",
+    "geoAutoFilterBanner": "Ergebnisse werden für den Kreis {county} angezeigt.",
+    "geoAutoFilterClear": "Alle Kreise anzeigen",
     "seoTitleGroup": "{group} · lokale Unternehmen",
     "seoTitleNiche": "{niche} ({group}) · lokale Unternehmen",
     "seoDesc": "Aktive {category}-Unternehmen auf Totalvizibil · nach Sichtbarkeits-Score sortiert, nach Gebiet gefiltert.",

@@ -6,11 +6,14 @@ import { GoogleAdsAgentContentService } from 'src/google-ads/google-ads-agent-co
  * so without a real, validated keyword plan, and that the keywords/ad/
  * enable-campaign mutate all go out together.
  */
-function fakeClient(overrides: { configured?: boolean; mutate?: jest.Mock } = {}) {
+function fakeClient(
+  overrides: { configured?: boolean; mutate?: jest.Mock; search?: jest.Mock } = {},
+) {
   return {
     configured: overrides.configured ?? true,
     customerId: '1234567890',
     mutate: overrides.mutate ?? jest.fn().mockResolvedValue([]),
+    search: overrides.search ?? jest.fn().mockResolvedValue([]),
   } as never;
 }
 
@@ -32,12 +35,32 @@ function fakeNotifications() {
   return { notify: jest.fn().mockResolvedValue(undefined) } as never;
 }
 
-function fakeSettings(overrides: { enabled?: boolean; intervalMinutes?: number } = {}) {
+function fakeSettings(
+  overrides: {
+    enabled?: boolean;
+    intervalMinutes?: number;
+    conversionActionResourceName?: string | null;
+    setConversionActionResourceName?: jest.Mock;
+  } = {},
+) {
   return {
     googleAdsAgentEnabled: jest.fn().mockResolvedValue(overrides.enabled ?? true),
     googleAdsAgentContentIntervalMinutes: jest
       .fn()
       .mockResolvedValue(overrides.intervalMinutes ?? 360),
+    // Defaults to "already created" so existing tests that don't care about
+    // Direction 3 aren't exercising ensureConversionAction()'s create path
+    // (and its own extra mutate call) incidentally — see the dedicated
+    // 'ensureConversionAction' describe block below for that path.
+    googleAdsConversionActionResourceName: jest
+      .fn()
+      .mockResolvedValue(
+        overrides.conversionActionResourceName === undefined
+          ? 'customers/1234567890/conversionActions/1'
+          : overrides.conversionActionResourceName,
+      ),
+    setGoogleAdsConversionActionResourceName:
+      overrides.setConversionActionResourceName ?? jest.fn().mockResolvedValue(undefined),
   } as never;
 }
 
@@ -152,6 +175,11 @@ describe('GoogleAdsAgentContentService', () => {
     expect(
       ops.find((o: any) => o.adGroupAdOperation).adGroupAdOperation.create.ad.finalUrls,
     ).toEqual(['https://totalvizibil.ro/constructii/electricieni']);
+    // Direction 6 (research doc): carries the click's physical județ +
+    // Google's own click id through to the feed via ValueTrack.
+    expect(
+      ops.find((o: any) => o.adGroupAdOperation).adGroupAdOperation.create.ad.finalUrlSuffix,
+    ).toBe('loc={loc_physical_ms}&gclid={gclid}');
     const enableOp = ops.find((o: any) => o.campaignOperation);
     expect(enableOp.campaignOperation.update.status).toBe('ENABLED');
 
@@ -222,5 +250,134 @@ describe('GoogleAdsAgentContentService', () => {
         body: 'db exploded',
       }),
     );
+  });
+
+  describe('sibling negative-keyword push (Direction 1, research doc)', () => {
+    it('pushes the newly generated keywords onto sibling sets when the category has a parent', async () => {
+      const mapping = { ...MAPPING, category: { ...MAPPING.category, parentId: 'parent-1' } };
+      const search = jest.fn().mockResolvedValue([]); // no existing negatives, no sibling positives
+      const mutate = jest.fn().mockResolvedValue([]);
+      const findMany = jest.fn((args: any) => {
+        if (args?.where?.status === 'pending_creation') return Promise.resolve([mapping]);
+        return Promise.resolve([
+          {
+            negativeKeywordSetResourceId: '9',
+            googleAdGroupId: '88',
+            category: { slug: 'vopsitorie' },
+          },
+        ]);
+      });
+      const prisma = fakePrisma();
+      (prisma as any).googleAdsSubcategoryCampaign.findMany = findMany;
+
+      const svc = makeService({ client: fakeClient({ mutate, search }), prisma });
+      await svc.run();
+
+      // One mutate call for the main keyword/ad/enable batch, one for the
+      // sibling negative-keyword push.
+      expect(mutate).toHaveBeenCalledTimes(2);
+      expect(mutate.mock.calls[1][0]).toEqual([
+        {
+          sharedCriterionOperation: {
+            create: {
+              sharedSet: 'customers/1234567890/sharedSets/9',
+              keyword: { text: 'electrician bucuresti', matchType: 'PHRASE' },
+            },
+          },
+        },
+        {
+          sharedCriterionOperation: {
+            create: {
+              sharedSet: 'customers/1234567890/sharedSets/9',
+              keyword: { text: 'reparatii electrice', matchType: 'PHRASE' },
+            },
+          },
+        },
+        {
+          sharedCriterionOperation: {
+            create: {
+              sharedSet: 'customers/1234567890/sharedSets/9',
+              keyword: { text: 'instalatii electrice', matchType: 'PHRASE' },
+            },
+          },
+        },
+      ]);
+    });
+
+    it('does not attempt a sibling push when the category has no parent', async () => {
+      const mutate = jest.fn().mockResolvedValue([]);
+      const prisma = fakePrisma({ pending: [MAPPING] }); // MAPPING.category has no parentId
+      const svc = makeService({ client: fakeClient({ mutate }), prisma });
+
+      await svc.run();
+
+      expect(mutate).toHaveBeenCalledTimes(1); // only the main keyword/ad/enable batch
+    });
+  });
+
+  describe('ensureConversionAction (Direction 3, research doc)', () => {
+    it('creates the account-wide conversion action once and persists its resource name', async () => {
+      const mutate = jest
+        .fn()
+        .mockResolvedValueOnce([
+          { conversionActionResult: { resourceName: 'customers/1234567890/conversionActions/1' } },
+        ])
+        .mockResolvedValueOnce([]); // the main keyword/ad/enable batch
+      const setConversionActionResourceName = jest.fn().mockResolvedValue(undefined);
+      const settings = fakeSettings({
+        conversionActionResourceName: null,
+        setConversionActionResourceName,
+      });
+      const prisma = fakePrisma({ pending: [MAPPING] });
+
+      const svc = makeService({ client: fakeClient({ mutate }), settings, prisma });
+      await svc.run();
+
+      expect(mutate.mock.calls[0][0]).toEqual([
+        {
+          conversionActionOperation: {
+            create: {
+              name: 'TVZ Feed Click-Through',
+              type: 'WEBPAGE',
+              category: 'DEFAULT',
+              status: 'ENABLED',
+            },
+          },
+        },
+      ]);
+      expect(setConversionActionResourceName).toHaveBeenCalledWith(
+        'customers/1234567890/conversionActions/1',
+      );
+    });
+
+    it('never recreates the conversion action once it already exists', async () => {
+      const mutate = jest.fn().mockResolvedValue([]);
+      const settings = fakeSettings({
+        conversionActionResourceName: 'customers/1234567890/conversionActions/1',
+      });
+      const prisma = fakePrisma({ pending: [MAPPING] });
+
+      const svc = makeService({ client: fakeClient({ mutate }), settings, prisma });
+      await svc.run();
+
+      expect(mutate).toHaveBeenCalledTimes(1); // only the main batch — no conversionActionOperation
+      expect(mutate.mock.calls[0][0].some((o: any) => o.conversionActionOperation)).toBe(false);
+    });
+
+    it('never blocks ad activation when conversion-action creation fails', async () => {
+      const mutate = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('API down'))
+        .mockResolvedValueOnce([]);
+      const settings = fakeSettings({ conversionActionResourceName: null });
+      const prisma = fakePrisma({ pending: [MAPPING] });
+
+      const svc = makeService({ client: fakeClient({ mutate }), settings, prisma });
+      await svc.run();
+
+      expect((prisma as any).googleAdsSubcategoryCampaign.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'active' }) }),
+      );
+    });
   });
 });

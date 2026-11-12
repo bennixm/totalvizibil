@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { foldCounty } from '../geo/ro-cities';
+import { foldCounty, resolveCounty } from '../geo/ro-cities';
 import { GoogleAdsApiClient } from './google-ads-api-client.service';
 
 /** Static Google Ads reference data never changes within a process
@@ -27,6 +27,7 @@ export class GoogleAdsReferenceDataService {
   private languageConstantRo: CacheEntry<string> | null = null;
   private accountCurrencyCode: CacheEntry<string> | null = null;
   private countyGeoTargetConstants: CacheEntry<Map<string, string>> | null = null;
+  private geoTargetIdToCounty: CacheEntry<Map<string, string>> | null = null;
 
   constructor(private readonly client: GoogleAdsApiClient) {}
 
@@ -105,6 +106,40 @@ export class GoogleAdsReferenceDataService {
     return map;
   }
 
+  /**
+   * The reverse of `getCountyGeoTargetConstants()`: given the bare numeric
+   * id a ValueTrack `{loc_physical_ms}` click param carries (research doc,
+   * Direction 6), resolve it to our OWN canonical `RO_COUNTIES` spelling —
+   * never Google's ASCII one — or `null` if it isn't a județ-level id at all
+   * (country/city-level ids resolve to nothing here, by design: the feed
+   * only ever auto-filters by județ). `resolveCounty()` is what actually
+   * bridges Google's ASCII name back to our diacritic one.
+   */
+  async getCountyByGeoTargetId(id: string): Promise<string | null> {
+    if (this.geoTargetIdToCounty && Date.now() - this.geoTargetIdToCounty.at < CACHE_TTL_MS) {
+      return this.geoTargetIdToCounty.value.get(id) ?? null;
+    }
+    const rows = await this.client.search(
+      'SELECT geo_target_constant.id, geo_target_constant.name FROM geo_target_constant ' +
+        "WHERE geo_target_constant.country_code = 'RO' AND geo_target_constant.target_type = 'County'",
+    );
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      const rawId = row.geoTargetConstant?.id;
+      const name = row.geoTargetConstant?.name;
+      const canonical = name ? resolveCounty(name) : null;
+      if (rawId && canonical) map.set(rawId, canonical);
+    }
+    if (!map.size) {
+      throw new Error(
+        "Google Ads geo_target_constant lookup for RO (target_type='County') returned no result " +
+          '— refusing to guess a county for a geo target id.',
+      );
+    }
+    this.geoTargetIdToCounty = { value: map, at: Date.now() };
+    return map.get(id) ?? null;
+  }
+
   /** The Google Ads account's own billing currency (e.g. 'EUR', 'RON'),
    *  read fresh from the `customer` resource rather than assumed. */
   async getAccountCurrencyCode(): Promise<string> {
@@ -126,5 +161,6 @@ export class GoogleAdsReferenceDataService {
     this.languageConstantRo = null;
     this.accountCurrencyCode = null;
     this.countyGeoTargetConstants = null;
+    this.geoTargetIdToCounty = null;
   }
 }

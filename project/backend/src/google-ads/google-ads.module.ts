@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { GoogleAdsAgentContentService } from './google-ads-agent-content.service';
 import { GoogleAdsAgentIntelligenceService } from './google-ads-agent-intelligence.service';
+import { GoogleAdsAgentRecommendationsService } from './google-ads-agent-recommendations.service';
 import { GoogleAdsAgentStructuralService } from './google-ads-agent-structural.service';
 import { GoogleAdsApiClient } from './google-ads-api-client.service';
 import { GoogleAdsCpcSyncService } from './google-ads-cpc-sync.service';
@@ -23,6 +24,7 @@ import { GoogleAdsReferenceDataService } from './google-ads-reference-data.servi
     GoogleAdsApiClient,
     GoogleAdsReferenceDataService,
     GoogleAdsCpcSyncService,
+    GoogleAdsAgentRecommendationsService,
     GoogleAdsAgentStructuralService,
     GoogleAdsAgentContentService,
     GoogleAdsAgentIntelligenceService,
@@ -30,6 +32,7 @@ import { GoogleAdsReferenceDataService } from './google-ads-reference-data.servi
   exports: [
     GoogleAdsApiClient,
     GoogleAdsReferenceDataService,
+    GoogleAdsAgentRecommendationsService,
     GoogleAdsAgentStructuralService,
     GoogleAdsAgentContentService,
     GoogleAdsAgentIntelligenceService,

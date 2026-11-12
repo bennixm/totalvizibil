@@ -10,6 +10,7 @@ import { i18n } from '@/plugins/i18n'
 import { pinia } from '@/plugins/pinia'
 import { vuetify } from '@/plugins/vuetify'
 import { router } from '@/router'
+import { initGoogleAdsConversionTracking } from '@/services/google-ads-conversion'
 import '@/styles/main.scss'
 
 // A route/chunk built before the last deploy references a hashed asset
@@ -48,3 +49,8 @@ app.use(i18n)
 app.use(vuetify)
 
 app.mount('#app')
+
+// Research doc, Direction 3: best-effort, fire-and-forget — never blocks
+// the app from rendering, and silently no-ops until the conversion action
+// exists server-side.
+void initGoogleAdsConversionTracking()
