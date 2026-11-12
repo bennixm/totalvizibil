@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { GoogleAdsAgentContentService } from '../google-ads/google-ads-agent-content.service';
 import { GoogleAdsApiClient } from '../google-ads/google-ads-api-client.service';
@@ -50,6 +50,8 @@ function startOfMonthUtc(): Date {
  */
 @Injectable()
 export class AdminGoogleAdsService {
+  private readonly logger = new Logger(AdminGoogleAdsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: PlatformSettingsService,
@@ -245,9 +247,32 @@ export class AdminGoogleAdsService {
     return { items: rows, page: params.page, pageSize: params.pageSize, total };
   }
 
-  runNow(kind: GoogleAdsAgentRunKindParam): Promise<void> {
-    if (kind === 'structural') return this.structural.run();
-    if (kind === 'content') return this.content.run();
-    return this.intelligence.run();
+  /**
+   * Deliberately fire-and-forget: a real pass calls Claude and/or the real
+   * Google Ads API once per category, sequentially — easily well past the
+   * frontend's ~12s request timeout for anything but a handful of
+   * categories. Previously this awaited the whole run, so the admin's
+   * browser showed a timeout error even though the run had (or would)
+   * complete successfully server-side — confusing and indistinguishable
+   * from an actual failure. Each service's own `run()` already tracks
+   * progress/outcome in `GoogleAdsAgentRun` (what "Ultimele rulări"/"Istoric"
+   * read), so there's nothing useful to await here; the `.catch()` only
+   * exists to stop an eventual rejection — already logged, and the run
+   * already marked `failed`, inside `run()` itself — from surfacing as an
+   * unhandled promise rejection now that nothing awaits this call.
+   */
+  runNow(kind: GoogleAdsAgentRunKindParam): void {
+    const run =
+      kind === 'structural'
+        ? this.structural.run()
+        : kind === 'content'
+          ? this.content.run()
+          : this.intelligence.run();
+    run.catch((err) => {
+      this.logger.error(
+        `Fire-and-forget '${kind}' run rejected.`,
+        err instanceof Error ? err.stack : err,
+      );
+    });
   }
 }

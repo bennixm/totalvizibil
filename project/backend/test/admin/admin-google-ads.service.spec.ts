@@ -210,6 +210,54 @@ describe('AdminGoogleAdsService', () => {
     expect(agents.intelligence.run).toHaveBeenCalledTimes(1);
   });
 
+  it("runNow() returns immediately (doesn't await the pass) and doesn't throw or crash on an unhandled rejection", async () => {
+    // A real pass calls Claude/Google Ads once per category, sequentially —
+    // easily past the frontend's ~12s request timeout. runNow() must return
+    // synchronously (void, not a pending Promise) so the admin's browser
+    // never sees a timeout for a run that's actually still in progress
+    // server-side; this also means a later rejection from the agent's own
+    // run() must never become an unhandled promise rejection.
+    let resolveRun!: () => void;
+    const agents = fakeAgentServices();
+    agents.structural.run.mockReturnValue(new Promise<void>((resolve) => (resolveRun = resolve)));
+    const prisma = fakePrisma();
+    const settings = fakeSettings();
+    const client = fakeClient();
+    const svc = new AdminGoogleAdsService(
+      prisma as any,
+      settings as any,
+      client as any,
+      agents.structural as any,
+      agents.content as any,
+      agents.intelligence as any,
+    );
+
+    const result = svc.runNow('structural');
+    expect(result).toBeUndefined();
+    expect(agents.structural.run).toHaveBeenCalledTimes(1);
+    resolveRun();
+  });
+
+  it('swallows a rejected run() instead of crashing the process', async () => {
+    const agents = fakeAgentServices();
+    agents.content.run.mockRejectedValue(new Error('boom'));
+    const prisma = fakePrisma();
+    const settings = fakeSettings();
+    const client = fakeClient();
+    const svc = new AdminGoogleAdsService(
+      prisma as any,
+      settings as any,
+      client as any,
+      agents.structural as any,
+      agents.content as any,
+      agents.intelligence as any,
+    );
+
+    expect(() => svc.runNow('content')).not.toThrow();
+    // Let the rejection's microtask settle before the test exits.
+    await new Promise((resolve) => setImmediate(resolve));
+  });
+
   describe('googleAdsCredentials / setGoogleAdsCredentials', () => {
     it('never returns the raw secret — only whether one is configured', async () => {
       const client = fakeClient({
