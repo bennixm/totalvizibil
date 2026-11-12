@@ -2,7 +2,11 @@ import { Prisma } from '@prisma/client';
 import { COMPANY_DELETE_GRACE_MS } from './companies.constants';
 
 export const companyInclude = {
-  category: true,
+  // `parent` is the top-level category (e.g. "Instalații") the dashboard's
+  // Category card shows big; `category` itself is the primary leaf/
+  // subcategory (e.g. "Instalații electrice"), shown small alongside the
+  // other selected subcategories.
+  category: { include: { parent: true } },
   categoryAssignments: { include: { category: true }, orderBy: { isPrimary: 'desc' } },
   locations: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
   contacts: { orderBy: { createdAt: 'asc' } },
@@ -33,7 +37,18 @@ export function toCompanyView(c: CompanyWithRelations, viewerRole: string | null
     updatedAt: c.updatedAt,
     viewerRole,
     category: c.category
-      ? { id: c.category.id, slug: c.category.slug, name: c.category.nameI18n }
+      ? {
+          id: c.category.id,
+          slug: c.category.slug,
+          name: c.category.nameI18n,
+          parent: c.category.parent
+            ? {
+                id: c.category.parent.id,
+                slug: c.category.parent.slug,
+                name: c.category.parent.nameI18n,
+              }
+            : null,
+        }
       : null,
     // Full subcategory tagging (one or several real leaves) — `category`
     // above stays the single primary/display one for not-yet-migrated UI.
