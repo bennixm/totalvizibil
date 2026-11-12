@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
+import AdminHint from '@/components/admin/AdminHint.vue'
 import { useAdminStore } from '@/stores/admin'
 import { useAuthStore } from '@/stores/auth'
 import { useConfirmStore } from '@/stores/confirm'
@@ -419,8 +420,10 @@ async function save() {
               <div v-for="f in pricingFields" :key="f.key" class="as__field">
                 <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>
                 <div class="as__body">
-                  <label :for="f.key" class="as__label">{{ t(f.label) }}</label>
-                  <p class="as__hint">{{ t(f.hint) }}</p>
+                  <label :for="f.key" class="as__label">
+                    {{ t(f.label) }}
+                    <AdminHint :text="t(f.hint)" size="sm" />
+                  </label>
                 </div>
                 <v-text-field
                   :id="f.key"
@@ -440,14 +443,20 @@ async function save() {
             </div>
           </AdminSection>
 
-          <AdminSection :title="t('adminSettings.feedPricingTitle')" icon="mdi-podium-gold" class="mt-4">
-            <p class="as__sectionNote">{{ t('adminSettings.feedPricingNote') }}</p>
+          <AdminSection
+            :title="t('adminSettings.feedPricingTitle')"
+            icon="mdi-podium-gold"
+            class="mt-4"
+            :hint="t('adminSettings.feedPricingNote')"
+          >
             <div class="as__fields">
               <div v-for="f in feedPricingFields" :key="f.key" class="as__field">
                 <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>
                 <div class="as__body">
-                  <label :for="f.key" class="as__label">{{ t(f.label) }}</label>
-                  <p class="as__hint">{{ t(f.hint) }}</p>
+                  <label :for="f.key" class="as__label">
+                    {{ t(f.label) }}
+                    <AdminHint :text="t(f.hint)" size="sm" />
+                  </label>
                 </div>
                 <v-text-field
                   :id="f.key"
@@ -467,8 +476,12 @@ async function save() {
             </div>
           </AdminSection>
 
-          <AdminSection :title="t('adminSettings.googleAdsTitle')" icon="mdi-google" class="mt-4">
-            <p class="as__sectionNote">{{ t('adminSettings.googleAdsNote') }}</p>
+          <AdminSection
+            :title="t('adminSettings.googleAdsTitle')"
+            icon="mdi-google"
+            class="mt-4"
+            :hint="t('adminSettings.googleAdsNote')"
+          >
 
             <div class="as__googleAdsStatus" :class="`is-${googleAdsStatus.state}`">
               <v-icon
@@ -502,8 +515,10 @@ async function save() {
               <div v-for="f in googleAdsFields" :key="f.key" class="as__field">
                 <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>
                 <div class="as__body">
-                  <label :for="f.key" class="as__label">{{ t(f.label) }}</label>
-                  <p class="as__hint">{{ t(f.hint) }}</p>
+                  <label :for="f.key" class="as__label">
+                    {{ t(f.label) }}
+                    <AdminHint :text="t(f.hint)" size="sm" />
+                  </label>
                 </div>
                 <v-text-field
                   :id="f.key"
@@ -531,8 +546,10 @@ async function save() {
               <div v-for="f in billingFields" :key="f.key" class="as__field">
                 <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>
                 <div class="as__body">
-                  <label :for="f.key" class="as__label">{{ t(f.label) }}</label>
-                  <p class="as__hint">{{ t(f.hint) }}</p>
+                  <label :for="f.key" class="as__label">
+                    {{ t(f.label) }}
+                    <AdminHint :text="t(f.hint)" size="sm" />
+                  </label>
                 </div>
                 <v-text-field
                   :id="f.key"
@@ -551,7 +568,9 @@ async function save() {
               </div>
             </div>
 
-            <p class="as__sectionNote as__sectionNote--tight">{{ t('adminSettings.issuerNote') }}</p>
+            <div class="as__subhint as__subhint--tight">
+              <AdminHint :text="t('adminSettings.issuerNote')" />
+            </div>
             <div class="as__issuerGrid">
               <v-text-field
                 v-for="f in issuerFields"
@@ -571,8 +590,10 @@ async function save() {
               <div v-for="f in refundFields" :key="f.key" class="as__field">
                 <span class="as__ic"><v-icon :icon="f.icon" size="18" /></span>
                 <div class="as__body">
-                  <label :for="f.key" class="as__label">{{ t(f.label) }}</label>
-                  <p class="as__hint">{{ t(f.hint) }}</p>
+                  <label :for="f.key" class="as__label">
+                    {{ t(f.label) }}
+                    <AdminHint :text="t(f.hint)" size="sm" />
+                  </label>
                 </div>
                 <v-text-field
                   :id="f.key"
@@ -595,14 +616,19 @@ async function save() {
 
         <!-- Program de afiliere -->
         <v-window-item value="affiliate">
-          <AdminSection :title="t('adminSettings.affiliateTitle')" icon="mdi-account-multiple-plus-outline">
-            <p class="as__sectionNote">{{ t('adminSettings.affiliateNote') }}</p>
+          <AdminSection
+            :title="t('adminSettings.affiliateTitle')"
+            icon="mdi-account-multiple-plus-outline"
+            :hint="t('adminSettings.affiliateNote')"
+          >
 
             <div class="as__field">
               <span class="as__ic"><v-icon icon="mdi-power" size="18" /></span>
               <div class="as__body">
-                <label class="as__label">{{ t('adminSettings.affiliateEnabled') }}</label>
-                <p class="as__hint">{{ t('adminSettings.affiliateEnabledHint') }}</p>
+                <label class="as__label">
+                  {{ t('adminSettings.affiliateEnabled') }}
+                  <AdminHint :text="t('adminSettings.affiliateEnabledHint')" size="sm" />
+                </label>
               </div>
               <v-switch
                 v-model="affiliate.enabled"
@@ -617,8 +643,10 @@ async function save() {
             <div class="as__field">
               <span class="as__ic"><v-icon icon="mdi-gift-outline" size="18" /></span>
               <div class="as__body">
-                <label for="affReward" class="as__label">{{ t('adminSettings.affiliateReward') }}</label>
-                <p class="as__hint">{{ t('adminSettings.affiliateRewardHint') }}</p>
+                <label for="affReward" class="as__label">
+                  {{ t('adminSettings.affiliateReward') }}
+                  <AdminHint :text="t('adminSettings.affiliateRewardHint')" size="sm" />
+                </label>
               </div>
               <v-text-field
                 id="affReward"
@@ -640,8 +668,10 @@ async function save() {
             <div class="as__field">
               <span class="as__ic"><v-icon icon="mdi-cash-multiple" size="18" /></span>
               <div class="as__body">
-                <label for="affMinDep" class="as__label">{{ t('adminSettings.affiliateMinDeposit') }}</label>
-                <p class="as__hint">{{ t('adminSettings.affiliateMinDepositHint') }}</p>
+                <label for="affMinDep" class="as__label">
+                  {{ t('adminSettings.affiliateMinDeposit') }}
+                  <AdminHint :text="t('adminSettings.affiliateMinDepositHint')" size="sm" />
+                </label>
               </div>
               <v-text-field
                 id="affMinDep"
@@ -689,14 +719,19 @@ async function save() {
 
         <!-- Reduceri -->
         <v-window-item value="discount">
-          <AdminSection :title="t('adminSettings.discountTitle')" icon="mdi-sale-outline">
-            <p class="as__sectionNote">{{ t('adminSettings.discountNote') }}</p>
+          <AdminSection
+            :title="t('adminSettings.discountTitle')"
+            icon="mdi-sale-outline"
+            :hint="t('adminSettings.discountNote')"
+          >
 
             <div class="as__field">
               <span class="as__ic"><v-icon icon="mdi-power" size="18" /></span>
               <div class="as__body">
-                <label class="as__label">{{ t('adminSettings.discountEnabled') }}</label>
-                <p class="as__hint">{{ t('adminSettings.discountEnabledHint') }}</p>
+                <label class="as__label">
+                  {{ t('adminSettings.discountEnabled') }}
+                  <AdminHint :text="t('adminSettings.discountEnabledHint')" size="sm" />
+                </label>
               </div>
               <v-switch v-model="discount.enabled" :disabled="readOnly" color="primary" density="compact" hide-details inset />
             </div>
@@ -704,8 +739,10 @@ async function save() {
             <div class="as__field">
               <span class="as__ic"><v-icon icon="mdi-percent-outline" size="18" /></span>
               <div class="as__body">
-                <label for="discountPct" class="as__label">{{ t('adminSettings.discountPct') }}</label>
-                <p class="as__hint">{{ t('adminSettings.discountPctHint') }}</p>
+                <label for="discountPct" class="as__label">
+                  {{ t('adminSettings.discountPct') }}
+                  <AdminHint :text="t('adminSettings.discountPctHint')" size="sm" />
+                </label>
               </div>
               <v-text-field
                 id="discountPct"
@@ -728,8 +765,11 @@ async function save() {
 
         <!-- Mentenanță -->
         <v-window-item v-if="!readOnly" value="maintenance">
-          <AdminSection :title="t('adminSettings.maintenanceTitle')" icon="mdi-wrench-cog-outline">
-            <p class="as__sectionNote">{{ t('adminSettings.maintenanceNote') }}</p>
+          <AdminSection
+            :title="t('adminSettings.maintenanceTitle')"
+            icon="mdi-wrench-cog-outline"
+            :hint="t('adminSettings.maintenanceNote')"
+          >
 
             <v-text-field
               v-model="maintenance.title"
@@ -844,13 +884,11 @@ async function save() {
   min-width: 0;
 }
 .as__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-weight: 600;
   font-size: 0.9rem;
-}
-.as__hint {
-  margin: 0.15rem 0 0;
-  font-size: 0.78rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .as__input {
   flex: none;
@@ -895,12 +933,11 @@ async function save() {
   color: rgba(var(--v-theme-on-surface), 0.5);
   margin-right: auto;
 }
-.as__sectionNote {
-  margin: 0 0 1rem;
-  font-size: 0.82rem;
-  color: rgba(var(--v-theme-on-surface), 0.6);
+.as__subhint {
+  display: flex;
+  margin: 0 0 0.6rem;
 }
-.as__sectionNote--tight {
+.as__subhint--tight {
   margin-top: 1.4rem;
   padding-top: 1.2rem;
   border-top: 1px solid var(--tvz-hairline);

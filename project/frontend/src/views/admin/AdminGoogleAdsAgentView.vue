@@ -7,6 +7,7 @@ import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
+import AdminHint from '@/components/admin/AdminHint.vue'
 import {
   useAdminStore,
   type GoogleAdsAgentActionRow,
@@ -414,7 +415,12 @@ function cancelEditCredentials() {
             </div>
           </AdminSection>
 
-          <AdminSection :title="t('adminGoogleAds.feedCpcTitle')" icon="mdi-currency-usd" wide>
+          <AdminSection
+            :title="t('adminGoogleAds.feedCpcTitle')"
+            icon="mdi-currency-usd"
+            wide
+            :hint="t('adminGoogleAds.feedCpcHint', { minutes: admin.googleAdsAgentOverview.feedCpc.staleAfterMinutes })"
+          >
             <div class="feedcpc">
               <div class="feedcpc__row">
                 <span class="feedcpc__label">{{ t('adminGoogleAds.feedCpcActive') }}</span>
@@ -449,9 +455,6 @@ function cancelEditCredentials() {
                 <span class="feedcpc__value">{{ fmtDate(admin.googleAdsAgentOverview.feedCpc.updatedAt) }}</span>
               </div>
             </div>
-            <p class="gaa__hint">
-              {{ t('adminGoogleAds.feedCpcHint', { minutes: admin.googleAdsAgentOverview.feedCpc.staleAfterMinutes }) }}
-            </p>
           </AdminSection>
         </div>
       </v-window-item>
@@ -617,14 +620,15 @@ function cancelEditCredentials() {
       <!-- Settings -->
       <v-window-item value="settings">
         <AdminSection :title="t('adminGoogleAds.tabSettings')" icon="mdi-tune-variant">
-          <v-switch
-            v-model="settingsForm.googleAdsAgentEnabled"
-            color="primary"
-            :label="t('adminGoogleAds.settingEnabled')"
-            hide-details
-            class="mb-4"
-          />
-          <p class="gaa__hint">{{ t('adminGoogleAds.settingEnabledHint') }}</p>
+          <div class="gaa__switchRow">
+            <v-switch
+              v-model="settingsForm.googleAdsAgentEnabled"
+              color="primary"
+              :label="t('adminGoogleAds.settingEnabled')"
+              hide-details
+            />
+            <AdminHint :text="t('adminGoogleAds.settingEnabledHint')" size="sm" />
+          </div>
 
           <div class="gaa__settingsGrid">
             <v-text-field
@@ -661,8 +665,10 @@ function cancelEditCredentials() {
             />
           </div>
 
-          <h3 class="gaa__subhead">{{ t('adminGoogleAds.cadenceTitle') }}</h3>
-          <p class="gaa__hint">{{ t('adminGoogleAds.cadenceHint') }}</p>
+          <h3 class="gaa__subhead">
+            {{ t('adminGoogleAds.cadenceTitle') }}
+            <AdminHint :text="t('adminGoogleAds.cadenceHint')" size="sm" />
+          </h3>
           <div class="gaa__settingsGrid">
             <v-text-field
               v-model.number="settingsForm.googleAdsAgentStructuralIntervalMinutes"
@@ -701,8 +707,12 @@ function cancelEditCredentials() {
           </v-btn>
         </AdminSection>
 
-        <AdminSection :title="t('adminGoogleAds.accountTitle')" icon="mdi-google" class="mt-4">
-          <p class="gaa__hint">{{ t('adminGoogleAds.accountHint') }}</p>
+        <AdminSection
+          :title="t('adminGoogleAds.accountTitle')"
+          icon="mdi-google"
+          class="mt-4"
+          :hint="t('adminGoogleAds.accountHint')"
+        >
 
           <!-- Only one account is ever connected — once it is, this shows a
                summary instead of open inputs, so there's never a visual
@@ -833,16 +843,20 @@ function cancelEditCredentials() {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.9rem;
 }
-.gaa__hint {
-  font-size: 0.8rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-  margin: -0.5rem 0 1.2rem;
-}
 .gaa__subhead {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-family: 'Space Grotesk Variable', sans-serif;
   font-size: 0.85rem;
   font-weight: 600;
   margin: 1.4rem 0 0.3rem;
+}
+.gaa__switchRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 .gaa__accountStatus {
   display: flex;

@@ -8,6 +8,7 @@ import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
+import AdminHint from '@/components/admin/AdminHint.vue'
 import TrendChart from '@/components/TrendChart.vue'
 import { useMoney } from '@/composables/useMoney'
 import { usePeriodFilter } from '@/composables/usePeriodFilter'
@@ -164,7 +165,12 @@ onMounted(() => setQuickRange('month'))
       <!-- The headline: real profit, always Today/This month/This year —
            independent of the period picker above (same reasoning as the
            point-in-time balance-sheet figures further down the page). -->
-      <AdminSection :title="t('adminFinance.finalProfitTitle')" icon="mdi-piggy-bank-outline" class="afd__hero">
+      <AdminSection
+        :title="t('adminFinance.finalProfitTitle')"
+        icon="mdi-piggy-bank-outline"
+        class="afd__hero"
+        :hint="t('adminFinance.finalProfitHint')"
+      >
         <div class="afd__kpis afd__kpis--three">
           <AdminStatCard
             :label="t('adminFinance.today')"
@@ -185,7 +191,6 @@ onMounted(() => setQuickRange('month'))
             :tone="profitTone(finance.overview.finalProfit.year.profitMinor)"
           />
         </div>
-        <p class="afd__hint">{{ t('adminFinance.finalProfitHint') }}</p>
       </AdminSection>
 
       <!-- Bani încasați → costuri → profit, for the SELECTED period (the
@@ -214,7 +219,9 @@ onMounted(() => setQuickRange('month'))
           :tone="profitTone(finance.overview.profitMinor)"
         />
       </div>
-      <p class="afd__hint">{{ t('adminFinance.unconsumedRevenueHint') }}</p>
+      <div class="afd__standaloneHint">
+        <AdminHint :text="t('adminFinance.unconsumedRevenueHint')" />
+      </div>
 
       <!-- Gross (credit face value sold) vs net (money collected); the delta
            is what the discount cost over this period. -->
@@ -256,9 +263,9 @@ onMounted(() => setQuickRange('month'))
         :title="t('adminFinance.refundRatioTitle')"
         icon="mdi-chart-bell-curve-cumulative"
         class="afd__chart"
+        :hint="t('adminFinance.refundRatioHint')"
       >
         <TrendChart :labels="trendLabels" :series="refundRatioSeries" :format="pctAxis" />
-        <p class="afd__hint">{{ t('adminFinance.refundRatioHint') }}</p>
       </AdminSection>
 
       <div class="afd__grid">
@@ -272,7 +279,11 @@ onMounted(() => setQuickRange('month'))
           <p v-else class="afd__muted">{{ t('adminFinance.noCosts') }}</p>
         </AdminSection>
 
-        <AdminSection :title="t('adminFinance.promotionProfitTitle')" icon="mdi-google-ads">
+        <AdminSection
+          :title="t('adminFinance.promotionProfitTitle')"
+          icon="mdi-google-ads"
+          :hint="t('adminFinance.paidTrafficHint')"
+        >
           <ul class="afd__catlist">
             <li class="afd__catrow">
               <span class="afd__catlabel">{{ t('adminFinance.cpcRevenueCredits') }}</span>
@@ -291,7 +302,6 @@ onMounted(() => setQuickRange('month'))
               <span class="afd__catvalue">{{ eur(finance.overview.paidTraffic.realMoneyProfitMinor) }}</span>
             </li>
           </ul>
-          <p class="afd__hint">{{ t('adminFinance.paidTrafficHint') }}</p>
         </AdminSection>
 
         <!-- Profit/cost split for the website-builder AI: what customers'
@@ -300,7 +310,11 @@ onMounted(() => setQuickRange('month'))
              agent row is a real, separate operating cost (Google Ads agent) —
              never charged to any customer, so it's shown but not folded into
              `aiBuilderProfit` above it. -->
-        <AdminSection :title="t('adminFinance.aiBuilderTitle')" icon="mdi-robot-outline">
+        <AdminSection
+          :title="t('adminFinance.aiBuilderTitle')"
+          icon="mdi-robot-outline"
+          :hint="t('adminFinance.campaignAgentHint')"
+        >
           <ul class="afd__catlist">
             <li class="afd__catrow">
               <span class="afd__catlabel">{{ t('adminFinance.aiBuilderPromptProfit') }}</span>
@@ -332,11 +346,14 @@ onMounted(() => setQuickRange('month'))
               <span class="afd__catvalue">{{ eur(finance.overview.aiBuilder.campaignAgentCostMinor) }}</span>
             </li>
           </ul>
-          <p class="afd__hint">{{ t('adminFinance.campaignAgentHint') }}</p>
         </AdminSection>
 
         <!-- The CPC-vs-one-off split, labelled for what it is. -->
-        <AdminSection :title="t('adminFinance.creditConsumptionTitle')" icon="mdi-repeat-variant">
+        <AdminSection
+          :title="t('adminFinance.creditConsumptionTitle')"
+          icon="mdi-repeat-variant"
+          :hint="t('adminFinance.creditConsumptionHint')"
+        >
           <ul class="afd__catlist">
             <li class="afd__catrow">
               <span class="afd__catlabel">{{ t('adminFinance.recurringCpc') }}</span>
@@ -357,10 +374,14 @@ onMounted(() => setQuickRange('month'))
               </span>
             </li>
           </ul>
-          <p class="afd__hint">{{ t('adminFinance.creditConsumptionHint') }}</p>
         </AdminSection>
 
-        <AdminSection :title="t('adminFinance.vatTitle')" icon="mdi-percent-outline" wide>
+        <AdminSection
+          :title="t('adminFinance.vatTitle')"
+          icon="mdi-percent-outline"
+          wide
+          :hint="t('adminFinance.vatCurrencyHint')"
+        >
           <div v-if="finance.overview.vatBreakdown.length" class="afd__vat">
             <div class="afd__vathead" aria-hidden="true">
               <span>{{ t('adminFinance.vatColRate') }}</span>
@@ -382,7 +403,6 @@ onMounted(() => setQuickRange('month'))
             </div>
           </div>
           <p v-else class="afd__muted">{{ t('adminFinance.noInvoicesInPeriod') }}</p>
-          <p class="afd__hint">{{ t('adminFinance.vatCurrencyHint') }}</p>
         </AdminSection>
       </div>
 
@@ -682,10 +702,9 @@ onMounted(() => setQuickRange('month'))
   font-size: 0.86rem;
   margin: 0;
 }
-.afd__hint {
-  margin: 0.8rem 0 0;
-  font-size: 0.74rem;
-  color: rgba(var(--v-theme-on-surface), 0.5);
+.afd__standaloneHint {
+  display: flex;
+  margin: 0.4rem 0 1rem;
 }
 
 @media (max-width: 1100px) {
