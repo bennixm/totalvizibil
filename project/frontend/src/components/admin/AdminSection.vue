@@ -1,8 +1,15 @@
 <script setup lang="ts">
+import AdminHint from './AdminHint.vue'
+
 defineProps<{
   title?: string
   icon?: string
   wide?: boolean
+  /** Explanatory copy for this section — shown as a small on-demand tooltip
+   *  next to the title instead of a permanent paragraph. Pass a slot-level
+   *  <p class="asec__note"> only for copy that must always stay visible
+   *  (rare); prefer this prop by default. */
+  hint?: string
 }>()
 </script>
 
@@ -12,6 +19,7 @@ defineProps<{
       <h2 v-if="title" class="asec__title">
         <v-icon v-if="icon" :icon="icon" size="18" />
         {{ title }}
+        <AdminHint v-if="hint" :text="hint" />
       </h2>
       <div v-if="$slots.actions" class="asec__actions">
         <slot name="actions" />

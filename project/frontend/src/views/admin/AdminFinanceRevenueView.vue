@@ -7,6 +7,7 @@ import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
+import AdminHint from '@/components/admin/AdminHint.vue'
 import { useMoney } from '@/composables/useMoney'
 import { usePeriodFilter } from '@/composables/usePeriodFilter'
 import { useAdminFinanceStore, type RevenueTxnType } from '@/stores/adminFinance'
@@ -109,7 +110,9 @@ onMounted(() => setQuickRange('month'))
         icon="mdi-tag-outline"
       />
     </div>
-    <p class="afr__hint">{{ t('adminFinance.consumedRevenueCrossRefHint') }}</p>
+    <div class="afr__standaloneHint">
+      <AdminHint :text="t('adminFinance.consumedRevenueCrossRefHint')" />
+    </div>
 
     <div class="afr__filters">
       <v-btn-toggle v-model="typeFilter" density="compact" mandatory color="primary" divided>
@@ -187,9 +190,9 @@ onMounted(() => setQuickRange('month'))
           </span>
         </span>
       </div>
-      <p v-if="discountDeltaMinor !== 0" class="afr__hint">
-        {{ t('adminFinance.discountDeltaHint', { amount: eur(discountDeltaMinor) }) }}
-      </p>
+      <div v-if="discountDeltaMinor !== 0" class="afr__standaloneHint">
+        <AdminHint :text="t('adminFinance.discountDeltaHint', { amount: eur(discountDeltaMinor) })" />
+      </div>
     </div>
 
     <AdminPager
@@ -219,10 +222,9 @@ onMounted(() => setQuickRange('month'))
   flex-wrap: wrap;
   margin: 1.2rem 0 1.4rem;
 }
-.afr__hint {
-  margin: 0.7rem 0 0;
-  font-size: 0.74rem;
-  color: rgba(var(--v-theme-on-surface), 0.5);
+.afr__standaloneHint {
+  display: flex;
+  margin: 0.4rem 0 0;
 }
 .afr__center {
   display: grid;
