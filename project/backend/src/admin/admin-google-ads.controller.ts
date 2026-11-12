@@ -123,12 +123,14 @@ export class AdminGoogleAdsController {
     });
   }
 
+  /** Returns as soon as the run is KICKED OFF, not once it finishes — see
+   *  `AdminGoogleAdsService.runNow()`'s doc comment for why. */
   @Post('run/:kind')
   async runNow(
     @CurrentUser() caller: AuthPrincipal,
     @Param('kind', new ParseEnumPipe(RunKind)) kind: GoogleAdsAgentRunKindParam,
   ) {
-    await this.service.runNow(kind);
+    this.service.runNow(kind);
     await this.audit.log({
       actorId: caller.id,
       actorRoles: caller.platformRoles,
@@ -136,6 +138,6 @@ export class AdminGoogleAdsController {
       targetType: 'google_ads_agent_run',
       targetId: kind,
     });
-    return { ok: true };
+    return { started: true };
   }
 }
