@@ -152,6 +152,105 @@ describe('PlatformSettingsService', () => {
     });
   });
 
+  describe('googleAdsAgentEnabled', () => {
+    it('defaults to false (off) when unset', async () => {
+      const svc = new PlatformSettingsService(
+        fakePrisma() as any,
+        fakeNotifications() as any,
+        fakeConfig() as any,
+        fakeAudit() as any,
+      );
+      expect(await svc.googleAdsAgentEnabled()).toBe(false);
+    });
+
+    it('persists true via setGoogleAdsAgentEnabled', async () => {
+      const svc = new PlatformSettingsService(
+        fakePrisma() as any,
+        fakeNotifications() as any,
+        fakeConfig() as any,
+        fakeAudit() as any,
+      );
+      expect(await svc.setGoogleAdsAgentEnabled(true)).toBe(true);
+      expect(await svc.googleAdsAgentEnabled()).toBe(true);
+    });
+  });
+
+  describe('googleAdsAgentDefaultDailyBudgetCredits / googleAdsAgentDefaultMaxCpcCredits', () => {
+    it('return sane defaults when unset', async () => {
+      const svc = new PlatformSettingsService(
+        fakePrisma() as any,
+        fakeNotifications() as any,
+        fakeConfig() as any,
+        fakeAudit() as any,
+      );
+      expect(await svc.googleAdsAgentDefaultDailyBudgetCredits()).toBe(5);
+      expect(await svc.googleAdsAgentDefaultMaxCpcCredits()).toBe(1);
+    });
+
+    it('store and return a new value within range', async () => {
+      const svc = new PlatformSettingsService(
+        fakePrisma() as any,
+        fakeNotifications() as any,
+        fakeConfig() as any,
+        fakeAudit() as any,
+      );
+      expect(await svc.setGoogleAdsAgentDefaultDailyBudgetCredits(20)).toBe(20);
+      expect(await svc.googleAdsAgentDefaultDailyBudgetCredits()).toBe(20);
+      expect(await svc.setGoogleAdsAgentDefaultMaxCpcCredits(2.5)).toBe(2.5);
+      expect(await svc.googleAdsAgentDefaultMaxCpcCredits()).toBe(2.5);
+    });
+
+    it('rejects an out-of-range value', async () => {
+      const svc = new PlatformSettingsService(
+        fakePrisma() as any,
+        fakeNotifications() as any,
+        fakeConfig() as any,
+        fakeAudit() as any,
+      );
+      await expect(svc.setGoogleAdsAgentDefaultDailyBudgetCredits(0)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(svc.setGoogleAdsAgentDefaultMaxCpcCredits(0)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('googleAdsAgentMaxDailyBudgetCapCredits / googleAdsAgentMaxCpcCapCredits', () => {
+    it('return sane defaults when unset', async () => {
+      const svc = new PlatformSettingsService(
+        fakePrisma() as any,
+        fakeNotifications() as any,
+        fakeConfig() as any,
+        fakeAudit() as any,
+      );
+      expect(await svc.googleAdsAgentMaxDailyBudgetCapCredits()).toBe(50);
+      expect(await svc.googleAdsAgentMaxCpcCapCredits()).toBe(5);
+    });
+
+    it('store and return a new value within range', async () => {
+      const svc = new PlatformSettingsService(
+        fakePrisma() as any,
+        fakeNotifications() as any,
+        fakeConfig() as any,
+        fakeAudit() as any,
+      );
+      expect(await svc.setGoogleAdsAgentMaxDailyBudgetCapCredits(100)).toBe(100);
+      expect(await svc.googleAdsAgentMaxDailyBudgetCapCredits()).toBe(100);
+      expect(await svc.setGoogleAdsAgentMaxCpcCapCredits(10)).toBe(10);
+      expect(await svc.googleAdsAgentMaxCpcCapCredits()).toBe(10);
+    });
+
+    it('rejects an out-of-range value', async () => {
+      const svc = new PlatformSettingsService(
+        fakePrisma() as any,
+        fakeNotifications() as any,
+        fakeConfig() as any,
+        fakeAudit() as any,
+      );
+      await expect(svc.setGoogleAdsAgentMaxDailyBudgetCapCredits(0)).rejects.toThrow(BadRequestException);
+      await expect(svc.setGoogleAdsAgentMaxCpcCapCredits(0)).rejects.toThrow(BadRequestException);
+    });
+  });
+
   describe('setCreditsDiscount', () => {
     it('notifyAll discount_updated when enabling from off', async () => {
       const notifications = fakeNotifications();

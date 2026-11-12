@@ -39,6 +39,8 @@ Can:
 - configure campaign parameters
 - optimize campaigns within defined limits
 
+Full implementation plan (Google Ads, approved, not yet built): [GOOGLE-ADS-AGENT-PLAN.md](GOOGLE-ADS-AGENT-PLAN.md).
+
 ## Business Account Manager
 
 Can:

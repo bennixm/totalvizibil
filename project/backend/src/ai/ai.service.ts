@@ -32,8 +32,62 @@ export interface ReviewIssue {
   fix?: string;
 }
 
+/** Google Ads agent (docs/ai/GOOGLE-ADS-AGENT-PLAN.md) — one-time keyword
+ *  + ad copy generation for a brand-new per-subcategory campaign. */
+export interface GoogleAdsKeywordPlanInput {
+  categoryName: string;
+  parentCategoryName?: string;
+  landingUrl: string;
+  businessNames: string[];
+}
+export interface GoogleAdsKeywordPlan {
+  keywords: string[];
+  headlines: string[];
+  descriptions: string[];
+  /** Rough cost estimate (minor credit units) for this one call — see
+   *  `estimateClaudeCostMinor()`. For the admin panel's cost-tracking tab
+   *  (`GoogleAdsAgentRun.claudeCostEstimateMinor`), not real billing. */
+  costEstimateMinor: number;
+}
+
+/** Google Ads agent — daily batch budget/CPC proposal, one Claude call
+ *  across every live subcategory campaign at once. */
+export interface GoogleAdsBudgetSignal {
+  categorySlug: string;
+  categoryName: string;
+  activeCompanyCount: number;
+  currentDailyBudgetCredits: number;
+  currentMaxCpcCredits: number;
+}
+export interface GoogleAdsBudgetIntelligenceInput {
+  signals: GoogleAdsBudgetSignal[];
+  feedCpcFloorCredits: number;
+  maxDailyBudgetCapCredits: number;
+  maxCpcCapCredits: number;
+}
+export interface GoogleAdsBudgetProposal {
+  categorySlug: string;
+  proposedDailyBudgetCredits: number;
+  proposedMaxCpcCredits: number;
+  reasoning: string;
+}
+export interface GoogleAdsBudgetIntelligenceResult {
+  proposals: GoogleAdsBudgetProposal[];
+  /** See `GoogleAdsKeywordPlan.costEstimateMinor`. */
+  costEstimateMinor: number;
+}
+
 const TIMEOUT_MS = 20_000;
 const PLAN_TIMEOUT_MS = 60_000;
+
+/** Rough, USD-denominated estimate treated as credits (1 credit ≈ $1 here —
+ *  an explicit simplification for a cost-TRACKING estimate, not a real
+ *  invoice), priced at the "fast" model tier's rates (Sonnet-class: $2/$10
+ *  per MTok input/output) — the tier both Google Ads agent calls use. */
+export function estimateClaudeCostMinor(usage: { input_tokens: number; output_tokens: number }): number {
+  const usd = (usage.input_tokens / 1_000_000) * 2 + (usage.output_tokens / 1_000_000) * 10;
+  return Math.round(usd * 100);
+}
 
 /** Shared knobs for one Claude call. */
 interface CallOpts {
@@ -219,6 +273,21 @@ export class AiService {
     user: string,
     opts: CallOpts,
   ): Promise<Record<string, unknown> | null> {
+    const result = await this.anthropicJsonWithUsage(system, user, opts);
+    return result?.data ?? null;
+  }
+
+  /**
+   * Same as `anthropicJson`, plus the raw token usage — for callers that
+   * need a cost estimate (the Google Ads agent's `claudeCostEstimateMinor`
+   * tracking). `anthropicJson` itself stays a thin wrapper around this so
+   * every other caller (`serviceCopy`, `reviewCopy`, …) is unaffected.
+   */
+  private async anthropicJsonWithUsage(
+    system: string,
+    user: string,
+    opts: CallOpts,
+  ): Promise<{ data: Record<string, unknown>; usage: Anthropic.Usage } | null> {
     if (!this.anthropic) return null;
     try {
       const res = await this.anthropic.messages.create(
@@ -241,7 +310,7 @@ export class AiService {
         this.logger.warn('Claude returned unparseable JSON (even after repair)');
         return null;
       }
-      return parsed;
+      return { data: parsed, usage: res.usage };
     } catch (err) {
       this.logger.warn(`Claude call failed: ${this.errMsg(err)}`);
       return null;
@@ -446,5 +515,126 @@ export class AiService {
       out.push({ key, kind, message, ...(kind === 'grammar' && fixRaw ? { fix: fixRaw } : {}) });
     }
     return out.slice(0, 40);
+  }
+
+  /**
+   * Google Ads agent (docs/ai/GOOGLE-ADS-AGENT-PLAN.md), Faza 3: one-time
+   * keyword + Responsive Search Ad copy for a brand-new per-subcategory
+   * campaign skeleton. `null` when no provider is configured — the caller
+   * (`GoogleAdsAgentContentService`) leaves the campaign `pending_creation`
+   * rather than publishing ads with fabricated/placeholder copy.
+   */
+  async googleAdsKeywordPlan(
+    input: GoogleAdsKeywordPlanInput,
+  ): Promise<GoogleAdsKeywordPlan | null> {
+    if (!this.configured) return null;
+
+    const user = [
+      `Subcategorie: ${input.categoryName}${input.parentCategoryName ? ` (din grupul ${input.parentCategoryName})` : ''}`,
+      `URL de destinație: ${input.landingUrl}`,
+      input.businessNames.length
+        ? `Exemple de firme reale listate în această subcategorie: ${input.businessNames.slice(0, 10).join(', ')}`
+        : '',
+      '',
+      'Generează un plan de cuvinte cheie + reclamă Google Ads (Search, Responsive Search Ad) ' +
+        'pentru a atrage vizitatori din România către această subcategorie pe o platformă de ' +
+        'listare de firme locale (marketplace, nu o singură firmă). Răspunde STRICT JSON: ' +
+        '{"keywords": string[8-15, în română, fraze scurte de căutare], ' +
+        '"headlines": string[5-10, max 30 caractere FIECARE, română], ' +
+        '"descriptions": string[3-4, max 90 caractere FIECARE, română]}. ' +
+        'Nu promite preț/discount specific. Nu numi o singură firmă din exemple ca fiind "cea mai bună".',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const result = await this.anthropicJsonWithUsage(
+      'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
+      user,
+      { maxTokens: 1200, effort: 'medium', model: this.anthropicModelFast },
+    );
+    if (!result) return null;
+    const parsed = result.data as {
+      keywords?: unknown[];
+      headlines?: unknown[];
+      descriptions?: unknown[];
+    };
+
+    const asStrings = (v: unknown[] | undefined, maxLen: number): string[] =>
+      (Array.isArray(v) ? v : [])
+        .map((x) => (typeof x === 'string' ? x.trim() : ''))
+        .filter((s) => s && s.length <= maxLen);
+
+    const keywords = asStrings(parsed.keywords, 80).slice(0, 15);
+    const headlines = asStrings(parsed.headlines, 30).slice(0, 15);
+    const descriptions = asStrings(parsed.descriptions, 90).slice(0, 4);
+
+    // Google Ads' own minimums for a Responsive Search Ad / a usable keyword
+    // list — below this, writing the ad would just be rejected by the API,
+    // so fail here (caller keeps the campaign pending_creation) instead of
+    // sending a doomed mutate call.
+    if (keywords.length < 3 || headlines.length < 3 || descriptions.length < 2) {
+      this.logger.warn(
+        `Google Ads keyword plan came back under the minimum sizes ` +
+          `(keywords=${keywords.length}, headlines=${headlines.length}, descriptions=${descriptions.length})`,
+      );
+      return null;
+    }
+    return { keywords, headlines, descriptions, costEstimateMinor: estimateClaudeCostMinor(result.usage) };
+  }
+
+  /**
+   * Google Ads agent, Faza 3: one batch call across every live subcategory
+   * campaign — Claude sees the whole portfolio at once so it can reallocate
+   * between subcategories, not just tune each one in isolation. `null`
+   * when unavailable; the caller skips this cycle entirely (no proposals is
+   * safer than guessed ones).
+   */
+  async googleAdsBudgetIntelligence(
+    input: GoogleAdsBudgetIntelligenceInput,
+  ): Promise<GoogleAdsBudgetIntelligenceResult | null> {
+    if (!this.configured || !input.signals.length) return null;
+
+    const user = [
+      `Prag minim CPC pe platformă (credite, 1 credit = 1 EUR): ${input.feedCpcFloorCredits.toFixed(2)}`,
+      `Plafon absolut buget zilnic per subcategorie (credite): ${input.maxDailyBudgetCapCredits}`,
+      `Plafon absolut CPC maxim per subcategorie (credite): ${input.maxCpcCapCredits}`,
+      '',
+      'Subcategorii (buget/CPC curent, nr. firme active):',
+      JSON.stringify(input.signals),
+      '',
+      'Propune pentru FIECARE subcategorie din listă un buget zilnic și un CPC maxim (credite, ' +
+        'pot avea 2 decimale), ținând cont de nr. de firme active (mai multe firme = cerere mai ' +
+        'mare = buget mai mare justificat; 0-1 firme = buget mic). NU propune peste plafoanele de ' +
+        'mai sus. Explică scurt (1 propoziție, română) raționamentul fiecărei propuneri. Răspunde ' +
+        'STRICT JSON: {"proposals": [{"categorySlug": string, "proposedDailyBudgetCredits": number, ' +
+        '"proposedMaxCpcCredits": number, "reasoning": string}]}.',
+    ].join('\n');
+
+    const result = await this.anthropicJsonWithUsage(
+      'Ești un specialist în alocare de buget Google Ads pentru o platformă românească de listare firme locale.',
+      user,
+      { maxTokens: 4000, effort: 'medium', model: this.anthropicModelFast },
+    );
+    if (!result) return null;
+    const parsed = result.data as { proposals?: unknown[] };
+
+    const knownSlugs = new Set(input.signals.map((s) => s.categorySlug));
+    const proposals: GoogleAdsBudgetProposal[] = [];
+    for (const raw of Array.isArray(parsed.proposals) ? parsed.proposals : []) {
+      const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+      const categorySlug = String(o.categorySlug ?? '');
+      const proposedDailyBudgetCredits = Number(o.proposedDailyBudgetCredits);
+      const proposedMaxCpcCredits = Number(o.proposedMaxCpcCredits);
+      if (!knownSlugs.has(categorySlug)) continue;
+      if (!Number.isFinite(proposedDailyBudgetCredits) || proposedDailyBudgetCredits <= 0) continue;
+      if (!Number.isFinite(proposedMaxCpcCredits) || proposedMaxCpcCredits <= 0) continue;
+      proposals.push({
+        categorySlug,
+        proposedDailyBudgetCredits,
+        proposedMaxCpcCredits,
+        reasoning: String(o.reasoning ?? '').trim().slice(0, 500),
+      });
+    }
+    return { proposals, costEstimateMinor: estimateClaudeCostMinor(result.usage) };
   }
 }

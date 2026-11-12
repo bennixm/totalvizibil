@@ -30,6 +30,18 @@ export const SETTING_KEYS = {
   googleAdsAvgCpcData: 'google_ads_avg_cpc_data',
   googleAdsCpcBufferPct: 'google_ads_cpc_buffer_pct',
   googleAdsMaxCpcCredits: 'google_ads_max_cpc_credits',
+  googleAdsAgentEnabled: 'google_ads_agent_enabled',
+  googleAdsAgentDefaultDailyBudgetCredits: 'google_ads_agent_default_daily_budget_credits',
+  googleAdsAgentDefaultMaxCpcCredits: 'google_ads_agent_default_max_cpc_credits',
+  googleAdsAgentMaxDailyBudgetCapCredits: 'google_ads_agent_max_daily_budget_cap_credits',
+  googleAdsAgentMaxCpcCapCredits: 'google_ads_agent_max_cpc_cap_credits',
+  googleAdsCustomerId: 'google_ads_customer_id',
+  googleAdsLoginCustomerId: 'google_ads_login_customer_id',
+  googleAdsCampaignId: 'google_ads_campaign_id',
+  googleAdsServiceAccountKeyBase64: 'google_ads_service_account_key_base64',
+  googleAdsAgentStructuralIntervalMinutes: 'google_ads_agent_structural_interval_minutes',
+  googleAdsAgentContentIntervalMinutes: 'google_ads_agent_content_interval_minutes',
+  googleAdsAgentIntelligenceIntervalMinutes: 'google_ads_agent_intelligence_interval_minutes',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -120,6 +132,38 @@ const MAX_GOOGLE_ADS_MAX_CPC_CREDITS = 1000;
  *  ceiling is used instead — keeps a dead/misconfigured sync job from
  *  quietly pricing clicks off a number from hours or days ago. */
 export const GOOGLE_ADS_CPC_STALE_AFTER_MS = 30 * 60 * 1000;
+
+/**
+ * Google Ads agent (per-subcategory campaigns, docs/ai/GOOGLE-ADS-AGENT-PLAN.md).
+ * Off by default — staff must explicitly flip this on from the admin panel
+ * once they've reviewed the defaults below, so the agent never starts
+ * creating/mutating real campaigns on its own in a freshly-deployed env.
+ */
+const DEFAULT_GOOGLE_ADS_AGENT_DAILY_BUDGET_CREDITS = 5;
+const MIN_GOOGLE_ADS_AGENT_DAILY_BUDGET_CREDITS = 0.5;
+const MAX_GOOGLE_ADS_AGENT_DAILY_BUDGET_CREDITS = 10_000;
+const DEFAULT_GOOGLE_ADS_AGENT_MAX_CPC_CREDITS = 1;
+const MIN_GOOGLE_ADS_AGENT_MAX_CPC_CREDITS = 0.01;
+const MAX_GOOGLE_ADS_AGENT_MAX_CPC_CREDITS = 1000;
+/** Hard ceilings the daily budget-intelligence pass (Faza 3) can never
+ *  propose past, no matter what Claude returns — enforced server-side,
+ *  not just asked of the model. */
+const DEFAULT_GOOGLE_ADS_AGENT_MAX_DAILY_BUDGET_CAP_CREDITS = 50;
+const MIN_GOOGLE_ADS_AGENT_MAX_DAILY_BUDGET_CAP_CREDITS = 0.5;
+const MAX_GOOGLE_ADS_AGENT_MAX_DAILY_BUDGET_CAP_CREDITS = 100_000;
+const DEFAULT_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS = 5;
+const MIN_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS = 0.01;
+const MAX_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS = 1000;
+
+/** How often each Google Ads agent pass is allowed to run, in minutes since
+ *  its own last run — read live on every poll tick (see the 3
+ *  GoogleAdsAgent*Service classes), not baked into a fixed `setInterval`
+ *  period, so an admin change here takes effect without a restart. */
+const DEFAULT_STRUCTURAL_INTERVAL_MINUTES = 360; // 6h
+const DEFAULT_CONTENT_INTERVAL_MINUTES = 360; // 6h
+const DEFAULT_INTELLIGENCE_INTERVAL_MINUTES = 1440; // 24h
+const MIN_AGENT_INTERVAL_MINUTES = 15;
+const MAX_AGENT_INTERVAL_MINUTES = 10_080; // 7 days
 
 export interface GoogleAdsAvgCpc {
   credits: number;
@@ -680,6 +724,243 @@ export class PlatformSettingsService {
       MIN_GOOGLE_ADS_MAX_CPC_CREDITS,
       MAX_GOOGLE_ADS_MAX_CPC_CREDITS,
     );
+  }
+
+  // --- Google Ads agent (per-subcategory campaigns) ----------------------
+
+  /** Global on/off switch for the Google Ads agent. Off (unset) = fully idle:
+   *  neither the structural pass nor the budget-intelligence pass does
+   *  anything, even if the Google Ads API client is configured. */
+  async googleAdsAgentEnabled(): Promise<boolean> {
+    return (await this.get(SETTING_KEYS.googleAdsAgentEnabled)) === 'true';
+  }
+  async setGoogleAdsAgentEnabled(on: boolean): Promise<boolean> {
+    await this.set(SETTING_KEYS.googleAdsAgentEnabled, on ? 'true' : 'false');
+    return on;
+  }
+
+  /** Daily budget (credits) given to a brand-new per-subcategory campaign
+   *  skeleton. Safe to apply without approval: the campaign is created
+   *  PAUSED and carries no ads/keywords yet (added in a later pass), so
+   *  this budget can never actually be spent until a human-reviewed step
+   *  turns the campaign on. */
+  googleAdsAgentDefaultDailyBudgetCredits(): Promise<number> {
+    return this.decimalCreditSetting(
+      SETTING_KEYS.googleAdsAgentDefaultDailyBudgetCredits,
+      DEFAULT_GOOGLE_ADS_AGENT_DAILY_BUDGET_CREDITS,
+      MIN_GOOGLE_ADS_AGENT_DAILY_BUDGET_CREDITS,
+      MAX_GOOGLE_ADS_AGENT_DAILY_BUDGET_CREDITS,
+    );
+  }
+  setGoogleAdsAgentDefaultDailyBudgetCredits(credits: number): Promise<number> {
+    return this.setDecimalCreditSetting(
+      SETTING_KEYS.googleAdsAgentDefaultDailyBudgetCredits,
+      credits,
+      MIN_GOOGLE_ADS_AGENT_DAILY_BUDGET_CREDITS,
+      MAX_GOOGLE_ADS_AGENT_DAILY_BUDGET_CREDITS,
+    );
+  }
+
+  /** Max CPC (credits) given to a brand-new per-subcategory campaign skeleton. */
+  googleAdsAgentDefaultMaxCpcCredits(): Promise<number> {
+    return this.decimalCreditSetting(
+      SETTING_KEYS.googleAdsAgentDefaultMaxCpcCredits,
+      DEFAULT_GOOGLE_ADS_AGENT_MAX_CPC_CREDITS,
+      MIN_GOOGLE_ADS_AGENT_MAX_CPC_CREDITS,
+      MAX_GOOGLE_ADS_AGENT_MAX_CPC_CREDITS,
+    );
+  }
+  setGoogleAdsAgentDefaultMaxCpcCredits(credits: number): Promise<number> {
+    return this.setDecimalCreditSetting(
+      SETTING_KEYS.googleAdsAgentDefaultMaxCpcCredits,
+      credits,
+      MIN_GOOGLE_ADS_AGENT_MAX_CPC_CREDITS,
+      MAX_GOOGLE_ADS_AGENT_MAX_CPC_CREDITS,
+    );
+  }
+
+  /** Hard ceiling (credits) the daily budget-intelligence pass can propose
+   *  for a single subcategory's daily budget — enforced server-side even if
+   *  Claude's own proposal ignores it. */
+  googleAdsAgentMaxDailyBudgetCapCredits(): Promise<number> {
+    return this.decimalCreditSetting(
+      SETTING_KEYS.googleAdsAgentMaxDailyBudgetCapCredits,
+      DEFAULT_GOOGLE_ADS_AGENT_MAX_DAILY_BUDGET_CAP_CREDITS,
+      MIN_GOOGLE_ADS_AGENT_MAX_DAILY_BUDGET_CAP_CREDITS,
+      MAX_GOOGLE_ADS_AGENT_MAX_DAILY_BUDGET_CAP_CREDITS,
+    );
+  }
+  setGoogleAdsAgentMaxDailyBudgetCapCredits(credits: number): Promise<number> {
+    return this.setDecimalCreditSetting(
+      SETTING_KEYS.googleAdsAgentMaxDailyBudgetCapCredits,
+      credits,
+      MIN_GOOGLE_ADS_AGENT_MAX_DAILY_BUDGET_CAP_CREDITS,
+      MAX_GOOGLE_ADS_AGENT_MAX_DAILY_BUDGET_CAP_CREDITS,
+    );
+  }
+
+  /** Hard ceiling (credits) the daily budget-intelligence pass can propose
+   *  for a single subcategory's max CPC — enforced server-side. */
+  googleAdsAgentMaxCpcCapCredits(): Promise<number> {
+    return this.decimalCreditSetting(
+      SETTING_KEYS.googleAdsAgentMaxCpcCapCredits,
+      DEFAULT_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS,
+      MIN_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS,
+      MAX_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS,
+    );
+  }
+  setGoogleAdsAgentMaxCpcCapCredits(credits: number): Promise<number> {
+    return this.setDecimalCreditSetting(
+      SETTING_KEYS.googleAdsAgentMaxCpcCapCredits,
+      credits,
+      MIN_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS,
+      MAX_GOOGLE_ADS_AGENT_MAX_CPC_CAP_CREDITS,
+    );
+  }
+
+  // --- Google Ads account (credentials the agent + the legacy CPC sync both
+  // use) — admin-settable, DB value wins over the GOOGLE_ADS_* env vars when
+  // set (see GoogleAdsApiClient, which reads both and prefers the DB one).
+  // Only `googleAdsServiceAccountKeyBase64` is a secret; callers that expose
+  // these to an HTTP response MUST mask that one field (never echo it back
+  // raw) — see AdminGoogleAdsService.googleAdsCredentials().
+
+  async googleAdsCustomerId(): Promise<string> {
+    return (await this.get(SETTING_KEYS.googleAdsCustomerId))?.trim() ?? '';
+  }
+  async setGoogleAdsCustomerId(value: string): Promise<string> {
+    const trimmed = value.trim();
+    if (trimmed && !/^\d{1,20}$/.test(trimmed)) {
+      throw new BadRequestException('google_ads_customer_id must be digits only (no dashes)');
+    }
+    await this.set(SETTING_KEYS.googleAdsCustomerId, trimmed);
+    return trimmed;
+  }
+
+  async googleAdsLoginCustomerId(): Promise<string> {
+    return (await this.get(SETTING_KEYS.googleAdsLoginCustomerId))?.trim() ?? '';
+  }
+  async setGoogleAdsLoginCustomerId(value: string): Promise<string> {
+    const trimmed = value.trim();
+    if (trimmed && !/^\d{1,20}$/.test(trimmed)) {
+      throw new BadRequestException('google_ads_login_customer_id must be digits only (no dashes)');
+    }
+    await this.set(SETTING_KEYS.googleAdsLoginCustomerId, trimmed);
+    return trimmed;
+  }
+
+  /** Legacy single-campaign id the CPC-average sync job scopes to — see
+   *  GoogleAdsCpcSyncService. Unrelated to the per-subcategory agent. */
+  async googleAdsCampaignId(): Promise<string> {
+    return (await this.get(SETTING_KEYS.googleAdsCampaignId))?.trim() ?? '';
+  }
+  async setGoogleAdsCampaignId(value: string): Promise<string> {
+    const trimmed = value.trim();
+    if (trimmed && !/^\d{1,20}$/.test(trimmed)) {
+      throw new BadRequestException('google_ads_campaign_id must be digits only');
+    }
+    await this.set(SETTING_KEYS.googleAdsCampaignId, trimmed);
+    return trimmed;
+  }
+
+  /** Raw base64-encoded service-account JSON key. Empty string when unset. */
+  async googleAdsServiceAccountKeyBase64(): Promise<string> {
+    return (await this.get(SETTING_KEYS.googleAdsServiceAccountKeyBase64)) ?? '';
+  }
+  /** Validates the key decodes to JSON with `client_email`/`private_key`
+   *  BEFORE storing it — an admin pasting a wrong value gets an immediate
+   *  error instead of silently discovering it later from "stays idle" logs. */
+  async setGoogleAdsServiceAccountKeyBase64(value: string): Promise<void> {
+    const trimmed = value.trim();
+    if (trimmed) {
+      let parsed: { client_email?: unknown; private_key?: unknown };
+      try {
+        parsed = JSON.parse(Buffer.from(trimmed, 'base64').toString('utf8'));
+      } catch {
+        throw new BadRequestException(
+          'google_ads_service_account_key_base64 is not valid base64-encoded JSON',
+        );
+      }
+      if (typeof parsed.client_email !== 'string' || typeof parsed.private_key !== 'string') {
+        throw new BadRequestException(
+          "Service account key JSON is missing 'client_email'/'private_key'",
+        );
+      }
+    }
+    await this.set(SETTING_KEYS.googleAdsServiceAccountKeyBase64, trimmed);
+  }
+
+  // --- Google Ads agent cadence (minutes since the last run of that kind,
+  // re-read live on every poll tick — see the 3 GoogleAdsAgent*Service
+  // classes — so a change here takes effect without a restart). ---
+
+  googleAdsAgentStructuralIntervalMinutes(): Promise<number> {
+    return this.intSetting(
+      SETTING_KEYS.googleAdsAgentStructuralIntervalMinutes,
+      DEFAULT_STRUCTURAL_INTERVAL_MINUTES,
+      MIN_AGENT_INTERVAL_MINUTES,
+      MAX_AGENT_INTERVAL_MINUTES,
+    );
+  }
+  setGoogleAdsAgentStructuralIntervalMinutes(minutes: number): Promise<number> {
+    return this.setIntSetting(
+      SETTING_KEYS.googleAdsAgentStructuralIntervalMinutes,
+      minutes,
+      MIN_AGENT_INTERVAL_MINUTES,
+      MAX_AGENT_INTERVAL_MINUTES,
+    );
+  }
+
+  googleAdsAgentContentIntervalMinutes(): Promise<number> {
+    return this.intSetting(
+      SETTING_KEYS.googleAdsAgentContentIntervalMinutes,
+      DEFAULT_CONTENT_INTERVAL_MINUTES,
+      MIN_AGENT_INTERVAL_MINUTES,
+      MAX_AGENT_INTERVAL_MINUTES,
+    );
+  }
+  setGoogleAdsAgentContentIntervalMinutes(minutes: number): Promise<number> {
+    return this.setIntSetting(
+      SETTING_KEYS.googleAdsAgentContentIntervalMinutes,
+      minutes,
+      MIN_AGENT_INTERVAL_MINUTES,
+      MAX_AGENT_INTERVAL_MINUTES,
+    );
+  }
+
+  googleAdsAgentIntelligenceIntervalMinutes(): Promise<number> {
+    return this.intSetting(
+      SETTING_KEYS.googleAdsAgentIntelligenceIntervalMinutes,
+      DEFAULT_INTELLIGENCE_INTERVAL_MINUTES,
+      MIN_AGENT_INTERVAL_MINUTES,
+      MAX_AGENT_INTERVAL_MINUTES,
+    );
+  }
+  setGoogleAdsAgentIntelligenceIntervalMinutes(minutes: number): Promise<number> {
+    return this.setIntSetting(
+      SETTING_KEYS.googleAdsAgentIntelligenceIntervalMinutes,
+      minutes,
+      MIN_AGENT_INTERVAL_MINUTES,
+      MAX_AGENT_INTERVAL_MINUTES,
+    );
+  }
+
+  /** Read a whole-number setting with a sane fallback. */
+  private async intSetting(key: string, fallback: number, min: number, max: number): Promise<number> {
+    const raw = await this.get(key);
+    const parsed = raw != null ? Number(raw) : NaN;
+    if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+      if (raw != null) this.logger.warn(`Ignoring invalid ${key}=${raw}`);
+      return fallback;
+    }
+    return parsed;
+  }
+  private async setIntSetting(key: string, value: number, min: number, max: number): Promise<number> {
+    if (!Number.isInteger(value) || value < min || value > max) {
+      throw new BadRequestException(`${key} out of range`);
+    }
+    await this.set(key, String(value));
+    return value;
   }
 
   /** The platform's own billing identity, snapshotted onto every invoice issued. */

@@ -152,6 +152,14 @@ export class AdminController {
       googleAdsCpcBufferPct,
       googleAdsMaxCpcCredits,
       googleAdsAvgCpc,
+      googleAdsAgentEnabled,
+      googleAdsAgentDefaultDailyBudgetCredits,
+      googleAdsAgentDefaultMaxCpcCredits,
+      googleAdsAgentMaxDailyBudgetCapCredits,
+      googleAdsAgentMaxCpcCapCredits,
+      googleAdsAgentStructuralIntervalMinutes,
+      googleAdsAgentContentIntervalMinutes,
+      googleAdsAgentIntelligenceIntervalMinutes,
     ] = await Promise.all([
       this.settings.eurRonRate(),
       this.settings.advancedBuilderPriceCredits(),
@@ -171,6 +179,14 @@ export class AdminController {
       this.settings.googleAdsCpcBufferPct(),
       this.settings.googleAdsMaxCpcCredits(),
       this.settings.googleAdsAvgCpc(),
+      this.settings.googleAdsAgentEnabled(),
+      this.settings.googleAdsAgentDefaultDailyBudgetCredits(),
+      this.settings.googleAdsAgentDefaultMaxCpcCredits(),
+      this.settings.googleAdsAgentMaxDailyBudgetCapCredits(),
+      this.settings.googleAdsAgentMaxCpcCapCredits(),
+      this.settings.googleAdsAgentStructuralIntervalMinutes(),
+      this.settings.googleAdsAgentContentIntervalMinutes(),
+      this.settings.googleAdsAgentIntelligenceIntervalMinutes(),
     ]);
     return {
       eurRonRate,
@@ -192,6 +208,14 @@ export class AdminController {
       // Read-only — never accepted back through PATCH, see UpdateSettingsDto.
       googleAdsAvgCpcCredits: googleAdsAvgCpc?.credits ?? null,
       googleAdsAvgCpcUpdatedAt: googleAdsAvgCpc?.updatedAt ?? null,
+      googleAdsAgentEnabled,
+      googleAdsAgentDefaultDailyBudgetCredits,
+      googleAdsAgentDefaultMaxCpcCredits,
+      googleAdsAgentMaxDailyBudgetCapCredits,
+      googleAdsAgentMaxCpcCapCredits,
+      googleAdsAgentStructuralIntervalMinutes,
+      googleAdsAgentContentIntervalMinutes,
+      googleAdsAgentIntelligenceIntervalMinutes,
       invoiceIssuerName: invoiceIssuer.name,
       invoiceIssuerTaxId: invoiceIssuer.taxId,
       invoiceIssuerRegCom: invoiceIssuer.regCom,
@@ -253,6 +277,40 @@ export class AdminController {
     }
     if (dto.googleAdsMaxCpcCredits !== undefined) {
       await this.settings.setGoogleAdsMaxCpcCredits(dto.googleAdsMaxCpcCredits);
+    }
+    if (dto.googleAdsAgentEnabled !== undefined) {
+      await this.settings.setGoogleAdsAgentEnabled(dto.googleAdsAgentEnabled);
+    }
+    if (dto.googleAdsAgentDefaultDailyBudgetCredits !== undefined) {
+      await this.settings.setGoogleAdsAgentDefaultDailyBudgetCredits(
+        dto.googleAdsAgentDefaultDailyBudgetCredits,
+      );
+    }
+    if (dto.googleAdsAgentDefaultMaxCpcCredits !== undefined) {
+      await this.settings.setGoogleAdsAgentDefaultMaxCpcCredits(dto.googleAdsAgentDefaultMaxCpcCredits);
+    }
+    if (dto.googleAdsAgentMaxDailyBudgetCapCredits !== undefined) {
+      await this.settings.setGoogleAdsAgentMaxDailyBudgetCapCredits(
+        dto.googleAdsAgentMaxDailyBudgetCapCredits,
+      );
+    }
+    if (dto.googleAdsAgentMaxCpcCapCredits !== undefined) {
+      await this.settings.setGoogleAdsAgentMaxCpcCapCredits(dto.googleAdsAgentMaxCpcCapCredits);
+    }
+    if (dto.googleAdsAgentStructuralIntervalMinutes !== undefined) {
+      await this.settings.setGoogleAdsAgentStructuralIntervalMinutes(
+        dto.googleAdsAgentStructuralIntervalMinutes,
+      );
+    }
+    if (dto.googleAdsAgentContentIntervalMinutes !== undefined) {
+      await this.settings.setGoogleAdsAgentContentIntervalMinutes(
+        dto.googleAdsAgentContentIntervalMinutes,
+      );
+    }
+    if (dto.googleAdsAgentIntelligenceIntervalMinutes !== undefined) {
+      await this.settings.setGoogleAdsAgentIntelligenceIntervalMinutes(
+        dto.googleAdsAgentIntelligenceIntervalMinutes,
+      );
     }
     const {
       invoiceIssuerName: name,

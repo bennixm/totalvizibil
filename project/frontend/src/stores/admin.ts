@@ -96,6 +96,14 @@ export interface AdminSettings {
    *  has completed a first cycle (not configured, or no clicks yet today). */
   googleAdsAvgCpcCredits: number | null
   googleAdsAvgCpcUpdatedAt: string | null
+  googleAdsAgentEnabled: boolean
+  googleAdsAgentDefaultDailyBudgetCredits: number
+  googleAdsAgentDefaultMaxCpcCredits: number
+  googleAdsAgentMaxDailyBudgetCapCredits: number
+  googleAdsAgentMaxCpcCapCredits: number
+  googleAdsAgentStructuralIntervalMinutes: number
+  googleAdsAgentContentIntervalMinutes: number
+  googleAdsAgentIntelligenceIntervalMinutes: number
   invoiceIssuerName: string
   invoiceIssuerTaxId: string
   invoiceIssuerRegCom: string
@@ -449,6 +457,23 @@ interface AdminState {
   businessActionLogFilters: BusinessActionLogFilters
   loadingBusinessActionLog: boolean
   businessActionLogError: string | null
+  googleAdsAgentOverview: GoogleAdsAgentOverview | null
+  googleAdsAgentOverviewError: string | null
+  loadingGoogleAdsAgentOverview: boolean
+  googleAdsAgentProposals: GoogleAdsAgentActionRow[]
+  googleAdsAgentProposalsError: string | null
+  loadingGoogleAdsAgentProposals: boolean
+  googleAdsAgentCampaigns: GoogleAdsAgentCampaignRow[]
+  googleAdsAgentCampaignsError: string | null
+  loadingGoogleAdsAgentCampaigns: boolean
+  googleAdsAgentActions: GoogleAdsAgentActionRow[]
+  googleAdsAgentActionsTotal: number
+  googleAdsAgentActionsFilters: GoogleAdsAgentActionsFilters
+  loadingGoogleAdsAgentActions: boolean
+  googleAdsAgentActionsError: string | null
+  googleAdsCredentials: GoogleAdsCredentials | null
+  googleAdsCredentialsError: string | null
+  loadingGoogleAdsCredentials: boolean
 }
 
 export interface UpdateUserInput {
@@ -613,6 +638,96 @@ export interface AdminReferralsPage {
   creditsPaid: number
 }
 
+/** Google Ads agent (docs/ai/GOOGLE-ADS-AGENT-PLAN.md) — per-subcategory
+ *  Google Ads campaigns the platform itself runs, managed by a backend
+ *  agent. See AdminGoogleAdsController / AdminGoogleAdsService. */
+export interface GoogleAdsAgentRunRow {
+  id: string
+  kind: 'structural' | 'content' | 'intelligence'
+  status: 'in_progress' | 'success' | 'partial' | 'failed'
+  startedAt: string
+  finishedAt: string | null
+  categoriesScanned: number
+  actionsTaken: number
+  actionsPendingApproval: number
+  errorSummary: string | null
+}
+
+export interface GoogleAdsAgentOverview {
+  enabled: boolean
+  campaigns: { active: number; paused: number; pendingCreation: number }
+  totalActiveDailyBudgetCredits: number
+  spendTodayCredits: number
+  spendThisMonthCredits: number
+  subcategoriesWithoutCampaign: number
+  lastRuns: Record<'structural' | 'content' | 'intelligence', GoogleAdsAgentRunRow | null>
+}
+
+export interface GoogleAdsAgentCategoryRef {
+  id: string
+  slug: string
+  nameI18n: LocalizedName
+  parent?: { slug: string; nameI18n: LocalizedName } | null
+}
+
+
+export interface GoogleAdsAgentActionRow {
+  id: string
+  categoryId: string
+  category?: GoogleAdsAgentCategoryRef
+  action: string
+  status: 'applied' | 'pending_approval' | 'rejected'
+  before: unknown
+  after: unknown
+  reasoning: string | null
+  approvedBy?: { id: string; name: string; email: string } | null
+  approvedAt: string | null
+  createdAt: string
+}
+
+export interface GoogleAdsAgentCampaignRow {
+  id: string
+  categoryId: string
+  category: GoogleAdsAgentCategoryRef
+  googleCampaignId: string | null
+  googleAdGroupId: string | null
+  status: 'pending_creation' | 'active' | 'paused'
+  dailyBudgetMinor: number
+  maxCpcMinor: number
+  activeCompanyCount: number
+  lastStructuralCheckAt: string | null
+  lastIntelligenceRunAt: string | null
+}
+
+export interface GoogleAdsAgentActionsFilters {
+  categoryId: string
+  action: string
+  status: '' | 'applied' | 'pending_approval' | 'rejected'
+  dateFrom: string
+  dateTo: string
+  page: number
+  pageSize: number
+}
+
+export interface GoogleAdsCredentials {
+  customerId: string
+  loginCustomerId: string
+  campaignId: string
+  serviceAccountKeyConfigured: boolean
+  serviceAccountEmail: string | null
+  /** Live `GoogleAdsApiClient` state — can lag up to ~60s behind a save
+   *  while that client re-reads/validates the new credentials. */
+  configured: boolean
+}
+
+export interface GoogleAdsCredentialsInput {
+  customerId?: string
+  loginCustomerId?: string
+  campaignId?: string
+  /** Omit entirely to leave the stored secret untouched. */
+  serviceAccountKeyBase64?: string
+}
+
 export const useAdminStore = defineStore('admin', {
   state: (): AdminState => ({
     stats: null,
@@ -673,6 +788,31 @@ export const useAdminStore = defineStore('admin', {
     },
     loadingBusinessActionLog: false,
     businessActionLogError: null,
+    googleAdsAgentOverview: null,
+    googleAdsAgentOverviewError: null,
+    loadingGoogleAdsAgentOverview: false,
+    googleAdsAgentProposals: [],
+    googleAdsAgentProposalsError: null,
+    loadingGoogleAdsAgentProposals: false,
+    googleAdsAgentCampaigns: [],
+    googleAdsAgentCampaignsError: null,
+    loadingGoogleAdsAgentCampaigns: false,
+    googleAdsAgentActions: [],
+    googleAdsAgentActionsTotal: 0,
+    googleAdsAgentActionsFilters: {
+      categoryId: '',
+      action: '',
+      status: '',
+      dateFrom: '',
+      dateTo: '',
+      page: 1,
+      pageSize: 20,
+    },
+    loadingGoogleAdsAgentActions: false,
+    googleAdsAgentActionsError: null,
+    googleAdsCredentials: null,
+    googleAdsCredentialsError: null,
+    loadingGoogleAdsCredentials: false,
   }),
 
   actions: {
@@ -1170,6 +1310,120 @@ export const useAdminStore = defineStore('admin', {
       this.businessActionLogFilters[key] = value
       if (key !== 'page') this.businessActionLogFilters.page = 1
       void this.fetchBusinessActionLog()
+    },
+
+    // --- Google Ads agent (docs/ai/GOOGLE-ADS-AGENT-PLAN.md) -------------
+
+    async fetchGoogleAdsAgentOverview(): Promise<void> {
+      this.loadingGoogleAdsAgentOverview = true
+      try {
+        this.googleAdsAgentOverview = await apiFetch<GoogleAdsAgentOverview>(
+          '/admin/google-ads-agent/overview',
+        )
+        this.googleAdsAgentOverviewError = null
+      } catch (e) {
+        this.googleAdsAgentOverviewError = errMsg(e)
+      } finally {
+        this.loadingGoogleAdsAgentOverview = false
+      }
+    },
+
+    async fetchGoogleAdsAgentProposals(): Promise<void> {
+      this.loadingGoogleAdsAgentProposals = true
+      try {
+        this.googleAdsAgentProposals = await apiFetch<GoogleAdsAgentActionRow[]>(
+          '/admin/google-ads-agent/proposals',
+        )
+        this.googleAdsAgentProposalsError = null
+      } catch (e) {
+        this.googleAdsAgentProposalsError = errMsg(e)
+      } finally {
+        this.loadingGoogleAdsAgentProposals = false
+      }
+    },
+
+    async approveGoogleAdsAgentProposal(id: string): Promise<void> {
+      await apiFetch(`/admin/google-ads-agent/proposals/${id}/approve`, { method: 'POST' })
+      await this.fetchGoogleAdsAgentProposals()
+    },
+
+    async rejectGoogleAdsAgentProposal(id: string): Promise<void> {
+      await apiFetch(`/admin/google-ads-agent/proposals/${id}/reject`, { method: 'POST' })
+      await this.fetchGoogleAdsAgentProposals()
+    },
+
+    async fetchGoogleAdsAgentCampaigns(): Promise<void> {
+      this.loadingGoogleAdsAgentCampaigns = true
+      try {
+        this.googleAdsAgentCampaigns = await apiFetch<GoogleAdsAgentCampaignRow[]>(
+          '/admin/google-ads-agent/campaigns',
+        )
+        this.googleAdsAgentCampaignsError = null
+      } catch (e) {
+        this.googleAdsAgentCampaignsError = errMsg(e)
+      } finally {
+        this.loadingGoogleAdsAgentCampaigns = false
+      }
+    },
+
+    async fetchGoogleAdsAgentActions(): Promise<void> {
+      this.loadingGoogleAdsAgentActions = true
+      try {
+        const f = this.googleAdsAgentActionsFilters
+        const p = new URLSearchParams()
+        if (f.categoryId) p.set('categoryId', f.categoryId)
+        if (f.action) p.set('action', f.action)
+        if (f.status) p.set('status', f.status)
+        if (f.dateFrom) p.set('dateFrom', f.dateFrom)
+        if (f.dateTo) p.set('dateTo', f.dateTo)
+        p.set('page', String(f.page))
+        p.set('pageSize', String(f.pageSize))
+        const res = await apiFetch<{ items: GoogleAdsAgentActionRow[]; total: number }>(
+          `/admin/google-ads-agent/actions?${p.toString()}`,
+        )
+        this.googleAdsAgentActions = res.items
+        this.googleAdsAgentActionsTotal = res.total
+        this.googleAdsAgentActionsError = null
+      } catch (e) {
+        this.googleAdsAgentActionsError = errMsg(e)
+      } finally {
+        this.loadingGoogleAdsAgentActions = false
+      }
+    },
+
+    setGoogleAdsAgentActionsFilter<K extends keyof GoogleAdsAgentActionsFilters>(
+      key: K,
+      value: GoogleAdsAgentActionsFilters[K],
+    ): void {
+      this.googleAdsAgentActionsFilters[key] = value
+      if (key !== 'page') this.googleAdsAgentActionsFilters.page = 1
+      void this.fetchGoogleAdsAgentActions()
+    },
+
+    async runGoogleAdsAgentNow(kind: 'structural' | 'content' | 'intelligence'): Promise<void> {
+      await apiFetch(`/admin/google-ads-agent/run/${kind}`, { method: 'POST' })
+      await this.fetchGoogleAdsAgentOverview()
+    },
+
+    async fetchGoogleAdsCredentials(): Promise<void> {
+      this.loadingGoogleAdsCredentials = true
+      try {
+        this.googleAdsCredentials = await apiFetch<GoogleAdsCredentials>(
+          '/admin/google-ads-agent/credentials',
+        )
+        this.googleAdsCredentialsError = null
+      } catch (e) {
+        this.googleAdsCredentialsError = errMsg(e)
+      } finally {
+        this.loadingGoogleAdsCredentials = false
+      }
+    },
+
+    async updateGoogleAdsCredentials(input: GoogleAdsCredentialsInput): Promise<void> {
+      this.googleAdsCredentials = await apiFetch<GoogleAdsCredentials>(
+        '/admin/google-ads-agent/credentials',
+        { method: 'PATCH', body: input },
+      )
     },
   },
 })

@@ -7,11 +7,14 @@ import { AffiliateModule } from '../affiliate/affiliate.module';
 import { LeadsModule } from '../leads/leads.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { WebsiteModule } from '../website/website.module';
+import { GoogleAdsModule } from '../google-ads/google-ads.module';
 import { AdminController } from './admin.controller';
+import { AdminGoogleAdsController } from './admin-google-ads.controller';
 import { AdminStatsService } from './admin-stats.service';
 import { AdminUsersService } from './admin-users.service';
 import { AdminCompaniesService } from './admin-companies.service';
 import { AdminCategoriesService } from './admin-categories.service';
+import { AdminGoogleAdsService } from './admin-google-ads.service';
 
 @Module({
   imports: [
@@ -23,8 +26,15 @@ import { AdminCategoriesService } from './admin-categories.service';
     LeadsModule,
     AnalyticsModule,
     WebsiteModule,
+    GoogleAdsModule,
   ],
-  controllers: [AdminController],
-  providers: [AdminStatsService, AdminUsersService, AdminCompaniesService, AdminCategoriesService],
+  controllers: [AdminController, AdminGoogleAdsController],
+  providers: [
+    AdminStatsService,
+    AdminUsersService,
+    AdminCompaniesService,
+    AdminCategoriesService,
+    AdminGoogleAdsService,
+  ],
 })
 export class AdminModule {}

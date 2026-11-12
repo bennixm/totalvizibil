@@ -48,6 +48,15 @@ export function useAdminNavGroups() {
           ...(isAdmin.value
             ? [{ to: { name: 'admin-categories' }, label: t('admin.navCategories'), icon: 'mdi-shape-outline' }]
             : []),
+          ...(isAdmin.value
+            ? [
+                {
+                  to: { name: 'admin-google-ads-agent' },
+                  label: t('admin.navGoogleAdsAgent'),
+                  icon: 'mdi-bullhorn-outline',
+                },
+              ]
+            : []),
           // Jurnal staff is admin-only (the backend's `GET /admin/audit-log`
           // is too); Jurnal acțiuni owner is open to support as well — the
           // view itself hides whichever tab the signed-in role can't read.
