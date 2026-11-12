@@ -1809,7 +1809,7 @@
     "feedMarjaPozitionareHint": "Der Preisschritt zwischen aufeinanderfolgenden Positionen im selben Feed.",
     "googleAdsTitle": "Google-Ads-Kosten (Klicks aus Anzeigen)",
     "googleAdsNote": "Bei Klicks aus einer Google-Ads-Werbung ist der Promotionskosten nicht mehr fest — er stammt aus einem gleitenden Durchschnitt, den ein Hintergrundjob durch Abfrage des Google-Ads-Kontos berechnet. Der Wert unten ist nur lesbar; editierbar sind der Sicherheitspuffer und die Ausweichobergrenze.",
-    "googleAdsUnconfigured": "Noch nicht konfiguriert — Google-Ads-Klicks verwenden die Ausweichobergrenze unten.",
+    "googleAdsUnconfigured": "Noch kein synchronisierter Google-CPC-Durchschnitt vorhanden (z. B. noch keine echten Klicks auf der dafür verwendeten Kampagne) — Google-Ads-Klicks verwenden bis zur ersten erfolgreichen Synchronisierung die Ausweichobergrenze unten. Der tatsächliche Verbindungsstatus des Kontos steht unter Google-Ads-Agent → Agent-Einstellungen → Google-Ads-Konto.",
     "googleAdsCurrentAvg": "Aktueller Durchschnitt: {n} Credits/Klick",
     "googleAdsFresh": "aktualisiert um {t}",
     "googleAdsStale": "nicht aktualisiert seit {t} — Ausweichobergrenze wird verwendet",

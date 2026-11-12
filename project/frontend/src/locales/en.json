@@ -1809,7 +1809,7 @@
     "feedMarjaPozitionareHint": "The price step between consecutive positions in the same Feed.",
     "googleAdsTitle": "Google Ads cost (ad-referred clicks)",
     "googleAdsNote": "For clicks arriving from a Google Ads referral, the promotion cost is no longer fixed — it comes from a rolling average a background job computes by polling the Google Ads account. The value below is read-only; the editable parameters are the safety buffer and the fallback ceiling.",
-    "googleAdsUnconfigured": "Not configured yet — Google Ads clicks use the fallback ceiling below.",
+    "googleAdsUnconfigured": "No synced Google CPC average yet (e.g. no real clicks yet on the campaign this uses) — Google Ads clicks use the fallback ceiling below until the first successful sync. The account's actual connection status is under Google Ads Agent → Agent settings → Google Ads account.",
     "googleAdsCurrentAvg": "Current average: {n} credits/click",
     "googleAdsFresh": "updated at {t}",
     "googleAdsStale": "not updated since {t} — using the fallback ceiling",
