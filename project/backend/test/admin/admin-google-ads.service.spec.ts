@@ -1,6 +1,13 @@
 import { AdminGoogleAdsService } from 'src/admin/admin-google-ads.service';
 
-function fakeSettings(enabled = true) {
+function fakeSettings(
+  enabled = true,
+  overrides: {
+    avgCpc?: { credits: number; updatedAt: string } | null;
+    bufferPct?: number;
+    fallbackCredits?: number;
+  } = {},
+) {
   return {
     googleAdsAgentEnabled: jest.fn().mockResolvedValue(enabled),
     googleAdsCustomerId: jest.fn().mockResolvedValue(''),
@@ -11,6 +18,9 @@ function fakeSettings(enabled = true) {
     setGoogleAdsLoginCustomerId: jest.fn().mockResolvedValue(''),
     setGoogleAdsCampaignId: jest.fn().mockResolvedValue(''),
     setGoogleAdsServiceAccountKeyBase64: jest.fn().mockResolvedValue(undefined),
+    googleAdsAvgCpc: jest.fn().mockResolvedValue(overrides.avgCpc ?? null),
+    googleAdsCpcBufferPct: jest.fn().mockResolvedValue(overrides.bufferPct ?? 10),
+    feedCostPromovareCredits: jest.fn().mockResolvedValue(overrides.fallbackCredits ?? 2),
   } as never;
 }
 
@@ -67,9 +77,14 @@ function fakePrisma() {
   } as never;
 }
 
-function makeService(overrides: { client?: ReturnType<typeof fakeClient> } = {}) {
+function makeService(
+  overrides: {
+    client?: ReturnType<typeof fakeClient>;
+    settings?: Parameters<typeof fakeSettings>[1];
+  } = {},
+) {
   const prisma = fakePrisma();
-  const settings = fakeSettings();
+  const settings = fakeSettings(true, overrides.settings);
   const client = overrides.client ?? fakeClient();
   const agents = fakeAgentServices();
   const svc = new AdminGoogleAdsService(
@@ -98,6 +113,52 @@ describe('AdminGoogleAdsService', () => {
       structural: { id: 'run-x', status: 'success' },
       content: { id: 'run-x', status: 'success' },
       intelligence: { id: 'run-x', status: 'success' },
+    });
+  });
+
+  describe('overview() — feedCpc (the feed algorithm\'s real Google cost-per-click)', () => {
+    it('reports the buffered average as the active cost when the cache is fresh', async () => {
+      const { svc } = makeService({
+        settings: {
+          avgCpc: { credits: 2, updatedAt: new Date().toISOString() },
+          bufferPct: 10,
+          fallbackCredits: 1,
+        },
+      });
+
+      const result = await svc.overview();
+
+      expect(result.feedCpc.fresh).toBe(true);
+      expect(result.feedCpc.rawAvgCpcCredits).toBe(2);
+      expect(result.feedCpc.bufferedCredits).toBeCloseTo(2.2); // 2 * 1.10
+      // Mirrors AnalyticsService.googleAdsCostPromovareCredits()'s own choice.
+      expect(result.feedCpc.activeCostPromovareCredits).toBeCloseTo(2.2);
+    });
+
+    it('falls back to the flat organic default once the cache is stale, same as the feed algorithm itself does', async () => {
+      const staleDate = new Date(Date.now() - 60 * 60_000).toISOString(); // 60min old
+      const { svc } = makeService({
+        settings: {
+          avgCpc: { credits: 2, updatedAt: staleDate },
+          bufferPct: 10,
+          fallbackCredits: 1,
+        },
+      });
+
+      const result = await svc.overview();
+
+      expect(result.feedCpc.fresh).toBe(false);
+      expect(result.feedCpc.activeCostPromovareCredits).toBe(1);
+    });
+
+    it('falls back to the flat organic default when the sync job has never run', async () => {
+      const { svc } = makeService({ settings: { avgCpc: null, fallbackCredits: 1.5 } });
+
+      const result = await svc.overview();
+
+      expect(result.feedCpc.fresh).toBe(false);
+      expect(result.feedCpc.rawAvgCpcCredits).toBeNull();
+      expect(result.feedCpc.activeCostPromovareCredits).toBe(1.5);
     });
   });
 

@@ -297,7 +297,9 @@ onMounted(() => setQuickRange('month'))
         <!-- Profit/cost split for the website-builder AI: what customers'
              wallets actually paid for prompts + the unlock fee (real money)
              vs. what the platform paid Claude/DeepSeek for it. The campaign
-             agent row is a placeholder — that feature doesn't exist yet. -->
+             agent row is a real, separate operating cost (Google Ads agent) —
+             never charged to any customer, so it's shown but not folded into
+             `aiBuilderProfit` above it. -->
         <AdminSection :title="t('adminFinance.aiBuilderTitle')" icon="mdi-robot-outline">
           <ul class="afd__catlist">
             <li class="afd__catrow">
@@ -319,7 +321,13 @@ onMounted(() => setQuickRange('month'))
             <li class="afd__catrow afd__catrow--sub">
               <span class="afd__catlabel">
                 {{ t('adminFinance.campaignAgentCost') }}
-                <v-chip size="x-small" variant="tonal" density="compact" class="afd__soon">{{ t('adminFinance.comingSoon') }}</v-chip>
+                <v-chip
+                  v-if="!finance.overview.aiBuilder.campaignAgentAvailable"
+                  size="x-small"
+                  variant="tonal"
+                  density="compact"
+                  class="afd__soon"
+                >{{ t('adminFinance.comingSoon') }}</v-chip>
               </span>
               <span class="afd__catvalue">{{ eur(finance.overview.aiBuilder.campaignAgentCostMinor) }}</span>
             </li>

@@ -4,7 +4,10 @@ import { GoogleAdsAgentContentService } from '../google-ads/google-ads-agent-con
 import { GoogleAdsApiClient } from '../google-ads/google-ads-api-client.service';
 import { GoogleAdsAgentIntelligenceService } from '../google-ads/google-ads-agent-intelligence.service';
 import { GoogleAdsAgentStructuralService } from '../google-ads/google-ads-agent-structural.service';
-import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import {
+  GOOGLE_ADS_CPC_STALE_AFTER_MS,
+  PlatformSettingsService,
+} from '../platform-settings/platform-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type GoogleAdsAgentRunKindParam = 'structural' | 'content' | 'intelligence';
@@ -98,6 +101,7 @@ export class AdminGoogleAdsService {
       spendMonthAgg,
       subcategoriesWithoutCampaign,
       lastRuns,
+      feedCpc,
     ] = await Promise.all([
       this.settings.googleAdsAgentEnabled(),
       this.prisma.googleAdsSubcategoryCampaign.groupBy({ by: ['status'], _count: { _all: true } }),
@@ -117,6 +121,7 @@ export class AdminGoogleAdsService {
         where: { parentId: { not: null }, isActive: true, googleAdsCampaign: null },
       }),
       this.lastRuns(),
+      this.feedCpc(),
     ]);
 
     const countByStatus = (status: string) =>
@@ -134,6 +139,39 @@ export class AdminGoogleAdsService {
       spendThisMonthCredits: (spendMonthAgg._sum.amountMinor ?? 0) / 100,
       subcategoriesWithoutCampaign,
       lastRuns,
+      feedCpc,
+    };
+  }
+
+  /**
+   * The real Google cost-per-click the FEED algorithm actually prices
+   * Google-Ads-attributed clicks against (`AnalyticsService.marginConfig()`
+   * -> `googleAdsCostPromovareCredits()`) — surfaced here so an admin can see
+   * it without reading code: the raw rolling average `GoogleAdsCpcSyncService`
+   * caches, the safety buffer applied on top, whether that cache is still
+   * fresh enough to be used at all, and — mirroring that same method's own
+   * fallback logic exactly — what's ACTUALLY in effect right now (the
+   * buffered average when fresh, or the flat organic default when the cache
+   * is stale/missing, same as a sync outage would fall back to).
+   */
+  private async feedCpc() {
+    const [avgCpc, bufferPct, fallbackCredits] = await Promise.all([
+      this.settings.googleAdsAvgCpc(),
+      this.settings.googleAdsCpcBufferPct(),
+      this.settings.feedCostPromovareCredits(),
+    ]);
+    const freshCutoff = Date.now() - GOOGLE_ADS_CPC_STALE_AFTER_MS;
+    const fresh = !!avgCpc && new Date(avgCpc.updatedAt).getTime() >= freshCutoff;
+    const bufferedCredits = avgCpc ? avgCpc.credits * (1 + bufferPct / 100) : null;
+    return {
+      rawAvgCpcCredits: avgCpc?.credits ?? null,
+      updatedAt: avgCpc?.updatedAt ?? null,
+      bufferPct,
+      bufferedCredits,
+      fresh,
+      staleAfterMinutes: GOOGLE_ADS_CPC_STALE_AFTER_MS / 60_000,
+      fallbackCredits,
+      activeCostPromovareCredits: fresh && bufferedCredits != null ? bufferedCredits : fallbackCredits,
     };
   }
 

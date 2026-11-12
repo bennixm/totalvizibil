@@ -166,6 +166,9 @@ describe('AiService.googleAdsBudgetIntelligence', () => {
         },
       ],
       costEstimateMinor: 1,
+      inputTokens: 500,
+      outputTokens: 500,
+      model: 'claude-sonnet-5',
     });
   });
 });

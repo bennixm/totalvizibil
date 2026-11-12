@@ -165,7 +165,13 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
         );
         return;
       }
-      const { proposals, costEstimateMinor: claudeCostEstimateMinor } = result;
+      const {
+        proposals,
+        costEstimateMinor: claudeCostEstimateMinor,
+        inputTokens: claudeInputTokens,
+        outputTokens: claudeOutputTokens,
+        model: claudeModel,
+      } = result;
 
       const bySlug = new Map(mappings.map((m) => [m.category.slug, m]));
       let hadError = false;
@@ -207,6 +213,10 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
           actionsTaken,
           actionsPendingApproval,
           claudeCostEstimateMinor,
+          claudeModel,
+          claudeInputTokens,
+          claudeOutputTokens,
+          claudeCallCount: 1,
         },
       });
     } catch (err) {

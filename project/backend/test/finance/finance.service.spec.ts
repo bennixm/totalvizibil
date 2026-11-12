@@ -27,6 +27,13 @@ function fakePrisma() {
     }[],
     expenses: [] as { category: string; amountMinor: number; incurredOn: Date }[],
     aiRows: [] as { estimatedCostUsd: number; createdAt: Date }[],
+    googleAdsAgentRuns: [] as {
+      claudeModel: string | null;
+      claudeInputTokens: number;
+      claudeOutputTokens: number;
+      claudeCostEstimateMinor: number | null;
+      claudeCallCount: number;
+    }[],
     /** Sum of every wallet balance (the all-time liability figure). */
     walletBalanceMinor: 0,
     blockedWalletBalanceMinor: 0,
@@ -116,6 +123,23 @@ function fakePrisma() {
       aggregate: jest.fn(async () => ({
         _sum: { estimatedCostUsd: state.aiRows.reduce((s, r) => s + r.estimatedCostUsd, 0) },
       })),
+    },
+    // Same "ignores the actual date range" approximation the rest of this
+    // fake already makes — `aggregate` is called once by `overview()` and
+    // 3 more times by `profitForRange()` (today/month/year), all replaying
+    // the same canned `state.googleAdsAgentRuns`.
+    googleAdsAgentRun: {
+      aggregate: jest.fn(async () => ({
+        _sum: {
+          claudeCostEstimateMinor: state.googleAdsAgentRuns.reduce(
+            (s, r) => s + (r.claudeCostEstimateMinor ?? 0),
+            0,
+          ),
+        },
+      })),
+      findMany: jest.fn(async () =>
+        state.googleAdsAgentRuns.filter((r) => r.claudeCostEstimateMinor != null),
+      ),
     },
     $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
     __state: state,
@@ -532,9 +556,33 @@ describe('FinanceService', () => {
       expect(result.aiBuilder.promptProfitMinor).toBe(1_000); // 2000 - 1000
       expect(result.aiBuilder.builderUnlockRevenueRealMoneyMinor).toBe(4_950); // 9900 * 0.5
       expect(result.aiBuilder.totalProfitMinor).toBe(1_000 + 4_950);
-      // Not built yet — a clear placeholder, not a fabricated figure.
-      expect(result.aiBuilder.campaignAgentAvailable).toBe(false);
+      // No campaign-agent runs in this test's state — real figure, just zero.
+      expect(result.aiBuilder.campaignAgentAvailable).toBe(true);
       expect(result.aiBuilder.campaignAgentCostMinor).toBe(0);
+    });
+
+    it('rolls the Google Ads agent\'s own Claude spend into total cost/profit, WITHOUT touching aiBuilder\'s prompt profit', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__state.purchases = [
+        { amountMinor: 100_000, eurCents: 100_000, createdAt: new Date('2026-01-05') },
+      ];
+      prisma.__state.aiRows = [{ estimatedCostUsd: 10, createdAt: new Date('2026-01-05') }]; // 1000 minor
+      // Already EUR-minor at write time (two runs: 300 + 200).
+      prisma.__state.googleAdsAgentRuns = [
+        { claudeModel: 'claude-sonnet-5', claudeInputTokens: 500, claudeOutputTokens: 200, claudeCostEstimateMinor: 300, claudeCallCount: 1 },
+        { claudeModel: 'claude-sonnet-5', claudeInputTokens: 400, claudeOutputTokens: 150, claudeCostEstimateMinor: 200, claudeCallCount: 1 },
+      ];
+
+      const result = await svc.overview({});
+
+      expect(result.aiBuilder.campaignAgentAvailable).toBe(true);
+      expect(result.aiBuilder.campaignAgentCostMinor).toBe(500);
+      // The builder's own AI-prompt profit is untouched by the agent's cost.
+      expect(result.aiBuilder.providerCostMinor).toBe(1_000);
+      // But the platform-wide totals DO carry it.
+      expect(result.aiCostMinor).toBe(1_000);
+      expect(result.totalCostMinor).toBe(result.operatingCostMinor + 1_000 + 500);
+      expect(result.profitMinor).toBe(result.consumedRevenueRealMoneyMinor - result.totalCostMinor);
     });
 
     it('exposes finalProfit for today/this month/this year, each shaped like {consumedRevenueRealMoneyMinor, totalCostMinor, profitMinor}', async () => {
@@ -786,6 +834,46 @@ describe('FinanceService', () => {
 
       expect(result.totalCostMinor).toBe(1);
       expect(byModelTotal).toBe(result.totalCostMinor);
+    });
+
+    it('lists the Google Ads agent as its own row, never merged into a builder row for the same model, and never charged', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__state.aiRows = [
+        {
+          provider: 'claude',
+          model: 'claude-sonnet-5',
+          taskCategory: 'multi_file',
+          inputTokens: 1_000,
+          outputTokens: 500,
+          estimatedCostUsd: 5,
+          createdAt: new Date('2026-02-01'),
+        } as unknown as { estimatedCostUsd: number; createdAt: Date },
+      ];
+      prisma.__state.googleAdsAgentRuns = [
+        {
+          claudeModel: 'claude-sonnet-5', // same model string as the builder row above
+          claudeInputTokens: 300,
+          claudeOutputTokens: 100,
+          claudeCostEstimateMinor: 250,
+          claudeCallCount: 2,
+        },
+      ];
+
+      const result = await svc.aiUsageReport({});
+
+      const builderRow = result.byModel.find((r) => r.provider === 'claude');
+      const agentRow = result.byModel.find((r) => r.provider === 'google-ads-agent');
+      expect(builderRow?.calls).toBe(1);
+      expect(builderRow?.tokens).toBe(1_500);
+      expect(agentRow).toBeTruthy();
+      expect(agentRow?.model).toBe('claude-sonnet-5');
+      expect(agentRow?.calls).toBe(2);
+      expect(agentRow?.tokens).toBe(400);
+      expect(agentRow?.costMinor).toBe(250);
+      expect(agentRow?.chargedMinor).toBe(0);
+      expect(result.totalCostMinor).toBe(500 + 250); // $5 builder + 250 agent
+      expect(result.totalTokens).toBe(1_500 + 400);
+      expect(result.totalCalls).toBe(1 + 2);
     });
   });
 });
