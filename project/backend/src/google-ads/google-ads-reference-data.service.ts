@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { foldCounty } from '../geo/ro-cities';
 import { GoogleAdsApiClient } from './google-ads-api-client.service';
 
 /** Static Google Ads reference data never changes within a process
@@ -25,6 +26,7 @@ export class GoogleAdsReferenceDataService {
   private geoTargetConstantRo: CacheEntry<string> | null = null;
   private languageConstantRo: CacheEntry<string> | null = null;
   private accountCurrencyCode: CacheEntry<string> | null = null;
+  private countyGeoTargetConstants: CacheEntry<Map<string, string>> | null = null;
 
   constructor(private readonly client: GoogleAdsApiClient) {}
 
@@ -68,6 +70,41 @@ export class GoogleAdsReferenceDataService {
     return resourceName;
   }
 
+  /**
+   * `geoTargetConstants/{id}` for every Romanian județ, keyed by
+   * `foldCounty(name)` (diacritic/case-insensitive) so a canonical
+   * `RO_COUNTIES` entry (which DOES carry diacritics, e.g. "Constanța")
+   * matches Google's own ASCII-only `geo_target_constant.name` (e.g.
+   * "Constanta") without a hardcoded translation table either side could
+   * silently drift from. One lookup covers all 42 județe (incl. București).
+   */
+  async getCountyGeoTargetConstants(): Promise<Map<string, string>> {
+    if (
+      this.countyGeoTargetConstants &&
+      Date.now() - this.countyGeoTargetConstants.at < CACHE_TTL_MS
+    ) {
+      return this.countyGeoTargetConstants.value;
+    }
+    const rows = await this.client.search(
+      'SELECT geo_target_constant.name, geo_target_constant.resource_name FROM geo_target_constant ' +
+        "WHERE geo_target_constant.country_code = 'RO' AND geo_target_constant.target_type = 'County'",
+    );
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      const name = row.geoTargetConstant?.name;
+      const resourceName = row.geoTargetConstant?.resourceName;
+      if (name && resourceName) map.set(foldCounty(name), resourceName);
+    }
+    if (!map.size) {
+      throw new Error(
+        "Google Ads geo_target_constant lookup for RO (target_type='County') returned no result " +
+          '— refusing to guess a resource name for county-level geo targeting.',
+      );
+    }
+    this.countyGeoTargetConstants = { value: map, at: Date.now() };
+    return map;
+  }
+
   /** The Google Ads account's own billing currency (e.g. 'EUR', 'RON'),
    *  read fresh from the `customer` resource rather than assumed. */
   async getAccountCurrencyCode(): Promise<string> {
@@ -88,5 +125,6 @@ export class GoogleAdsReferenceDataService {
     this.geoTargetConstantRo = null;
     this.languageConstantRo = null;
     this.accountCurrencyCode = null;
+    this.countyGeoTargetConstants = null;
   }
 }

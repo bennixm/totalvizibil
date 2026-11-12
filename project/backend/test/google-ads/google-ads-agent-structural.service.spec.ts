@@ -7,11 +7,27 @@ import { GoogleAdsAgentStructuralService } from 'src/google-ads/google-ads-agent
  * local mapping row is only ever written once Google's response actually
  * confirms the objects exist.
  */
-function fakeClient(overrides: { configured?: boolean; mutate?: jest.Mock } = {}) {
+/** Default `search()` response: the campaign already has exactly the
+ *  whole-country criterion — i.e. already matches the nationwide fallback
+ *  every test's default (empty) `companyLocation.findMany` resolves to, so
+ *  `syncGeoTargeting()` is a no-op by default and existing assertions about
+ *  `mutate` aren't disturbed by it. Tests that actually exercise geo sync
+ *  override `search` explicitly. */
+const NATIONWIDE_CRITERION_ROW = {
+  campaignCriterion: {
+    resourceName: 'customers/1234567890/campaignCriteria/111~2642',
+    location: { geoTargetConstant: 'geoTargetConstants/2642' },
+  },
+};
+
+function fakeClient(
+  overrides: { configured?: boolean; mutate?: jest.Mock; search?: jest.Mock } = {},
+) {
   return {
     configured: overrides.configured ?? true,
     customerId: '1234567890',
     mutate: overrides.mutate ?? jest.fn().mockResolvedValue([]),
+    search: overrides.search ?? jest.fn().mockResolvedValue([NATIONWIDE_CRITERION_ROW]),
   } as never;
 }
 
@@ -20,6 +36,12 @@ function fakeRefData() {
     getGeoTargetConstantRo: jest.fn().mockResolvedValue('geoTargetConstants/2642'),
     getLanguageConstantRo: jest.fn().mockResolvedValue('languageConstants/1032'),
     getAccountCurrencyCode: jest.fn().mockResolvedValue('EUR'),
+    getCountyGeoTargetConstants: jest.fn().mockResolvedValue(
+      new Map([
+        ['constanta', 'geoTargetConstants/20899'],
+        ['cluj', 'geoTargetConstants/20828'],
+      ]),
+    ),
   } as never;
 }
 
@@ -50,7 +72,15 @@ function fakeNotifications() {
 }
 
 function fakePrisma(
-  opts: { categories?: any[]; activeCompanyCounts?: number[]; existingRun?: any } = {},
+  opts: {
+    categories?: any[];
+    activeCompanyCounts?: number[];
+    existingRun?: any;
+    /** Raw `CompanyLocation` rows `desiredGeoResourceNames()` reads — empty
+     *  by default, which resolves to the nationwide fallback (see
+     *  `NATIONWIDE_CRITERION_ROW`'s doc comment above). */
+    companyLocations?: { county?: string | null; nationwide?: boolean }[];
+  } = {},
 ) {
   const categories = opts.categories ?? [];
   const counts = opts.activeCompanyCounts ?? [];
@@ -64,6 +94,7 @@ function fakePrisma(
     },
     category: { findMany: jest.fn().mockResolvedValue(categories) },
     companyCategory: { count: jest.fn(async () => counts[countCallIndex++] ?? 0) },
+    companyLocation: { findMany: jest.fn().mockResolvedValue(opts.companyLocations ?? []) },
     googleAdsSubcategoryCampaign: {
       update: jest.fn().mockResolvedValue({}),
       create: jest.fn().mockResolvedValue({}),
@@ -473,6 +504,222 @@ describe('GoogleAdsAgentStructuralService', () => {
             actionsTaken: 1,
           }),
         }),
+      );
+    });
+  });
+
+  describe('geo targeting', () => {
+    it('targets only the județe where this subcategory has active companies, not the whole country', async () => {
+      const mutate = jest
+        .fn()
+        .mockResolvedValue([
+          { campaignBudgetResult: { resourceName: 'customers/1234567890/campaignBudgets/555' } },
+          { campaignResult: { resourceName: 'customers/1234567890/campaigns/666' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~1' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~2' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~3' } },
+          { adGroupResult: { resourceName: 'customers/1234567890/adGroups/777' } },
+        ]);
+      const prisma = fakePrisma({
+        categories: [{ ...CATEGORY, googleAdsCampaign: null }],
+        activeCompanyCounts: [1],
+        // Two active companies, both in the same single județ (Constanța) —
+        // no nationwide company, so targeting should be county-only.
+        companyLocations: [{ county: 'Constanța' }, { county: 'Constanța' }],
+      });
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
+
+      await svc.run();
+
+      const ops = mutate.mock.calls[0][0];
+      // budget, campaign, ONE geo criterion (Constanța, de-duplicated), language, ad group.
+      expect(ops).toHaveLength(5);
+      expect(ops[2].campaignCriterionOperation.create.location.geoTargetConstant).toBe(
+        'geoTargetConstants/20899',
+      );
+      expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            after: expect.objectContaining({ targeting: 'Constanța' }),
+          }),
+        }),
+      );
+    });
+
+    it('targets every distinct județ with an active company, one criterion each', async () => {
+      const mutate = jest
+        .fn()
+        .mockResolvedValue([
+          { campaignBudgetResult: { resourceName: 'customers/1234567890/campaignBudgets/555' } },
+          { campaignResult: { resourceName: 'customers/1234567890/campaigns/666' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~1' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~2' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~3' } },
+          { adGroupResult: { resourceName: 'customers/1234567890/adGroups/777' } },
+        ]);
+      const prisma = fakePrisma({
+        categories: [{ ...CATEGORY, googleAdsCampaign: null }],
+        activeCompanyCounts: [1],
+        companyLocations: [{ county: 'Constanța' }, { county: 'Cluj' }],
+      });
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
+
+      await svc.run();
+
+      const ops = mutate.mock.calls[0][0];
+      expect(ops).toHaveLength(6); // budget, campaign, 2 geo criteria, language, ad group
+      const geoTargets = [ops[2], ops[3]].map(
+        (o) => o.campaignCriterionOperation.create.location.geoTargetConstant,
+      );
+      expect(geoTargets.sort()).toEqual(['geoTargetConstants/20828', 'geoTargetConstants/20899']);
+    });
+
+    it('falls back to whole-country targeting when any active company serves nationwide', async () => {
+      const mutate = jest
+        .fn()
+        .mockResolvedValue([
+          { campaignBudgetResult: { resourceName: 'customers/1234567890/campaignBudgets/555' } },
+          { campaignResult: { resourceName: 'customers/1234567890/campaigns/666' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~1' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~2' } },
+          { adGroupResult: { resourceName: 'customers/1234567890/adGroups/777' } },
+        ]);
+      const prisma = fakePrisma({
+        categories: [{ ...CATEGORY, googleAdsCampaign: null }],
+        activeCompanyCounts: [1],
+        // One county-only company AND one nationwide company — nationwide
+        // must win so the nationwide company's own reach isn't cut down.
+        companyLocations: [{ county: 'Constanța' }, { nationwide: true }],
+      });
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
+
+      await svc.run();
+
+      const ops = mutate.mock.calls[0][0];
+      expect(ops).toHaveLength(5); // budget, campaign, ONE (whole-country) geo criterion, language, ad group
+      expect(ops[2].campaignCriterionOperation.create.location.geoTargetConstant).toBe(
+        'geoTargetConstants/2642',
+      );
+    });
+
+    it("syncs an existing campaign's targeting when its active companies' județe changed since creation", async () => {
+      const mutate = jest.fn().mockResolvedValue([]);
+      const search = jest.fn().mockResolvedValue([
+        {
+          campaignCriterion: {
+            resourceName: 'customers/1234567890/campaignCriteria/111~20899',
+            location: { geoTargetConstant: 'geoTargetConstants/20899' }, // currently Constanța only
+          },
+        },
+      ]);
+      const mapping = { id: 'map-1', googleCampaignId: '111', status: 'active' };
+      const prisma = fakePrisma({
+        categories: [{ ...CATEGORY, googleAdsCampaign: mapping }],
+        activeCompanyCounts: [1],
+        // Now there's a Cluj company too, but no more Constanța one.
+        companyLocations: [{ county: 'Cluj' }],
+      });
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate, search }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
+
+      await svc.run();
+
+      expect(mutate).toHaveBeenCalledWith([
+        {
+          campaignCriterionOperation: { remove: 'customers/1234567890/campaignCriteria/111~20899' },
+        },
+        {
+          campaignCriterionOperation: {
+            create: {
+              campaign: 'customers/1234567890/campaigns/111',
+              location: { geoTargetConstant: 'geoTargetConstants/20828' },
+            },
+          },
+        },
+      ]);
+      expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: 'geo_targeting.updated' }),
+        }),
+      );
+    });
+
+    it("doesn't touch geo targeting (no mutate, no action row) when it already matches", async () => {
+      const mutate = jest.fn().mockResolvedValue([]);
+      const mapping = { id: 'map-1', googleCampaignId: '111', status: 'active' };
+      const prisma = fakePrisma({
+        categories: [{ ...CATEGORY, googleAdsCampaign: mapping }],
+        activeCompanyCounts: [1],
+      });
+      // Default search()/companyLocations already agree on nationwide.
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
+
+      await svc.run();
+
+      expect(mutate).not.toHaveBeenCalled();
+      expect((prisma as any).googleAdsAgentAction.create).not.toHaveBeenCalled();
+    });
+
+    it("skips (and warns about) a county Google Ads reference data can't match, falling back to whole-country only if NONE match", async () => {
+      const mutate = jest
+        .fn()
+        .mockResolvedValue([
+          { campaignBudgetResult: { resourceName: 'customers/1234567890/campaignBudgets/555' } },
+          { campaignResult: { resourceName: 'customers/1234567890/campaigns/666' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~1' } },
+          { campaignCriterionResult: { resourceName: 'customers/1234567890/campaigns/666~2' } },
+          { adGroupResult: { resourceName: 'customers/1234567890/adGroups/777' } },
+        ]);
+      const prisma = fakePrisma({
+        categories: [{ ...CATEGORY, googleAdsCampaign: null }],
+        activeCompanyCounts: [1],
+        // "Unknown" isn't in fakeRefData's county map — only Constanța is
+        // resolvable here, so that's the only criterion created.
+        companyLocations: [{ county: 'Constanța' }, { county: 'Unknown' }],
+      });
+      const svc = new GoogleAdsAgentStructuralService(
+        fakeClient({ mutate }),
+        fakeRefData(),
+        fakeSettings(),
+        prisma,
+        fakeNotifications(),
+      );
+
+      await svc.run();
+
+      const ops = mutate.mock.calls[0][0];
+      expect(ops).toHaveLength(5); // budget, campaign, ONE matched geo criterion, language, ad group
+      expect(ops[2].campaignCriterionOperation.create.location.geoTargetConstant).toBe(
+        'geoTargetConstants/20899',
       );
     });
   });

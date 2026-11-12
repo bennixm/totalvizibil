@@ -1,10 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { foldCounty } from '../geo/ro-cities';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { notifyAdminsOfFailedGoogleAdsAgentRun } from './google-ads-agent-alerts';
-import { GoogleAdsApiClient } from './google-ads-api-client.service';
+import { GoogleAdsApiClient, GoogleAdsMutateOperation } from './google-ads-api-client.service';
 import { creditsToAmountMicros } from './google-ads-money';
 import { GoogleAdsReferenceDataService } from './google-ads-reference-data.service';
 
@@ -199,12 +200,134 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
       await this.createSkeleton(category);
       return true;
     }
-    if (mapping.status === 'paused') {
-      await this.resumeCampaign(category.id, mapping);
-      return true;
+
+    const resumed = mapping.status === 'paused';
+    if (resumed) await this.resumeCampaign(category.id, mapping);
+    // Keeps geo targeting in step with WHERE this subcategory's active
+    // companies actually are, even for a campaign that's existed for a
+    // while — a business moving county, a new one joining in a county
+    // nobody served before, or the last nationwide business leaving should
+    // all narrow/widen targeting on the next tick, not just at creation.
+    const geoChanged = await this.syncGeoTargeting(category, mapping);
+    if (!resumed) await this.touch(mapping.id);
+    return resumed || geoChanged;
+  }
+
+  /**
+   * The real Google Ads geo targets this category's campaign SHOULD have
+   * right now, as a set of `geoTargetConstants/{id}` resource names:
+   *  - any active company serving the whole country (nationwide) → the
+   *    single whole-Romania criterion (a county-only target would wrongly
+   *    exclude visitors from every county that company already legitimately
+   *    serves);
+   *  - otherwise → one criterion per județ with ≥1 active company.
+   *  A județ this account's reference data can't match (shouldn't happen —
+   *  `CompanyLocation.county` is validated against the same 42-name list —
+   *  but never silently dropped into "everywhere") just gets skipped with a
+   *  warning; if that happens to be every județ, falls back to whole-country
+   *  rather than create/leave a campaign with NO geo targeting at all, which
+   *  Google Ads would otherwise default to "worldwide".
+   */
+  private async desiredGeoResourceNames(
+    categoryId: string,
+  ): Promise<{ resourceNames: Set<string>; label: string }> {
+    const locations = await this.prisma.companyLocation.findMany({
+      where: { company: { status: 'active', categoryAssignments: { some: { categoryId } } } },
+      select: { county: true, nationwide: true },
+    });
+    const nationwide = locations.some((l) => l.nationwide);
+    const counties = [...new Set(locations.filter((l) => l.county).map((l) => l.county as string))];
+
+    if (nationwide || !counties.length) {
+      const geoResourceName = await this.refData.getGeoTargetConstantRo();
+      return { resourceNames: new Set([geoResourceName]), label: 'toată țara' };
     }
-    await this.touch(mapping.id);
-    return false;
+
+    const countyMap = await this.refData.getCountyGeoTargetConstants();
+    const resourceNames = new Set<string>();
+    const matched: string[] = [];
+    for (const county of counties) {
+      const resourceName = countyMap.get(foldCounty(county));
+      if (!resourceName) {
+        this.logger.warn(
+          `No Google Ads geo_target_constant match for județ '${county}' (category ${categoryId}) ` +
+            '— skipping its targeting.',
+        );
+        continue;
+      }
+      resourceNames.add(resourceName);
+      matched.push(county);
+    }
+    if (!resourceNames.size) {
+      const geoResourceName = await this.refData.getGeoTargetConstantRo();
+      return {
+        resourceNames: new Set([geoResourceName]),
+        label: 'toată țara (fallback — niciun județ găsit)',
+      };
+    }
+    return { resourceNames, label: matched.sort().join(', ') };
+  }
+
+  /** Every LOCATION-type criterion the real campaign currently has. */
+  private async currentGeoCriteria(
+    campaignResourceName: string,
+  ): Promise<{ resourceName: string; geoTargetConstant: string }[]> {
+    const rows = await this.client.search(
+      'SELECT campaign_criterion.resource_name, campaign_criterion.location.geo_target_constant ' +
+        `FROM campaign_criterion WHERE campaign_criterion.campaign = '${campaignResourceName}' ` +
+        "AND campaign_criterion.type = 'LOCATION'",
+    );
+    const out: { resourceName: string; geoTargetConstant: string }[] = [];
+    for (const row of rows) {
+      const resourceName = row.campaignCriterion?.resourceName;
+      const geoTargetConstant = row.campaignCriterion?.location?.geoTargetConstant;
+      if (resourceName && geoTargetConstant) out.push({ resourceName, geoTargetConstant });
+    }
+    return out;
+  }
+
+  /** Diffs the campaign's current geo targeting against where its active
+   *  companies actually are, and applies ONLY the add/remove delta (never
+   *  touches criteria that are already correct). Returns true iff anything
+   *  changed. */
+  private async syncGeoTargeting(
+    category: CategoryWithMapping,
+    mapping: NonNullable<CategoryWithMapping['googleAdsCampaign']>,
+  ): Promise<boolean> {
+    const campaignResourceName = `customers/${this.client.customerId}/campaigns/${mapping.googleCampaignId}`;
+    const [current, desired] = await Promise.all([
+      this.currentGeoCriteria(campaignResourceName),
+      this.desiredGeoResourceNames(category.id),
+    ]);
+
+    const currentByGeo = new Map(current.map((c) => [c.geoTargetConstant, c.resourceName]));
+    const toAdd = [...desired.resourceNames].filter((geo) => !currentByGeo.has(geo));
+    const toRemove = current.filter((c) => !desired.resourceNames.has(c.geoTargetConstant));
+    if (!toAdd.length && !toRemove.length) return false;
+
+    const ops: GoogleAdsMutateOperation[] = [
+      ...toRemove.map((c) => ({ campaignCriterionOperation: { remove: c.resourceName } })),
+      ...toAdd.map((geoTargetConstant) => ({
+        campaignCriterionOperation: {
+          create: { campaign: campaignResourceName, location: { geoTargetConstant } },
+        },
+      })),
+    ];
+    await this.client.mutate(ops);
+
+    await this.prisma.googleAdsAgentAction.create({
+      data: {
+        categoryId: category.id,
+        action: 'geo_targeting.updated',
+        status: 'applied',
+        before: { criteriaCount: current.length },
+        after: { targeting: desired.label, criteriaCount: desired.resourceNames.size },
+        reasoning:
+          'Județele cu firme active pentru această subcategorie s-au schimbat — ' +
+          'targetarea geografică a campaniei a fost actualizată.',
+      },
+    });
+    return true;
   }
 
   private touch(mappingId: string) {
@@ -292,14 +415,14 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
    */
   private async createSkeleton(category: CategoryWithMapping): Promise<void> {
     const [
-      geoResourceName,
+      desiredGeo,
       langResourceName,
       currencyCode,
       eurRonRate,
       dailyBudgetCredits,
       maxCpcCredits,
     ] = await Promise.all([
-      this.refData.getGeoTargetConstantRo(),
+      this.desiredGeoResourceNames(category.id),
       this.refData.getLanguageConstantRo(),
       this.refData.getAccountCurrencyCode(),
       this.settings.eurRonRate(),
@@ -316,6 +439,18 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
     const adGroupTempId = `customers/${customerId}/adGroups/-3`;
     const label = category.parent ? `${category.parent.slug}/${category.slug}` : category.slug;
     const shortId = category.id.slice(0, 8);
+
+    // Variable count (one per targeted județ, or just one for whole-country)
+    // — budget/campaign stay the first two operations and the ad group stays
+    // the last, regardless of how many geo criteria sit in between, so their
+    // results can still be pulled out by fixed position below.
+    const geoCriterionOps: GoogleAdsMutateOperation[] = [...desiredGeo.resourceNames].map(
+      (geoTargetConstant) => ({
+        campaignCriterionOperation: {
+          create: { campaign: campaignTempId, location: { geoTargetConstant } },
+        },
+      }),
+    );
 
     const results = await this.client.mutate([
       {
@@ -351,11 +486,7 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
           },
         },
       },
-      {
-        campaignCriterionOperation: {
-          create: { campaign: campaignTempId, location: { geoTargetConstant: geoResourceName } },
-        },
-      },
+      ...geoCriterionOps,
       {
         campaignCriterionOperation: {
           create: { campaign: campaignTempId, language: { languageConstant: langResourceName } },
@@ -377,7 +508,7 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
 
     const budgetId = resourceId(results[0]?.campaignBudgetResult?.resourceName);
     const campaignId = resourceId(results[1]?.campaignResult?.resourceName);
-    const adGroupId = resourceId(results[4]?.adGroupResult?.resourceName);
+    const adGroupId = resourceId(results[results.length - 1]?.adGroupResult?.resourceName);
 
     if (!budgetId || !campaignId || !adGroupId) {
       throw new Error(
@@ -409,10 +540,11 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
             googleAdGroupId: adGroupId,
             dailyBudgetCredits,
             maxCpcCredits,
+            targeting: desiredGeo.label,
           },
           reasoning:
             'Subcategorie cu ≥1 firmă activă fără campanie Google Ads — creat schelet ' +
-            '(campanie PAUSED, fără reclame/cuvinte cheie — urmează în Faza 3).',
+            `(campanie PAUSED, fără reclame/cuvinte cheie — urmează în Faza 3). Targetare: ${desiredGeo.label}.`,
         },
       }),
     ]);
