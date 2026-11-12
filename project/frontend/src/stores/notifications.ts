@@ -93,6 +93,9 @@ export function routeForNotification(n: Pick<NotificationItem, 'type' | 'data'>)
   if (n.type === 'campaign_paused_website_not_ready' && typeof companyId === 'string') {
     return { name: 'campaign', query: { c: companyId } }
   }
+  if (n.type === 'google_ads_agent_run_failed') {
+    return { name: 'admin-google-ads-agent' }
+  }
   if (
     (n.type === 'payment_succeeded' || n.type === 'referral_rewarded') &&
     typeof invoiceId === 'string'
@@ -168,6 +171,7 @@ const VISUALS: Record<string, NotificationVisual> = {
   ticket_stale_assignee: { icon: 'mdi-clock-alert-outline', tone: 'warning' },
   ticket_unanswered_escalation: { icon: 'mdi-alert-octagon-outline', tone: 'error' },
   pro_build_failed: { icon: 'mdi-alert-circle-outline', tone: 'error' },
+  google_ads_agent_run_failed: { icon: 'mdi-bullhorn-outline', tone: 'error' },
   leads_stale: { icon: 'mdi-clock-alert-outline', tone: 'warning' },
   campaign_activated_by_admin: { icon: 'mdi-bullhorn-outline', tone: 'success' },
   campaign_cpc_below_minimum: { icon: 'mdi-battery-alert-variant-outline', tone: 'warning' },

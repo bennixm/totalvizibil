@@ -263,6 +263,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminCategoriesView.vue'),
       },
       {
+        path: 'google-ads-agent',
+        name: 'admin-google-ads-agent',
+        component: () => import('@/views/admin/AdminGoogleAdsAgentView.vue'),
+      },
+      {
         path: 'settings',
         name: 'admin-settings',
         // `GET /admin/settings` is `@PlatformRoles('admin','finance')`: a

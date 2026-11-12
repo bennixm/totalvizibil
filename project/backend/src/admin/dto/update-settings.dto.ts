@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class UpdateSettingsDto {
   @IsOptional()
@@ -156,4 +156,63 @@ export class UpdateSettingsDto {
   @Min(1)
   @Max(100_000)
   domainPurchaseFeeCredits?: number;
+
+  // --- Google Ads agent (per-subcategory campaigns, see GOOGLE-ADS-AGENT-PLAN.md) ---
+  // Off by default — see PlatformSettingsService.googleAdsAgentEnabled().
+
+  @IsOptional()
+  @IsBoolean()
+  googleAdsAgentEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.5)
+  @Max(100_000)
+  googleAdsAgentDefaultDailyBudgetCredits?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  @Max(1000)
+  googleAdsAgentDefaultMaxCpcCredits?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.5)
+  @Max(100_000)
+  googleAdsAgentMaxDailyBudgetCapCredits?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  @Max(1000)
+  googleAdsAgentMaxCpcCapCredits?: number;
+
+  // Cadence (minutes since the last run of that kind) — see
+  // GoogleAdsAgentStructuralService/ContentService/IntelligenceService's
+  // `isDue()`. Admin-settable, takes effect without a restart.
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(15)
+  @Max(10_080)
+  googleAdsAgentStructuralIntervalMinutes?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(15)
+  @Max(10_080)
+  googleAdsAgentContentIntervalMinutes?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(15)
+  @Max(10_080)
+  googleAdsAgentIntelligenceIntervalMinutes?: number;
 }

@@ -54,26 +54,27 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  sessions                Session[]
-  platformRoles           PlatformRoleAssignment[]
-  companyMembers          CompanyUser[]
-  ownedCompanies          Company[]                @relation("CompanyOwner")
-  passwordResets          PasswordResetToken[]
-  emailVerificationCodes  EmailVerificationCode[]
-  wallet                  Wallet?
-  billingProfile          BillingProfile?
-  invoices                Invoice[]
-  supportTicketsRequested SupportTicket[]          @relation("SupportRequester")
-  supportTicketsAssigned  SupportTicket[]          @relation("SupportAssignee")
-  supportMessages         SupportMessage[]
-  supportAttachments      SupportAttachment[]
-  referralsMade           Referral[]               @relation("ReferralsMade")
-  referralReceived        Referral?                @relation("ReferralReceived")
-  aiUsageRecords          AiUsageRecord[]
-  notifications           Notification[]
-  platformExpensesCreated PlatformExpense[]
-  adminAuditLogs          AdminAuditLog[]
-  businessActionLogs      BusinessActionLog[]
+  sessions                 Session[]
+  platformRoles            PlatformRoleAssignment[]
+  companyMembers           CompanyUser[]
+  ownedCompanies           Company[]                @relation("CompanyOwner")
+  passwordResets           PasswordResetToken[]
+  emailVerificationCodes   EmailVerificationCode[]
+  wallet                   Wallet?
+  billingProfile           BillingProfile?
+  invoices                 Invoice[]
+  supportTicketsRequested  SupportTicket[]          @relation("SupportRequester")
+  supportTicketsAssigned   SupportTicket[]          @relation("SupportAssignee")
+  supportMessages          SupportMessage[]
+  supportAttachments       SupportAttachment[]
+  referralsMade            Referral[]               @relation("ReferralsMade")
+  referralReceived         Referral?                @relation("ReferralReceived")
+  aiUsageRecords           AiUsageRecord[]
+  notifications            Notification[]
+  platformExpensesCreated  PlatformExpense[]
+  adminAuditLogs           AdminAuditLog[]
+  businessActionLogs       BusinessActionLog[]
+  googleAdsActionsApproved GoogleAdsAgentAction[]
 
   @@map("users")
 }
@@ -316,6 +317,144 @@ model BusinessActionLog {
 }
 
 // ---------------------------------------------------------------------------
+// Google Ads agent — platform-level, NOT the internal `Campaign` model above
+// (that's a business's own CPC campaign on our feed). This is external
+// traffic acquisition: Google Ads campaigns the platform itself runs, one
+// per leaf taxonomy subcategory, to bring visitors in from Google. Reuses
+// the service-account auth already set up for `GoogleAdsCpcSyncService`
+// (see src/google-ads/). Full design: docs/ai/GOOGLE-ADS-AGENT-PLAN.md.
+// ---------------------------------------------------------------------------
+
+enum GoogleAdsCampaignStatus {
+  pending_creation
+  active
+  paused
+}
+
+/**
+ * One row per leaf `Category` (subcategory) the agent has ever touched — its
+ * memory of which real Google Ads campaign/ad group corresponds to that
+ * subcategory, so a run never creates a duplicate. `status` mirrors the real
+ * campaign's enabled/paused state in Google Ads; the agent is the only
+ * writer of the `google*Id` fields (set once, right after the real Ads
+ * objects are created) and of `status`/budget/CPC (kept in sync after every
+ * applied action). Deleting the `Category` row does NOT pause or delete the
+ * real Google Ads campaign — that must happen first, via the agent's own
+ * pause path, before a subcategory can ever be removed.
+ */
+model GoogleAdsSubcategoryCampaign {
+  id         String @id @default(uuid()) @db.Uuid
+  categoryId String @unique @map("category_id") @db.Uuid
+
+  // Null until the structural pass actually creates the real objects on
+  // Google's side (status stays `pending_creation` until then).
+  googleCampaignId       String? @map("google_campaign_id")
+  googleAdGroupId        String? @map("google_ad_group_id")
+  googleBudgetResourceId String? @map("google_budget_resource_id")
+
+  status           GoogleAdsCampaignStatus @default(pending_creation)
+  dailyBudgetMinor Int                     @default(0) @map("daily_budget_minor")
+  maxCpcMinor      Int                     @default(0) @map("max_cpc_minor")
+
+  lastStructuralCheckAt DateTime? @map("last_structural_check_at")
+  lastIntelligenceRunAt DateTime? @map("last_intelligence_run_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("google_ads_subcategory_campaigns")
+}
+
+enum GoogleAdsActionStatus {
+  applied
+  pending_approval
+  rejected
+}
+
+/**
+ * Same append-only audit shape as `AdminAuditLog`/`BusinessActionLog`, scoped
+ * to the Google Ads agent. Doubles as the approval queue: a row the agent
+ * writes with `status: pending_approval` (always a budget/CPC INCREASE —
+ * decreases and structural changes apply immediately, written straight as
+ * `applied`) is what the admin panel's "Propuneri în așteptare" tab reads
+ * and lets staff approve/reject. The actual Google Ads mutate call only
+ * fires once a pending row is approved.
+ */
+model GoogleAdsAgentAction {
+  id         String @id @default(uuid()) @db.Uuid
+  categoryId String @map("category_id") @db.Uuid
+
+  // Short machine code: `campaign.create`, `campaign.pause`,
+  // `campaign.resume`, `budget.increase.proposed`, `budget.increase.approved`,
+  // `budget.increase.rejected`, `cpc.adjusted`, `keywords.updated`.
+  action String
+  status GoogleAdsActionStatus @default(applied)
+
+  before    Json?
+  after     Json?
+  // Claude's explanation for a proposal, shown next to it in the admin panel.
+  reasoning String?
+
+  approvedByUserId String?   @map("approved_by_user_id") @db.Uuid
+  approvedAt       DateTime? @map("approved_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  approvedBy User?    @relation(fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([categoryId, createdAt])
+  @@index([status])
+  @@map("google_ads_agent_actions")
+}
+
+enum GoogleAdsAgentRunKind {
+  structural
+  content
+  intelligence
+}
+
+enum GoogleAdsAgentRunStatus {
+  in_progress
+  success
+  partial
+  failed
+}
+
+/**
+ * One row per scheduled execution (any of the three cadences — structural,
+ * content, intelligence). `status: in_progress` is
+ * an application-level lock, not a DB constraint: before starting, the
+ * scheduler checks for an existing `in_progress` row of the same `kind` and
+ * skips the run if one is found, so a slow run overlapping a redeploy never
+ * doubles up. Also the source for the admin panel's "last/next run" display
+ * and rough Claude cost tracking for the intelligence pass.
+ */
+model GoogleAdsAgentRun {
+  id     String                  @id @default(uuid()) @db.Uuid
+  kind   GoogleAdsAgentRunKind
+  status GoogleAdsAgentRunStatus @default(in_progress)
+
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  categoriesScanned      Int @default(0) @map("categories_scanned")
+  actionsTaken           Int @default(0) @map("actions_taken")
+  actionsPendingApproval Int @default(0) @map("actions_pending_approval")
+
+  // Credits (same minor-unit convention as the wallet), estimated from
+  // Claude usage tokens — rough, for the admin panel's cost tracking tab only.
+  claudeCostEstimateMinor Int?    @map("claude_cost_estimate_minor")
+  errorSummary            String? @map("error_summary")
+
+  @@index([kind, status])
+  @@map("google_ads_agent_runs")
+}
+
+// ---------------------------------------------------------------------------
 // Taxonomy
 // ---------------------------------------------------------------------------
 
@@ -334,6 +473,9 @@ model Category {
   children          Category[]        @relation("CategoryTree")
   companies         Company[]
   companyCategories CompanyCategory[]
+
+  googleAdsCampaign     GoogleAdsSubcategoryCampaign?
+  googleAdsAgentActions GoogleAdsAgentAction[]
 
   @@map("categories")
 }
