@@ -31,17 +31,31 @@ const SYNC_INTERVAL_MS = 10 * 60 * 1000;
  * Replaces the old all-manual `google_ads` expense category for everything
  * going forward; existing manual rows are untouched and the category still
  * accepts manual entries (e.g. to backfill a day this job missed).
+ *
+ * Which campaigns feed this average: every campaign the Google Ads AGENT has
+ * ever created (`GoogleAdsSubcategoryCampaign.googleCampaignId`, regardless
+ * of its current local `status` — a campaign paused mid-day can still have
+ * accrued real cost earlier that same day) PLUS the admin-configured single
+ * `googleAdsCampaignId` (DB-settable, env fallback), if any, for a manually-
+ * run campaign outside the agent (e.g. a platform-brand campaign) that ALSO
+ * drives feed traffic. Found live in production (2026-11-12): before this,
+ * the job only ever looked at that one manual id, which pointed at an
+ * unrelated, permanently-PAUSED "Web Pixel" campaign — so the average could
+ * never update no matter how much real traffic the agent's own campaigns
+ * got. Falls back to the whole account only when NEITHER source has
+ * anything yet (a fresh install, before the agent has created its first
+ * campaign).
  */
 @Injectable()
 export class GoogleAdsCpcSyncService implements OnModuleInit {
   private readonly logger = new Logger(GoogleAdsCpcSyncService.name);
   /** Env fallback only — the live value is resolved on every tick via
-   *  `resolveCampaignId()`, DB setting first (admin-settable), so a change
-   *  takes effect without a restart. `GoogleAdsApiClient`'s own credential
-   *  loading happens in ITS `onModuleInit` (not its constructor) now, so
-   *  `.configured` can't be trusted yet at THIS constructor's time — every
-   *  check against it lives in `sync()` instead, which already re-checks it
-   *  on every tick regardless. */
+   *  `resolveManualCampaignId()`, DB setting first (admin-settable), so a
+   *  change takes effect without a restart. `GoogleAdsApiClient`'s own
+   *  credential loading happens in ITS `onModuleInit` (not its constructor)
+   *  now, so `.configured` can't be trusted yet at THIS constructor's time —
+   *  every check against it lives in `sync()` instead, which already
+   *  re-checks it on every tick regardless. */
   private readonly envCampaignId: string;
 
   constructor(
@@ -54,33 +68,47 @@ export class GoogleAdsCpcSyncService implements OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
-    const campaignId = await this.resolveCampaignId();
-    if (!campaignId) {
+    const campaignIds = await this.relevantCampaignIds();
+    if (!campaignIds.length) {
       this.logger.warn(
-        'No Google Ads campaign id configured — averaging cost/clicks across the WHOLE ' +
-          'Google Ads account. Set one (admin panel or GOOGLE_ADS_CAMPAIGN_ID) once the ' +
-          'platform-promotion campaign exists, or any unrelated campaign on the same ' +
-          'account will skew the price.',
+        'No Google Ads campaign ids to track yet (no agent-created campaigns, no manual ' +
+          'campaign id configured) — averaging cost/clicks across the WHOLE Google Ads ' +
+          'account instead, which any unrelated campaign on the same account would skew.',
       );
     }
     void this.sync();
     setInterval(() => void this.sync(), SYNC_INTERVAL_MS);
   }
 
-  private async resolveCampaignId(): Promise<string> {
+  private async resolveManualCampaignId(): Promise<string> {
     const dbValue = await this.settings.googleAdsCampaignId();
     return dbValue || this.envCampaignId;
+  }
+
+  /** Every campaign id this job should pull today's cost/clicks for — see
+   *  the class doc comment for why both sources matter. */
+  private async relevantCampaignIds(): Promise<string[]> {
+    const [agentCampaigns, manualCampaignId] = await Promise.all([
+      this.prisma.googleAdsSubcategoryCampaign.findMany({
+        where: { googleCampaignId: { not: null } },
+        select: { googleCampaignId: true },
+      }),
+      this.resolveManualCampaignId(),
+    ]);
+    const ids = new Set(agentCampaigns.map((c) => c.googleCampaignId as string));
+    if (manualCampaignId) ids.add(manualCampaignId);
+    return [...ids];
   }
 
   private async sync(): Promise<void> {
     if (!this.client.configured) return;
     try {
-      const campaignId = await this.resolveCampaignId();
+      const campaignIds = await this.relevantCampaignIds();
       const query = [
         'SELECT customer.currency_code, metrics.cost_micros, metrics.clicks',
         'FROM campaign',
         'WHERE segments.date DURING TODAY',
-        campaignId ? `AND campaign.id = ${campaignId}` : '',
+        campaignIds.length ? `AND campaign.id IN (${campaignIds.join(',')})` : '',
       ]
         .filter(Boolean)
         .join(' ');

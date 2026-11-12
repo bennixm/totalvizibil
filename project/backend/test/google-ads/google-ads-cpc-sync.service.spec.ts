@@ -28,8 +28,15 @@ function fakeSettings(eurRonRate = 5, dbCampaignId = '') {
   } as never;
 }
 
-function fakePrisma() {
-  return { platformExpense: { upsert: jest.fn().mockResolvedValue({}) } } as never;
+function fakePrisma(agentCampaignIds: string[] = []) {
+  return {
+    platformExpense: { upsert: jest.fn().mockResolvedValue({}) },
+    googleAdsSubcategoryCampaign: {
+      findMany: jest
+        .fn()
+        .mockResolvedValue(agentCampaignIds.map((id) => ({ googleCampaignId: id }))),
+    },
+  } as never;
 }
 
 describe('GoogleAdsCpcSyncService', () => {
@@ -80,7 +87,7 @@ describe('GoogleAdsCpcSyncService', () => {
     expect((settings as any).setGoogleAdsAvgCpc).toHaveBeenCalledWith(5);
   });
 
-  it('includes the campaign filter in the query, falling back to the env var when no DB value is set', async () => {
+  it('includes the manual campaign filter in the query, falling back to the env var when no DB value is set', async () => {
     const search = jest.fn().mockResolvedValue([]);
     const client = fakeClient({ search });
     const svc = new GoogleAdsCpcSyncService(
@@ -92,10 +99,10 @@ describe('GoogleAdsCpcSyncService', () => {
 
     await (svc as any).sync();
 
-    expect(search).toHaveBeenCalledWith(expect.stringContaining('AND campaign.id = 999'));
+    expect(search).toHaveBeenCalledWith(expect.stringContaining('AND campaign.id IN (999)'));
   });
 
-  it('prefers the DB-configured campaign id over the env var', async () => {
+  it('prefers the DB-configured manual campaign id over the env var', async () => {
     const search = jest.fn().mockResolvedValue([]);
     const client = fakeClient({ search });
     const svc = new GoogleAdsCpcSyncService(
@@ -107,7 +114,49 @@ describe('GoogleAdsCpcSyncService', () => {
 
     await (svc as any).sync();
 
-    expect(search).toHaveBeenCalledWith(expect.stringContaining('AND campaign.id = 777'));
+    expect(search).toHaveBeenCalledWith(expect.stringContaining('AND campaign.id IN (777)'));
+  });
+
+  it("aggregates every agent-created campaign's cost/clicks, not just the manual one (the real production bug: the manual id pointed at an unrelated, permanently-paused campaign)", async () => {
+    const search = jest.fn().mockResolvedValue([]);
+    const client = fakeClient({ search });
+    const svc = new GoogleAdsCpcSyncService(
+      fakeConfig(), // no manual campaign id at all
+      client,
+      fakeSettings(),
+      fakePrisma(['111', '222', '333']),
+    );
+
+    await (svc as any).sync();
+
+    expect(search).toHaveBeenCalledWith(
+      expect.stringContaining('AND campaign.id IN (111,222,333)'),
+    );
+  });
+
+  it('combines the agent campaigns AND the manual one, de-duplicated, when both are set', async () => {
+    const search = jest.fn().mockResolvedValue([]);
+    const client = fakeClient({ search });
+    const svc = new GoogleAdsCpcSyncService(
+      fakeConfig(),
+      client,
+      fakeSettings(5, '222'), // overlaps with one of the agent campaign ids
+      fakePrisma(['111', '222']),
+    );
+
+    await (svc as any).sync();
+
+    expect(search).toHaveBeenCalledWith(expect.stringContaining('AND campaign.id IN (111,222)'));
+  });
+
+  it('falls back to the whole account when there are no agent campaigns AND no manual campaign id', async () => {
+    const search = jest.fn().mockResolvedValue([]);
+    const client = fakeClient({ search });
+    const svc = new GoogleAdsCpcSyncService(fakeConfig(), client, fakeSettings(), fakePrisma());
+
+    await (svc as any).sync();
+
+    expect(search).toHaveBeenCalledWith(expect.not.stringContaining('campaign.id'));
   });
 
   it('converts RON cost/CPC through the live EUR/RON rate', async () => {
