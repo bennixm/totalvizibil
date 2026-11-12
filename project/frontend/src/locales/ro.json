@@ -1809,7 +1809,7 @@
     "feedMarjaPozitionareHint": "Pasul de preț între poziții consecutive în același Feed.",
     "googleAdsTitle": "Cost Google Ads (click-uri din reclame)",
     "googleAdsNote": "Pentru click-urile venite dintr-un anunț Google Ads, costul promovării nu mai e fix — vine din media glisantă calculată automat de un job care interoghează contul Google Ads. Valoarea de mai jos e doar de citit; parametrii editabili sunt marja de siguranță și plafonul de rezervă.",
-    "googleAdsUnconfigured": "Nu e configurat încă — click-urile din Google Ads folosesc plafonul de rezervă de mai jos.",
+    "googleAdsUnconfigured": "Încă nu există nicio medie CPC sincronizată de la Google (de ex. niciun clic real încă pe campania folosită pentru asta) — click-urile din Google Ads folosesc plafonul de rezervă de mai jos, până la prima sincronizare reușită. Starea reală a conexiunii cu contul e în Agent Google Ads → Setări agent → Cont Google Ads.",
     "googleAdsCurrentAvg": "Medie curentă: {n} credite/click",
     "googleAdsFresh": "actualizat la {t}",
     "googleAdsStale": "neactualizat de la {t} — se folosește plafonul de rezervă",

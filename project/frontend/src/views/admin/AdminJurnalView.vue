@@ -560,16 +560,25 @@ watch(tab, (v) => {
   flex-direction: row;
   align-items: baseline;
   gap: 0.4rem;
+  min-width: 0;
 }
 .jrow__target code {
   font-size: 0.76rem;
   padding: 0.05rem 0.35rem;
   border-radius: 4px;
   background: rgba(var(--v-theme-on-surface), 0.06);
+  /* A long `targetType` (e.g. `google_ads_agent_run`) would otherwise
+     overflow its grid column and visually run into the actions button next
+     to it — flex items don't shrink below their content width by default. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .jrow__targetId {
   font-size: 0.72rem;
   color: rgba(var(--v-theme-on-surface), 0.4);
+  flex-shrink: 0;
 }
 .jrow__actions {
   display: flex;

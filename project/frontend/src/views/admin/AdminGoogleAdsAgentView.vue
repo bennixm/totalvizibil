@@ -42,7 +42,13 @@ function nm(c?: GoogleAdsAgentCategoryRef | null): string {
 const tab = ref<'overview' | 'proposals' | 'campaigns' | 'history' | 'settings'>('overview')
 const busy = ref<string | null>(null)
 
-onMounted(() => void admin.fetchGoogleAdsAgentOverview())
+onMounted(() => {
+  void admin.fetchGoogleAdsAgentOverview()
+  // Also fetched eagerly (not just lazily on tab switch, as the `watch`
+  // below still does for a fresh visit to that tab): the tab's own pending-
+  // count badge needs this list before the admin ever clicks into it.
+  void admin.fetchGoogleAdsAgentProposals()
+})
 
 watch(tab, (v) => {
   if (v === 'proposals' && !admin.googleAdsAgentProposals.length) void admin.fetchGoogleAdsAgentProposals()
@@ -300,7 +306,12 @@ function cancelEditCredentials() {
       <v-tab value="overview" prepend-icon="mdi-view-dashboard-outline">{{ t('adminGoogleAds.tabOverview') }}</v-tab>
       <v-tab value="proposals" prepend-icon="mdi-clock-alert-outline">
         {{ t('adminGoogleAds.tabProposals') }}
-        <v-chip v-if="admin.googleAdsAgentProposals.length" size="x-small" color="warning" class="ml-1">
+        <v-chip
+          v-if="admin.googleAdsAgentProposals.length"
+          size="x-small"
+          color="warning"
+          class="ml-1 gaa__proposalsBadge"
+        >
           {{ admin.googleAdsAgentProposals.length }}
         </v-chip>
       </v-tab>
@@ -794,6 +805,28 @@ function cancelEditCredentials() {
 <style scoped>
 .gaa__tabs {
   margin-bottom: 1.2rem;
+}
+/* The site-wide `.rounded-pill` rule (main.scss) chamfers every pill/chip
+   with the "standard button" cut (--tvz-hex-md, 10px) regardless of size —
+   fine for a wide text chip, but on a ~20px single-digit counter like this
+   one the cut eats so much of each corner the result reads as a lopsided
+   diamond with the digit crammed into a corner instead of a badge. Scoped
+   here (not in main.scss) to the one badge this actually breaks: the
+   smaller chip-sized cut (--tvz-hex-sm, 6px — see tokens.scss) plus an
+   explicit centered square box, same shape family, properly legible at
+   this size. */
+.gaa__proposalsBadge.rounded-pill {
+  clip-path: var(--tvz-hex-sm) !important;
+}
+.gaa__proposalsBadge {
+  width: 20px;
+  height: 20px;
+  padding: 0 !important;
+  justify-content: center;
+}
+.gaa__proposalsBadge :deep(.v-chip__content) {
+  justify-content: center;
+  width: 100%;
 }
 .gaa__grid {
   display: grid;
