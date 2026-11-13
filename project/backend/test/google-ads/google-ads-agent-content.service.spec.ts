@@ -380,4 +380,93 @@ describe('GoogleAdsAgentContentService', () => {
       );
     });
   });
+
+  describe('addOptionalAdAssets (Direction 2, research doc — sitelinks count toward Ad Strength)', () => {
+    it('creates callout + sitelink assets and attaches them to the campaign with the right field types', async () => {
+      const mutate = jest.fn((ops: any[]) => {
+        if (ops[0]?.assetOperation) {
+          return Promise.resolve(
+            ops.map((_: unknown, i: number) => ({ assetResult: { resourceName: `asset-${i}` } })),
+          );
+        }
+        return Promise.resolve([]);
+      });
+      const plan = jest.fn().mockResolvedValue({
+        keywords: ['electrician bucuresti'],
+        headlines: ['Electricieni verificați'],
+        descriptions: ['Găsește un electrician de încredere.'],
+        callouts: ['Firme verificate'],
+        sitelinkLabels: ['Vezi firme', 'Cere o ofertă'],
+        costEstimateMinor: 1,
+      });
+      const prisma = fakePrisma({ pending: [MAPPING] });
+
+      const svc = makeService({ client: fakeClient({ mutate }), ai: fakeAi({ plan }), prisma });
+      await svc.run();
+
+      // Call 1: main keyword/ad/enable batch. Call 2: create the 3 assets.
+      // Call 3: attach each created asset to the campaign.
+      expect(mutate).toHaveBeenCalledTimes(3);
+      const createOps = mutate.mock.calls[1][0];
+      expect(createOps).toEqual([
+        { assetOperation: { create: { calloutAsset: { calloutText: 'Firme verificate' } } } },
+        {
+          assetOperation: {
+            create: {
+              finalUrls: ['https://totalvizibil.ro/constructii/electricieni'],
+              sitelinkAsset: { linkText: 'Vezi firme' },
+            },
+          },
+        },
+        {
+          assetOperation: {
+            create: {
+              finalUrls: ['https://totalvizibil.ro/constructii/electricieni'],
+              sitelinkAsset: { linkText: 'Cere o ofertă' },
+            },
+          },
+        },
+      ]);
+      const attachOps = mutate.mock.calls[2][0];
+      expect(attachOps).toEqual([
+        {
+          campaignAssetOperation: {
+            create: {
+              campaign: 'customers/1234567890/campaigns/666',
+              asset: 'asset-0',
+              fieldType: 'CALLOUT',
+            },
+          },
+        },
+        {
+          campaignAssetOperation: {
+            create: {
+              campaign: 'customers/1234567890/campaigns/666',
+              asset: 'asset-1',
+              fieldType: 'SITELINK',
+            },
+          },
+        },
+        {
+          campaignAssetOperation: {
+            create: {
+              campaign: 'customers/1234567890/campaigns/666',
+              asset: 'asset-2',
+              fieldType: 'SITELINK',
+            },
+          },
+        },
+      ]);
+    });
+
+    it('no-ops with no extra mutate calls when the plan has no callouts/sitelinks/image query', async () => {
+      const mutate = jest.fn().mockResolvedValue([]);
+      const prisma = fakePrisma({ pending: [MAPPING] });
+      const svc = makeService({ client: fakeClient({ mutate }), prisma }); // default fakeAi() plan
+
+      await svc.run();
+
+      expect(mutate).toHaveBeenCalledTimes(1); // only the main keyword/ad/enable batch
+    });
+  });
 });

@@ -44,11 +44,17 @@ export interface GoogleAdsKeywordPlan {
   keywords: string[];
   headlines: string[];
   descriptions: string[];
-  /** Short benefit/trust phrases (≤25 chars) for callout assets — Ad
-   *  Strength research doc, Direction 2. No URL needed, unlike sitelinks
-   *  (which this platform skips: every subcategory has exactly ONE landing
-   *  page, so distinct sitelink destinations don't exist here). */
+  /** Short benefit/trust phrases (≤25 chars) for callout assets. Doesn't
+   *  move the Ad Strength meter itself (only headlines/descriptions/
+   *  sitelinks do — confirmed against Google's own Ad Strength docs), kept
+   *  for ad quality/CTR regardless. */
   callouts: string[];
+  /** 6 distinct short navigation/CTA phrases (≤25 chars) for sitelink
+   *  assets — ALL point at the same one landing page (every subcategory has
+   *  exactly one), but Ad Strength counts sitelink QUANTITY, not distinct
+   *  destinations, so this is still a real, documented lever (6+ sitelinks
+   *  pushes toward Good/Excellent) rather than a cosmetic add-on. */
+  sitelinkLabels: string[];
   /** A short English search phrase for sourcing a generic stock photo
    *  (Pexels) to attach as an image asset — Direction 2. */
   imageSearchQuery: string;
@@ -549,75 +555,146 @@ export class AiService {
   ): Promise<GoogleAdsKeywordPlan | null> {
     if (!this.configured) return null;
 
-    const user = [
-      `Subcategorie: ${input.categoryName}${input.parentCategoryName ? ` (din grupul ${input.parentCategoryName})` : ''}`,
-      `URL de destinație: ${input.landingUrl}`,
-      input.businessNames.length
-        ? `Exemple de firme reale listate în această subcategorie: ${input.businessNames.slice(0, 10).join(', ')}`
-        : '',
-      '',
-      'Generează un plan de cuvinte cheie + reclamă Google Ads (Search, Responsive Search Ad) ' +
-        'pentru a atrage vizitatori din România către această subcategorie pe o platformă de ' +
-        'listare de firme locale (marketplace, nu o singură firmă). Pentru Ad Strength "Excellent" ' +
-        'ai nevoie de CÂT MAI MULTE titluri/descrieri UNICE, cu unghiuri diferite (beneficiu, call-to-' +
-        'action, localizare+subcategorie) — nu repeta aceeași formulare cu sinonime. Răspunde STRICT ' +
-        'JSON: {"keywords": string[8-15, în română, fraze scurte de căutare], ' +
-        '"headlines": string[10-15, max 30 caractere FIECARE, română, unghiuri variate], ' +
-        '"descriptions": string[4, max 90 caractere FIECARE, română, unghiuri variate], ' +
-        '"callouts": string[4-8, max 25 caractere FIECARE, română, fraze scurte de încredere/beneficiu ' +
-        'fără URL — ex. "Firme verificate"], ' +
-        '"imageSearchQuery": string (o frază scurtă ÎN ENGLEZĂ pentru căutarea unei fotografii stock ' +
-        'generice relevante pentru această subcategorie, ex. "car mechanic repair shop")}. ' +
-        'Nu promite preț/discount specific. Nu numi o singură firmă din exemple ca fiind "cea mai bună".',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    const result = await this.anthropicJsonWithUsage(
-      'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
-      user,
-      { maxTokens: 1600, effort: 'medium', model: this.anthropicModelFast },
-    );
-    if (!result) return null;
-    const parsed = result.data as {
-      keywords?: unknown[];
-      headlines?: unknown[];
-      descriptions?: unknown[];
-      callouts?: unknown[];
-      imageSearchQuery?: unknown;
-    };
+    const buildPrompt = (correction?: string) =>
+      [
+        `Subcategorie: ${input.categoryName}${input.parentCategoryName ? ` (din grupul ${input.parentCategoryName})` : ''}`,
+        `URL de destinație: ${input.landingUrl}`,
+        input.businessNames.length
+          ? `Exemple de firme reale listate în această subcategorie: ${input.businessNames.slice(0, 10).join(', ')}`
+          : '',
+        '',
+        'Generează un plan de cuvinte cheie + reclamă Google Ads (Search, Responsive Search Ad) ' +
+          'pentru a atrage vizitatori din România către această subcategorie pe o platformă de ' +
+          'listare de firme locale (marketplace, nu o singură firmă).',
+        '',
+        'Pentru scorul Google Ads "Ad Strength: Excellent" (cerințe confirmate din documentația ' +
+          'oficială Google), respectă STRICT, nu doar minimul necesar:',
+        '1. EXACT 15 titluri unice — folosește tot spațiul disponibil; fiecare diferit ca ' +
+          'formulare, nu doar sinonime ale aceluiași titlu.',
+        '2. EXACT 4 descrieri unice.',
+        '3. Cel puțin 5 din cele 15 titluri trebuie să conțină, EXACT cuvânt cu cuvânt (nu rupt ' +
+          'între două titluri), unul dintre cuvintele cheie generate mai jos sau numele ' +
+          'subcategoriei — relevanța cuvintelor cheie e un factor direct al scorului.',
+        '4. Acoperă unghiuri distincte pe tot setul: cuvânt-cheie exact, beneficiu concret, ' +
+          'call-to-action, localizare + subcategorie, întrebare, încredere/verificare, viteză/' +
+          'comoditate — nu repeta aceleași cuvinte sau idei între titluri.',
+        '',
+        'Răspunde STRICT JSON: {"keywords": string[8-15, în română, fraze scurte de căutare], ' +
+          '"headlines": string[EXACT 15, max 30 caractere FIECARE, română], ' +
+          '"descriptions": string[EXACT 4, max 90 caractere FIECARE, română], ' +
+          '"callouts": string[4-8, max 25 caractere FIECARE, română, fraze scurte de încredere/' +
+          'beneficiu fără URL — ex. "Firme verificate"], ' +
+          '"sitelinkLabels": string[EXACT 6, max 25 caractere FIECARE, română, fraze scurte de ' +
+          'navigare/CTA fără URL — ex. "Vezi firme", "Cere o ofertă", "Compară prețuri"], ' +
+          '"imageSearchQuery": string (o frază scurtă ÎN ENGLEZĂ pentru căutarea unei fotografii ' +
+          'stock generice relevante pentru această subcategorie, ex. "car mechanic repair shop")}. ' +
+          'Nu promite preț/discount specific. Nu numi o singură firmă din exemple ca fiind "cea mai bună".',
+        correction ? `\nATENȚIE: ${correction}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
 
     const asStrings = (v: unknown[] | undefined, maxLen: number): string[] =>
       (Array.isArray(v) ? v : [])
         .map((x) => (typeof x === 'string' ? x.trim() : ''))
         .filter((s) => s && s.length <= maxLen);
 
-    const keywords = asStrings(parsed.keywords, 80).slice(0, 15);
-    const headlines = asStrings(parsed.headlines, 30).slice(0, 15);
-    const descriptions = asStrings(parsed.descriptions, 90).slice(0, 4);
-    const callouts = asStrings(parsed.callouts, 25).slice(0, 8);
-    const imageSearchQuery =
-      typeof parsed.imageSearchQuery === 'string'
-        ? parsed.imageSearchQuery.trim().slice(0, 100)
-        : '';
+    type RawPlan = Omit<
+      GoogleAdsKeywordPlan,
+      'costEstimateMinor' | 'inputTokens' | 'outputTokens' | 'model'
+    >;
+    const parse = (data: Record<string, unknown>): RawPlan => {
+      const p = data as {
+        keywords?: unknown[];
+        headlines?: unknown[];
+        descriptions?: unknown[];
+        callouts?: unknown[];
+        sitelinkLabels?: unknown[];
+        imageSearchQuery?: unknown;
+      };
+      return {
+        keywords: asStrings(p.keywords, 80).slice(0, 15),
+        headlines: asStrings(p.headlines, 30).slice(0, 15),
+        descriptions: asStrings(p.descriptions, 90).slice(0, 4),
+        callouts: asStrings(p.callouts, 25).slice(0, 8),
+        sitelinkLabels: asStrings(p.sitelinkLabels, 25).slice(0, 6),
+        imageSearchQuery:
+          typeof p.imageSearchQuery === 'string' ? p.imageSearchQuery.trim().slice(0, 100) : '',
+      };
+    };
+
+    const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    /** How many headlines contain, verbatim, a generated keyword or the
+     *  category name — the "keyword relevance" factor Google's Ad Strength
+     *  docs call out explicitly (text fully inside ONE headline, not split
+     *  across two). */
+    const keywordCoverage = (p: RawPlan): number => {
+      const needles = [...p.keywords, input.categoryName].map(fold).filter(Boolean);
+      return p.headlines.filter((h) => needles.some((n) => fold(h).includes(n))).length;
+    };
+    const isStrong = (p: RawPlan | null, coverage: number): boolean =>
+      !!p && p.headlines.length >= 15 && p.descriptions.length === 4 && coverage >= 5;
+
+    const system =
+      'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.';
+    const callOpts: CallOpts = {
+      maxTokens: 1800,
+      effort: 'medium',
+      model: this.anthropicModelFast,
+    };
+
+    let result = await this.anthropicJsonWithUsage(system, buildPrompt(), callOpts);
+    let plan = result ? parse(result.data) : null;
+    let coverage = plan ? keywordCoverage(plan) : 0;
+
+    // Ad Strength "Excellent" needs the FULL 15 headlines / 4 descriptions
+    // with real keyword coverage, not just the API's bare minimum (3/2) —
+    // the previous prompt only asked for "10-15" and nothing caught a
+    // under-delivered response, which is why live campaigns plateaued at
+    // "Average". One corrective retry, naming the exact shortfall.
+    if (!isStrong(plan, coverage)) {
+      const correction = plan
+        ? `răspunsul anterior a avut doar ${plan.headlines.length}/15 titluri, ` +
+          `${plan.descriptions.length}/4 descrieri și ${coverage}/5 titluri cu un cuvânt cheie — ` +
+          'de data asta respectă EXACT cerințele de mai sus.'
+        : 'răspunsul anterior nu a putut fi citit ca JSON valid — respectă STRICT formatul cerut.';
+      const retryResult = await this.anthropicJsonWithUsage(
+        system,
+        buildPrompt(correction),
+        callOpts,
+      );
+      const retryPlan = retryResult ? parse(retryResult.data) : null;
+      // Keep the retry only if it's not worse than what we already had.
+      if (retryPlan && (!plan || retryPlan.headlines.length >= plan.headlines.length)) {
+        plan = retryPlan;
+        coverage = keywordCoverage(retryPlan);
+        result = retryResult;
+      }
+    }
+
+    if (!plan || !result) return null;
 
     // Google Ads' own minimums for a Responsive Search Ad / a usable keyword
     // list — below this, writing the ad would just be rejected by the API,
     // so fail here (caller keeps the campaign pending_creation) instead of
     // sending a doomed mutate call.
-    if (keywords.length < 3 || headlines.length < 3 || descriptions.length < 2) {
+    if (plan.keywords.length < 3 || plan.headlines.length < 3 || plan.descriptions.length < 2) {
       this.logger.warn(
         `Google Ads keyword plan came back under the minimum sizes ` +
-          `(keywords=${keywords.length}, headlines=${headlines.length}, descriptions=${descriptions.length})`,
+          `(keywords=${plan.keywords.length}, headlines=${plan.headlines.length}, descriptions=${plan.descriptions.length})`,
       );
       return null;
     }
+    if (!isStrong(plan, coverage)) {
+      this.logger.warn(
+        `Google Ads keyword plan is usable but under the Ad Strength target even after a retry ` +
+          `(headlines=${plan.headlines.length}/15, descriptions=${plan.descriptions.length}/4, ` +
+          `keywordCoverage=${coverage}/5) — shipping it anyway rather than leaving the campaign stuck.`,
+      );
+    }
+
     return {
-      keywords,
-      headlines,
-      descriptions,
-      callouts,
-      imageSearchQuery,
+      ...plan,
       costEstimateMinor: estimateClaudeCostMinor(result.usage),
       inputTokens: result.usage.input_tokens,
       outputTokens: result.usage.output_tokens,
