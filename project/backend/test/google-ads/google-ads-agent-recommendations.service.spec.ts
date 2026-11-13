@@ -49,11 +49,16 @@ describe('GoogleAdsAgentRecommendationsService.reconcile', () => {
     // only, genuinely safe to auto-apply) — KEYWORD is deliberately NOT
     // used here any more, see the dedicated "never auto-applies ... even
     // if the admin's setting mistakenly includes it" tests below for why.
+    // Google's suggested callout text (`recommendedCampaignCalloutAssets`)
+    // must be echoed back as `apply_parameters` — a bare `{resourceName}`
+    // 400s for this type (the real bug this fix addresses).
+    const suggestedAsset = { calloutAsset: { calloutText: 'Livrare rapidă' } };
     const search = jest.fn().mockResolvedValue([
       {
         recommendation: {
           resourceName: 'customers/1234567890/recommendations/1',
           type: 'CALLOUT_ASSET',
+          calloutAssetRecommendation: { recommendedCampaignCalloutAssets: [suggestedAsset] },
         },
       },
     ]);
@@ -70,12 +75,54 @@ describe('GoogleAdsAgentRecommendationsService.reconcile', () => {
     const changed = await svc.reconcile('cat-1', 'customers/1234567890/campaigns/1');
 
     expect(changed).toBe(true);
-    expect(applyRecommendations).toHaveBeenCalledWith(['customers/1234567890/recommendations/1']);
+    expect(applyRecommendations).toHaveBeenCalledWith([
+      {
+        resourceName: 'customers/1234567890/recommendations/1',
+        calloutAsset: {
+          adAssetApplyParameters: { newAssets: [suggestedAsset], scope: 'CAMPAIGN' },
+        },
+      },
+    ]);
     expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           action: 'recommendation.CALLOUT_ASSET',
           status: 'applied',
+        }),
+      }),
+    );
+  });
+
+  it('queues for manual approval instead of auto-applying when Google gives no suggested content to echo back', async () => {
+    // An allowlisted type with an empty/missing suggestion payload can't be
+    // turned into a valid apply call — must not attempt the call at all,
+    // must fall straight to the manual queue (not throw, not auto-apply).
+    const search = jest.fn().mockResolvedValue([
+      {
+        recommendation: {
+          resourceName: 'customers/1234567890/recommendations/8',
+          type: 'SITELINK_ASSET',
+          sitelinkAssetRecommendation: { recommendedCampaignSitelinkAssets: [] },
+        },
+      },
+    ]);
+    const applyRecommendations = jest.fn();
+    const prisma = fakePrisma();
+    const svc = new GoogleAdsAgentRecommendationsService(
+      fakeClient({ search, applyRecommendations }),
+      fakeSettings(['SITELINK_ASSET']),
+      prisma,
+    );
+
+    const changed = await svc.reconcile('cat-1', 'customers/1234567890/campaigns/1');
+
+    expect(changed).toBe(true);
+    expect(applyRecommendations).not.toHaveBeenCalled();
+    expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'recommendation.SITELINK_ASSET',
+          status: 'pending_approval',
         }),
       }),
     );
@@ -197,6 +244,9 @@ describe('GoogleAdsAgentRecommendationsService.reconcile', () => {
         recommendation: {
           resourceName: 'customers/1234567890/recommendations/5',
           type: 'CALLOUT_ASSET',
+          calloutAssetRecommendation: {
+            recommendedCampaignCalloutAssets: [{ calloutAsset: { calloutText: 'Test' } }],
+          },
         },
       },
     ]);
@@ -223,7 +273,7 @@ describe('GoogleAdsAgentRecommendationsService.reconcile', () => {
 });
 
 describe('GoogleAdsAgentRecommendationsService.approveProposal', () => {
-  it('applies the recommendation and marks the action applied', async () => {
+  it('applies a maintenance-only recommendation with a bare operation', async () => {
     const applyRecommendations = jest
       .fn()
       .mockResolvedValue(['customers/1234567890/recommendations/9']);
@@ -242,7 +292,9 @@ describe('GoogleAdsAgentRecommendationsService.approveProposal', () => {
 
     await svc.approveProposal('action-1', 'admin-1');
 
-    expect(applyRecommendations).toHaveBeenCalledWith(['customers/1234567890/recommendations/9']);
+    expect(applyRecommendations).toHaveBeenCalledWith([
+      { resourceName: 'customers/1234567890/recommendations/9' },
+    ]);
     expect((prisma as any).googleAdsAgentAction.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'action-1' },
@@ -261,5 +313,67 @@ describe('GoogleAdsAgentRecommendationsService.approveProposal', () => {
     const svc = new GoogleAdsAgentRecommendationsService(fakeClient(), fakeSettings(), prisma);
 
     await expect(svc.approveProposal('action-2', 'admin-1')).rejects.toThrow();
+  });
+
+  it('approves a SITELINK_ASSET proposal by echoing back the suggested sitelinks (the reported crash)', async () => {
+    // Regression test: approving used to send a bare `{resourceName}`,
+    // which Google 400s for SITELINK_ASSET (surfaced as a 500 to the
+    // admin) — it must now echo back the suggested assets captured in
+    // `after.recommendation` at queue time.
+    const suggestedAsset = { sitelinkAsset: { linkText: 'Program' }, finalUrls: ['https://x.ro'] };
+    const applyRecommendations = jest
+      .fn()
+      .mockResolvedValue(['customers/1234567890/recommendations/11']);
+    const prisma = fakePrisma();
+    (prisma as any).googleAdsAgentAction.findUnique = jest.fn().mockResolvedValue({
+      id: 'action-3',
+      status: 'pending_approval',
+      action: 'recommendation.SITELINK_ASSET',
+      after: {
+        resourceName: 'customers/1234567890/recommendations/11',
+        type: 'SITELINK_ASSET',
+        recommendation: {
+          sitelinkAssetRecommendation: { recommendedCampaignSitelinkAssets: [suggestedAsset] },
+        },
+      },
+    });
+    const svc = new GoogleAdsAgentRecommendationsService(
+      fakeClient({ applyRecommendations }),
+      fakeSettings(),
+      prisma,
+    );
+
+    await svc.approveProposal('action-3', 'admin-1');
+
+    expect(applyRecommendations).toHaveBeenCalledWith([
+      {
+        resourceName: 'customers/1234567890/recommendations/11',
+        sitelinkAsset: {
+          adAssetApplyParameters: { newAssets: [suggestedAsset], scope: 'CAMPAIGN' },
+        },
+      },
+    ]);
+  });
+
+  it('refuses to approve a CALL_ASSET proposal with a clear error instead of a doomed apply call', async () => {
+    const applyRecommendations = jest.fn();
+    const prisma = fakePrisma();
+    (prisma as any).googleAdsAgentAction.findUnique = jest.fn().mockResolvedValue({
+      id: 'action-4',
+      status: 'pending_approval',
+      action: 'recommendation.CALL_ASSET',
+      after: {
+        resourceName: 'customers/1234567890/recommendations/12',
+        type: 'CALL_ASSET',
+      },
+    });
+    const svc = new GoogleAdsAgentRecommendationsService(
+      fakeClient({ applyRecommendations }),
+      fakeSettings(),
+      prisma,
+    );
+
+    await expect(svc.approveProposal('action-4', 'admin-1')).rejects.toThrow(/manual/i);
+    expect(applyRecommendations).not.toHaveBeenCalled();
   });
 });

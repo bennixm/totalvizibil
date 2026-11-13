@@ -215,6 +215,43 @@ describe('AdminGoogleAdsService', () => {
     });
   });
 
+  it("listActions() with a search term matches the human label, not just the raw code (the reported 'filter does nothing' bug)", async () => {
+    // Regression test: the filter used to be an EXACT match on the raw
+    // `action` column (e.g. `recommendation.RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH`),
+    // which an admin typing a readable search term could never match —
+    // the filter box appeared to do nothing. It must now match against
+    // what the admin actually sees on screen.
+    const rows = [
+      {
+        id: 'a-1',
+        action: 'recommendation.RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH',
+        reasoning: null,
+      },
+      { id: 'a-2', action: 'campaign.pause', reasoning: null },
+      { id: 'a-3', action: 'cpc.adjusted', reasoning: 'CPC ajustat din cauza lipsei de date' },
+    ];
+    const { svc, prisma } = makeService();
+    (prisma as any).googleAdsAgentAction.findMany.mockResolvedValue(rows);
+
+    const result = await svc.listActions({ action: 'putere', page: 1, pageSize: 20 });
+
+    expect(result.items).toEqual([rows[0]]);
+    expect(result.total).toBe(1);
+  });
+
+  it('listActions() with a search term also matches free text inside the reasoning', async () => {
+    const rows = [
+      { id: 'a-1', action: 'campaign.pause', reasoning: null },
+      { id: 'a-2', action: 'cpc.adjusted', reasoning: 'CPC ajustat din cauza lipsei de date' },
+    ];
+    const { svc, prisma } = makeService();
+    (prisma as any).googleAdsAgentAction.findMany.mockResolvedValue(rows);
+
+    const result = await svc.listActions({ action: 'lipsei', page: 1, pageSize: 20 });
+
+    expect(result.items).toEqual([rows[1]]);
+  });
+
   it('runNow() dispatches to the right agent service per kind', async () => {
     const { svc, agents } = makeService();
     await svc.runNow('structural');

@@ -32,7 +32,28 @@ export interface GoogleAdsSearchRow {
   campaignSharedSet?: { resourceName?: string };
   sharedCriterion?: { resourceName?: string; keyword?: { text?: string } };
   adGroupCriterion?: { resourceName?: string; keyword?: { text?: string } };
-  recommendation?: { resourceName?: string; type?: string; campaign?: string };
+  recommendation?: {
+    resourceName?: string;
+    type?: string;
+    campaign?: string;
+    /** Only populated for `recommendation.type = SITELINK_ASSET` rows. */
+    sitelinkAssetRecommendation?: {
+      recommendedCampaignSitelinkAssets?: Record<string, unknown>[];
+    };
+    /** Only populated for `recommendation.type = CALLOUT_ASSET` rows. */
+    calloutAssetRecommendation?: {
+      recommendedCampaignCalloutAssets?: Record<string, unknown>[];
+    };
+    /** Only populated for `recommendation.type = RESPONSIVE_SEARCH_AD_ASSET` rows. */
+    responsiveSearchAdAssetRecommendation?: {
+      currentAd?: GoogleAdsRecommendedAd;
+      recommendedAssets?: GoogleAdsRecommendedAd;
+    };
+    /** Only populated for `recommendation.type = RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH` rows. */
+    responsiveSearchAdImproveAdStrengthRecommendation?: {
+      recommendedAd?: GoogleAdsRecommendedAd;
+    };
+  };
   conversionAction?: {
     resourceName?: string;
     id?: string;
@@ -99,6 +120,42 @@ interface GoogleAdsOperationBody {
    *  `status: 'REMOVED'` on an update — this `remove` field is the only
    *  path), confirmed live. */
   remove?: string;
+}
+
+/** Minimal shape of an `Ad` as returned inside a recommendation (and as
+ *  sent back in `updated_ad`) — only the responsive-search-ad fields this
+ *  agent reads/writes. */
+export interface GoogleAdsRecommendedAd {
+  resourceName?: string;
+  responsiveSearchAd?: {
+    headlines?: { text?: string; pinnedField?: string }[];
+    descriptions?: { text?: string; pinnedField?: string }[];
+    path1?: string;
+    path2?: string;
+  };
+}
+
+/**
+ * One entry of a `customers:applyRecommendation` request. A bare string is
+ * shorthand for `{ resourceName }` — the maintenance-only types that need
+ * no extra parameters (e.g. `OPTIMIZE_AD_ROTATION`). Recommendation types
+ * Google's API requires extra parameters for (confirmed against the API
+ * reference: `SITELINK_ASSET`, `CALLOUT_ASSET`, `RESPONSIVE_SEARCH_AD_ASSET`,
+ * `RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH`) must use the matching typed
+ * field instead — Google 400s a bare `{resourceName}` for these.
+ */
+export interface GoogleAdsApplyRecommendationOperation {
+  resourceName: string;
+  sitelinkAsset?: { adAssetApplyParameters: GoogleAdsApplyAssetParameters };
+  calloutAsset?: { adAssetApplyParameters: GoogleAdsApplyAssetParameters };
+  responsiveSearchAdAsset?: { updatedAd: GoogleAdsRecommendedAd };
+  responsiveSearchAdImproveAdStrength?: { updatedAd: GoogleAdsRecommendedAd };
+}
+
+export interface GoogleAdsApplyAssetParameters {
+  newAssets?: Record<string, unknown>[];
+  existingAssets?: string[];
+  scope: 'CAMPAIGN' | 'CUSTOMER';
 }
 
 export interface GoogleAdsMutateResult {
@@ -342,15 +399,19 @@ export class GoogleAdsApiClient implements OnModuleInit {
 
   /**
    * `customers/{id}:applyRecommendation` — a separate RPC from `mutate`
-   * (Direction 4). One bare `{resourceName}` operation per recommendation;
-   * most of the maintenance-only types this agent auto-applies need no
-   * extra parameters. Returns the resource names Google actually applied —
-   * NOT `partialFailure`-safe the way `mutate` is, so callers that send more
+   * (Direction 4). Most maintenance-only types need no extra parameters
+   * (a bare resource name, or an equivalent `{resourceName}` operation);
+   * asset/content types (see `GoogleAdsApplyRecommendationOperation`'s doc
+   * comment) need their type-specific parameters or Google 400s the call.
+   * Returns the resource names Google actually applied — NOT
+   * `partialFailure`-safe the way `mutate` is, so callers that send more
    * than one id in a batch where one might be stale should expect the whole
    * call to fail together and retry individually instead.
    */
-  async applyRecommendations(resourceNames: string[]): Promise<string[]> {
-    if (!resourceNames.length) return [];
+  async applyRecommendations(
+    operations: (string | GoogleAdsApplyRecommendationOperation)[],
+  ): Promise<string[]> {
+    if (!operations.length) return [];
     const headers = await this.headers();
     const res = await fetch(
       `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}:applyRecommendation`,
@@ -358,7 +419,7 @@ export class GoogleAdsApiClient implements OnModuleInit {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          operations: resourceNames.map((resourceName) => ({ resourceName })),
+          operations: operations.map((op) => (typeof op === 'string' ? { resourceName: op } : op)),
         }),
       },
     );

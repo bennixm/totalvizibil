@@ -126,13 +126,26 @@ function proposalCpc(p: GoogleAdsAgentActionRow) {
 function isRecommendationProposal(p: GoogleAdsAgentActionRow): boolean {
   return p.action.startsWith('recommendation.')
 }
+/** The handful of non-`recommendation.*` action codes this agent writes —
+ *  mirrors `ACTION_LABELS_RO` in `admin-google-ads.service.ts` backend-side
+ *  (kept in sync manually; the set is small and static). */
+const ACTION_LABELS_RO: Record<string, string> = {
+  'campaign.create': 'Campanie creată',
+  'campaign.pause': 'Campanie pusă pe pauză',
+  'campaign.resume': 'Campanie repornită',
+  'geo_targeting.updated': 'Targetare geografică actualizată',
+  'keywords.updated': 'Cuvinte cheie actualizate',
+  'cpc.adjusted': 'CPC maxim ajustat',
+  'budget.increase.proposed': 'Propunere de creștere a bugetului',
+}
 /** A friendly label for an action code — e.g. `recommendation.CALLOUT_ASSET`
  *  becomes "Adaugă fraze scurte de încredere (callout-uri)" via the same
- *  catalog the Settings tab's toggles use, instead of the raw enum string.
- *  Falls back to the raw action for non-recommendation actions (budget/
- *  CPC proposals, `keywords.updated`, …) or an unrecognized type. */
+ *  catalog the Settings tab's toggles use, instead of the raw enum string;
+ *  a fixed set of other action codes (budget/CPC proposals, campaign
+ *  lifecycle, …) get a label from `ACTION_LABELS_RO`. Falls back to the
+ *  raw action only for a genuinely unrecognized code. */
 function actionLabel(action: string): string {
-  if (!action.startsWith('recommendation.')) return action
+  if (!action.startsWith('recommendation.')) return ACTION_LABELS_RO[action] ?? action
   const type = action.replace('recommendation.', '')
   return admin.googleAdsRecommendationTypes.find((r) => r.type === type)?.labelRo ?? action
 }

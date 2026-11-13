@@ -70,8 +70,9 @@ export const GOOGLE_ADS_RECOMMENDATION_CATALOG: GoogleAdsRecommendationCatalogEn
     type: 'CALL_ASSET',
     labelRo: 'Adaugă un buton de apel telefonic',
     descriptionRo:
-      'Google sugerează un buton de sunat direct din reclamă. Necesită un număr de telefon ' +
-      'potrivit pentru toată subcategoria — lasă dezactivat dacă nu ai un număr central valabil.',
+      'Google sugerează un buton de sunat direct din reclamă, dar nu oferă și un număr de ' +
+      'telefon — doar admin-ul poate alege unul potrivit. Nu poate fi aplicată din acest panou; ' +
+      'se configurează manual direct în Google Ads.',
     category: 'ad_quality',
     neverAutoApply: false,
     recommendedDefault: false,
@@ -100,9 +101,8 @@ export const GOOGLE_ADS_RECOMMENDATION_CATALOG: GoogleAdsRecommendationCatalogEn
     type: 'RESPONSIVE_SEARCH_AD',
     labelRo: 'Adaugă o a doua reclamă în grup',
     descriptionRo:
-      'Google sugerează o reclamă suplimentară (complet nouă) în același grup. Schimbare ' +
-      'structurală mai mare decât o simplă completare de texte — las-o dezactivată dacă preferi ' +
-      'să revizuiești manual conținutul unei reclame noi înainte să pornească.',
+      'Google sugerează o reclamă suplimentară (complet nouă) în același grup. Nu poate fi ' +
+      'aplicată din acest panou — se configurează manual direct în Google Ads.',
     category: 'ad_quality',
     neverAutoApply: false,
     recommendedDefault: false,
