@@ -11,6 +11,20 @@ import { useConfirmStore } from '@/stores/confirm'
 import { useMoneyStore } from '@/stores/money'
 import { useUiStore } from '@/stores/ui'
 
+// Must be registered BEFORE `createRouter()`/`createWebHistory()` below —
+// vue-router's own `popstate` listener is added during that call, and for
+// listeners on the same target (`window`, here), the DOM dispatches them in
+// registration order regardless of a `capture` flag. Vue-router's listener
+// synchronously resolves the whole navigation (including every
+// `beforeEach` guard, see `guardFeedExit` further down) before the event
+// dispatch loop moves on to the next listener — so a listener added AFTER
+// router creation would always read this flag one event too late. See
+// `guardFeedExit`'s doc comment for what the flag itself is for.
+let isBrowserBackForward = false
+window.addEventListener('popstate', () => {
+  isBrowserBackForward = true
+})
+
 const routes: RouteRecordRaw[] = [
   // --- Discovery (public) ---
   { path: '/', name: 'feed', component: () => import('@/views/FeedView.vue') },
@@ -390,13 +404,25 @@ export const router = createRouter({
  * both land on `to.name` 'feed'/'browse' regardless of which of the two it
  * resolves to, so a single name check covers both without needing to
  * duplicate `BrowseView`'s own feed-vs-company resolution here.
- */
+ *
+ * Narrower than that first cut: this must fire ONLY for an actual browser
+ * back/forward (button, gesture, or Backspace) — never for an in-app
+ * navigation away from the feed (clicking a sidebar/panel link, "Creează-ți
+ * afacerea", etc.), which is a perfectly intentional way to leave and
+ * shouldn't be interrupted. `pushState` (every in-app `router.push`/
+ * `<router-link>` navigation) never fires `popstate`; only a real history
+ * back/forward does — so a flag set by our own `popstate` listener and
+ * consumed on the very next guard run distinguishes the two with no
+ * app-wide click/route-name bookkeeping needed. */
 let bypassNextExitGuard = false
 function guardFeedExit(to: RouteLocationNormalized, from: RouteLocationNormalized): boolean {
+  const wasBackForward = isBrowserBackForward
+  isBrowserBackForward = false
   if (bypassNextExitGuard) {
     bypassNextExitGuard = false
     return true
   }
+  if (!wasBackForward) return true
   const ui = useUiStore()
   if (!ui.viewingFeed) return true
   const staysFeedRelated = to.name === 'feed' || to.name === 'browse'

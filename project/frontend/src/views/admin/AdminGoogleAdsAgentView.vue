@@ -215,6 +215,17 @@ function historyStatusLabel(status: string): string {
   if (status === 'rejected') return t('adminGoogleAds.statusRejected')
   return status
 }
+// Reasoning sentences are often long and repeat the same shape across many
+// rows (Proposals and History both) — clamped to one line by default so a
+// long list reads as scannable instead of a wall of text; a click reveals
+// that one row's full text. Action ids are unique across both lists, so one
+// shared set works for both.
+const expandedReasonRows = ref<Set<string>>(new Set())
+function toggleReason(id: string): void {
+  const s = expandedReasonRows.value
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+}
 
 // --- settings --------------------------------------------------------------
 
@@ -267,17 +278,13 @@ const showAdvancedSettings = ref(false)
 const recommendationAdQualityTypes = computed(() =>
   admin.googleAdsRecommendationTypes.filter((r) => r.category === 'ad_quality'),
 )
-// These three groups are never auto-appliable, and never rendered as a
-// toggle — just a short "why" explanation each, so the admin isn't left
-// wondering if the option exists but is hidden somewhere.
-const recommendationNeverApplyGroups = computed(() => {
-  const groups: { category: 'budget_bidding' | 'targeting_reach' | 'keywords'; count: number }[] = []
-  for (const category of ['budget_bidding', 'targeting_reach', 'keywords'] as const) {
-    const count = admin.googleAdsRecommendationTypes.filter((r) => r.category === category).length
-    if (count) groups.push({ category, count })
-  }
-  return groups
-})
+// Budget/targeting/keyword/not-applicable types are never rendered as a
+// toggle — one compact note (detail in its own tooltip) instead of a
+// per-group bullet list, so the admin isn't left wondering if the option
+// exists but is hidden, without the page reading as a wall of text.
+const hasNeverApplyRecommendations = computed(() =>
+  admin.googleAdsRecommendationTypes.some((r) => r.category !== 'ad_quality'),
+)
 function isRecommendationTypeOn(type: string): boolean {
   return settingsForm.googleAdsAgentAutoApplyRecommendationTypes.includes(type)
 }
@@ -286,6 +293,19 @@ function toggleRecommendationType(type: string, on: boolean): void {
   const i = list.indexOf(type)
   if (on && i === -1) list.push(type)
   else if (!on && i !== -1) list.splice(i, 1)
+}
+const RECO_ICONS: Record<string, string> = {
+  CALLOUT_ASSET: 'mdi-text-box-plus-outline',
+  CALL_ASSET: 'mdi-phone-outline',
+  DYNAMIC_IMAGE_EXTENSION_OPT_IN: 'mdi-image-auto-adjust',
+  OPTIMIZE_AD_ROTATION: 'mdi-autorenew',
+  RESPONSIVE_SEARCH_AD: 'mdi-plus-box-outline',
+  RESPONSIVE_SEARCH_AD_ASSET: 'mdi-text-box-multiple-outline',
+  RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH: 'mdi-trending-up',
+  SITELINK_ASSET: 'mdi-link-variant-plus',
+}
+function recoIcon(type: string): string {
+  return RECO_ICONS[type] ?? 'mdi-cog-outline'
 }
 
 // --- Google Ads account (credentials) ---------------------------------
@@ -533,7 +553,15 @@ function cancelEditCredentials() {
               <strong>{{ nm(p.category) }}</strong>
               <span class="prow__date">{{ fmtDate(p.createdAt) }}</span>
             </div>
-            <p v-if="p.reasoning" class="prow__reason">{{ p.reasoning }}</p>
+            <button
+              v-if="p.reasoning"
+              type="button"
+              class="prow__reason"
+              :class="{ 'prow__reason--expanded': expandedReasonRows.has(p.id) }"
+              @click="toggleReason(p.id)"
+            >
+              {{ p.reasoning }}
+            </button>
             <div v-if="isRecommendationProposal(p)" class="prow__deltas">
               <span class="prow__delta">
                 {{ t('adminGoogleAds.colRecommendationType') }}:
@@ -619,21 +647,21 @@ function cancelEditCredentials() {
         <div class="hfilters">
           <v-text-field
             v-model="historyAction"
-            :label="t('adminGoogleAds.historyFilterAction')"
+            :placeholder="t('adminGoogleAds.historyFilterAction')"
+            prepend-inner-icon="mdi-magnify"
             density="compact"
             variant="outlined"
             hide-details
             clearable
-            class="hfilters__field"
+            class="hfilters__search"
           />
           <v-select
             v-model="historyStatus"
             :items="statusItems"
-            :label="t('admin.colStatus')"
             density="compact"
             variant="outlined"
             hide-details
-            class="hfilters__field"
+            class="hfilters__sel"
           />
         </div>
 
@@ -654,14 +682,22 @@ function cancelEditCredentials() {
           <li v-for="a in admin.googleAdsAgentActions" :key="a.id" class="hrow">
             <div class="hrow__head">
               <strong>{{ actionLabel(a.action) }}</strong>
-              <span>{{ nm(a.category) }}</span>
+              <span class="hrow__cat">{{ nm(a.category) }}</span>
               <span class="chip" :class="`chip--${historyStatusTone(a.status) ?? 'neutral'}`">
                 {{ historyStatusLabel(a.status) }}
               </span>
               <v-spacer />
               <span class="hrow__date">{{ fmtDate(a.createdAt) }}</span>
             </div>
-            <p v-if="a.reasoning" class="hrow__reason">{{ a.reasoning }}</p>
+            <button
+              v-if="a.reasoning"
+              type="button"
+              class="hrow__reason"
+              :class="{ 'hrow__reason--expanded': expandedReasonRows.has(a.id) }"
+              @click="toggleReason(a.id)"
+            >
+              {{ a.reasoning }}
+            </button>
             <p v-if="a.approvedBy" class="hrow__approver">
               {{ t('adminGoogleAds.decidedBy', { name: a.approvedBy.name, date: fmtDate(a.approvedAt) }) }}
             </p>
@@ -679,63 +715,116 @@ function cancelEditCredentials() {
       <!-- Settings -->
       <v-window-item value="settings">
         <AdminSection :title="t('adminGoogleAds.tabSettings')" icon="mdi-tune-variant">
-          <div class="gaa__switchRow">
-            <v-switch
-              v-model="settingsForm.googleAdsAgentEnabled"
-              color="primary"
-              :label="t('adminGoogleAds.settingEnabled')"
-              hide-details
-            />
-            <AdminHint :text="t('adminGoogleAds.settingEnabledHint')" size="sm" />
-          </div>
+          <div class="gaa__fields">
+            <div class="gaa__field">
+              <span class="gaa__ic"><v-icon icon="mdi-power" size="18" /></span>
+              <div class="gaa__body">
+                <label class="gaa__label">
+                  {{ t('adminGoogleAds.settingEnabled') }}
+                  <AdminHint :text="t('adminGoogleAds.settingEnabledHint')" size="sm" />
+                </label>
+              </div>
+              <v-switch
+                v-model="settingsForm.googleAdsAgentEnabled"
+                color="primary"
+                density="compact"
+                hide-details
+                inset
+              />
+            </div>
 
-          <div class="gaa__settingsGrid">
-            <v-text-field
-              v-model.number="settingsForm.googleAdsAgentDefaultDailyBudgetCredits"
-              type="number"
-              step="0.5"
-              :label="t('adminGoogleAds.settingDefaultBudget')"
-              :hint="t('adminGoogleAds.settingDefaultBudgetHint')"
-              persistent-hint
-              variant="outlined"
-              density="compact"
-            />
-            <v-text-field
-              v-model.number="settingsForm.googleAdsAgentDefaultMaxCpcCredits"
-              type="number"
-              step="0.01"
-              :label="t('adminGoogleAds.settingDefaultCpc')"
-              :hint="
-                admin.googleAdsAgentOverview?.feedCpc.rawAvgCpcCredits != null
-                  ? t('adminGoogleAds.settingDefaultCpcHintWithAvg', {
-                      avg: credits(admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits),
-                    })
-                  : t('adminGoogleAds.settingDefaultCpcHint')
-              "
-              persistent-hint
-              variant="outlined"
-              density="compact"
-            />
-            <v-text-field
-              v-model.number="settingsForm.googleAdsAgentMaxDailyBudgetCapCredits"
-              type="number"
-              step="0.5"
-              :label="t('adminGoogleAds.settingBudgetCap')"
-              :hint="t('adminGoogleAds.settingBudgetCapHint')"
-              persistent-hint
-              variant="outlined"
-              density="compact"
-            />
-            <v-text-field
-              v-model.number="settingsForm.googleAdsAgentMaxCpcCapCredits"
-              type="number"
-              step="0.01"
-              :label="t('adminGoogleAds.settingCpcCap')"
-              :hint="t('adminGoogleAds.settingCpcCapHint')"
-              persistent-hint
-              variant="outlined"
-              density="compact"
-            />
+            <div class="gaa__field">
+              <span class="gaa__ic"><v-icon icon="mdi-wallet-plus-outline" size="18" /></span>
+              <div class="gaa__body">
+                <label for="gaaBudget" class="gaa__label">
+                  {{ t('adminGoogleAds.settingDefaultBudget') }}
+                  <AdminHint :text="t('adminGoogleAds.settingDefaultBudgetHint')" size="sm" />
+                </label>
+              </div>
+              <v-text-field
+                id="gaaBudget"
+                v-model.number="settingsForm.googleAdsAgentDefaultDailyBudgetCredits"
+                type="number"
+                step="0.5"
+                suffix="cr"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="gaa__input"
+              />
+            </div>
+
+            <div class="gaa__field">
+              <span class="gaa__ic"><v-icon icon="mdi-cursor-default-click-outline" size="18" /></span>
+              <div class="gaa__body">
+                <label for="gaaCpc" class="gaa__label">
+                  {{ t('adminGoogleAds.settingDefaultCpc') }}
+                  <AdminHint
+                    :text="
+                      admin.googleAdsAgentOverview?.feedCpc.rawAvgCpcCredits != null
+                        ? t('adminGoogleAds.settingDefaultCpcHintWithAvg', {
+                            avg: credits(admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits),
+                          })
+                        : t('adminGoogleAds.settingDefaultCpcHint')
+                    "
+                    size="sm"
+                  />
+                </label>
+              </div>
+              <v-text-field
+                id="gaaCpc"
+                v-model.number="settingsForm.googleAdsAgentDefaultMaxCpcCredits"
+                type="number"
+                step="0.01"
+                suffix="cr"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="gaa__input"
+              />
+            </div>
+
+            <div class="gaa__field">
+              <span class="gaa__ic"><v-icon icon="mdi-shield-check-outline" size="18" /></span>
+              <div class="gaa__body">
+                <label for="gaaBudgetCap" class="gaa__label">
+                  {{ t('adminGoogleAds.settingBudgetCap') }}
+                  <AdminHint :text="t('adminGoogleAds.settingBudgetCapHint')" size="sm" />
+                </label>
+              </div>
+              <v-text-field
+                id="gaaBudgetCap"
+                v-model.number="settingsForm.googleAdsAgentMaxDailyBudgetCapCredits"
+                type="number"
+                step="0.5"
+                suffix="cr"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="gaa__input"
+              />
+            </div>
+
+            <div class="gaa__field">
+              <span class="gaa__ic"><v-icon icon="mdi-speedometer" size="18" /></span>
+              <div class="gaa__body">
+                <label for="gaaCpcCap" class="gaa__label">
+                  {{ t('adminGoogleAds.settingCpcCap') }}
+                  <AdminHint :text="t('adminGoogleAds.settingCpcCapHint')" size="sm" />
+                </label>
+              </div>
+              <v-text-field
+                id="gaaCpcCap"
+                v-model.number="settingsForm.googleAdsAgentMaxCpcCapCredits"
+                type="number"
+                step="0.01"
+                suffix="cr"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="gaa__input"
+              />
+            </div>
           </div>
 
           <h3 class="gaa__subhead">
@@ -745,65 +834,97 @@ function cancelEditCredentials() {
           <div v-if="admin.loadingGoogleAdsRecommendationTypes" class="d-flex justify-center py-4">
             <v-progress-circular indeterminate color="primary" size="24" />
           </div>
-          <div v-else class="gaa__recoList">
-            <div v-for="r in recommendationAdQualityTypes" :key="r.type" class="gaa__recoRow">
+          <div v-else class="gaa__fields">
+            <div v-for="r in recommendationAdQualityTypes" :key="r.type" class="gaa__field">
+              <span class="gaa__ic"><v-icon :icon="recoIcon(r.type)" size="18" /></span>
+              <div class="gaa__body">
+                <label class="gaa__label">
+                  {{ r.labelRo }}
+                  <AdminHint :text="r.descriptionRo" size="sm" />
+                </label>
+              </div>
               <v-switch
                 :model-value="isRecommendationTypeOn(r.type)"
                 color="primary"
                 density="compact"
                 hide-details
+                inset
                 @update:model-value="(v) => toggleRecommendationType(r.type, !!v)"
               />
-              <div class="gaa__recoText">
-                <strong>{{ r.labelRo }}</strong>
-                <span>{{ r.descriptionRo }}</span>
-              </div>
             </div>
           </div>
-          <ul v-if="recommendationNeverApplyGroups.length" class="gaa__recoNeverList">
-            <li v-for="g in recommendationNeverApplyGroups" :key="g.category">
-              {{ t(`adminGoogleAds.recoGroup.${g.category}`) }}
-            </li>
-            <li>{{ t('adminGoogleAds.recoGroupNotApplicable') }}</li>
-          </ul>
+          <p v-if="hasNeverApplyRecommendations" class="gaa__note">
+            <v-icon icon="mdi-information-outline" size="14" />
+            {{ t('adminGoogleAds.recoNeverApplyNote') }}
+            <AdminHint :text="t('adminGoogleAds.recoNeverApplyHint')" size="sm" />
+          </p>
 
           <button type="button" class="gaa__advancedToggle" @click="showAdvancedSettings = !showAdvancedSettings">
             <v-icon :icon="showAdvancedSettings ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="18" />
             {{ t('adminGoogleAds.advancedToggle') }}
           </button>
           <div v-if="showAdvancedSettings" class="gaa__advanced">
-            <p class="gaa__advancedHint">{{ t('adminGoogleAds.cadenceHint') }}</p>
-            <div class="gaa__settingsGrid">
-              <v-text-field
-                v-model.number="settingsForm.googleAdsAgentStructuralIntervalMinutes"
-                type="number"
-                step="15"
-                :label="t('adminGoogleAds.cadenceStructural')"
-                :hint="t('adminGoogleAds.cadenceMinutesHint')"
-                persistent-hint
-                variant="outlined"
-                density="compact"
-              />
-              <v-text-field
-                v-model.number="settingsForm.googleAdsAgentContentIntervalMinutes"
-                type="number"
-                step="15"
-                :label="t('adminGoogleAds.cadenceContent')"
-                :hint="t('adminGoogleAds.cadenceMinutesHint')"
-                persistent-hint
-                variant="outlined"
-                density="compact"
-              />
-              <v-text-field
-                v-model.number="settingsForm.googleAdsAgentIntelligenceIntervalMinutes"
-                type="number"
-                step="15"
-                :label="t('adminGoogleAds.cadenceIntelligence')"
-                :hint="t('adminGoogleAds.cadenceMinutesHint')"
-                persistent-hint
-                variant="outlined"
-                density="compact"
-              />
+            <div class="gaa__fields">
+              <div class="gaa__field">
+                <span class="gaa__ic"><v-icon icon="mdi-radar" size="18" /></span>
+                <div class="gaa__body">
+                  <label for="gaaCadStruct" class="gaa__label">
+                    {{ t('adminGoogleAds.cadenceStructural') }}
+                    <AdminHint :text="t('adminGoogleAds.cadenceHint')" size="sm" />
+                  </label>
+                </div>
+                <v-text-field
+                  id="gaaCadStruct"
+                  v-model.number="settingsForm.googleAdsAgentStructuralIntervalMinutes"
+                  type="number"
+                  step="15"
+                  suffix="min"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="gaa__input"
+                />
+              </div>
+              <div class="gaa__field">
+                <span class="gaa__ic"><v-icon icon="mdi-file-document-edit-outline" size="18" /></span>
+                <div class="gaa__body">
+                  <label for="gaaCadContent" class="gaa__label">
+                    {{ t('adminGoogleAds.cadenceContent') }}
+                    <AdminHint :text="t('adminGoogleAds.cadenceHint')" size="sm" />
+                  </label>
+                </div>
+                <v-text-field
+                  id="gaaCadContent"
+                  v-model.number="settingsForm.googleAdsAgentContentIntervalMinutes"
+                  type="number"
+                  step="15"
+                  suffix="min"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="gaa__input"
+                />
+              </div>
+              <div class="gaa__field">
+                <span class="gaa__ic"><v-icon icon="mdi-brain" size="18" /></span>
+                <div class="gaa__body">
+                  <label for="gaaCadIntel" class="gaa__label">
+                    {{ t('adminGoogleAds.cadenceIntelligence') }}
+                    <AdminHint :text="t('adminGoogleAds.cadenceHint')" size="sm" />
+                  </label>
+                </div>
+                <v-text-field
+                  id="gaaCadIntel"
+                  v-model.number="settingsForm.googleAdsAgentIntelligenceIntervalMinutes"
+                  type="number"
+                  step="15"
+                  suffix="min"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="gaa__input"
+                />
+              </div>
             </div>
           </div>
 
@@ -962,43 +1083,66 @@ function cancelEditCredentials() {
   font-weight: 600;
   margin: 1.4rem 0 0.3rem;
 }
-.gaa__recoList {
+/* Icon chip + label-with-tooltip + control, one per row — same visual
+   language as AdminSettingsView's `.as__field`, so every settings page in
+   the panel reads consistently. Replaces a denser, always-on-text layout
+   (a persistent-hint sentence under every field, a full description line
+   under every switch) with a single scannable row per setting. */
+.gaa__fields {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  margin-bottom: 0.8rem;
 }
-.gaa__recoRow {
+.gaa__field {
   display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.3rem 0;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.75rem 0.4rem;
+  margin-inline: -0.4rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+  border-radius: 8px;
+  transition: background var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
 }
-.gaa__recoText {
+.gaa__field:hover {
+  background: rgba(var(--v-theme-on-surface), 0.025);
+}
+.gaa__field:first-child {
+  padding-top: 0.2rem;
+}
+.gaa__field:last-child {
+  border-bottom: none;
+}
+.gaa__ic {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex: none;
+  background: rgba(var(--v-theme-primary), 0.1);
+  color: rgb(var(--v-theme-primary));
+}
+.gaa__body {
+  flex: 1;
+  min-width: 0;
+}
+.gaa__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  font-size: 0.86rem;
+}
+.gaa__input {
+  flex: none;
+  width: 130px;
+}
+.gaa__note {
   display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  padding-top: 0.5rem;
-}
-.gaa__recoText strong {
-  font-size: 0.85rem;
-}
-.gaa__recoText span {
-  font-size: 0.78rem;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.gaa__recoNeverList {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.78rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.gaa__recoNeverList li::before {
-  content: '— ';
+  margin: 0.4rem 0 1rem;
 }
 .gaa__advancedToggle {
   display: flex;
@@ -1014,17 +1158,6 @@ function cancelEditCredentials() {
 }
 .gaa__advanced {
   margin: 0.5rem 0 1rem;
-}
-.gaa__advancedHint {
-  font-size: 0.78rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-  margin: 0 0 0.6rem;
-}
-.gaa__switchRow {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
 }
 .gaa__accountStatus {
   display: flex;
@@ -1159,11 +1292,33 @@ function cancelEditCredentials() {
   font-size: 0.75rem;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
+.hrow__cat {
+  font-size: 0.82rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+/* A <button>, not a <p> — reasoning is clamped to one line by default
+   (most rows share a near-identical sentence shape, so 20+ of them read as
+   noise) and a click expands just that row to its full text. */
 .prow__reason,
 .hrow__reason {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
   font-size: 0.82rem;
   color: rgba(var(--v-theme-on-surface), 0.7);
   margin: 0.4rem 0 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+.prow__reason--expanded,
+.hrow__reason--expanded {
+  -webkit-line-clamp: unset;
 }
 .hrow__approver {
   font-size: 0.75rem;
@@ -1188,11 +1343,12 @@ function cancelEditCredentials() {
   gap: 0.7rem;
   flex-wrap: wrap;
   margin-bottom: 1rem;
-  max-width: 40rem;
 }
-.hfilters__field {
-  flex: 1;
-  min-width: 10rem;
+.hfilters__search {
+  flex: 1 1 240px;
+}
+.hfilters__sel {
+  max-width: 12rem;
 }
 
 .ctable__head {
