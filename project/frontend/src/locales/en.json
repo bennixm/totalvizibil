@@ -99,6 +99,8 @@
     "pickCategoryHint": "Pick a field above. Listings only appear once you select at least a category.",
     "geoAutoFilterBanner": "Showing results for {county} county.",
     "geoAutoFilterClear": "See all counties",
+    "exitConfirmTitle": "Leave the feed?",
+    "exitConfirmText": "Are you sure you want to leave the feed? Your results and filters stay here if you come back.",
     "seoTitleGroup": "{group} · local businesses",
     "seoTitleNiche": "{niche} ({group}) · local businesses",
     "seoDesc": "Active {category} businesses on Totalvizibil · ranked by visibility score, filtered by area.",

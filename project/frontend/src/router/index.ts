@@ -1,7 +1,15 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import {
+  createRouter,
+  createWebHistory,
+  type RouteLocationNormalized,
+  type RouteRecordRaw,
+} from 'vue-router'
 
+import { i18n } from '@/plugins/i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useConfirmStore } from '@/stores/confirm'
 import { useMoneyStore } from '@/stores/money'
+import { useUiStore } from '@/stores/ui'
 
 const routes: RouteRecordRaw[] = [
   // --- Discovery (public) ---
@@ -365,7 +373,53 @@ export const router = createRouter({
   },
 })
 
-router.beforeEach(async (to) => {
+/**
+ * Direction 7 (research doc): the in-app-navigation half of the feed exit-
+ * confirmation popup — a real browser exit (tab close, refresh, typing
+ * another URL) is handled separately by App.vue's `beforeunload` listener,
+ * which can't show custom copy. This one can, because it's just a normal
+ * (cancellable) in-app navigation.
+ *
+ * `ui.viewingFeed` (set by `FeedView.vue`'s own mount/unmount) is the single
+ * source of truth for "was the user actually looking at the feed listing" —
+ * true at `/` and at a category URL, false at a company page even though
+ * that can share the same URL prefix (`BrowseView` swaps the component out
+ * entirely there). Navigating to another 'feed' or 'browse' URL — picking a
+ * different category, or clicking through to a company's own page — is
+ * EXACTLY the one thing the spec says must never trigger this popup, and
+ * both land on `to.name` 'feed'/'browse' regardless of which of the two it
+ * resolves to, so a single name check covers both without needing to
+ * duplicate `BrowseView`'s own feed-vs-company resolution here.
+ */
+let bypassNextExitGuard = false
+function guardFeedExit(to: RouteLocationNormalized, from: RouteLocationNormalized): boolean {
+  if (bypassNextExitGuard) {
+    bypassNextExitGuard = false
+    return true
+  }
+  const ui = useUiStore()
+  if (!ui.viewingFeed) return true
+  const staysFeedRelated = to.name === 'feed' || to.name === 'browse'
+  if (staysFeedRelated) return true
+  if (from.name !== 'feed' && from.name !== 'browse') return true // defensive — shouldn't happen
+
+  const confirm = useConfirmStore()
+  const { t } = i18n.global
+  confirm.ask(
+    t('feed.exitConfirmTitle'),
+    t('feed.exitConfirmText'),
+    () => {
+      bypassNextExitGuard = true
+      void router.push(to.fullPath)
+    },
+    { danger: false },
+  )
+  return false
+}
+
+router.beforeEach(async (to, from) => {
+  if (!guardFeedExit(to, from)) return false
+
   // First-touch affiliate attribution: stash a `?ref=CODE` so it survives the
   // sign-up flow. Never overwritten once set — the first link wins.
   const ref = typeof to.query.ref === 'string' ? to.query.ref.trim().slice(0, 32).toUpperCase() : ''

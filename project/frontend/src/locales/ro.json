@@ -99,6 +99,8 @@
     "pickCategoryHint": "Selectează un domeniu de mai sus. Anunțurile apar doar după ce alegi cel puțin o categorie.",
     "geoAutoFilterBanner": "Îți arătăm rezultate pentru județul {county}.",
     "geoAutoFilterClear": "Vezi toate județele",
+    "exitConfirmTitle": "Părăsești feed-ul?",
+    "exitConfirmText": "Sigur vrei să ieși din feed? Rezultatele și filtrele pe care le-ai setat rămân aici dacă revii.",
     "seoTitleGroup": "{group} · afaceri locale",
     "seoTitleNiche": "{niche} ({group}) · afaceri locale",
     "seoDesc": "Firme de {category} active pe Totalvizibil · ordonate după scorul de vizibilitate, filtrate pe zonă.",

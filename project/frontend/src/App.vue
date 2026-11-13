@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
 
@@ -63,6 +63,26 @@ const sidebarGroups = computed(() => {
 })
 const showMenuToggle = computed(() => showSidebar.value && !mdAndUp.value)
 watch(mdAndUp, (v) => { ui.sidebarOpen = v }, { immediate: true })
+
+/**
+ * Direction 7 (research doc): the real-browser-exit half of the feed exit-
+ * confirmation popup (tab close, refresh, typing another URL, an external
+ * link, or the back button leaving the SPA's own history entirely) — none
+ * of these are in-app navigations, so only `beforeunload` can catch them.
+ * Gated on `ui.viewingFeed` (true only while the actual feed listing is
+ * mounted — never for a company page) so this never fires anywhere else in
+ * the app. Modern browsers show their own fixed "Leave site?" text
+ * regardless of what's set here — there is no way to show custom copy for
+ * a REAL unload, only for the in-app-navigation half (the router guard in
+ * router/index.ts), which does use a custom popup.
+ */
+function confirmExitOnUnload(e: BeforeUnloadEvent): void {
+  if (!ui.viewingFeed) return
+  e.preventDefault()
+  e.returnValue = ''
+}
+onMounted(() => window.addEventListener('beforeunload', confirmExitOnUnload))
+onUnmounted(() => window.removeEventListener('beforeunload', confirmExitOnUnload))
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -12,6 +12,7 @@ import { useFeedStore, isCompleteServicesSlug } from '@/stores/feed'
 import { useSeo } from '@/composables/useSeo'
 import { feedCategoryRoute } from '@/services/routes'
 import { apiFetch } from '@/services/api'
+import { useUiStore } from '@/stores/ui'
 import type { LocalizedName } from '@/stores/companies'
 
 const props = defineProps<{ group?: string | null; niche?: string | null }>()
@@ -20,7 +21,17 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const feed = useFeedStore()
+const ui = useUiStore()
 const { items, total, loading, loaded, error, page, pageCount } = storeToRefs(feed)
+
+// Direction 7 (research doc): the single signal the exit-confirmation popup
+// needs — true exactly while this component (the real feed listing, reached
+// either at `/` or nested inside `BrowseView` for a category) is mounted,
+// false the moment it's replaced by a company page or anything else. Never
+// true while looking at a company page, even though that can share this
+// same URL prefix — `BrowseView` swaps this component out entirely then.
+onMounted(() => ui.setViewingFeed(true))
+onUnmounted(() => ui.setViewingFeed(false))
 
 const resultsTop = ref<HTMLElement | null>(null)
 let debounce: ReturnType<typeof setTimeout> | undefined
