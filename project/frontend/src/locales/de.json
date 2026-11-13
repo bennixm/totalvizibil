@@ -99,6 +99,8 @@
     "pickCategoryHint": "Wähle oben einen Bereich. Einträge erscheinen erst, wenn mindestens eine Kategorie gewählt ist.",
     "geoAutoFilterBanner": "Ergebnisse werden für den Kreis {county} angezeigt.",
     "geoAutoFilterClear": "Alle Kreise anzeigen",
+    "exitConfirmTitle": "Feed verlassen?",
+    "exitConfirmText": "Möchtest du den Feed wirklich verlassen? Deine Ergebnisse und Filter bleiben erhalten, wenn du zurückkommst.",
     "seoTitleGroup": "{group} · lokale Unternehmen",
     "seoTitleNiche": "{niche} ({group}) · lokale Unternehmen",
     "seoDesc": "Aktive {category}-Unternehmen auf Totalvizibil · nach Sichtbarkeits-Score sortiert, nach Gebiet gefiltert.",
