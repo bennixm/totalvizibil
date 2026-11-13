@@ -104,6 +104,10 @@ export interface AdminSettings {
   googleAdsAgentStructuralIntervalMinutes: number
   googleAdsAgentContentIntervalMinutes: number
   googleAdsAgentIntelligenceIntervalMinutes: number
+  googleAdsAgentAutoApplyRecommendationTypes: string[]
+  /** Machine-created lazily by whichever Google Ads agent pass needs it
+   *  first, never admin-edited — null until then. */
+  googleAdsConversionActionResourceName: string | null
   invoiceIssuerName: string
   invoiceIssuerTaxId: string
   invoiceIssuerRegCom: string

@@ -115,6 +115,16 @@ function proposalCpc(p: GoogleAdsAgentActionRow) {
     after: num((p.after as Record<string, unknown> | null)?.proposedMaxCpcCredits),
   }
 }
+// Direction 4 (Google Ads Recommendations) proposals have no budget/CPC
+// before-after shape — they carry a recommendation `type` instead. Rendered
+// separately below rather than falling through to proposalBudget/proposalCpc,
+// which would otherwise show a meaningless "0 → 0" for every one of these.
+function isRecommendationProposal(p: GoogleAdsAgentActionRow): boolean {
+  return p.action.startsWith('recommendation.')
+}
+function recommendationType(p: GoogleAdsAgentActionRow): string {
+  return (p.after as Record<string, unknown> | null)?.type as string ?? p.action.replace('recommendation.', '')
+}
 
 function approve(p: GoogleAdsAgentActionRow) {
   confirm.ask(
@@ -206,6 +216,7 @@ const settingsForm = reactive({
   googleAdsAgentStructuralIntervalMinutes: 360,
   googleAdsAgentContentIntervalMinutes: 360,
   googleAdsAgentIntelligenceIntervalMinutes: 1440,
+  googleAdsAgentAutoApplyRecommendationTypes: [] as string[],
 })
 watch(
   () => admin.settings,
@@ -219,6 +230,9 @@ watch(
     settingsForm.googleAdsAgentStructuralIntervalMinutes = s.googleAdsAgentStructuralIntervalMinutes
     settingsForm.googleAdsAgentContentIntervalMinutes = s.googleAdsAgentContentIntervalMinutes
     settingsForm.googleAdsAgentIntelligenceIntervalMinutes = s.googleAdsAgentIntelligenceIntervalMinutes
+    settingsForm.googleAdsAgentAutoApplyRecommendationTypes = [
+      ...s.googleAdsAgentAutoApplyRecommendationTypes,
+    ]
   },
   { immediate: true },
 )
@@ -481,7 +495,13 @@ function cancelEditCredentials() {
               <span class="prow__date">{{ fmtDate(p.createdAt) }}</span>
             </div>
             <p v-if="p.reasoning" class="prow__reason">{{ p.reasoning }}</p>
-            <div class="prow__deltas">
+            <div v-if="isRecommendationProposal(p)" class="prow__deltas">
+              <span class="prow__delta">
+                {{ t('adminGoogleAds.colRecommendationType') }}:
+                <b><code>{{ recommendationType(p) }}</code></b>
+              </span>
+            </div>
+            <div v-else class="prow__deltas">
               <span class="prow__delta">
                 {{ t('adminGoogleAds.colBudget') }}:
                 <b>{{ credits(proposalBudget(p).before) }} → {{ credits(proposalBudget(p).after) }}</b>
@@ -702,9 +722,31 @@ function cancelEditCredentials() {
             />
           </div>
 
+          <h3 class="gaa__subhead">
+            {{ t('adminGoogleAds.recommendationsTitle') }}
+            <AdminHint :text="t('adminGoogleAds.recommendationsHint')" size="sm" />
+          </h3>
+          <v-combobox
+            v-model="settingsForm.googleAdsAgentAutoApplyRecommendationTypes"
+            :label="t('adminGoogleAds.recommendationsAutoApplyLabel')"
+            :hint="t('adminGoogleAds.recommendationsAutoApplyHint')"
+            persistent-hint
+            variant="outlined"
+            density="compact"
+            multiple
+            chips
+            closable-chips
+            class="mb-4"
+          />
+
           <v-btn color="primary" variant="flat" :loading="savingSettings" @click="saveSettings">
             {{ t('common.save') }}
           </v-btn>
+
+          <dl v-if="admin.settings?.googleAdsConversionActionResourceName" class="gaa__accountFacts mt-4">
+            <dt>{{ t('adminGoogleAds.conversionActionLabel') }}</dt>
+            <dd><code>{{ admin.settings.googleAdsConversionActionResourceName }}</code></dd>
+          </dl>
         </AdminSection>
 
         <AdminSection

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { GoogleAdsAgentContentService } from '../google-ads/google-ads-agent-content.service';
 import { GoogleAdsApiClient } from '../google-ads/google-ads-api-client.service';
 import { GoogleAdsAgentIntelligenceService } from '../google-ads/google-ads-agent-intelligence.service';
+import { GoogleAdsAgentRecommendationsService } from '../google-ads/google-ads-agent-recommendations.service';
 import { GoogleAdsAgentStructuralService } from '../google-ads/google-ads-agent-structural.service';
 import {
   GOOGLE_ADS_CPC_STALE_AFTER_MS,
@@ -59,6 +60,7 @@ export class AdminGoogleAdsService {
     private readonly structural: GoogleAdsAgentStructuralService,
     private readonly content: GoogleAdsAgentContentService,
     private readonly intelligence: GoogleAdsAgentIntelligenceService,
+    private readonly recommendations: GoogleAdsAgentRecommendationsService,
   ) {}
 
   /** Masked — `serviceAccountKeyConfigured`/`serviceAccountEmail` only, the
@@ -203,7 +205,18 @@ export class AdminGoogleAdsService {
     });
   }
 
-  approveProposal(actionId: string, approvedByUserId: string): Promise<void> {
+  async approveProposal(actionId: string, approvedByUserId: string): Promise<void> {
+    // Two shapes share this one approval queue (`GoogleAdsAgentAction`) —
+    // a budget/CPC increase (intelligence pass) or a Google Ads
+    // Recommendation (Direction 4) — each with its own apply logic, so
+    // route by the `action` prefix rather than assuming budget/CPC.
+    const action = await this.prisma.googleAdsAgentAction.findUnique({
+      where: { id: actionId },
+      select: { action: true },
+    });
+    if (action?.action.startsWith('recommendation.')) {
+      return this.recommendations.approveProposal(actionId, approvedByUserId);
+    }
     return this.intelligence.approveProposal(actionId, approvedByUserId);
   }
 
