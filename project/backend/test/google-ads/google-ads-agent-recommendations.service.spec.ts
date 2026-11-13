@@ -45,11 +45,15 @@ describe('GoogleAdsAgentRecommendationsService.reconcile', () => {
   });
 
   it('auto-applies a recommendation whose type is in the admin allowlist', async () => {
+    // CALLOUT_ASSET: a real catalog entry classified `ad_quality` (asset-
+    // only, genuinely safe to auto-apply) — KEYWORD is deliberately NOT
+    // used here any more, see the dedicated "never auto-applies ... even
+    // if the admin's setting mistakenly includes it" tests below for why.
     const search = jest.fn().mockResolvedValue([
       {
         recommendation: {
           resourceName: 'customers/1234567890/recommendations/1',
-          type: 'KEYWORD',
+          type: 'CALLOUT_ASSET',
         },
       },
     ]);
@@ -59,7 +63,7 @@ describe('GoogleAdsAgentRecommendationsService.reconcile', () => {
     const prisma = fakePrisma();
     const svc = new GoogleAdsAgentRecommendationsService(
       fakeClient({ search, applyRecommendations }),
-      fakeSettings(['KEYWORD']),
+      fakeSettings(['CALLOUT_ASSET']),
       prisma,
     );
 
@@ -69,7 +73,43 @@ describe('GoogleAdsAgentRecommendationsService.reconcile', () => {
     expect(applyRecommendations).toHaveBeenCalledWith(['customers/1234567890/recommendations/1']);
     expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ action: 'recommendation.KEYWORD', status: 'applied' }),
+        data: expect.objectContaining({
+          action: 'recommendation.CALLOUT_ASSET',
+          status: 'applied',
+        }),
+      }),
+    );
+  });
+
+  it("never auto-applies a budget/bid/keyword type, even if the admin's setting mistakenly includes it — but still queues it for review", async () => {
+    // The real bug this fixes: the old hand-kept never-apply Set only
+    // covered 4 "reach expansion" opt-in types — KEYWORD (and every
+    // budget/bid type) could previously have been auto-applied if an old
+    // free-text allowlist entry happened to include one, contradicting
+    // this class's own documented guarantee.
+    const search = jest.fn().mockResolvedValue([
+      {
+        recommendation: { resourceName: 'customers/1234567890/recommendations/7', type: 'KEYWORD' },
+      },
+    ]);
+    const applyRecommendations = jest.fn();
+    const prisma = fakePrisma();
+    const svc = new GoogleAdsAgentRecommendationsService(
+      fakeClient({ search, applyRecommendations }),
+      fakeSettings(['KEYWORD']), // mistakenly allowlisted
+      prisma,
+    );
+
+    const changed = await svc.reconcile('cat-1', 'customers/1234567890/campaigns/1');
+
+    expect(changed).toBe(true);
+    expect(applyRecommendations).not.toHaveBeenCalled();
+    expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'recommendation.KEYWORD',
+          status: 'pending_approval',
+        }),
       }),
     );
   });
@@ -156,7 +196,7 @@ describe('GoogleAdsAgentRecommendationsService.reconcile', () => {
       {
         recommendation: {
           resourceName: 'customers/1234567890/recommendations/5',
-          type: 'KEYWORD',
+          type: 'CALLOUT_ASSET',
         },
       },
     ]);
@@ -164,7 +204,7 @@ describe('GoogleAdsAgentRecommendationsService.reconcile', () => {
     const prisma = fakePrisma();
     const svc = new GoogleAdsAgentRecommendationsService(
       fakeClient({ search, applyRecommendations }),
-      fakeSettings(['KEYWORD']),
+      fakeSettings(['CALLOUT_ASSET']),
       prisma,
     );
 
@@ -174,7 +214,7 @@ describe('GoogleAdsAgentRecommendationsService.reconcile', () => {
     expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          action: 'recommendation.KEYWORD',
+          action: 'recommendation.CALLOUT_ASSET',
           status: 'pending_approval',
         }),
       }),

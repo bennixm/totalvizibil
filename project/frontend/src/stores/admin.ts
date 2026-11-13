@@ -478,6 +478,8 @@ interface AdminState {
   googleAdsCredentials: GoogleAdsCredentials | null
   googleAdsCredentialsError: string | null
   loadingGoogleAdsCredentials: boolean
+  googleAdsRecommendationTypes: GoogleAdsRecommendationCatalogEntry[]
+  loadingGoogleAdsRecommendationTypes: boolean
 }
 
 export interface UpdateUserInput {
@@ -748,6 +750,26 @@ export interface GoogleAdsCredentialsInput {
   serviceAccountKeyBase64?: string
 }
 
+export type GoogleAdsRecommendationCategory =
+  | 'ad_quality'
+  | 'budget_bidding'
+  | 'targeting_reach'
+  | 'keywords'
+  | 'not_applicable'
+
+/** Mirrors the backend catalog (`google-ads-recommendation-catalog.ts`) —
+ *  the admin UI never shows the raw `type` string to a human, only
+ *  `labelRo`/`descriptionRo`. */
+export interface GoogleAdsRecommendationCatalogEntry {
+  type: string
+  labelRo: string
+  descriptionRo: string
+  category: GoogleAdsRecommendationCategory
+  neverAutoApply: boolean
+  silentlyIgnore?: boolean
+  recommendedDefault: boolean
+}
+
 export const useAdminStore = defineStore('admin', {
   state: (): AdminState => ({
     stats: null,
@@ -833,6 +855,8 @@ export const useAdminStore = defineStore('admin', {
     googleAdsCredentials: null,
     googleAdsCredentialsError: null,
     loadingGoogleAdsCredentials: false,
+    googleAdsRecommendationTypes: [],
+    loadingGoogleAdsRecommendationTypes: false,
   }),
 
   actions: {
@@ -1444,6 +1468,18 @@ export const useAdminStore = defineStore('admin', {
         '/admin/google-ads-agent/credentials',
         { method: 'PATCH', body: input },
       )
+    },
+
+    async fetchGoogleAdsRecommendationTypes(): Promise<void> {
+      if (this.googleAdsRecommendationTypes.length) return // static catalog — fetch once
+      this.loadingGoogleAdsRecommendationTypes = true
+      try {
+        this.googleAdsRecommendationTypes = await apiFetch<GoogleAdsRecommendationCatalogEntry[]>(
+          '/admin/google-ads-agent/recommendation-types',
+        )
+      } finally {
+        this.loadingGoogleAdsRecommendationTypes = false
+      }
     },
   },
 })

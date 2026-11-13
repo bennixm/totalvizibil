@@ -49,6 +49,9 @@ onMounted(() => {
   // below still does for a fresh visit to that tab): the tab's own pending-
   // count badge needs this list before the admin ever clicks into it.
   void admin.fetchGoogleAdsAgentProposals()
+  // Tiny static payload — fetched eagerly so Proposals/History can render
+  // friendly recommendation labels even if the admin never opens Settings.
+  void admin.fetchGoogleAdsRecommendationTypes()
 })
 
 watch(tab, (v) => {
@@ -57,6 +60,7 @@ watch(tab, (v) => {
   if (v === 'history' && !admin.googleAdsAgentActions.length) void admin.fetchGoogleAdsAgentActions()
   if (v === 'settings' && !admin.settings) void admin.fetchSettings()
   if (v === 'settings' && !admin.googleAdsCredentials) void admin.fetchGoogleAdsCredentials()
+  if (v === 'settings') void admin.fetchGoogleAdsRecommendationTypes()
 })
 
 // --- overview ------------------------------------------------------------
@@ -122,8 +126,15 @@ function proposalCpc(p: GoogleAdsAgentActionRow) {
 function isRecommendationProposal(p: GoogleAdsAgentActionRow): boolean {
   return p.action.startsWith('recommendation.')
 }
-function recommendationType(p: GoogleAdsAgentActionRow): string {
-  return (p.after as Record<string, unknown> | null)?.type as string ?? p.action.replace('recommendation.', '')
+/** A friendly label for an action code — e.g. `recommendation.CALLOUT_ASSET`
+ *  becomes "Adaugă fraze scurte de încredere (callout-uri)" via the same
+ *  catalog the Settings tab's toggles use, instead of the raw enum string.
+ *  Falls back to the raw action for non-recommendation actions (budget/
+ *  CPC proposals, `keywords.updated`, …) or an unrecognized type. */
+function actionLabel(action: string): string {
+  if (!action.startsWith('recommendation.')) return action
+  const type = action.replace('recommendation.', '')
+  return admin.googleAdsRecommendationTypes.find((r) => r.type === type)?.labelRo ?? action
 }
 
 function approve(p: GoogleAdsAgentActionRow) {
@@ -247,6 +258,34 @@ async function saveSettings() {
   } finally {
     savingSettings.value = false
   }
+}
+
+const showAdvancedSettings = ref(false)
+
+// --- recomandări Google Ads (toggle list, never a raw enum string) -------
+
+const recommendationAdQualityTypes = computed(() =>
+  admin.googleAdsRecommendationTypes.filter((r) => r.category === 'ad_quality'),
+)
+// These three groups are never auto-appliable, and never rendered as a
+// toggle — just a short "why" explanation each, so the admin isn't left
+// wondering if the option exists but is hidden somewhere.
+const recommendationNeverApplyGroups = computed(() => {
+  const groups: { category: 'budget_bidding' | 'targeting_reach' | 'keywords'; count: number }[] = []
+  for (const category of ['budget_bidding', 'targeting_reach', 'keywords'] as const) {
+    const count = admin.googleAdsRecommendationTypes.filter((r) => r.category === category).length
+    if (count) groups.push({ category, count })
+  }
+  return groups
+})
+function isRecommendationTypeOn(type: string): boolean {
+  return settingsForm.googleAdsAgentAutoApplyRecommendationTypes.includes(type)
+}
+function toggleRecommendationType(type: string, on: boolean): void {
+  const list = settingsForm.googleAdsAgentAutoApplyRecommendationTypes
+  const i = list.indexOf(type)
+  if (on && i === -1) list.push(type)
+  else if (!on && i !== -1) list.splice(i, 1)
 }
 
 // --- Google Ads account (credentials) ---------------------------------
@@ -498,7 +537,7 @@ function cancelEditCredentials() {
             <div v-if="isRecommendationProposal(p)" class="prow__deltas">
               <span class="prow__delta">
                 {{ t('adminGoogleAds.colRecommendationType') }}:
-                <b><code>{{ recommendationType(p) }}</code></b>
+                <b>{{ actionLabel(p.action) }}</b>
               </span>
             </div>
             <div v-else class="prow__deltas">
@@ -614,8 +653,8 @@ function cancelEditCredentials() {
         <ul v-else class="hlist">
           <li v-for="a in admin.googleAdsAgentActions" :key="a.id" class="hrow">
             <div class="hrow__head">
-              <code>{{ a.action }}</code>
-              <strong>{{ nm(a.category) }}</strong>
+              <strong>{{ actionLabel(a.action) }}</strong>
+              <span>{{ nm(a.category) }}</span>
               <span class="chip" :class="`chip--${historyStatusTone(a.status) ?? 'neutral'}`">
                 {{ historyStatusLabel(a.status) }}
               </span>
@@ -656,6 +695,8 @@ function cancelEditCredentials() {
               type="number"
               step="0.5"
               :label="t('adminGoogleAds.settingDefaultBudget')"
+              :hint="t('adminGoogleAds.settingDefaultBudgetHint')"
+              persistent-hint
               variant="outlined"
               density="compact"
             />
@@ -664,6 +705,14 @@ function cancelEditCredentials() {
               type="number"
               step="0.01"
               :label="t('adminGoogleAds.settingDefaultCpc')"
+              :hint="
+                admin.googleAdsAgentOverview?.feedCpc.rawAvgCpcCredits != null
+                  ? t('adminGoogleAds.settingDefaultCpcHintWithAvg', {
+                      avg: credits(admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits),
+                    })
+                  : t('adminGoogleAds.settingDefaultCpcHint')
+              "
+              persistent-hint
               variant="outlined"
               density="compact"
             />
@@ -672,6 +721,8 @@ function cancelEditCredentials() {
               type="number"
               step="0.5"
               :label="t('adminGoogleAds.settingBudgetCap')"
+              :hint="t('adminGoogleAds.settingBudgetCapHint')"
+              persistent-hint
               variant="outlined"
               density="compact"
             />
@@ -680,42 +731,7 @@ function cancelEditCredentials() {
               type="number"
               step="0.01"
               :label="t('adminGoogleAds.settingCpcCap')"
-              variant="outlined"
-              density="compact"
-            />
-          </div>
-
-          <h3 class="gaa__subhead">
-            {{ t('adminGoogleAds.cadenceTitle') }}
-            <AdminHint :text="t('adminGoogleAds.cadenceHint')" size="sm" />
-          </h3>
-          <div class="gaa__settingsGrid">
-            <v-text-field
-              v-model.number="settingsForm.googleAdsAgentStructuralIntervalMinutes"
-              type="number"
-              step="15"
-              :label="t('adminGoogleAds.cadenceStructural')"
-              :hint="t('adminGoogleAds.cadenceMinutesHint')"
-              persistent-hint
-              variant="outlined"
-              density="compact"
-            />
-            <v-text-field
-              v-model.number="settingsForm.googleAdsAgentContentIntervalMinutes"
-              type="number"
-              step="15"
-              :label="t('adminGoogleAds.cadenceContent')"
-              :hint="t('adminGoogleAds.cadenceMinutesHint')"
-              persistent-hint
-              variant="outlined"
-              density="compact"
-            />
-            <v-text-field
-              v-model.number="settingsForm.googleAdsAgentIntelligenceIntervalMinutes"
-              type="number"
-              step="15"
-              :label="t('adminGoogleAds.cadenceIntelligence')"
-              :hint="t('adminGoogleAds.cadenceMinutesHint')"
+              :hint="t('adminGoogleAds.settingCpcCapHint')"
               persistent-hint
               variant="outlined"
               density="compact"
@@ -726,20 +742,72 @@ function cancelEditCredentials() {
             {{ t('adminGoogleAds.recommendationsTitle') }}
             <AdminHint :text="t('adminGoogleAds.recommendationsHint')" size="sm" />
           </h3>
-          <v-combobox
-            v-model="settingsForm.googleAdsAgentAutoApplyRecommendationTypes"
-            :label="t('adminGoogleAds.recommendationsAutoApplyLabel')"
-            :hint="t('adminGoogleAds.recommendationsAutoApplyHint')"
-            persistent-hint
-            variant="outlined"
-            density="compact"
-            multiple
-            chips
-            closable-chips
-            class="mb-4"
-          />
+          <div v-if="admin.loadingGoogleAdsRecommendationTypes" class="d-flex justify-center py-4">
+            <v-progress-circular indeterminate color="primary" size="24" />
+          </div>
+          <div v-else class="gaa__recoList">
+            <div v-for="r in recommendationAdQualityTypes" :key="r.type" class="gaa__recoRow">
+              <v-switch
+                :model-value="isRecommendationTypeOn(r.type)"
+                color="primary"
+                density="compact"
+                hide-details
+                @update:model-value="(v) => toggleRecommendationType(r.type, !!v)"
+              />
+              <div class="gaa__recoText">
+                <strong>{{ r.labelRo }}</strong>
+                <span>{{ r.descriptionRo }}</span>
+              </div>
+            </div>
+          </div>
+          <ul v-if="recommendationNeverApplyGroups.length" class="gaa__recoNeverList">
+            <li v-for="g in recommendationNeverApplyGroups" :key="g.category">
+              {{ t(`adminGoogleAds.recoGroup.${g.category}`) }}
+            </li>
+            <li>{{ t('adminGoogleAds.recoGroupNotApplicable') }}</li>
+          </ul>
 
-          <v-btn color="primary" variant="flat" :loading="savingSettings" @click="saveSettings">
+          <button type="button" class="gaa__advancedToggle" @click="showAdvancedSettings = !showAdvancedSettings">
+            <v-icon :icon="showAdvancedSettings ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="18" />
+            {{ t('adminGoogleAds.advancedToggle') }}
+          </button>
+          <div v-if="showAdvancedSettings" class="gaa__advanced">
+            <p class="gaa__advancedHint">{{ t('adminGoogleAds.cadenceHint') }}</p>
+            <div class="gaa__settingsGrid">
+              <v-text-field
+                v-model.number="settingsForm.googleAdsAgentStructuralIntervalMinutes"
+                type="number"
+                step="15"
+                :label="t('adminGoogleAds.cadenceStructural')"
+                :hint="t('adminGoogleAds.cadenceMinutesHint')"
+                persistent-hint
+                variant="outlined"
+                density="compact"
+              />
+              <v-text-field
+                v-model.number="settingsForm.googleAdsAgentContentIntervalMinutes"
+                type="number"
+                step="15"
+                :label="t('adminGoogleAds.cadenceContent')"
+                :hint="t('adminGoogleAds.cadenceMinutesHint')"
+                persistent-hint
+                variant="outlined"
+                density="compact"
+              />
+              <v-text-field
+                v-model.number="settingsForm.googleAdsAgentIntelligenceIntervalMinutes"
+                type="number"
+                step="15"
+                :label="t('adminGoogleAds.cadenceIntelligence')"
+                :hint="t('adminGoogleAds.cadenceMinutesHint')"
+                persistent-hint
+                variant="outlined"
+                density="compact"
+              />
+            </div>
+          </div>
+
+          <v-btn color="primary" variant="flat" :loading="savingSettings" @click="saveSettings" class="mt-2">
             {{ t('common.save') }}
           </v-btn>
 
@@ -893,6 +961,64 @@ function cancelEditCredentials() {
   font-size: 0.85rem;
   font-weight: 600;
   margin: 1.4rem 0 0.3rem;
+}
+.gaa__recoList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.8rem;
+}
+.gaa__recoRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.3rem 0;
+}
+.gaa__recoText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding-top: 0.5rem;
+}
+.gaa__recoText strong {
+  font-size: 0.85rem;
+}
+.gaa__recoText span {
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.gaa__recoNeverList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.gaa__recoNeverList li::before {
+  content: '— ';
+}
+.gaa__advancedToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.3rem 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.gaa__advanced {
+  margin: 0.5rem 0 1rem;
+}
+.gaa__advancedHint {
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  margin: 0 0 0.6rem;
 }
 .gaa__switchRow {
   display: flex;

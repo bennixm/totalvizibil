@@ -98,6 +98,120 @@ describe('AiService.googleAdsKeywordPlan', () => {
     });
     expect(result).toBeNull();
   });
+
+  /** A full-strength response: 15 headlines (5 containing a generated
+   *  keyword, diacritic/case-folded), 4 descriptions, 6 sitelink labels —
+   *  the Ad Strength "Excellent" target this method enforces with a retry. */
+  function strongPlanJson(): string {
+    return JSON.stringify({
+      keywords: ['instalații electrice', 'electrician bucuresti', 'reparații electrice'],
+      headlines: [
+        'Instalatii electrice rapide', // folds to match 'instalații electrice'
+        'Electrician Bucuresti non-stop',
+        'Reparatii electrice garantate',
+        'Electrician Bucuresti rapid',
+        'Reparatii electrice ieftine',
+        'Programeaza acum o vizita',
+        'Raspuns in 24 de ore',
+        'Preturi corecte, fara surprize',
+        'Electricieni din zona ta',
+        'Serviciu rapid si de incredere',
+        'Compara oferte locale',
+        'Interventii de urgenta',
+        'Echipe autorizate ANRE',
+        'Satisfactie garantata',
+        'Alege un profesionist bun',
+      ],
+      descriptions: [
+        'Găsește un electrician de încredere lângă tine.',
+        'Comparații rapide între firme locale.',
+        'Intervenții garantate, fără costuri ascunse.',
+        'Programează-te în câteva minute, online.',
+      ],
+      callouts: ['Firme verificate'],
+      sitelinkLabels: ['Vezi firme', 'Cere o ofertă', 'Recenzii', 'Contact', 'Program', 'Prețuri'],
+      imageSearchQuery: 'electrician repairing wiring',
+    });
+  }
+
+  /** Under the Ad Strength target on every axis: too few headlines, none
+   *  containing a keyword. Still above the hard RSA minimums (so it's a
+   *  usable-but-weak plan, not an unparseable/too-small one). */
+  function weakPlanJson(): string {
+    return JSON.stringify({
+      keywords: ['instalații electrice', 'electrician bucuresti', 'reparații electrice'],
+      headlines: ['Servicii de calitate', 'Echipă profesionistă', 'Sunați-ne azi'],
+      descriptions: ['O descriere generică.', 'O a doua descriere generică.'],
+    });
+  }
+
+  it('retries once and keeps the stronger plan when the first response falls short of the Ad Strength target', async () => {
+    const svc = new AiService(fakeConfig('test-key'));
+    const create = jest
+      .fn()
+      .mockResolvedValueOnce({
+        content: [{ type: 'text', text: weakPlanJson() }],
+        stop_reason: 'end_turn',
+        usage: { input_tokens: 400, output_tokens: 300 },
+      })
+      .mockResolvedValueOnce({
+        content: [{ type: 'text', text: strongPlanJson() }],
+        stop_reason: 'end_turn',
+        usage: { input_tokens: 500, output_tokens: 500 },
+      });
+    (svc as any).anthropic = { messages: { create } };
+
+    const result = await svc.googleAdsKeywordPlan({
+      categoryName: 'Electricieni',
+      landingUrl: 'https://totalvizibil.ro/constructii/electricieni',
+      businessNames: [],
+    });
+
+    expect(create).toHaveBeenCalledTimes(2);
+    // The retry prompt names the exact shortfall from the first attempt.
+    expect(create.mock.calls[1][0].messages[0].content).toContain('3/15 titluri');
+    expect(result!.headlines).toHaveLength(15);
+    expect(result!.descriptions).toHaveLength(4);
+    expect(result!.sitelinkLabels).toHaveLength(6);
+    // Cost/usage reflect the accepted (second) attempt, not the discarded one.
+    expect(result!.inputTokens).toBe(500);
+  });
+
+  it('does not retry when the first response already meets the Ad Strength target', async () => {
+    const svc = new AiService(fakeConfig('test-key'));
+    const create = withFakeTransport(svc, strongPlanJson());
+
+    const result = await svc.googleAdsKeywordPlan({
+      categoryName: 'Electricieni',
+      landingUrl: 'https://totalvizibil.ro/constructii/electricieni',
+      businessNames: [],
+    });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(result!.headlines).toHaveLength(15);
+    expect(result!.sitelinkLabels).toEqual([
+      'Vezi firme',
+      'Cere o ofertă',
+      'Recenzii',
+      'Contact',
+      'Program',
+      'Prețuri',
+    ]);
+  });
+
+  it('still returns the weak plan (rather than leaving the campaign stuck forever) when even the retry falls short', async () => {
+    const svc = new AiService(fakeConfig('test-key'));
+    const create = withFakeTransport(svc, weakPlanJson()); // same weak response both times
+    const result = await svc.googleAdsKeywordPlan({
+      categoryName: 'Electricieni',
+      landingUrl: 'https://totalvizibil.ro/constructii/electricieni',
+      businessNames: [],
+    });
+
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(result).not.toBeNull(); // above the hard RSA minimums, so still usable
+    expect(result!.headlines).toHaveLength(3);
+  });
 });
 
 describe('AiService.googleAdsBudgetIntelligence', () => {

@@ -338,13 +338,16 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       }
     }
 
-    // Direction 2 (research doc): optional ad assets (callouts + one stock
-    // image) that improve Ad Strength without being required for the ad to
-    // run — a SEPARATE, best-effort mutate call, never one that can block
-    // the keywords+ad+enable batch above from going out.
+    // Direction 2 (research doc): optional ad assets — callouts + one stock
+    // image (CTR/quality, don't move the Ad Strength meter itself) and
+    // sitelinks (the one asset type that DOES — see `addOptionalAdAssets`'s
+    // doc comment). A SEPARATE, best-effort mutate call, never one that can
+    // block the keywords+ad+enable batch above from going out.
     await this.addOptionalAdAssets(
       campaignResourceName,
+      landingUrl,
       plan.callouts,
+      plan.sitelinkLabels,
       plan.imageSearchQuery,
     ).catch((err) =>
       this.logger.warn(
@@ -363,27 +366,49 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
   }
 
   /**
-   * Callout assets (short trust/benefit phrases, no URL needed) and ONE
-   * stock image asset (via Pexels, already used by the website builder),
-   * both attached directly to the campaign. Sitelinks are deliberately NOT
-   * implemented here — every subcategory has exactly one landing page, so
-   * sitelinks would all point to the same URL, which Google's own guidance
-   * treats as low-quality rather than genuinely useful. No-ops quietly
-   * when there's nothing to add (empty `callouts`, no `imageSearchQuery`,
-   * or Pexels not configured).
+   * Three kinds of optional ad assets, all attached directly to the
+   * campaign, best-effort:
+   *
+   * - Sitelinks (`sitelinkLabels`): the one asset type Google's own Ad
+   *   Strength documentation names as a scored factor alongside headlines/
+   *   descriptions — "6 or more sitelinks ... improves your score" — and
+   *   it's sitelink QUANTITY that counts, not distinct destinations. Every
+   *   subcategory has exactly one landing page, so all 6 point at the same
+   *   `landingUrl` with different link text; that's still a real,
+   *   documented Ad Strength lever, not a cosmetic one.
+   * - Callouts (short trust/benefit phrases, no URL needed) and ONE stock
+   *   image asset (via Pexels, already used by the website builder) —
+   *   genuinely useful for CTR/ad quality, but NOT scored by Ad Strength
+   *   itself (confirmed against Google's docs: only headlines,
+   *   descriptions, and sitelinks are).
+   *
+   * No-ops quietly on whichever pieces are empty/unconfigured (empty
+   * `callouts`/`sitelinkLabels`, no `imageSearchQuery`, or Pexels off).
    */
   private async addOptionalAdAssets(
     campaignResourceName: string,
+    landingUrl: string,
     callouts: string[] | undefined,
+    sitelinkLabels: string[] | undefined,
     imageSearchQuery: string | undefined,
   ): Promise<void> {
-    const ops: { assetOperation: { create: Record<string, unknown> } }[] = (callouts ?? []).map(
-      (text) => ({
-        assetOperation: { create: { calloutAsset: { calloutText: text } } },
-      }),
-    );
+    type AssetOp = { assetOperation: { create: Record<string, unknown> } };
+    type FieldType = 'CALLOUT' | 'SITELINK' | 'AD_IMAGE';
+    const ops: { op: AssetOp; fieldType: FieldType }[] = [
+      ...(callouts ?? []).map((text) => ({
+        op: { assetOperation: { create: { calloutAsset: { calloutText: text } } } },
+        fieldType: 'CALLOUT' as const,
+      })),
+      ...(sitelinkLabels ?? []).map((text) => ({
+        op: {
+          assetOperation: {
+            create: { finalUrls: [landingUrl], sitelinkAsset: { linkText: text } },
+          },
+        },
+        fieldType: 'SITELINK' as const,
+      })),
+    ];
 
-    let imageAssetIndex = -1;
     if (imageSearchQuery && this.pexels.configured) {
       const { photos } = await this.pexels.search(imageSearchQuery, {
         orientation: 'landscape',
@@ -394,28 +419,23 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
         const res = await fetch(photo.src.medium);
         if (res.ok) {
           const base64 = Buffer.from(await res.arrayBuffer()).toString('base64');
-          imageAssetIndex = ops.length;
-          ops.push({ assetOperation: { create: { imageAsset: { data: base64 } } } });
+          ops.push({
+            op: { assetOperation: { create: { imageAsset: { data: base64 } } } },
+            fieldType: 'AD_IMAGE',
+          });
         }
       }
     }
 
     if (!ops.length) return;
-    const results = await this.client.mutate(ops);
+    const results = await this.client.mutate(ops.map((o) => o.op));
 
     const attachOps = results
-      .map((r, i) => ({
-        resourceName: r.assetResult?.resourceName,
-        isImage: i === imageAssetIndex,
-      }))
-      .filter((r): r is { resourceName: string; isImage: boolean } => !!r.resourceName)
-      .map(({ resourceName, isImage }) => ({
+      .map((r, i) => ({ resourceName: r.assetResult?.resourceName, fieldType: ops[i].fieldType }))
+      .filter((r): r is { resourceName: string; fieldType: FieldType } => !!r.resourceName)
+      .map(({ resourceName, fieldType }) => ({
         campaignAssetOperation: {
-          create: {
-            campaign: campaignResourceName,
-            asset: resourceName,
-            fieldType: isImage ? 'AD_IMAGE' : 'CALLOUT',
-          },
+          create: { campaign: campaignResourceName, asset: resourceName, fieldType },
         },
       }));
     if (attachOps.length) await this.client.mutate(attachOps);

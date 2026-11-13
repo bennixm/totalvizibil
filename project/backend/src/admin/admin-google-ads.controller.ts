@@ -17,6 +17,7 @@ import { AuditLogService } from './audit-log.service';
 import { AdminGoogleAdsService, GoogleAdsAgentRunKindParam } from './admin-google-ads.service';
 import { ListGoogleAdsAgentActionsQuery } from './dto/list-google-ads-agent-actions.query';
 import { UpdateGoogleAdsCredentialsDto } from './dto/update-google-ads-credentials.dto';
+import { GOOGLE_ADS_RECOMMENDATION_CATALOG } from '../google-ads/google-ads-recommendation-catalog';
 
 enum RunKind {
   structural = 'structural',
@@ -72,6 +73,17 @@ export class AdminGoogleAdsController {
       },
     });
     return result;
+  }
+
+  /** Static, human-readable catalog backing the "Recomandări Google Ads"
+   *  toggle list in the Settings tab — see the catalog's own doc comment.
+   *  Never requires a live Google Ads call; the frontend renders real
+   *  Romanian labels from this instead of a free-text field where an
+   *  admin had to type raw enum strings like
+   *  `RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH`. */
+  @Get('recommendation-types')
+  recommendationTypes() {
+    return GOOGLE_ADS_RECOMMENDATION_CATALOG;
   }
 
   @Get('proposals')
