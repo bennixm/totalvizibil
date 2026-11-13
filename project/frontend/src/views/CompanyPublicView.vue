@@ -283,15 +283,21 @@ useSeo(() => {
 </template>
 
 <style scoped>
+/* Deliberately NOT sticky (was `position: sticky; top: var(--tvz-topbar-h)`)
+ * — on mobile it fought the embedded site's own sticky navbar
+ * (`WebsiteRenderer.vue`'s `.site__bar`, `top: 0.6rem`) for "stuck" position
+ * once scrolled, which is what produced a dead gap under the app's navbar
+ * and the two bars rendering in the wrong order. Normal flow puts this
+ * right after the navbar with no risk of two independent sticky offsets
+ * fighting each other; `margin-bottom` gives it the small breathing room
+ * from whatever renders below (the embedded site) instead. */
 .cp__bar {
-  position: sticky;
-  top: var(--tvz-topbar-h);
-  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   padding: 0.6rem clamp(0.9rem, 3vw, 1.5rem);
+  margin-bottom: 0.4rem;
   background: var(--tvz-glass-bg-strong);
   border-bottom: 1px solid var(--tvz-hairline);
 }
