@@ -160,6 +160,8 @@ export class AdminController {
       googleAdsAgentStructuralIntervalMinutes,
       googleAdsAgentContentIntervalMinutes,
       googleAdsAgentIntelligenceIntervalMinutes,
+      googleAdsAgentAutoApplyRecommendationTypes,
+      googleAdsConversionActionResourceName,
     ] = await Promise.all([
       this.settings.eurRonRate(),
       this.settings.advancedBuilderPriceCredits(),
@@ -187,6 +189,8 @@ export class AdminController {
       this.settings.googleAdsAgentStructuralIntervalMinutes(),
       this.settings.googleAdsAgentContentIntervalMinutes(),
       this.settings.googleAdsAgentIntelligenceIntervalMinutes(),
+      this.settings.googleAdsAgentAutoApplyRecommendationTypes(),
+      this.settings.googleAdsConversionActionResourceName(),
     ]);
     return {
       eurRonRate,
@@ -216,6 +220,10 @@ export class AdminController {
       googleAdsAgentStructuralIntervalMinutes,
       googleAdsAgentContentIntervalMinutes,
       googleAdsAgentIntelligenceIntervalMinutes,
+      googleAdsAgentAutoApplyRecommendationTypes,
+      // Read-only — auto-created lazily by whichever pass needs it first,
+      // never accepted back through PATCH, see UpdateSettingsDto.
+      googleAdsConversionActionResourceName,
       invoiceIssuerName: invoiceIssuer.name,
       invoiceIssuerTaxId: invoiceIssuer.taxId,
       invoiceIssuerRegCom: invoiceIssuer.regCom,
@@ -312,6 +320,11 @@ export class AdminController {
     if (dto.googleAdsAgentIntelligenceIntervalMinutes !== undefined) {
       await this.settings.setGoogleAdsAgentIntelligenceIntervalMinutes(
         dto.googleAdsAgentIntelligenceIntervalMinutes,
+      );
+    }
+    if (dto.googleAdsAgentAutoApplyRecommendationTypes !== undefined) {
+      await this.settings.setGoogleAdsAgentAutoApplyRecommendationTypes(
+        dto.googleAdsAgentAutoApplyRecommendationTypes,
       );
     }
     const {

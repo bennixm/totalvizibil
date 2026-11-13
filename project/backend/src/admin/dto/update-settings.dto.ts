@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsInt,
   IsNumber,
@@ -224,4 +226,15 @@ export class UpdateSettingsDto {
   @Min(15)
   @Max(10_080)
   googleAdsAgentIntelligenceIntervalMinutes?: number;
+
+  // Recommendation `type` strings (Google Ads API enum values, e.g.
+  // `RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH`) safe to auto-apply with no
+  // review — see GoogleAdsAgentRecommendationsService. Empty = everything
+  // queues for manual approval.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  googleAdsAgentAutoApplyRecommendationTypes?: string[];
 }

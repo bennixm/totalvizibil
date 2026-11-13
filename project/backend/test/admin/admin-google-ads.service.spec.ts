@@ -43,6 +43,9 @@ function fakeAgentServices() {
       approveProposal: jest.fn().mockResolvedValue(undefined),
       rejectProposal: jest.fn().mockResolvedValue(undefined),
     },
+    recommendations: {
+      approveProposal: jest.fn().mockResolvedValue(undefined),
+    },
   };
 }
 
@@ -73,6 +76,7 @@ function fakePrisma() {
     googleAdsAgentAction: {
       findMany: jest.fn().mockResolvedValue([{ id: 'action-1', status: 'pending_approval' }]),
       count: jest.fn().mockResolvedValue(1),
+      findUnique: jest.fn().mockResolvedValue({ action: 'budget.increase.proposed' }),
     },
     companyCategory: { count: jest.fn().mockResolvedValue(2) },
     $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
@@ -96,6 +100,7 @@ function makeService(
     agents.structural as any,
     agents.content as any,
     agents.intelligence as any,
+    agents.recommendations as any,
   );
   return { svc, prisma, settings, client, agents };
 }
@@ -172,12 +177,22 @@ describe('AdminGoogleAdsService', () => {
     );
   });
 
-  it('approveProposal / rejectProposal delegate to the intelligence service', async () => {
+  it('approveProposal / rejectProposal delegate to the intelligence service for a budget proposal', async () => {
     const { svc, agents } = makeService();
     await svc.approveProposal('action-1', 'staff-1');
     await svc.rejectProposal('action-2', 'staff-1');
     expect(agents.intelligence.approveProposal).toHaveBeenCalledWith('action-1', 'staff-1');
     expect(agents.intelligence.rejectProposal).toHaveBeenCalledWith('action-2', 'staff-1');
+  });
+
+  it("approveProposal routes a 'recommendation.*' action to the recommendations service instead", async () => {
+    const { svc, prisma, agents } = makeService();
+    (prisma as any).googleAdsAgentAction.findUnique.mockResolvedValue({
+      action: 'recommendation.RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH',
+    });
+    await svc.approveProposal('action-3', 'staff-1');
+    expect(agents.recommendations.approveProposal).toHaveBeenCalledWith('action-3', 'staff-1');
+    expect(agents.intelligence.approveProposal).not.toHaveBeenCalled();
   });
 
   it('listCampaigns() attaches the active company count to each mapping', async () => {
@@ -230,6 +245,7 @@ describe('AdminGoogleAdsService', () => {
       agents.structural as any,
       agents.content as any,
       agents.intelligence as any,
+      agents.recommendations as any,
     );
 
     const result = svc.runNow('structural');
@@ -251,6 +267,7 @@ describe('AdminGoogleAdsService', () => {
       agents.structural as any,
       agents.content as any,
       agents.intelligence as any,
+      agents.recommendations as any,
     );
 
     expect(() => svc.runNow('content')).not.toThrow();
