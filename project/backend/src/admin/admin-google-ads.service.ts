@@ -5,11 +5,49 @@ import { GoogleAdsApiClient } from '../google-ads/google-ads-api-client.service'
 import { GoogleAdsAgentIntelligenceService } from '../google-ads/google-ads-agent-intelligence.service';
 import { GoogleAdsAgentRecommendationsService } from '../google-ads/google-ads-agent-recommendations.service';
 import { GoogleAdsAgentStructuralService } from '../google-ads/google-ads-agent-structural.service';
+import { getGoogleAdsRecommendationCatalogEntry } from '../google-ads/google-ads-recommendation-catalog';
 import {
   GOOGLE_ADS_CPC_STALE_AFTER_MS,
   PlatformSettingsService,
 } from '../platform-settings/platform-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+/** Human label for the handful of non-`recommendation.*` action codes this
+ *  agent writes (budget/CPC/keyword/targeting/campaign lifecycle) — used
+ *  so the admin's History search box can match what the admin actually
+ *  reads on screen (`actionSearchLabel()`), not the raw machine code only
+ *  (see `GoogleAdsAgentAction.action`'s doc comment in schema.prisma for
+ *  the full raw set). Recommendation actions use the catalog's own
+ *  `labelRo` instead — see `actionSearchLabel()`. */
+const ACTION_LABELS_RO: Record<string, string> = {
+  'campaign.create': 'Campanie creată',
+  'campaign.pause': 'Campanie pusă pe pauză',
+  'campaign.resume': 'Campanie repornită',
+  'geo_targeting.updated': 'Targetare geografică actualizată',
+  'keywords.updated': 'Cuvinte cheie actualizate',
+  'cpc.adjusted': 'CPC maxim ajustat',
+  'budget.increase.proposed': 'Propunere de creștere a bugetului',
+};
+
+/** The text an admin would actually recognize for one action row — the
+ *  catalog's Romanian label for a recommendation, the static label above
+ *  for everything else, or the raw code as a last resort (an action this
+ *  map doesn't (yet) know about) — used both by the frontend label and by
+ *  `listActions`' free-text search, so typing what's on screen always
+ *  matches it. */
+export function actionSearchLabel(action: string): string {
+  if (action.startsWith('recommendation.')) {
+    return getGoogleAdsRecommendationCatalogEntry(action.replace('recommendation.', '')).labelRo;
+  }
+  return ACTION_LABELS_RO[action] ?? action;
+}
+
+/** Case- and diacritic-insensitive fold for the History free-text search —
+ *  "strength"/"Strength" and "puterea"/"puțerea" should all match the
+ *  same way an admin typing without special characters would expect. */
+function foldSearchText(text: string): string {
+  return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
 
 export type GoogleAdsAgentRunKindParam = 'structural' | 'content' | 'intelligence';
 
@@ -242,22 +280,58 @@ export class AdminGoogleAdsService {
   async listActions(params: ListGoogleAdsAgentActionsParams) {
     const where: Prisma.GoogleAdsAgentActionWhereInput = {
       categoryId: params.categoryId,
-      action: params.action,
       status: params.status,
       createdAt:
         params.dateFrom || params.dateTo ? { gte: params.dateFrom, lte: params.dateTo } : undefined,
     };
-    const [rows, total] = await this.prisma.$transaction([
-      this.prisma.googleAdsAgentAction.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (params.page - 1) * params.pageSize,
-        take: params.pageSize,
-        include: { category: true, approvedBy: { select: { id: true, name: true, email: true } } },
-      }),
-      this.prisma.googleAdsAgentAction.count({ where }),
-    ]);
-    return { items: rows, page: params.page, pageSize: params.pageSize, total };
+    const search = params.action?.trim();
+    if (!search) {
+      const [rows, total] = await this.prisma.$transaction([
+        this.prisma.googleAdsAgentAction.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip: (params.page - 1) * params.pageSize,
+          take: params.pageSize,
+          include: {
+            category: true,
+            approvedBy: { select: { id: true, name: true, email: true } },
+          },
+        }),
+        this.prisma.googleAdsAgentAction.count({ where }),
+      ]);
+      return { items: rows, page: params.page, pageSize: params.pageSize, total };
+    }
+
+    // The admin's search box matches the LABEL shown on screen (e.g.
+    // "Îmbunătățește puterea reclamei"), not the raw machine code stored
+    // in `action` (e.g. `recommendation.RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH`)
+    // — an exact-match `where.action` filter (the previous implementation)
+    // could only ever match if the admin typed that exact raw string, so it
+    // effectively never filtered anything. There's no SQL-side way to match
+    // against a label computed in application code, so this filters/paginates
+    // in memory instead — fine at the scale of one agent's action history;
+    // capped defensively so a pathologically large history can't blow up
+    // memory on an admin page load.
+    const candidates = await this.prisma.googleAdsAgentAction.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+      include: { category: true, approvedBy: { select: { id: true, name: true, email: true } } },
+    });
+    const needle = foldSearchText(search);
+    const matches = candidates.filter(
+      (row) =>
+        foldSearchText(actionSearchLabel(row.action)).includes(needle) ||
+        foldSearchText(row.action).includes(needle) ||
+        (row.reasoning && foldSearchText(row.reasoning).includes(needle)),
+    );
+    const start = (params.page - 1) * params.pageSize;
+    return {
+      items: matches.slice(start, start + params.pageSize),
+      page: params.page,
+      pageSize: params.pageSize,
+      total: matches.length,
+    };
   }
 
   /**
