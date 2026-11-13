@@ -138,6 +138,23 @@ const ACTION_LABELS_RO: Record<string, string> = {
   'cpc.adjusted': 'CPC maxim ajustat',
   'budget.increase.proposed': 'Propunere de creștere a bugetului',
 }
+/** A per-row icon for the History list — gives each action type a visual
+ *  identity instead of every row reading as identical text, since this is
+ *  the one tab with no icon at all otherwise. Mirrors `RECO_ICONS` below
+ *  for `recommendation.*` actions. */
+const ACTION_ICONS_RO: Record<string, string> = {
+  'campaign.create': 'mdi-rocket-launch-outline',
+  'campaign.pause': 'mdi-pause-circle-outline',
+  'campaign.resume': 'mdi-play-circle-outline',
+  'geo_targeting.updated': 'mdi-map-marker-radius-outline',
+  'keywords.updated': 'mdi-key-outline',
+  'cpc.adjusted': 'mdi-cursor-default-click-outline',
+  'budget.increase.proposed': 'mdi-trending-up',
+}
+function historyRowIcon(action: string): string {
+  if (action.startsWith('recommendation.')) return recoIcon(action.replace('recommendation.', ''))
+  return ACTION_ICONS_RO[action] ?? 'mdi-circle-small'
+}
 /** A friendly label for an action code — e.g. `recommendation.CALLOUT_ASSET`
  *  becomes "Adaugă fraze scurte de încredere (callout-uri)" via the same
  *  catalog the Settings tab's toggles use, instead of the raw enum string;
@@ -320,6 +337,18 @@ const RECO_ICONS: Record<string, string> = {
 function recoIcon(type: string): string {
   return RECO_ICONS[type] ?? 'mdi-cog-outline'
 }
+/** The 3 recommendation types that directly raise Google's "Ad Strength"
+ *  score (per Google's own scoring docs: headlines, descriptions and
+ *  sitelinks — not callouts/images) — surfaced as a small badge on their
+ *  toggle instead of making the admin open a tooltip to learn that. */
+const AD_STRENGTH_RECOMMENDATION_TYPES = new Set([
+  'RESPONSIVE_SEARCH_AD_ASSET',
+  'RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH',
+  'SITELINK_ASSET',
+])
+function boostsAdStrength(type: string): boolean {
+  return AD_STRENGTH_RECOMMENDATION_TYPES.has(type)
+}
 
 // --- Google Ads account (credentials) ---------------------------------
 
@@ -419,53 +448,74 @@ function cancelEditCredentials() {
           :text="admin.googleAdsAgentOverviewError"
         />
         <div v-else-if="admin.googleAdsAgentOverview" class="gaa__grid">
-          <AdminStatCard
-            :label="t('adminGoogleAds.statEnabled')"
-            :value="admin.googleAdsAgentOverview.enabled ? t('adminGoogleAds.enabledOn') : t('adminGoogleAds.enabledOff')"
-            :tone="admin.googleAdsAgentOverview.enabled ? 'success' : undefined"
-            icon="mdi-power"
-          />
-          <AdminStatCard
-            :label="t('adminGoogleAds.statActiveCampaigns')"
-            :value="admin.googleAdsAgentOverview.campaigns.active"
-            tone="success"
-            icon="mdi-bullhorn-outline"
-          />
-          <AdminStatCard
-            :label="t('adminGoogleAds.statPausedCampaigns')"
-            :value="admin.googleAdsAgentOverview.campaigns.paused"
-            icon="mdi-pause-circle-outline"
-          />
-          <AdminStatCard
-            :label="t('adminGoogleAds.statPendingCampaigns')"
-            :value="admin.googleAdsAgentOverview.campaigns.pendingCreation"
-            tone="warning"
-            icon="mdi-progress-clock"
-          />
-          <AdminStatCard
-            :label="t('adminGoogleAds.statDailyBudget')"
-            :value="credits(admin.googleAdsAgentOverview.totalActiveDailyBudgetCredits)"
-            value-is-credits
-            icon="mdi-wallet-outline"
-          />
-          <AdminStatCard
-            :label="t('adminGoogleAds.statSpendToday')"
-            :value="credits(admin.googleAdsAgentOverview.spendTodayCredits)"
-            value-is-credits
-            icon="mdi-cash-minus"
-          />
-          <AdminStatCard
-            :label="t('adminGoogleAds.statSpendMonth')"
-            :value="credits(admin.googleAdsAgentOverview.spendThisMonthCredits)"
-            value-is-credits
-            icon="mdi-calendar-month-outline"
-          />
-          <AdminStatCard
-            :label="t('adminGoogleAds.statSubcategoriesWithout')"
-            :value="admin.googleAdsAgentOverview.subcategoriesWithoutCampaign"
-            :tone="admin.googleAdsAgentOverview.subcategoriesWithoutCampaign > 0 ? 'warning' : undefined"
-            icon="mdi-shape-outline"
-          />
+          <div
+            class="gaa__statusBanner"
+            :class="{ 'gaa__statusBanner--off': !admin.googleAdsAgentOverview.enabled }"
+          >
+            <v-icon :icon="admin.googleAdsAgentOverview.enabled ? 'mdi-check-decagram' : 'mdi-power-off'" size="22" />
+            <strong class="gaa__statusText">
+              {{ t('adminGoogleAds.statEnabled') }}:
+              {{ admin.googleAdsAgentOverview.enabled ? t('adminGoogleAds.enabledOn') : t('adminGoogleAds.enabledOff') }}
+            </strong>
+            <button
+              v-if="!admin.googleAdsAgentOverview.enabled"
+              type="button"
+              class="gaa__statusCta"
+              @click="tab = 'settings'"
+            >
+              {{ t('adminGoogleAds.statusActivateCta') }}
+              <v-icon icon="mdi-arrow-right" size="14" />
+            </button>
+          </div>
+
+          <h3 class="gaa__subhead gaa__subhead--first">{{ t('adminGoogleAds.overviewGroupCampaigns') }}</h3>
+          <div class="gaa__cardRow">
+            <AdminStatCard
+              :label="t('adminGoogleAds.statActiveCampaigns')"
+              :value="admin.googleAdsAgentOverview.campaigns.active"
+              tone="success"
+              icon="mdi-bullhorn-outline"
+            />
+            <AdminStatCard
+              :label="t('adminGoogleAds.statPausedCampaigns')"
+              :value="admin.googleAdsAgentOverview.campaigns.paused"
+              icon="mdi-pause-circle-outline"
+            />
+            <AdminStatCard
+              :label="t('adminGoogleAds.statPendingCampaigns')"
+              :value="admin.googleAdsAgentOverview.campaigns.pendingCreation"
+              tone="warning"
+              icon="mdi-progress-clock"
+            />
+            <AdminStatCard
+              :label="t('adminGoogleAds.statSubcategoriesWithout')"
+              :value="admin.googleAdsAgentOverview.subcategoriesWithoutCampaign"
+              :tone="admin.googleAdsAgentOverview.subcategoriesWithoutCampaign > 0 ? 'warning' : undefined"
+              icon="mdi-shape-outline"
+            />
+          </div>
+
+          <h3 class="gaa__subhead">{{ t('adminGoogleAds.overviewGroupSpend') }}</h3>
+          <div class="gaa__cardRow">
+            <AdminStatCard
+              :label="t('adminGoogleAds.statDailyBudget')"
+              :value="credits(admin.googleAdsAgentOverview.totalActiveDailyBudgetCredits)"
+              value-is-credits
+              icon="mdi-wallet-outline"
+            />
+            <AdminStatCard
+              :label="t('adminGoogleAds.statSpendToday')"
+              :value="credits(admin.googleAdsAgentOverview.spendTodayCredits)"
+              value-is-credits
+              icon="mdi-cash-minus"
+            />
+            <AdminStatCard
+              :label="t('adminGoogleAds.statSpendMonth')"
+              :value="credits(admin.googleAdsAgentOverview.spendThisMonthCredits)"
+              value-is-credits
+              icon="mdi-calendar-month-outline"
+            />
+          </div>
 
           <AdminSection :title="t('adminGoogleAds.lastRunsTitle')" icon="mdi-history" wide>
             <div class="runs">
@@ -694,6 +744,7 @@ function cancelEditCredentials() {
         <ul v-else class="hlist">
           <li v-for="a in admin.googleAdsAgentActions" :key="a.id" class="hrow">
             <div class="hrow__head">
+              <v-icon :icon="historyRowIcon(a.action)" size="16" class="hrow__icon" />
               <strong>{{ actionLabel(a.action) }}</strong>
               <span class="hrow__cat">{{ nm(a.category) }}</span>
               <span class="chip" :class="`chip--${historyStatusTone(a.status) ?? 'neutral'}`">
@@ -745,15 +796,16 @@ function cancelEditCredentials() {
                 inset
               />
             </div>
+          </div>
 
-            <div class="gaa__field">
-              <span class="gaa__ic"><v-icon icon="mdi-wallet-plus-outline" size="18" /></span>
-              <div class="gaa__body">
-                <label for="gaaBudget" class="gaa__label">
-                  {{ t('adminGoogleAds.settingDefaultBudget') }}
-                  <AdminHint :text="t('adminGoogleAds.settingDefaultBudgetHint')" size="sm" />
-                </label>
-              </div>
+          <h3 class="gaa__subhead gaa__subhead--first">{{ t('adminGoogleAds.settingsGroupDefaults') }}</h3>
+          <div class="gaa__pairGrid">
+            <div class="gaa__pairField">
+              <label for="gaaBudget" class="gaa__pairLabel">
+                <v-icon icon="mdi-wallet-plus-outline" size="16" />
+                {{ t('adminGoogleAds.settingDefaultBudget') }}
+                <AdminHint :text="t('adminGoogleAds.settingDefaultBudgetHint')" size="sm" />
+              </label>
               <v-text-field
                 id="gaaBudget"
                 v-model.number="settingsForm.googleAdsAgentDefaultDailyBudgetCredits"
@@ -767,23 +819,21 @@ function cancelEditCredentials() {
               />
             </div>
 
-            <div class="gaa__field">
-              <span class="gaa__ic"><v-icon icon="mdi-cursor-default-click-outline" size="18" /></span>
-              <div class="gaa__body">
-                <label for="gaaCpc" class="gaa__label">
-                  {{ t('adminGoogleAds.settingDefaultCpc') }}
-                  <AdminHint
-                    :text="
-                      admin.googleAdsAgentOverview?.feedCpc.rawAvgCpcCredits != null
-                        ? t('adminGoogleAds.settingDefaultCpcHintWithAvg', {
-                            avg: credits(admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits),
-                          })
-                        : t('adminGoogleAds.settingDefaultCpcHint')
-                    "
-                    size="sm"
-                  />
-                </label>
-              </div>
+            <div class="gaa__pairField">
+              <label for="gaaCpc" class="gaa__pairLabel">
+                <v-icon icon="mdi-cursor-default-click-outline" size="16" />
+                {{ t('adminGoogleAds.settingDefaultCpc') }}
+                <AdminHint
+                  :text="
+                    admin.googleAdsAgentOverview?.feedCpc.rawAvgCpcCredits != null
+                      ? t('adminGoogleAds.settingDefaultCpcHintWithAvg', {
+                          avg: credits(admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits),
+                        })
+                      : t('adminGoogleAds.settingDefaultCpcHint')
+                  "
+                  size="sm"
+                />
+              </label>
               <v-text-field
                 id="gaaCpc"
                 v-model.number="settingsForm.googleAdsAgentDefaultMaxCpcCredits"
@@ -796,15 +846,16 @@ function cancelEditCredentials() {
                 class="gaa__input"
               />
             </div>
+          </div>
 
-            <div class="gaa__field">
-              <span class="gaa__ic"><v-icon icon="mdi-shield-check-outline" size="18" /></span>
-              <div class="gaa__body">
-                <label for="gaaBudgetCap" class="gaa__label">
-                  {{ t('adminGoogleAds.settingBudgetCap') }}
-                  <AdminHint :text="t('adminGoogleAds.settingBudgetCapHint')" size="sm" />
-                </label>
-              </div>
+          <h3 class="gaa__subhead">{{ t('adminGoogleAds.settingsGroupCaps') }}</h3>
+          <div class="gaa__pairGrid">
+            <div class="gaa__pairField">
+              <label for="gaaBudgetCap" class="gaa__pairLabel">
+                <v-icon icon="mdi-shield-check-outline" size="16" />
+                {{ t('adminGoogleAds.settingBudgetCap') }}
+                <AdminHint :text="t('adminGoogleAds.settingBudgetCapHint')" size="sm" />
+              </label>
               <v-text-field
                 id="gaaBudgetCap"
                 v-model.number="settingsForm.googleAdsAgentMaxDailyBudgetCapCredits"
@@ -818,14 +869,12 @@ function cancelEditCredentials() {
               />
             </div>
 
-            <div class="gaa__field">
-              <span class="gaa__ic"><v-icon icon="mdi-speedometer" size="18" /></span>
-              <div class="gaa__body">
-                <label for="gaaCpcCap" class="gaa__label">
-                  {{ t('adminGoogleAds.settingCpcCap') }}
-                  <AdminHint :text="t('adminGoogleAds.settingCpcCapHint')" size="sm" />
-                </label>
-              </div>
+            <div class="gaa__pairField">
+              <label for="gaaCpcCap" class="gaa__pairLabel">
+                <v-icon icon="mdi-speedometer" size="16" />
+                {{ t('adminGoogleAds.settingCpcCap') }}
+                <AdminHint :text="t('adminGoogleAds.settingCpcCapHint')" size="sm" />
+              </label>
               <v-text-field
                 id="gaaCpcCap"
                 v-model.number="settingsForm.googleAdsAgentMaxCpcCapCredits"
@@ -847,14 +896,18 @@ function cancelEditCredentials() {
           <div v-if="admin.loadingGoogleAdsRecommendationTypes" class="d-flex justify-center py-4">
             <v-progress-circular indeterminate color="primary" size="24" />
           </div>
-          <div v-else class="gaa__fields">
-            <div v-for="r in recommendationAdQualityTypes" :key="r.type" class="gaa__field">
-              <span class="gaa__ic"><v-icon :icon="recoIcon(r.type)" size="18" /></span>
-              <div class="gaa__body">
-                <label class="gaa__label">
+          <div v-else class="gaa__toggleGrid">
+            <div v-for="r in recommendationAdQualityTypes" :key="r.type" class="gaa__toggleCard">
+              <v-icon :icon="recoIcon(r.type)" size="18" class="gaa__toggleIcon" />
+              <div class="gaa__toggleBody">
+                <span class="gaa__toggleLabel">
                   {{ r.labelRo }}
                   <AdminHint :text="r.descriptionRo" size="sm" />
-                </label>
+                </span>
+                <span v-if="boostsAdStrength(r.type)" class="gaa__toggleBadge">
+                  <v-icon icon="mdi-trending-up" size="12" />
+                  {{ t('adminGoogleAds.recoBoostsAdStrength') }}
+                </span>
               </div>
               <v-switch
                 :model-value="isRecommendationTypeOn(r.type)"
@@ -1082,19 +1135,72 @@ function cancelEditCredentials() {
   justify-content: center;
   width: 100%;
 }
+/* A vertical stack of groups (status banner, labeled card rows, the
+   AdminSections below) rather than one flat grid of lookalike tiles —
+   `.gaa__cardRow` is the actual card grid, scoped to one labeled group at a
+   time so "campaigns" and "spend" read as two distinct clusters instead of
+   8 identical boxes in a row. */
 .gaa__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+.gaa__cardRow {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.9rem;
+}
+/* Pulled out of the stat-card grid — the agent's on/off state is the one
+   fact that changes what the rest of the page even means, so it reads as a
+   banner/status strip rather than another identical tile. */
+.gaa__statusBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.85rem 1.1rem;
+  border-radius: var(--tvz-radius-md);
+  border: 1px solid rgba(var(--v-theme-success), 0.3);
+  background: rgba(var(--v-theme-success), 0.08);
+  color: rgb(var(--v-theme-success));
+}
+.gaa__statusBanner--off {
+  border-color: var(--tvz-glass-border);
+  background: var(--tvz-glass-bg);
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.gaa__statusText {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 0.95rem;
+}
+.gaa__statusCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+}
+.gaa__statusCta:hover {
+  text-decoration: underline;
 }
 .gaa__subhead {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  margin: 1.4rem 0 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  margin: 1.2rem 0 0.5rem;
+}
+.gaa__subhead--first {
+  margin-top: 0;
 }
 /* Icon chip + label-with-tooltip + control, one per row — same visual
    language as AdminSettingsView's `.as__field`, so every settings page in
@@ -1156,6 +1262,87 @@ function cancelEditCredentials() {
   font-size: 0.78rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
   margin: 0.4rem 0 1rem;
+}
+/* The 4 numeric caps as 2 clearly-paired cards instead of 4 identical
+   full-width rows — "new campaign" and "safety cap" each get a budget +
+   CPC figure side by side, so the relationship between the two numbers is
+   visible instead of implied by reading order alone. */
+.gaa__pairGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.3rem;
+}
+.gaa__pairField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: 10px;
+}
+.gaa__pairLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.85);
+}
+.gaa__pairField .gaa__input {
+  width: 100%;
+}
+/* The recommendation toggles as a 2-column grid of bordered cards instead
+   of 8 stacked identical rows — and a visible badge on the 3 types that
+   actually raise Ad Strength, instead of making the admin open a tooltip
+   on every row to find that out. */
+.gaa__toggleGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.6rem;
+}
+.gaa__toggleCard {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: 10px;
+  transition: border-color var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
+}
+.gaa__toggleCard:hover {
+  border-color: var(--tvz-glass-border);
+}
+.gaa__toggleIcon {
+  flex: none;
+  opacity: 0.75;
+}
+.gaa__toggleBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.gaa__toggleLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.83rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.gaa__toggleBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: fit-content;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  color: rgb(var(--v-theme-success));
+  background: rgba(var(--v-theme-success), 0.12);
 }
 .gaa__advancedToggle {
   display: flex;
@@ -1299,6 +1486,10 @@ function cancelEditCredentials() {
   align-items: center;
   gap: 0.6rem;
   flex-wrap: wrap;
+}
+.hrow__icon {
+  opacity: 0.6;
+  flex: none;
 }
 .prow__date,
 .hrow__date {
