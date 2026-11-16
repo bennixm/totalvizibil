@@ -437,7 +437,7 @@ function pick(key: 'easy' | 'advanced'): void {
 
 .plan__cta {
   margin-top: auto;
-  height: 48px !important;
+  box-sizing: border-box;
   font-weight: 600;
   letter-spacing: 0.01em;
   text-transform: none;
@@ -453,6 +453,12 @@ function pick(key: 'easy' | 'advanced'): void {
 }
 .plan__cta:hover :deep(.v-icon) {
   transform: translateX(3px);
+}
+.plan__cta--easy {
+  /* Drawn explicitly rather than relying on Vuetify's `outlined` variant
+     border (`border: thin solid currentColor`) — under this card's
+     `backdrop-filter`, that border rendered with a gap on one edge. */
+  border: 1.5px solid rgb(var(--v-theme-primary)) !important;
 }
 .plan__cta--easy:hover {
   background: rgba(var(--v-theme-primary), 0.06);
