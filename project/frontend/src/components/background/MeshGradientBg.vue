@@ -153,12 +153,17 @@ const reduceMotion =
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+function draw(t: number) {
+  if (!gl) return
+  gl.uniform1f(uniforms.u_time, t)
+  gl.drawArrays(gl.TRIANGLES, 0, 3)
+}
+
 function frame(ts: number) {
   if (!gl || !canvas.value) return
   if (!startTime) startTime = ts
   const t = reduceMotion ? 0 : (ts - startTime) / 1000
-  gl.uniform1f(uniforms.u_time, t)
-  gl.drawArrays(gl.TRIANGLES, 0, 3)
+  draw(t)
   if (!reduceMotion) rafId = requestAnimationFrame(frame)
 }
 
@@ -172,6 +177,12 @@ function resize() {
     canvas.value.height = h
     gl.viewport(0, 0, w, h)
     gl.uniform2f(uniforms.u_res, w, h)
+    // Resizing a canvas clears its pixel buffer to black. On mobile, scrolling
+    // constantly toggles the browser's address bar and resizes this fixed-position
+    // canvas, so without an immediate repaint here the next rAF frame lags behind
+    // the resize and a black flash shows through — the "glitch" during scroll.
+    const t = reduceMotion ? 0 : startTime ? (performance.now() - startTime) / 1000 : 0
+    draw(t)
   }
 }
 
@@ -237,5 +248,9 @@ onBeforeUnmount(() => {
   height: 100%;
   display: block;
   pointer-events: none;
+  /* Forces its own compositing layer so mobile browsers don't drop/repaint
+     this fixed canvas black while the address bar animates during scroll. */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 </style>
