@@ -148,25 +148,25 @@
     "easyTag": "Free",
     "easyFeat": {
       "free": "Free for your first business",
-      "aiServiceCopy": "AI writes your service descriptions and proofreads your text",
+      "aiServiceCopy": "You build the site by chatting with an AI assistant, who writes all the content",
+      "livePreview": "Live preview: the site updates as you chat with the assistant",
       "ownPhotos": "Uses your own business photos",
       "onePage": "A one-page site, ready in minutes"
     },
     "advancedTitle": "Advanced",
     "advancedText": "AI writes real code for a unique site, through a live chat with the assistant.",
-    "advancedTag": "One-time cost",
+    "advancedTag": "Unlock cost",
     "advancedBadge": "Recommended",
     "compareHeading": "Features",
     "compareRow": {
       "realCode": "AI writes real, unique code, not a template",
-      "liveCodeChat": "Live AI chat that writes and edits the code directly",
+      "liveCodeChat": "Live AI chat that writes and edits the source code directly",
       "fullControl": "Full control over structure, design and functionality",
       "unlimitedPages": "No fixed page limit: the AI adds as many as you need",
-      "livePreview": "Preview with the site actually running, not a static mock-up",
-      "bookingForms": "A real contact form and, optionally, online booking",
+      "bookingForms": "Built-in online booking, alongside the contact form",
       "sourceCode": "Access to your site's real source code"
     },
-    "priceLabel": "One-time cost",
+    "priceLabel": "Unlock cost",
     "priceValue": "{credits} credits",
     "priceLoading": "…",
     "priceEq": "≈ €{eur} / ~{ron} RON",
@@ -1084,7 +1084,7 @@
   "advanced": {
     "pitchEyebrow": "Advanced plan",
     "pitchTitle": "What's your business called?",
-    "priceLabel": "One-time cost",
+    "priceLabel": "Unlock cost",
     "fieldName": "Business name",
     "cta": "Continue to account",
     "flowNote": "Next: location & category → account → builder (plan payment) → campaign.",
@@ -1097,7 +1097,7 @@
     "feat": {
       "pages": "A real, custom-built website · genuine code, not a template",
       "design": "Full creative control: describe any change, anytime",
-      "unlimited": "Keep refining your site for as long as you want, at no extra cost",
+      "unlimited": "Keep refining your site for as long as you want, straight from your credits wallet",
       "ai": "An AI assistant builds and edits your site from a live chat"
     },
     "backAdmin": "Back to business"
@@ -2476,7 +2476,7 @@
     "loadErrorTitle": "Couldn't load the payment step",
     "bonus": "{credits} credits land back in your wallet right after unlocking.",
     "title": "Unlock the advanced builder",
-    "lead": "A one-time fee, paid from your wallet. After that, an AI assistant builds and keeps refining your site for as long as you want.",
+    "lead": "A one-time payment from your wallet unlocks the builder. From there, you work with an AI assistant that builds and refines your site, using the credits in your wallet as you go.",
     "pay": "Pay {credits} cr and continue",
     "balance": "You have {credits} cr in your wallet",
     "short": "Not enough credits · you're {credits} short.",

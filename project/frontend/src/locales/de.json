@@ -148,25 +148,25 @@
     "easyTag": "Kostenlos",
     "easyFeat": {
       "free": "Kostenlos für dein erstes Unternehmen",
-      "aiServiceCopy": "KI schreibt deine Leistungsbeschreibungen und korrigiert deine Texte",
+      "aiServiceCopy": "Du baust die Website im Gespräch mit einem KI-Assistenten, der den gesamten Inhalt schreibt",
+      "livePreview": "Live-Vorschau: Die Website aktualisiert sich, während du mit dem Assistenten chattest",
       "ownPhotos": "Nutzt deine eigenen Unternehmensfotos",
       "onePage": "Eine einseitige Website, fertig in wenigen Minuten"
     },
     "advancedTitle": "Erweitert",
     "advancedText": "KI schreibt echten Code für eine einzigartige Website, per Live-Chat mit dem Assistenten.",
-    "advancedTag": "Einmalige Kosten",
+    "advancedTag": "Freischaltkosten",
     "advancedBadge": "Empfohlen",
     "compareHeading": "Funktionen",
     "compareRow": {
       "realCode": "KI schreibt echten, einzigartigen Code, keine Vorlage",
-      "liveCodeChat": "Live-KI-Chat, der den Code direkt schreibt und bearbeitet",
+      "liveCodeChat": "Live-KI-Chat, der den Quellcode direkt schreibt und bearbeitet",
       "fullControl": "Volle Kontrolle über Struktur, Design und Funktionen",
       "unlimitedPages": "Keine feste Seitenanzahl: die KI fügt so viele hinzu, wie du brauchst",
-      "livePreview": "Vorschau mit tatsächlich laufender Website, keine statische Attrappe",
-      "bookingForms": "Ein echtes Kontaktformular und optional Online-Terminbuchung",
+      "bookingForms": "Integrierte Online-Terminbuchung, zusätzlich zum Kontaktformular",
       "sourceCode": "Zugriff auf den echten Quellcode deiner Website"
     },
-    "priceLabel": "Einmalige Kosten",
+    "priceLabel": "Freischaltkosten",
     "priceValue": "{credits} Credits",
     "priceLoading": "…",
     "priceEq": "≈ €{eur} / ~{ron} RON",
@@ -1084,7 +1084,7 @@
   "advanced": {
     "pitchEyebrow": "Erweiterter Plan",
     "pitchTitle": "Wie heißt dein Unternehmen?",
-    "priceLabel": "Einmalige Kosten",
+    "priceLabel": "Freischaltkosten",
     "fieldName": "Unternehmensname",
     "cta": "Weiter zum Konto",
     "flowNote": "Als Nächstes: Standort & Kategorie → Konto → Builder (Planzahlung) → Kampagne.",
@@ -1097,7 +1097,7 @@
     "feat": {
       "pages": "Eine echte, maßgeschneiderte Website · echter Code, keine Vorlage",
       "design": "Volle kreative Kontrolle: fordere jederzeit jede Änderung an",
-      "unlimited": "Verbessere deine Website so lange du willst, ohne Zusatzkosten",
+      "unlimited": "Verbessere deine Website so lange du willst, direkt aus deinem Credits-Wallet",
       "ai": "Ein KI-Assistent baut und bearbeitet deine Website per Live-Chat"
     },
     "backAdmin": "Zurück zum Unternehmen"
@@ -2476,7 +2476,7 @@
     "loadErrorTitle": "Der Bezahlschritt konnte nicht geladen werden",
     "bonus": "{credits} Credits landen direkt nach dem Freischalten wieder in deinem Guthaben.",
     "title": "Erweiterten Builder freischalten",
-    "lead": "Eine einmalige Gebühr, aus deinem Wallet bezahlt. Danach baut ein KI-Assistent deine Website und verbessert sie weiter, so lange du willst.",
+    "lead": "Eine einmalige Zahlung aus deinem Wallet schaltet den Builder frei. Danach arbeitest du mit einem KI-Assistenten, der deine Website baut und verfeinert — die Credits in deinem Wallet werden dabei nach und nach genutzt.",
     "pay": "{credits} Cr zahlen und fortfahren",
     "balance": "Du hast {credits} Cr im Wallet",
     "short": "Nicht genug Credits · dir fehlen {credits}.",
