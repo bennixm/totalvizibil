@@ -16,6 +16,7 @@ import {
   Section,
   ServiceItem,
   StatItem,
+  ToneOfVoice,
   WebsiteTheme,
 } from '../website.types';
 import { pickFeatureIcon, pickServiceIcon } from './service-icons';
@@ -96,8 +97,10 @@ export interface EasyAnswers {
   /** Footer social links (`label` + `https://…` url). */
   footerSocials?: { label: string; url: string }[];
 
-  /** One-pager layout variant chosen at the start. */
-  template?: 'classic' | 'bold' | 'minimal';
+  /** One-pager layout variant. Auto-picked once (tone-aware, see
+   *  `pickTemplate`) right as the intro is parsed; stays adjustable live via
+   *  `patchEasy`'s manual "Customize" override, which always wins. */
+  template?: TemplateKey;
 
   locale?: StudioLocale;
   /** Deprecated — the manual grammar toggle was replaced by the end-of-setup review. */
@@ -328,8 +331,11 @@ export function fallbackServiceItems(names: string[], locale: StudioLocale): Ser
 
 // --- templates ---------------------------------------------------------
 // All one-pagers, but with a different section order + feel so two clients
-// picking the same trade don't end up with an identical site.
-export type TemplateKey = 'classic' | 'bold' | 'minimal';
+// picking the same trade don't end up with an identical site. 6 variants,
+// spanning every `radius`/`fontPair`/`density` combination the renderer
+// supports, auto-picked by `pickTemplate` below (tone-aware, not a fixed
+// default) rather than left for the rare visitor who opens "Customize".
+export type TemplateKey = 'classic' | 'bold' | 'minimal' | 'warm' | 'sharp' | 'editorial';
 
 type SectionKind =
   | 'hero'
@@ -416,12 +422,117 @@ const TEMPLATES: Record<TemplateKey, TemplateSpec> = {
     ],
     defaults: { about: true, stats: false, whyUs: false, process: false, cta: true },
   },
+  warm: {
+    radius: 'pill',
+    fontPair: 'serif-sans',
+    density: 'comfortable',
+    heroAlign: 'center',
+    servicesLayout: 'cards',
+    order: [
+      'hero',
+      'stats',
+      'about',
+      'features',
+      'services',
+      'process',
+      'gallery',
+      'testimonials',
+      'faq',
+      'cta',
+      'contact',
+    ],
+    defaults: { about: true, stats: true, whyUs: true, process: true, cta: true },
+  },
+  sharp: {
+    radius: 'none',
+    fontPair: 'mono-sans',
+    density: 'compact',
+    heroAlign: 'start',
+    servicesLayout: 'list',
+    order: [
+      'hero',
+      'services',
+      'features',
+      'process',
+      'stats',
+      'gallery',
+      'testimonials',
+      'about',
+      'faq',
+      'cta',
+      'contact',
+    ],
+    defaults: { about: true, stats: false, whyUs: true, process: true, cta: true },
+  },
+  editorial: {
+    radius: 'large',
+    fontPair: 'grotesk-inter',
+    density: 'spacious',
+    heroAlign: 'start',
+    servicesLayout: 'list',
+    order: [
+      'hero',
+      'services',
+      'about',
+      'stats',
+      'process',
+      'features',
+      'testimonials',
+      'gallery',
+      'faq',
+      'cta',
+      'contact',
+    ],
+    defaults: { about: true, stats: true, whyUs: false, process: true, cta: true },
+  },
 };
 
 export function templateKey(v: unknown): TemplateKey {
-  return v === 'bold' || v === 'minimal' ? v : 'classic';
+  return TEMPLATE_KEYS.includes(v as TemplateKey) ? (v as TemplateKey) : 'classic';
 }
-export const TEMPLATE_KEYS: TemplateKey[] = ['classic', 'bold', 'minimal'];
+export const TEMPLATE_KEYS: TemplateKey[] = [
+  'classic',
+  'bold',
+  'minimal',
+  'warm',
+  'sharp',
+  'editorial',
+];
+
+const TONE_TEMPLATES: Record<ToneOfVoice, TemplateKey[]> = {
+  professional: ['classic', 'sharp'],
+  friendly: ['warm', 'classic'],
+  premium: ['editorial', 'minimal'],
+  bold: ['sharp', 'bold'],
+  calm: ['minimal', 'warm'],
+};
+
+function hashSeed(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/**
+ * Deterministically spread drafts across the 6 templates instead of every
+ * visitor collapsing onto the same default (`templateKey(undefined)` used to
+ * always resolve to `'classic'`). `seed` (the draft id) keeps a single
+ * draft's pick stable across repeated composes; `tone` (from the regex
+ * pre-filter in `website-draft.script.ts`'s `matchTone`, backstopped by
+ * `AiService.parseIntro`'s own tone read) narrows to a plausible-looking
+ * 2-template bucket, and a hash of `businessType` + `seed` still spreads
+ * within that bucket rather than always picking its first entry. An explicit
+ * manual pick via `patchEasy`'s "Customize" panel always overrides this.
+ */
+export function pickTemplate(
+  tone: ToneOfVoice | null | undefined,
+  businessType: string,
+  seed: string,
+): TemplateKey {
+  const candidates = (tone && TONE_TEMPLATES[tone]) || TEMPLATE_KEYS;
+  const h = hashSeed(`${seed}:${businessType.toLowerCase().trim()}`);
+  return candidates[h % candidates.length];
+}
 
 /** Effective section visibility = the client's answer, or the template default. */
 export function effectiveToggles(a: EasyAnswers): {
@@ -700,7 +811,7 @@ export interface EasyPatch {
   footerTagline?: string;
   footerShowContact?: boolean;
   footerSocials?: { label: string; url: string }[];
-  template?: 'classic' | 'bold' | 'minimal';
+  template?: TemplateKey;
   autoGrammar?: boolean;
   locale?: StudioLocale;
 }
@@ -815,9 +926,7 @@ export function mergeEasyPatch(a: EasyAnswers, patch: EasyPatch, h: EasyPatchHel
       .slice(0, 6);
   }
   if (patch.template !== undefined) {
-    a.template = ['classic', 'bold', 'minimal'].includes(patch.template)
-      ? patch.template
-      : 'classic';
+    a.template = TEMPLATE_KEYS.includes(patch.template) ? patch.template : 'classic';
   }
   if (patch.autoGrammar !== undefined) a.autoGrammar = patch.autoGrammar;
   if (patch.locale !== undefined) a.locale = patch.locale;

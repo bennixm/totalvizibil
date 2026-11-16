@@ -40,6 +40,29 @@ export interface GenerateEasySiteCopy {
   ctaButton?: string;
 }
 
+/** Site Simplu's creation flow — the FIRST message (one sentence: who they
+ *  are, what they do, where) needs an immediate, cheap AI read so the
+ *  preview never shows the visitor's raw sentence as their business name.
+ *  Deliberately separate from (and cheaper than) `generateEasySite`, which
+ *  still runs later once services are known. */
+export interface ParseIntroInput {
+  rawIntro: string;
+  locale: AiLocale;
+}
+export interface ParsedIntro {
+  companyName?: string;
+  businessType?: string;
+  city?: string;
+  /** A short, polished landing headline — never the raw sentence. */
+  landingTitle?: string;
+  /** A coarse tone read of the sentence, feeding the Simple builder's
+   *  automatic template pick (`easy-compose.ts`'s `pickTemplate`). Same 5
+   *  buckets as the website module's `ToneOfVoice`, kept as a literal union
+   *  here rather than importing that type — same decoupling reasoning as
+   *  `InterpretEasyEditInput.current` below. */
+  tone?: 'professional' | 'friendly' | 'premium' | 'bold' | 'calm';
+}
+
 /** Site Simplu's creation flow — a free-form "change X" request once the
  *  site is generated, interpreted against a snapshot of its current text. */
 export interface InterpretEasyEditInput {
@@ -263,6 +286,31 @@ const ASK: Record<AiLocale, string> = {
   de: 'Schreibe für jede Leistung eine Beschreibung mit 1–2 Sätzen (max. 220 Zeichen). Antworte mit JSON in der Form {"services":[{"name":"...","description":"..."}]}, behalte die übergebenen Namen und ihre Reihenfolge exakt bei.',
 };
 
+const PARSE_INTRO_SYSTEM: Record<AiLocale, string> = {
+  ro:
+    'Citești o singură propoziție, scrisă informal, în care proprietarul unei afaceri locale mici se descrie pe sine și ' +
+    'afacerea lui. Extragi: numele real al afacerii (curat, cu majusculă, fără cuvinte de umplutură gen "sunt" sau "eu fac"), ' +
+    'domeniul de activitate, orașul (dacă e menționat), și scrii un titlu principal scurt și clar pentru pagina site-ului ' +
+    '(NICIODATĂ propoziția brută copiată). Clasifici și tonul general al propoziției într-una din: professional, friendly, ' +
+    'premium, bold, calm. NU inventezi un nume sau un oraș care nu reiese din text — dacă nu poți determina un câmp, îl omiți. ' +
+    'Răspunzi DOAR cu JSON valid de forma {"companyName":"...","businessType":"...","city":"...","landingTitle":"...","tone":"..."}.',
+  en:
+    'You read one informally written sentence where the owner of a small local business describes themselves and their ' +
+    'business. You extract: the real business name (clean, capitalized, no filler words like "I am" or "I do"), the trade, ' +
+    'the city (if mentioned), and you write a short, clear landing-page headline (NEVER the raw sentence copied as-is). You ' +
+    "also classify the sentence's overall tone into one of: professional, friendly, premium, bold, calm. Do NOT invent a " +
+    "name or city that isn't implied by the text — omit a field you can't determine. Reply with ONLY valid JSON shaped " +
+    '{"companyName":"...","businessType":"...","city":"...","landingTitle":"...","tone":"..."}.',
+  de:
+    'Du liest einen einzigen, informell geschriebenen Satz, in dem sich der Inhaber eines kleinen lokalen Unternehmens und ' +
+    'sein Geschäft beschreibt. Du extrahierst: den echten Firmennamen (sauber, großgeschrieben, ohne Füllwörter wie "ich bin" ' +
+    'oder "ich mache"), die Branche, die Stadt (falls genannt), und schreibst eine kurze, klare Überschrift für die ' +
+    'Landingpage (NIEMALS den rohen Satz unverändert). Du klassifizierst außerdem den Gesamtton des Satzes in eine von: ' +
+    'professional, friendly, premium, bold, calm. Erfinde KEINEN Namen oder Stadt, die sich nicht aus dem Text ergibt — lass ' +
+    'ein Feld weg, das du nicht bestimmen kannst. Antworte NUR mit gültigem JSON in der Form ' +
+    '{"companyName":"...","businessType":"...","city":"...","landingTitle":"...","tone":"..."}.',
+};
+
 const EASY_GENERATE_SYSTEM: Record<AiLocale, string> = {
   ro:
     'Scrii conținutul unui site de o pagină pentru o afacere locală mică (Site Simplu), pornind de la o singură propoziție ' +
@@ -302,7 +350,7 @@ const EASY_EDIT_SYSTEM: Record<AiLocale, string> = {
     'în "reply" că ai nevoie de textul/cifra reală. Câmpurile posibile în "patch": landingTitle, landingSubtitle, about, ' +
     'whyUs (listă de texte scurte), process (listă de {title,text}), faq (listă de {q,a}), testimonials (listă de {quote,author}), ' +
     'stats (listă de {value,label}), ctaHeadline, ctaButton, hours, footerTagline, accentColor (#rrggbb), template ' +
-    '(classic|bold|minimal). Răspunzi DOAR cu acest JSON.',
+    '(classic|bold|minimal|warm|sharp|editorial). Răspunzi DOAR cu acest JSON.',
   en:
     'You help a local business owner adjust their site\'s text through a free-form chat request (e.g. "change the headline", ' +
     '"add a question about the warranty", "make the description shorter"). You are given the site\'s current text and the ' +
@@ -313,7 +361,7 @@ const EASY_EDIT_SYSTEM: Record<AiLocale, string> = {
     'don\'t invent it: explain in "reply" that you need the real text/number. Possible fields in "patch": landingTitle, ' +
     'landingSubtitle, about, whyUs (list of short strings), process (list of {title,text}), faq (list of {q,a}), ' +
     'testimonials (list of {quote,author}), stats (list of {value,label}), ctaHeadline, ctaButton, hours, footerTagline, ' +
-    'accentColor (#rrggbb), template (classic|bold|minimal). Reply with ONLY this JSON.',
+    'accentColor (#rrggbb), template (classic|bold|minimal|warm|sharp|editorial). Reply with ONLY this JSON.',
   de:
     'Du hilfst einem lokalen Unternehmer, den Text seiner Website per frei formulierter Chat-Anfrage anzupassen (z. B. ' +
     '"ändere die Überschrift", "füge eine Frage zur Garantie hinzu", "mach die Beschreibung kürzer"). Du erhältst den ' +
@@ -324,7 +372,7 @@ const EASY_EDIT_SYSTEM: Record<AiLocale, string> = {
     'Zahl verlangt, ohne die echte Information zu geben, erfinde sie nicht: erkläre in "reply", dass du den echten Text/die ' +
     'echte Zahl brauchst. Mögliche Felder in "patch": landingTitle, landingSubtitle, about, whyUs (Liste kurzer Texte), ' +
     'process (Liste von {title,text}), faq (Liste von {q,a}), testimonials (Liste von {quote,author}), stats (Liste von ' +
-    '{value,label}), ctaHeadline, ctaButton, hours, footerTagline, accentColor (#rrggbb), template (classic|bold|minimal). ' +
+    '{value,label}), ctaHeadline, ctaButton, hours, footerTagline, accentColor (#rrggbb), template (classic|bold|minimal|warm|sharp|editorial). ' +
     'Antworte NUR mit diesem JSON.',
 };
 
@@ -690,6 +738,50 @@ export class AiService {
       out.push({ key, kind, message, ...(kind === 'grammar' && fixRaw ? { fix: fixRaw } : {}) });
     }
     return out.slice(0, 40);
+  }
+
+  /**
+   * Site Simplu's creation flow — a cheap, immediate read of the visitor's
+   * very first message (one sentence: who they are, what they do, where),
+   * so the preview can show an interpreted business name/headline from turn
+   * one instead of the raw sentence. `null` on any failure; the caller falls
+   * back to a local deterministic guess (`quickNameGuess` in
+   * `website-draft.script.ts`), never to the uninterpreted sentence itself.
+   */
+  async parseIntro(input: ParseIntroInput): Promise<ParsedIntro | null> {
+    const intro = input.rawIntro.trim();
+    if (intro.length < 2 || intro.length > 500) return null;
+    if (!this.configured) return null;
+
+    const user =
+      `Intro: "${intro.slice(0, 500)}"\n` +
+      'Reply with JSON {"companyName":"...","businessType":"...","city":"...","landingTitle":"...","tone":"..."}.';
+
+    const parsed = (await this.json(
+      PARSE_INTRO_SYSTEM[input.locale] ?? PARSE_INTRO_SYSTEM.ro,
+      user,
+      { maxTokens: 300, effort: 'low', model: this.anthropicModelFast },
+    )) as Record<string, unknown> | null;
+    if (!parsed) return null;
+
+    const str = (v: unknown, max: number): string | undefined => {
+      const s = typeof v === 'string' ? v.trim() : '';
+      return s ? s.slice(0, max) : undefined;
+    };
+    const TONES = ['professional', 'friendly', 'premium', 'bold', 'calm'];
+    const tone =
+      typeof parsed.tone === 'string' && TONES.includes(parsed.tone)
+        ? (parsed.tone as ParsedIntro['tone'])
+        : undefined;
+
+    const out: ParsedIntro = {
+      companyName: str(parsed.companyName, 80),
+      businessType: str(parsed.businessType, 60),
+      city: str(parsed.city, 80),
+      landingTitle: str(parsed.landingTitle, 120),
+      tone,
+    };
+    return Object.values(out).some((v) => v !== undefined) ? out : null;
   }
 
   /**

@@ -3,10 +3,14 @@
  *
  * This is deliberately NOT an LLM: a small deterministic state machine that
  * walks the visitor through a short conversational intake (who they are,
- * their services, optional photos, contact) before the service hands off to
- * Claude once, at the `contact` → `done` transition, to write the rest of the
- * site (see `WebsiteDraftService.generateFullSite`). Template/colour are no
- * longer blocking steps — they get a sane default and stay adjustable
+ * their services, optional photos, contact). The service hands off to Claude
+ * TWICE: a cheap, immediate read of the intro sentence as soon as it arrives
+ * (see `WebsiteDraftService.sendMessage`'s `parseIntroFor` branch and
+ * `AiService.parseIntro`), so the preview never shows the raw sentence as the
+ * business name, and once more at the `contact` → `done` transition to write
+ * the rest of the site (see `WebsiteDraftService.generateFullSite`).
+ * Template/colour are no longer blocking steps — they get an automatic,
+ * tone-aware pick (`easy-compose.ts`'s `pickTemplate`) and stay adjustable
  * live via `patchEasy`, same as always.
  *
  * `done` is the terminal step, but — unlike the old flow — it is NOT a dead
@@ -66,6 +70,17 @@ export interface EasyAdvance {
    *  one-shot full-site generation call before composing (see
    *  `WebsiteDraftService.generateFullSite`) */
   generateFullSite?: boolean;
+  /** set on the first `intro` message: the service should run
+   *  `AiService.parseIntro` on this raw text before composing, so the
+   *  preview shows an interpreted name/headline from turn one instead of
+   *  `quickNameGuess`'s raw-sentence fallback (see
+   *  `WebsiteDraftService.sendMessage`). */
+  parseIntroFor?: string;
+  /** the regex-based tone pre-filter on the same intro text (see
+   *  `matchTone` below) — carried alongside `parseIntroFor` so the service
+   *  can combine it with the AI's own tone read for the automatic template
+   *  pick (`easy-compose.ts`'s `pickTemplate`). */
+  toneGuess?: ToneOfVoice | null;
 }
 
 /** The assistant's first message on a fresh draft (asks the one combined intro question). */
@@ -155,14 +170,22 @@ export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string)
 
   switch (step) {
     case 'intro': {
-      // A quick deterministic guess so the preview updates immediately; the
-      // full-site generation call later refines name/trade/city from the
-      // full sentence, kept here as `rawIntro`.
+      // A quick deterministic guess so the preview is never blank while the
+      // AI call below is in flight — `parseIntroFor` tells the service to
+      // run that call and overwrite this guess before the first compose, so
+      // the visitor's raw sentence never actually reaches the live preview.
       if (t) {
         a.rawIntro = t.slice(0, 500);
         a.companyName = quickNameGuess(t);
       }
-      return { answers: a, step: 'services', assistant: ['askServices'], regenerate: true };
+      return {
+        answers: a,
+        step: 'services',
+        assistant: ['askServices'],
+        regenerate: true,
+        parseIntroFor: t || undefined,
+        toneGuess: t ? matchTone(t) : undefined,
+      };
     }
 
     case 'services': {
