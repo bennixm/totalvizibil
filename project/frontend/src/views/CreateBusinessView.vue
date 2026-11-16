@@ -455,10 +455,41 @@ function pick(key: 'easy' | 'advanced'): void {
   transform: translateX(3px);
 }
 .plan__cta--easy {
-  /* Drawn explicitly rather than relying on Vuetify's `outlined` variant
-     border (`border: thin solid currentColor`) — under this card's
-     `backdrop-filter`, that border rendered with a gap on one edge. */
-  border: 1.5px solid rgb(var(--v-theme-primary)) !important;
+  /* The site-wide `.rounded-pill` rule (main.scss) clips every pill button
+     to a chamfered-corner polygon via `clip-path`. A plain `border` is
+     drawn on the element's rectangular box, so at each chamfer the clip
+     cuts straight through the border line, leaving a gap at the corner.
+     Fix: draw the border as its own clipped "ring" shape (an evenodd
+     polygon: outer hex minus an inset inner hex) on ::before, instead of
+     relying on the `border` property at all. */
+  position: relative;
+  border: none !important;
+}
+.plan__cta--easy::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgb(var(--v-theme-primary));
+  clip-path: polygon(
+    evenodd,
+    var(--tvz-cut-md) 0,
+    calc(100% - var(--tvz-cut-md)) 0,
+    100% var(--tvz-cut-md),
+    100% calc(100% - var(--tvz-cut-md)),
+    calc(100% - var(--tvz-cut-md)) 100%,
+    var(--tvz-cut-md) 100%,
+    0 calc(100% - var(--tvz-cut-md)),
+    0 var(--tvz-cut-md),
+    calc(var(--tvz-cut-md) + 1.5px) 1.5px,
+    calc(100% - var(--tvz-cut-md) - 1.5px) 1.5px,
+    calc(100% - 1.5px) calc(var(--tvz-cut-md) + 1.5px),
+    calc(100% - 1.5px) calc(100% - var(--tvz-cut-md) - 1.5px),
+    calc(100% - var(--tvz-cut-md) - 1.5px) calc(100% - 1.5px),
+    calc(var(--tvz-cut-md) + 1.5px) calc(100% - 1.5px),
+    1.5px calc(100% - var(--tvz-cut-md) - 1.5px),
+    1.5px calc(var(--tvz-cut-md) + 1.5px)
+  );
 }
 .plan__cta--easy:hover {
   background: rgba(var(--v-theme-primary), 0.06);
