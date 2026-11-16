@@ -171,6 +171,10 @@ export interface WebsiteDraftView {
   categorySlugs: string[]
   location: DraftLocation | null
   updatedAt: string
+  /** Only present on the one response where the creation flow's automatic
+   *  end-of-setup AI review just ran (the `contact` → `done` transition) —
+   *  there is no manual "check my text" trigger in that flow any more. */
+  reviewIssues?: DraftIssue[]
 }
 
 export interface SetLocationInput {

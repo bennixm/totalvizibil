@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter, type RouteLocationRaw } from 'vue-router'
+import AdminHint from './AdminHint.vue'
 
 const props = defineProps<{
   label: string
@@ -13,6 +14,10 @@ const props = defineProps<{
   /** Shows the dedicated credits-unit icon right after `value`, instead of
    *  spelling out "Credite"/"cr" in the string itself. */
   valueIsCredits?: boolean
+  /** Explanatory copy for THIS card specifically — rendered right next to
+   *  its own label, never as a standalone note elsewhere on the page where
+   *  it'd read as explaining a neighboring card instead. */
+  hint?: string
 }>()
 
 const router = useRouter()
@@ -31,7 +36,10 @@ function go() {
     @click="go"
   >
     <div class="asc__top">
-      <span class="asc__label">{{ label }}</span>
+      <span class="asc__label">
+        {{ label }}
+        <AdminHint v-if="hint" :text="hint" size="sm" />
+      </span>
       <v-icon v-if="icon" :icon="icon" size="18" class="asc__icon" />
     </div>
     <div class="asc__value">
@@ -84,6 +92,9 @@ function go() {
   gap: 0.5rem;
 }
 .asc__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font-size: 0.74rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }

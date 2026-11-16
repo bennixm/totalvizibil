@@ -22,7 +22,7 @@ function makeDraft(overrides: Record<string, any> = {}): any {
     mode: 'easy',
     plan: 'free',
     status: 'ready',
-    step: 'template',
+    step: 'intro',
     turnsUsed: 0,
     answers: { locale: 'ro' },
     transcript: [{ role: 'assistant', key: 'opening', at: new Date().toISOString() }],
@@ -93,6 +93,8 @@ function fakeAi() {
     serviceCopy: jest.fn().mockResolvedValue(null),
     reviewCopy: jest.fn().mockResolvedValue(null),
     suggestSubcategories: jest.fn().mockResolvedValue(null),
+    generateEasySite: jest.fn().mockResolvedValue(null),
+    interpretEasyEdit: jest.fn().mockResolvedValue(null),
   };
 }
 
@@ -209,12 +211,12 @@ describe('WebsiteDraftService', () => {
   // advanceStep — widget steps that require no AI
   // -----------------------------------------------------------------------
   describe('advanceStep', () => {
-    it('advances the portfolio step to contact without calling ai.serviceCopy', async () => {
+    it('advances the photos step to contact without calling ai.serviceCopy', async () => {
       const { svc, prisma, ai } = makeService();
       prisma.__seedDraft({
         id: 'd1',
         tokenHash: hashToken('tok1'),
-        step: 'portfolio',
+        step: 'photos',
         mode: 'easy',
       });
       const view = await svc.advanceStep('d1', 'tok1');
@@ -222,16 +224,16 @@ describe('WebsiteDraftService', () => {
       expect(ai.serviceCopy).not.toHaveBeenCalled();
     });
 
-    it('advances the color step to landing without calling ai.serviceCopy', async () => {
+    it('advances the services step (no text) to photos without calling ai.serviceCopy', async () => {
       const { svc, prisma, ai } = makeService();
       prisma.__seedDraft({
         id: 'd1',
         tokenHash: hashToken('tok1'),
-        step: 'color',
+        step: 'services',
         mode: 'easy',
       });
       const view = await svc.advanceStep('d1', 'tok1');
-      expect(view.step).toBe('landing');
+      expect(view.step).toBe('photos');
       expect(ai.serviceCopy).not.toHaveBeenCalled();
     });
 
@@ -240,7 +242,7 @@ describe('WebsiteDraftService', () => {
       prisma.__seedDraft({
         id: 'd1',
         tokenHash: hashToken('tok1'),
-        step: 'portfolio',
+        step: 'photos',
         mode: 'advanced',
       });
       await expect(svc.advanceStep('d1', 'tok1')).rejects.toBeInstanceOf(BadRequestException);
@@ -261,7 +263,7 @@ describe('WebsiteDraftService', () => {
       prisma.__seedDraft({
         id: 'd1',
         tokenHash: hashToken('tok1'),
-        step: 'name',
+        step: 'intro',
         mode: 'easy',
         turnsUsed: 40, // FREE_MAX_TURNS = 40
       });
@@ -275,23 +277,10 @@ describe('WebsiteDraftService', () => {
       prisma.__seedDraft({
         id: 'd1',
         tokenHash: hashToken('tok1'),
-        step: 'name',
+        step: 'intro',
         mode: 'easy',
       });
       await expect(svc.sendMessage('d1', 'tok1', '   ')).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-    });
-
-    it('throws BadRequestException on a widget-only step (template)', async () => {
-      const { svc, prisma } = makeService();
-      prisma.__seedDraft({
-        id: 'd1',
-        tokenHash: hashToken('tok1'),
-        step: 'template',
-        mode: 'easy',
-      });
-      await expect(svc.sendMessage('d1', 'tok1', 'hello')).rejects.toBeInstanceOf(
         BadRequestException,
       );
     });
@@ -301,15 +290,136 @@ describe('WebsiteDraftService', () => {
       prisma.__seedDraft({
         id: 'd1',
         tokenHash: hashToken('tok1'),
-        step: 'name',
+        step: 'intro',
         mode: 'easy',
         answers: { locale: 'ro' },
       });
-      const view = await svc.sendMessage('d1', 'tok1', 'AquaFix');
-      expect(view.step).toBe('field');
+      const view = await svc.sendMessage('d1', 'tok1', 'AquaFix, instalatii');
+      expect(view.step).toBe('services');
       expect(prisma.websiteDraft.update).toHaveBeenCalled();
       const updateArg = prisma.websiteDraft.update.mock.calls[0][0];
       expect(updateArg.data.turnsUsed).toBe(1);
+    });
+
+    it('runs the one-shot full-site generation when the contact step finishes', async () => {
+      const { svc, prisma, ai } = makeService();
+      ai.generateEasySite.mockResolvedValue({
+        landingTitle: 'AquaFix — instalatori de încredere',
+        about: 'Text generat.',
+      });
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'contact',
+        mode: 'easy',
+        answers: { locale: 'ro', companyName: 'AquaFix', rawIntro: 'AquaFix, instalatii' },
+      });
+      const view = await svc.sendMessage('d1', 'tok1', '0722 123 456');
+      expect(view.step).toBe('done');
+      expect(ai.generateEasySite).toHaveBeenCalledTimes(1);
+      expect(view.easy?.landingTitle).toBe('AquaFix — instalatori de încredere');
+      expect(view.easy?.about).toBe('Text generat.');
+    });
+
+    it('runs the AI text review automatically on generation — no manual trigger in this flow', async () => {
+      const { svc, prisma, ai } = makeService();
+      ai.generateEasySite.mockResolvedValue({ about: 'Un text cu o gresala.' });
+      ai.reviewCopy.mockResolvedValue([
+        { key: 'about', kind: 'meaning', message: 'Propoziția nu are sens clar.' },
+      ]);
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'contact',
+        mode: 'easy',
+        answers: { locale: 'ro', companyName: 'AquaFix' },
+      });
+      const view = await svc.sendMessage('d1', 'tok1', '0722 123 456');
+      expect(ai.reviewCopy).toHaveBeenCalledTimes(1);
+      expect(view.reviewIssues).toEqual([
+        expect.objectContaining({ key: 'about', kind: 'meaning' }),
+      ]);
+    });
+
+    it('does not re-run generation or review on a replayed contact->done transition', async () => {
+      const { svc, prisma, ai } = makeService();
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'contact',
+        mode: 'easy',
+        answers: { locale: 'ro', companyName: 'AquaFix', generatedAt: new Date().toISOString() },
+      });
+      const view = await svc.sendMessage('d1', 'tok1', '0722 123 456');
+      expect(view.step).toBe('done');
+      expect(ai.generateEasySite).not.toHaveBeenCalled();
+      expect(view.reviewIssues).toBeUndefined();
+    });
+
+    it('a chat message at the done step is treated as a free-form edit, not a guided-step answer', async () => {
+      const { svc, prisma, ai } = makeService();
+      ai.interpretEasyEdit.mockResolvedValue({
+        patch: { ctaHeadline: 'Sunăm noi pe tine!' },
+        reply: 'Am schimbat titlul îndemnului.',
+      });
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'done',
+        mode: 'easy',
+        answers: { locale: 'ro', companyName: 'AquaFix', generatedAt: new Date().toISOString() },
+      });
+      const view = await svc.sendMessage('d1', 'tok1', 'schimbă titlul îndemnului');
+      expect(view.step).toBe('done');
+      expect(ai.interpretEasyEdit).toHaveBeenCalledTimes(1);
+      expect(view.easy?.ctaHeadline).toBe('Sunăm noi pe tine!');
+      expect(view.transcript.at(-1)).toMatchObject({
+        role: 'assistant',
+        text: 'Am schimbat titlul îndemnului.',
+      });
+    });
+
+    it('a failed edit interpretation leaves the site untouched and tells the visitor', async () => {
+      const { svc, prisma, ai } = makeService();
+      ai.interpretEasyEdit.mockResolvedValue(null);
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'done',
+        mode: 'easy',
+        answers: { locale: 'ro', ctaHeadline: 'Original' },
+      });
+      const view = await svc.sendMessage('d1', 'tok1', 'ceva neclar');
+      expect(view.easy?.ctaHeadline).toBe('Original');
+      expect(view.transcript.at(-1)).toMatchObject({ role: 'assistant', key: 'editFailed' });
+    });
+
+    it('stops spending AI calls past EDIT_CALL_CAP (15) but still accepts the turn', async () => {
+      const { svc, prisma, ai } = makeService();
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'done',
+        mode: 'easy',
+        answers: { locale: 'ro', editCalls: 15 },
+      });
+      const view = await svc.sendMessage('d1', 'tok1', 'mai schimbă ceva');
+      expect(ai.interpretEasyEdit).not.toHaveBeenCalled();
+      expect(view.transcript.at(-1)).toMatchObject({ role: 'assistant', key: 'editCapped' });
+    });
+
+    it('throws BadRequestException for a chat-edit attempt on an advanced draft', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'done',
+        mode: 'advanced',
+        answers: { locale: 'ro' },
+      });
+      await expect(svc.sendMessage('d1', 'tok1', 'schimbă ceva')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
   });
 });

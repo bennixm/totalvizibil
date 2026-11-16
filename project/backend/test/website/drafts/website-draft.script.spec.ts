@@ -8,18 +8,19 @@ import {
   matchTone,
   nextEasyStep,
   openingTranscript,
+  quickNameGuess,
   splitList,
 } from 'src/website/drafts/website-draft.script';
 
 describe('website-draft guided script', () => {
-  it('opens with the style/template prompt', () => {
+  it('opens with the combined intro prompt', () => {
     const t = openingTranscript();
     expect(t).toHaveLength(1);
     expect(t[0]).toMatchObject({ role: 'assistant', key: 'opening' });
   });
 
-  it('walks template -> name -> field -> color -> landing -> services -> portfolio -> contact -> done', () => {
-    let step: EasyStep = 'template';
+  it('walks intro -> services -> photos -> contact -> done', () => {
+    let step: EasyStep = 'intro';
     let answers: EasyAnswers = { locale: 'ro' };
 
     const feed = (text?: string) => {
@@ -29,28 +30,11 @@ describe('website-draft guided script', () => {
       return r;
     };
 
-    // template step is advanced from the picker widget, no text
-    let r = feed();
-    expect(step).toBe('name');
-    expect(r.assistant).toEqual(['askName']);
-
-    r = feed('AquaFix');
-    expect(step).toBe('field');
-    expect(answers.companyName).toBe('AquaFix');
-    expect(r.assistant).toEqual(['askField']);
-
-    r = feed('instalații sanitare și termice');
-    expect(step).toBe('color');
-    expect(answers.businessType).toBe('instalații sanitare și termice');
-    expect(r.assistant).toEqual(['askColor']);
-
-    // colour step is advanced from the widget, no text
-    feed();
-    expect(step).toBe('landing');
-
-    feed('Instalatori de încredere în Cluj');
+    let r = feed('AquaFix, instalații sanitare și termice, din Cluj');
     expect(step).toBe('services');
-    expect(answers.landingTitle).toBe('Instalatori de încredere în Cluj');
+    expect(answers.companyName).toBe('AquaFix');
+    expect(answers.rawIntro).toBe('AquaFix, instalații sanitare și termice, din Cluj');
+    expect(r.assistant).toEqual(['askServices']);
 
     r = feed('Montaj centrale, Desfundare canalizare, Reparatii baterii');
     // a real list keeps us on the services step so the copy can be reordered
@@ -67,13 +51,13 @@ describe('website-draft guided script', () => {
       'Reparatii baterii',
     ]);
     expect(r.assistant).toEqual(['servicesGenerated']);
-    // the trade from the "field" step is preserved (not overwritten by service names)
-    expect(answers.businessType).toBe('instalații sanitare și termice');
 
-    // "Continue" (no text) advances services -> portfolio -> contact
+    // "Continue" (no text) advances services -> photos
     feed();
-    expect(step).toBe('portfolio');
-    feed();
+    expect(step).toBe('photos');
+
+    // photos is optional/skippable — any message (including "skip") moves on
+    feed('sar peste');
     expect(step).toBe('contact');
 
     const c = feed('0722 123 456, contact@aquafix.ro');
@@ -82,13 +66,15 @@ describe('website-draft guided script', () => {
     expect(answers.email).toBe('contact@aquafix.ro');
     expect(c.assistant).toEqual(['contactSaved', 'done']);
     expect(c.regenerate).toBe(true);
+    // the service should run the one-shot full-site generation call now
+    expect(c.generateFullSite).toBe(true);
   });
 
   it('services step with "skip" moves on without an AI call', () => {
     const r = advanceEasy('services', { locale: 'ro' }, 'skip');
-    expect(r.step).toBe('portfolio');
+    expect(r.step).toBe('photos');
     expect(r.generateServicesFor).toBeUndefined();
-    expect(r.assistant).toEqual(['askPortfolio']);
+    expect(r.assistant).toEqual(['askPhotos']);
   });
 
   it('contact step accepts "skip"', () => {
@@ -98,7 +84,7 @@ describe('website-draft guided script', () => {
     expect(r.answers.email).toBeUndefined();
   });
 
-  it('a finished draft stays finished', () => {
+  it('a finished draft stays finished (free-form edits are handled by the service, not this pure script)', () => {
     const r = advanceEasy('done', {}, 'hello?');
     expect(r.step).toBe('done');
     expect(r.assistant).toEqual(['alreadyDone']);
@@ -106,11 +92,22 @@ describe('website-draft guided script', () => {
   });
 
   it('nextEasyStep clamps at done', () => {
-    expect(nextEasyStep('template')).toBe('name');
-    expect(nextEasyStep('name')).toBe('field');
-    expect(nextEasyStep('field')).toBe('color');
+    expect(nextEasyStep('intro')).toBe('services');
+    expect(nextEasyStep('services')).toBe('photos');
+    expect(nextEasyStep('photos')).toBe('contact');
     expect(nextEasyStep('contact')).toBe('done');
     expect(nextEasyStep('done')).toBe('done');
+  });
+
+  describe('quickNameGuess', () => {
+    it('takes the clause before the first comma/dash', () => {
+      expect(quickNameGuess('AquaFix, instalații sanitare în Cluj')).toBe('AquaFix');
+      expect(quickNameGuess('AquaFix - instalații sanitare')).toBe('AquaFix');
+    });
+
+    it('falls back to the whole (truncated) text with no separator', () => {
+      expect(quickNameGuess('AquaFix Instalatii')).toBe('AquaFix Instalatii');
+    });
   });
 
   describe('helpers (shared with the advanced builder script)', () => {

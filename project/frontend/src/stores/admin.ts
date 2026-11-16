@@ -493,6 +493,7 @@ export interface UpdateUserInput {
 
 export type CampaignAction = 'pause' | 'activate' | 'delete'
 
+export type CategoryLocale = 'ro' | 'en' | 'de'
 export interface CategoryNameInput {
   ro: string
   en: string
@@ -1286,6 +1287,21 @@ export const useAdminStore = defineStore('admin', {
         method: 'DELETE',
       })
       this.categories = res.data
+    },
+
+    /** Auto-fill helper for the category editor: translates `text` (typed in
+     *  `from`) into the other two locales. Never throws from the caller's
+     *  point of view beyond a network failure — an unconfigured/failed AI
+     *  call just comes back as `{}`, so the admin keeps typing manually. */
+    async translateCategoryName(
+      text: string,
+      from: CategoryLocale,
+    ): Promise<Partial<CategoryNameInput>> {
+      const res = await apiFetch<{ translations: Partial<CategoryNameInput> }>(
+        '/admin/categories/translate-name',
+        { method: 'POST', body: { text, from } },
+      )
+      return res.translations
     },
 
     // --- jurnal / audit -------------------------------------------------
