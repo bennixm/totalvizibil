@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { AuditActor, AuditLogService } from './audit-log.service';
+import { AiLocale, AiService } from '../ai/ai.service';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -12,7 +13,17 @@ export class AdminCategoriesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
+    private readonly ai: AiService,
   ) {}
+
+  /** Auto-translate a category name typed in one language into the other
+   *  two, for the admin editor's live auto-fill. Empty result (never an
+   *  error) when AI isn't configured or the translation didn't come back
+   *  clean — the admin just keeps typing manually in that case. */
+  async translateName(text: string, from: AiLocale) {
+    const translations = await this.ai.translateCategoryName(text, from);
+    return { translations: translations ?? {} };
+  }
 
   /** Full two-level tree including inactive nodes, with per-category company counts. */
   async tree() {

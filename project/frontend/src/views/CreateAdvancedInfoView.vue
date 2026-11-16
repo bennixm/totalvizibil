@@ -1,20 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
-import { fetchPricing } from '@/services/platform'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
 import { useToastStore } from '@/stores/toast'
 
-const { t, n } = useI18n()
+const { t } = useI18n()
 const router = useRouter()
 const draftStore = useWebsiteDraftStore()
 
-const priceCredits = ref<number | null>(null)
-const bonusCredits = ref<number | null>(null)
-const eurRonRate = ref(5.05)
 const busy = ref(false)
 const error = ref('')
 const toasts = useToastStore()
@@ -23,14 +19,6 @@ watch(error, (v) => { if (v) toasts.error(v) })
 const businessName = ref('')
 
 const canStart = computed(() => businessName.value.trim().length > 1)
-const ronApprox = computed(() =>
-  priceCredits.value ? Math.round(priceCredits.value * eurRonRate.value) : null,
-)
-
-const BASE_PERKS = ['real', 'ai', 'design', 'forms', 'seo'] as const
-/** Only shown once the real (admin-configurable) bonus amount has loaded —
- *  never render a placeholder/guessed number. */
-const perks = computed(() => (bonusCredits.value != null ? [...BASE_PERKS, 'bonus'] : BASE_PERKS))
 
 async function start(): Promise<void> {
   if (!canStart.value || busy.value) return
@@ -43,48 +31,15 @@ async function start(): Promise<void> {
   if (ok) void router.push({ name: 'create-account' })
   else error.value = draftStore.error === 'rate_limited' ? t('studio.rateLimited') : t('advanced.error')
 }
-
-onMounted(async () => {
-  try {
-    const p = await fetchPricing()
-    priceCredits.value = p.advancedBuilderPriceCredits
-    bonusCredits.value = p.advancedBuilderUnlockBonusCredits
-    eurRonRate.value = p.eurRonRate
-  } catch {
-    priceCredits.value = null
-  }
-})
 </script>
 
 <template>
   <v-container class="adv">
     <OnboardingSteps mode="advanced" current="pitch" class="adv__steps" />
     <header class="adv__head">
-      <p class="adv__eyebrow"><span class="adv__dot" /> {{ t('advanced.eyebrow') }}</p>
-      <h1>{{ t('advanced.title') }}</h1>
-      <p class="adv__lead">{{ t('advanced.lead') }}</p>
+      <p class="adv__eyebrow"><span class="adv__dot" /> {{ t('advanced.pitchEyebrow') }}</p>
+      <h1>{{ t('advanced.pitchTitle') }}</h1>
     </header>
-
-    <div class="adv__price">
-      <div>
-        <span class="adv__priceLabel">{{ t('advanced.priceLabel') }}</span>
-        <strong v-if="priceCredits != null">
-          {{ t('advanced.priceValue', { credits: priceCredits }) }}
-        </strong>
-        <strong v-else>…</strong>
-        <span v-if="priceCredits != null" class="adv__priceEq">
-          ≈ €{{ n(priceCredits, { maximumFractionDigits: 0 }) }} /
-          ~{{ n(ronApprox ?? 0, { maximumFractionDigits: 0 }) }} RON
-        </span>
-      </div>
-      <p class="adv__priceNote">{{ t('advanced.priceNote') }}</p>
-    </div>
-
-    <ul class="adv__perks">
-      <li v-for="p in perks" :key="p">
-        <v-icon icon="mdi-check" size="16" /> {{ t('advanced.perk.' + p, { credits: bonusCredits }) }}
-      </li>
-    </ul>
 
     <form class="adv__form" @submit.prevent="start">
       <v-text-field
@@ -154,59 +109,6 @@ onMounted(async () => {
   letter-spacing: -0.02em;
   margin: 0;
 }
-.adv__lead {
-  margin: 0.6rem auto 0;
-  max-width: 40ch;
-  color: rgba(var(--v-theme-on-surface), 0.66);
-  font-size: 0.95rem;
-}
-
-.adv__price {
-  padding: 1.25rem 1.5rem;
-  border-radius: var(--tvz-radius-lg);
-  border: 1px solid var(--tvz-glass-border);
-  background: var(--tvz-ai-soft);
-  text-align: center;
-}
-.adv__priceLabel {
-  display: block;
-  font-size: 0.78rem;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.adv__price strong {
-  display: block;
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.9rem;
-  font-weight: 700;
-  margin: 0.2rem 0;
-}
-.adv__priceEq {
-  font-size: 0.85rem;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-}
-.adv__priceNote {
-  margin: 0.6rem 0 0;
-  font-size: 0.76rem;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-
-.adv__perks {
-  list-style: none;
-  padding: 0;
-  margin: 1.25rem 0;
-  display: grid;
-  gap: 0.4rem;
-}
-.adv__perks li {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.88rem;
-  color: rgba(var(--v-theme-on-surface), 0.8);
-}
-.adv__perks .v-icon {
-  color: rgb(var(--v-theme-success));
-}
 
 .adv__form {
   display: flex;
@@ -218,17 +120,6 @@ onMounted(async () => {
   text-align: center;
   font-size: 0.76rem;
   color: rgba(var(--v-theme-on-surface), 0.5);
-}
-.adv__error {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-top: 1rem;
-  padding: 0.7rem 1rem;
-  border-radius: var(--tvz-radius-md);
-  background: rgba(var(--v-theme-error), 0.1);
-  color: rgb(var(--v-theme-error));
-  font-size: 0.82rem;
 }
 .adv__back {
   margin-top: 1rem;

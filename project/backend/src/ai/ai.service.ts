@@ -18,6 +18,49 @@ export interface ServiceCopy {
   description: string;
 }
 
+/** Site Simplu's creation flow — one combined intro message + the service
+ *  list already typed — is enough context to write the rest of the site. */
+export interface GenerateEasySiteInput {
+  /** The visitor's raw "name + what you do + city" sentence, unparsed. */
+  rawIntro: string;
+  services: string[];
+  locale: AiLocale;
+}
+export interface GenerateEasySiteCopy {
+  companyName?: string;
+  businessType?: string;
+  city?: string;
+  landingTitle?: string;
+  landingSubtitle?: string;
+  about?: string;
+  whyUs?: string[];
+  process?: { title: string; text?: string }[];
+  faq?: { q: string; a: string }[];
+  ctaHeadline?: string;
+  ctaButton?: string;
+}
+
+/** Site Simplu's creation flow — a free-form "change X" request once the
+ *  site is generated, interpreted against a snapshot of its current text. */
+export interface InterpretEasyEditInput {
+  message: string;
+  /** Compact snapshot of the current editable text, so the AI targets the
+   *  right field(s) instead of guessing blind. Left untyped (not `EasyAnswers`)
+   *  to keep this service decoupled from the website/drafts module. */
+  current: Record<string, unknown>;
+  locale: AiLocale;
+}
+export interface InterpretedEasyEdit {
+  /** Only the fields the message actually asked to change — same shape as
+   *  the caller's `EasyPatch`, left untyped here for the same reason as above. */
+  patch: Record<string, unknown>;
+  /** A short reply in the request's own locale, shown to the visitor
+   *  verbatim — the one deliberate exception to this file's i18n-key-only
+   *  convention for assistant turns, since a free-form request needs a
+   *  free-form reply (see `website-draft.script.ts`'s own comment on this). */
+  reply: string;
+}
+
 /** Simple builder — end-of-setup review of the texts the owner typed. */
 export interface ReviewCopyInput {
   items: { key: string; label: string; text: string }[];
@@ -218,6 +261,77 @@ const ASK: Record<AiLocale, string> = {
   ro: 'Pentru fiecare serviciu scrie o descriere de 1–2 propoziții (maxim 220 de caractere). Răspunde cu JSON de forma {"services":[{"name":"...","description":"..."}]}, păstrând exact numele primite și ordinea lor.',
   en: 'For each service write a 1–2 sentence description (max 220 characters). Reply with JSON shaped {"services":[{"name":"...","description":"..."}]}, keeping the exact names given and their order.',
   de: 'Schreibe für jede Leistung eine Beschreibung mit 1–2 Sätzen (max. 220 Zeichen). Antworte mit JSON in der Form {"services":[{"name":"...","description":"..."}]}, behalte die übergebenen Namen und ihre Reihenfolge exakt bei.',
+};
+
+const EASY_GENERATE_SYSTEM: Record<AiLocale, string> = {
+  ro:
+    'Scrii conținutul unui site de o pagină pentru o afacere locală mică (Site Simplu), pornind de la o singură propoziție ' +
+    'în care proprietarul își descrie afacerea și lista de servicii. Identifici numele afacerii, domeniul de activitate și ' +
+    'orașul din propoziție (dacă sunt menționate). Scrii apoi: un titlu principal și un subtitlu, un paragraf "Despre noi", ' +
+    '3–4 motive scurte "De ce noi", 3–4 pași "Cum lucrăm" (titlu + o propoziție), 3–4 întrebări frecvente cu răspuns scurt, ' +
+    'și un titlu + text de buton pentru îndemnul final. Totul concret, pe înțelesul unui client, fără clișee de marketing. ' +
+    'NU inventezi cifre concrete (ani de experiență, număr de clienți, rating) și NU inventezi testimoniale sau nume de clienți — ' +
+    'dacă nu ai informația, pur și simplu nu scrii acea parte. Răspunzi DOAR cu JSON valid, fără alt text.',
+  en:
+    'You write the content for a one-page site for a small local business (a "Simple Site"), starting from a single ' +
+    'sentence where the owner describes their business and a list of services. You identify the business name, trade and ' +
+    'city from that sentence (if mentioned). You then write: a headline and subheadline, an "About us" paragraph, ' +
+    '3-4 short "Why us" reasons, 3-4 "How we work" steps (title + one sentence), 3-4 FAQ entries with a short answer, ' +
+    'and a headline + button label for the closing call-to-action. Everything concrete and in plain language, no marketing ' +
+    'clichés. Do NOT invent specific numbers (years of experience, client count, ratings) and do NOT invent testimonials or ' +
+    "customer names — if you don't have the information, simply leave that part out. Reply with valid JSON only, no other text.",
+  de:
+    'Du schreibst den Inhalt für eine einseitige Website eines kleinen lokalen Unternehmens ("Einfache Seite"), ausgehend ' +
+    'von einem einzigen Satz, in dem der Inhaber sein Geschäft und eine Liste von Leistungen beschreibt. Du erkennst den ' +
+    'Firmennamen, die Branche und die Stadt aus diesem Satz (falls genannt). Du schreibst dann: eine Überschrift und ' +
+    'Unterüberschrift, einen "Über uns"-Absatz, 3-4 kurze "Warum wir"-Gründe, 3-4 "So arbeiten wir"-Schritte (Titel + ein ' +
+    'Satz), 3-4 häufige Fragen mit kurzer Antwort, und einen Titel + Button-Text für den abschließenden Call-to-Action. ' +
+    'Alles konkret und verständlich, keine Marketing-Floskeln. Erfinde KEINE konkreten Zahlen (Jahre Erfahrung, Kundenzahl, ' +
+    'Bewertungen) und erfinde KEINE Testimonials oder Kundennamen — wenn dir die Information fehlt, lässt du diesen Teil ' +
+    'einfach weg. Antworte NUR mit gültigem JSON, ohne weiteren Text.',
+};
+
+const EASY_EDIT_SYSTEM: Record<AiLocale, string> = {
+  ro:
+    'Ajuți proprietarul unei afaceri locale să ajusteze textul site-ului lui printr-o cerere scrisă liber în chat (ex. ' +
+    '"schimbă titlul principal", "adaugă o întrebare despre garanție", "fă descrierea mai scurtă"). Ți se dă textul curent ' +
+    'al site-ului și cererea. Răspunzi cu JSON {"patch": {...}, "reply": "..."}, unde "patch" conține DOAR câmpurile pe care ' +
+    'chiar trebuie să le schimbi (poate fi gol dacă cererea nu cere nimic concret), iar "reply" e un mesaj scurt, prietenos, ' +
+    'în limba cerută, care confirmă ce ai făcut (sau explică de ce nu ai putut). NU inventezi cifre concrete, testimoniale sau ' +
+    'nume de clienți — dacă utilizatorul cere un testimonial sau o cifră fără să dea informația reală, nu o inventa: explică ' +
+    'în "reply" că ai nevoie de textul/cifra reală. Câmpurile posibile în "patch": landingTitle, landingSubtitle, about, ' +
+    'whyUs (listă de texte scurte), process (listă de {title,text}), faq (listă de {q,a}), testimonials (listă de {quote,author}), ' +
+    'stats (listă de {value,label}), ctaHeadline, ctaButton, hours, footerTagline, accentColor (#rrggbb), template ' +
+    '(classic|bold|minimal). Răspunzi DOAR cu acest JSON.',
+  en:
+    'You help a local business owner adjust their site\'s text through a free-form chat request (e.g. "change the headline", ' +
+    '"add a question about the warranty", "make the description shorter"). You are given the site\'s current text and the ' +
+    'request. Reply with JSON {"patch": {...}, "reply": "..."}, where "patch" contains ONLY the fields you actually need to ' +
+    'change (it can be empty if the request asks for nothing concrete), and "reply" is a short, friendly message in the ' +
+    "requested language confirming what you did (or explaining why you couldn't). Do NOT invent specific numbers, " +
+    'testimonials or customer names — if the user asks for a testimonial or a number without giving the real information, ' +
+    'don\'t invent it: explain in "reply" that you need the real text/number. Possible fields in "patch": landingTitle, ' +
+    'landingSubtitle, about, whyUs (list of short strings), process (list of {title,text}), faq (list of {q,a}), ' +
+    'testimonials (list of {quote,author}), stats (list of {value,label}), ctaHeadline, ctaButton, hours, footerTagline, ' +
+    'accentColor (#rrggbb), template (classic|bold|minimal). Reply with ONLY this JSON.',
+  de:
+    'Du hilfst einem lokalen Unternehmer, den Text seiner Website per frei formulierter Chat-Anfrage anzupassen (z. B. ' +
+    '"ändere die Überschrift", "füge eine Frage zur Garantie hinzu", "mach die Beschreibung kürzer"). Du erhältst den ' +
+    'aktuellen Text der Website und die Anfrage. Antworte mit JSON {"patch": {...}, "reply": "..."}, wobei "patch" NUR die ' +
+    'Felder enthält, die wirklich geändert werden müssen (kann leer sein, wenn die Anfrage nichts Konkretes verlangt), und ' +
+    '"reply" eine kurze, freundliche Nachricht in der verlangten Sprache ist, die bestätigt, was du getan hast (oder erklärt, ' +
+    'warum nicht). Erfinde KEINE konkreten Zahlen, Testimonials oder Kundennamen — wenn der Nutzer ein Testimonial oder eine ' +
+    'Zahl verlangt, ohne die echte Information zu geben, erfinde sie nicht: erkläre in "reply", dass du den echten Text/die ' +
+    'echte Zahl brauchst. Mögliche Felder in "patch": landingTitle, landingSubtitle, about, whyUs (Liste kurzer Texte), ' +
+    'process (Liste von {title,text}), faq (Liste von {q,a}), testimonials (Liste von {quote,author}), stats (Liste von ' +
+    '{value,label}), ctaHeadline, ctaButton, hours, footerTagline, accentColor (#rrggbb), template (classic|bold|minimal). ' +
+    'Antworte NUR mit diesem JSON.',
+};
+
+const CATEGORY_TRANSLATE_SYSTEM: Record<AiLocale, string> = {
+  ro: 'Traduci numele unor categorii de afaceri/servicii dintr-un catalog de categorii al unui marketplace, din română către alte limbi. Fiecare traducere trebuie să fie scurtă (câteva cuvinte), naturală și consacrată în limba țintă — denumirea pe care ar folosi-o un site local din acea limbă pentru aceeași categorie, nu o traducere mot-a-mot. Răspunzi DOAR cu JSON valid.',
+  en: 'You translate business/service category names from a marketplace category catalog, from English into other languages. Each translation must be short (a few words), natural and idiomatic in the target language — the name a local site in that language would actually use for the same category, not a literal word-for-word translation. Reply with valid JSON only.',
+  de: 'Du übersetzt Namen von Geschäfts-/Dienstleistungskategorien aus einem Marktplatz-Kategorienkatalog, aus dem Deutschen in andere Sprachen. Jede Übersetzung muss kurz (wenige Wörter), natürlich und in der Zielsprache gebräuchlich sein — die Bezeichnung, die eine lokale Seite in dieser Sprache tatsächlich für dieselbe Kategorie verwenden würde, keine wortwörtliche Übersetzung. Antworte NUR mit gültigem JSON.',
 };
 
 const PROOFREAD_SYSTEM: Record<AiLocale, string> = {
@@ -498,6 +612,41 @@ export class AiService {
   }
 
   /**
+   * Translate a short category name from one locale into the other two —
+   * the admin panel's category editor calls this as the admin types in
+   * whichever language field they started with, auto-filling the rest.
+   * Returns only the locales that translated cleanly (never echoes `from`),
+   * or `null` on any failure so the caller leaves those fields untouched.
+   */
+  async translateCategoryName(
+    text: string,
+    from: AiLocale,
+  ): Promise<Partial<Record<AiLocale, string>> | null> {
+    const src = text.trim();
+    if (src.length < 2 || src.length > 60) return null;
+    if (!this.configured) return null;
+
+    const targets = (['ro', 'en', 'de'] as AiLocale[]).filter((l) => l !== from);
+    const out = await this.json(
+      CATEGORY_TRANSLATE_SYSTEM[from] ?? CATEGORY_TRANSLATE_SYSTEM.ro,
+      `Category name (${LOCALE_NAME[from] ?? from}): "${src}"\n` +
+        `Reply with JSON {${targets.map((l) => `"${l}":"..."`).join(',')}} — ` +
+        `the translation into ${targets.map((l) => LOCALE_NAME[l] ?? l).join(' and ')}.`,
+      { maxTokens: 200, effort: 'low', model: this.anthropicModelFast },
+    );
+    if (!out) return null;
+
+    const result: Partial<Record<AiLocale, string>> = {};
+    for (const l of targets) {
+      const v = out[l];
+      if (typeof v === 'string' && v.trim().length >= 2 && v.trim().length <= 80) {
+        result[l] = v.trim();
+      }
+    }
+    return Object.keys(result).length ? result : null;
+  }
+
+  /**
    * Simple builder — one end-of-setup pass over the texts the owner typed.
    * Flags meaning / grammar / profanity / other problems; `grammar` issues
    * carry a `fix`. `null` when no provider is configured.
@@ -541,6 +690,105 @@ export class AiService {
       out.push({ key, kind, message, ...(kind === 'grammar' && fixRaw ? { fix: fixRaw } : {}) });
     }
     return out.slice(0, 40);
+  }
+
+  /**
+   * Site Simplu's creation flow — one up-front generation pass that writes
+   * the landing headline/subheadline, about, why-us, process, FAQ and CTA
+   * copy from the visitor's one-sentence intro + their service list. Never
+   * asked to write `stats`/`testimonials` — those need real facts only the
+   * owner has, so the caller simply never populates them when this returns
+   * `null`, which the renderer already treats as "section hidden" (no
+   * schema/toggle changes needed for that guarantee).
+   */
+  async generateEasySite(input: GenerateEasySiteInput): Promise<GenerateEasySiteCopy | null> {
+    const intro = input.rawIntro.trim();
+    if (intro.length < 2 || intro.length > 500) return null;
+    if (!this.configured) return null;
+
+    const user =
+      `Intro: "${intro.slice(0, 500)}"\n` +
+      `Services: ${input.services.slice(0, 12).join(', ') || '(none given)'}\n` +
+      'Reply with JSON {"companyName":"...","businessType":"...","city":"...",' +
+      '"landingTitle":"...","landingSubtitle":"...","about":"...",' +
+      '"whyUs":["..."],"process":[{"title":"...","text":"..."}],' +
+      '"faq":[{"q":"...","a":"..."}],"ctaHeadline":"...","ctaButton":"..."}.';
+
+    const parsed = (await this.json(
+      EASY_GENERATE_SYSTEM[input.locale] ?? EASY_GENERATE_SYSTEM.ro,
+      user,
+      { maxTokens: 1200, effort: 'low', model: this.anthropicModelFast },
+    )) as Record<string, unknown> | null;
+    if (!parsed) return null;
+
+    const str = (v: unknown, max: number): string | undefined => {
+      const s = typeof v === 'string' ? v.trim() : '';
+      return s ? s.slice(0, max) : undefined;
+    };
+    const out: GenerateEasySiteCopy = {
+      companyName: str(parsed.companyName, 80),
+      businessType: str(parsed.businessType, 60),
+      city: str(parsed.city, 80),
+      landingTitle: str(parsed.landingTitle, 120),
+      landingSubtitle: str(parsed.landingSubtitle, 160),
+      about: str(parsed.about, 900),
+      ctaHeadline: str(parsed.ctaHeadline, 120),
+      ctaButton: str(parsed.ctaButton, 40),
+    };
+    if (Array.isArray(parsed.whyUs)) {
+      const whyUs = parsed.whyUs.map((v) => str(v, 90)).filter((v): v is string => !!v);
+      if (whyUs.length) out.whyUs = whyUs.slice(0, 6);
+    }
+    if (Array.isArray(parsed.process)) {
+      const process: { title: string; text?: string }[] = [];
+      for (const raw of parsed.process) {
+        const p = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+        const title = p ? str(p.title, 80) : undefined;
+        if (title) process.push({ title, text: str(p?.text, 200) });
+      }
+      if (process.length) out.process = process.slice(0, 6);
+    }
+    if (Array.isArray(parsed.faq)) {
+      const faq = parsed.faq
+        .map((f) => (f && typeof f === 'object' ? (f as Record<string, unknown>) : null))
+        .map((f) => (f ? { q: str(f.q, 200), a: str(f.a, 400) } : null))
+        .filter((f): f is { q: string; a: string } => !!(f?.q && f.a));
+      if (faq.length) out.faq = faq.slice(0, 6);
+    }
+    return out;
+  }
+
+  /**
+   * Site Simplu's creation flow — once the site is generated, a free-form
+   * chat message ("change the headline", "add an FAQ about X") is
+   * interpreted against a snapshot of the current text and turned into a
+   * targeted patch, instead of the visitor hunting through a settings form.
+   * `null` on any failure — the caller leaves the site untouched and tells
+   * the visitor to try rephrasing.
+   */
+  async interpretEasyEdit(input: InterpretEasyEditInput): Promise<InterpretedEasyEdit | null> {
+    const message = input.message.trim();
+    if (message.length < 2 || message.length > 600) return null;
+    if (!this.configured) return null;
+
+    const user =
+      `Current site text (JSON): ${JSON.stringify(input.current).slice(0, 4000)}\n` +
+      `Request: "${message}"`;
+
+    const parsed = (await this.json(EASY_EDIT_SYSTEM[input.locale] ?? EASY_EDIT_SYSTEM.ro, user, {
+      maxTokens: 900,
+      effort: 'low',
+      model: this.anthropicModelFast,
+    })) as { patch?: unknown; reply?: unknown } | null;
+    if (!parsed) return null;
+
+    const reply = typeof parsed.reply === 'string' ? parsed.reply.trim().slice(0, 500) : '';
+    if (!reply) return null;
+    const patch =
+      parsed.patch && typeof parsed.patch === 'object'
+        ? (parsed.patch as Record<string, unknown>)
+        : {};
+    return { patch, reply };
   }
 
   /**

@@ -39,6 +39,11 @@ const AI_CALL_CAP = 4;
 /** End-of-setup AI text-review passes allowed per draft. */
 const REVIEW_CAP = 5;
 
+/** Free-form chat-edit requests allowed per draft, once the site is generated
+ *  (the `done` step) — separate from `AI_CALL_CAP` (services) and
+ *  `REVIEW_CAP` (end-of-setup review), which this doesn't touch. */
+const EDIT_CALL_CAP = 15;
+
 /** One finding from `reviewDraft`, with a human label for the field. */
 export interface DraftReviewIssue {
   key: string;
@@ -152,7 +157,7 @@ export class WebsiteDraftService {
       plan: advanced ? 'advanced' : 'free',
       // The advanced flow drives its own script post-claim; a seeded advanced
       // draft is "done" so the easy studio doesn't try to walk it.
-      step: input.seed?.businessName && advanced ? 'done' : 'template',
+      step: input.seed?.businessName && advanced ? 'done' : 'intro',
       status: 'ready',
       answers: answers as unknown as Prisma.InputJsonValue,
       transcript: openingTranscript() as unknown as Prisma.InputJsonValue,
@@ -187,6 +192,137 @@ export class WebsiteDraftService {
     };
   }
 
+  /**
+   * One-shot: write the rest of the site (landing copy, about, why-us,
+   * process, FAQ, CTA) from the visitor's intro + services, once, right as
+   * the guided intake finishes, THEN always runs the AI text review over the
+   * result — the creation flow has no manual "check my text" trigger any
+   * more, verification is unconditional. Guarded by `generatedAt` rather
+   * than a numeric cap — a replayed transition into `done` must never spend
+   * either call twice. Never touches `stats`/`testimonials` (see
+   * `AiService.generateEasySite`'s doc comment) and silently no-ops on any
+   * AI failure — the deterministic template defaults in `easy-compose.ts`
+   * already cover every field it would have written, so a failed call
+   * degrades gracefully, not visibly.
+   */
+  private async generateFullSite(a: EasyAnswers): Promise<DraftReviewIssue[]> {
+    if (a.generatedAt) return [];
+    a.generatedAt = new Date().toISOString();
+
+    const out = await this.ai.generateEasySite({
+      rawIntro: a.rawIntro ?? a.companyName ?? '',
+      services: a.serviceNames?.length ? a.serviceNames : (a.services ?? []).map((s) => s.name),
+      locale: a.locale ?? 'ro',
+    });
+    if (out) {
+      if (out.companyName) a.companyName = out.companyName;
+      if (out.businessType && !a.businessType) a.businessType = out.businessType;
+      if (out.city && !a.city) a.city = out.city;
+      if (out.landingTitle) a.landingTitle = out.landingTitle;
+      if (out.landingSubtitle) a.landingSubtitle = out.landingSubtitle;
+      if (out.about) a.about = out.about;
+      if (out.whyUs?.length) a.whyUs = out.whyUs;
+      if (out.process?.length) a.process = out.process;
+      if (out.faq?.length) a.faq = out.faq;
+      if (out.ctaHeadline) a.ctaHeadline = out.ctaHeadline;
+      if (out.ctaButton) a.ctaButton = out.ctaButton;
+    }
+
+    const { issues } = await this.reviewAnswers(a);
+    return issues;
+  }
+
+  /** Compact snapshot of the editable text handed to `AiService.interpretEasyEdit`
+   *  so it can target the right field(s) — deliberately excludes images/contact. */
+  private static editSnapshot(a: EasyAnswers): Record<string, unknown> {
+    return {
+      companyName: a.companyName,
+      landingTitle: a.landingTitle,
+      landingSubtitle: a.landingSubtitle,
+      about: a.about,
+      whyUs: a.whyUs,
+      process: a.process,
+      faq: a.faq,
+      testimonials: a.testimonials,
+      stats: a.stats,
+      ctaHeadline: a.ctaHeadline,
+      ctaButton: a.ctaButton,
+      hours: a.hours,
+      footerTagline: a.footerTagline,
+      accentColor: a.accentColor,
+      template: a.template,
+    };
+  }
+
+  /**
+   * A chat message at the `done` step is a free-form edit request on the
+   * generated site, not a guided-step answer — `advanceEasy` never sees it.
+   * Interprets it via Claude, applies the returned patch through the SAME
+   * `mergeEasyPatch` both this service and the claimed-site editor already
+   * share, and appends the AI's own reply text to the transcript as-is (the
+   * one deliberate exception to i18n-key-only assistant turns — see
+   * `website-draft.script.ts`'s comment on this).
+   */
+  private async handleChatEdit(
+    draft: {
+      id: string;
+      mode: string;
+      turnsUsed: number;
+      transcript: Prisma.JsonValue;
+      answers: Prisma.JsonValue;
+    },
+    text: string,
+  ): Promise<WebsiteDraftView> {
+    // Advanced drafts are seeded straight into `done` (see `create()`) — chat-
+    // edit is an Easy-only feature, same gate as `advanceStep`/`patchEasy`.
+    if (draft.mode !== 'easy') throw new BadRequestException('not_a_simple_site');
+    const a = this.answersOf(draft);
+    const transcript = ((draft.transcript as unknown as TranscriptTurn[]) ?? []).slice();
+    const at = new Date().toISOString();
+    transcript.push({ role: 'user', text: text.slice(0, 2000), at });
+
+    const spent = a.editCalls ?? 0;
+    if (spent >= EDIT_CALL_CAP) {
+      transcript.push({ role: 'assistant', key: 'editCapped', at });
+    } else {
+      a.editCalls = spent + 1;
+      const result = await this.ai.interpretEasyEdit({
+        message: text,
+        current: WebsiteDraftService.editSnapshot(a),
+        locale: a.locale ?? 'ro',
+      });
+      if (result) {
+        try {
+          mergeEasyPatch(a, result.patch as EasyPatch, {
+            assetUrl: WebsiteDraftService.assetUrl,
+            onBadColor: () => {
+              throw new BadRequestException('bad_color');
+            },
+          });
+        } catch {
+          // An invalid field in the AI's own patch (e.g. a malformed colour)
+          // must not fail the whole request — keep the reply, drop the patch.
+        }
+        transcript.push({ role: 'assistant', text: result.reply.slice(0, 500), at });
+      } else {
+        transcript.push({ role: 'assistant', key: 'editFailed', at });
+      }
+    }
+
+    const turnsUsed = draft.turnsUsed + 1;
+    const updated = await this.prisma.websiteDraft.update({
+      where: { id: draft.id },
+      data: {
+        answers: a as unknown as Prisma.InputJsonValue,
+        transcript: transcript as unknown as Prisma.InputJsonValue,
+        turnsUsed,
+        status: 'ready',
+        ...this.composeInto(a),
+      },
+    });
+    return toDraftView(updated);
+  }
+
   /** Run the single AI call (capped per draft), else deterministic copy. */
   private async writeServiceCopy(a: EasyAnswers, names: string[]): Promise<ServiceItem[]> {
     const clean = names
@@ -214,19 +350,32 @@ export class WebsiteDraftService {
   // --- guided chat -----------------------------------------------------
 
   /** Process one visitor message: advance the guide, run AI if due, re-compose. */
-  async sendMessage(id: string, token: string, rawText: string): Promise<WebsiteDraftView> {
+  async sendMessage(
+    id: string,
+    token: string,
+    rawText: string,
+  ): Promise<WebsiteDraftView & { reviewIssues?: DraftReviewIssue[] }> {
     const draft = await this.load(id, token);
 
     const text = rawText.trim();
     if (!text) throw new BadRequestException('Message is empty');
     // Choice / upload steps have no free-text input — the visitor advances them
-    // from the widget's "Continue" button (`advanceStep`), not the chat.
+    // from the widget's "Continue" button (`advanceStep`), not the chat. (Empty
+    // today — see `NO_CHAT_STEPS`'s own comment — kept as a no-op guard rather
+    // than a removed call site.)
     if (NO_CHAT_STEPS.includes(draft.step as EasyStep)) {
       throw new BadRequestException('choose_option');
     }
     assertClean(text);
     if (draft.turnsUsed >= FREE_MAX_TURNS) {
       throw new ForbiddenException('free_plan_turn_limit');
+    }
+
+    // `done` is no longer a dead end: a chat message here is a free-form edit
+    // request on the already-generated site, not a guided-step answer —
+    // `advanceEasy` never sees it (see `handleChatEdit`'s own comment).
+    if (draft.step === 'done') {
+      return this.handleChatEdit(draft, text);
     }
 
     const answers = this.answersOf(draft);
@@ -243,6 +392,10 @@ export class WebsiteDraftService {
         result.answers,
         result.generateServicesFor,
       );
+    }
+    let reviewIssues: DraftReviewIssue[] = [];
+    if (result.generateFullSite) {
+      reviewIssues = await this.generateFullSite(result.answers);
     }
 
     const turnsUsed = draft.turnsUsed + 1;
@@ -261,11 +414,14 @@ export class WebsiteDraftService {
         ...(result.regenerate ? this.composeInto(result.answers) : {}),
       },
     });
-    return toDraftView(updated);
+    return { ...toDraftView(updated), ...(reviewIssues.length ? { reviewIssues } : {}) };
   }
 
   /** Advance a widget step (colour / portfolio) from the studio's "Continue". */
-  async advanceStep(id: string, token: string): Promise<WebsiteDraftView> {
+  async advanceStep(
+    id: string,
+    token: string,
+  ): Promise<WebsiteDraftView & { reviewIssues?: DraftReviewIssue[] }> {
     const draft = await this.load(id, token);
     if (draft.mode !== 'easy') throw new BadRequestException('not_a_simple_site');
 
@@ -282,6 +438,10 @@ export class WebsiteDraftService {
         result.generateServicesFor,
       );
     }
+    let reviewIssues: DraftReviewIssue[] = [];
+    if (result.generateFullSite) {
+      reviewIssues = await this.generateFullSite(result.answers);
+    }
 
     const updated = await this.prisma.websiteDraft.update({
       where: { id: draft.id },
@@ -293,7 +453,7 @@ export class WebsiteDraftService {
         ...(result.regenerate ? this.composeInto(result.answers) : {}),
       },
     });
-    return toDraftView(updated);
+    return { ...toDraftView(updated), ...(reviewIssues.length ? { reviewIssues } : {}) };
   }
 
   /** Patch config fields from the studio widgets — no chat turn, live re-compose. */
@@ -369,7 +529,11 @@ export class WebsiteDraftService {
    * End-of-setup review: one AI pass over every text the owner typed. Flags
    * meaning / grammar / vulgar / other problems. `grammar` issues carry a fix
    * that is applied to the draft automatically; the rest are returned for the
-   * owner to correct. Never throws — no AI provider ⇒ `{ issues: [] }`.
+   * owner to correct. Never throws — no AI provider ⇒ `{ issues: [] }`. Kept
+   * as a public endpoint for the claimed-site editor's own manual "check my
+   * text" button (`easy-site.service.ts` has its own equivalent) — the
+   * CREATION flow no longer exposes a manual trigger for this; see
+   * `generateFullSite`, which now always runs it automatically instead.
    */
   async reviewDraft(
     id: string,
@@ -379,19 +543,38 @@ export class WebsiteDraftService {
     if (draft.mode !== 'easy') throw new BadRequestException('not_a_simple_site');
 
     const a = this.answersOf(draft);
+    const { issues, touched } = await this.reviewAnswers(a);
+
+    const updated = await this.prisma.websiteDraft.update({
+      where: { id: draft.id },
+      data: {
+        answers: a as unknown as Prisma.InputJsonValue,
+        status: 'ready',
+        ...(touched ? this.composeInto(a) : {}),
+      },
+    });
+    return { issues, draft: toDraftView(updated) };
+  }
+
+  /**
+   * The actual review pass, shared by `reviewDraft()` (the claimed-site
+   * editor's manual button) and `generateFullSite()` (the creation flow's
+   * now-automatic check) — mutates `a` in place (grammar auto-fixes), the
+   * caller persists/composes. Never throws — no AI provider ⇒ no issues.
+   */
+  private async reviewAnswers(
+    a: EasyAnswers,
+  ): Promise<{ issues: DraftReviewIssue[]; touched: boolean }> {
     const locale = a.locale ?? 'ro';
     const spent = a.reviewCount ?? 0;
     const items = WebsiteDraftService.reviewItems(a, locale);
-
-    if (spent >= REVIEW_CAP || !items.length) {
-      return { issues: [], draft: toDraftView(draft) };
-    }
+    if (spent >= REVIEW_CAP || !items.length) return { issues: [], touched: false };
 
     const found = await this.ai.reviewCopy({
       items: items.map(({ key, label, text }) => ({ key, label, text })),
       locale,
     });
-    if (!found) return { issues: [], draft: toDraftView(draft) };
+    if (!found) return { issues: [], touched: false };
 
     a.reviewCount = spent + 1;
     const labelByKey = new Map(items.map((i) => [i.key, i.label]));
@@ -411,16 +594,7 @@ export class WebsiteDraftService {
         message: f.message,
       });
     }
-
-    const updated = await this.prisma.websiteDraft.update({
-      where: { id: draft.id },
-      data: {
-        answers: a as unknown as Prisma.InputJsonValue,
-        status: 'ready',
-        ...(touched ? this.composeInto(a) : {}),
-      },
-    });
-    return { issues, draft: toDraftView(updated) };
+    return { issues, touched };
   }
 
   /** Every owner-typed text field, as `{ key, label, text }` for the AI review. */

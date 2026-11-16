@@ -100,6 +100,7 @@ onMounted(() => setQuickRange('month'))
       <AdminStatCard
         :label="t('adminFinance.collectedRevenue')"
         :value="eur(finance.revenuePeriodTotalMinor)"
+        :hint="`${t('adminFinance.collectedRevenueHint')} ${t('adminFinance.consumedRevenueCrossRefHint')}`"
         icon="mdi-bank-transfer-in"
         tone="primary"
         :to="{ name: 'admin-financiar' }"
@@ -109,9 +110,6 @@ onMounted(() => setQuickRange('month'))
         :value="eur(finance.revenuePeriodFaceTotalMinor)"
         icon="mdi-tag-outline"
       />
-    </div>
-    <div class="afr__standaloneHint">
-      <AdminHint :text="t('adminFinance.consumedRevenueCrossRefHint')" />
     </div>
 
     <div class="afr__filters">
@@ -176,7 +174,13 @@ onMounted(() => setQuickRange('month'))
            this page) — what an accountant reconciling a month needs. -->
       <div class="rtable__foot">
         <span class="rtable__footlabel">
-          {{ t('adminFinance.periodTotalLabel') }}
+          <span class="rtable__footlabelRow">
+            {{ t('adminFinance.periodTotalLabel') }}
+            <AdminHint
+              v-if="discountDeltaMinor !== 0"
+              :text="t('adminFinance.discountDeltaHint', { amount: eur(discountDeltaMinor) })"
+            />
+          </span>
           <small>{{ t('adminFinance.periodTotalTxnCount', { n: finance.revenueTotal }) }}</small>
         </span>
         <span class="rtable__footvals">
@@ -189,9 +193,6 @@ onMounted(() => setQuickRange('month'))
             <b>{{ eur(finance.revenuePeriodTotalMinor) }}</b>
           </span>
         </span>
-      </div>
-      <div v-if="discountDeltaMinor !== 0" class="afr__standaloneHint">
-        <AdminHint :text="t('adminFinance.discountDeltaHint', { amount: eur(discountDeltaMinor) })" />
       </div>
     </div>
 
@@ -221,10 +222,6 @@ onMounted(() => setQuickRange('month'))
   gap: 1.4rem;
   flex-wrap: wrap;
   margin: 1.2rem 0 1.4rem;
-}
-.afr__standaloneHint {
-  display: flex;
-  margin: 0.4rem 0 0;
 }
 .afr__center {
   display: grid;
@@ -341,6 +338,11 @@ onMounted(() => setQuickRange('month'))
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.rtable__footlabelRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 .rtable__footlabel small {
   font-size: 0.66rem;

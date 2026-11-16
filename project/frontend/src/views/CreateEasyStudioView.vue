@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
-import EasyStudioAgent from '@/components/studio/EasyStudioAgent.vue'
+import EasyCreationAgent from '@/components/studio/EasyCreationAgent.vue'
 import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
@@ -100,7 +100,7 @@ onMounted(ensureEasyDraft)
         :class="{ 'is-hidden-mobile': mobilePane !== 'chat' }"
         :aria-label="t('studio.agentName')"
       >
-        <EasyStudioAgent v-if="draft" />
+        <EasyCreationAgent v-if="draft" />
         <div v-else-if="loading" class="studio__agentLoading">
           <v-progress-circular indeterminate color="primary" size="26" />
         </div>

@@ -8,7 +8,6 @@ import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
-import AdminHint from '@/components/admin/AdminHint.vue'
 import TrendChart from '@/components/TrendChart.vue'
 import { useMoney } from '@/composables/useMoney'
 import { usePeriodFilter } from '@/composables/usePeriodFilter'
@@ -202,6 +201,7 @@ onMounted(() => setQuickRange('month'))
           :label="t('adminFinance.collectedRevenue')"
           :value="eur(finance.overview.revenueMinor)"
           :sub="`${eur(finance.overview.unconsumedRevenueMinor)} ${t('adminFinance.unconsumedRevenue').toLowerCase()}`"
+          :hint="t('adminFinance.unconsumedRevenueHint')"
           icon="mdi-cash-plus"
         />
         <AdminStatCard
@@ -218,9 +218,6 @@ onMounted(() => setQuickRange('month'))
           icon="mdi-chart-line"
           :tone="profitTone(finance.overview.profitMinor)"
         />
-      </div>
-      <div class="afd__standaloneHint">
-        <AdminHint :text="t('adminFinance.unconsumedRevenueHint')" />
       </div>
 
       <!-- Gross (credit face value sold) vs net (money collected); the delta
@@ -702,11 +699,6 @@ onMounted(() => setQuickRange('month'))
   font-size: 0.86rem;
   margin: 0;
 }
-.afd__standaloneHint {
-  display: flex;
-  margin: 0.4rem 0 1rem;
-}
-
 @media (max-width: 1100px) {
   .afd__kpis--four {
     grid-template-columns: repeat(2, 1fr);

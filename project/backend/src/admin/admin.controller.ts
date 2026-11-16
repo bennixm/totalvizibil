@@ -45,6 +45,7 @@ import { ListCompaniesQuery } from './dto/list-companies.query';
 import { SaveCampaignDto } from '../campaigns/dto/save-campaign.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { TranslateCategoryNameDto } from './dto/translate-category-name.dto';
 import { BroadcastMaintenanceDto } from './dto/broadcast-maintenance.dto';
 import { BillingProfileDto } from '../billing/dto/billing-profile.dto';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -652,6 +653,11 @@ export class AdminController {
   @Post('categories')
   createCategory(@CurrentUser() caller: AuthPrincipal, @Body() dto: CreateCategoryDto) {
     return this.categories.create(dto, actorOf(caller));
+  }
+
+  @Post('categories/translate-name')
+  translateCategoryName(@Body() dto: TranslateCategoryNameDto) {
+    return this.categories.translateName(dto.text, dto.from);
   }
 
   @Patch('categories/:id')

@@ -4,10 +4,12 @@ import { useI18n } from 'vue-i18n'
 
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
+import CategoryIconPicker from '@/components/admin/CategoryIconPicker.vue'
 import {
   useAdminStore,
   type AdminCategory,
   type AdminCategoryGroup,
+  type CategoryLocale,
   type CreateCategoryInput,
 } from '@/stores/admin'
 import { useConfirmStore } from '@/stores/confirm'
@@ -62,7 +64,69 @@ const parentOptions = computed(() => [
     .map((g) => ({ value: g.id, title: nm(g) })),
 ])
 
+// --- auto-translation (create/edit name fields) ---
+// The admin types the name in whichever language field they start with;
+// the other two auto-fill via Claude and stay editable. `autoFilled[loc]`
+// holds the SOURCE locale a field's current value was translated from (so
+// the UI can say "tradus automat din RO"), or `null` once the admin edits
+// that field directly — a manual edit always wins over a later translation.
+const LOCALES: CategoryLocale[] = ['ro', 'en', 'de']
+const autoFilled = reactive<Record<CategoryLocale, CategoryLocale | null>>({
+  ro: null,
+  en: null,
+  de: null,
+})
+const translatingFrom = ref<CategoryLocale | null>(null)
+let applyingTranslation = false
+let translateTimer: ReturnType<typeof setTimeout> | null = null
+
+function resetAutoFill() {
+  autoFilled.ro = null
+  autoFilled.en = null
+  autoFilled.de = null
+  translatingFrom.value = null
+  if (translateTimer) clearTimeout(translateTimer)
+}
+
+function onNameInput(loc: CategoryLocale) {
+  if (applyingTranslation) return
+  autoFilled[loc] = null
+  if (translateTimer) clearTimeout(translateTimer)
+  translateTimer = setTimeout(() => void runTranslate(loc), 700)
+}
+
+function isTranslating(loc: CategoryLocale): boolean {
+  return translatingFrom.value !== null && translatingFrom.value !== loc
+}
+
+async function runTranslate(from: CategoryLocale) {
+  const text = editor.name[from].trim()
+  if (text.length < 2) return
+  translatingFrom.value = from
+  try {
+    const result = await admin.translateCategoryName(text, from)
+    applyingTranslation = true
+    for (const loc of LOCALES) {
+      if (loc === from) continue
+      const translated = result[loc]
+      if (!translated) continue
+      // Never overwrite a value the admin typed themselves — only an
+      // empty field, or one still holding a previous auto-translation.
+      if (!editor.name[loc].trim() || autoFilled[loc]) {
+        editor.name[loc] = translated
+        autoFilled[loc] = from
+      }
+    }
+    applyingTranslation = false
+  } catch {
+    // AI unavailable or the call failed — the admin just keeps typing manually.
+  } finally {
+    if (translatingFrom.value === from) translatingFrom.value = null
+  }
+}
+
 function openCreate(parentId = '') {
+  resetAutoFill()
   Object.assign(editor, {
     show: true,
     mode: 'create',
@@ -77,6 +141,7 @@ function openCreate(parentId = '') {
   })
 }
 function openEdit(c: AdminCategory) {
+  resetAutoFill()
   Object.assign(editor, {
     show: true,
     mode: 'edit',
@@ -272,16 +337,34 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
             persistent-hint
             density="comfortable"
           />
-          <v-text-field v-model="editor.name.ro" label="Nume (RO)" density="comfortable" />
-          <v-text-field v-model="editor.name.en" label="Name (EN)" density="comfortable" />
-          <v-text-field v-model="editor.name.de" label="Name (DE)" density="comfortable" />
           <v-text-field
-            v-model="editor.icon"
-            :label="t('adminCat.icon')"
-            :hint="t('adminCat.iconHint')"
-            persistent-hint
+            v-model="editor.name.ro"
+            label="Nume (RO)"
             density="comfortable"
+            :loading="isTranslating('ro')"
+            :hint="autoFilled.ro ? t('adminCat.autoTranslatedFrom', { lang: autoFilled.ro.toUpperCase() }) : undefined"
+            :persistent-hint="!!autoFilled.ro"
+            @update:model-value="onNameInput('ro')"
           />
+          <v-text-field
+            v-model="editor.name.en"
+            label="Name (EN)"
+            density="comfortable"
+            :loading="isTranslating('en')"
+            :hint="autoFilled.en ? t('adminCat.autoTranslatedFrom', { lang: autoFilled.en.toUpperCase() }) : undefined"
+            :persistent-hint="!!autoFilled.en"
+            @update:model-value="onNameInput('en')"
+          />
+          <v-text-field
+            v-model="editor.name.de"
+            label="Name (DE)"
+            density="comfortable"
+            :loading="isTranslating('de')"
+            :hint="autoFilled.de ? t('adminCat.autoTranslatedFrom', { lang: autoFilled.de.toUpperCase() }) : undefined"
+            :persistent-hint="!!autoFilled.de"
+            @update:model-value="onNameInput('de')"
+          />
+          <CategoryIconPicker v-model="editor.icon" />
           <div class="d-flex ga-4 align-center mt-1">
             <v-text-field
               v-model.number="editor.position"

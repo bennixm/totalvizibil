@@ -1,49 +1,41 @@
 /**
- * Scripted guide for the "Site Simplu" studio.
+ * Scripted guide for the "Site Simplu" studio's CREATION flow.
  *
  * This is deliberately NOT an LLM: a small deterministic state machine that
- * walks the visitor through configuring the fixed one-pager template (name,
- * colour, landing, services, portfolio, contact). The ONE real AI touchpoint —
- * writing the Services copy with Claude — is triggered by this script but
- * executed by the service (`generateServicesFor`).
+ * walks the visitor through a short conversational intake (who they are,
+ * their services, optional photos, contact) before the service hands off to
+ * Claude once, at the `contact` → `done` transition, to write the rest of the
+ * site (see `WebsiteDraftService.generateFullSite`). Template/colour are no
+ * longer blocking steps — they get a sane default and stay adjustable
+ * live via `patchEasy`, same as always.
+ *
+ * `done` is the terminal step, but — unlike the old flow — it is NOT a dead
+ * end: once here, chat text is a free-form EDIT request on the generated
+ * site, interpreted by the service (`WebsiteDraftService`'s chat-edit branch),
+ * not by this pure script.
  *
  * Assistant turns are returned as i18n KEYS (resolved under `studio.msg.*` on
- * the frontend), never as baked strings — the platform is RO/EN/DE.
+ * the frontend), never as baked strings — the platform is RO/EN/DE. The one
+ * deliberate exception is the chat-edit reply at `done`, which the service
+ * appends as raw AI-generated text (see its own comment) — that path never
+ * goes through `advanceEasy`.
  */
 import { ToneOfVoice } from '../website.types';
 import { EasyAnswers } from './easy-compose';
 
 export type { EasyAnswers } from './easy-compose';
 
-/** Guided steps, in order. `done` is terminal. */
-export type EasyStep =
-  | 'template'
-  | 'name'
-  | 'field'
-  | 'color'
-  | 'landing'
-  | 'services'
-  | 'portfolio'
-  | 'contact'
-  | 'done';
-export const EASY_STEPS: EasyStep[] = [
-  'template',
-  'name',
-  'field',
-  'color',
-  'landing',
-  'services',
-  'portfolio',
-  'contact',
-  'done',
-];
+/** Guided steps, in order. `done` is terminal (but chat-enabled — see above). */
+export type EasyStep = 'intro' | 'services' | 'photos' | 'contact' | 'done';
+export const EASY_STEPS: EasyStep[] = ['intro', 'services', 'photos', 'contact', 'done'];
 
 /**
- * Steps that are a pure choice / upload — the visitor picks from the widgets and
- * the free-text chat is not used here (`advanceEasy` ignores `text` on these).
- * The controller rejects a chat message on these steps.
+ * No step blocks chat text any more — `photos` treats any message (including
+ * "skip") as "move on", and `done` is now a free-form edit request. Kept as an
+ * empty list (rather than deleted) so the controller's existing check stays a
+ * no-op instead of a removed call site.
  */
-export const NO_CHAT_STEPS: EasyStep[] = ['template', 'color', 'portfolio', 'done'];
+export const NO_CHAT_STEPS: EasyStep[] = [];
 
 /**
  * Guidance is cheap (no LLM), so the message budget is generous — it only
@@ -70,11 +62,26 @@ export interface EasyAdvance {
   regenerate: boolean;
   /** service names to run through the AI before composing (services step only) */
   generateServicesFor?: string[];
+  /** set on the `contact` → `done` transition: the service should run the
+   *  one-shot full-site generation call before composing (see
+   *  `WebsiteDraftService.generateFullSite`) */
+  generateFullSite?: boolean;
 }
 
-/** The assistant's first message on a fresh draft (asks for the company name). */
+/** The assistant's first message on a fresh draft (asks the one combined intro question). */
 export function openingTranscript(now = new Date()): TranscriptTurn[] {
   return [{ role: 'assistant', key: 'opening', at: now.toISOString() }];
+}
+
+/**
+ * A quick, free, deterministic guess at the business name from the intro
+ * sentence — just enough for the preview to show SOMETHING immediately. The
+ * AI generation call later (service layer) can replace this with a cleaner
+ * extraction once it parses the full `rawIntro` with real context.
+ */
+export function quickNameGuess(text: string): string {
+  const head = text.split(/[,–—\n]|(?:\s-\s)/)[0].trim();
+  return (head || text).slice(0, 80);
 }
 
 const TONE_PATTERNS: [RegExp, ToneOfVoice][] = [
@@ -136,37 +143,25 @@ export function nextEasyStep(step: EasyStep): EasyStep {
 
 /**
  * Advance the guided flow one step. `text` is the visitor's chat message for
- * the text steps (name / landing title / services list / contact); the widget
- * steps (colour, portfolio) carry no text and are advanced from the studio's
- * "Continue" button. Pure: the caller persists answers/step, runs the single
- * AI call if `generateServicesFor` is set, then re-composes the site.
+ * the text steps (intro / services / contact); `photos` carries no meaningful
+ * text (photos are added live via `addAsset` + `patchEasy`) — any message,
+ * including "skip", just moves on. Pure: the caller persists answers/step,
+ * runs the AI call(s) if `generateServicesFor`/`generateFullSite` is set,
+ * then re-composes the site.
  */
 export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string): EasyAdvance {
   const a: EasyAnswers = { ...answers };
   const t = (text ?? '').trim();
 
   switch (step) {
-    case 'template':
-      // The layout variant is chosen from the widget; nothing to read from text.
-      return { answers: a, step: 'name', assistant: ['askName'], regenerate: true };
-
-    case 'name': {
-      if (t) a.companyName = t.slice(0, 80);
-      return { answers: a, step: 'field', assistant: ['askField'], regenerate: true };
-    }
-
-    case 'field': {
-      // The trade/field — given to the AI so the Services copy is on point.
-      if (t && !SKIP_PATTERN.test(t)) a.businessType = condenseType(t);
-      return { answers: a, step: 'color', assistant: ['askColor'], regenerate: true };
-    }
-
-    case 'color':
-      // Colour is applied live via `patchEasy` — nothing to read from text here.
-      return { answers: a, step: 'landing', assistant: ['askLanding'], regenerate: true };
-
-    case 'landing': {
-      if (t && !SKIP_PATTERN.test(t)) a.landingTitle = t.slice(0, 120);
+    case 'intro': {
+      // A quick deterministic guess so the preview updates immediately; the
+      // full-site generation call later refines name/trade/city from the
+      // full sentence, kept here as `rawIntro`.
+      if (t) {
+        a.rawIntro = t.slice(0, 500);
+        a.companyName = quickNameGuess(t);
+      }
       return { answers: a, step: 'services', assistant: ['askServices'], regenerate: true };
     }
 
@@ -185,11 +180,12 @@ export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string)
           generateServicesFor: names.length ? names : undefined,
         };
       }
-      return { answers: a, step: 'portfolio', assistant: ['askPortfolio'], regenerate: true };
+      return { answers: a, step: 'photos', assistant: ['askPhotos'], regenerate: true };
     }
 
-    case 'portfolio':
-      // Photos are added live via `addAsset` + `patchEasy`.
+    case 'photos':
+      // Photos are added live via `addAsset` + `patchEasy`; this step is
+      // optional/skippable — any chat message (including "skip") moves on.
       return { answers: a, step: 'contact', assistant: ['askContact'], regenerate: true };
 
     case 'contact': {
@@ -197,7 +193,13 @@ export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string)
         a.phone = extractPhone(t) ?? a.phone;
         a.email = extractEmail(t) ?? a.email;
       }
-      return { answers: a, step: 'done', assistant: ['contactSaved', 'done'], regenerate: true };
+      return {
+        answers: a,
+        step: 'done',
+        assistant: ['contactSaved', 'done'],
+        regenerate: true,
+        generateFullSite: true,
+      };
     }
 
     case 'done':

@@ -108,6 +108,17 @@ export interface EasyAnswers {
   proofreadCount?: number;
   /** How many end-of-setup AI review passes this draft has spent. */
   reviewCount?: number;
+
+  /** The visitor's raw one-message intro ("name + what you do + city"), kept
+   *  as context for the full-site generation call — see `generateFullSite`
+   *  in the service. Not an editable/patchable field. */
+  rawIntro?: string;
+  /** Set once the one-shot full-site generation call has run, so a replayed
+   *  step transition never spends it twice. */
+  generatedAt?: string;
+  /** How many free-form chat-edit requests this draft has spent (guards abuse,
+   *  separate from `aiCalls`/`reviewCount`). */
+  editCalls?: number;
 }
 
 interface Labels {
