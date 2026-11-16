@@ -148,25 +148,25 @@
     "easyTag": "Gratuit",
     "easyFeat": {
       "free": "Gratuit pentru prima ta afacere",
-      "aiServiceCopy": "AI scrie descrierile serviciilor tale și verifică textele",
+      "aiServiceCopy": "Construiești site-ul discutând cu un asistent AI, care scrie tot conținutul",
+      "livePreview": "Previzualizare live: site-ul se actualizează pe măsură ce discuți cu asistentul",
       "ownPhotos": "Folosești propriile poze ale afacerii",
       "onePage": "Un site de prezentare, gata în câteva minute"
     },
     "advancedTitle": "Avansat",
     "advancedText": "AI scrie cod real pentru un site unic, printr-un chat live cu asistentul.",
-    "advancedTag": "Cost unic",
+    "advancedTag": "Cost de deblocare",
     "advancedBadge": "Recomandat",
     "compareHeading": "Funcționalități",
     "compareRow": {
       "realCode": "AI scrie cod real, unic, nu un șablon",
-      "liveCodeChat": "Chat live cu AI care scrie și modifică codul direct",
+      "liveCodeChat": "Chat live cu AI care scrie și modifică codul sursă direct",
       "fullControl": "Control total asupra structurii, design-ului și funcționalităților",
       "unlimitedPages": "Fără limită fixă de pagini: AI adaugă câte ai nevoie",
-      "livePreview": "Previzualizare cu site-ul chiar rulând, nu doar o machetă statică",
-      "bookingForms": "Formular de contact real și, opțional, programări online",
+      "bookingForms": "Programări online integrate, pe lângă formularul de contact",
       "sourceCode": "Acces la codul sursă real al site-ului tău"
     },
-    "priceLabel": "Cost unic",
+    "priceLabel": "Cost de deblocare",
     "priceValue": "{credits} credite",
     "priceLoading": "…",
     "priceEq": "≈ €{eur} / ~{ron} RON",
@@ -1084,7 +1084,7 @@
   "advanced": {
     "pitchEyebrow": "Plan avansat",
     "pitchTitle": "Cum se numește afacerea ta?",
-    "priceLabel": "Cost unic",
+    "priceLabel": "Cost de deblocare",
     "fieldName": "Numele afacerii",
     "cta": "Continuă spre cont",
     "flowNote": "Urmează: locație și categorie → cont → builder (plata planului) → campanie.",
@@ -1097,7 +1097,7 @@
     "feat": {
       "pages": "Un site real, construit pe măsură · cod adevărat, nu un șablon",
       "design": "Control creativ total: ceri orice modificare, oricând",
-      "unlimited": "Continui să-l îmbunătățești oricât timp vrei, fără cost suplimentar",
+      "unlimited": "Continui să-l îmbunătățești oricât timp vrei, direct din portofelul tău de credite",
       "ai": "Un asistent AI construiește și editează site-ul dintr-un chat live"
     },
     "backAdmin": "Înapoi la afacere"
@@ -2476,7 +2476,7 @@
     "loadErrorTitle": "Nu am putut încărca pasul de plată",
     "bonus": "Primești {credits} credite înapoi în portofel imediat după deblocare.",
     "title": "Deblochează builderul avansat",
-    "lead": "Un cost unic, plătit din portofel. După asta, un asistent AI construiește și continuă să-ți îmbunătățească site-ul cât timp vrei.",
+    "lead": "O plată unică din portofel îți deschide accesul la builder. De acolo, discuți cu un asistent AI care construiește și îmbunătățește site-ul, folosind creditele din portofel pe măsură ce lucrezi.",
     "pay": "Plătește {credits} credite și continuă",
     "balance": "Ai {credits} credite în portofel",
     "short": "Nu ai destule credite · îți lipsesc {credits}.",

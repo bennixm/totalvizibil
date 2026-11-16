@@ -17,19 +17,21 @@ useSeo(() => ({
 }))
 
 /** Simplu's own real benefits — shown only on its card. */
-const EASY_OWN = ['free', 'aiServiceCopy', 'ownPhotos', 'onePage'] as const
+const EASY_OWN = ['free', 'aiServiceCopy', 'livePreview', 'ownPhotos', 'onePage'] as const
 /**
  * The same ordered rows on BOTH cards — Avansat checked throughout, Simplu
  * crossed out throughout — so the two are read side by side, not as two
  * independent lists. Every row is a verified, real Advanced capability
- * Simplu genuinely doesn't have (not invented for the comparison).
+ * Simplu genuinely doesn't have (not invented for the comparison). A live,
+ * updating preview is NOT one of these any more — Simplu's own "Preview +
+ * Chat" studio has that too (see `EASY_OWN.livePreview`) — so it was dropped
+ * from here rather than left as a false Advansat-only row.
  */
 const COMPARE_ROWS = [
   'realCode',
   'liveCodeChat',
   'fullControl',
   'unlimitedPages',
-  'livePreview',
   'bookingForms',
   'sourceCode',
 ] as const
