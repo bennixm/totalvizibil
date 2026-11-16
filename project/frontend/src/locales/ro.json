@@ -201,6 +201,8 @@
     "stepOf": "Pasul {n} din {total}",
     "continue": "Continuă",
     "skip": "Sar peste",
+    "noteSkipPhotos": "Sar peste poze deocamdată.",
+    "notePhotoAdded": "Am adăugat o poză.",
     "customize": "Stil și culoare",
     "colorTitle": "Alege culoarea brandului",
     "landingImage": "Imagine de fundal",
@@ -296,7 +298,10 @@
     "template": {
       "classic": "Clasic",
       "bold": "Îndrăzneț",
-      "minimal": "Minimal"
+      "minimal": "Minimal",
+      "warm": "Prietenos",
+      "sharp": "Tăios",
+      "editorial": "Editorial"
     },
     "templateDesc": {
       "classic": "Echilibrat: prezentare, servicii în carduri, apoi motive și portofoliu.",

@@ -35,6 +35,9 @@ describe('website-draft guided script', () => {
     expect(answers.companyName).toBe('AquaFix');
     expect(answers.rawIntro).toBe('AquaFix, instalații sanitare și termice, din Cluj');
     expect(r.assistant).toEqual(['askServices']);
+    // the service should run the immediate intro-parse AI call on this text
+    expect(r.parseIntroFor).toBe('AquaFix, instalații sanitare și termice, din Cluj');
+    expect(r.toneGuess).toBeNull();
 
     r = feed('Montaj centrale, Desfundare canalizare, Reparatii baterii');
     // a real list keeps us on the services step so the copy can be reordered
@@ -68,6 +71,19 @@ describe('website-draft guided script', () => {
     expect(c.regenerate).toBe(true);
     // the service should run the one-shot full-site generation call now
     expect(c.generateFullSite).toBe(true);
+  });
+
+  it('intro step carries the regex tone pre-filter alongside parseIntroFor', () => {
+    const r = advanceEasy('intro', { locale: 'ro' }, 'Suntem o firmă premium și elegantă din Sibiu');
+    expect(r.parseIntroFor).toBe('Suntem o firmă premium și elegantă din Sibiu');
+    expect(r.toneGuess).toBe('premium');
+  });
+
+  it('intro step with no text sets neither parseIntroFor nor toneGuess', () => {
+    const r = advanceEasy('intro', { locale: 'ro' }, '');
+    expect(r.parseIntroFor).toBeUndefined();
+    expect(r.toneGuess).toBeUndefined();
+    expect(r.step).toBe('services');
   });
 
   it('services step with "skip" moves on without an AI call', () => {

@@ -93,7 +93,7 @@ export interface EasyBlock {
   aiCalls: number
 }
 
-export type EasyTemplate = 'classic' | 'bold' | 'minimal'
+export type EasyTemplate = 'classic' | 'bold' | 'minimal' | 'warm' | 'sharp' | 'editorial'
 
 /**
  * Mirrors `AI_CALL_CAP` in the backend (`website-draft.service.ts` and
@@ -147,7 +147,7 @@ export interface EasyPatch {
   footerTagline?: string
   footerShowContact?: boolean
   footerSocials?: EasySocialLink[]
-  template?: 'classic' | 'bold' | 'minimal'
+  template?: EasyTemplate
   autoGrammar?: boolean
 }
 
@@ -391,8 +391,11 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       }
     },
 
-    /** Guided widget step advance (colour / portfolio → "Continue"). */
-    async advanceEasy(): Promise<void> {
+    /** Guided widget step advance (skip/continue, photo upload). `note`, when
+     *  given, is a short, honest trace of what was just done — logged as a
+     *  real user-side chat bubble server-side, since advancing by button or
+     *  upload is still answering the question on screen. */
+    async advanceEasy(note?: string): Promise<void> {
       const ref = loadRef()
       if (!ref || this.sending) return
       this.sending = true
@@ -401,6 +404,7 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
         this.draft = await apiFetch<WebsiteDraftView>(`/website-drafts/${ref.id}/advance`, {
           method: 'POST',
           headers: { 'X-Draft-Token': ref.token },
+          body: note ? { note } : {},
         })
       } catch (err) {
         this.error = draftErrorCode(err)

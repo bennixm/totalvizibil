@@ -17,7 +17,6 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
-import AiAvatar from '@/components/studio/AiAvatar.vue'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
@@ -31,7 +30,7 @@ const toasts = useToastStore()
 
 type CreationStep = 'intro' | 'services' | 'photos' | 'contact' | 'done'
 const STEPS: CreationStep[] = ['intro', 'services', 'photos', 'contact']
-const TEMPLATES = ['classic', 'bold', 'minimal'] as const
+const TEMPLATES = ['classic', 'bold', 'minimal', 'warm', 'sharp', 'editorial'] as const
 const PRESETS = ['#4f46e5', '#0ea5e9', '#059669', '#d97706', '#e11d48', '#7c3aed', '#0f172a']
 /** Mirrors the backend's own decoded-byte cap (`MAX_ASSET_BYTES`). */
 const MAX_UPLOAD = 4_500_000
@@ -99,13 +98,16 @@ function onChatKey(e: KeyboardEvent): void {
 }
 function skipPhotos(): void {
   if (sending.value) return
-  void store.advanceEasy()
+  void store.advanceEasy(t('studio.noteSkipPhotos'))
 }
 /** Once a real services list exists, let the visitor move on without typing
- *  more — same "Continue" widget the old flow had for this step. */
+ *  more — same "Continue" widget the old flow had for this step. A real
+ *  `user` chat bubble (the actual service list, not a canned line) must
+ *  still appear — advancing by button is still answering the question. */
 function continueFromServices(): void {
   if (sending.value) return
-  void store.advanceEasy()
+  const names = easy.value?.services?.map((s) => s.name) ?? []
+  void store.advanceEasy(names.join(', '))
 }
 
 // --- customize (template + colour) — a quick override, never a blocking
@@ -168,7 +170,7 @@ async function onFile(e: Event): Promise<void> {
     if (!easy.value?.landingImage) await store.patchEasy({ landingImage: url })
     const next = [...(easy.value?.portfolio ?? []), url].slice(0, MAX_PORTFOLIO)
     await store.patchEasy({ portfolio: next })
-    if (step.value === 'photos') void store.advanceEasy()
+    if (step.value === 'photos') void store.advanceEasy(t('studio.notePhotoAdded'))
   } catch {
     uploadErr.value = t('studio.uploadFailed')
   } finally {
@@ -210,286 +212,219 @@ function askRestart(): void {
 
 <template>
   <div class="ag">
-    <aside class="ag__stage">
-      <span class="ag__blob ag__blob--1" aria-hidden="true" />
-      <span class="ag__blob ag__blob--2" aria-hidden="true" />
-      <div class="ag__stageIn">
-        <AiAvatar class="ag__avatar" :speaking="sending" :size="190" />
-        <strong class="ag__name">{{ t('studio.agentPersona') }}</strong>
-        <span class="ag__role">{{ t('studio.agentRole') }}</span>
-        <span class="ag__chip">
-          <template v-if="step !== 'done'">
-            {{ t('studio.stepOf', { n: stepIndex + 1, total: STEPS.length }) }} · {{ stepLabel }}
-          </template>
-          <template v-else>{{ t('studio.doneTitle') }}</template>
-        </span>
-        <div class="ag__bar"><span :style="{ width: progressPct }" /></div>
-        <span v-if="sending" class="ag__status">
-          <v-icon icon="mdi-pencil-outline" size="13" /> {{ t('studio.thinking') }}
-        </span>
-      </div>
-    </aside>
+    <header class="ag__head">
+      <span class="ag__chip">
+        <template v-if="step !== 'done'">
+          {{ t('studio.stepOf', { n: stepIndex + 1, total: STEPS.length }) }} · {{ stepLabel }}
+        </template>
+        <template v-else>{{ t('studio.doneTitle') }}</template>
+      </span>
+      <div class="ag__bar"><span :style="{ width: progressPct }" /></div>
+      <span v-if="sending" class="ag__status">
+        <v-icon icon="mdi-pencil-outline" size="13" /> {{ t('studio.thinking') }}
+      </span>
+    </header>
 
-    <div class="ag__chat">
-      <div ref="log" class="ag__scroll">
-        <div class="ag__log">
-          <div
-            v-for="(turn, i) in transcript"
-            :key="i"
-            class="msg"
-            :class="[turn.role === 'user' ? 'msg--u' : 'msg--a', i === transcript.length - 1 ? 'msg--new' : '']"
-          >
-            <span v-if="showAv(i)" class="msg__av">{{ t('studio.agentPersona').charAt(0) }}</span>
-            <span v-else-if="turn.role === 'assistant'" class="msg__av msg__av--ghost" />
-            <p>{{ turnText(turn) }}</p>
-          </div>
-          <div v-if="sending" class="msg msg--a msg--typing" aria-hidden="true">
-            <span class="msg__av">{{ t('studio.agentPersona').charAt(0) }}</span>
-            <p class="dots"><span /><span /><span /></p>
-          </div>
+    <div ref="log" class="ag__scroll">
+      <div class="ag__log">
+        <div
+          v-for="(turn, i) in transcript"
+          :key="i"
+          class="msg"
+          :class="[turn.role === 'user' ? 'msg--u' : 'msg--a', i === transcript.length - 1 ? 'msg--new' : '']"
+        >
+          <span v-if="showAv(i)" class="msg__av">{{ t('studio.agentPersona').charAt(0) }}</span>
+          <span v-else-if="turn.role === 'assistant'" class="msg__av msg__av--ghost" />
+          <p>{{ turnText(turn) }}</p>
         </div>
-
-        <!-- photo upload: available at the `photos` step, and any time after -->
-        <div v-if="step === 'photos' || (easy?.portfolio?.length ?? 0) > 0" class="photos">
-          <div class="photos__grid">
-            <div v-for="(url, i) in easy?.portfolio ?? []" :key="url" class="ph">
-              <img :src="url" alt="" />
-              <button class="ph__del" type="button" @click="removePortfolio(i)">
-                <v-icon icon="mdi-close" size="13" />
-              </button>
-            </div>
-            <label v-if="(easy?.portfolio?.length ?? 0) < MAX_PORTFOLIO" class="ph ph--add">
-              <v-progress-circular v-if="uploading" indeterminate size="18" width="2" />
-              <v-icon v-else icon="mdi-plus" size="20" />
-              <input type="file" accept="image/*" :disabled="uploading" @change="onFile" />
-            </label>
-          </div>
-          <p v-if="uploadErr" class="uerr">{{ uploadErr }}</p>
+        <div v-if="sending" class="msg msg--a msg--typing" aria-hidden="true">
+          <span class="msg__av">{{ t('studio.agentPersona').charAt(0) }}</span>
+          <p class="dots"><span /><span /><span /></p>
         </div>
       </div>
 
-      <div class="ag__foot">
-        <div v-if="step === 'done'" class="customizeRow">
-          <button type="button" class="customizeToggle" @click="showCustomize = !showCustomize">
-            <v-icon icon="mdi-palette-outline" size="14" /> {{ t('studio.customize') }}
-          </button>
-        </div>
-        <div v-if="showCustomize" class="customize">
-          <p class="tl">{{ t('studio.templateTitle') }}</p>
-          <div class="tpls">
-            <button
-              v-for="k in TEMPLATES"
-              :key="k"
-              class="tpl"
-              :class="{ 'is-on': template === k }"
-              type="button"
-              @click="pickTemplate(k)"
-            >
-              {{ t(`studio.template.${k}`) }}
+      <!-- photo upload: available at the `photos` step, and any time after -->
+      <div v-if="step === 'photos' || (easy?.portfolio?.length ?? 0) > 0" class="photos">
+        <div class="photos__grid">
+          <div v-for="(url, i) in easy?.portfolio ?? []" :key="url" class="ph">
+            <img :src="url" alt="" />
+            <button class="ph__del" type="button" @click="removePortfolio(i)">
+              <v-icon icon="mdi-close" size="13" />
             </button>
           </div>
-          <p class="tl">{{ t('studio.colorTitle') }}</p>
-          <div class="sws">
-            <button
-              v-for="c in PRESETS"
-              :key="c"
-              class="sw"
-              :class="{ 'is-on': color.toLowerCase() === c.toLowerCase() }"
-              :style="{ '--sw': c }"
-              type="button"
-              :aria-label="c"
-              @click="pickColor(c)"
-            />
-            <label class="sw sw--c" :style="{ '--sw': color }">
-              <v-icon icon="mdi-eyedropper-variant" size="16" />
-              <input type="color" :value="color" @input="pickColor(($event.target as HTMLInputElement).value)" />
-            </label>
-          </div>
+          <label v-if="(easy?.portfolio?.length ?? 0) < MAX_PORTFOLIO" class="ph ph--add">
+            <v-progress-circular v-if="uploading" indeterminate size="18" width="2" />
+            <v-icon v-else icon="mdi-plus" size="20" />
+            <input type="file" accept="image/*" :disabled="uploading" @change="onFile" />
+          </label>
         </div>
-
-        <!-- Text verification is unconditional now — no button, no manual
-             trigger. The backend always runs it right as the site is
-             generated; this just shows the result if there was one. -->
-        <div v-if="reviewIssues" class="review">
-          <p v-if="!reviewIssues.length" class="rev__ok">
-            <v-icon icon="mdi-check-circle-outline" size="14" /> {{ t('studio.reviewClean') }}
-          </p>
-          <ul v-else class="rev__list">
-            <li v-for="(iss, i) in reviewIssues" :key="i" class="rev__i" :class="`rev__i--${iss.kind}`">
-              <strong>{{ t('studio.reviewKind.' + iss.kind) }}</strong>
-              <span class="rev__f">{{ iss.label }}</span>
-              <span class="rev__m">{{ iss.message }}</span>
-            </li>
-          </ul>
-        </div>
-
-        <div v-if="step === 'done'" class="done">
-          <v-btn color="primary" size="small" append-icon="mdi-arrow-right" :to="{ name: 'create-location' }">
-            {{ t('studio.continueLocation') }}
-          </v-btn>
-          <button class="restart" type="button" :disabled="restarting" @click="askRestart">
-            <v-progress-circular v-if="restarting" indeterminate size="13" width="2" />
-            <v-icon v-else icon="mdi-restart" size="14" />
-            {{ t('studio.restart') }}
-          </button>
-        </div>
-
-        <div v-if="step === 'photos'" class="skiprow">
-          <button type="button" class="skip" :disabled="sending" @click="skipPhotos">
-            <v-icon icon="mdi-skip-next-outline" size="14" /> {{ t('studio.skip') }}
-          </button>
-        </div>
-
-        <div v-if="step === 'services' && (easy?.services?.length ?? 0) > 0" class="skiprow">
-          <button type="button" class="skip" :disabled="sending" @click="continueFromServices">
-            <v-icon icon="mdi-arrow-right" size="14" /> {{ t('studio.continue') }}
-          </button>
-        </div>
-
-        <form class="inp" @submit.prevent="sendChat">
-          <textarea
-            v-model="chatDraft"
-            rows="1"
-            :placeholder="chatPlaceholder"
-            :disabled="sending"
-            @keydown="onChatKey"
-          />
-          <v-btn
-            type="submit"
-            icon="mdi-send"
-            size="small"
-            color="primary"
-            :loading="sending"
-            :disabled="sending || !chatDraft.trim()"
-            :aria-label="t('studio.send')"
-          />
-        </form>
+        <p v-if="uploadErr" class="uerr">{{ uploadErr }}</p>
       </div>
+    </div>
+
+    <div class="ag__foot">
+      <div v-if="step === 'done'" class="customizeRow">
+        <button type="button" class="customizeToggle" @click="showCustomize = !showCustomize">
+          <v-icon icon="mdi-palette-outline" size="14" /> {{ t('studio.customize') }}
+        </button>
+      </div>
+      <div v-if="showCustomize" class="customize">
+        <p class="tl">{{ t('studio.templateTitle') }}</p>
+        <div class="tpls">
+          <button
+            v-for="k in TEMPLATES"
+            :key="k"
+            class="tpl"
+            :class="{ 'is-on': template === k }"
+            type="button"
+            @click="pickTemplate(k)"
+          >
+            {{ t(`studio.template.${k}`) }}
+          </button>
+        </div>
+        <p class="tl">{{ t('studio.colorTitle') }}</p>
+        <div class="sws">
+          <button
+            v-for="c in PRESETS"
+            :key="c"
+            class="sw"
+            :class="{ 'is-on': color.toLowerCase() === c.toLowerCase() }"
+            :style="{ '--sw': c }"
+            type="button"
+            :aria-label="c"
+            @click="pickColor(c)"
+          />
+          <label class="sw sw--c" :style="{ '--sw': color }">
+            <v-icon icon="mdi-eyedropper-variant" size="16" />
+            <input type="color" :value="color" @input="pickColor(($event.target as HTMLInputElement).value)" />
+          </label>
+        </div>
+      </div>
+
+      <!-- Text verification is unconditional now — no button, no manual
+           trigger. The backend always runs it right as the site is
+           generated; this just shows the result if there was one. -->
+      <div v-if="reviewIssues" class="review">
+        <p v-if="!reviewIssues.length" class="rev__ok">
+          <v-icon icon="mdi-check-circle-outline" size="14" /> {{ t('studio.reviewClean') }}
+        </p>
+        <ul v-else class="rev__list">
+          <li v-for="(iss, i) in reviewIssues" :key="i" class="rev__i" :class="`rev__i--${iss.kind}`">
+            <strong>{{ t('studio.reviewKind.' + iss.kind) }}</strong>
+            <span class="rev__f">{{ iss.label }}</span>
+            <span class="rev__m">{{ iss.message }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <div v-if="step === 'done'" class="done">
+        <v-btn color="primary" size="small" append-icon="mdi-arrow-right" :to="{ name: 'create-location' }">
+          {{ t('studio.continueLocation') }}
+        </v-btn>
+        <button class="restart" type="button" :disabled="restarting" @click="askRestart">
+          <v-progress-circular v-if="restarting" indeterminate size="13" width="2" />
+          <v-icon v-else icon="mdi-restart" size="14" />
+          {{ t('studio.restart') }}
+        </button>
+      </div>
+
+      <div v-if="step === 'photos'" class="skiprow">
+        <button type="button" class="skip" :disabled="sending" @click="skipPhotos">
+          <v-icon icon="mdi-skip-next-outline" size="14" /> {{ t('studio.skip') }}
+        </button>
+      </div>
+
+      <div v-if="step === 'services' && (easy?.services?.length ?? 0) > 0" class="skiprow">
+        <button type="button" class="skip" :disabled="sending" @click="continueFromServices">
+          <v-icon icon="mdi-arrow-right" size="14" /> {{ t('studio.continue') }}
+        </button>
+      </div>
+
+      <form class="inp" @submit.prevent="sendChat">
+        <textarea
+          v-model="chatDraft"
+          rows="1"
+          :placeholder="chatPlaceholder"
+          :disabled="sending"
+          @keydown="onChatKey"
+        />
+        <v-btn
+          type="submit"
+          icon="mdi-send"
+          size="small"
+          color="primary"
+          :loading="sending"
+          :disabled="sending || !chatDraft.trim()"
+          :aria-label="t('studio.send')"
+        />
+      </form>
     </div>
   </div>
 </template>
 
 <style scoped>
 .ag {
-  display: grid;
-  grid-template-columns: minmax(186px, min(38%, 320px)) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   border: 1px solid var(--tvz-glass-border);
   border-radius: var(--tvz-radius-lg);
   overflow: hidden;
   background: rgb(var(--v-theme-surface));
 }
 
-.ag__stage {
-  position: relative;
-  overflow: hidden;
-  min-height: 0;
+/* ---- slim step header (replaces the old AI-avatar side panel) ---- */
+.ag__head {
+  flex: none;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  padding: 1.9rem 1rem 1.25rem;
-  color: #fff;
+  gap: 0.75rem;
+  padding: 0.75rem 1.1rem;
+  border-bottom: 1px solid var(--tvz-hairline);
   background:
-    radial-gradient(120% 80% at 30% 0%, var(--tvz-brand-2), transparent 60%),
-    linear-gradient(180deg, var(--tvz-night), #060a14);
-  border-right: 1px solid var(--tvz-hairline);
-}
-.ag__blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(24px);
-  opacity: 0.5;
-  pointer-events: none;
-}
-.ag__blob--1 {
-  width: 180px;
-  height: 180px;
-  top: -40px;
-  left: -50px;
-  background: var(--tvz-brand-3);
-  animation: blob 14s ease-in-out infinite alternate;
-}
-.ag__blob--2 {
-  width: 150px;
-  height: 150px;
-  bottom: -40px;
-  right: -40px;
-  background: var(--tvz-brand-1);
-  animation: blob 18s ease-in-out infinite alternate-reverse;
-}
-@keyframes blob {
-  to {
-    transform: translate3d(18px, -14px, 0) scale(1.15);
-  }
-}
-.ag__stageIn {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 0.35rem;
-  width: 100%;
-  align-self: flex-start;
-}
-.ag__avatar {
-  filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.4));
-}
-.ag__name {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.15rem;
-  margin-top: 0.3rem;
-}
-.ag__role {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: rgba(255, 255, 255, 0.6);
+    radial-gradient(140% 160% at 0% 0%, var(--tvz-ai-soft), transparent 60%),
+    rgb(var(--v-theme-surface));
 }
 .ag__chip {
-  margin-top: 0.5rem;
+  flex: none;
   padding: 0.3rem 0.7rem;
   border-radius: 0;
   clip-path: var(--tvz-hex-sm);
   font-size: 0.72rem;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(var(--v-theme-on-surface), 0.07);
+  color: rgba(var(--v-theme-on-surface), 0.75);
   line-height: 1.3;
+  white-space: nowrap;
 }
 .ag__bar {
-  margin-top: 0.7rem;
-  width: 100%;
-  max-width: 180px;
+  flex: 1;
+  min-width: 36px;
+  max-width: 140px;
   height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(var(--v-theme-on-surface), 0.1);
   overflow: hidden;
 }
 .ag__bar span {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--tvz-brand-3);
+  background: var(--tvz-gradient-brand);
   transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ag__status {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  margin-top: 0.5rem;
+  margin-left: auto;
   font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  white-space: nowrap;
 }
 
-.ag__chat {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-}
 .ag__scroll {
   flex: 1;
   min-height: 0;
@@ -826,53 +761,19 @@ function askRestart(): void {
 }
 
 @media (max-width: 760px) {
-  .ag {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  .ag__stage {
-    border-right: 0;
-    border-bottom: 1px solid var(--tvz-hairline);
-    padding: 0.65rem 0.9rem;
-    background: linear-gradient(110deg, var(--tvz-brand-2), var(--tvz-night));
-  }
-  .ag__blob {
-    display: none;
-  }
-  .ag__stageIn {
-    flex-direction: row;
+  .ag__head {
+    padding: 0.6rem 0.9rem;
     flex-wrap: wrap;
-    text-align: left;
-    align-items: center;
-    gap: 0.1rem 0.7rem;
-  }
-  .ag__avatar {
-    width: 52px !important;
-    height: 52px !important;
-  }
-  .ag__name {
-    margin: 0;
-    font-size: 0.98rem;
-  }
-  .ag__role {
-    display: none;
   }
   .ag__chip {
-    margin: 0;
-    order: 2;
     font-size: 0.68rem;
     padding: 0.2rem 0.55rem;
   }
   .ag__bar {
-    order: 9;
+    order: 3;
     flex-basis: 100%;
     max-width: none;
-    margin-top: 0.4rem;
-  }
-  .ag__status {
-    order: 10;
-    flex-basis: 100%;
-    margin-top: 0.25rem;
+    margin-top: 0.3rem;
   }
   .ag__log {
     padding: 0.85rem;
@@ -885,8 +786,7 @@ function askRestart(): void {
 @media (prefers-reduced-motion: reduce) {
   .ag__bar span,
   .msg--new p,
-  .msg--typing .dots span,
-  .ag__blob {
+  .msg--typing .dots span {
     transition: none;
     animation: none;
   }

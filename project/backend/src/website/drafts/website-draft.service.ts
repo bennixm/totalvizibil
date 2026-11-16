@@ -10,7 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../../ai/ai.service';
 import { resolveLocationInput } from '../../geo/ro-cities';
 import { WebsiteAssetService } from '../assets/website-asset.service';
-import { ServiceItem } from '../website.types';
+import { ServiceItem, ToneOfVoice } from '../website.types';
 import {
   EasyStep,
   FREE_MAX_TURNS,
@@ -26,6 +26,7 @@ import {
   composeEasySite,
   fallbackServiceItems,
   mergeEasyPatch,
+  pickTemplate,
 } from './easy-compose';
 import { assertClean } from './content-filter';
 import { toDraftView, WebsiteDraftView } from './website-draft.view';
@@ -232,6 +233,34 @@ export class WebsiteDraftService {
     return issues;
   }
 
+  /**
+   * The visitor's very first message — one sentence: who they are, what they
+   * do, where — gets an immediate, cheap AI read (`AiService.parseIntro`) so
+   * the preview shows an interpreted business name/headline from turn one,
+   * never the raw sentence `quickNameGuess` left as a placeholder. Also picks
+   * the one-pager's template right here (tone-aware, `easy-compose.ts`'s
+   * `pickTemplate`), seeded by the draft id so a single draft's pick never
+   * flickers across composes. Mutates `a` in place; silently no-ops any part
+   * the AI call couldn't determine — the deterministic fallbacks already in
+   * `a` (and `composeEasySite`'s own defaults) cover the rest.
+   */
+  private async applyParsedIntro(
+    a: EasyAnswers,
+    rawIntro: string,
+    toneGuess: ToneOfVoice | null | undefined,
+    draftId: string,
+  ): Promise<void> {
+    const parsed = await this.ai.parseIntro({ rawIntro, locale: a.locale ?? 'ro' });
+    if (parsed) {
+      if (parsed.companyName) a.companyName = parsed.companyName;
+      if (parsed.businessType) a.businessType = parsed.businessType;
+      if (parsed.city) a.city = parsed.city;
+      if (parsed.landingTitle) a.landingTitle = parsed.landingTitle;
+    }
+    const tone = toneGuess ?? parsed?.tone ?? null;
+    a.template = pickTemplate(tone, a.businessType ?? '', draftId);
+  }
+
   /** Compact snapshot of the editable text handed to `AiService.interpretEasyEdit`
    *  so it can target the right field(s) — deliberately excludes images/contact. */
   private static editSnapshot(a: EasyAnswers): Record<string, unknown> {
@@ -387,6 +416,9 @@ export class WebsiteDraftService {
     transcript.push({ role: 'user', text: text.slice(0, 2000), at });
     for (const key of result.assistant) transcript.push({ role: 'assistant', key, at });
 
+    if (result.parseIntroFor) {
+      await this.applyParsedIntro(result.answers, result.parseIntroFor, result.toneGuess, draft.id);
+    }
     if (result.generateServicesFor?.length) {
       result.answers.services = await this.writeServiceCopy(
         result.answers,
@@ -417,10 +449,20 @@ export class WebsiteDraftService {
     return { ...toDraftView(updated), ...(reviewIssues.length ? { reviewIssues } : {}) };
   }
 
-  /** Advance a widget step (colour / portfolio) from the studio's "Continue". */
+  /**
+   * Advance a widget step (skip/continue, photo upload) from the studio —
+   * not a typed chat message, but still a real answer to the question on
+   * screen. `note`, when given, is a short, honest, already-resolved trace
+   * of what the visitor just did (e.g. "Am sărit peste poze", the actual
+   * service list just typed) and is pushed as a real `user`-role transcript
+   * turn BEFORE the assistant's reply, same as a typed message gets — so the
+   * conversation doesn't go silent on the visitor's side just because they
+   * used a button/upload instead of the text box.
+   */
   async advanceStep(
     id: string,
     token: string,
+    note?: string,
   ): Promise<WebsiteDraftView & { reviewIssues?: DraftReviewIssue[] }> {
     const draft = await this.load(id, token);
     if (draft.mode !== 'easy') throw new BadRequestException('not_a_simple_site');
@@ -430,6 +472,8 @@ export class WebsiteDraftService {
     const at = new Date().toISOString();
 
     const result = advanceEasy(draft.step as EasyStep, answers);
+    const trimmedNote = (note ?? '').trim();
+    if (trimmedNote) transcript.push({ role: 'user', text: trimmedNote.slice(0, 300), at });
     for (const key of result.assistant) transcript.push({ role: 'assistant', key, at });
 
     if (result.generateServicesFor?.length) {

@@ -192,7 +192,9 @@ onMounted(ensureEasyDraft)
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 0.86fr) minmax(520px, 1fr);
+  /* Preview : chat = 70 : 30, with a floor on the chat column so it never
+     gets crushed on medium screens. */
+  grid-template-columns: minmax(0, 7fr) minmax(340px, 3fr);
   grid-template-rows: minmax(0, 1fr);
   gap: 1rem;
 }

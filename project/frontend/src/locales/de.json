@@ -201,6 +201,8 @@
     "stepOf": "Schritt {n} von {total}",
     "continue": "Weiter",
     "skip": "Überspringen",
+    "noteSkipPhotos": "Überspringe Fotos erstmal.",
+    "notePhotoAdded": "Ein Foto hinzugefügt.",
     "customize": "Stil & Farbe",
     "colorTitle": "Wähle deine Markenfarbe",
     "landingImage": "Hintergrundbild",
@@ -296,7 +298,10 @@
     "template": {
       "classic": "Klassisch",
       "bold": "Markant",
-      "minimal": "Minimal"
+      "minimal": "Minimal",
+      "warm": "Warm",
+      "sharp": "Scharf",
+      "editorial": "Editorial"
     },
     "templateDesc": {
       "classic": "Ausgewogen: Intro, Leistungen als Karten, dann Gründe und Portfolio.",

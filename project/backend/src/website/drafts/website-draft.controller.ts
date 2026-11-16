@@ -7,6 +7,7 @@ import { SetLocationDto } from './dto/set-location.dto';
 import { PatchEasyDto } from './dto/patch-easy.dto';
 import { AddAssetDto } from './dto/add-asset.dto';
 import { RegenerateServicesDto } from './dto/regenerate-services.dto';
+import { AdvanceStepDto } from './dto/advance-step.dto';
 
 /**
  * Anonymous website-draft studio (free "Site Simplu" one-pager). No auth: a
@@ -47,8 +48,12 @@ export class WebsiteDraftController {
   /** Advance a widget step (colour / portfolio) from the studio's "Continue". */
   @Throttle({ default: { ttl: 60_000, limit: 60 } })
   @Post(':id/advance')
-  advance(@Param('id', ParseUUIDPipe) id: string, @Headers('x-draft-token') token?: string) {
-    return this.drafts.advanceStep(id, token ?? '');
+  advance(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdvanceStepDto,
+    @Headers('x-draft-token') token?: string,
+  ) {
+    return this.drafts.advanceStep(id, token ?? '', dto.note);
   }
 
   /** Live config edits from the studio widgets — colour, images, contact, order. */

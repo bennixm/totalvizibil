@@ -201,6 +201,8 @@
     "stepOf": "Step {n} of {total}",
     "continue": "Continue",
     "skip": "Skip",
+    "noteSkipPhotos": "Skipping photos for now.",
+    "notePhotoAdded": "Added a photo.",
     "customize": "Style & colour",
     "colorTitle": "Pick your brand colour",
     "landingImage": "Background image",
@@ -296,7 +298,10 @@
     "template": {
       "classic": "Classic",
       "bold": "Bold",
-      "minimal": "Minimal"
+      "minimal": "Minimal",
+      "warm": "Warm",
+      "sharp": "Sharp",
+      "editorial": "Editorial"
     },
     "templateDesc": {
       "classic": "Balanced: intro, services as cards, then reasons and portfolio.",

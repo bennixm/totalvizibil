@@ -95,6 +95,7 @@ function fakeAi() {
     suggestSubcategories: jest.fn().mockResolvedValue(null),
     generateEasySite: jest.fn().mockResolvedValue(null),
     interpretEasyEdit: jest.fn().mockResolvedValue(null),
+    parseIntro: jest.fn().mockResolvedValue(null),
   };
 }
 
@@ -252,6 +253,38 @@ describe('WebsiteDraftService', () => {
       const { svc } = makeService();
       await expect(svc.advanceStep('d1', 'ghost-token')).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    // Advancing by a widget (skip/continue/upload) is still answering the
+    // question on screen — a `note` must leave a real `user`-role turn, same
+    // as a typed message does, so the chat never looks one-sided.
+    it('pushes a user transcript turn when a note is given', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'photos',
+        mode: 'easy',
+      });
+      const view = await svc.advanceStep('d1', 'tok1', 'Sar peste poze deocamdată.');
+      expect(view.transcript).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'user', text: 'Sar peste poze deocamdată.' }),
+        ]),
+      );
+    });
+
+    it('leaves the transcript untouched (no empty user turn) when no note is given', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'photos',
+        mode: 'easy',
+        transcript: [],
+      });
+      const view = await svc.advanceStep('d1', 'tok1');
+      expect(view.transcript.some((t) => t.role === 'user')).toBe(false);
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -299,6 +332,75 @@ describe('WebsiteDraftService', () => {
       expect(prisma.websiteDraft.update).toHaveBeenCalled();
       const updateArg = prisma.websiteDraft.update.mock.calls[0][0];
       expect(updateArg.data.turnsUsed).toBe(1);
+    });
+
+    // The very first message must never leave the raw sentence sitting in the
+    // preview — `parseIntro` is called immediately and its result overrides
+    // the synchronous `quickNameGuess` placeholder before the first compose.
+    it('runs AiService.parseIntro on the first message and adopts its result', async () => {
+      const { svc, prisma, ai } = makeService();
+      ai.parseIntro.mockResolvedValue({
+        companyName: 'AquaFix SRL',
+        businessType: 'instalații sanitare',
+        city: 'Cluj-Napoca',
+        landingTitle: 'Instalatori de încredere în Cluj',
+        tone: 'professional',
+      });
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'intro',
+        mode: 'easy',
+        answers: { locale: 'ro' },
+      });
+      const view = await svc.sendMessage(
+        'd1',
+        'tok1',
+        'sunt aquafix, facem instalatii sanitare in cluj',
+      );
+      expect(ai.parseIntro).toHaveBeenCalledTimes(1);
+      expect(view.easy?.companyName).toBe('AquaFix SRL');
+      expect(view.easy?.businessType).toBe('instalații sanitare');
+      expect(view.easy?.city).toBe('Cluj-Napoca');
+      expect(view.easy?.landingTitle).toBe('Instalatori de încredere în Cluj');
+    });
+
+    // No raw sentence ever reaches the preview, even when the AI call fails —
+    // the deterministic `quickNameGuess` fallback is a short head-of-sentence
+    // guess, never the untouched full message.
+    it('falls back to the deterministic guess (never the raw sentence) when parseIntro fails', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'intro',
+        mode: 'easy',
+        answers: { locale: 'ro' },
+      });
+      const raw = 'salut, eu sunt Andrei si fac gradinarit in zona Brasov';
+      const view = await svc.sendMessage('d1', 'tok1', raw);
+      expect(view.easy?.companyName).not.toBe(raw);
+      expect(view.easy?.companyName).toBe('salut');
+    });
+
+    // Auto-picks a template right away (tone-aware) instead of every draft
+    // defaulting to `classic` — but stays stable across repeated composes.
+    it('auto-picks a template on the first message and keeps it stable afterwards', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'intro',
+        mode: 'easy',
+        answers: { locale: 'ro' },
+      });
+      const view = await svc.sendMessage('d1', 'tok1', 'AquaFix, instalatii sanitare');
+      expect(view.easy?.template).toEqual(expect.any(String));
+      const first = view.easy?.template;
+
+      // A later patch (e.g. a colour change) recomposes but must not re-pick.
+      const again = await svc.patchEasy('d1', 'tok1', { accentColor: '#112233' });
+      expect(again.easy?.template).toBe(first);
     });
 
     it('runs the one-shot full-site generation when the contact step finishes', async () => {
