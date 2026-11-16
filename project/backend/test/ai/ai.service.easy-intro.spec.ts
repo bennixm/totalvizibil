@@ -39,9 +39,7 @@ describe('AiService.parseIntro', () => {
     const svc = new AiService(fakeConfig('test-key'));
     const create = withFakeTransport(svc, '{}');
     await expect(svc.parseIntro({ rawIntro: '', locale: 'ro' })).resolves.toBeNull();
-    await expect(
-      svc.parseIntro({ rawIntro: 'x'.repeat(501), locale: 'ro' }),
-    ).resolves.toBeNull();
+    await expect(svc.parseIntro({ rawIntro: 'x'.repeat(501), locale: 'ro' })).resolves.toBeNull();
     expect(create).not.toHaveBeenCalled();
   });
 

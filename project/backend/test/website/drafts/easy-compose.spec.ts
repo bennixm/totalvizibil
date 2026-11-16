@@ -22,7 +22,9 @@ describe('easy-compose template selection', () => {
 
     it('spreads different seeds across more than one template', () => {
       const picks = new Set(
-        Array.from({ length: 12 }, (_, i) => pickTemplate(null, 'instalații sanitare', `draft-${i}`)),
+        Array.from({ length: 12 }, (_, i) =>
+          pickTemplate(null, 'instalații sanitare', `draft-${i}`),
+        ),
       );
       // Never every draft collapsing onto the same single template again.
       expect(picks.size).toBeGreaterThan(1);
@@ -32,9 +34,7 @@ describe('easy-compose template selection', () => {
       // Regression guard for the bug this feature fixes: `template` left
       // unset used to always resolve to `classic` (templateKey(undefined)).
       // pickTemplate must spread across the set instead.
-      const picks = Array.from({ length: 10 }, (_, i) =>
-        pickTemplate(null, '', `seed-${i}`),
-      );
+      const picks = Array.from({ length: 10 }, (_, i) => pickTemplate(null, '', `seed-${i}`));
       expect(new Set(picks).size).toBeGreaterThan(1);
     });
 

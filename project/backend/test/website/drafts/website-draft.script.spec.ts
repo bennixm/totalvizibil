@@ -74,7 +74,11 @@ describe('website-draft guided script', () => {
   });
 
   it('intro step carries the regex tone pre-filter alongside parseIntroFor', () => {
-    const r = advanceEasy('intro', { locale: 'ro' }, 'Suntem o firmă premium și elegantă din Sibiu');
+    const r = advanceEasy(
+      'intro',
+      { locale: 'ro' },
+      'Suntem o firmă premium și elegantă din Sibiu',
+    );
     expect(r.parseIntroFor).toBe('Suntem o firmă premium și elegantă din Sibiu');
     expect(r.toneGuess).toBe('premium');
   });
