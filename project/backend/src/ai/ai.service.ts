@@ -487,6 +487,7 @@ export class AiService {
   private readonly anthropic: Anthropic | null;
   private readonly anthropicModel: string;
   private readonly anthropicModelFast: string;
+  private readonly anthropicModelFeed: string;
 
   constructor(config: ConfigService<AppConfig, true>) {
     const anthropicKey = config.get('anthropicApiKey', { infer: true }) ?? '';
@@ -496,6 +497,9 @@ export class AiService {
     // Sonnet is the sane default — Opus times out on a chain this long.
     this.anthropicModelFast =
       config.get('anthropicModelFast', { infer: true }) || 'claude-sonnet-5';
+    // The homepage search only PICKS from a list; the cheapest tier does it.
+    this.anthropicModelFeed =
+      config.get('anthropicModelFeed', { infer: true }) || 'claude-haiku-5-5';
     this.anthropic = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : null;
 
     if (!this.anthropic) {
@@ -868,7 +872,7 @@ export class AiService {
     const parsed = (await this.json(system, `Request: "${text}"`, {
       maxTokens: 200,
       effort: 'low',
-      model: this.anthropicModelFast,
+      model: this.anthropicModelFeed,
       timeoutMs: 8_000,
       cacheSystem: true,
     })) as Record<string, unknown> | null;

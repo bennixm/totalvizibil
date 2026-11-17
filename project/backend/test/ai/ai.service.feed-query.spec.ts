@@ -58,6 +58,13 @@ describe('AiService.interpretFeedQuery', () => {
     expect(params.messages[0].content).not.toContain('instalatii-sanitare');
   });
 
+  it('runs on the cheap feed model (Haiku by default), not the builder models', async () => {
+    const svc = new AiService(fakeConfig('test-key'));
+    const create = withFakeTransport(svc, '{"group":null}');
+    await svc.interpretFeedQuery(INPUT);
+    expect(create.mock.calls[0][0].model).toBe('claude-haiku-5-5');
+  });
+
   it('shape-checks the reply: caps lists, drops non-strings, keeps raw picks for the caller to whitelist', async () => {
     const svc = new AiService(fakeConfig('test-key'));
     withFakeTransport(

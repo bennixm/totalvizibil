@@ -1,7 +1,11 @@
-import { createHash } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
-import { AiService, type AiLocale } from '../ai/ai.service';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
+import { AiService, type AiLocale, type FeedQueryInterpretation } from '../ai/ai.service';
+import type { AppConfig } from '../config/env';
 import { RO_CITIES, RO_COUNTIES, resolveCounty } from '../geo/ro-cities';
+import { PrismaService } from '../prisma/prisma.service';
+import { FeedEmbeddingService, fingerprintOf, leavesOf } from './feed-embedding.service';
 import { FeedService } from './feed.service';
 
 /** Exactly what the Feed can express: one group, 0-3 leaves of that group,
@@ -22,10 +26,20 @@ interface CatalogGroup extends CatalogLeaf {
 }
 
 const MAX_PICKS = 3;
-const CACHE_MAX = 500;
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-/** A fallback hit below this is a stray word overlap, not a real match. */
+/** Stored Claude answers are reused for this long. */
+const AI_CACHE_TTL_MS = 180 * 24 * 60 * 60 * 1000;
+/** A keyword hit below this is a stray word overlap, not a real match. */
 const FALLBACK_MIN_SCORE = 50;
+/** A keyword hit at/above this means a category NAME is literally in the
+ *  request ("firmă de construcții", "instalații electrice"): trusted as is. */
+const NAME_HIT_SCORE = 80;
+/** Local embedding lead over the runner-up that counts as "sure". Tuned on
+ *  realistic requests against the live taxonomy: above it ~97% were right;
+ *  below it the request goes to the Claude backup. */
+const EMBED_CONFIDENT_MARGIN = 0.012;
+/** With no AI left to ask, a weaker local guess is still shown above this
+ *  (the toast says what was picked); below it the Feed root is safer. */
+const EMBED_GUESS_MARGIN = 0.005;
 
 /** Filler words in search-style requests ("unde găsesc o firmă de …"),
  *  greetings and short function words. They carry no category meaning but
@@ -185,58 +199,153 @@ function spaced(s: string): string {
 }
 
 /**
- * Maps one free-text homepage request onto the Feed's own filters. Claude
- * interprets the need (it can tell "mi s-a spart o țeavă" means plumbing,
- * which no keyword match can), but only ever CHOOSES: every slug and județ it
- * returns is whitelisted against the live taxonomy here, so a hallucination or
- * a prompt-injection attempt can at worst pick a wrong-but-real category. If
- * the AI is unavailable or fails, a deterministic matcher (a port of the
- * Feed's own in-page category search) answers instead, so this never
- * dead-ends.
+ * Maps one free-text homepage request onto the Feed's own filters, as cheaply
+ * as possible:
+ *
+ *   1. A request Claude already answered (stored for months): reused.
+ *   2. A category name literally in the text: keyword match.
+ *   3. The local embedding model is sure of its pick: that leaf ($0, ~5 ms).
+ *   4. Still unsure: Claude (Haiku) as a backup, only while under the
+ *      daily/monthly call caps; the answer is stored for step 1.
+ *   5. Over the cap / AI down: best local guess, or the Feed root.
+ *
+ * Whatever Claude returns is whitelisted against the live taxonomy (stored
+ * answers too, on every read), so a hallucination or prompt injection can at
+ * worst pick a wrong-but-real category. Places (cities, județe, sectors) are
+ * always found by the deterministic scanner; Claude's places are added on
+ * top when it was asked.
  */
 @Injectable()
 export class FeedQueryService {
-  /** AI answers only — a fallback answer is never cached, so it can't keep
-   *  shadowing the better AI answer once the AI is reachable again. */
-  private readonly cache = new Map<string, { result: FeedQueryResult; expiresAt: number }>();
+  private readonly logger = new Logger('FeedQueryService');
+  private readonly dailyLimit: number;
+  private readonly monthlyLimit: number;
+  /** Attempts per UTC day, failed ones included (a failing call can still be
+   *  billed, e.g. a timeout). Stored rows only count successes. */
+  private attempts = { day: '', count: 0 };
 
   constructor(
     private readonly feed: FeedService,
     private readonly ai: AiService,
-  ) {}
+    private readonly prisma: PrismaService,
+    private readonly embeddings: FeedEmbeddingService,
+    @Inject(ConfigService) config: ConfigService<AppConfig, true>,
+  ) {
+    this.dailyLimit = config.get('feedAiDailyLimit', { infer: true }) ?? 0;
+    this.monthlyLimit = config.get('feedAiMonthlyLimit', { infer: true }) ?? 0;
+  }
 
   async interpret(rawText: string, locale: AiLocale): Promise<FeedQueryResult> {
     const text = rawText.trim().slice(0, 300);
     const groups = (await this.feed.facets()).categories as unknown as CatalogGroup[];
-    const catalog = this.catalogOf(groups);
-    const key = `${locale}|${createHash('sha1').update(catalog).digest('hex').slice(0, 12)}|${normalize(
-      text,
-    )
+    const key = `${locale}|${normalize(text)
       .replace(/\s+/g, ' ')
       .replace(/[?!.]+$/, '')}`;
 
-    const cached = this.cache.get(key);
-    if (cached && cached.expiresAt > Date.now()) {
-      this.cache.delete(key);
-      this.cache.set(key, cached);
-      return cached.result;
-    }
+    // 1. Claude already answered this exact request.
+    const stored = await this.readStored(key);
+    if (stored) return this.validate(stored, groups);
 
-    const ai = await this.ai.interpretFeedQuery({
-      text,
-      locale,
-      catalog,
-      counties: [...RO_COUNTIES],
+    // 2. A category name is in the text.
+    const lexical = this.fallback(text, groups);
+    if (lexical.score >= NAME_HIT_SCORE) return lexical.result;
+
+    // 3. The local model is sure.
+    const leaves = leavesOf(groups);
+    const local = await this.embeddings.match(text, leaves, fingerprintOf(leaves));
+    const localResult = (m: { group: string; slug: string }): FeedQueryResult => ({
+      group: m.group,
+      niches: [m.slug],
+      counties: lexical.result.counties,
     });
-    if (!ai) return this.fallback(text, groups);
+    if (local && local.margin >= EMBED_CONFIDENT_MARGIN) return localResult(local);
 
-    const result = this.validate(ai, groups);
-    this.cache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS });
-    if (this.cache.size > CACHE_MAX) {
-      const oldest = this.cache.keys().next().value;
-      if (oldest !== undefined) this.cache.delete(oldest);
+    // 4. Claude backup, within budget.
+    if (await this.claimAiCall()) {
+      const ai = await this.ai.interpretFeedQuery({
+        text,
+        locale,
+        catalog: this.catalogOf(groups),
+        counties: [...RO_COUNTIES],
+      });
+      if (ai) {
+        await this.store(key, locale, text, ai);
+        const result = this.validate(ai, groups);
+        // Places the scanner found but the model missed still count.
+        result.counties = [...new Set([...result.counties, ...lexical.result.counties])].slice(
+          0,
+          MAX_PICKS,
+        );
+        return result;
+      }
     }
-    return result;
+
+    // 5. Best local guess. The model reads meaning; a sub-80 keyword hit is
+    //    only a word-fragment overlap ("beau" ~ "beauty"), so it comes second.
+    if (local && local.margin >= EMBED_GUESS_MARGIN) return localResult(local);
+    return lexical.result;
+  }
+
+  // --- stored Claude answers + spending caps ------------------------------
+
+  private async readStored(key: string): Promise<FeedQueryInterpretation | null> {
+    try {
+      const row = await this.prisma.feedQueryCache.findUnique({ where: { key } });
+      if (!row || Date.now() - row.createdAt.getTime() > AI_CACHE_TTL_MS) return null;
+      void this.prisma.feedQueryCache
+        .update({ where: { key }, data: { hits: { increment: 1 }, lastHitAt: new Date() } })
+        .catch(() => undefined);
+      return asInterpretation(row.answer);
+    } catch (err) {
+      this.logger.warn(`Reading stored answers failed: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  private async store(
+    key: string,
+    locale: string,
+    query: string,
+    answer: FeedQueryInterpretation,
+  ): Promise<void> {
+    try {
+      const data = { answer: answer as unknown as Prisma.InputJsonValue, createdAt: new Date() };
+      await this.prisma.feedQueryCache.upsert({
+        where: { key },
+        create: { key, locale, query, ...data },
+        update: { ...data, hits: 0 },
+      });
+      // Housekeeping, now and then: expired rows are never read again.
+      if (Math.random() < 0.02) {
+        await this.prisma.feedQueryCache.deleteMany({
+          where: { createdAt: { lt: new Date(Date.now() - AI_CACHE_TTL_MS) } },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`Storing an AI answer failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** True (and counted) when one more Claude call fits under both caps. */
+  private async claimAiCall(): Promise<boolean> {
+    if (!this.ai.configured || this.dailyLimit <= 0 || this.monthlyLimit <= 0) return false;
+    const now = new Date();
+    const day = now.toISOString().slice(0, 10);
+    if (this.attempts.day !== day) this.attempts = { day, count: 0 };
+    if (this.attempts.count >= this.dailyLimit) return false;
+    try {
+      const dayStart = new Date(`${day}T00:00:00.000Z`);
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const [today, month] = await Promise.all([
+        this.prisma.feedQueryCache.count({ where: { createdAt: { gte: dayStart } } }),
+        this.prisma.feedQueryCache.count({ where: { createdAt: { gte: monthStart } } }),
+      ]);
+      if (today >= this.dailyLimit || month >= this.monthlyLimit) return false;
+    } catch {
+      return false; // can't verify the budget, so don't spend
+    }
+    this.attempts.count++;
+    return true;
   }
 
   /** `slug | ro | en`, one line per group, its leaves indented beneath. */
@@ -247,10 +356,7 @@ export class FeedQueryService {
       .join('\n');
   }
 
-  private validate(
-    ai: { group: string | null; niches: string[]; counties: string[]; cities: string[] },
-    groups: CatalogGroup[],
-  ): FeedQueryResult {
+  private validate(ai: FeedQueryInterpretation, groups: CatalogGroup[]): FeedQueryResult {
     const groupSlugs = new Set(groups.map((g) => g.slug));
     const parentOf = new Map<string, string>();
     for (const g of groups) for (const c of g.children) parentOf.set(c.slug, g.slug);
@@ -292,8 +398,11 @@ export class FeedQueryService {
     return city?.county ?? PLACE_EXONYMS[q.trim()] ?? resolveCounty(name);
   }
 
-  /** Deterministic answer for when the AI isn't available. */
-  private fallback(text: string, groups: CatalogGroup[]): FeedQueryResult {
+  /** Deterministic keyword match on category names, plus the place scan. */
+  private fallback(
+    text: string,
+    groups: CatalogGroup[],
+  ): { result: FeedQueryResult; score: number } {
     const hay = spaced(text);
 
     const counties = new Set<string>();
@@ -336,11 +445,29 @@ export class FeedQueryService {
       }
     }
 
-    const hit = best as { group: string; leaf: string | null } | null;
+    const hit = best as { group: string; leaf: string | null; score: number } | null;
     return {
-      group: hit?.group ?? null,
-      niches: hit?.leaf ? [hit.leaf] : [],
-      counties: [...counties].slice(0, MAX_PICKS),
+      result: {
+        group: hit?.group ?? null,
+        niches: hit?.leaf ? [hit.leaf] : [],
+        counties: [...counties].slice(0, MAX_PICKS),
+      },
+      score: hit?.score ?? 0,
     };
   }
+}
+
+/** A stored `answer` JSON back into the interpretation shape (defensive: it
+ *  is re-validated against the taxonomy anyway). */
+function asInterpretation(v: unknown): FeedQueryInterpretation | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const list = (x: unknown) =>
+    Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string') : [];
+  return {
+    group: typeof o.group === 'string' ? o.group : null,
+    niches: list(o.niches),
+    counties: list(o.counties),
+    cities: list(o.cities),
+  };
 }

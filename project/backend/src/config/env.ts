@@ -15,6 +15,17 @@ export interface AppConfig {
   anthropicModel: string;
   /** Optional faster/cheaper model for the mechanical generator calls (copy, image intents, review). Empty ⇒ `anthropicModel`. */
   anthropicModelFast: string;
+  /** Model for the homepage "ask" search backup call (picking a category from
+   *  a list; the cheapest tier is plenty). */
+  anthropicModelFeed: string;
+  /** `off` disables the local embedding matcher for the homepage search
+   *  (then only the keyword matcher + Claude backup answer). */
+  feedEmbeddings: boolean;
+  /** Max Claude calls per UTC day / month for the homepage search backup.
+   *  0 disables the backup entirely. Answers are cached long-term, so repeats
+   *  never count. */
+  feedAiDailyLimit: number;
+  feedAiMonthlyLimit: number;
   /** Pexels API key — primary stock-photo provider for the Advanced generator. Empty ⇒ curated pool fallback. */
   pexelsApiKey: string;
   /** DeepSeek API key — PRO V2's cheaper-tier provider only. Empty ⇒ PRO V2's router uses Claude for everything. */
@@ -74,6 +85,11 @@ export interface AppConfig {
 // Matches project/docker-compose.yml. Used only as a dev fallback when .env is
 // missing (it lives in a OneDrive folder and sometimes disappears).
 const DEV_DATABASE_URL = 'postgresql://tvz:tvz@localhost:5432/tvz?schema=public';
+
+function nonNegativeInt(raw: string | undefined, fallback: number): number {
+  const n = Number(raw?.trim());
+  return raw?.trim() && Number.isInteger(n) && n >= 0 ? n : fallback;
+}
 
 export function loadConfig(): AppConfig {
   const nodeEnv = (process.env.NODE_ENV ?? 'development') as AppConfig['nodeEnv'];
@@ -135,6 +151,10 @@ export function loadConfig(): AppConfig {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() ?? '',
     anthropicModel: process.env.ANTHROPIC_MODEL?.trim() || 'claude-opus-5',
     anthropicModelFast: process.env.ANTHROPIC_MODEL_FAST?.trim() ?? '',
+    anthropicModelFeed: process.env.ANTHROPIC_MODEL_FEED?.trim() || 'claude-haiku-5-5',
+    feedEmbeddings: (process.env.FEED_EMBEDDINGS?.trim().toLowerCase() ?? '') !== 'off',
+    feedAiDailyLimit: nonNegativeInt(process.env.FEED_AI_DAILY_LIMIT, 200),
+    feedAiMonthlyLimit: nonNegativeInt(process.env.FEED_AI_MONTHLY_LIMIT, 2000),
     pexelsApiKey: process.env.PEXELS_API_KEY?.trim() ?? '',
     deepseekApiKey: process.env.DEEPSEEK_API_KEY?.trim() ?? '',
     deepseekModelFlash: process.env.DEEPSEEK_MODEL_FLASH?.trim() || 'deepseek-chat',

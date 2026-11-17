@@ -3,6 +3,7 @@ import { CampaignModule } from '../campaigns/campaign.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { FeedController } from './feed.controller';
 import { FeedService } from './feed.service';
+import { FeedEmbeddingService } from './feed-embedding.service';
 import { FeedQueryService } from './feed-query.service';
 import { PublicCompanyController } from './public-company.controller';
 import { PublicCompanyService } from './public-company.service';
@@ -10,6 +11,6 @@ import { PublicCompanyService } from './public-company.service';
 @Module({
   imports: [CampaignModule, AnalyticsModule],
   controllers: [FeedController, PublicCompanyController],
-  providers: [FeedService, FeedQueryService, PublicCompanyService],
+  providers: [FeedService, FeedQueryService, FeedEmbeddingService, PublicCompanyService],
 })
 export class FeedModule {}
