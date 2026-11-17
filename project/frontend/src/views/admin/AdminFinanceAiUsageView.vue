@@ -23,6 +23,31 @@ function dt(s: string): string {
 
 const hasRows = computed(() => (finance.aiUsage?.byModel.length ?? 0) > 0)
 
+// --- homepage "ask" search ---------------------------------------------
+const search = computed(() => finance.aiUsage?.search ?? null)
+const freeShare = computed(() => {
+  const s = search.value
+  if (!s?.searches) return 0
+  return Math.round(((s.stored + s.keyword + s.local + s.guess) / s.searches) * 100)
+})
+/** Sub-cent spend must not read as "€0,00". */
+function tinyMoney(minor: number, exact: number): string {
+  return minor === 0 && exact > 0 ? `< ${eur(1)}` : eur(minor)
+}
+const searchParts = computed(() => {
+  const s = search.value
+  if (!s?.searches) return []
+  return (
+    [
+      { key: 'stored', n: s.stored, cls: 'p1' },
+      { key: 'keyword', n: s.keyword, cls: 'p2' },
+      { key: 'local', n: s.local, cls: 'p3' },
+      { key: 'ai', n: s.ai, cls: 'p4' },
+      { key: 'guess', n: s.guess, cls: 'p5' },
+    ] as const
+  ).map((p) => ({ ...p, pct: (p.n / s.searches) * 100 }))
+})
+
 // Independent period filter — its own state/fetch (`setAiUsagePeriod`),
 // same pattern as Venituri/Costuri/Dashboard. Used to silently inherit the
 // Dashboard's period instead, with no control of its own to change it.
@@ -93,6 +118,49 @@ onMounted(() => setQuickRange('month'))
         <AdminStatCard :label="t('adminFinance.aiTotalTokens')" :value="n(finance.aiUsage.totalTokens)" icon="mdi-counter" />
       </div>
 
+      <!-- Homepage "ask" search: most answers are free (stored answers,
+           category names, the local model); only the rest reach Claude. -->
+      <section v-if="search" class="afa__search">
+        <h2 class="afa__h2">{{ t('adminFinance.searchTitle') }}</h2>
+        <div class="afa__kpis afa__kpis--four">
+          <AdminStatCard :label="t('adminFinance.searchCount')" :value="n(search.searches)" icon="mdi-magnify" />
+          <AdminStatCard
+            :label="t('adminFinance.searchFree')"
+            :value="`${freeShare}%`"
+            icon="mdi-gift-outline"
+            tone="success"
+            :hint="t('adminFinance.searchFreeHint')"
+          />
+          <AdminStatCard :label="t('adminFinance.searchAiCalls')" :value="n(search.ai)" icon="mdi-robot-outline" />
+          <AdminStatCard
+            :label="t('adminFinance.searchCost')"
+            :value="tinyMoney(search.costMinor, search.costUsd)"
+            icon="mdi-cash-minus"
+            tone="error"
+            :sub="search.ai ? t('adminFinance.searchAvg', { cost: `$${search.avgCostUsd.toFixed(5)}` }) : undefined"
+          />
+        </div>
+        <template v-if="searchParts.length">
+          <div class="afa__bar" role="img" :aria-label="t('adminFinance.searchSplit')">
+            <span
+              v-for="p in searchParts"
+              v-show="p.n > 0"
+              :key="p.key"
+              :class="['afa__seg', `afa__seg--${p.cls}`]"
+              :style="{ width: `${p.pct}%` }"
+            />
+          </div>
+          <ul class="afa__legend">
+            <li v-for="p in searchParts" :key="p.key">
+              <i :class="['afa__dot', `afa__seg--${p.cls}`]" />
+              {{ t(`adminFinance.searchVia.${p.key}`) }}
+              <b>{{ n(p.n) }}</b>
+            </li>
+          </ul>
+        </template>
+        <p v-else class="afa__muted">{{ t('adminFinance.searchNone') }}</p>
+      </section>
+
       <AdminEmptyState v-if="!hasRows" icon="mdi-robot-outline" :text="t('adminFinance.noAiUsage')" />
 
       <div v-else class="rtable">
@@ -139,6 +207,80 @@ onMounted(() => setQuickRange('month'))
 }
 .afa__kpis--two {
   grid-template-columns: repeat(2, 1fr);
+}
+.afa__kpis--four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* --- homepage search --- */
+.afa__search {
+  margin: 0 0 1.8rem;
+}
+.afa__h2 {
+  margin: 0.4rem 0 0.2rem;
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.afa__bar {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.06);
+}
+.afa__seg {
+  height: 100%;
+}
+.afa__seg--p1 {
+  background: rgb(var(--v-theme-primary));
+}
+.afa__seg--p2 {
+  background: rgba(var(--v-theme-primary), 0.55);
+}
+.afa__seg--p3 {
+  background: rgb(var(--v-theme-success));
+}
+.afa__seg--p4 {
+  background: rgb(var(--v-theme-error));
+}
+.afa__seg--p5 {
+  background: rgba(var(--v-theme-on-surface), 0.3);
+}
+.afa__legend {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  font-size: 0.82rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.afa__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.afa__legend b {
+  color: rgb(var(--v-theme-on-surface));
+  font-variant-numeric: tabular-nums;
+}
+.afa__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.afa__muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+@media (max-width: 1100px) {
+  .afa__kpis--four {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 .afa__list {
   list-style: none;

@@ -234,16 +234,6 @@ async function go(n: number): Promise<void> {
         <h1>{{ t('feed.title') }}</h1>
         <p class="feed__lead">{{ t('feed.lead') }}</p>
       </div>
-      <v-btn
-        :to="{ name: 'create' }"
-        color="primary"
-        size="large"
-        rounded="pill"
-        append-icon="mdi-creation"
-        class="d-none d-md-inline-flex"
-      >
-        {{ t('nav.createBusiness') }}
-      </v-btn>
     </header>
 
     <div v-if="geoAutoFilterCounty" class="feed__geo-banner">

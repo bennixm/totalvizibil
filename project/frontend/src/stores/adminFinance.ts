@@ -202,6 +202,25 @@ export interface AiUsageReport {
   totalTokens: number
   totalCalls: number
   byModel: AiUsageModelRow[]
+  /** Homepage "ask" search: how searches were answered + Claude's cost. */
+  search?: AiSearchUsage
+}
+
+export interface AiSearchUsage {
+  searches: number
+  /** Reused a stored Claude answer (free). */
+  stored: number
+  /** A category name was in the text (free). */
+  keyword: number
+  /** Local embedding model was sure (free). */
+  local: number
+  /** New Claude call (paid). */
+  ai: number
+  /** Local best guess (Claude capped / unavailable). */
+  guess: number
+  costMinor: number
+  costUsd: number
+  avgCostUsd: number
 }
 
 export interface PeriodFilter {

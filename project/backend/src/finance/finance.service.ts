@@ -116,6 +116,24 @@ const NOT_VOIDED_INVOICE: Prisma.WalletTransactionWhereInput = {
  *  exporting them would mean editing that file. Read-only use only.
  *  NOTE: if the wallet-side strings ever change, change these too. */
 const AI_USAGE_PROVIDER = 'ai-usage';
+/** "Consum AI" bucket for the homepage search's Claude backup. */
+const SEARCH_PROVIDER = 'cautare-homepage';
+/** Platform-side AI spend no customer is ever billed for. */
+const NEVER_CHARGED = new Set(['google-ads-agent', SEARCH_PROVIDER]);
+interface SearchUsage {
+  days: {
+    total: number;
+    stored: number;
+    keyword: number;
+    local: number;
+    ai: number;
+    guess: number;
+    aiCostUsd: number;
+    aiInputTokens: number;
+    aiOutputTokens: number;
+  }[];
+  model: string;
+}
 const BUILDER_UNLOCK_DESCRIPTION = 'Advanced website builder';
 type OneOffFeeCategory = 'aiUsage' | 'builderUnlock' | 'other';
 function oneOffFeeCategory(provider: string | null, description: string | null): OneOffFeeCategory {
@@ -1027,7 +1045,25 @@ export class FinanceService {
         },
       }),
     ]);
-    return { rows, googleAdsAgentRuns, from, to };
+    // Homepage "ask" search: per-day tallies (its Claude spend is summed
+    // there at write time). Day rows are matched by the calendar days the
+    // range touches.
+    const dayFrom = new Date(
+      Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()),
+    );
+    const [searchDays, latestSearchCall] = await Promise.all([
+      this.prisma.feedSearchDaily.findMany({ where: { day: { gte: dayFrom, lte: to } } }),
+      this.prisma.feedQueryCache.findFirst({
+        where: { model: { not: '' } },
+        orderBy: { createdAt: 'desc' },
+        select: { model: true },
+      }),
+    ]);
+    const search = {
+      days: searchDays,
+      model: latestSearchCall?.model ?? 'claude',
+    };
+    return { rows, googleAdsAgentRuns, search, from, to };
   }
 
   /** Builds the same "accumulate raw USD, round once" per-(provider,model)
@@ -1053,6 +1089,7 @@ export class FinanceService {
       claudeCostEstimateMinor: number | null;
       claudeCallCount: number;
     }[],
+    search: SearchUsage,
   ) {
     const byModel = new Map<
       string,
@@ -1087,12 +1124,26 @@ export class FinanceService {
       bucket.costUsd += (r.claudeCostEstimateMinor ?? 0) / 100;
       byModel.set(key, bucket);
     }
+    // The homepage search's Claude backup: platform cost, never charged.
+    const searchCalls = search.days.reduce((n, d) => n + d.ai, 0);
+    if (searchCalls > 0) {
+      byModel.set(`${SEARCH_PROVIDER}:${search.model}`, {
+        provider: SEARCH_PROVIDER,
+        model: search.model,
+        calls: searchCalls,
+        tokens: search.days.reduce((n, d) => n + d.aiInputTokens + d.aiOutputTokens, 0),
+        costUsd: search.days.reduce((n, d) => n + d.aiCostUsd, 0),
+      });
+    }
     return byModel;
   }
 
   async aiUsageReport(q: FinancePeriodQuery) {
-    const { rows, googleAdsAgentRuns, from, to } = await this.aiRows(q);
-    const byModel = this.buildAiByModelMap(rows, googleAdsAgentRuns);
+    const { rows, googleAdsAgentRuns, search, from, to } = await this.aiRows(q);
+    const byModel = this.buildAiByModelMap(rows, googleAdsAgentRuns, search);
+    const sum = (k: 'total' | 'stored' | 'keyword' | 'local' | 'ai' | 'guess') =>
+      search.days.reduce((n, d) => n + d[k], 0);
+    const searchCostUsd = search.days.reduce((n, d) => n + d.aiCostUsd, 0);
 
     const campaignAgentCostMinor = googleAdsAgentRuns.reduce(
       (s, r) => s + (r.claudeCostEstimateMinor ?? 0),
@@ -1104,11 +1155,14 @@ export class FinanceService {
     // many cheap calls could show €0,00 here while still contributing real
     // cost to `totalCostMinor` below, which rounds its sum only once.
     const totalCostMinor =
-      usdToEurMinor(rows.reduce((s, r) => s + r.estimatedCostUsd, 0)) + campaignAgentCostMinor;
+      usdToEurMinor(rows.reduce((s, r) => s + r.estimatedCostUsd, 0) + searchCostUsd) +
+      campaignAgentCostMinor;
     const totalTokens =
       rows.reduce((s, r) => s + r.inputTokens + r.outputTokens, 0) +
-      googleAdsAgentRuns.reduce((s, r) => s + r.claudeInputTokens + r.claudeOutputTokens, 0);
-    const totalCalls = rows.length + googleAdsAgentRuns.reduce((s, r) => s + r.claudeCallCount, 0);
+      googleAdsAgentRuns.reduce((s, r) => s + r.claudeInputTokens + r.claudeOutputTokens, 0) +
+      search.days.reduce((n, d) => n + d.aiInputTokens + d.aiOutputTokens, 0);
+    const totalCalls =
+      rows.length + googleAdsAgentRuns.reduce((s, r) => s + r.claudeCallCount, 0) + sum('ai');
 
     // `chargedMinor` only ever applies to the AiUsageRecord-backed buckets —
     // the campaign agent's own spend is never billed to any customer wallet.
@@ -1117,22 +1171,36 @@ export class FinanceService {
         provider,
         ...rest,
         costMinor: usdToEurMinor(costUsd),
-        chargedMinor: provider === 'google-ads-agent' ? 0 : usdToChargedMinor(costUsd),
+        chargedMinor: NEVER_CHARGED.has(provider) ? 0 : usdToChargedMinor(costUsd),
       }))
       .sort((a, b) => b.costMinor - a.costMinor);
 
+    const searches = sum('total');
     return {
       range: { from: from.toISOString(), to: to.toISOString() },
       totalCostMinor,
       totalTokens,
       totalCalls,
       byModel: byModelMinor,
+      // Homepage "ask" search: how searches were answered + what Claude cost.
+      search: {
+        searches,
+        stored: sum('stored'),
+        keyword: sum('keyword'),
+        local: sum('local'),
+        ai: sum('ai'),
+        guess: sum('guess'),
+        costMinor: usdToEurMinor(searchCostUsd),
+        /** Exact sub-cent cost, so a tiny spend doesn't read as €0,00. */
+        costUsd: searchCostUsd,
+        avgCostUsd: sum('ai') ? searchCostUsd / sum('ai') : 0,
+      },
     };
   }
 
   async exportAiUsagePdf(q: FinancePeriodQuery): Promise<Buffer> {
-    const { rows, googleAdsAgentRuns } = await this.aiRows(q);
-    const byModel = this.buildAiByModelMap(rows, googleAdsAgentRuns);
+    const { rows, googleAdsAgentRuns, search } = await this.aiRows(q);
+    const byModel = this.buildAiByModelMap(rows, googleAdsAgentRuns, search);
 
     return generateTablePdf({
       title: 'Consum AI',
@@ -1155,7 +1223,7 @@ export class FinanceService {
           provider,
           ...rest,
           costMinor: usdToEurMinor(costUsd),
-          chargedMinor: provider === 'google-ads-agent' ? 0 : usdToChargedMinor(costUsd),
+          chargedMinor: NEVER_CHARGED.has(provider) ? 0 : usdToChargedMinor(costUsd),
         }))
         .sort((a, b) => b.costMinor - a.costMinor)
         .map((b) => [

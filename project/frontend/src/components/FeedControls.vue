@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -110,13 +110,56 @@ function selectHit(hit: SearchHit): void {
   void router.push(
     hit.leaf ? feedCategoryRoute(hit.group.slug, hit.leaf.slug) : feedCategoryRoute(hit.group.slug),
   )
-  searchQuery.value = ''
-  searchFocused.value = false
+  closeSearch()
 }
 function closeSearch(): void {
   searchQuery.value = ''
   searchFocused.value = false
+  closeMobileSearch()
 }
+
+// --- phones: a full-screen search sheet, teleported to <body> -------------
+// Turning the inline box itself into `position: fixed` on focus (the old
+// approach) broke on phones: inside the page layout it was clipped and slid
+// under the top bar while the on-screen keyboard scrolled the page under it.
+// Now the inline box is only a trigger there; tapping it opens a sheet that
+// lives directly under <body>, above every bar, with its own input focused
+// in the same tap (iOS only raises the keyboard for a focus() made
+// synchronously inside the user's gesture).
+const MOBILE_QUERY = '(max-width: 680px)'
+const isMobile = ref(false)
+let mql: MediaQueryList | null = null
+const onMqlChange = (e: MediaQueryListEvent) => {
+  isMobile.value = e.matches
+  if (!e.matches) closeMobileSearch()
+}
+onMounted(() => {
+  mql = window.matchMedia(MOBILE_QUERY)
+  isMobile.value = mql.matches
+  mql.addEventListener('change', onMqlChange)
+})
+
+const mobileOpen = ref(false)
+const sheetEl = ref<HTMLElement | null>(null)
+const sheetInput = ref<HTMLInputElement | null>(null)
+function openMobileSearch(e?: Event): void {
+  ;(e?.target as HTMLElement | undefined)?.blur?.()
+  mobileOpen.value = true
+  // Show + focus synchronously (see above); Vue's own render agrees a tick later.
+  if (sheetEl.value) sheetEl.value.style.display = ''
+  sheetInput.value?.focus()
+  document.documentElement.classList.add('fc-sheet-open')
+}
+function closeMobileSearch(): void {
+  if (!mobileOpen.value) return
+  mobileOpen.value = false
+  sheetInput.value?.blur()
+  document.documentElement.classList.remove('fc-sheet-open')
+}
+onBeforeUnmount(() => {
+  mql?.removeEventListener('change', onMqlChange)
+  document.documentElement.classList.remove('fc-sheet-open')
+})
 function onSearchKeydown(e: KeyboardEvent): void {
   if (e.key === 'Escape') closeSearch()
   else if (e.key === 'Enter' && searchHits.value[0]) selectHit(searchHits.value[0])
@@ -221,10 +264,22 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
     <div class="fc__top">
       <!-- Category search: free text finds the matching category/subcategory
            directly, without having to browse the group grid below. -->
-      <div class="fc__search" :class="{ 'is-open': searchOpen }">
+      <div class="fc__search" :class="{ 'is-open': searchOpen && !isMobile }">
         <div class="fc__searchBox">
           <v-icon icon="mdi-magnify" size="19" class="fc__searchIcon" />
+          <!-- Phones: a read-only trigger that opens the full-screen sheet. -->
           <input
+            v-if="isMobile"
+            type="text"
+            readonly
+            class="fc__searchInput"
+            :placeholder="t('feed.searchPlaceholder')"
+            :aria-label="t('feed.searchPlaceholder')"
+            @click="openMobileSearch"
+            @focus="openMobileSearch"
+          />
+          <input
+            v-else
             v-model="searchQuery"
             type="text"
             class="fc__searchInput"
@@ -234,7 +289,7 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
             @keydown="onSearchKeydown"
           />
           <button
-            v-if="searchOpen"
+            v-if="searchOpen && !isMobile"
             type="button"
             class="fc__searchClose"
             :aria-label="t('common.close')"
@@ -243,7 +298,7 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
             <v-icon icon="mdi-close" size="18" />
           </button>
         </div>
-        <div v-if="searchOpen" class="fc__searchPanel">
+        <div v-if="searchOpen && !isMobile" class="fc__searchPanel">
           <p v-if="!searchQuery.trim()" class="fc__searchHint">{{ t('feed.searchHint') }}</p>
           <p v-else-if="!searchHits.length" class="fc__searchEmpty">{{ t('feed.searchEmpty') }}</p>
           <button
@@ -261,6 +316,69 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
           </button>
         </div>
       </div>
+
+      <Teleport to="body">
+        <div
+          v-if="isMobile"
+          v-show="mobileOpen"
+          ref="sheetEl"
+          class="fc-sheet"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="t('feed.searchPlaceholder')"
+          @keydown.esc="closeSearch"
+        >
+          <div class="fc-sheet__bar">
+            <button
+              type="button"
+              class="fc-sheet__back"
+              :aria-label="t('common.close')"
+              @click="closeSearch"
+            >
+              <v-icon icon="mdi-arrow-left" size="22" />
+            </button>
+            <div class="fc-sheet__box">
+              <v-icon icon="mdi-magnify" size="19" class="fc__searchIcon" />
+              <input
+                ref="sheetInput"
+                v-model="searchQuery"
+                type="search"
+                enterkeyhint="search"
+                autocomplete="off"
+                class="fc-sheet__input"
+                :placeholder="t('feed.searchPlaceholder')"
+                @keydown="onSearchKeydown"
+              />
+              <button
+                v-if="searchQuery"
+                type="button"
+                class="fc__searchClose"
+                :aria-label="t('common.clear')"
+                @click="searchQuery = ''; sheetInput?.focus()"
+              >
+                <v-icon icon="mdi-close" size="18" />
+              </button>
+            </div>
+          </div>
+          <div class="fc-sheet__list">
+            <p v-if="!searchQuery.trim()" class="fc__searchHint">{{ t('feed.searchHint') }}</p>
+            <p v-else-if="!searchHits.length" class="fc__searchEmpty">{{ t('feed.searchEmpty') }}</p>
+            <button
+              v-for="(hit, i) in searchHits"
+              :key="i"
+              type="button"
+              class="fc__searchHit"
+              @click="selectHit(hit)"
+            >
+              <v-icon :icon="hit.leaf ? 'mdi-tag-outline' : (hit.group.icon || FALLBACK_ICON)" size="18" />
+              <span class="fc__searchHitText">
+                <span class="fc__searchHitLabel">{{ hit.label }}</span>
+                <span v-if="hit.leaf" class="fc__searchHitGroup">{{ catName(hit.group.name) }}</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </Teleport>
 
       <!-- Județ filter — a plain text summary in place of Vuetify's default
            per-item chip row (`#selection`, index 0 only): with a handful of
@@ -490,34 +608,87 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
-/* Mobile: the results panel takes over the full screen instead of a cramped
-   dropdown — easier to scan and tap with one hand. */
 @media (max-width: 680px) {
   .fc__search {
     flex: 1 1 100%;
     max-width: none;
   }
-  .fc__search.is-open {
-    position: fixed;
-    inset: 0;
-    z-index: 2000;
-    display: flex;
-    flex-direction: column;
-    padding: 0.75rem;
-    background: rgb(var(--v-theme-surface));
+  .fc__searchInput[readonly] {
+    cursor: text;
   }
-  .fc__search.is-open .fc__searchBox {
-    flex: none;
-    box-shadow: none;
-  }
-  .fc__search.is-open .fc__searchPanel {
-    position: static;
-    flex: 1 1 auto;
-    margin-top: 0.6rem;
-    max-height: none;
-    box-shadow: none;
-    border: none;
-  }
+}
+
+/* Phones: full-screen search sheet (teleported to <body>, so no page
+   ancestor can clip it or put it under the top bar). */
+.fc-sheet {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  z-index: 2600;
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--v-theme-background));
+  padding-top: env(safe-area-inset-top);
+  overscroll-behavior: contain;
+}
+.fc-sheet__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+  background: rgb(var(--v-theme-surface));
+}
+.fc-sheet__back {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  color: rgba(var(--v-theme-on-surface), 0.8);
+}
+.fc-sheet__box {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 46px;
+  padding: 0 0.8rem;
+  border-radius: var(--tvz-radius-lg);
+  background: rgba(var(--v-theme-on-surface), 0.05);
+  border: 1px solid rgba(var(--v-theme-primary), 0.45);
+}
+.fc-sheet__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  /* 16px+ stops iOS from zooming the page in on focus. */
+  font-size: 16px;
+  color: rgb(var(--v-theme-on-surface));
+}
+.fc-sheet__input::-webkit-search-cancel-button {
+  display: none;
+}
+.fc-sheet__list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.5rem 0.6rem calc(1rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.fc-sheet .fc__searchHit {
+  padding: 0.8rem 0.7rem;
+}
+:global(html.fc-sheet-open),
+:global(html.fc-sheet-open body) {
+  overflow: hidden;
 }
 
 /* --- city --- */
