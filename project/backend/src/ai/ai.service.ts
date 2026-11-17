@@ -84,6 +84,15 @@ export interface FeedQueryInterpretation {
   cities: string[];
 }
 
+/** Token usage of one homepage-search Claude call, for cost tracking. */
+export interface FeedQueryUsage {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
 /** Site Simplu's creation flow — a free-form "change X" request once the
  *  site is generated, interpreted against a snapshot of its current text. */
 export interface InterpretEasyEditInput {
@@ -859,7 +868,9 @@ export class AiService {
    * against the live data. `null` on any failure so the caller falls back to
    * its deterministic matcher.
    */
-  async interpretFeedQuery(input: FeedQueryInput): Promise<FeedQueryInterpretation | null> {
+  async interpretFeedQuery(
+    input: FeedQueryInput,
+  ): Promise<(FeedQueryInterpretation & { usage: FeedQueryUsage }) | null> {
     const text = input.text.trim();
     if (text.length < 2 || text.length > 300) return null;
     if (!this.configured) return null;
@@ -869,14 +880,22 @@ export class AiService {
       `\n\nCATEGORIES (slug | ro | en):\n${input.catalog}` +
       `\n\nCOUNTIES: ${input.counties.join(', ')}`;
 
-    const parsed = (await this.json(system, `Request: "${text}"`, {
+    const res = await this.anthropicJsonWithUsage(system, `Request: "${text}"`, {
       maxTokens: 200,
       effort: 'low',
       model: this.anthropicModelFeed,
       timeoutMs: 8_000,
       cacheSystem: true,
-    })) as Record<string, unknown> | null;
-    if (!parsed) return null;
+    });
+    if (!res) return null;
+    const parsed = res.data;
+    const usage: FeedQueryUsage = {
+      model: this.anthropicModelFeed,
+      inputTokens: res.usage.input_tokens ?? 0,
+      outputTokens: res.usage.output_tokens ?? 0,
+      cacheReadTokens: res.usage.cache_read_input_tokens ?? 0,
+      cacheWriteTokens: res.usage.cache_creation_input_tokens ?? 0,
+    };
 
     const list = (v: unknown, max: number): string[] =>
       Array.isArray(v)
@@ -896,6 +915,7 @@ export class AiService {
       niches: list(parsed.niches, 3),
       counties: list(parsed.counties, 3),
       cities: list(parsed.cities, 3),
+      usage,
     };
   }
 

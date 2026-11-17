@@ -33,6 +33,8 @@ function grow(): void {
   if (!el) return
   el.style.height = 'auto'
   el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  // Only scroll once it hits the cap; below that a scrollbar is just noise.
+  el.style.overflowY = el.scrollHeight > 160 ? 'auto' : 'hidden'
 }
 watch(text, () => nextTick(grow))
 
@@ -96,11 +98,7 @@ function onKey(e: KeyboardEvent): void {
 <template>
   <section class="ask" :aria-busy="busy">
     <div class="ask__in">
-      <p class="ask__eyebrow">
-        <v-icon icon="mdi-creation" size="14" /> {{ t('ask.eyebrow') }}
-      </p>
       <h1 class="ask__title">{{ t('ask.title') }}</h1>
-      <p class="ask__lead">{{ t('ask.lead') }}</p>
 
       <form class="ask__box" :class="{ 'is-busy': busy }" @submit.prevent="submit()">
         <label for="ask-input" class="d-sr-only">{{ t('ask.inputLabel') }}</label>
@@ -129,27 +127,19 @@ function onKey(e: KeyboardEvent): void {
           <span class="ask__dots" aria-hidden="true"><i /><i /><i /></span>
           {{ t('ask.thinking') }}
         </template>
-        <template v-else>{{ t('ask.hint') }}</template>
       </p>
 
-      <div class="ask__try">
-        <span>{{ t('ask.tryLabel') }}</span>
-        <button
-          v-for="ex in EXAMPLES"
-          :key="ex"
-          type="button"
-          class="ask__chip"
-          :disabled="busy"
-          @click="submit(ex)"
-        >
-          {{ ex }}
+      <div class="ask__actions">
+        <button type="button" class="ask__skip" :disabled="busy" @click="emit('close')">
+          {{ t('ask.skip') }}
+          <v-icon icon="mdi-arrow-right" size="16" />
         </button>
+        <span class="ask__or" aria-hidden="true" />
+        <RouterLink :to="{ name: 'create' }" class="ask__create">
+          <v-icon icon="mdi-rocket-launch-outline" size="17" />
+          {{ t('ask.createBusiness') }}
+        </RouterLink>
       </div>
-
-      <button type="button" class="ask__skip" :disabled="busy" @click="emit('close')">
-        {{ t('ask.skip') }}
-        <v-icon icon="mdi-arrow-right" size="16" />
-      </button>
     </div>
   </section>
 </template>
@@ -173,21 +163,6 @@ function onKey(e: KeyboardEvent): void {
   text-align: center;
 }
 
-.ask__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0 0 1.1rem;
-  padding: 0.32rem 0.8rem;
-  border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--tvz-ai);
-  background: var(--tvz-ai-soft);
-}
 .ask__title {
   margin: 0;
   font-family: 'Space Grotesk Variable', sans-serif;
@@ -196,14 +171,6 @@ function onKey(e: KeyboardEvent): void {
   line-height: 1.08;
   letter-spacing: -0.03em;
 }
-.ask__lead {
-  margin: 0.9rem auto 0;
-  max-width: 52ch;
-  font-size: clamp(0.95rem, 2vw, 1.05rem);
-  line-height: 1.55;
-  color: rgba(var(--v-theme-on-surface), 0.68);
-}
-
 /* ---- prompt box ---- */
 .ask__box {
   display: flex;
@@ -256,9 +223,14 @@ function onKey(e: KeyboardEvent): void {
   font: inherit;
   font-size: 1.05rem;
   line-height: 1.5;
+  overflow-y: hidden;
 }
 .ask__box textarea::placeholder {
   color: rgba(var(--v-theme-on-surface), 0.45);
+  /* The typewriter examples must stay on one line in a one-row box. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ask__send {
   flex: none;
@@ -303,46 +275,60 @@ function onKey(e: KeyboardEvent): void {
   }
 }
 
-/* ---- examples + skip ---- */
-.ask__try {
+/* ---- skip + create a business ---- */
+.ask__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  margin-top: 1.6rem;
+  gap: 0.9rem 1.4rem;
+  margin-top: 1.8rem;
 }
-.ask__try > span {
-  margin-right: 0.15rem;
-  font-size: 0.78rem;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-.ask__chip {
-  padding: 0.45rem 0.95rem;
-  border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
-  font-size: 0.84rem;
-  color: rgba(var(--v-theme-on-surface), 0.8);
-  background: rgba(var(--v-theme-on-surface), 0.06);
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.ask__chip:hover:not(:disabled) {
-  color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.12);
-}
-.ask__chip:disabled {
-  opacity: 0.5;
+.ask__or {
+  width: 1px;
+  height: 1.2rem;
+  background: var(--tvz-glass-border);
 }
 .ask__skip {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  margin-top: 2.2rem;
   font-size: 0.9rem;
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
+}
+.ask__create {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 0;
+  clip-path: var(--tvz-hex-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--tvz-ai);
+  background: var(--tvz-ai-soft);
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+.ask__create:hover {
+  transform: translateY(-1px);
+}
+.ask__create .v-icon {
+  transition: transform 0.2s ease;
+}
+.ask__create:hover .v-icon {
+  transform: translate(2px, -2px);
+}
+@media (max-width: 480px) {
+  .ask__or {
+    display: none;
+  }
+  .ask__actions {
+    flex-direction: column;
+  }
 }
 .ask__skip .v-icon {
   transition: transform 0.15s ease;

@@ -84,6 +84,13 @@ describe('AiService.interpretFeedQuery', () => {
       niches: ['instalatii-sanitare', 'a', 'b'],
       counties: ['Cluj'],
       cities: ['Cluj-Napoca'],
+      usage: {
+        model: 'claude-haiku-5-5',
+        inputTokens: 100,
+        outputTokens: 50,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+      },
     });
   });
 
@@ -91,7 +98,7 @@ describe('AiService.interpretFeedQuery', () => {
     const svc = new AiService(fakeConfig('test-key'));
     withFakeTransport(svc, '{"group":"  ","niches":"nope"}');
 
-    await expect(svc.interpretFeedQuery(INPUT)).resolves.toEqual({
+    await expect(svc.interpretFeedQuery(INPUT)).resolves.toMatchObject({
       group: null,
       niches: [],
       counties: [],

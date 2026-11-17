@@ -34,6 +34,17 @@ function fakePrisma() {
       claudeCostEstimateMinor: number | null;
       claudeCallCount: number;
     }[],
+    searchDays: [] as {
+      total: number;
+      stored: number;
+      keyword: number;
+      local: number;
+      ai: number;
+      guess: number;
+      aiCostUsd: number;
+      aiInputTokens: number;
+      aiOutputTokens: number;
+    }[],
     /** Sum of every wallet balance (the all-time liability figure). */
     walletBalanceMinor: 0,
     blockedWalletBalanceMinor: 0,
@@ -139,6 +150,12 @@ function fakePrisma() {
       })),
       findMany: jest.fn(async () =>
         state.googleAdsAgentRuns.filter((r) => r.claudeCostEstimateMinor != null),
+      ),
+    },
+    feedSearchDaily: { findMany: jest.fn(async () => state.searchDays) },
+    feedQueryCache: {
+      findFirst: jest.fn(async () =>
+        state.searchDays.length ? { model: 'claude-haiku-5-5' } : null,
       ),
     },
     $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
@@ -886,6 +903,52 @@ describe('FinanceService', () => {
       expect(result.totalCostMinor).toBe(500 + 250); // $5 builder + 250 agent
       expect(result.totalTokens).toBe(1_500 + 400);
       expect(result.totalCalls).toBe(1 + 2);
+    });
+
+    it('adds the homepage search: its own never-charged row plus how searches were answered', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__state.searchDays = [
+        {
+          total: 100,
+          stored: 20,
+          keyword: 30,
+          local: 40,
+          ai: 6,
+          guess: 4,
+          aiCostUsd: 0.6,
+          aiInputTokens: 15_000,
+          aiOutputTokens: 300,
+        },
+        {
+          total: 50,
+          stored: 10,
+          keyword: 10,
+          local: 26,
+          ai: 4,
+          guess: 0,
+          aiCostUsd: 0.4,
+          aiInputTokens: 10_000,
+          aiOutputTokens: 200,
+        },
+      ];
+
+      const result = await svc.aiUsageReport({});
+
+      const row = result.byModel.find((r) => r.provider === 'cautare-homepage');
+      expect(row).toMatchObject({ model: 'claude-haiku-5-5', calls: 10, tokens: 25_500 });
+      expect(row?.costMinor).toBe(100); // $1 total, counted like other USD buckets
+      expect(row?.chargedMinor).toBe(0);
+      expect(result.totalCalls).toBe(10);
+      expect(result.search).toMatchObject({
+        searches: 150,
+        stored: 30,
+        keyword: 40,
+        local: 66,
+        ai: 10,
+        guess: 4,
+        costMinor: 100,
+      });
+      expect(result.search.avgCostUsd).toBeCloseTo(0.1);
     });
   });
 });

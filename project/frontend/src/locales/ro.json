@@ -16,7 +16,8 @@
     "moreInfo": "Mai multe informații",
     "close": "Închide",
     "delete": "Șterge",
-    "refresh": "Reîmprospătează"
+    "refresh": "Reîmprospătează",
+    "clear": "Șterge"
   },
   "nav": {
     "discover": "Descoperă",
@@ -84,7 +85,7 @@
     "eyebrow": "Rețea de afaceri locale",
     "title": "Găsește o afacere locală în care ai încredere",
     "lead": "Caută după categorie și zonă ca să vezi afacerile potrivite pentru tine.",
-    "searchPlaceholder": "Caută un serviciu, ex: „reparații acoperiș”",
+    "searchPlaceholder": "Caută o categorie sau un serviciu…",
     "city": "Oraș",
     "allCategories": "Toate",
     "sortRecommended": "Recomandate",
@@ -109,7 +110,6 @@
     "pagination": "Paginare rezultate",
     "pagePrev": "Pagina anterioară",
     "pageNext": "Pagina următoare",
-    "searchPlaceholder": "Caută o categorie sau un serviciu…",
     "searchHint": "Scrie ce cauți, de exemplu „instalator” sau „zugrăveli”.",
     "searchEmpty": "Nicio categorie găsită.",
     "browseErrorTitle": "Nu am putut încărca pagina",
@@ -140,14 +140,10 @@
     "notFoundHint": "Poate a fost redenumită, retrasă sau linkul e greșit. Caută în schimb după categorie și oraș."
   },
   "ask": {
-    "eyebrow": "Asistent de căutare",
     "title": "Ce fel de firmă cauți?",
-    "lead": "Spune-mi în cuvintele tale de ce ai nevoie și unde. Îți arăt firmele potrivite, cu filtrele deja alese.",
     "inputLabel": "Descrie ce cauți",
     "send": "Caută",
-    "hint": "Apasă Enter ca să trimiți",
     "thinking": "Caut firmele potrivite…",
-    "tryLabel": "Încearcă:",
     "example1": "Unde găsesc o firmă de construcții?",
     "example2": "Am nevoie de un instalator în Cluj",
     "example3": "Salon de manichiură în București",
@@ -157,7 +153,8 @@
     "countyOnly": "Am selectat {county}. Alege acum categoria care te interesează.",
     "noMatch": "Nu am găsit o categorie potrivită. Alege una din listă.",
     "error": "Nu am putut procesa căutarea acum. Încearcă din nou sau alege direct o categorie.",
-    "banned": "Textul conține cuvinte care nu sunt permise. Te rog reformulează."
+    "banned": "Textul conține cuvinte care nu sunt permise. Te rog reformulează.",
+    "createBusiness": "Ai o afacere? Fă-o vizibilă"
   },
   "create": {
     "assistant": "Constructor AI",
@@ -1809,7 +1806,23 @@
     "discountDeltaHint": "Diferența de {amount} este costul discountului din perioadă (valoare nominală în credite minus banii încasați efectiv).",
     "lockedHintStripe": "Înregistrare automată din Stripe. Se poate modifica doar de un administrator, pentru ca reconcilierea cu Stripe să rămână validă.",
     "lockedHintGoogleAds": "Cost real preluat automat din Google Ads. Se poate modifica doar de un administrator, pentru ca reconcilierea cu Google Ads să rămână validă.",
-    "currency": "Monedă"
+    "currency": "Monedă",
+    "searchTitle": "Căutare AI (pagina principală)",
+    "searchCount": "Căutări",
+    "searchFree": "Rezolvate gratuit",
+    "searchFreeHint": "Căutări rezolvate fără un apel nou către Claude: răspuns salvat, numele categoriei în text sau modelul local.",
+    "searchAiCalls": "Apeluri Claude",
+    "searchCost": "Cost Claude",
+    "searchAvg": "Medie {cost} / apel",
+    "searchSplit": "Cum au fost rezolvate căutările",
+    "searchNone": "Nicio căutare în perioada selectată.",
+    "searchVia": {
+      "stored": "Răspuns salvat",
+      "keyword": "Nume de categorie",
+      "local": "Model local",
+      "ai": "Claude",
+      "guess": "Estimare locală"
+    }
   },
   "adminSettings": {
     "pricingTitle": "Prețuri și curs valutar",

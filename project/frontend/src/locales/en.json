@@ -16,7 +16,8 @@
     "moreInfo": "More info",
     "close": "Close",
     "delete": "Delete",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "clear": "Clear"
   },
   "nav": {
     "discover": "Discover",
@@ -84,7 +85,7 @@
     "eyebrow": "Local business network",
     "title": "Find a local business you can trust",
     "lead": "Search by category and area to find the right business for you.",
-    "searchPlaceholder": "Search a service, e.g. “roof repair”",
+    "searchPlaceholder": "Search a category or service…",
     "city": "City",
     "allCategories": "All",
     "sortRecommended": "Recommended",
@@ -109,7 +110,6 @@
     "pagination": "Results pagination",
     "pagePrev": "Previous page",
     "pageNext": "Next page",
-    "searchPlaceholder": "Search a category or service…",
     "searchHint": "Type what you're looking for, like \"plumber\" or \"painting\".",
     "searchEmpty": "No matching category found.",
     "browseErrorTitle": "We couldn't load this page",
@@ -140,14 +140,10 @@
     "notFoundHint": "It may have been renamed, taken down, or the link is wrong. Try searching by category and city instead."
   },
   "ask": {
-    "eyebrow": "Search assistant",
     "title": "What kind of business are you looking for?",
-    "lead": "Tell me in your own words what you need and where. I'll show you the right businesses, with the filters already set.",
     "inputLabel": "Describe what you're looking for",
     "send": "Search",
-    "hint": "Press Enter to send",
     "thinking": "Finding the right businesses…",
-    "tryLabel": "Try:",
     "example1": "Where can I find a construction company?",
     "example2": "I need a plumber in Cluj",
     "example3": "Nail salon in Bucharest",
@@ -157,7 +153,8 @@
     "countyOnly": "Selected {county}. Now pick the category you need.",
     "noMatch": "I couldn't find a matching category. Pick one from the list.",
     "error": "Couldn't process the search right now. Try again or pick a category directly.",
-    "banned": "The text contains words that aren't allowed. Please rephrase."
+    "banned": "The text contains words that aren't allowed. Please rephrase.",
+    "createBusiness": "Own a business? Get it seen"
   },
   "create": {
     "assistant": "AI builder",
@@ -1809,7 +1806,23 @@
     "discountDeltaHint": "The {amount} difference is the discount cost for this period (face value in credits minus money actually collected).",
     "lockedHintStripe": "This entry is captured automatically from Stripe. Only an administrator can edit it, so reconciliation with Stripe stays valid.",
     "lockedHintGoogleAds": "This real cost is captured automatically from Google Ads. Only an administrator can edit it, so reconciliation with Google Ads stays valid.",
-    "currency": "Currency"
+    "currency": "Currency",
+    "searchTitle": "AI search (homepage)",
+    "searchCount": "Searches",
+    "searchFree": "Answered for free",
+    "searchFreeHint": "Searches answered without a new Claude call: a stored answer, the category name in the text, or the local model.",
+    "searchAiCalls": "Claude calls",
+    "searchCost": "Claude cost",
+    "searchAvg": "Avg {cost} / call",
+    "searchSplit": "How searches were answered",
+    "searchNone": "No searches in the selected period.",
+    "searchVia": {
+      "stored": "Stored answer",
+      "keyword": "Category name",
+      "local": "Local model",
+      "ai": "Claude",
+      "guess": "Local guess"
+    }
   },
   "adminSettings": {
     "pricingTitle": "Pricing & exchange rate",

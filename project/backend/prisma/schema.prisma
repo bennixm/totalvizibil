@@ -1739,6 +1739,41 @@ model FeedQueryCache {
   createdAt DateTime @default(now()) @map("created_at")
   lastHitAt DateTime @default(now()) @map("last_hit_at")
 
+  // What the Claude call that produced this answer cost (admin "Consum AI").
+  model            String @default("")
+  inputTokens      Int    @default(0) @map("input_tokens")
+  outputTokens     Int    @default(0) @map("output_tokens")
+  cacheReadTokens  Int    @default(0) @map("cache_read_tokens")
+  cacheWriteTokens Int    @default(0) @map("cache_write_tokens")
+  /** Estimate at list prices, captured at write time. */
+  estimatedCostUsd Float  @default(0) @map("estimated_cost_usd")
+
   @@index([createdAt])
   @@map("feed_query_cache")
+}
+
+/// One row per UTC day: how homepage searches were answered, so the admin
+/// can see how much the free paths absorb vs what reaches Claude.
+model FeedSearchDaily {
+  day     DateTime @id @db.Date
+  total   Int      @default(0)
+  /** Reused a stored Claude answer. */
+  stored  Int      @default(0)
+  /** A category name was in the text. */
+  keyword Int      @default(0)
+  /** The local embedding model was sure. */
+  local   Int      @default(0)
+  /** Claude answered (a new paid call). */
+  ai      Int      @default(0)
+  /** Local best guess / nothing (Claude capped, failed or off). */
+  guess   Int      @default(0)
+
+  // Claude spend that day (sum over the `ai` calls). Kept here, not only on
+  // the answer rows, because an expired answer's row gets overwritten when
+  // the request is asked again; this history never is.
+  aiCostUsd      Float @default(0) @map("ai_cost_usd")
+  aiInputTokens  Int   @default(0) @map("ai_input_tokens")
+  aiOutputTokens Int   @default(0) @map("ai_output_tokens")
+
+  @@map("feed_search_daily")
 }

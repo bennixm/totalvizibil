@@ -54,6 +54,7 @@ function fakePrisma() {
   const rows = new Map<string, { answer: unknown; createdAt: Date; hits: number }>();
   return {
     rows,
+    daily,
     feedQueryCache: {
       findUnique: jest.fn(async ({ where }: any) => {
         const r = rows.get(where.key);
@@ -67,10 +68,15 @@ function fakePrisma() {
         async ({ where }: any) =>
           [...rows.values()].filter((r) => r.createdAt >= where.createdAt.gte).length,
       ),
-      deleteMany: jest.fn(async () => ({ count: 0 })),
+    },
+    feedSearchDaily: {
+      upsert: jest.fn(async (args: any) => {
+        daily.push(args);
+      }),
     },
   };
 }
+const daily: any[] = [];
 
 interface Opts {
   embed?: { slug: string; group: string; margin: number } | null;
@@ -115,6 +121,13 @@ const ai = (
   niches: [],
   counties: [],
   cities: [],
+  usage: {
+    model: 'claude-haiku-5-5',
+    inputTokens: 2_000,
+    outputTokens: 40,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+  },
   ...over,
 });
 
@@ -257,6 +270,42 @@ describe('FeedQueryService', () => {
         configured: false,
       });
       await expect(svc.interpret('salut ce faci', 'ro')).resolves.toMatchObject({ group: null });
+    });
+  });
+
+  describe('cost tracking', () => {
+    beforeEach(() => {
+      daily.length = 0;
+    });
+
+    it('stores the Claude call cost on the answer and in the daily tally', async () => {
+      const { svc, prisma } = makeService(ai({ niches: ['acoperisuri'] }));
+      await svc.interpret('cine repara o tigla', 'ro');
+      await new Promise((r) => setImmediate(r));
+
+      const row = [...prisma.rows.values()][0] as any;
+      expect(row).toBeTruthy();
+      const upsert = prisma.feedQueryCache.upsert.mock.calls[0][0];
+      // Haiku 5.5: 2000 in x $0.10/M + 40 out x $0.50/M
+      expect(upsert.create.estimatedCostUsd).toBeCloseTo(0.00022, 6);
+      expect(upsert.create.model).toBe('claude-haiku-5-5');
+
+      const tally = daily[0];
+      expect(tally.create).toMatchObject({
+        total: 1,
+        ai: 1,
+        aiInputTokens: 2_000,
+        aiOutputTokens: 40,
+      });
+      expect(tally.update.ai).toEqual({ increment: 1 });
+      expect(tally.update.aiCostUsd.increment).toBeCloseTo(0.00022, 6);
+    });
+
+    it('tallies free answers without any cost', async () => {
+      const { svc } = makeService(null);
+      await svc.interpret('instalatii electrice', 'ro');
+      await new Promise((r) => setImmediate(r));
+      expect(daily[0].create).toMatchObject({ total: 1, keyword: 1, aiCostUsd: 0 });
     });
   });
 

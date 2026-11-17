@@ -16,7 +16,8 @@
     "moreInfo": "Mehr Infos",
     "close": "Schließen",
     "delete": "Löschen",
-    "refresh": "Aktualisieren"
+    "refresh": "Aktualisieren",
+    "clear": "Löschen"
   },
   "nav": {
     "discover": "Entdecken",
@@ -84,7 +85,7 @@
     "eyebrow": "Netzwerk lokaler Unternehmen",
     "title": "Finden Sie ein lokales Unternehmen, dem Sie vertrauen",
     "lead": "Nach Kategorie und Gebiet suchen, um das passende Unternehmen zu finden.",
-    "searchPlaceholder": "Dienstleistung suchen, z. B. „Dachreparatur”",
+    "searchPlaceholder": "Kategorie oder Leistung suchen…",
     "city": "Stadt",
     "allCategories": "Alle",
     "sortRecommended": "Empfohlen",
@@ -109,7 +110,6 @@
     "pagination": "Ergebnis-Seitennummerierung",
     "pagePrev": "Vorherige Seite",
     "pageNext": "Nächste Seite",
-    "searchPlaceholder": "Kategorie oder Leistung suchen…",
     "searchHint": "Tippe, was du suchst, zum Beispiel „Klempner” oder „Malerarbeiten”.",
     "searchEmpty": "Keine passende Kategorie gefunden.",
     "browseErrorTitle": "Diese Seite konnte nicht geladen werden",
@@ -140,14 +140,10 @@
     "notFoundHint": "Vielleicht wurde es umbenannt, entfernt, oder der Link ist falsch. Suche stattdessen nach Kategorie und Stadt."
   },
   "ask": {
-    "eyebrow": "Suchassistent",
     "title": "Was für ein Unternehmen suchst du?",
-    "lead": "Sag mir in deinen eigenen Worten, was du brauchst und wo. Ich zeige dir passende Unternehmen, mit bereits gesetzten Filtern.",
     "inputLabel": "Beschreibe, was du suchst",
     "send": "Suchen",
-    "hint": "Mit Enter absenden",
     "thinking": "Suche passende Unternehmen…",
-    "tryLabel": "Probier:",
     "example1": "Wo finde ich eine Baufirma?",
     "example2": "Ich brauche einen Installateur in Cluj",
     "example3": "Nagelstudio in Bukarest",
@@ -157,7 +153,8 @@
     "countyOnly": "{county} ausgewählt. Wähle jetzt die passende Kategorie.",
     "noMatch": "Keine passende Kategorie gefunden. Wähle eine aus der Liste.",
     "error": "Die Suche konnte gerade nicht verarbeitet werden. Versuch es erneut oder wähle direkt eine Kategorie.",
-    "banned": "Der Text enthält nicht erlaubte Wörter. Bitte formuliere ihn um."
+    "banned": "Der Text enthält nicht erlaubte Wörter. Bitte formuliere ihn um.",
+    "createBusiness": "Eigenes Unternehmen? Mach es sichtbar"
   },
   "create": {
     "assistant": "KI-Baukasten",
@@ -1809,7 +1806,23 @@
     "discountDeltaHint": "Die Differenz von {amount} ist der Rabattkosten dieses Zeitraums (Nominalwert in Guthaben minus tatsächlich eingenommenes Geld).",
     "lockedHintStripe": "Dieser Eintrag wird automatisch von Stripe übernommen. Nur ein Administrator kann ihn bearbeiten, damit der Abgleich mit Stripe gültig bleibt.",
     "lockedHintGoogleAds": "Diese echten Kosten werden automatisch aus Google Ads übernommen. Nur ein Administrator kann sie bearbeiten, damit der Abgleich mit Google Ads gültig bleibt.",
-    "currency": "Währung"
+    "currency": "Währung",
+    "searchTitle": "KI-Suche (Startseite)",
+    "searchCount": "Suchen",
+    "searchFree": "Kostenlos beantwortet",
+    "searchFreeHint": "Suchen ohne neuen Claude-Aufruf beantwortet: gespeicherte Antwort, Kategoriename im Text oder lokales Modell.",
+    "searchAiCalls": "Claude-Aufrufe",
+    "searchCost": "Claude-Kosten",
+    "searchAvg": "Ø {cost} / Aufruf",
+    "searchSplit": "Wie Suchen beantwortet wurden",
+    "searchNone": "Keine Suchen im gewählten Zeitraum.",
+    "searchVia": {
+      "stored": "Gespeicherte Antwort",
+      "keyword": "Kategoriename",
+      "local": "Lokales Modell",
+      "ai": "Claude",
+      "guess": "Lokale Schätzung"
+    }
   },
   "adminSettings": {
     "pricingTitle": "Preise & Wechselkurs",

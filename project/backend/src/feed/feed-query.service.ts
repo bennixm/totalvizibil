@@ -1,12 +1,21 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import { AiService, type AiLocale, type FeedQueryInterpretation } from '../ai/ai.service';
+import {
+  AiService,
+  type AiLocale,
+  type FeedQueryInterpretation,
+  type FeedQueryUsage,
+} from '../ai/ai.service';
 import type { AppConfig } from '../config/env';
 import { RO_CITIES, RO_COUNTIES, resolveCounty } from '../geo/ro-cities';
 import { PrismaService } from '../prisma/prisma.service';
 import { FeedEmbeddingService, fingerprintOf, leavesOf } from './feed-embedding.service';
+import { feedSearchCostUsd } from './feed-search-cost';
 import { FeedService } from './feed.service';
+
+/** How a search got its answer (matches the `feed_search_daily` columns). */
+type SearchVia = 'stored' | 'keyword' | 'local' | 'ai' | 'guess';
 
 /** Exactly what the Feed can express: one group, 0-3 leaves of that group,
  *  0-3 județe. `group: null` means "no category recognised" (Feed root). */
@@ -236,6 +245,15 @@ export class FeedQueryService {
   }
 
   async interpret(rawText: string, locale: AiLocale): Promise<FeedQueryResult> {
+    const { result, via, usage } = await this.resolve(rawText, locale);
+    void this.recordSearch(via, usage);
+    return result;
+  }
+
+  private async resolve(
+    rawText: string,
+    locale: AiLocale,
+  ): Promise<{ result: FeedQueryResult; via: SearchVia; usage?: FeedQueryUsage }> {
     const text = rawText.trim().slice(0, 300);
     const groups = (await this.feed.facets()).categories as unknown as CatalogGroup[];
     const key = `${locale}|${normalize(text)
@@ -244,11 +262,11 @@ export class FeedQueryService {
 
     // 1. Claude already answered this exact request.
     const stored = await this.readStored(key);
-    if (stored) return this.validate(stored, groups);
+    if (stored) return { result: this.validate(stored, groups), via: 'stored' };
 
     // 2. A category name is in the text.
     const lexical = this.fallback(text, groups);
-    if (lexical.score >= NAME_HIT_SCORE) return lexical.result;
+    if (lexical.score >= NAME_HIT_SCORE) return { result: lexical.result, via: 'keyword' };
 
     // 3. The local model is sure.
     const leaves = leavesOf(groups);
@@ -258,7 +276,9 @@ export class FeedQueryService {
       niches: [m.slug],
       counties: lexical.result.counties,
     });
-    if (local && local.margin >= EMBED_CONFIDENT_MARGIN) return localResult(local);
+    if (local && local.margin >= EMBED_CONFIDENT_MARGIN) {
+      return { result: localResult(local), via: 'local' };
+    }
 
     // 4. Claude backup, within budget.
     if (await this.claimAiCall()) {
@@ -269,21 +289,56 @@ export class FeedQueryService {
         counties: [...RO_COUNTIES],
       });
       if (ai) {
-        await this.store(key, locale, text, ai);
-        const result = this.validate(ai, groups);
+        const { usage, ...answer } = ai;
+        await this.store(key, locale, text, answer, usage);
+        const result = this.validate(answer, groups);
         // Places the scanner found but the model missed still count.
         result.counties = [...new Set([...result.counties, ...lexical.result.counties])].slice(
           0,
           MAX_PICKS,
         );
-        return result;
+        return { result, via: 'ai', usage };
       }
     }
 
     // 5. Best local guess. The model reads meaning; a sub-80 keyword hit is
     //    only a word-fragment overlap ("beau" ~ "beauty"), so it comes second.
-    if (local && local.margin >= EMBED_GUESS_MARGIN) return localResult(local);
-    return lexical.result;
+    if (local && local.margin >= EMBED_GUESS_MARGIN) {
+      return { result: localResult(local), via: 'guess' };
+    }
+    return { result: lexical.result, via: 'guess' };
+  }
+
+  /** Per-day tally of how searches were answered, plus that day's Claude
+   *  spend, for the admin's "Consum AI" page. Best effort. */
+  private async recordSearch(via: SearchVia, usage?: FeedQueryUsage): Promise<void> {
+    const now = new Date();
+    const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const cost = usage ? feedSearchCostUsd(usage) : 0;
+    const inTok = usage ? usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens : 0;
+    const outTok = usage?.outputTokens ?? 0;
+    try {
+      await this.prisma.feedSearchDaily.upsert({
+        where: { day },
+        create: {
+          day,
+          total: 1,
+          [via]: 1,
+          aiCostUsd: cost,
+          aiInputTokens: inTok,
+          aiOutputTokens: outTok,
+        },
+        update: {
+          total: { increment: 1 },
+          [via]: { increment: 1 },
+          aiCostUsd: { increment: cost },
+          aiInputTokens: { increment: inTok },
+          aiOutputTokens: { increment: outTok },
+        },
+      });
+    } catch (err) {
+      this.logger.warn(`Recording search stats failed: ${(err as Error).message}`);
+    }
   }
 
   // --- stored Claude answers + spending caps ------------------------------
@@ -307,20 +362,22 @@ export class FeedQueryService {
     locale: string,
     query: string,
     answer: FeedQueryInterpretation,
+    usage: FeedQueryUsage,
   ): Promise<void> {
     try {
-      const data = { answer: answer as unknown as Prisma.InputJsonValue, createdAt: new Date() };
+      // An expired row is simply overwritten when the request comes back;
+      // rows are tiny, so there's no cleanup job.
+      const data = {
+        answer: answer as unknown as Prisma.InputJsonValue,
+        createdAt: new Date(),
+        ...usage,
+        estimatedCostUsd: feedSearchCostUsd(usage),
+      };
       await this.prisma.feedQueryCache.upsert({
         where: { key },
         create: { key, locale, query, ...data },
         update: { ...data, hits: 0 },
       });
-      // Housekeeping, now and then: expired rows are never read again.
-      if (Math.random() < 0.02) {
-        await this.prisma.feedQueryCache.deleteMany({
-          where: { createdAt: { lt: new Date(Date.now() - AI_CACHE_TTL_MS) } },
-        });
-      }
     } catch (err) {
       this.logger.warn(`Storing an AI answer failed: ${(err as Error).message}`);
     }
