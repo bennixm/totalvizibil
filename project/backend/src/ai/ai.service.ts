@@ -63,6 +63,27 @@ export interface ParsedIntro {
   tone?: 'professional' | 'friendly' | 'premium' | 'bold' | 'calm';
 }
 
+/** The homepage's "ask" entry point — one free-text request ("unde găsesc o
+ *  firmă de construcții în Cluj?") mapped onto the Feed's own filters. The
+ *  caller passes the live category catalog and the județ list in, already
+ *  formatted, so this service stays decoupled from the feed/categories
+ *  module (same reasoning as `InterpretEasyEditInput.current`). */
+export interface FeedQueryInput {
+  text: string;
+  locale: AiLocale;
+  /** One line per group/leaf: `slug | ro name | en name`, leaves indented. */
+  catalog: string;
+  counties: string[];
+}
+/** Raw model picks — NOT yet checked against the real taxonomy; the caller
+ *  must whitelist every slug and county before using any of it. */
+export interface FeedQueryInterpretation {
+  group: string | null;
+  niches: string[];
+  counties: string[];
+  cities: string[];
+}
+
 /** Site Simplu's creation flow — a free-form "change X" request once the
  *  site is generated, interpreted against a snapshot of its current text. */
 export interface InterpretEasyEditInput {
@@ -189,6 +210,9 @@ interface CallOpts {
   effort?: 'low' | 'medium' | 'high';
   /** Override the model for this call (generator routing: `_FAST` / `_VISION`). */
   model?: string;
+  /** Mark the system prompt for Anthropic prompt caching — worth it only when
+   *  the system prompt is large and identical across many calls. */
+  cacheSystem?: boolean;
 }
 
 /**
@@ -309,6 +333,42 @@ const PARSE_INTRO_SYSTEM: Record<AiLocale, string> = {
     'professional, friendly, premium, bold, calm. Erfinde KEINEN Namen oder Stadt, die sich nicht aus dem Text ergibt — lass ' +
     'ein Feld weg, das du nicht bestimmen kannst. Antworte NUR mit gültigem JSON in der Form ' +
     '{"companyName":"...","businessType":"...","city":"...","landingTitle":"...","tone":"..."}.',
+};
+
+const FEED_QUERY_SYSTEM: Record<AiLocale, string> = {
+  ro:
+    'Ești motorul de căutare al unui director de firme locale din România. Primești o singură cerere scrisă liber ' +
+    '(în orice limbă, poate fără diacritice sau cu greșeli) de la cineva care caută o firmă. Stabilești ce fel de ' +
+    'serviciu local îi trebuie și unde, alegând EXCLUSIV din listele de mai jos. Gândește-te la nevoia reală, nu doar ' +
+    'la cuvinte: „mi s-a spart o țeavă” înseamnă instalații sanitare, „nunta mea” înseamnă organizare evenimente. ' +
+    'Reguli: "niches" = 0-3 subcategorii (slug-uri din listă), TOATE din aceeași grupă, doar dacă cererea e clară; ' +
+    '"group" = slug-ul grupei acelor subcategorii, sau doar grupa dacă cererea e generală (ex. „firmă de construcții”); ' +
+    'null dacă nimic din listă nu se potrivește. "counties" = 0-3 județe din listă, DOAR dacă cererea menționează un ' +
+    'loc; pentru un oraș, sector sau comună alegi județul lui (București pentru sectoare). "cities" = orașele exact ' +
+    'cum au fost scrise. Nu inventa slug-uri sau județe. Răspunzi DOAR cu JSON valid: ' +
+    '{"group":...,"niches":[...],"counties":[...],"cities":[...]}.',
+  en:
+    'You are the search engine of a directory of local businesses in Romania. You receive one free-text request ' +
+    '(in any language, possibly without diacritics or with typos) from someone looking for a business. You work out ' +
+    'what kind of local service they need and where, choosing ONLY from the lists below. Think about the real need, ' +
+    'not just the words: "a pipe burst" means plumbing, "my wedding" means event planning. Rules: "niches" = 0-3 ' +
+    'sub-categories (slugs from the list), ALL from the same group, only when the request is clear; "group" = the ' +
+    'slug of those sub-categories\' group, or just the group when the request is broad (e.g. "a construction ' +
+    'company"); null if nothing in the list fits. "counties" = 0-3 counties (județe) from the list, ONLY if the ' +
+    'request mentions a place; for a city, sector or village pick its county (București for sectors). "cities" = ' +
+    'the city names exactly as written. Never invent slugs or counties. Reply with valid JSON only: ' +
+    '{"group":...,"niches":[...],"counties":[...],"cities":[...]}.',
+  de:
+    'Du bist die Suchmaschine eines Verzeichnisses lokaler Unternehmen in Rumänien. Du erhältst eine frei ' +
+    'formulierte Anfrage (in beliebiger Sprache, evtl. ohne diakritische Zeichen oder mit Tippfehlern) von jemandem, ' +
+    'der ein Unternehmen sucht. Du bestimmst, welche Art lokaler Dienstleistung gebraucht wird und wo, und wählst ' +
+    'AUSSCHLIESSLICH aus den Listen unten. Denk an den echten Bedarf, nicht nur an die Wörter: "ein Rohr ist ' +
+    'geplatzt" heißt Sanitärinstallation, "meine Hochzeit" heißt Veranstaltungsplanung. Regeln: "niches" = 0-3 ' +
+    'Unterkategorien (Slugs aus der Liste), ALLE aus derselben Gruppe, nur wenn die Anfrage klar ist; "group" = der ' +
+    'Slug ihrer Gruppe, oder nur die Gruppe, wenn die Anfrage allgemein ist; null, wenn nichts passt. "counties" = ' +
+    '0-3 Kreise (județe) aus der Liste, NUR wenn ein Ort genannt wird; für eine Stadt, einen Sektor oder ein Dorf ' +
+    'wählst du ihren Kreis (București für Sektoren). "cities" = die Städte genau wie geschrieben. Erfinde keine Slugs ' +
+    'oder Kreise. Antworte NUR mit gültigem JSON: {"group":...,"niches":[...],"counties":[...],"cities":[...]}.',
 };
 
 const EASY_GENERATE_SYSTEM: Record<AiLocale, string> = {
@@ -482,7 +542,9 @@ export class AiService {
         {
           model: opts.model || this.anthropicModel,
           max_tokens: opts.maxTokens,
-          system,
+          system: opts.cacheSystem
+            ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
+            : system,
           messages: [{ role: 'user', content: user }],
           ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
         },
@@ -782,6 +844,55 @@ export class AiService {
       tone,
     };
     return Object.values(out).some((v) => v !== undefined) ? out : null;
+  }
+
+  /**
+   * The homepage's "ask" entry point: map one free-text request onto the
+   * Feed's own filters. The catalog + județ list go into the SYSTEM prompt
+   * (prompt-cached — identical across every visitor until the taxonomy
+   * changes); only the visitor's sentence is the user turn. Shape-checked
+   * here, but NOT whitelisted: the caller validates every slug and county
+   * against the live data. `null` on any failure so the caller falls back to
+   * its deterministic matcher.
+   */
+  async interpretFeedQuery(input: FeedQueryInput): Promise<FeedQueryInterpretation | null> {
+    const text = input.text.trim();
+    if (text.length < 2 || text.length > 300) return null;
+    if (!this.configured) return null;
+
+    const system =
+      (FEED_QUERY_SYSTEM[input.locale] ?? FEED_QUERY_SYSTEM.ro) +
+      `\n\nCATEGORIES (slug | ro | en):\n${input.catalog}` +
+      `\n\nCOUNTIES: ${input.counties.join(', ')}`;
+
+    const parsed = (await this.json(system, `Request: "${text}"`, {
+      maxTokens: 200,
+      effort: 'low',
+      model: this.anthropicModelFast,
+      timeoutMs: 8_000,
+      cacheSystem: true,
+    })) as Record<string, unknown> | null;
+    if (!parsed) return null;
+
+    const list = (v: unknown, max: number): string[] =>
+      Array.isArray(v)
+        ? v
+            .filter((s): s is string => typeof s === 'string')
+            .map((s) => s.trim().slice(0, 80))
+            .filter(Boolean)
+            .slice(0, max)
+        : [];
+    const group =
+      typeof parsed.group === 'string' && parsed.group.trim()
+        ? parsed.group.trim().slice(0, 80)
+        : null;
+
+    return {
+      group,
+      niches: list(parsed.niches, 3),
+      counties: list(parsed.counties, 3),
+      cities: list(parsed.cities, 3),
+    };
   }
 
   /**

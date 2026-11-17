@@ -139,6 +139,26 @@
     "seoDesc": "{category} în {city}",
     "notFoundHint": "Poate a fost redenumită, retrasă sau linkul e greșit. Caută în schimb după categorie și oraș."
   },
+  "ask": {
+    "eyebrow": "Asistent de căutare",
+    "title": "Ce fel de firmă cauți?",
+    "lead": "Spune-mi în cuvintele tale de ce ai nevoie și unde. Îți arăt firmele potrivite, cu filtrele deja alese.",
+    "inputLabel": "Descrie ce cauți",
+    "send": "Caută",
+    "hint": "Apasă Enter ca să trimiți",
+    "thinking": "Caut firmele potrivite…",
+    "tryLabel": "Încearcă:",
+    "example1": "Unde găsesc o firmă de construcții?",
+    "example2": "Am nevoie de un instalator în Cluj",
+    "example3": "Salon de manichiură în București",
+    "example4": "Cine îmi poate repara acoperișul?",
+    "skip": "Explorează toate categoriile",
+    "applied": "Am selectat: {what}",
+    "countyOnly": "Am selectat {county}. Alege acum categoria care te interesează.",
+    "noMatch": "Nu am găsit o categorie potrivită. Alege una din listă.",
+    "error": "Nu am putut procesa căutarea acum. Încearcă din nou sau alege direct o categorie.",
+    "banned": "Textul conține cuvinte care nu sunt permise. Te rog reformulează."
+  },
   "create": {
     "assistant": "Constructor AI",
     "headline": "Vii cu o idee. Pleci cu o afacere.",

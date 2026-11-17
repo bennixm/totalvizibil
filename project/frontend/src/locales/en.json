@@ -139,6 +139,26 @@
     "seoDesc": "{category} in {city}",
     "notFoundHint": "It may have been renamed, taken down, or the link is wrong. Try searching by category and city instead."
   },
+  "ask": {
+    "eyebrow": "Search assistant",
+    "title": "What kind of business are you looking for?",
+    "lead": "Tell me in your own words what you need and where. I'll show you the right businesses, with the filters already set.",
+    "inputLabel": "Describe what you're looking for",
+    "send": "Search",
+    "hint": "Press Enter to send",
+    "thinking": "Finding the right businesses…",
+    "tryLabel": "Try:",
+    "example1": "Where can I find a construction company?",
+    "example2": "I need a plumber in Cluj",
+    "example3": "Nail salon in Bucharest",
+    "example4": "Who can fix my roof?",
+    "skip": "Browse all categories",
+    "applied": "Selected: {what}",
+    "countyOnly": "Selected {county}. Now pick the category you need.",
+    "noMatch": "I couldn't find a matching category. Pick one from the list.",
+    "error": "Couldn't process the search right now. Try again or pick a category directly.",
+    "banned": "The text contains words that aren't allowed. Please rephrase."
+  },
   "create": {
     "assistant": "AI builder",
     "headline": "Come with an idea. Leave with a business.",

@@ -1,7 +1,10 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { assertClean } from '../website/drafts/content-filter';
 import { FeedService } from './feed.service';
+import { FeedQueryService } from './feed-query.service';
 import { FeedQueryDto } from './feed.query';
+import { InterpretFeedQueryDto } from './dto/interpret-feed-query.dto';
 
 /**
  * Public — the main discovery experience (PRD §6). No auth.
@@ -19,7 +22,22 @@ import { FeedQueryDto } from './feed.query';
  */
 @Controller('feed')
 export class FeedController {
-  constructor(private readonly feed: FeedService) {}
+  constructor(
+    private readonly feed: FeedService,
+    private readonly query: FeedQueryService,
+  ) {}
+
+  /** The homepage "ask" box: one free-text request → the Feed's own filters.
+   *  Public and unauthenticated but backed by an AI call, so it gets a far
+   *  tighter limit than the plain browsing reads below (still room for a
+   *  shared office / mobile-carrier IP). */
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @Post('interpret')
+  @HttpCode(200)
+  interpret(@Body() dto: InterpretFeedQueryDto) {
+    assertClean(dto.text);
+    return this.query.interpret(dto.text, dto.locale ?? 'ro');
+  }
 
   /** The public site's core browsing traffic — a real visitor paging and
    *  re-filtering generates a lot of these, so the limit is deliberately
