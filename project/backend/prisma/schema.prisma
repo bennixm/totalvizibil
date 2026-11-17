@@ -1718,3 +1718,27 @@ model Notification {
   @@index([userId, readAt])
   @@map("notifications")
 }
+
+// ---------------------------------------------------------------------------
+// Homepage "ask" search: Claude's interpretations of visitor requests, kept
+// for months so a request anyone already asked never costs a second AI call.
+// Stores the RAW model answer (slugs + places); it's re-validated against the
+// live category tree on every read, so a renamed/removed category can't leak
+// through a stale row. Also the ledger for the AI spending caps (rows created
+// today / this month = AI calls made).
+// ---------------------------------------------------------------------------
+model FeedQueryCache {
+  id        String   @id @default(uuid()) @db.Uuid
+  // "<locale>|<normalized request>"
+  key       String   @unique
+  locale    String
+  query     String
+  // { group, niches[], counties[], cities[] } exactly as the model answered.
+  answer    Json
+  hits      Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  lastHitAt DateTime @default(now()) @map("last_hit_at")
+
+  @@index([createdAt])
+  @@map("feed_query_cache")
+}

@@ -49,11 +49,63 @@ const TREE = {
   counties: [],
 };
 
-function makeService(aiReply: unknown) {
+/** In-memory stand-in for the `feedQueryCache` table. */
+function fakePrisma() {
+  const rows = new Map<string, { answer: unknown; createdAt: Date; hits: number }>();
+  return {
+    rows,
+    feedQueryCache: {
+      findUnique: jest.fn(async ({ where }: any) => {
+        const r = rows.get(where.key);
+        return r ? { key: where.key, ...r } : null;
+      }),
+      update: jest.fn(async ({ where }: any) => rows.get(where.key)),
+      upsert: jest.fn(async ({ where, create }: any) => {
+        rows.set(where.key, { answer: create.answer, createdAt: create.createdAt, hits: 0 });
+      }),
+      count: jest.fn(
+        async ({ where }: any) =>
+          [...rows.values()].filter((r) => r.createdAt >= where.createdAt.gte).length,
+      ),
+      deleteMany: jest.fn(async () => ({ count: 0 })),
+    },
+  };
+}
+
+interface Opts {
+  embed?: { slug: string; group: string; margin: number } | null;
+  daily?: number;
+  monthly?: number;
+  configured?: boolean;
+}
+
+function makeService(aiReply: unknown, opts: Opts = {}) {
   const feed = { facets: jest.fn().mockResolvedValue(TREE) };
-  const ai = { interpretFeedQuery: jest.fn().mockResolvedValue(aiReply) };
-  const svc = new FeedQueryService(feed as any, ai as any);
-  return { svc, ai };
+  const ai = {
+    configured: opts.configured ?? true,
+    interpretFeedQuery: jest.fn().mockResolvedValue(aiReply),
+  };
+  const prisma = fakePrisma();
+  const embeddings = {
+    match: jest
+      .fn()
+      .mockResolvedValue(
+        opts.embed === undefined ? null : opts.embed && { ...opts.embed, score: 0.9 },
+      ),
+  };
+  const limits: Record<string, number> = {
+    feedAiDailyLimit: opts.daily ?? 100,
+    feedAiMonthlyLimit: opts.monthly ?? 1000,
+  };
+  const config = { get: (k: string) => limits[k] };
+  const svc = new FeedQueryService(
+    feed as any,
+    ai as any,
+    prisma as any,
+    embeddings as any,
+    config as any,
+  );
+  return { svc, ai, prisma, embeddings };
 }
 
 const ai = (
@@ -111,15 +163,104 @@ describe('FeedQueryService', () => {
       expect(out.counties).toEqual(['Cluj', 'Timiș']);
     });
 
-    it('caches AI answers per normalised request', async () => {
-      const { svc, ai: aiSvc } = makeService(ai({ group: 'constructii' }));
-      await svc.interpret('Firmă de construcții?', 'ro');
-      await svc.interpret('firma de constructii', 'ro');
+    it('stores AI answers and reuses them for the same normalised request', async () => {
+      const { svc, ai: aiSvc, prisma } = makeService(ai({ niches: ['acoperisuri'] }));
+      await svc.interpret('Cine repară o țiglă spartă?', 'ro');
+      await expect(svc.interpret('cine repara o tigla sparta', 'ro')).resolves.toMatchObject({
+        niches: ['acoperisuri'],
+      });
       expect(aiSvc.interpretFeedQuery).toHaveBeenCalledTimes(1);
+      expect(prisma.rows.size).toBe(1);
+    });
+
+    it('re-validates a stored answer on read (a removed category never leaks back)', async () => {
+      const { svc, prisma, ai: aiSvc } = makeService(null);
+      prisma.rows.set('ro|ceva vechi', {
+        answer: { group: 'gone', niches: ['gone-leaf'], counties: ['Cluj'], cities: [] },
+        createdAt: new Date(),
+        hits: 0,
+      });
+      await expect(svc.interpret('ceva vechi', 'ro')).resolves.toEqual({
+        group: null,
+        niches: [],
+        counties: ['Cluj'],
+      });
+      expect(aiSvc.interpretFeedQuery).not.toHaveBeenCalled();
     });
   });
 
-  describe('fallback (AI unavailable)', () => {
+  describe('cost order: cache, keywords, local model, then capped Claude', () => {
+    it('a category name in the text answers without the model or Claude', async () => {
+      const { svc, ai: aiSvc, embeddings } = makeService(null);
+      await expect(svc.interpret('instalatii electrice in Cluj', 'ro')).resolves.toMatchObject({
+        niches: ['instalatii-electrice'],
+      });
+      expect(embeddings.match).not.toHaveBeenCalled();
+      expect(aiSvc.interpretFeedQuery).not.toHaveBeenCalled();
+    });
+
+    it('a confident local match answers without Claude, keeping the scanned place', async () => {
+      const { svc, ai: aiSvc } = makeService(ai({ group: 'constructii' }), {
+        embed: { slug: 'instalatii-sanitare', group: 'instalatii', margin: 0.03 },
+      });
+      await expect(svc.interpret('mi s-a spart o teava in Cluj-Napoca', 'ro')).resolves.toEqual({
+        group: 'instalatii',
+        niches: ['instalatii-sanitare'],
+        counties: ['Cluj'],
+      });
+      expect(aiSvc.interpretFeedQuery).not.toHaveBeenCalled();
+    });
+
+    it('an unsure local match asks Claude', async () => {
+      const { svc, ai: aiSvc } = makeService(ai({ niches: ['acoperisuri'] }), {
+        embed: { slug: 'instalatii-sanitare', group: 'instalatii', margin: 0.004 },
+      });
+      await expect(svc.interpret('ceva neclar', 'ro')).resolves.toMatchObject({
+        niches: ['acoperisuri'],
+      });
+      expect(aiSvc.interpretFeedQuery).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops calling Claude at the daily cap and falls back to the local guess', async () => {
+      const { svc, ai: aiSvc } = makeService(ai({ niches: ['acoperisuri'] }), {
+        embed: { slug: 'instalatii-sanitare', group: 'instalatii', margin: 0.008 },
+        daily: 2,
+      });
+      await svc.interpret('cerere unu', 'ro');
+      await svc.interpret('cerere doi', 'ro');
+      await expect(svc.interpret('cerere trei', 'ro')).resolves.toMatchObject({
+        niches: ['instalatii-sanitare'],
+      });
+      expect(aiSvc.interpretFeedQuery).toHaveBeenCalledTimes(2);
+    });
+
+    it('counts failed Claude calls against the daily cap too', async () => {
+      const { svc, ai: aiSvc } = makeService(null, { daily: 2 });
+      for (const q of ['unu', 'doi', 'trei', 'patru']) await svc.interpret(`cerere ${q}`, 'ro');
+      expect(aiSvc.interpretFeedQuery).toHaveBeenCalledTimes(2);
+    });
+
+    it('respects the monthly cap, and a 0 limit turns the backup off', async () => {
+      const capped = makeService(ai({ niches: ['acoperisuri'] }), { monthly: 1 });
+      await capped.svc.interpret('cerere unu', 'ro');
+      await capped.svc.interpret('cerere doi', 'ro');
+      expect(capped.ai.interpretFeedQuery).toHaveBeenCalledTimes(1);
+
+      const off = makeService(ai({ niches: ['acoperisuri'] }), { daily: 0 });
+      await off.svc.interpret('cerere unu', 'ro');
+      expect(off.ai.interpretFeedQuery).not.toHaveBeenCalled();
+    });
+
+    it('a very weak local guess with no AI left gives the Feed root', async () => {
+      const { svc } = makeService(null, {
+        embed: { slug: 'instalatii-sanitare', group: 'instalatii', margin: 0.001 },
+        configured: false,
+      });
+      await expect(svc.interpret('salut ce faci', 'ro')).resolves.toMatchObject({ group: null });
+    });
+  });
+
+  describe('keyword fallback (no model, no AI)', () => {
     it('still finds the category and county deterministically', async () => {
       const { svc } = makeService(null);
       await expect(svc.interpret('instalatii electrice in Cluj-Napoca', 'ro')).resolves.toEqual({
@@ -165,8 +306,8 @@ describe('FeedQueryService', () => {
       expect(out.niches).toEqual(['acoperisuri']);
     });
 
-    it('returns no category for an unrelated request, and never caches fallback answers', async () => {
-      const { svc, ai: aiSvc } = makeService(null);
+    it('returns no category for an unrelated request, and never stores fallback answers', async () => {
+      const { svc, ai: aiSvc, prisma } = makeService(null);
       await expect(svc.interpret('salut ce faci', 'ro')).resolves.toEqual({
         group: null,
         niches: [],
@@ -174,6 +315,7 @@ describe('FeedQueryService', () => {
       });
       await svc.interpret('salut ce faci', 'ro');
       expect(aiSvc.interpretFeedQuery).toHaveBeenCalledTimes(2);
+      expect(prisma.rows.size).toBe(0);
     });
   });
 });
