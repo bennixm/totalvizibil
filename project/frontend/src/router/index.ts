@@ -27,7 +27,8 @@ window.addEventListener('popstate', () => {
 
 const routes: RouteRecordRaw[] = [
   // --- Discovery (public) ---
-  { path: '/', name: 'feed', component: () => import('@/views/FeedView.vue') },
+  // The Feed itself, fronted once per session by the "ask" gate (HomeView).
+  { path: '/', name: 'feed', component: () => import('@/views/HomeView.vue') },
   // Legacy prefixed SEO paths — permanently redirect to the flat `browse` path
   // (see its own route below) so any bookmarked/indexed link keeps working.
   { path: '/feed', redirect: { name: 'feed' } },

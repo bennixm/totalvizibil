@@ -29,9 +29,18 @@ describe('FeedController throttling', () => {
 
   it('has no class-level (or handler-level) throttle skip anywhere', () => {
     expect(Reflect.getMetadata(`${THROTTLER_SKIP}default`, FeedController)).toBeUndefined();
-    for (const fn of [FeedController.prototype.list, FeedController.prototype.facets]) {
+    for (const fn of [
+      FeedController.prototype.list,
+      FeedController.prototype.facets,
+      FeedController.prototype.interpret,
+    ]) {
       expect(Reflect.getMetadata(`${THROTTLER_SKIP}default`, fn)).toBeUndefined();
     }
+  });
+
+  it('keeps the AI-backed ask endpoint on a far tighter limit than the browsing reads', () => {
+    expect(ttl(FeedController.prototype.interpret)).toBe(60_000);
+    expect(limit(FeedController.prototype.interpret)).toBe(20);
   });
 
   it('gives the public browsing reads a generous but finite 300/min', () => {
@@ -45,7 +54,7 @@ describe('FeedController throttling', () => {
     const handlers = Object.getOwnPropertyNames(FeedController.prototype).filter(
       (k) => k !== 'constructor',
     );
-    expect(handlers.sort()).toEqual(['facets', 'list']);
+    expect(handlers.sort()).toEqual(['facets', 'interpret', 'list']);
     for (const name of handlers) {
       const fn = (FeedController.prototype as unknown as Record<string, unknown>)[name];
       expect(typeof limit(fn)).toBe('number');
