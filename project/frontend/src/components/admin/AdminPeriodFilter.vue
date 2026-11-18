@@ -45,7 +45,16 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const currentYear = new Date().getUTCFullYear()
+const PRESETS: { value: Exclude<PeriodPreset, 'custom'>; label: string }[] = [
+  { value: 'month', label: 'adminFinance.thisMonth' },
+  { value: 'lastMonth', label: 'adminFinance.lastMonth' },
+  { value: '3months', label: 'adminFinance.last3Months' },
+  { value: 'year', label: 'adminFinance.thisYear' },
+  { value: '12months', label: 'adminFinance.last12Months' },
+  { value: 'lifetime', label: 'adminFinance.lifetime' },
+]
+
+const currentYear =new Date().getUTCFullYear()
 /** The platform's books start in 2025; nothing older can have data. */
 const YEARS = Array.from({ length: Math.max(1, currentYear - 2024) }, (_, i) => currentYear - i)
 const monthModel = ref('')
@@ -64,30 +73,28 @@ function onYear(v: number | null): void {
 
 <template>
   <div class="apf">
-    <v-btn-toggle :model-value="preset" density="compact" mandatory color="primary" divided>
-      <v-btn size="small" value="month" @click="emit('preset', 'month')">
-        {{ t('adminFinance.thisMonth') }}
-      </v-btn>
-      <v-btn size="small" value="lastMonth" @click="emit('preset', 'lastMonth')">
-        {{ t('adminFinance.lastMonth') }}
-      </v-btn>
-      <v-btn size="small" value="3months" @click="emit('preset', '3months')">
-        {{ t('adminFinance.last3Months') }}
-      </v-btn>
-      <v-btn size="small" value="year" @click="emit('preset', 'year')">
-        {{ t('adminFinance.thisYear') }}
-      </v-btn>
-      <v-btn size="small" value="12months" @click="emit('preset', '12months')">
-        {{ t('adminFinance.last12Months') }}
-      </v-btn>
-      <v-btn size="small" value="lifetime" @click="emit('preset', 'lifetime')">
-        {{ t('adminFinance.lifetime') }}
-      </v-btn>
-    </v-btn-toggle>
+    <!-- Segmented control instead of a v-btn-toggle: six tiny buttons can't
+         take the house chamfer (at 28px tall the cut turns each one into a
+         rhombus), so the presets share one soft track and the active one is
+         a raised tab inside it. A 3×2 grid on a phone, one row when wide. -->
+    <div class="apf__presets" role="radiogroup" :aria-label="t('adminFinance.periodShowing')">
+      <button
+        v-for="p in PRESETS"
+        :key="p.value"
+        type="button"
+        role="radio"
+        class="apf__preset"
+        :class="{ 'is-active': preset === p.value }"
+        :aria-checked="preset === p.value"
+        @click="emit('preset', p.value)"
+      >
+        {{ t(p.label) }}
+      </button>
+    </div>
 
-    <div class="apf__custom">
+    <div class="apf__custom" :class="{ 'apf__custom--cal': calendarPickers }">
       <template v-if="calendarPickers">
-        <label class="apf__field">
+        <label class="apf__field apf__field--month">
           <span>{{ t('adminFinance.periodMonth') }}</span>
           <input
             :value="monthModel"
@@ -95,7 +102,7 @@ function onYear(v: number | null): void {
             @change="onMonth(($event.target as HTMLInputElement).value)"
           />
         </label>
-        <label class="apf__field">
+        <label class="apf__field apf__field--year">
           <span>{{ t('adminFinance.periodYear') }}</span>
           <select
             :value="yearModel ?? ''"
@@ -124,6 +131,7 @@ function onYear(v: number | null): void {
         />
       </label>
       <v-btn
+        class="apf__apply"
         size="small"
         variant="tonal"
         color="primary"
@@ -147,15 +155,58 @@ function onYear(v: number | null): void {
   border-bottom: 1px solid var(--tvz-hairline);
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
+  gap: 0.85rem;
+  /* The children lay out by the width the filter actually has (the admin
+     content column), not the viewport. */
+  container-type: inline-size;
 }
-/* Seven presets: let them wrap on a narrow screen instead of overflowing. */
-.apf :deep(.v-btn-toggle) {
-  flex-wrap: wrap;
-  row-gap: 0.35rem;
-  height: auto;
+
+/* --- Presets: segmented control ---------------------------------------- */
+.apf__presets {
+  display: inline-flex;
+  align-self: flex-start;
   max-width: 100%;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 10px;
+  background: rgba(var(--v-theme-on-surface), 0.035);
 }
+.apf__preset {
+  position: relative;
+  min-height: 32px;
+  padding: 0.3rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(var(--v-theme-on-surface), 0.68);
+  font: inherit;
+  font-size: var(--tvz-fs-small);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--tvz-dur-fast) var(--tvz-ease-out),
+    color var(--tvz-dur-fast) var(--tvz-ease-out),
+    border-color var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.apf__preset:hover:not(.is-active) {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  color: rgb(var(--v-theme-on-surface));
+}
+.apf__preset.is-active {
+  border-color: rgba(var(--v-theme-primary), 0.45);
+  background: rgba(var(--v-theme-primary), 0.16);
+  color: rgb(var(--v-theme-primary));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+.apf__preset:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 1px;
+}
+
+/* --- Custom range ------------------------------------------------------ */
 .apf__custom {
   display: flex;
   flex-wrap: wrap;
@@ -166,19 +217,26 @@ function onYear(v: number | null): void {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  min-width: 0;
   font-size: var(--tvz-fs-caption);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .apf__field input,
 .apf__field select {
-  padding: 0.4rem 0.55rem;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 0.55rem;
   border: 1px solid var(--tvz-glass-border);
   border-radius: 8px;
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
   /* Form-field size (16px on phones: no iOS focus zoom). */
   font-size: var(--tvz-fs-input);
+}
+/* Same height as the date fields beside it, so the row's bottoms line up. */
+.apf__apply {
+  height: 38px !important;
 }
 .apf__sep {
   width: 1px;
@@ -198,10 +256,47 @@ function onYear(v: number | null): void {
   color: rgb(var(--v-theme-on-surface));
 }
 
-@media (max-width: 640px) {
+/* Narrow column (phones, or a tablet beside the sidebar): presets become an
+   even 3×2 grid instead of a ragged wrap, and the range fields line up in
+   pairs (month | year, from | to) with Apply full width under them. */
+@container (max-width: 640px) {
+  .apf__presets {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-self: stretch;
+  }
+  .apf__preset {
+    padding-inline: 0.4rem;
+    white-space: normal;
+    text-align: center;
+  }
+  .apf__custom {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.6rem;
+  }
+  .apf__field input,
+  .apf__field select {
+    width: 100%;
+    height: 40px;
+  }
+  .apf__sep {
+    display: none;
+  }
+  .apf__apply,
+  .apf__active {
+    grid-column: 1 / -1;
+  }
+  .apf__apply {
+    height: 40px !important;
+  }
   .apf__active {
     margin-left: 0;
-    width: 100%;
+  }
+}
+@container (max-width: 340px) {
+  .apf__presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

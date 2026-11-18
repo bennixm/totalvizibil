@@ -237,10 +237,10 @@ onMounted(() => setQuickRange('month'))
           density="compact"
           variant="outlined"
           hide-details
-          class="afr__sel"
+          class="afr__sel afr__sel--sort"
           @update:model-value="finance.setRevenueFilter('sort', $event)"
         />
-        <v-btn v-if="filtersActive" variant="text" size="small" prepend-icon="mdi-filter-remove-outline" @click="resetFilters">
+        <v-btn v-if="filtersActive" class="afr__reset" variant="text" size="small" prepend-icon="mdi-filter-remove-outline" @click="resetFilters">
           {{ t('adminFinance.resetFilters') }}
         </v-btn>
       </div>
@@ -371,6 +371,7 @@ onMounted(() => setQuickRange('month'))
   padding: 0.9rem;
   border: 1px solid var(--tvz-glass-border);
   border-radius: var(--tvz-radius-md);
+  container-type: inline-size;
 }
 .afr__search {
   max-width: 520px;
@@ -613,9 +614,29 @@ a.rrow__name:hover {
   .afr__kpis {
     grid-template-columns: 1fr;
   }
-  .afr__sel,
+}
+/* Narrow filter box: search full width, then the four fields as two even
+   pairs, the two dropdowns together (status | sort) and the two amounts
+   together (min | max), instead of whatever the wrap happened to pair. */
+@container (max-width: 560px) {
+  .afr__search {
+    max-width: none;
+  }
+  .afr__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.6rem;
+  }
+  .afr__sel {
+    order: 1;
+  }
   .afr__amt {
-    flex: 1 1 140px;
+    order: 2;
+  }
+  .afr__reset {
+    order: 3;
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }
 </style>
