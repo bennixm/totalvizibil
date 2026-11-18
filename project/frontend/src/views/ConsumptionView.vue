@@ -838,7 +838,7 @@ watch(
   align-items: baseline;
   padding: 0.15rem 0.5rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   background: rgba(var(--v-theme-warning), 0.12);

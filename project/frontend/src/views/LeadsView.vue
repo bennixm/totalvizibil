@@ -621,7 +621,7 @@ watch(
   letter-spacing: 0.05em;
   padding: 0.2rem 0.55rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   background: rgba(var(--v-theme-on-surface), 0.08);
   color: rgba(var(--v-theme-on-surface), 0.65);
   flex: none;

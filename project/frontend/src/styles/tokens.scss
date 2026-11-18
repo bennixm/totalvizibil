@@ -30,9 +30,25 @@
   // size scales with the element so a small chip and a big CTA both read
   // as "the same shape family" rather than one looking barely-cut and the
   // other looking like a stop sign.
-  --tvz-cut-sm: 6px; // chips, icon buttons, small pills
+  //
+  // The cut must stay well under a third of the element's HEIGHT. Past that
+  // the two cuts on each short side almost meet and the shape collapses
+  // into a rhombus/hexagon (a 10px cut on a 20px badge is exactly that).
+  // Rule of thumb: <= 24px tall -> xs, ~26-34px -> sm, 36px+ -> md, hero -> lg.
+  --tvz-cut-xs: 3px; // badges, counters, status tags, 18-24px icon buttons
+  --tvz-cut-sm: 6px; // chips, filters, small buttons, icon buttons
   --tvz-cut-md: 10px; // standard buttons
   --tvz-cut-lg: 14px; // hero/large CTAs
+  --tvz-hex-xs: polygon(
+    var(--tvz-cut-xs) 0,
+    calc(100% - var(--tvz-cut-xs)) 0,
+    100% var(--tvz-cut-xs),
+    100% calc(100% - var(--tvz-cut-xs)),
+    calc(100% - var(--tvz-cut-xs)) 100%,
+    var(--tvz-cut-xs) 100%,
+    0 calc(100% - var(--tvz-cut-xs)),
+    0 var(--tvz-cut-xs)
+  );
   --tvz-hex-sm: polygon(
     var(--tvz-cut-sm) 0,
     calc(100% - var(--tvz-cut-sm)) 0,

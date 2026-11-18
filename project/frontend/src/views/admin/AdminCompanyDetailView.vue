@@ -1730,7 +1730,7 @@ const leadStatusItems = computed(() => [
   gap: 0.35rem;
   padding: 0.4rem 0.4rem 0.4rem 0.7rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-md);
+  clip-path: var(--tvz-hex-sm);
   background: rgba(var(--v-theme-primary), 0.1);
   border: 1px solid rgba(var(--v-theme-primary), 0.3);
   color: rgb(var(--v-theme-primary));
@@ -1748,7 +1748,7 @@ const leadStatusItems = computed(() => [
   width: 18px;
   height: 18px;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   color: rgb(var(--v-theme-primary));
   opacity: 0.7;
 }
@@ -2237,7 +2237,7 @@ const leadStatusItems = computed(() => [
   align-items: baseline;
   padding: 0.1rem 0.45rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   background: rgba(var(--v-theme-warning), 0.12);

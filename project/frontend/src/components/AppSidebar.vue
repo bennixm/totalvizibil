@@ -247,7 +247,7 @@ function onNavigate(): void {
   font-size: 0.68rem;
   font-weight: 700;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   background: rgba(var(--v-theme-primary), 0.16);
   color: rgb(var(--v-theme-primary));
 }

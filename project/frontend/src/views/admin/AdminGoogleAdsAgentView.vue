@@ -1096,17 +1096,11 @@ function cancelEditCredentials() {
 .gaa__tabs {
   margin-bottom: 1.2rem;
 }
-/* The site-wide `.rounded-pill` rule (main.scss) chamfers every pill/chip
-   with the "standard button" cut (--tvz-hex-md, 10px) regardless of size —
-   fine for a wide text chip, but on a ~20px single-digit counter like this
-   one the cut eats so much of each corner the result reads as a lopsided
-   diamond with the digit crammed into a corner instead of a badge. Scoped
-   here (not in main.scss) to the one badge this actually breaks: the
-   smaller chip-sized cut (--tvz-hex-sm, 6px — see tokens.scss) plus an
-   explicit centered square box, same shape family, properly legible at
-   this size. */
+/* A ~20px single-digit counter: even the global small-chip cut is too much
+   here, so it takes the extra-small one (see --tvz-cut-xs in tokens.scss)
+   plus an explicit centered square box. */
 .gaa__proposalsBadge.rounded-pill {
-  clip-path: var(--tvz-hex-sm) !important;
+  clip-path: var(--tvz-hex-xs) !important;
 }
 .gaa__proposalsBadge {
   width: 20px;

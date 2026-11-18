@@ -416,7 +416,7 @@ watch(
   gap: 0.35rem;
   padding: 0.4rem 0.4rem 0.4rem 0.7rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-md);
+  clip-path: var(--tvz-hex-sm);
   background: rgba(var(--v-theme-primary), 0.1);
   border: 1px solid rgba(var(--v-theme-primary), 0.3);
   color: rgb(var(--v-theme-primary));
@@ -434,7 +434,7 @@ watch(
   width: 18px;
   height: 18px;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   color: rgb(var(--v-theme-primary));
   opacity: 0.7;
 }

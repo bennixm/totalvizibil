@@ -699,7 +699,7 @@ watch(
   font-size: 0.68rem;
   padding: 0.1rem 0.5rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   background: rgba(var(--v-theme-on-surface), 0.08);
   white-space: nowrap;
 }

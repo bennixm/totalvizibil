@@ -677,7 +677,7 @@ onMounted(async () => {
   letter-spacing: 0.04em;
   padding: 0.2rem 0.55rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
 }
 .chip--success {
   background: rgba(var(--v-theme-success), 0.16);

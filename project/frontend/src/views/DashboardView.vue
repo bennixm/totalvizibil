@@ -1376,7 +1376,7 @@ watch(
   font-weight: 600;
   padding: 0.24rem 0.58rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   border: 1px solid color-mix(in srgb, var(--acc-c) 32%, transparent);
   color: rgba(var(--v-theme-on-surface), 0.62);
   text-transform: capitalize;
@@ -1388,7 +1388,7 @@ watch(
   margin-top: auto;
   padding: 0.45rem 0.85rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-md);
+  clip-path: var(--tvz-hex-sm);
   border: 1px solid color-mix(in srgb, var(--acc-c) 32%, transparent);
   background: color-mix(in srgb, var(--acc-c) 11%, transparent);
   cursor: pointer;
@@ -1429,7 +1429,7 @@ watch(
 }
 .dcard__go--alt {
   /* A bare border used to be enough to read as a button on a plain pill —
-     now that the shape is chamfered (see --tvz-hex-md), the border itself
+     now that the shape is chamfered (see --tvz-hex-sm), the border itself
      gets visually cut at the corners and the pill reads as empty space
      without a fill of its own. A faint neutral tint keeps the secondary/
      muted look (vs. the accent-tinted default .dcard__go) while still
