@@ -1455,7 +1455,7 @@ watch(
   height: 18px;
   line-height: 1;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   background: rgb(var(--v-theme-error));
   color: #fff;
   font-size: 13px;

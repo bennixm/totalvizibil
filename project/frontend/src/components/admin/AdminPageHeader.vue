@@ -57,7 +57,7 @@ defineProps<{
   background: rgba(var(--v-theme-on-surface), 0.07);
   padding: 0.1rem 0.55rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   font-variant-numeric: tabular-nums;
 }
 .aph__sub {

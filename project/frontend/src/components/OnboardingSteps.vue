@@ -116,7 +116,7 @@ const currentIndex = computed(() => {
   height: 21px;
   flex: none;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   border: 1.5px solid var(--tvz-hairline, rgba(var(--v-theme-on-surface), 0.2));
   font-size: 0.7rem;
   font-weight: 600;

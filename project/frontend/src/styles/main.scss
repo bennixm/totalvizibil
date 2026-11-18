@@ -182,6 +182,25 @@ h3 {
 .rounded-xl.rounded-pill {
   clip-path: var(--tvz-hex-lg) !important;
 }
+// Size-aware cut for Vuetify's small variants. The medium cut above is
+// sized for a ~36px button; on a 20-32px chip/button it eats a third of the
+// height and the element reads as a rhombus. Chips are always compact
+// (filters, status tags), so they never take the medium cut.
+.v-chip.rounded-pill,
+.v-btn--size-small.rounded-pill {
+  clip-path: var(--tvz-hex-sm) !important;
+}
+.v-chip--size-x-small.rounded-pill,
+.v-chip--size-small.rounded-pill,
+.v-btn--size-x-small.rounded-pill,
+.v-btn--icon.v-btn--size-x-small,
+.v-btn--icon.v-btn--density-compact.v-btn--size-small {
+  clip-path: var(--tvz-hex-xs) !important;
+}
+.v-chip--size-large.rounded-pill,
+.v-chip--size-x-large.rounded-pill {
+  clip-path: var(--tvz-hex-md) !important;
+}
 
 // Hooks for bespoke (non-Vuetify) pill/circle markup — chips, badges, the
 // custom nav/account-menu buttons — to opt into the same shape without
@@ -193,6 +212,10 @@ h3 {
 .tvz-hex--sm {
   border-radius: 0 !important;
   clip-path: var(--tvz-hex-sm);
+}
+.tvz-hex--xs {
+  border-radius: 0 !important;
+  clip-path: var(--tvz-hex-xs);
 }
 .tvz-hex--lg {
   border-radius: 0 !important;

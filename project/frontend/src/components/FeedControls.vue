@@ -782,7 +782,7 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
   gap: 0.3rem;
   padding: 0.3rem 0.7rem 0.3rem 0.5rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-md);
+  clip-path: var(--tvz-hex-sm);
   border: 1px solid var(--tvz-glass-border);
   background: rgb(var(--v-theme-surface));
   font-size: 0.78rem;
@@ -830,7 +830,7 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
 .niche {
   padding: 0.42rem 0.9rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-md);
+  clip-path: var(--tvz-hex-sm);
   font-size: 0.83rem;
   font-weight: 500;
   color: rgba(var(--v-theme-on-surface), 0.72);
@@ -855,7 +855,7 @@ function toggleNiche(group: FeedCategoryNode, slug: string): void {
 }
 .niche--complete:not(.niche--on) {
   /* Was fully transparent, relying on the border alone to read as a chip —
-     breaks at the chamfered corners now (see --tvz-hex-md on .niche). A
+     breaks at the chamfered corners now (see --tvz-hex-sm on .niche). A
      faint primary tint keeps it visually distinct from a plain .niche
      without looking selected. */
   background: rgba(var(--v-theme-primary), 0.05);

@@ -1429,7 +1429,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   margin-top: 0.5rem;
   padding: 0.3rem 0.7rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   font-size: 0.72rem;
   font-weight: 600;
   background: rgba(255, 255, 255, 0.12);
@@ -1524,7 +1524,7 @@ const portfolioCount = computed(() => easy.value?.portfolio?.length ?? 0)
   height: 24px;
   flex: none;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   font-size: 0.72rem;
   font-weight: 700;
   color: #fff;
@@ -1904,7 +1904,7 @@ textarea.fld {
   width: 18px;
   height: 18px;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.6);
@@ -2016,7 +2016,7 @@ textarea.fld {
 .tog {
   padding: 0.1rem 0.45rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.04em;

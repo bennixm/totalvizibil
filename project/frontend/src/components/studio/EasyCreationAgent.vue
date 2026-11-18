@@ -391,7 +391,7 @@ function askRestart(): void {
   flex: none;
   padding: 0.3rem 0.7rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   font-size: 0.72rem;
   font-weight: 600;
   background: rgba(var(--v-theme-on-surface), 0.07);
@@ -481,7 +481,7 @@ function askRestart(): void {
   height: 24px;
   flex: none;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   font-size: 0.72rem;
   font-weight: 700;
   color: #fff;

@@ -801,7 +801,7 @@ watch(
   align-self: center;
   padding: 0.2rem 0.55rem;
   border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  clip-path: var(--tvz-hex-xs);
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
