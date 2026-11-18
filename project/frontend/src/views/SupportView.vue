@@ -174,6 +174,12 @@ const activeChips = computed(() => {
 const filterCount = computed(() => activeChips.value.length)
 const hasRefinement = computed(() => filterCount.value > 0 || !!state.q.trim())
 
+/** Drops the filter-panel refinements, keeping the view and the search. */
+function clearFilters(): void {
+  state.status = ''
+  state.priority = ''
+  state.category = ''
+}
 function clearRefinements(): void {
   state.status = ''
   state.priority = ''
@@ -375,16 +381,7 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </section>
-          <button
-            v-if="filterCount"
-            type="button"
-            class="fpanel__clear"
-            @click="
-              state.status = ''
-              state.priority = ''
-              state.category = ''
-            "
-          >
+          <button v-if="filterCount" type="button" class="fpanel__clear" @click="clearFilters">
             <v-icon icon="mdi-filter-remove-outline" size="15" /> {{ t('support.clearFilters') }}
           </button>
         </v-card>
