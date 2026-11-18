@@ -15,6 +15,29 @@ import { DEFAULT_REVENUE_TXN_TYPES, ListRevenueQuery } from './dto/list-revenue.
 import { FinancePeriodQuery } from './dto/finance-period.query';
 import { PagedPeriodQuery } from './dto/paged-period.query';
 import { CREDITS_PER_USD } from '../website/builder/pro-v2/ai-usage.service';
+import {
+  type BalanceSnapshot,
+  expenseEurMinor,
+  FinanceStatementService,
+  type FinancialStatement,
+} from './finance-statement.service';
+import { ReportExportQuery } from './dto/report-export.query';
+import { consumptionCategory, vatOf } from './ledger-engine';
+import {
+  CONSUMPTION_RO,
+  dayRo,
+  missingNoteRo,
+  MONTHLY_COLUMNS,
+  MONTHS_RO,
+  statementLines,
+  eurNum,
+  eurText,
+  EXPENSE_CATEGORY_RO,
+  EXPENSE_SOURCE_RO,
+  TXN_STATUS_RO,
+  TXN_TYPE_RO,
+} from './finance-export';
+import { type Sheet, toCsv, toXlsx } from '../common/spreadsheet';
 
 /** AI spend is tracked in USD (see `AiUsageRecord.estimatedCostUsd`); every
  *  other figure in this module is EUR cents. Treated 1:1 (USD ≈ EUR) for this
@@ -91,6 +114,32 @@ function rowMoneyMinor(r: {
   return r.eurCents ?? 0;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Spreadsheet exports carry every row up to this; PDFs fewer (paper). */
+const EXPORT_ROW_CAP = 50_000;
+const PDF_ROW_CAP = 3_000;
+
+type RevenueRowOut = ReturnType<FinanceService['mapRevenueRow']>;
+
+export interface ExportFile {
+  buffer: Buffer;
+  contentType: string;
+  filename: string;
+}
+function pdfFile(stem: string, buffer: Buffer): ExportFile {
+  return { buffer, contentType: 'application/pdf', filename: `${stem}.pdf` };
+}
+function csvFile(stem: string, buffer: Buffer): ExportFile {
+  return { buffer, contentType: 'text/csv; charset=utf-8', filename: `${stem}.csv` };
+}
+function xlsxFile(stem: string, buffer: Buffer): ExportFile {
+  return {
+    buffer,
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    filename: `${stem}.xlsx`,
+  };
+}
+
 function startOfUtcMonth(d = new Date()): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
 }
@@ -142,15 +191,6 @@ function oneOffFeeCategory(provider: string | null, description: string | null):
   return 'other';
 }
 
-/** Row labels for the Venituri PDF. `adjustment` only ever shows up when the
- *  caller explicitly asked for it via `?types=adjustment`. */
-const REVENUE_TYPE_LABELS: Record<WalletTxnType, string> = {
-  purchase: 'Încărcare',
-  refund: 'Rambursare',
-  adjustment: 'Ajustare',
-  spend: 'Consum',
-};
-
 const EXPENSE_CATEGORIES = [
   'hosting',
   'call_center',
@@ -163,7 +203,10 @@ const EXPENSE_CATEGORIES = [
 
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly statements: FinanceStatementService,
+  ) {}
 
   /** Both ends inclusive; defaults to the current calendar month (UTC).
    *  `all: true` asks for literally every row instead — the lower bound
@@ -204,7 +247,6 @@ export class FinanceService {
         otherSpendRows,
         expenseRows,
         aiRows,
-        googleAdsAgentAgg,
         walletTotals,
         blockedWalletTotals,
         refundInFlightTotals,
@@ -246,18 +288,17 @@ export class FinanceService {
         }),
         this.prisma.platformExpense.findMany({
           where: { incurredOn: { gte: from, lte: to } },
-          select: { category: true, amountMinor: true, incurredOn: true },
+          select: {
+            category: true,
+            amountMinor: true,
+            incurredOn: true,
+            currency: true,
+            eurAmountMinor: true,
+          },
         }),
         this.prisma.aiUsageRecord.findMany({
           where: dateFilter,
           select: { estimatedCostUsd: true, createdAt: true },
-        }),
-        // Google Ads campaign-management agent's own Claude spend — a real
-        // platform operating cost, never charged to any customer wallet
-        // (there's no "revenue" counterpart, unlike `aiRows` above).
-        this.prisma.googleAdsAgentRun.aggregate({
-          where: { startedAt: { gte: from, lte: to } },
-          _sum: { claudeCostEstimateMinor: true },
         }),
         // --- point-in-time balance-sheet figures (deliberately NOT period
         // scoped: a liability is what's owed right now, not what was owed
@@ -279,11 +320,12 @@ export class FinanceService {
           where: { type: 'refund', status: 'completed', ...dateFilter },
         }),
       ]),
-      // VAT return shape: one row per (rate, currency) over the invoices
-      // issued in the period that are still valid.
+      // VAT return shape: one row per (rate, currency) over the SALES
+      // invoices issued in the period that are still valid. Affiliate-reward
+      // documents are payouts, not sales, so they never belong here.
       this.prisma.invoice.groupBy({
         by: ['vatRatePct', 'currency'],
-        where: { voidedAt: null, issuedAt: { gte: from, lte: to } },
+        where: { voidedAt: null, kind: 'topup', issuedAt: { gte: from, lte: to } },
         _sum: { subtotalMinor: true, vatMinor: true, totalMinor: true },
         _count: { _all: true },
         orderBy: { vatRatePct: 'asc' },
@@ -320,25 +362,11 @@ export class FinanceService {
         -r.amountMinor;
     }
 
-    // Credit consumption is booked at face value, so during a discount period
-    // a credit spent was only ever worth `net/gross` of a euro in real money.
-    // Applying that same blended ratio to CPC consumption gives the
-    // real-money-weighted figure to compare against real-money ad spend.
+    // Gross (face value sold) vs net (money collected) — kept for the
+    // discount KPI only. Earned revenue no longer uses this blended ratio:
+    // the statement below values every consumed credit at the money that
+    // was actually paid for THAT credit (FIFO replay, see ledger-engine.ts).
     const grossToNetRatio = grossRevenueMinor > 0 ? netRevenueMinor / grossRevenueMinor : 1;
-    const cpcRevenueRealMoneyMinor = Math.round(cpcConsumedMinor * grossToNetRatio);
-
-    // Same real-money weighting, generalized to ALL credit consumption in the
-    // period (CPC + AI usage + builder unlock + other one-off fees), not
-    // just CPC — this is the platform's actually-earned revenue for the
-    // period: money collected for credits a customer has ALREADY spent, and
-    // can therefore never claw back via a refund. `revenueMinor` above (money
-    // collected regardless of consumption) still includes credits sitting
-    // unconsumed in a wallet, which remain a liability until spent — see
-    // `unconsumedRevenueMinor` below.
-    const consumedRevenueRealMoneyMinor = Math.round(
-      (cpcConsumedMinor + otherFeesConsumedMinor) * grossToNetRatio,
-    );
-    const unconsumedRevenueMinor = revenueMinor - consumedRevenueRealMoneyMinor;
 
     const walletLiabilityMinor = walletTotals._sum.balanceMinor ?? 0;
     const blockedWalletBalanceMinor = blockedWalletTotals._sum.balanceMinor ?? 0;
@@ -360,44 +388,43 @@ export class FinanceService {
     const expensesByCategory: Record<string, number> = Object.fromEntries(
       EXPENSE_CATEGORIES.map((c) => [c, 0]),
     );
-    for (const row of expenseRows) expensesByCategory[row.category] += row.amountMinor;
+    // EUR cents: a foreign-currency document counts at the rate it was booked
+    // at; one with no rate is left out (and flagged by the statement) instead
+    // of being summed as if its RON/USD amount were euros.
+    for (const row of expenseRows) {
+      const eur = expenseEurMinor(row);
+      if (eur !== null) expensesByCategory[row.category] += eur;
+    }
 
-    const aiCostMinor = usdToEurMinor(aiRows.reduce((s, r) => s + r.estimatedCostUsd, 0));
-    // Already EUR-minor units at write time (see `GoogleAdsAgentRun.claudeCostEstimateMinor`'s
-    // field comment) — not USD, so no `usdToEurMinor` pass here (that would double-apply
-    // the *100 conversion).
-    const campaignAgentCostMinor = googleAdsAgentAgg._sum.claudeCostEstimateMinor ?? 0;
-    const operatingCostMinor = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
-    const totalCostMinor = operatingCostMinor + aiCostMinor + campaignAgentCostMinor;
-    // Real profit = earned revenue (credits actually consumed, real money)
-    // minus EVERY cost — never `revenueMinor` (money collected): an unspent
-    // credit is still refundable, so it isn't profit yet, per the same
-    // principle `consumedRevenueRealMoneyMinor` above already applies.
-    const profitMinor = consumedRevenueRealMoneyMinor - totalCostMinor;
+    // --- The financial statement --------------------------------------
+    // Earned revenue (credits consumed, valued at the real money behind
+    // each one, NET OF VAT), every expense in EUR, and the operating profit,
+    // plus Today / This month / This year and the customer advances at the
+    // period end, all from ONE ledger replay (FinanceStatementService).
+    const dash = await this.statements.dashboard({ from, to });
+    const st = dash.statement;
+    const aiCostMinor = st.expenses.ai.builderMinor;
+    const campaignAgentCostMinor = st.expenses.ai.campaignAgentMinor;
+    const operatingCostMinor = Object.values(st.expenses.byCategory).reduce((s, v) => s + v, 0);
+    const totalCostMinor = st.expenses.totalMinor;
+    const consumedRevenueRealMoneyMinor = st.revenue.totalNetMinor;
+    const profitMinor = st.result.operatingProfitMinor;
+    const unconsumedRevenueMinor = dash.balance.advancesMoneyMinor;
+    const adSpendMinor = st.expenses.byCategory.google_ads;
+    const cpcRevenueRealMoneyMinor = st.revenue.byCategory.cpc;
 
-    const adSpendMinor = expensesByCategory.google_ads;
-
-    // AI Builder profitability: what customers' wallets actually paid for AI
-    // usage (real money, same blended weighting as everything else here)
-    // minus what the platform actually paid Claude/DeepSeek for it, plus the
-    // builder-unlock one-off fee (same weighting) — together "Profit Builder
-    // AI". `campaignAgentCostMinor` is deliberately NOT subtracted from
-    // `aiPromptProfitMinor` here: the campaign agent has no "prompt revenue"
-    // counterpart (nobody's wallet is charged for it — see its own cost row
-    // below), so folding it in would misattribute an unrelated cost to the
-    // builder's own profit figure. It's still a real operating cost, so it IS
-    // included in `totalCostMinor`/`profitMinor` above.
-    const aiPromptRevenueRealMoneyMinor = Math.round(otherFeesByCategory.aiUsage * grossToNetRatio);
-    const aiPromptProfitMinor = aiPromptRevenueRealMoneyMinor - aiCostMinor;
-    const aiBuilderUnlockRevenueRealMoneyMinor = Math.round(
-      otherFeesByCategory.builderUnlock * grossToNetRatio,
-    );
+    // AI Builder profitability: earned AI-usage revenue (net of VAT) minus
+    // what the platform paid the AI providers for it, plus the builder
+    // unlock fee. The campaign agent and the homepage search are platform
+    // costs with no revenue counterpart, so they're not folded in here
+    // (they ARE in `totalCostMinor`).
     const aiBuilder = {
-      promptRevenueRealMoneyMinor: aiPromptRevenueRealMoneyMinor,
+      promptRevenueRealMoneyMinor: st.revenue.byCategory.aiUsage,
       providerCostMinor: aiCostMinor,
-      promptProfitMinor: aiPromptProfitMinor,
-      builderUnlockRevenueRealMoneyMinor: aiBuilderUnlockRevenueRealMoneyMinor,
-      totalProfitMinor: aiPromptProfitMinor + aiBuilderUnlockRevenueRealMoneyMinor,
+      promptProfitMinor: st.revenue.byCategory.aiUsage - aiCostMinor,
+      builderUnlockRevenueRealMoneyMinor: st.revenue.byCategory.builderUnlock,
+      totalProfitMinor:
+        st.revenue.byCategory.aiUsage - aiCostMinor + st.revenue.byCategory.builderUnlock,
       campaignAgentCostMinor,
       campaignAgentAvailable: true,
     };
@@ -437,7 +464,7 @@ export class FinanceService {
       bump(r.createdAt, 'revenueMinor', -money);
       bump(r.createdAt, 'refundMoneyMinor', money);
     }
-    for (const r of expenseRows) bump(r.incurredOn, 'costMinor', r.amountMinor);
+    for (const r of expenseRows) bump(r.incurredOn, 'costMinor', expenseEurMinor(r) ?? 0);
     for (const r of aiRows) {
       const key = dayKey(r.createdAt);
       aiUsdByDay.set(key, (aiUsdByDay.get(key) ?? 0) + r.estimatedCostUsd);
@@ -460,21 +487,16 @@ export class FinanceService {
       .sort((a, b) => a.date.localeCompare(b.date));
 
     // "Profit final" — always Today/This month/This year (UTC), independent
-    // of the page's adjustable period filter above, same reasoning as the
-    // point-in-time wallet-liability figures: an owner wants these three
-    // fixed at a glance, not re-derived by fiddling with the date picker.
-    // Same formula as `profitMinor` above (consumed-revenue basis), so
-    // picking "this month" in the period filter reproduces `finalProfit.month`
-    // exactly — the two can never silently disagree.
-    const now = new Date();
-    const [todayFigures, monthFigures, yearFigures] = await Promise.all([
-      this.profitForRange(
-        new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())),
-        endOfUtcDay(now),
-      ),
-      this.profitForRange(startOfUtcMonth(now), endOfUtcDay(now)),
-      this.profitForRange(new Date(Date.UTC(now.getUTCFullYear(), 0, 1)), endOfUtcDay(now)),
-    ]);
+    // of the period filter, computed by the very same statement, so picking
+    // "this month" in the filter reproduces `finalProfit.month` exactly.
+    const figures = (x: typeof st) => ({
+      consumedRevenueRealMoneyMinor: x.revenue.totalNetMinor,
+      totalCostMinor: x.expenses.totalMinor,
+      profitMinor: x.result.operatingProfitMinor,
+    });
+    const todayFigures = figures(dash.fixed.today);
+    const monthFigures = figures(dash.fixed.month);
+    const yearFigures = figures(dash.fixed.year);
 
     return {
       range: { from: from.toISOString(), to: to.toISOString() },
@@ -493,7 +515,7 @@ export class FinanceService {
        *  `todayFigures` for why these ignore the period filter. */
       finalProfit: { today: todayFigures, month: monthFigures, year: yearFigures },
       aiBuilder,
-      expensesByCategory,
+      expensesByCategory: st.expenses.byCategory,
       paidTraffic: {
         /** Credit face value of CPC clicks billed — unchanged. */
         cpcRevenueMinor: cpcConsumedMinor,
@@ -533,112 +555,421 @@ export class FinanceService {
       refundLiabilityInFlightMinor,
       vatBreakdown,
       trend,
+      /** The full financial statement for the period (see
+       *  FinanceStatementService): cash, earned revenue, expenses, result,
+       *  and what information is missing for an exact figure. */
+      statement: st,
+      /** Customer advances (paid credits not consumed yet) at the period end. */
+      balance: dash.balance,
+      /** Daily earned revenue / expenses / net cash, same figures as `statement`. */
+      daily: dash.daily,
     };
   }
 
-  /**
-   * The same "consumed revenue (real money) minus every cost" formula
-   * `overview()` uses for its headline `profitMinor`, reusable for an
-   * arbitrary range — the engine behind `finalProfit`'s Today/This
-   * month/This year figures. Deliberately computes its OWN gross→net ratio
-   * from purchases within THIS range (consistent with how `overview()`
-   * already weights the selected period's own consumption), not a global
-   * all-time ratio — a range with no purchases of its own (e.g. a quiet day)
-   * falls back to ratio=1 (full face value, no discount assumed), the same
-   * conservative default `overview()`'s own `grossToNetRatio` already uses.
-   */
-  private async profitForRange(
-    from: Date,
-    to: Date,
-  ): Promise<{
-    consumedRevenueRealMoneyMinor: number;
-    totalCostMinor: number;
-    profitMinor: number;
-  }> {
-    const dateFilter = { createdAt: { gte: from, lte: to } };
-    const [purchaseRows, spendAgg, expenseAgg, aiAgg, googleAdsAgentAgg] = await Promise.all([
-      this.prisma.walletTransaction.findMany({
-        where: { type: 'purchase', status: 'completed', ...dateFilter, ...NOT_VOIDED_INVOICE },
-        select: { amountMinor: true, eurCents: true },
-      }),
-      this.prisma.walletTransaction.aggregate({
-        where: { type: 'spend', status: 'completed', ...dateFilter },
-        _sum: { amountMinor: true },
-      }),
-      this.prisma.platformExpense.aggregate({
-        where: { incurredOn: { gte: from, lte: to } },
-        _sum: { amountMinor: true },
-      }),
-      this.prisma.aiUsageRecord.aggregate({
-        where: dateFilter,
-        _sum: { estimatedCostUsd: true },
-      }),
-      this.prisma.googleAdsAgentRun.aggregate({
-        where: { startedAt: { gte: from, lte: to } },
-        _sum: { claudeCostEstimateMinor: true },
-      }),
-    ]);
+  // -------------------------------------------------------------------------
+  // Raport financiar (cont de profit și pierdere) + verificări
+  // -------------------------------------------------------------------------
 
-    const grossRevenueMinor = purchaseRows.reduce((s, r) => s + r.amountMinor, 0);
-    const netRevenueMinor = purchaseRows.reduce((s, r) => s + purchaseMoneyMinor(r), 0);
-    const grossToNetRatio = grossRevenueMinor > 0 ? netRevenueMinor / grossRevenueMinor : 1;
-    // All completed spend rows (CPC daily rollups + one-off fees alike) —
-    // the same union `cpcConsumedMinor + otherFeesConsumedMinor` partitions
-    // in `overview()`, summed directly here since no per-category breakdown
-    // is needed for this range.
-    const consumedFaceMinor = -(spendAgg._sum.amountMinor ?? 0);
-    const consumedRevenueRealMoneyMinor = Math.round(consumedFaceMinor * grossToNetRatio);
+  /** The annual view: one statement per calendar month + the year total. */
+  monthlyReport(year: number) {
+    return this.statements.monthly(year);
+  }
 
-    const operatingCostMinor = expenseAgg._sum.amountMinor ?? 0;
-    const aiCostMinor = usdToEurMinor(aiAgg._sum.estimatedCostUsd ?? 0);
-    // Already EUR-minor at write time — see the matching comment in `overview()`.
-    const campaignAgentCostMinor = googleAdsAgentAgg._sum.claudeCostEstimateMinor ?? 0;
-    const totalCostMinor = operatingCostMinor + aiCostMinor + campaignAgentCostMinor;
+  /** Data-integrity checks an accountant runs before trusting the figures. */
+  checks() {
+    return this.statements.checks();
+  }
 
+  /** Sales invoices issued in the range (the sales journal). */
+  private async invoiceSheet(from: Date, to: Date): Promise<Sheet> {
+    const invoices = await this.prisma.invoice.findMany({
+      where: { kind: 'topup', issuedAt: { gte: from, lte: to } },
+      orderBy: { issuedAt: 'asc' },
+      take: EXPORT_ROW_CAP,
+      select: {
+        number: true,
+        issuedAt: true,
+        buyerName: true,
+        buyerTaxId: true,
+        buyerKind: true,
+        currency: true,
+        subtotalMinor: true,
+        vatRatePct: true,
+        vatMinor: true,
+        totalMinor: true,
+        eurCents: true,
+        fxRate: true,
+        voidedAt: true,
+        voidReason: true,
+      },
+    });
+    const valid = invoices.filter((i) => !i.voidedAt);
     return {
-      consumedRevenueRealMoneyMinor,
-      totalCostMinor,
-      profitMinor: consumedRevenueRealMoneyMinor - totalCostMinor,
+      name: 'Jurnal vânzări',
+      title: ['Facturi emise (vânzări de credite)'],
+      columns: [
+        { label: 'Număr', width: 16 },
+        { label: 'Data', width: 12 },
+        { label: 'Client', width: 30 },
+        { label: 'CUI / CNP', width: 16 },
+        { label: 'Tip client', width: 12 },
+        { label: 'Monedă', width: 8 },
+        { label: 'Bază', width: 14, money: true },
+        { label: 'Cotă TVA %', width: 10 },
+        { label: 'TVA', width: 14, money: true },
+        { label: 'Total', width: 14, money: true },
+        { label: 'Echivalent EUR', width: 14, money: true },
+        { label: 'Curs EUR/RON', width: 12 },
+        { label: 'Anulată', width: 12 },
+        { label: 'Motiv anulare', width: 30 },
+      ],
+      rows: [
+        ...invoices.map((i) => [
+          i.number,
+          dayRo(i.issuedAt),
+          i.buyerName,
+          i.buyerTaxId ?? '',
+          i.buyerKind,
+          i.currency,
+          eurNum(i.subtotalMinor),
+          i.vatRatePct,
+          eurNum(i.vatMinor),
+          eurNum(i.totalMinor),
+          i.eurCents === null ? null : eurNum(i.eurCents),
+          i.fxRate === null ? '' : Number(i.fxRate),
+          i.voidedAt ? dayRo(i.voidedAt) : '',
+          i.voidReason ?? '',
+        ]),
+        {
+          bold: true,
+          cells: [
+            'TOTAL (fără anulate)',
+            '',
+            `${valid.length} facturi`,
+            '',
+            '',
+            '',
+            eurNum(valid.reduce((s, i) => s + i.subtotalMinor, 0)),
+            '',
+            eurNum(valid.reduce((s, i) => s + i.vatMinor, 0)),
+            eurNum(valid.reduce((s, i) => s + i.totalMinor, 0)),
+            eurNum(valid.reduce((s, i) => s + (i.eurCents ?? 0), 0)),
+            '',
+            '',
+            '',
+          ],
+        },
+      ],
     };
   }
 
+  private statementSheet(
+    st: FinancialStatement,
+    balance: BalanceSnapshot | null,
+    title: string[],
+  ): Sheet {
+    return {
+      name: 'Profit și pierdere',
+      title,
+      columns: [
+        { label: 'Indicator', width: 70 },
+        { label: 'Sumă (EUR)', width: 16, money: true },
+      ],
+      rows: [
+        ...statementLines(st, balance).map((l) => ({
+          bold: l.bold,
+          cells: [l.label, l.amountMinor === null ? (l.text ?? null) : eurNum(l.amountMinor)],
+        })),
+        { cells: ['', null] },
+        { bold: true, cells: ['Informații lipsă / de reținut', null] },
+        ...st.missing.map((m) => ({ cells: [missingNoteRo(m), null] })),
+      ],
+    };
+  }
+
+  /** The financial report export: a period (from/to/all) or a whole `year`
+   *  broken down by month. PDF / CSV / XLSX carry the exact same figures as
+   *  the dashboard statement (same service, same lines). */
+  async exportReport(q: ReportExportQuery): Promise<ExportFile> {
+    const format = q.format ?? 'pdf';
+
+    if (q.year) {
+      const year = q.year;
+      const { months, total } = await this.statements.monthly(year);
+      const yearEnd = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+      const now = new Date();
+      const balance = await this.statements.balanceAsOf(yearEnd < now ? yearEnd : now);
+      const stem = `raport-financiar-${year}`;
+      const title = [
+        `Totalvizibil - Raport financiar anual ${year}`,
+        'Sume în EUR. Venituri și cheltuieli fără TVA.',
+      ];
+
+      // The full statement, one column per month: every month gives the
+      // exact same lines (`counts: false`), so the rows line up.
+      const matrixLines = months.map((m) => statementLines(m, null, { counts: false }));
+      const totalLines = statementLines(total, null, { counts: false });
+      const matrix: Sheet = {
+        name: `Pe luni ${year}`,
+        title,
+        columns: [
+          { label: 'Indicator', width: 60 },
+          ...MONTHS_RO.map((m) => ({ label: m, width: 13, money: true })),
+          { label: `Total ${year}`, width: 15, money: true },
+        ],
+        rows: totalLines.map((l, i) => ({
+          bold: l.bold,
+          cells: [
+            l.label,
+            ...matrixLines.map((ml) => {
+              const x = ml[i];
+              return x.amountMinor === null ? (x.text ?? null) : eurNum(x.amountMinor);
+            }),
+            l.amountMinor === null ? (l.text ?? null) : eurNum(l.amountMinor),
+          ],
+        })),
+      };
+
+      if (format === 'csv') return csvFile(stem, toCsv(matrix));
+      if (format === 'xlsx') {
+        const yearStart = new Date(Date.UTC(year, 0, 1));
+        const [txRows, expRows, invSheet] = await Promise.all([
+          this.revenueExportRows(
+            {
+              from: dayKey(yearStart),
+              to: dayKey(yearEnd),
+              types: ['purchase', 'refund', 'adjustment', 'spend'],
+              status: 'all',
+            },
+            EXPORT_ROW_CAP,
+          ),
+          this.prisma.platformExpense.findMany({
+            where: { incurredOn: { gte: yearStart, lte: yearEnd } },
+            orderBy: { incurredOn: 'asc' },
+            include: { createdBy: { select: { name: true } } },
+          }),
+          this.invoiceSheet(yearStart, yearEnd),
+        ]);
+        return xlsxFile(
+          stem,
+          await toXlsx([
+            this.statementSheet(total, balance, [...title, `Perioada: ${year}`]),
+            matrix,
+            this.revenueSheet(txRows, [`Toate tranzacțiile ${year}`]),
+            this.expensesSheet(expRows, [`Cheltuieli ${year}`]),
+            invSheet,
+          ]),
+        );
+      }
+
+      const pick = (s: FinancialStatement) => MONTHLY_COLUMNS.map((c) => eurText(c.pick(s)));
+      const buffer = await generateTablePdf({
+        title: `Raport financiar anual ${year}`,
+        ownerName: 'Totalvizibil',
+        subtitle: `01.01.${year} - 31.12.${year}`,
+        landscape: true,
+        fontSize: 8,
+        columns: [
+          { label: 'Luna', width: 0.13 },
+          ...MONTHLY_COLUMNS.map((c) => ({
+            label: c.label,
+            width: 0.87 / MONTHLY_COLUMNS.length,
+            align: 'right' as const,
+          })),
+        ],
+        rows: [
+          ...months.map((m, i) => [MONTHS_RO[i], ...pick(m)]),
+          { bold: true, cells: [`TOTAL ${year}`, ...pick(total)] },
+        ],
+        emptyText: '',
+        footnotes: total.missing.map(missingNoteRo),
+        appendix: [
+          {
+            title: `Cont de profit și pierdere ${year}`,
+            columns: [
+              { label: 'Indicator', width: 0.75 },
+              { label: 'Sumă', width: 0.25, align: 'right' },
+            ],
+            rows: statementLines(total, balance).map((l) => ({
+              bold: l.bold,
+              cells: [l.label, l.amountMinor === null ? (l.text ?? '') : eurText(l.amountMinor)],
+            })),
+          },
+        ],
+      });
+      return pdfFile(stem, buffer);
+    }
+
+    const { from, to } = this.resolveRange(q);
+    const [st, balance] = await Promise.all([
+      this.statements.statement({ from, to }),
+      this.statements.balanceAsOf(to),
+    ]);
+    const label = this.periodLabel(q, from, to);
+    const stem = `raport-financiar-${dayKey(from)}_${dayKey(to)}`;
+    const title = [
+      'Totalvizibil - Cont de profit și pierdere',
+      `Perioada: ${label}`,
+      'Sume în EUR.',
+    ];
+    const sheet = this.statementSheet(st, balance, title);
+
+    if (format === 'csv') return csvFile(stem, toCsv(sheet));
+    if (format === 'xlsx') {
+      const [txRows, expRows, invSheet] = await Promise.all([
+        this.revenueExportRows(
+          {
+            from: q.all ? undefined : dayKey(from),
+            to: dayKey(to),
+            all: q.all,
+            types: ['purchase', 'refund', 'adjustment', 'spend'],
+            status: 'all',
+          },
+          EXPORT_ROW_CAP,
+        ),
+        this.prisma.platformExpense.findMany({
+          where: { incurredOn: { gte: from, lte: to } },
+          orderBy: { incurredOn: 'asc' },
+          include: { createdBy: { select: { name: true } } },
+        }),
+        this.invoiceSheet(from, to),
+      ]);
+      return xlsxFile(
+        stem,
+        await toXlsx([
+          sheet,
+          this.revenueSheet(txRows, [`Toate tranzacțiile: ${label}`]),
+          this.expensesSheet(expRows, [`Cheltuieli: ${label}`]),
+          invSheet,
+        ]),
+      );
+    }
+    const buffer = await generateTablePdf({
+      title: 'Cont de profit și pierdere',
+      ownerName: 'Totalvizibil',
+      subtitle: label,
+      columns: [
+        { label: 'Indicator', width: 0.75 },
+        { label: 'Sumă', width: 0.25, align: 'right' },
+      ],
+      rows: statementLines(st, balance).map((l) => ({
+        bold: l.bold,
+        cells: [l.label, l.amountMinor === null ? (l.text ?? '') : eurText(l.amountMinor)],
+      })),
+      emptyText: '',
+      footnotes: st.missing.map(missingNoteRo),
+    });
+    return pdfFile(stem, buffer);
+  }
+
   // -------------------------------------------------------------------------
-  // Venituri
+  // Registrul tranzacțiilor (Venituri)
   // -------------------------------------------------------------------------
 
-  /** The ledger's `where`. Two things it must get right, both of which it
-   *  used to get wrong:
-   *   - the period: with no explicit `from`/`to` this used to mean ALL TIME
-   *     while the Dashboard's `overview()` meant the current month, so the
-   *     two pages silently described different periods. It now runs through
-   *     the very same `resolveRange()`.
-   *   - the types: `purchase`+`refund` by default (unchanged), but
-   *     `?types=` can widen it to include `adjustment` rows (manual wallet
-   *     corrections and affiliate-reward credits), which were invisible to
-   *     finance platform-wide. */
+  /** The register's `where`, shared by the list, its totals and every export,
+   *  so a download can never cover a different slice than the screen:
+   *   - the period runs through the same `resolveRange()` as the overview;
+   *   - types default to `purchase`+`refund` (the cash rows), widened by
+   *     `types=` to adjustments and consumption;
+   *   - status defaults to `completed` (the rows that actually moved money);
+   *   - `q` searches client, business, description, payment reference,
+   *     invoice number and transaction id; min/max bound the absolute amount. */
   private revenueWhere(q: ListRevenueQuery): Prisma.WalletTransactionWhereInput {
     const types: WalletTxnType[] = q.type
       ? [q.type]
       : [...(q.types?.length ? q.types : DEFAULT_REVENUE_TXN_TYPES)];
     const { from, to } = this.resolveRange(q);
+    const status = q.status ?? 'completed';
+    const and: Prisma.WalletTransactionWhereInput[] = [NOT_VOIDED_INVOICE];
+    if (q.minAmount !== undefined || q.maxAmount !== undefined) {
+      const min = q.minAmount ?? 0;
+      const max = q.maxAmount ?? 2_000_000_000;
+      and.push({
+        OR: [{ amountMinor: { gte: min, lte: max } }, { amountMinor: { gte: -max, lte: -min } }],
+      });
+    }
+    if (q.q) {
+      const c = { contains: q.q, mode: 'insensitive' as const };
+      const or: Prisma.WalletTransactionWhereInput[] = [
+        { wallet: { user: { name: c } } },
+        { wallet: { user: { email: c } } },
+        { company: { displayName: c } },
+        { description: c },
+        { providerRef: c },
+        { invoice: { is: { number: c } } },
+      ];
+      if (UUID_RE.test(q.q)) or.push({ id: q.q });
+      and.push({ OR: or });
+    }
     return {
       type: { in: types },
-      status: 'completed',
-      ...NOT_VOIDED_INVOICE,
+      ...(status === 'all' ? {} : { status }),
       createdAt: { gte: from, lte: to },
+      AND: and,
     };
   }
 
-  /** Enough of a row to compute both its face value and its real-money
-   *  value — the money figure needs `eurCents` for purchases and
-   *  `refundSources`/`feeMinor` for refunds. */
+  private revenueOrder(q: ListRevenueQuery): Prisma.WalletTransactionOrderByWithRelationInput[] {
+    switch (q.sort) {
+      case 'date_asc':
+        return [{ createdAt: 'asc' }, { id: 'asc' }];
+      case 'amount_desc':
+        return [{ amountMinor: 'desc' }, { createdAt: 'desc' }];
+      case 'amount_asc':
+        return [{ amountMinor: 'asc' }, { createdAt: 'desc' }];
+      default:
+        return [{ createdAt: 'desc' }, { id: 'desc' }];
+    }
+  }
+
+  private static readonly REVENUE_ROW_INCLUDE = {
+    wallet: { select: { user: { select: { id: true, name: true, email: true } } } },
+    company: { select: { displayName: true } },
+    invoice: { select: { number: true, vatRatePct: true } },
+  } as const;
+
+  /** Enough of a row to compute its money value (purchases need `eurCents`,
+   *  refunds `refundSources`/`feeMinor`) and its status, since only a
+   *  completed row moved real money. */
   private static readonly REVENUE_ROW_MONEY_SELECT = {
     type: true,
+    status: true,
     amountMinor: true,
     eurCents: true,
     refundSources: true,
     feeMinor: true,
   } as const;
+
+  private static moneyOf(r: Parameters<typeof rowMoneyMinor>[0] & { status: string }): number {
+    return r.status === 'completed' ? rowMoneyMinor(r) : 0;
+  }
+
+  private mapRevenueRow(
+    t: Prisma.WalletTransactionGetPayload<{ include: typeof FinanceService.REVENUE_ROW_INCLUDE }>,
+  ) {
+    const moneyMinor = FinanceService.moneyOf(t);
+    return {
+      id: t.id,
+      type: t.type,
+      status: t.status,
+      /** Credit face value (what the wallet moved). */
+      amountMinor: t.amountMinor,
+      /** Real money (what the bank moved), 0 for rows that moved none. */
+      moneyMinor,
+      /** VAT inside a purchase's money, from its invoice (null = no invoice). */
+      vatMinor: t.type === 'purchase' && t.invoice ? vatOf(moneyMinor, t.invoice.vatRatePct) : null,
+      createdAt: t.createdAt,
+      userId: t.wallet.user?.id ?? null,
+      userName: t.wallet.user?.name ?? null,
+      userEmail: t.wallet.user?.email ?? null,
+      companyName: t.company?.displayName ?? null,
+      description: t.description,
+      invoiceNumber: t.invoice?.number ?? null,
+      providerRef: t.providerRef,
+      clickCount: t.clickCount,
+      category: t.type === 'spend' ? consumptionCategory(t) : null,
+    };
+  }
 
   async listRevenue(q: ListRevenueQuery) {
     const where = this.revenueWhere(q);
@@ -649,19 +980,14 @@ export class FinanceService {
     const [items, total, allRows] = await Promise.all([
       this.prisma.walletTransaction.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: this.revenueOrder(q),
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: {
-          wallet: { select: { user: { select: { name: true, email: true } } } },
-          company: { select: { displayName: true } },
-        },
+        include: FinanceService.REVENUE_ROW_INCLUDE,
       }),
       this.prisma.walletTransaction.count({ where }),
-      // The period total has to cover the FULL filtered set, not the page an
-      // accountant happens to be looking at. Can't be a SQL SUM: a refund's
-      // real-money value lives inside its `refundSources` JSON, so the rows
-      // (narrowed to the five fields the money math needs) are reduced here.
+      // The period total covers the FULL filtered set, not the page. Can't be
+      // a SQL SUM: a refund's real-money value lives in its JSON sources.
       this.prisma.walletTransaction.findMany({
         where,
         select: FinanceService.REVENUE_ROW_MONEY_SELECT,
@@ -669,94 +995,189 @@ export class FinanceService {
     ]);
 
     return {
-      items: items.map((t) => ({
-        id: t.id,
-        type: t.type,
-        /** Credit face value (what the wallet moved). */
-        amountMinor: t.amountMinor,
-        /** Real money (what the bank moved) — the figure that reconciles
-         *  with the Dashboard KPI. */
-        moneyMinor: rowMoneyMinor(t),
-        createdAt: t.createdAt,
-        userName: t.wallet.user?.name ?? null,
-        userEmail: t.wallet.user?.email ?? null,
-        companyName: t.company?.displayName ?? null,
-        description: t.description,
-      })),
+      items: items.map((t) => this.mapRevenueRow(t)),
       total,
       page,
       pageSize,
-      /** The resolved range this list is actually filtered to — so the UI
-       *  can show an unambiguous confirmation of what's on screen, the same
-       *  way `overview()`'s own `range` already does. */
       range: { from: from.toISOString(), to: to.toISOString() },
-      /** Real-money net total of the whole filtered period. With the default
-       *  types over the same range this equals `overview().revenueMinor`. */
-      periodTotalMinor: allRows.reduce((s, r) => s + rowMoneyMinor(r), 0),
-      /** Credit face value net total of the whole filtered period. */
+      /** Real-money net total of the whole filtered set. With the default
+       *  types/status over the same range this equals `overview().revenueMinor`. */
+      periodTotalMinor: allRows.reduce((s, r) => s + FinanceService.moneyOf(r), 0),
+      /** Credit face value net total of the whole filtered set. */
       periodFaceTotalMinor: allRows.reduce((s, r) => s + r.amountMinor, 0),
+      /** Per-type subtotals (count, credits, money) of the filtered set. */
+      byType: Object.fromEntries(
+        (['purchase', 'refund', 'adjustment', 'spend'] as const).map((type) => {
+          const rows = allRows.filter((r) => r.type === type);
+          return [
+            type,
+            {
+              count: rows.length,
+              amountMinor: rows.reduce((s, r) => s + r.amountMinor, 0),
+              moneyMinor: rows.reduce((s, r) => s + FinanceService.moneyOf(r), 0),
+            },
+          ];
+        }),
+      ),
     };
   }
 
-  async exportRevenuePdf(q: ListRevenueQuery): Promise<Buffer> {
-    const where = this.revenueWhere(q);
-    const { from, to } = this.resolveRange(q);
-    const [rows, allRows] = await Promise.all([
-      this.prisma.walletTransaction.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        take: 2000,
-        include: {
-          wallet: { select: { user: { select: { name: true, email: true } } } },
-          company: { select: { displayName: true } },
-        },
-      }),
-      this.prisma.walletTransaction.findMany({
-        where,
-        select: FinanceService.REVENUE_ROW_MONEY_SELECT,
-      }),
-    ]);
+  /** Every row of the filtered register, for the exports (capped). */
+  private async revenueExportRows(q: ListRevenueQuery, cap: number) {
+    const rows = await this.prisma.walletTransaction.findMany({
+      where: this.revenueWhere(q),
+      orderBy: this.revenueOrder(q),
+      take: cap,
+      include: FinanceService.REVENUE_ROW_INCLUDE,
+    });
+    return rows.map((t) => this.mapRevenueRow(t));
+  }
 
-    const faceTotalMinor = allRows.reduce((s, r) => s + r.amountMinor, 0);
-    const moneyTotalMinor = allRows.reduce((s, r) => s + rowMoneyMinor(r), 0);
-
-    return generateTablePdf({
-      title: 'Venituri',
-      ownerName: 'Totalvizibil',
-      subtitle: q.all ? 'Dintotdeauna' : `${dayKey(from)} – ${dayKey(to)}`,
+  private revenueSheet(rows: RevenueRowOut[], title: string[]): Sheet {
+    const sum = (f: (r: RevenueRowOut) => number) => rows.reduce((s, r) => s + f(r), 0);
+    return {
+      name: 'Tranzacții',
+      title,
       columns: [
-        { label: 'Data', width: 0.13 },
-        { label: 'Tip', width: 0.13 },
-        { label: 'Client', width: 0.24 },
-        { label: 'Afacere', width: 0.2 },
-        { label: 'Credite', width: 0.15, align: 'right' },
-        { label: 'Bani încasați', width: 0.15, align: 'right' },
+        { label: 'Data', width: 12 },
+        { label: 'Ora (UTC)', width: 9 },
+        { label: 'Tip', width: 20 },
+        { label: 'Status', width: 12 },
+        { label: 'Client', width: 24 },
+        { label: 'Email', width: 28 },
+        { label: 'Afacere', width: 22 },
+        { label: 'Descriere', width: 30 },
+        { label: 'Nr. factură', width: 16 },
+        { label: 'Referință plată', width: 30 },
+        { label: 'Credite (EUR)', width: 14, money: true },
+        { label: 'Bani (EUR)', width: 14, money: true },
+        { label: 'din care TVA (EUR)', width: 14, money: true },
+        { label: 'ID tranzacție', width: 38 },
+      ],
+      rows: [
+        ...rows.map((r) => [
+          dayRo(r.createdAt),
+          r.createdAt.toISOString().slice(11, 16),
+          r.type === 'spend' && r.category
+            ? `${TXN_TYPE_RO.spend}: ${CONSUMPTION_RO[r.category]}`
+            : TXN_TYPE_RO[r.type],
+          TXN_STATUS_RO[r.status] ?? r.status,
+          r.userName ?? '',
+          r.userEmail ?? '',
+          r.companyName ?? '',
+          r.description ?? '',
+          r.invoiceNumber ?? '',
+          r.providerRef ?? '',
+          eurNum(r.amountMinor),
+          eurNum(r.moneyMinor),
+          r.vatMinor === null ? null : eurNum(r.vatMinor),
+          r.id,
+        ]),
+        {
+          bold: true,
+          cells: [
+            'TOTAL',
+            '',
+            `${rows.length} rânduri`,
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            eurNum(sum((r) => r.amountMinor)),
+            eurNum(sum((r) => r.moneyMinor)),
+            eurNum(sum((r) => r.vatMinor ?? 0)),
+            '',
+          ],
+        },
+      ],
+    };
+  }
+
+  private periodLabel(q: { all?: boolean }, from: Date, to: Date): string {
+    return q.all ? `Dintotdeauna, până la ${dayRo(to)}` : `${dayRo(from)} - ${dayRo(to)}`;
+  }
+
+  async exportRevenue(q: ListRevenueQuery): Promise<ExportFile> {
+    const format = q.format ?? 'pdf';
+    const { from, to } = this.resolveRange(q);
+    const label = this.periodLabel(q, from, to);
+    const stem = `tranzactii-${dayKey(from)}_${dayKey(to)}`;
+
+    if (format !== 'pdf') {
+      const rows = await this.revenueExportRows(q, EXPORT_ROW_CAP);
+      const sheet = this.revenueSheet(rows, [
+        'Totalvizibil - Registrul tranzacțiilor',
+        `Perioada: ${label}`,
+        ...(rows.length >= EXPORT_ROW_CAP ? [`Limitat la primele ${EXPORT_ROW_CAP} rânduri.`] : []),
+      ]);
+      return format === 'csv' ? csvFile(stem, toCsv(sheet)) : xlsxFile(stem, await toXlsx([sheet]));
+    }
+
+    const [rows, totals] = await Promise.all([
+      this.revenueExportRows(q, PDF_ROW_CAP),
+      this.listRevenue({ ...q, page: 1, pageSize: 1 }),
+    ]);
+    const buffer = await generateTablePdf({
+      title: 'Registrul tranzacțiilor',
+      ownerName: 'Totalvizibil',
+      subtitle: label,
+      landscape: true,
+      fontSize: 8,
+      columns: [
+        { label: 'Data', width: 0.08 },
+        { label: 'Tip', width: 0.1 },
+        { label: 'Status', width: 0.08 },
+        { label: 'Client', width: 0.2 },
+        { label: 'Afacere', width: 0.14 },
+        { label: 'Factură / ref.', width: 0.16 },
+        { label: 'Credite', width: 0.08, align: 'right' },
+        { label: 'Bani', width: 0.08, align: 'right' },
+        { label: 'TVA', width: 0.08, align: 'right' },
       ],
       rows: rows.length
         ? [
             ...rows.map((t) => [
-              t.createdAt.toLocaleDateString('ro-RO'),
-              REVENUE_TYPE_LABELS[t.type],
-              t.wallet.user?.name ?? '—',
-              t.company?.displayName ?? '—',
-              `${(t.amountMinor / 100).toFixed(2)} €`,
-              `${(rowMoneyMinor(t) / 100).toFixed(2)} €`,
+              dayRo(t.createdAt),
+              t.type === 'spend' && t.category ? CONSUMPTION_RO[t.category] : TXN_TYPE_RO[t.type],
+              TXN_STATUS_RO[t.status] ?? t.status,
+              [t.userName, t.userEmail].filter(Boolean).join('\n') || '-',
+              t.companyName ?? '-',
+              t.invoiceNumber ?? t.providerRef ?? '-',
+              eurText(t.amountMinor),
+              eurText(t.moneyMinor),
+              t.vatMinor === null ? '-' : eurText(t.vatMinor),
             ]),
-            // Totals over the whole period, even if the row list above was
-            // capped at 2000 — an accountant reconciling a month needs the
-            // period's total, not the total of the page that fit.
-            [
-              'TOTAL',
-              '',
-              '',
-              '',
-              `${(faceTotalMinor / 100).toFixed(2)} €`,
-              `${(moneyTotalMinor / 100).toFixed(2)} €`,
-            ],
+            // Totals over the whole filtered set, even if the rows were capped.
+            {
+              bold: true,
+              cells: [
+                'TOTAL',
+                `${totals.total} rânduri`,
+                '',
+                '',
+                '',
+                '',
+                eurText(totals.periodFaceTotalMinor),
+                eurText(totals.periodTotalMinor),
+                '',
+              ],
+            },
           ]
         : [],
-      emptyText: 'Niciun venit în perioada selectată.',
+      emptyText: 'Nicio tranzacție în perioada selectată.',
+      footnotes: [
+        ...(totals.total > PDF_ROW_CAP
+          ? [
+              `PDF-ul listează primele ${PDF_ROW_CAP} rânduri; totalul acoperă toate cele ${totals.total}. Pentru lista completă exportați în Excel sau CSV.`,
+            ]
+          : []),
+        'Bani = suma reală încasată (cumpărare) sau returnată (rambursare). Consumul și ajustările nu mișcă bani. TVA = din factura emisă.',
+      ],
     });
+    return pdfFile(stem, buffer);
   }
 
   // -------------------------------------------------------------------------
@@ -782,7 +1203,7 @@ export class FinanceService {
     const page = q.page ?? 1;
     const pageSize = q.pageSize ?? 20;
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total, all] = await this.prisma.$transaction([
       this.prisma.platformExpense.findMany({
         where,
         orderBy: { incurredOn: 'desc' },
@@ -791,58 +1212,160 @@ export class FinanceService {
         include: { createdBy: { select: { name: true } } },
       }),
       this.prisma.platformExpense.count({ where }),
+      this.prisma.platformExpense.findMany({
+        where,
+        select: { currency: true, amountMinor: true, eurAmountMinor: true },
+      }),
     ]);
 
     // Unlike `resolveRange()`'s callers, this endpoint has no implicit
-    // default — absent `from`/`to` already means "every row ever". Echoed
-    // back as-given (not resolved into concrete dates, there's nothing to
-    // resolve) so the UI can show the same unambiguous "what's applied"
-    // confirmation the other finance pages get from their own `range`.
+    // default: absent `from`/`to` already means "every row ever".
     const isLifetime = !!q.all || (!q.from && !q.to);
     return {
-      items,
+      items: items.map((x) => ({
+        ...x,
+        fxRate: x.fxRate === null ? null : Number(x.fxRate),
+        /** EUR cents every report sums (null = foreign currency, no rate). */
+        eurMinor: expenseEurMinor(x),
+      })),
       total,
       page,
       pageSize,
       range: { from: isLifetime ? null : (q.from ?? null), to: isLifetime ? null : (q.to ?? null) },
+      /** EUR total of the whole filtered set (rows without a rate excluded). */
+      totalEurMinor: all.reduce((s, x) => s + (expenseEurMinor(x) ?? 0), 0),
+      /** Rows left out of the EUR total for lack of an exchange rate. */
+      missingFxCount: all.filter((x) => expenseEurMinor(x) === null).length,
     };
   }
 
-  async exportExpensesPdf(q: ListExpensesQuery): Promise<Buffer> {
+  async exportExpenses(q: ListExpensesQuery): Promise<ExportFile> {
+    const format = q.format ?? 'pdf';
     const where = this.expensesWhere(q);
     const rows = await this.prisma.platformExpense.findMany({
       where,
       orderBy: { incurredOn: 'desc' },
-      take: 2000,
+      take: format === 'pdf' ? PDF_ROW_CAP : EXPORT_ROW_CAP,
+      include: { createdBy: { select: { name: true } } },
     });
+    const lifetime = !!q.all || (!q.from && !q.to);
+    const label = lifetime ? 'Dintotdeauna' : `${q.from ?? '...'} - ${q.to ?? '...'}`;
+    const stem = `cheltuieli-${lifetime ? 'toate' : `${q.from ?? 'start'}_${q.to ?? 'azi'}`}`;
+    const totalEur = rows.reduce((s, r) => s + (expenseEurMinor(r) ?? 0), 0);
 
-    return generateTablePdf({
-      title: 'Costuri',
+    if (format !== 'pdf') {
+      const sheet = this.expensesSheet(rows, ['Totalvizibil - Cheltuieli', `Perioada: ${label}`]);
+      return format === 'csv' ? csvFile(stem, toCsv(sheet)) : xlsxFile(stem, await toXlsx([sheet]));
+    }
+    const buffer = await generateTablePdf({
+      title: 'Cheltuieli',
       ownerName: 'Totalvizibil',
-      subtitle: q.all
-        ? 'Dintotdeauna'
-        : q.from || q.to
-          ? `${q.from ?? '...'} – ${q.to ?? '...'}`
-          : undefined,
+      subtitle: label,
       columns: [
-        { label: 'Data', width: 0.15 },
-        { label: 'Categorie', width: 0.2 },
-        { label: 'Sursă', width: 0.15 },
-        { label: 'Notă', width: 0.3 },
-        { label: 'Sumă', width: 0.2, align: 'right' },
+        { label: 'Data', width: 0.12 },
+        { label: 'Categorie', width: 0.18 },
+        { label: 'Sursă', width: 0.13 },
+        { label: 'Notă', width: 0.25 },
+        { label: 'Sumă document', width: 0.16, align: 'right' },
+        { label: 'Sumă EUR', width: 0.16, align: 'right' },
       ],
-      rows: rows.map((r) => [
-        r.incurredOn.toLocaleDateString('ro-RO'),
-        r.category,
-        r.source === 'stripe_api' ? 'Automat (Stripe)' : 'Manual',
-        r.note ?? '—',
-        `${(r.amountMinor / 100).toFixed(2)} €`,
-      ]),
-      emptyText: 'Niciun cost înregistrat în perioada selectată.',
+      rows: rows.length
+        ? [
+            ...rows.map((r) => {
+              const eur = expenseEurMinor(r);
+              return [
+                dayRo(r.incurredOn),
+                EXPENSE_CATEGORY_RO[r.category] ?? r.category,
+                EXPENSE_SOURCE_RO[r.source] ?? r.source,
+                r.note ?? '-',
+                `${(r.amountMinor / 100).toLocaleString('ro-RO', { minimumFractionDigits: 2 })} ${r.currency}`,
+                eur === null ? 'fără curs' : eurText(eur),
+              ];
+            }),
+            { bold: true, cells: ['TOTAL', '', '', '', '', eurText(totalEur)] },
+          ]
+        : [],
+      emptyText: 'Nicio cheltuială înregistrată în perioada selectată.',
+      footnotes: rows.some((r) => expenseEurMinor(r) === null)
+        ? [
+            'Cheltuielile marcate "fără curs" sunt în altă monedă și nu au curs de schimb: nu sunt incluse în total.',
+          ]
+        : [],
     });
+    return pdfFile(stem, buffer);
+  }
+
+  private expensesSheet(
+    rows: {
+      incurredOn: Date;
+      category: string;
+      source: string;
+      note: string | null;
+      amountMinor: number;
+      currency: string;
+      fxRate: Prisma.Decimal | null;
+      eurAmountMinor: number | null;
+      externalRef?: string | null;
+      createdBy?: { name: string } | null;
+    }[],
+    title: string[],
+  ): Sheet {
+    const total = rows.reduce((s, r) => s + (expenseEurMinor(r) ?? 0), 0);
+    return {
+      name: 'Cheltuieli',
+      title,
+      columns: [
+        { label: 'Data', width: 12 },
+        { label: 'Categorie', width: 22 },
+        { label: 'Sursă', width: 18 },
+        { label: 'Notă', width: 34 },
+        { label: 'Sumă document', width: 14, money: true },
+        { label: 'Monedă', width: 8 },
+        { label: 'Curs (unități / 1 EUR)', width: 14 },
+        { label: 'Sumă EUR', width: 14, money: true },
+        { label: 'Adăugat de', width: 18 },
+        { label: 'Referință externă', width: 30 },
+      ],
+      rows: [
+        ...rows.map((r) => {
+          const eur = expenseEurMinor(r);
+          return [
+            dayRo(r.incurredOn),
+            EXPENSE_CATEGORY_RO[r.category] ?? r.category,
+            EXPENSE_SOURCE_RO[r.source] ?? r.source,
+            r.note ?? '',
+            eurNum(r.amountMinor),
+            r.currency,
+            r.currency === 'EUR' ? 1 : r.fxRate === null ? 'lipsă' : Number(r.fxRate),
+            eur === null ? null : eurNum(eur),
+            r.createdBy?.name ?? '',
+            r.externalRef ?? '',
+          ];
+        }),
+        { bold: true, cells: ['TOTAL', '', '', '', null, '', '', eurNum(total), '', ''] },
+      ],
+    };
+  }
+
+  /** EUR cents of a document: itself for EUR, `amount / rate` otherwise. */
+  private resolveExpenseFx(
+    currency: string,
+    amountMinor: number,
+    fxRate: number | undefined,
+  ): { fxRate: Prisma.Decimal | null; eurAmountMinor: number | null } {
+    if (currency === 'EUR') return { fxRate: null, eurAmountMinor: null };
+    if (!fxRate || fxRate <= 0) {
+      throw new BadRequestException({ message: 'fx_rate_required', statusCode: 400 });
+    }
+    return {
+      fxRate: new Prisma.Decimal(fxRate),
+      eurAmountMinor: Math.round(amountMinor / fxRate),
+    };
   }
 
   createExpense(dto: CreateExpenseDto, createdById: string) {
+    const currency = dto.currency ?? DEFAULT_EXPENSE_CURRENCY;
+    const fx = this.resolveExpenseFx(currency, dto.amountMinor, dto.fxRate);
     return this.prisma.platformExpense.create({
       data: {
         category: dto.category,
@@ -850,7 +1373,8 @@ export class FinanceService {
         amountMinor: dto.amountMinor,
         // Absent = the schema's own EUR default; passing it explicitly keeps
         // the create and update paths reading the same way.
-        currency: dto.currency ?? DEFAULT_EXPENSE_CURRENCY,
+        currency,
+        ...fx,
         note: dto.note,
         source: 'manual',
         createdById,
@@ -888,6 +1412,20 @@ export class FinanceService {
     // @updatedAt) moves on its own, so the WHEN of an edit is recorded; the
     // WHO has no column to go in yet — `PlatformExpense` has no
     // `updatedById`, and adding one is a migration (out of scope here).
+    // The EUR value is re-derived whenever the amount, currency or rate
+    // changes, from the row's resulting values (a partial edit keeps the
+    // stored rate unless a new one is sent).
+    const currency = dto.currency ?? existing.currency;
+    const amountMinor = dto.amountMinor ?? existing.amountMinor;
+    const touchesMoney =
+      dto.currency !== undefined || dto.amountMinor !== undefined || dto.fxRate !== undefined;
+    const fx = touchesMoney
+      ? this.resolveExpenseFx(
+          currency,
+          amountMinor,
+          dto.fxRate ?? (existing.fxRate == null ? undefined : Number(existing.fxRate)),
+        )
+      : {};
     return this.prisma.platformExpense.update({
       where: { id },
       data: {
@@ -895,6 +1433,7 @@ export class FinanceService {
         ...(dto.incurredOn ? { incurredOn: new Date(dto.incurredOn) } : {}),
         ...(dto.amountMinor !== undefined ? { amountMinor: dto.amountMinor } : {}),
         ...(dto.currency ? { currency: dto.currency } : {}),
+        ...fx,
         ...(dto.note !== undefined ? { note: dto.note } : {}),
       },
     });

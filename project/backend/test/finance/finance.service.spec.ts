@@ -1,5 +1,44 @@
 import { ForbiddenException } from '@nestjs/common';
 import { FinanceService } from 'src/finance/finance.service';
+import {
+  FinanceStatementService,
+  type FinancialStatement,
+} from 'src/finance/finance-statement.service';
+
+/** An all-zero statement straight from the real builder, for stubbing. */
+function emptyStatement(): FinancialStatement {
+  return new FinanceStatementService(null as any).buildStatement(
+    [],
+    { expenses: [], ai: [], agent: [], search: [] },
+    { from: new Date('2026-01-01'), to: new Date('2026-01-31T23:59:59Z') },
+  );
+}
+
+/** `overview()` takes its profit figures from FinanceStatementService
+ *  (tested on its own in finance-statement.service.spec.ts / ledger-engine
+ *  spec); here it's a stub whose statement each test can shape. */
+function stubStatements(statement: FinancialStatement = emptyStatement()) {
+  const fixed = { today: emptyStatement(), month: emptyStatement(), year: emptyStatement() };
+  return {
+    statement,
+    fixed,
+    dashboard: jest.fn(async () => ({
+      statement,
+      fixed,
+      balance: {
+        asOf: '2026-01-31T23:59:59.000Z',
+        advancesMoneyMinor: 0,
+        advancesVatMinor: 0,
+        advancesNetMinor: 0,
+        advancesVatUnknownMinor: 0,
+        unconsumedPaidCreditsMinor: 0,
+        unconsumedFreeCreditsMinor: 0,
+        unconsumedVoidedCreditsMinor: 0,
+      },
+      daily: [],
+    })),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -167,22 +206,29 @@ function fakePrisma() {
   };
 }
 
-function makeService() {
+function makeService(statement?: FinancialStatement) {
   const prisma = fakePrisma();
-  const svc = new FinanceService(prisma as any);
-  return { svc, prisma };
+  const statements = stubStatements(statement);
+  const svc = new FinanceService(prisma as any, statements as any);
+  return { svc, prisma, statements };
 }
 
 type LedgerRow = {
   id: string;
-  type: 'purchase' | 'refund' | 'adjustment';
+  type: 'purchase' | 'refund' | 'adjustment' | 'spend';
+  status: string;
+  providerRef: string | null;
+  clickCount: number | null;
+  spendDay: Date | null;
+  provider: string | null;
+  invoice: { number: string; vatRatePct: number } | null;
   amountMinor: number;
   eurCents: number | null;
   refundSources: unknown;
   feeMinor: number | null;
   createdAt: Date;
   description: string | null;
-  wallet: { user: { name: string; email: string } | null };
+  wallet: { user: { id: string; name: string; email: string } | null };
   company: { displayName: string } | null;
 };
 
@@ -190,13 +236,19 @@ function row(partial: Partial<LedgerRow>): LedgerRow {
   return {
     id: 'tx',
     type: 'purchase',
+    status: 'completed',
+    providerRef: null,
+    clickCount: null,
+    spendDay: null,
+    provider: null,
+    invoice: null,
     amountMinor: 0,
     eurCents: null,
     refundSources: null,
     feeMinor: null,
     createdAt: new Date('2026-01-05'),
     description: null,
-    wallet: { user: { name: 'Ion', email: 'ion@example.com' } },
+    wallet: { user: { id: 'u1', name: 'Ion', email: 'ion@example.com' } },
     company: null,
     ...partial,
   };
@@ -229,19 +281,25 @@ function fakeLedgerPrisma(rows: LedgerRow[]) {
 
 function makeLedgerService(rows: LedgerRow[]) {
   const prisma = fakeLedgerPrisma(rows);
-  return { svc: new FinanceService(prisma as any), prisma };
+  return { svc: new FinanceService(prisma as any, stubStatements() as any), prisma };
 }
 
 /** Expense fake for the automated-source mutation guard. */
 function makeExpenseService(source: 'manual' | 'stripe_api' | 'google_ads_api') {
   const prisma = {
     platformExpense: {
-      findUnique: jest.fn(async () => ({ id: 'e1', source, amountMinor: 1000 })),
+      findUnique: jest.fn(async () => ({
+        id: 'e1',
+        source,
+        amountMinor: 1000,
+        currency: 'EUR',
+        fxRate: null,
+      })),
       update: jest.fn(async () => ({ id: 'e1', source, amountMinor: 2000 })),
       delete: jest.fn(async () => ({ id: 'e1' })),
     },
   };
-  return { svc: new FinanceService(prisma as any), prisma };
+  return { svc: new FinanceService(prisma as any, stubStatements() as any), prisma };
 }
 const FINANCE_ACTOR = { id: 'u1', platformRoles: ['finance'] } as any;
 const ADMIN_ACTOR = { id: 'u2', platformRoles: ['admin'] } as any;
@@ -353,8 +411,8 @@ describe('FinanceService', () => {
       const result = await svc.overview({});
       const trendCost = result.trend.reduce((s, d) => s + d.costMinor, 0);
 
-      expect(result.aiCostMinor).toBe(1);
-      expect(trendCost).toBe(result.aiCostMinor);
+      // Raw USD summed first, rounded once: $0.01 -> 1 cent.
+      expect(trendCost).toBe(1);
     });
   });
 
@@ -375,9 +433,11 @@ describe('FinanceService', () => {
       expect(result.revenueMinor).toBe(result.netRevenueMinor);
     });
 
-    it('weights CPC credit consumption by the period gross-to-net ratio, keeping the face-value figure alongside', async () => {
-      const { svc, prisma } = makeService();
-      // Everything sold at a flat 20% discount => ratio 0.8.
+    it('keeps the CPC face value, and takes its real (FIFO, ex-VAT) money from the statement', async () => {
+      const st = emptyStatement();
+      st.revenue.byCategory.cpc = 6_723;
+      st.expenses.byCategory.google_ads = 5_000;
+      const { svc, prisma } = makeService(st);
       prisma.__state.purchases = [
         { amountMinor: 100_000, eurCents: 80_000, createdAt: new Date('2026-01-05') },
       ];
@@ -387,7 +447,8 @@ describe('FinanceService', () => {
 
       expect(result.grossToNetRatio).toBeCloseTo(0.8);
       expect(result.paidTraffic.cpcRevenueMinor).toBe(10_000);
-      expect(result.paidTraffic.cpcRevenueRealMoneyMinor).toBe(8_000);
+      expect(result.paidTraffic.cpcRevenueRealMoneyMinor).toBe(6_723);
+      expect(result.paidTraffic.realMoneyProfitMinor).toBe(1_723);
     });
 
     it('sums every wallet balance as the all-time credit liability, and the frozen subset separately', async () => {
@@ -516,115 +577,96 @@ describe('FinanceService', () => {
     });
   });
 
-  describe('overview — consumption-based profit (real earned revenue)', () => {
-    it('weights ALL consumption (CPC + one-off fees), not just CPC, into consumedRevenueRealMoneyMinor', async () => {
-      const { svc, prisma } = makeService();
-      // Flat 20% discount => ratio 0.8.
-      prisma.__state.purchases = [
-        { amountMinor: 100_000, eurCents: 80_000, createdAt: new Date('2026-01-05') },
-      ];
-      prisma.__state.cpcSpends = [{ amountMinor: -10_000 }];
-      prisma.__state.otherSpends = [
-        { amountMinor: -5_000, provider: 'ai-usage', description: 'Website Builder usage' },
-      ];
+  describe('overview — profit from the financial statement', () => {
+    it('takes earned revenue, costs and profit from the statement (one source of truth)', async () => {
+      const st = emptyStatement();
+      st.revenue.totalNetMinor = 12_000;
+      st.expenses.totalMinor = 4_500;
+      st.result.operatingProfitMinor = 7_500;
+      const { svc } = makeService(st);
 
       const result = await svc.overview({});
 
-      // (10000 + 5000) * 0.8
       expect(result.consumedRevenueRealMoneyMinor).toBe(12_000);
-      // revenueMinor (80000, no refunds) minus the above.
-      expect(result.unconsumedRevenueMinor).toBe(80_000 - 12_000);
+      expect(result.totalCostMinor).toBe(4_500);
+      expect(result.profitMinor).toBe(7_500);
+      expect(result.statement).toBe(st);
     });
 
-    it('bases profitMinor on consumed revenue, NOT money collected — unconsumed credit is not profit', async () => {
-      const { svc, prisma } = makeService();
-      // Collected 100000 real money; nothing consumed yet (no spend rows at
-      // all) — every credit sold is still sitting in a wallet, refundable.
-      prisma.__state.purchases = [
-        { amountMinor: 100_000, eurCents: 100_000, createdAt: new Date('2026-01-05') },
-      ];
+    it('computes aiBuilder from the earned AI revenue minus the AI provider cost, plus the unlock fee', async () => {
+      const st = emptyStatement();
+      st.revenue.byCategory.aiUsage = 2_000;
+      st.revenue.byCategory.builderUnlock = 4_950;
+      st.expenses.ai.builderMinor = 1_000;
+      st.expenses.ai.campaignAgentMinor = 500;
+      const { svc } = makeService(st);
 
       const result = await svc.overview({});
 
-      expect(result.revenueMinor).toBe(100_000);
-      // `toBeCloseTo` (not `toBe`): an empty-rows reduce negated to "no
-      // consumption yet" is mathematically 0 but can come out as -0.
-      expect(result.consumedRevenueRealMoneyMinor).toBeCloseTo(0);
-      // Old (wrong) behaviour would have shown 100000 - totalCostMinor here.
-      expect(result.profitMinor).toBeCloseTo(0 - result.totalCostMinor);
-    });
-
-    it('computes aiBuilder profit as (AI usage revenue - AI provider cost) + builder-unlock revenue', async () => {
-      const { svc, prisma } = makeService();
-      // Flat 50% discount => ratio 0.5, to make the math obvious.
-      prisma.__state.purchases = [
-        { amountMinor: 100_000, eurCents: 50_000, createdAt: new Date('2026-01-05') },
-      ];
-      prisma.__state.otherSpends = [
-        { amountMinor: -4_000, provider: 'ai-usage', description: 'Website Builder usage' },
-        { amountMinor: -9_900, provider: null, description: 'Advanced website builder' },
-      ];
-      prisma.__state.aiRows = [{ estimatedCostUsd: 10, createdAt: new Date('2026-01-05') }]; // $10 -> 1000 minor
-
-      const result = await svc.overview({});
-
-      expect(result.aiBuilder.promptRevenueRealMoneyMinor).toBe(2_000); // 4000 * 0.5
+      expect(result.aiBuilder.promptRevenueRealMoneyMinor).toBe(2_000);
       expect(result.aiBuilder.providerCostMinor).toBe(1_000);
-      expect(result.aiBuilder.promptProfitMinor).toBe(1_000); // 2000 - 1000
-      expect(result.aiBuilder.builderUnlockRevenueRealMoneyMinor).toBe(4_950); // 9900 * 0.5
+      expect(result.aiBuilder.promptProfitMinor).toBe(1_000);
+      expect(result.aiBuilder.builderUnlockRevenueRealMoneyMinor).toBe(4_950);
       expect(result.aiBuilder.totalProfitMinor).toBe(1_000 + 4_950);
-      // No campaign-agent runs in this test's state — real figure, just zero.
-      expect(result.aiBuilder.campaignAgentAvailable).toBe(true);
-      expect(result.aiBuilder.campaignAgentCostMinor).toBe(0);
-    });
-
-    it("rolls the Google Ads agent's own Claude spend into total cost/profit, WITHOUT touching aiBuilder's prompt profit", async () => {
-      const { svc, prisma } = makeService();
-      prisma.__state.purchases = [
-        { amountMinor: 100_000, eurCents: 100_000, createdAt: new Date('2026-01-05') },
-      ];
-      prisma.__state.aiRows = [{ estimatedCostUsd: 10, createdAt: new Date('2026-01-05') }]; // 1000 minor
-      // Already EUR-minor at write time (two runs: 300 + 200).
-      prisma.__state.googleAdsAgentRuns = [
-        {
-          claudeModel: 'claude-sonnet-5',
-          claudeInputTokens: 500,
-          claudeOutputTokens: 200,
-          claudeCostEstimateMinor: 300,
-          claudeCallCount: 1,
-        },
-        {
-          claudeModel: 'claude-sonnet-5',
-          claudeInputTokens: 400,
-          claudeOutputTokens: 150,
-          claudeCostEstimateMinor: 200,
-          claudeCallCount: 1,
-        },
-      ];
-
-      const result = await svc.overview({});
-
-      expect(result.aiBuilder.campaignAgentAvailable).toBe(true);
       expect(result.aiBuilder.campaignAgentCostMinor).toBe(500);
-      // The builder's own AI-prompt profit is untouched by the agent's cost.
-      expect(result.aiBuilder.providerCostMinor).toBe(1_000);
-      // But the platform-wide totals DO carry it.
-      expect(result.aiCostMinor).toBe(1_000);
-      expect(result.totalCostMinor).toBe(result.operatingCostMinor + 1_000 + 500);
-      expect(result.profitMinor).toBe(result.consumedRevenueRealMoneyMinor - result.totalCostMinor);
     });
 
-    it('exposes finalProfit for today/this month/this year, each shaped like {consumedRevenueRealMoneyMinor, totalCostMinor, profitMinor}', async () => {
-      const { svc } = makeService();
+    it('exposes finalProfit for today/this month/this year from the same statement', async () => {
+      const { svc, statements } = makeService();
+      statements.fixed.month.revenue.totalNetMinor = 900;
+      statements.fixed.month.expenses.totalMinor = 300;
+      statements.fixed.month.result.operatingProfitMinor = 600;
 
       const result = await svc.overview({});
 
-      for (const key of ['today', 'month', 'year'] as const) {
-        const f = result.finalProfit[key];
-        expect(typeof f.consumedRevenueRealMoneyMinor).toBe('number');
-        expect(typeof f.totalCostMinor).toBe('number');
-        expect(f.profitMinor).toBe(f.consumedRevenueRealMoneyMinor - f.totalCostMinor);
+      expect(result.finalProfit.month).toEqual({
+        consumedRevenueRealMoneyMinor: 900,
+        totalCostMinor: 300,
+        profitMinor: 600,
+      });
+      for (const key of ['today', 'year'] as const) {
+        expect(result.finalProfit[key].profitMinor).toBe(0);
       }
+    });
+
+    it('converts a foreign-currency expense at its booked rate and leaves a rate-less one out', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__state.expenses = [
+        {
+          category: 'hosting',
+          amountMinor: 10_000,
+          incurredOn: new Date('2026-01-03'),
+          currency: 'EUR',
+          eurAmountMinor: null,
+        },
+        {
+          category: 'hosting',
+          amountMinor: 49_750,
+          incurredOn: new Date('2026-01-04'),
+          currency: 'RON',
+          eurAmountMinor: 10_000,
+        },
+        {
+          category: 'hosting',
+          amountMinor: 99_999,
+          incurredOn: new Date('2026-01-05'),
+          currency: 'RON',
+          eurAmountMinor: null,
+        },
+      ] as any;
+
+      const result = await svc.overview({});
+
+      expect(result.trend.reduce((s, d) => s + d.costMinor, 0)).toBe(20_000);
+    });
+
+    it('keeps affiliate-reward documents out of the VAT breakdown query', async () => {
+      const { svc, prisma } = makeService();
+
+      await svc.overview({});
+
+      const args = (prisma.invoice.groupBy as jest.Mock).mock.calls[0][0];
+      expect(args.where.kind).toBe('topup');
     });
   });
 
@@ -751,18 +793,56 @@ describe('FinanceService', () => {
     });
   });
 
-  describe('exportRevenuePdf — money accuracy', () => {
-    it('renders both the credit face value and the real money, and a period TOTAL row', async () => {
-      const { svc } = makeLedgerService([
-        row({ id: 'p1', amountMinor: 100_000, eurCents: 80_000 }),
-      ]);
+  describe('exportRevenue — formats', () => {
+    const rows = () => [
+      row({
+        id: 'p1',
+        amountMinor: 100_000,
+        eurCents: 80_000,
+        invoice: { number: 'TVZ-1', vatRatePct: 21 },
+      }),
+      row({
+        id: 'r1',
+        type: 'refund',
+        amountMinor: -20_000,
+        refundSources: [{ amountMinor: 20_000, moneyMinor: 16_000 }],
+        feeMinor: 0,
+      }),
+    ];
 
-      const pdf = await svc.exportRevenuePdf({});
+    it('renders a PDF with the face value, the real money and a TOTAL row', async () => {
+      const { svc } = makeLedgerService(rows());
 
-      // Smoke-level: a real PDF came back (the money math itself is asserted
-      // through listRevenue, which shares `rowMoneyMinor`).
-      expect(pdf.subarray(0, 4).toString()).toBe('%PDF');
-      expect(pdf.length).toBeGreaterThan(500);
+      const file = await svc.exportRevenue({});
+
+      expect(file.contentType).toBe('application/pdf');
+      expect(file.buffer.subarray(0, 4).toString()).toBe('%PDF');
+      expect(file.filename).toMatch(/^tranzactii-.*\.pdf$/);
+    });
+
+    it('exports CSV with real numbers whose total matches the on-screen period total', async () => {
+      const { svc } = makeLedgerService(rows());
+
+      const file = await svc.exportRevenue({ format: 'csv' });
+      const screen = await svc.listRevenue({});
+      const text = file.buffer.toString('utf8');
+
+      expect(file.contentType).toMatch(/text\/csv/);
+      // 800,00 collected - 160,00 refunded = 640,00 net money, as on screen.
+      expect(screen.periodTotalMinor).toBe(64_000);
+      const total = text.split('\r\n').find((l) => l.startsWith('TOTAL'))!;
+      expect(total.split(';')[11]).toBe('640.00');
+      // VAT from the invoice: 80000 * 21/121 = 13884.
+      expect(text).toContain('138.84');
+    });
+
+    it('exports a real XLSX (zip) workbook', async () => {
+      const { svc } = makeLedgerService(rows());
+
+      const file = await svc.exportRevenue({ format: 'xlsx' });
+
+      expect(file.buffer.subarray(0, 2).toString()).toBe('PK');
+      expect(file.filename).toMatch(/\.xlsx$/);
     });
   });
 
@@ -835,13 +915,27 @@ describe('FinanceService', () => {
       expect(data).not.toHaveProperty('createdById');
     });
 
-    it('passes an explicit currency through on edit', async () => {
+    it('passes an explicit currency through on edit, with its EUR value at the given rate', async () => {
       const { svc, prisma } = makeExpenseService('manual');
 
-      await svc.updateExpense('e1', { currency: 'RON' }, FINANCE_ACTOR);
+      await svc.updateExpense('e1', { currency: 'RON', fxRate: 5 }, FINANCE_ACTOR);
 
       const data = (prisma.platformExpense.update as jest.Mock).mock.calls[0][0].data;
       expect(data.currency).toBe('RON');
+      // 1000 RON-bani / 5 = 200 EUR cents.
+      expect(data.eurAmountMinor).toBe(200);
+      expect(Number(data.fxRate)).toBe(5);
+    });
+
+    it('refuses a foreign-currency expense without an exchange rate', async () => {
+      const { svc, prisma } = makeExpenseService('manual');
+
+      await expect(
+        svc.updateExpense('e1', { currency: 'USD' }, FINANCE_ACTOR),
+      ).rejects.toMatchObject({
+        response: { message: 'fx_rate_required' },
+      });
+      expect(prisma.platformExpense.update).not.toHaveBeenCalled();
     });
   });
 

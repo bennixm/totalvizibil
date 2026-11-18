@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
+  IsNumber,
   IsISO8601,
   IsOptional,
   IsString,
@@ -76,6 +77,15 @@ export class CreateExpenseDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   @IsIn(EXPENSE_CURRENCIES)
   currency?: ExpenseCurrency;
+
+  /** Non-EUR documents: units of `currency` per 1 EUR (e.g. the BNR rate
+   *  on the document date). Required for RON/USD, ignored for EUR. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  @Max(100000)
+  fxRate?: number;
 
   @IsOptional()
   @IsString()

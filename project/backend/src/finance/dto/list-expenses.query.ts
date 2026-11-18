@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import { EXPORT_FORMATS, type ExportFormat } from './list-revenue.query';
 
 const CATEGORIES = [
   'hosting',
@@ -12,6 +13,11 @@ const CATEGORIES = [
 ] as const;
 
 export class ListExpensesQuery {
+  /** Export only: file format (default pdf). */
+  @IsOptional()
+  @IsIn(EXPORT_FORMATS)
+  format?: ExportFormat;
+
   @IsOptional()
   @IsIn(CATEGORIES)
   category?: (typeof CATEGORIES)[number];

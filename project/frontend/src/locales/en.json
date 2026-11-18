@@ -1011,7 +1011,7 @@
     "navGroupManage": "Manage",
     "navGroupFinance": "Finance",
     "navFinanceDashboard": "Finance dashboard",
-    "navFinanceRevenue": "Revenue",
+    "navFinanceRevenue": "Transactions",
     "navFinanceExpenses": "Expenses",
     "navFinanceAi": "AI usage",
     "navGroupConfig": "Config",
@@ -1507,7 +1507,7 @@
     "colRecommendationType": "Recommendation type",
     "recommendationsTitle": "Google Ads recommendations",
     "recommendationsHint": "Google reviews each campaign and suggests improvements. The ones below are safe (ad text/assets only). Turn them on to let the agent apply them on its own, no approval needed. Everything else (budget, bidding, targeting, keywords) always lands on the Proposals tab for your decision.",
-    "recoNeverApplyNote": "Google may also suggest other improvements (budget, bidding, targeting, keywords). Those are never applied automatically.",
+    "recoNeverApplyLabel": "Other Google suggestions: only with your approval",
     "recoNeverApplyHint": "Recommendations about budget and bidding, about who sees the ad, and about keywords always land on the Proposals tab for your decision, never applied automatically. Google may also suggest recommendations for campaign types this platform doesn't use (Shopping, Performance Max, apps). Those are ignored automatically.",
     "recoBoostsAdStrength": "Boosts Ad Strength",
     "settingsGroupDefaults": "New campaign (default)",
@@ -1676,7 +1676,7 @@
     "periodShowing": "Showing",
     "revenue": "Total revenue",
     "costs": "Total costs",
-    "netProfit": "Net profit",
+    "netProfit": "Operating profit",
     "costBreakdown": "Costs by category",
     "noCosts": "No costs recorded for this period.",
     "paidTraffic": "Paid traffic",
@@ -1685,14 +1685,14 @@
     "trafficProfit": "Profit",
     "paidTrafficHint": "The Google Ads cost is captured automatically every day straight from the Google Ads account. The profit below updates itself as that cost syncs in.",
     "aiCost": "AI usage",
-    "collectedRevenue": "Money collected (total)",
-    "collectedRevenueHint": "Everything collected from customers, whether or not they've used the credits yet.",
-    "consumedRevenue": "Money collected (consumed)",
-    "consumedRevenueHint": "Money behind credits already consumed, can no longer be refunded. This is the real basis for profit.",
+    "collectedRevenue": "Net cash excl. VAT",
+    "collectedRevenueHint": "Money collected from credit sales minus refunds paid, without the VAT collected (which belongs to the state). Includes credits not consumed yet.",
+    "consumedRevenue": "Earned revenue",
+    "consumedRevenueHint": "Credits consumed by customers (clicks, AI, unlocks), valued at the money actually paid for each credit (FIFO), excl. VAT. Bonus or affiliate credits are not revenue.",
     "unconsumedRevenue": "Still sitting as credit",
     "unconsumedRevenueHint": "Credits sold but not yet consumed, refundable to the customer, not realized profit.",
     "finalProfitTitle": "Final profit",
-    "finalProfitHint": "The real profit: money from credits already consumed, minus absolutely every cost (Google Ads, AI, operating).",
+    "finalProfitHint": "Operating profit: earned revenue (services delivered, excl. VAT) minus every expense, before tax. Always today, this month and this year, whatever period is selected.",
     "promotionProfitTitle": "Promotion profit",
     "aiBuilderTitle": "AI Builder profitability",
     "aiBuilderProfit": "AI Builder profit",
@@ -1704,7 +1704,7 @@
     "campaignAgentHint": "The real Claude cost of the agent that manages Google Ads campaigns (structure, content, budget/CPC tuning), never billed to any customer.",
     "aiRevenue": "AI revenue (consumed)",
     "aiProfit": "AI profit",
-    "revenueTitle": "Revenue",
+    "revenueTitle": "Transaction register",
     "all": "All",
     "purchases": "Top-ups",
     "refunds": "Refunds",
@@ -1769,7 +1769,7 @@
     "oneTimeFees": "One-off (one-time fees)",
     "totalConsumed": "Total consumed",
     "creditConsumptionHint": "Face value in credits. One-off fees are categorized the same way as the breakdown in the client's wallet.",
-    "vatTitle": "VAT by rate (valid invoices)",
+    "vatTitle": "VAT by rate (valid sales invoices)",
     "vatColRate": "Rate",
     "vatColInvoices": "Invoices",
     "vatColBase": "Base",
@@ -1822,6 +1822,192 @@
       "local": "Local model",
       "ai": "Claude",
       "guess": "Local guess"
+    },
+    "lastMonth": "Last month",
+    "periodMonth": "Month",
+    "periodYear": "Year",
+    "export": "Export",
+    "exportPdf": "PDF (for printing)",
+    "exportXlsx": "Excel (.xlsx)",
+    "exportCsv": "CSV",
+    "exportReport": "Export report",
+    "exportAnnual": "Export annual report",
+    "tabSummary": "Summary",
+    "tabPnl": "Profit and loss",
+    "tabAnnual": "Annual, by month",
+    "tabChecks": "Checks",
+    "pnlHint": "The same figures as the report PDF, Excel and CSV exports.",
+    "cashSub": "{gross} incl. VAT, of which VAT {vat}",
+    "consumedRevenueSub": "Services delivered, excl. VAT",
+    "beforeTax": "Before tax",
+    "marginSub": "Margin {pct}, before tax",
+    "cashNetSeries": "Net cash",
+    "advances": "Customer advances",
+    "advancesSub": "Money for unconsumed credits on {date}",
+    "registerMoney": "Net money in selection",
+    "registerMoneyHint": "Real money collected minus money returned, over every filtered row (not just this page). With the default filters it matches the Dashboard cash figure.",
+    "searchPlaceholder": "Search client, email, business, invoice no., payment reference...",
+    "colStatus": "Status",
+    "amountMin": "Min. amount",
+    "amountMax": "Max. amount",
+    "sortBy": "Sort",
+    "resetFilters": "Reset filters",
+    "colReference": "Invoice / reference",
+    "colMoney": "Money",
+    "clicks": "{n} clicks",
+    "status": {
+      "completed": "Completed",
+      "pending": "Pending",
+      "processing": "Processing",
+      "failed": "Failed",
+      "canceled": "Canceled",
+      "all": "All statuses"
+    },
+    "sort": {
+      "date_desc": "Newest first",
+      "date_asc": "Oldest first",
+      "amount_desc": "Amount, high to low",
+      "amount_asc": "Amount, low to high"
+    },
+    "txnType": {
+      "purchase": "Top-up",
+      "refund": "Refund",
+      "adjustment": "Adjustment",
+      "spend": "Consumption"
+    },
+    "txnTypePlural": {
+      "purchase": "Top-ups",
+      "refund": "Refunds",
+      "adjustment": "Adjustments",
+      "spend": "Consumption"
+    },
+    "consumption": {
+      "cpc": "Consumption: clicks",
+      "aiUsage": "Consumption: AI",
+      "builderUnlock": "Consumption: unlock",
+      "other": "Consumption: other"
+    },
+    "expensesTotalEur": "Total in EUR",
+    "missingFxAlert": "{n} foreign-currency expenses have no exchange rate and are left out of the totals and the profit. Edit them and add the rate.",
+    "fxAt": "rate {rate}",
+    "noFx": "No rate: left out of totals",
+    "fxRateLabel": "Rate: how many {cur} = 1 EUR",
+    "fxRateHint": "The rate on the document date (e.g. the central bank rate).",
+    "fxPreview": "Equivalent: {amount}",
+    "missingTitle": "Missing or estimated information",
+    "missing": {
+      "vatUnknown": "VAT not confirmed: {amount} of the period cash or revenue comes from payments with no invoice issued, so the VAT rate is not documented. It is counted in full, without VAT deducted, until invoiced.",
+      "expenseFx": "{n} foreign-currency expenses have no exchange rate and are NOT in the totals. Add the rate to each.",
+      "aiEstimated": "AI cost ({amount}) is estimated from tokens at list price, in USD treated 1:1 with EUR. The provider invoice is the exact source; do not also enter it manually, or it is counted twice.",
+      "unmatched": "Consumption with no credits behind it in the ledger: {amount}. See the Checks tab.",
+      "forfeit": "Paid credits removed by an admin: {amount}. Not counted as revenue, since the data does not show whether the money was returned outside the platform.",
+      "incomeTax": "Income tax is not calculated (the company tax regime is not configured). The profit shown is before tax.",
+      "expenseVat": "Expenses are recorded at the document total; deductible VAT is not separated."
+    },
+    "pl": {
+      "cashHead": "1. Cash",
+      "collected": "Credit sales collected, incl. VAT ({n} payments)",
+      "refunded": "Refunds paid to customers ({n})",
+      "cashNet": "Net cash, incl. VAT",
+      "cashVat": "of which VAT collected",
+      "cashVatHint": "VAT from sales invoices, net of refunds. It belongs to the state, it is not revenue.",
+      "cashNetExVat": "Net cash excl. VAT",
+      "cashVatUnknown": "of which without invoice (VAT not confirmed)",
+      "faceValue": "Face value of credits sold",
+      "discount": "Discounts granted at purchase",
+      "revenueHead": "2. Earned revenue (excl. VAT)",
+      "revenueHint": "Consumed credits, valued FIFO at the money actually paid for each credit. Unconsumed credits remain a customer advance.",
+      "revCpc": "CPC clicks (promotion)",
+      "revAi": "AI usage (website builder)",
+      "revUnlock": "Advanced builder unlock",
+      "revOther": "Other services",
+      "revRefundFees": "Fees kept from refunds",
+      "revTotal": "Earned revenue",
+      "revVat": "VAT on earned revenue",
+      "expensesHead": "3. Expenses",
+      "aiBuilder": "AI cost: website builder (estimated)",
+      "aiAgent": "AI cost: Google Ads campaign agent (estimated)",
+      "aiSearch": "AI cost: homepage search (estimated)",
+      "expensesTotal": "Total expenses",
+      "resultHead": "4. Result",
+      "operatingProfit": "Operating profit, before tax",
+      "operatingProfitHint": "Earned revenue minus every expense.",
+      "margin": "Operating margin",
+      "cashResult": "Cash-basis result",
+      "cashResultHint": "Net cash excl. VAT minus expenses. Includes money for credits not consumed yet, which may be refunded.",
+      "nonCashHead": "5. Non-cash (for information)",
+      "nonCashHint": "Face value in credits; no money came in for these.",
+      "freeConsumed": "Free credits consumed (bonus, affiliate, adjustments)",
+      "voidedConsumed": "Credits from voided invoices, consumed",
+      "forfeited": "Credits removed by an admin",
+      "balanceHead": "6. Owed to customers on {date}",
+      "balanceHint": "Money collected for credits customers have not consumed yet: a liability (advance), not profit, as it may be refunded.",
+      "advances": "Customer advances (money, incl. VAT)",
+      "advancesVat": "of which VAT",
+      "unconsumedPaid": "Unconsumed paid credits (face value)",
+      "unconsumedFree": "Unconsumed free credits (face value)"
+    },
+    "annual": {
+      "colMonth": "Month",
+      "colCashNet": "Net cash incl. VAT",
+      "colVat": "VAT collected",
+      "colRevenue": "Earned revenue",
+      "colExpenses": "Expenses",
+      "colProfit": "Operating profit",
+      "total": "Total {year}",
+      "hint": "Click a month for its full profit and loss statement."
+    },
+    "checks": {
+      "ok": "All good",
+      "count": "{n} cases",
+      "countAmount": "{n} cases, {amount}",
+      "problems": "{n} checks need attention",
+      "allGood": "Every check passed",
+      "rerun": "Run again",
+      "lead": "Automatic checks over all data, not only the selected period.",
+      "more": "and {n} more",
+      "items": {
+        "duplicatePurchases": {
+          "title": "Duplicate payments",
+          "desc": "The same Stripe payment booked more than once."
+        },
+        "walletBalance": {
+          "title": "Balances that disagree with the ledger",
+          "desc": "The stored wallet balance differs from the sum of its transactions (stored / ledger)."
+        },
+        "uninvoicedPurchases": {
+          "title": "Payments without an invoice",
+          "desc": "Completed payments with no invoice issued: their VAT is not documented."
+        },
+        "invoiceMismatch": {
+          "title": "Invoices that differ from the payment",
+          "desc": "The invoice total does not match the amount paid (invoice / payment)."
+        },
+        "refundSources": {
+          "title": "Refunds with a wrong allocation",
+          "desc": "The per-source amounts do not add up to the refunded credits."
+        },
+        "stripeFeeMissing": {
+          "title": "Stripe fees not booked",
+          "desc": "Stripe payments whose fee is missing from expenses."
+        },
+        "expenseFx": {
+          "title": "Expenses without an exchange rate",
+          "desc": "RON or USD documents with no rate: missing from totals."
+        },
+        "duplicateExpenses": {
+          "title": "Possible duplicate expenses",
+          "desc": "Same day, category, amount and currency, entered manually more than once."
+        },
+        "unmatchedConsumption": {
+          "title": "Consumption without credits",
+          "desc": "Consumption booked beyond the credits in the wallet."
+        },
+        "forfeitedCredits": {
+          "title": "Paid credits removed by an admin",
+          "desc": "Negative adjustments of paid credits (money kept, no service delivered)."
+        }
+      }
     }
   },
   "adminSettings": {
@@ -2192,7 +2378,68 @@
     },
     "investigate": "Investigate",
     "openUserAdmin": "Open user in admin",
-    "openBusinessAdmin": "Open business in admin"
+    "openBusinessAdmin": "Open business in admin",
+    "role": {
+      "admin": "Administrator",
+      "support": "Support agent",
+      "finance": "Accountant",
+      "moderator": "Moderator",
+      "user": "User"
+    },
+    "you": "You",
+    "leadRequester": "Track your requests and conversations with our team.",
+    "leadStaff": "Every customer request in one place. Pick a list, search or filter.",
+    "view": {
+      "active": "Active",
+      "mine": "Mine",
+      "unassigned": "Unassigned",
+      "urgent": "Urgent",
+      "waiting": "Waiting on customer",
+      "waitingYou": "Waiting on you",
+      "done": "Resolved",
+      "all": "All"
+    },
+    "searchStaff": "Search by subject, #number, customer, email or business",
+    "searchRequester": "Search by subject or #number",
+    "filters": "Filters",
+    "clearFilters": "Clear filters",
+    "sortBy": "Sort",
+    "sort": {
+      "activity": "Recent activity",
+      "newest": "Newest",
+      "oldest": "Oldest",
+      "priority": "Priority"
+    },
+    "noMatchTitle": "No ticket matches",
+    "noMatchHint": "Try another list or filter, or clear the search.",
+    "emptyStaffTitle": "Nothing to do here",
+    "emptyStaffHint": "There are no tickets in this list.",
+    "replyFromCustomer": "Customer replied",
+    "replyFromTeam": "New reply from the team",
+    "refresh": "Refresh",
+    "banner": {
+      "open": "We received your ticket. Our team will reply as soon as possible.",
+      "in_progress": "A team member is working on your ticket.",
+      "waiting": "The team is waiting for your reply to continue.",
+      "resolved": "This ticket was marked as resolved. If the problem persists, reply and we will reopen it.",
+      "closed": "This ticket is closed. You can reopen it at any time."
+    },
+    "quick": {
+      "take": "Take ticket",
+      "waiting": "Waiting on customer",
+      "resolve": "Resolved",
+      "close": "Close",
+      "reopen": "Reopen"
+    },
+    "composerReply": "Reply to customer",
+    "sendHint": "Ctrl + Enter to send",
+    "noteVisibility": "Visible to the team only",
+    "people": "People",
+    "lastActivity": "Last activity",
+    "firstResponse": "First response",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "assignedToYou": "Assigned to you"
   },
   "catalog": {
     "variant": {

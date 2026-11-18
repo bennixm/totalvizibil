@@ -26,7 +26,13 @@ export function useAdminNavGroups() {
       {
         label: t('admin.navGroupOverview'),
         items: isAdmin.value
-          ? [{ to: { name: 'admin-dashboard' }, label: t('admin.navDashboard'), icon: 'mdi-view-dashboard-outline' }]
+          ? [
+              {
+                to: { name: 'admin-dashboard' },
+                label: t('admin.navDashboard'),
+                icon: 'mdi-view-dashboard-outline',
+              },
+            ]
           : [],
       },
       {
@@ -34,8 +40,16 @@ export function useAdminNavGroups() {
         items: [
           ...(isAdmin.value
             ? [
-                { to: { name: 'admin-users' }, label: t('admin.navUsers'), icon: 'mdi-account-multiple-outline' },
-                { to: { name: 'admin-businesses' }, label: t('admin.navBusinesses'), icon: 'mdi-domain' },
+                {
+                  to: { name: 'admin-users' },
+                  label: t('admin.navUsers'),
+                  icon: 'mdi-account-multiple-outline',
+                },
+                {
+                  to: { name: 'admin-businesses' },
+                  label: t('admin.navBusinesses'),
+                  icon: 'mdi-domain',
+                },
               ]
             : []),
           // Recomandări is `admin`+`finance` on the backend (`GET
@@ -43,10 +57,22 @@ export function useAdminNavGroups() {
           // sit inside the admin-only block above — a Contabil had no way
           // into a page the API had deliberately opened to them.
           ...(isFinanceStaff.value
-            ? [{ to: { name: 'admin-referrals' }, label: t('admin.navReferrals'), icon: 'mdi-account-multiple-plus-outline' }]
+            ? [
+                {
+                  to: { name: 'admin-referrals' },
+                  label: t('admin.navReferrals'),
+                  icon: 'mdi-account-multiple-plus-outline',
+                },
+              ]
             : []),
           ...(isAdmin.value
-            ? [{ to: { name: 'admin-categories' }, label: t('admin.navCategories'), icon: 'mdi-shape-outline' }]
+            ? [
+                {
+                  to: { name: 'admin-categories' },
+                  label: t('admin.navCategories'),
+                  icon: 'mdi-shape-outline',
+                },
+              ]
             : []),
           ...(isAdmin.value
             ? [
@@ -61,10 +87,22 @@ export function useAdminNavGroups() {
           // is too); Jurnal acțiuni owner is open to support as well — the
           // view itself hides whichever tab the signed-in role can't read.
           ...(isAdmin.value || isSupportStaff.value
-            ? [{ to: { name: 'admin-jurnal' }, label: t('admin.navJurnal'), icon: 'mdi-clipboard-text-clock-outline' }]
+            ? [
+                {
+                  to: { name: 'admin-jurnal' },
+                  label: t('admin.navJurnal'),
+                  icon: 'mdi-clipboard-text-clock-outline',
+                },
+              ]
             : []),
           ...(isSupportStaff.value
-            ? [{ to: { name: 'support' }, label: t('admin.navSupport'), icon: 'mdi-face-agent' }]
+            ? [
+                {
+                  to: { name: 'admin-support' },
+                  label: t('admin.navSupport'),
+                  icon: 'mdi-face-agent',
+                },
+              ]
             : []),
         ],
       },
@@ -72,11 +110,31 @@ export function useAdminNavGroups() {
         label: t('admin.navGroupFinance'),
         items: isFinanceStaff.value
           ? [
-              { to: { name: 'admin-financiar' }, label: t('admin.navFinanceDashboard'), icon: 'mdi-finance' },
-              { to: { name: 'admin-financiar-venituri' }, label: t('admin.navFinanceRevenue'), icon: 'mdi-cash-plus' },
-              { to: { name: 'admin-financiar-costuri' }, label: t('admin.navFinanceExpenses'), icon: 'mdi-cash-minus' },
-              { to: { name: 'admin-financiar-ai' }, label: t('admin.navFinanceAi'), icon: 'mdi-robot-outline' },
-              { to: { name: 'admin-invoices' }, label: t('admin.navInvoices'), icon: 'mdi-receipt-text-outline' },
+              {
+                to: { name: 'admin-financiar' },
+                label: t('admin.navFinanceDashboard'),
+                icon: 'mdi-finance',
+              },
+              {
+                to: { name: 'admin-financiar-venituri' },
+                label: t('admin.navFinanceRevenue'),
+                icon: 'mdi-cash-plus',
+              },
+              {
+                to: { name: 'admin-financiar-costuri' },
+                label: t('admin.navFinanceExpenses'),
+                icon: 'mdi-cash-minus',
+              },
+              {
+                to: { name: 'admin-financiar-ai' },
+                label: t('admin.navFinanceAi'),
+                icon: 'mdi-robot-outline',
+              },
+              {
+                to: { name: 'admin-invoices' },
+                label: t('admin.navInvoices'),
+                icon: 'mdi-receipt-text-outline',
+              },
             ]
           : [],
       },
@@ -87,7 +145,13 @@ export function useAdminNavGroups() {
         // reconciles against. The view itself hides every write control for
         // a finance-only viewer, so the link is safe to show them.
         items: isFinanceStaff.value
-          ? [{ to: { name: 'admin-settings' }, label: t('admin.navSettings'), icon: 'mdi-tune-variant' }]
+          ? [
+              {
+                to: { name: 'admin-settings' },
+                label: t('admin.navSettings'),
+                icon: 'mdi-tune-variant',
+              },
+            ]
           : [],
       },
     ]

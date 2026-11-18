@@ -7,6 +7,7 @@ import {
 
 import { i18n } from '@/plugins/i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useCompaniesStore } from '@/stores/companies'
 import { useConfirmStore } from '@/stores/confirm'
 import { useMoneyStore } from '@/stores/money'
 import { useUiStore } from '@/stores/ui'
@@ -109,19 +110,19 @@ const routes: RouteRecordRaw[] = [
     path: '/campaign',
     name: 'campaign',
     component: () => import('@/views/CampaignSpendView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, requiresCompany: true, panel: true },
   },
   {
     path: '/campaign/budget',
     name: 'campaign-budget',
     component: () => import('@/views/CampaignView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, requiresCompany: true, panel: true },
   },
   {
     path: '/campaign/optimize',
     name: 'campaign-optimize',
     component: () => import('@/views/CampaignOptimizeView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, requiresCompany: true, panel: true },
   },
   // The old dedicated spend page is now the hub itself.
   {
@@ -133,7 +134,7 @@ const routes: RouteRecordRaw[] = [
     path: '/consumption',
     name: 'consumption',
     component: () => import('@/views/ConsumptionView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, requiresCompany: true, panel: true },
   },
   {
     // Edit an existing business's service area — a panel page like the rest.
@@ -141,7 +142,7 @@ const routes: RouteRecordRaw[] = [
     path: '/location',
     name: 'location',
     component: () => import('@/views/LocationView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, requiresCompany: true, panel: true },
   },
   {
     // Edit an existing business's category tagging — split out from
@@ -149,19 +150,19 @@ const routes: RouteRecordRaw[] = [
     path: '/category',
     name: 'category',
     component: () => import('@/views/CategoryView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, requiresCompany: true, panel: true },
   },
   {
     path: '/leads',
     name: 'leads',
     component: () => import('@/views/LeadsView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, requiresCompany: true, panel: true },
   },
   {
     path: '/appointments',
     name: 'appointments',
     component: () => import('@/views/AppointmentsView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, requiresCompany: true, panel: true },
   },
   {
     path: '/invoices',
@@ -197,7 +198,7 @@ const routes: RouteRecordRaw[] = [
     path: '/website/builder',
     name: 'website-builder',
     component: () => import('@/views/WebsiteBuilderView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresCompany: true },
   },
   {
     // Simple-plan only: post-account editor for a claimed "Site Simplu" website.
@@ -205,7 +206,7 @@ const routes: RouteRecordRaw[] = [
     path: '/website/simple',
     name: 'easy-site-editor',
     component: () => import('@/views/EasySiteEditorView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresCompany: true },
   },
   {
     // Website settings — NOT the editor: file export, custom domain. Links
@@ -213,7 +214,7 @@ const routes: RouteRecordRaw[] = [
     path: '/website/settings',
     name: 'website-settings',
     component: () => import('@/views/WebsiteSettingsView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, requiresCompany: true, panel: true },
   },
 
   // --- Account & auth ---
@@ -229,7 +230,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/InvoicePrintView.vue'),
     meta: { requiresAuth: true },
   },
-  { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { guestOnly: true } },
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { guestOnly: true },
+  },
   {
     path: '/forgot-password',
     name: 'forgot-password',
@@ -355,6 +361,22 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['admin', 'support'] },
         component: () => import('@/views/admin/AdminJurnalView.vue'),
       },
+      // The staff support queue, inside the admin panel. Same views as the
+      // user-panel `/support` routes; this copy exists so a `support`-only
+      // staffer's "Admin" switch actually lands in the admin panel (the panel
+      // is chosen by path). See composables/useSupportRoutes.ts.
+      {
+        path: 'support',
+        name: 'admin-support',
+        meta: { allowedRoles: ['admin', 'support'] },
+        component: () => import('@/views/SupportView.vue'),
+      },
+      {
+        path: 'support/:id',
+        name: 'admin-support-ticket',
+        meta: { allowedRoles: ['admin', 'support'] },
+        component: () => import('@/views/SupportTicketView.vue'),
+      },
     ],
   },
 
@@ -377,7 +399,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/BrowseView.vue'),
   },
 
-  { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundView.vue') },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'not-found',
+    component: () => import('@/views/NotFoundView.vue'),
+  },
 ]
 
 export const router = createRouter({
@@ -503,7 +529,9 @@ router.beforeEach(async (to, from) => {
     let home = 'account'
     if (roles.includes('admin')) home = 'admin-dashboard'
     else if (auth.isFinanceStaff) home = 'admin-financiar'
-    else if (auth.isSupportStaff) home = 'support'
+    // `admin-support`, not the user-panel `support`: landing outside /admin
+    // left a support-only staffer in the user panel after clicking "Admin".
+    else if (auth.isSupportStaff) home = 'admin-support'
     return { name: home, query: to.query }
   }
 
@@ -527,6 +555,28 @@ router.beforeEach(async (to, from) => {
   }
   if (to.meta.guestOnly && auth.isAuthenticated) {
     return { name: 'account' }
+  }
+
+  // Business-scoped pages (campaign, location, leads, website...) make no
+  // sense without a business. Each view used to discover that only AFTER
+  // mounting and then bounce to the dashboard, so clicking one of them with
+  // no business flashed the page for a split second and snapped back to
+  // "Panou". Resolve it here instead, before anything renders. The admin
+  // builder entry (`?companyId=`) edits someone else's business, so it's
+  // exempt.
+  if (to.meta.requiresCompany && auth.isAuthenticated && !to.query.companyId) {
+    const companies = useCompaniesStore()
+    if (!companies.overview.length) {
+      // A cached EMPTY overview may simply be stale (a business created
+      // since), so re-check with the server before turning anyone away.
+      // A network error lets the navigation through: the view handles it.
+      try {
+        await companies.fetchOverview(true)
+      } catch {
+        return true
+      }
+      if (!companies.overview.length) return { name: 'dashboard' }
+    }
   }
   return true
 })

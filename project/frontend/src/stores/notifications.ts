@@ -3,6 +3,7 @@ import { io, type Socket } from 'socket.io-client'
 import type { RouteLocationRaw } from 'vue-router'
 
 import { apiFetch, BASE_URL } from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 import { useToastStore, type ToastKind } from '@/stores/toast'
 import { i18n } from '@/plugins/i18n'
 
@@ -57,6 +58,11 @@ const WALLET_TYPES = new Set([
   'wallet_unblocked',
   'wallet_adjusted',
 ])
+/** Ticket notifications sent to the requester (support.service.ts
+ *  `notifyRequester` + the "your ticket was assigned" ping); every other
+ *  ticket type goes to the support queue. */
+const REQUESTER_TICKET_TYPES = new Set(['support_ticket_update', 'ticket_assigned_requester'])
+
 const TICKET_TYPES = new Set([
   'ticket_created',
   'ticket_reply',
@@ -73,7 +79,9 @@ const TICKET_TYPES = new Set([
 /** Where clicking a notification should take the user — `null` when there's
  *  nowhere to go (a broadcast, or an email-only type that never really
  *  surfaces here anyway). */
-export function routeForNotification(n: Pick<NotificationItem, 'type' | 'data'>): RouteLocationRaw | null {
+export function routeForNotification(
+  n: Pick<NotificationItem, 'type' | 'data'>,
+): RouteLocationRaw | null {
   const companyId = n.data?.companyId
   const invoiceId = n.data?.invoiceId
   const ticketId = n.data?.ticketId
@@ -102,7 +110,10 @@ export function routeForNotification(n: Pick<NotificationItem, 'type' | 'data'>)
   ) {
     return { name: 'invoice-print', params: { id: invoiceId } }
   }
-  if ((n.type === 'invoice_voided' || n.type === 'invoice_restored') && typeof invoiceId === 'string') {
+  if (
+    (n.type === 'invoice_voided' || n.type === 'invoice_restored') &&
+    typeof invoiceId === 'string'
+  ) {
     return { name: 'invoice-print', params: { id: invoiceId } }
   }
   if (WALLET_TYPES.has(n.type)) {
@@ -112,7 +123,14 @@ export function routeForNotification(n: Pick<NotificationItem, 'type' | 'data'>)
     return { name: 'account', query: { tab: 'affiliate' } }
   }
   if (TICKET_TYPES.has(n.type) && typeof ticketId === 'string') {
-    return { name: 'support-ticket', params: { id: ticketId } }
+    // Addressed to the person who OPENED the ticket: their own ticket, so the
+    // normal panel (customer view), even when that person is a support agent.
+    // Everything else is queue work: the admin panel for queue staff, so a
+    // click doesn't drop them into the customer view of someone else's ticket.
+    const toRequester = REQUESTER_TICKET_TYPES.has(n.type)
+    const name =
+      !toRequester && useAuthStore().isSupportStaff ? 'admin-support-ticket' : 'support-ticket'
+    return { name, params: { id: ticketId } }
   }
   return null
 }
@@ -353,9 +371,7 @@ export const useNotificationsStore = defineStore('notifications', {
       try {
         await apiFetch(`/notifications/${id}`, { method: 'DELETE' })
       } catch {
-        const insertAt = precedingId
-          ? this.items.findIndex((n) => n.id === precedingId) + 1
-          : 0
+        const insertAt = precedingId ? this.items.findIndex((n) => n.id === precedingId) + 1 : 0
         this.items.splice(insertAt, 0, removed)
         if (wasUnread) {
           this.unreadCount += 1

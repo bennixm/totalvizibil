@@ -19,7 +19,7 @@ import { AuthPrincipal } from '../auth/auth.types';
 import { isSupportStaff } from './support.constants';
 import { SupportActor, SupportService } from './support.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
-import { ListTicketsQuery } from './dto/list-tickets.query';
+import { ListTicketsQuery, PerspectiveQuery } from './dto/list-tickets.query';
 import { PostMessageDto } from './dto/post-message.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { UploadAttachmentDto } from './dto/upload-attachment.dto';
@@ -29,8 +29,15 @@ import { UploadAttachmentDto } from './dto/upload-attachment.dto';
 export class SupportController {
   constructor(private readonly support: SupportService) {}
 
-  private actor(user: AuthPrincipal): SupportActor {
-    return { id: user.id, staff: isSupportStaff(user.platformRoles) };
+  /**
+   * `as=requester` (the normal panel) drops staff powers for this request, so
+   * a support agent filing their own ticket gets exactly the customer view:
+   * own tickets only, no internal notes, customer reply semantics. It can
+   * only ever narrow access: `as=staff` never grants staff to a non-staff
+   * account.
+   */
+  private actor(user: AuthPrincipal, as?: PerspectiveQuery['as']): SupportActor {
+    return { id: user.id, staff: as !== 'requester' && isSupportStaff(user.platformRoles) };
   }
 
   private assertStaff(user: AuthPrincipal): SupportActor {
@@ -41,7 +48,13 @@ export class SupportController {
 
   @Get('tickets')
   list(@CurrentUser() user: AuthPrincipal, @Query() query: ListTicketsQuery) {
-    return this.support.list(this.actor(user), query);
+    return this.support.list(this.actor(user, query.as), query);
+  }
+
+  /** Counts behind the list's filter tabs, for whichever perspective. */
+  @Get('counts')
+  counts(@CurrentUser() user: AuthPrincipal, @Query() query: PerspectiveQuery) {
+    return this.support.counts(this.actor(user, query.as));
   }
 
   /** Staff queue counters. */
@@ -69,8 +82,12 @@ export class SupportController {
   }
 
   @Get('tickets/:id')
-  get(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
-    return this.support.get(this.actor(user), id);
+  get(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: PerspectiveQuery,
+  ) {
+    return this.support.get(this.actor(user, query.as), id);
   }
 
   @Post('tickets/:id/messages')
@@ -78,8 +95,9 @@ export class SupportController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: PostMessageDto,
+    @Query() query: PerspectiveQuery,
   ) {
-    return this.support.postMessage(this.actor(user), id, dto);
+    return this.support.postMessage(this.actor(user, query.as), id, dto);
   }
 
   /** Upload one file (PDF/image), returned id is attached to the message
@@ -92,8 +110,9 @@ export class SupportController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UploadAttachmentDto,
+    @Query() query: PerspectiveQuery,
   ) {
-    return this.support.uploadAttachment(this.actor(user), id, dto);
+    return this.support.uploadAttachment(this.actor(user, query.as), id, dto);
   }
 
   @Get('tickets/:id/attachments/:attachmentId')
@@ -101,9 +120,10 @@ export class SupportController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+    @Query() query: PerspectiveQuery,
     @Res() res: Response,
   ): Promise<void> {
-    const att = await this.support.getAttachment(this.actor(user), id, attachmentId);
+    const att = await this.support.getAttachment(this.actor(user, query.as), id, attachmentId);
     res.setHeader('Content-Type', att.mime);
     res.setHeader('Content-Length', att.size);
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -116,7 +136,8 @@ export class SupportController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTicketDto,
+    @Query() query: PerspectiveQuery,
   ) {
-    return this.support.update(this.actor(user), id, dto);
+    return this.support.update(this.actor(user, query.as), id, dto);
   }
 }

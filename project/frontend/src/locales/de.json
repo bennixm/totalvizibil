@@ -1011,7 +1011,7 @@
     "navGroupManage": "Verwalten",
     "navGroupFinance": "Finanzen",
     "navFinanceDashboard": "Finanz-Dashboard",
-    "navFinanceRevenue": "Einnahmen",
+    "navFinanceRevenue": "Transaktionen",
     "navFinanceExpenses": "Kosten",
     "navFinanceAi": "KI-Nutzung",
     "navGroupConfig": "Konfiguration",
@@ -1507,7 +1507,7 @@
     "colRecommendationType": "Empfehlungstyp",
     "recommendationsTitle": "Google Ads-Empfehlungen",
     "recommendationsHint": "Google prüft jede Kampagne und schlägt Verbesserungen vor. Die untenstehenden sind sicher (nur Anzeigentext/-Assets). Aktiviere sie, damit der Agent sie selbstständig anwendet, ohne Genehmigung. Alles andere (Budget, Gebote, Targeting, Keywords) landet immer im Tab „Vorschläge” zur Entscheidung.",
-    "recoNeverApplyNote": "Google kann auch andere Verbesserungen vorschlagen (Budget, Gebote, Targeting, Keywords). Diese werden nie automatisch angewendet.",
+    "recoNeverApplyLabel": "Andere Google-Vorschläge: nur mit Ihrer Freigabe",
     "recoNeverApplyHint": "Empfehlungen zu Budget und Geboten, dazu wer die Anzeige sieht, und zu Keywords landen immer im Tab „Vorschläge” zur Entscheidung, nie automatisch angewendet. Google kann auch Empfehlungen für Kampagnentypen vorschlagen, die diese Plattform nicht nutzt (Shopping, Performance Max, Apps). Diese werden automatisch ignoriert.",
     "recoBoostsAdStrength": "Erhöht die Anzeigenstärke",
     "settingsGroupDefaults": "Neue Kampagne (Standard)",
@@ -1676,7 +1676,7 @@
     "periodShowing": "Angezeigter Zeitraum",
     "revenue": "Gesamteinnahmen",
     "costs": "Gesamtkosten",
-    "netProfit": "Nettogewinn",
+    "netProfit": "Betriebsgewinn",
     "costBreakdown": "Kosten nach Kategorie",
     "noCosts": "Keine Kosten im gewählten Zeitraum.",
     "paidTraffic": "Bezahlter Traffic",
@@ -1685,14 +1685,14 @@
     "trafficProfit": "Gewinn",
     "paidTrafficHint": "Die Google Ads-Kosten werden automatisch täglich direkt aus dem Google-Ads-Konto erfasst. Der Gewinn unten aktualisiert sich selbst, sobald diese Kosten synchronisiert sind.",
     "aiCost": "KI-Nutzung",
-    "collectedRevenue": "Eingenommenes Geld (gesamt)",
-    "collectedRevenueHint": "Alles, was von Kunden eingenommen wurde, unabhängig davon, ob die Guthaben bereits verbraucht wurden.",
-    "consumedRevenue": "Eingenommenes Geld (verbraucht)",
-    "consumedRevenueHint": "Geld hinter bereits verbrauchten Guthaben, kann nicht mehr erstattet werden. Das ist die eigentliche Grundlage für den Gewinn.",
+    "collectedRevenue": "Nettoeinnahmen ohne MwSt.",
+    "collectedRevenueHint": "Eingenommenes Geld aus Guthabenverkäufen minus gezahlte Erstattungen, ohne die eingenommene MwSt. (sie gehört dem Staat). Enthält noch nicht verbrauchtes Guthaben.",
+    "consumedRevenue": "Realisierter Umsatz",
+    "consumedRevenueHint": "Von Kunden verbrauchtes Guthaben (Klicks, KI, Freischaltungen), bewertet mit dem tatsächlich gezahlten Geld je Guthaben (FIFO), ohne MwSt. Bonus- oder Partnerguthaben ist kein Umsatz.",
     "unconsumedRevenue": "Noch als Guthaben vorhanden",
     "unconsumedRevenueHint": "Verkaufte, aber noch nicht verbrauchte Guthaben, an den Kunden erstattungsfähig, kein realisierter Gewinn.",
     "finalProfitTitle": "Endgültiger Gewinn",
-    "finalProfitHint": "Der echte Gewinn: Geld aus bereits verbrauchten Guthaben, abzüglich wirklich aller Kosten (Google Ads, KI, Betrieb).",
+    "finalProfitHint": "Betriebsgewinn: realisierter Umsatz (erbrachte Leistungen, ohne MwSt.) minus alle Ausgaben, vor Steuern. Immer heute, dieser Monat und dieses Jahr, unabhängig vom gewählten Zeitraum.",
     "promotionProfitTitle": "Werbegewinn",
     "aiBuilderTitle": "KI-Builder-Profitabilität",
     "aiBuilderProfit": "KI-Builder-Gewinn",
@@ -1704,7 +1704,7 @@
     "campaignAgentHint": "Die tatsächlichen Claude-Kosten des Agenten, der Google-Ads-Kampagnen verwaltet (Struktur, Inhalt, Budget-/CPC-Anpassung), nie einem Kunden in Rechnung gestellt.",
     "aiRevenue": "KI-Umsatz (verbraucht)",
     "aiProfit": "KI-Gewinn",
-    "revenueTitle": "Einnahmen",
+    "revenueTitle": "Transaktionsregister",
     "all": "Alle",
     "purchases": "Aufladungen",
     "refunds": "Rückerstattungen",
@@ -1769,7 +1769,7 @@
     "oneTimeFees": "Einmalig (Einmalgebühren)",
     "totalConsumed": "Insgesamt verbraucht",
     "creditConsumptionHint": "Nominalwert in Guthaben. Einmalgebühren werden genauso kategorisiert wie in der Aufschlüsselung im Kunden-Wallet.",
-    "vatTitle": "MwSt. nach Satz (gültige Rechnungen)",
+    "vatTitle": "MwSt. nach Satz (gültige Verkaufsrechnungen)",
     "vatColRate": "Satz",
     "vatColInvoices": "Rechnungen",
     "vatColBase": "Basis",
@@ -1822,6 +1822,192 @@
       "local": "Lokales Modell",
       "ai": "Claude",
       "guess": "Lokale Schätzung"
+    },
+    "lastMonth": "Letzter Monat",
+    "periodMonth": "Monat",
+    "periodYear": "Jahr",
+    "export": "Export",
+    "exportPdf": "PDF (zum Drucken)",
+    "exportXlsx": "Excel (.xlsx)",
+    "exportCsv": "CSV",
+    "exportReport": "Bericht exportieren",
+    "exportAnnual": "Jahresbericht exportieren",
+    "tabSummary": "Übersicht",
+    "tabPnl": "Gewinn und Verlust",
+    "tabAnnual": "Jährlich, nach Monat",
+    "tabChecks": "Prüfungen",
+    "pnlHint": "Dieselben Zahlen wie in den PDF-, Excel- und CSV-Exporten des Berichts.",
+    "cashSub": "{gross} inkl. MwSt., davon MwSt. {vat}",
+    "consumedRevenueSub": "Erbrachte Leistungen, ohne MwSt.",
+    "beforeTax": "Vor Steuern",
+    "marginSub": "Marge {pct}, vor Steuern",
+    "cashNetSeries": "Nettoeinnahmen",
+    "advances": "Kundenanzahlungen",
+    "advancesSub": "Geld für unverbrauchtes Guthaben am {date}",
+    "registerMoney": "Netto-Geld in der Auswahl",
+    "registerMoneyHint": "Tatsächlich eingenommenes minus zurückgezahltes Geld über alle gefilterten Zeilen (nicht nur diese Seite). Mit den Standardfiltern entspricht es der Einnahmenzahl im Dashboard.",
+    "searchPlaceholder": "Kunde, E-Mail, Unternehmen, Rechnungsnr., Zahlungsreferenz suchen...",
+    "colStatus": "Status",
+    "amountMin": "Min. Betrag",
+    "amountMax": "Max. Betrag",
+    "sortBy": "Sortierung",
+    "resetFilters": "Filter zurücksetzen",
+    "colReference": "Rechnung / Referenz",
+    "colMoney": "Geld",
+    "clicks": "{n} Klicks",
+    "status": {
+      "completed": "Abgeschlossen",
+      "pending": "Ausstehend",
+      "processing": "In Bearbeitung",
+      "failed": "Fehlgeschlagen",
+      "canceled": "Storniert",
+      "all": "Alle Status"
+    },
+    "sort": {
+      "date_desc": "Neueste zuerst",
+      "date_asc": "Älteste zuerst",
+      "amount_desc": "Betrag absteigend",
+      "amount_asc": "Betrag aufsteigend"
+    },
+    "txnType": {
+      "purchase": "Aufladung",
+      "refund": "Erstattung",
+      "adjustment": "Korrektur",
+      "spend": "Verbrauch"
+    },
+    "txnTypePlural": {
+      "purchase": "Aufladungen",
+      "refund": "Erstattungen",
+      "adjustment": "Korrekturen",
+      "spend": "Verbrauch"
+    },
+    "consumption": {
+      "cpc": "Verbrauch: Klicks",
+      "aiUsage": "Verbrauch: KI",
+      "builderUnlock": "Verbrauch: Freischaltung",
+      "other": "Verbrauch: Sonstiges"
+    },
+    "expensesTotalEur": "Summe in EUR",
+    "missingFxAlert": "{n} Ausgaben in Fremdwährung haben keinen Wechselkurs und fehlen in den Summen und im Gewinn. Bearbeiten Sie sie und tragen Sie den Kurs ein.",
+    "fxAt": "Kurs {rate}",
+    "noFx": "Kein Kurs: nicht in den Summen",
+    "fxRateLabel": "Kurs: wie viele {cur} = 1 EUR",
+    "fxRateHint": "Der Kurs am Belegdatum (z. B. der Zentralbankkurs).",
+    "fxPreview": "Gegenwert: {amount}",
+    "missingTitle": "Fehlende oder geschätzte Angaben",
+    "missing": {
+      "vatUnknown": "MwSt. nicht bestätigt: {amount} der Einnahmen oder Umsätze des Zeitraums stammen aus Zahlungen ohne Rechnung, der MwSt.-Satz ist also nicht belegt. Sie zählen voll, ohne MwSt.-Abzug, bis zur Rechnungsstellung.",
+      "expenseFx": "{n} Ausgaben in Fremdwährung haben keinen Wechselkurs und sind NICHT in den Summen. Tragen Sie bei jeder den Kurs ein.",
+      "aiEstimated": "KI-Kosten ({amount}) sind aus Tokens zum Listenpreis geschätzt, USD 1:1 als EUR. Die Anbieterrechnung ist die exakte Quelle; tragen Sie sie nicht zusätzlich manuell ein, sonst zählt sie doppelt.",
+      "unmatched": "Verbrauch ohne Guthaben im Register: {amount}. Siehe Tab Prüfungen.",
+      "forfeit": "Von Admins entferntes bezahltes Guthaben: {amount}. Nicht als Umsatz gezählt, da die Daten nicht zeigen, ob das Geld außerhalb der Plattform zurückgezahlt wurde.",
+      "incomeTax": "Die Ertragsteuer wird nicht berechnet (die Steuerregelung des Unternehmens ist nicht konfiguriert). Der Gewinn ist vor Steuern.",
+      "expenseVat": "Ausgaben werden mit dem Belegbetrag erfasst; abziehbare Vorsteuer ist nicht getrennt."
+    },
+    "pl": {
+      "cashHead": "1. Einnahmen (Cash)",
+      "collected": "Einnahmen aus Guthabenverkäufen, inkl. MwSt. ({n} Zahlungen)",
+      "refunded": "An Kunden gezahlte Erstattungen ({n})",
+      "cashNet": "Nettoeinnahmen, inkl. MwSt.",
+      "cashVat": "davon eingenommene MwSt.",
+      "cashVatHint": "MwSt. aus Verkaufsrechnungen, abzüglich Erstattungen. Sie gehört dem Staat und ist kein Umsatz.",
+      "cashNetExVat": "Nettoeinnahmen ohne MwSt.",
+      "cashVatUnknown": "davon ohne Rechnung (MwSt. nicht bestätigt)",
+      "faceValue": "Nennwert des verkauften Guthabens",
+      "discount": "Beim Kauf gewährte Rabatte",
+      "revenueHead": "2. Realisierter Umsatz (ohne MwSt.)",
+      "revenueHint": "Verbrauchtes Guthaben, FIFO bewertet mit dem tatsächlich gezahlten Geld je Guthaben. Unverbrauchtes Guthaben bleibt Kundenanzahlung.",
+      "revCpc": "CPC-Klicks (Werbung)",
+      "revAi": "KI-Nutzung (Website-Builder)",
+      "revUnlock": "Freischaltung erweiterter Builder",
+      "revOther": "Sonstige Leistungen",
+      "revRefundFees": "Einbehaltene Erstattungsgebühren",
+      "revTotal": "Realisierter Umsatz",
+      "revVat": "MwSt. auf den realisierten Umsatz",
+      "expensesHead": "3. Ausgaben",
+      "aiBuilder": "KI-Kosten: Website-Builder (geschätzt)",
+      "aiAgent": "KI-Kosten: Google-Ads-Kampagnenagent (geschätzt)",
+      "aiSearch": "KI-Kosten: Startseitensuche (geschätzt)",
+      "expensesTotal": "Ausgaben gesamt",
+      "resultHead": "4. Ergebnis",
+      "operatingProfit": "Betriebsgewinn, vor Steuern",
+      "operatingProfitHint": "Realisierter Umsatz minus alle Ausgaben.",
+      "margin": "Betriebsmarge",
+      "cashResult": "Ergebnis auf Einnahmenbasis",
+      "cashResultHint": "Nettoeinnahmen ohne MwSt. minus Ausgaben. Enthält Geld für noch nicht verbrauchtes Guthaben, das erstattet werden kann.",
+      "nonCashHead": "5. Ohne Zahlungseingang (zur Information)",
+      "nonCashHint": "Nennwert in Guthaben; dafür ist kein Geld eingegangen.",
+      "freeConsumed": "Verbrauchtes Gratisguthaben (Bonus, Partner, Korrekturen)",
+      "voidedConsumed": "Verbrauchtes Guthaben aus stornierten Rechnungen",
+      "forfeited": "Von Admins entferntes Guthaben",
+      "balanceHead": "6. Verbindlichkeiten gegenüber Kunden am {date}",
+      "balanceHint": "Eingenommenes Geld für Guthaben, das Kunden noch nicht verbraucht haben: eine Verbindlichkeit (Anzahlung), kein Gewinn, da erstattbar.",
+      "advances": "Kundenanzahlungen (Geld, inkl. MwSt.)",
+      "advancesVat": "davon MwSt.",
+      "unconsumedPaid": "Unverbrauchtes bezahltes Guthaben (Nennwert)",
+      "unconsumedFree": "Unverbrauchtes Gratisguthaben (Nennwert)"
+    },
+    "annual": {
+      "colMonth": "Monat",
+      "colCashNet": "Nettoeinnahmen inkl. MwSt.",
+      "colVat": "Eingenommene MwSt.",
+      "colRevenue": "Realisierter Umsatz",
+      "colExpenses": "Ausgaben",
+      "colProfit": "Betriebsgewinn",
+      "total": "Summe {year}",
+      "hint": "Klicken Sie auf einen Monat für seine vollständige Gewinn- und Verlustrechnung."
+    },
+    "checks": {
+      "ok": "In Ordnung",
+      "count": "{n} Fälle",
+      "countAmount": "{n} Fälle, {amount}",
+      "problems": "{n} Prüfungen erfordern Aufmerksamkeit",
+      "allGood": "Alle Prüfungen bestanden",
+      "rerun": "Erneut ausführen",
+      "lead": "Automatische Prüfungen über alle Daten, nicht nur den gewählten Zeitraum.",
+      "more": "und {n} weitere",
+      "items": {
+        "duplicatePurchases": {
+          "title": "Doppelte Zahlungen",
+          "desc": "Dieselbe Stripe-Zahlung mehrfach gebucht."
+        },
+        "walletBalance": {
+          "title": "Salden, die nicht zum Register passen",
+          "desc": "Der gespeicherte Wallet-Saldo weicht von der Summe seiner Transaktionen ab (gespeichert / Register)."
+        },
+        "uninvoicedPurchases": {
+          "title": "Zahlungen ohne Rechnung",
+          "desc": "Abgeschlossene Zahlungen ohne Rechnung: ihre MwSt. ist nicht belegt."
+        },
+        "invoiceMismatch": {
+          "title": "Rechnungen, die von der Zahlung abweichen",
+          "desc": "Rechnungssumme entspricht nicht dem gezahlten Betrag (Rechnung / Zahlung)."
+        },
+        "refundSources": {
+          "title": "Erstattungen mit falscher Zuordnung",
+          "desc": "Die Beträge je Quelle ergeben nicht das erstattete Guthaben."
+        },
+        "stripeFeeMissing": {
+          "title": "Nicht gebuchte Stripe-Gebühren",
+          "desc": "Stripe-Zahlungen, deren Gebühr bei den Ausgaben fehlt."
+        },
+        "expenseFx": {
+          "title": "Ausgaben ohne Wechselkurs",
+          "desc": "Belege in RON oder USD ohne Kurs: fehlen in den Summen."
+        },
+        "duplicateExpenses": {
+          "title": "Mögliche doppelte Ausgaben",
+          "desc": "Gleicher Tag, Kategorie, Betrag und Währung, mehrfach manuell erfasst."
+        },
+        "unmatchedConsumption": {
+          "title": "Verbrauch ohne Guthaben",
+          "desc": "Verbrauch über das vorhandene Guthaben hinaus gebucht."
+        },
+        "forfeitedCredits": {
+          "title": "Von Admins entferntes bezahltes Guthaben",
+          "desc": "Negative Korrekturen von bezahltem Guthaben (Geld behalten, keine Leistung)."
+        }
+      }
     }
   },
   "adminSettings": {
@@ -2192,7 +2378,68 @@
     },
     "investigate": "Untersuchen",
     "openUserAdmin": "Nutzer im Admin öffnen",
-    "openBusinessAdmin": "Unternehmen im Admin öffnen"
+    "openBusinessAdmin": "Unternehmen im Admin öffnen",
+    "role": {
+      "admin": "Administrator",
+      "support": "Support-Mitarbeiter",
+      "finance": "Buchhaltung",
+      "moderator": "Moderator",
+      "user": "Nutzer"
+    },
+    "you": "Du",
+    "leadRequester": "Verfolge deine Anfragen und Gespräche mit unserem Team.",
+    "leadStaff": "Alle Kundenanfragen an einem Ort. Wähle eine Liste, suche oder filtere.",
+    "view": {
+      "active": "Aktiv",
+      "mine": "Meine",
+      "unassigned": "Nicht zugewiesen",
+      "urgent": "Dringend",
+      "waiting": "Wartet auf Kunden",
+      "waitingYou": "Wartet auf dich",
+      "done": "Gelöst",
+      "all": "Alle"
+    },
+    "searchStaff": "Suche nach Betreff, #Nummer, Kunde, E-Mail oder Unternehmen",
+    "searchRequester": "Suche nach Betreff oder #Nummer",
+    "filters": "Filter",
+    "clearFilters": "Filter zurücksetzen",
+    "sortBy": "Sortierung",
+    "sort": {
+      "activity": "Letzte Aktivität",
+      "newest": "Neueste",
+      "oldest": "Älteste",
+      "priority": "Priorität"
+    },
+    "noMatchTitle": "Kein Ticket gefunden",
+    "noMatchHint": "Versuche eine andere Liste oder einen anderen Filter, oder lösche die Suche.",
+    "emptyStaffTitle": "Hier gibt es nichts zu tun",
+    "emptyStaffHint": "In dieser Liste gibt es keine Tickets.",
+    "replyFromCustomer": "Kunde hat geantwortet",
+    "replyFromTeam": "Neue Antwort vom Team",
+    "refresh": "Aktualisieren",
+    "banner": {
+      "open": "Wir haben dein Ticket erhalten. Unser Team antwortet so bald wie möglich.",
+      "in_progress": "Ein Teammitglied bearbeitet dein Ticket.",
+      "waiting": "Das Team wartet auf deine Antwort, um weiterzumachen.",
+      "resolved": "Das Ticket wurde als gelöst markiert. Falls das Problem weiterhin besteht, antworte und wir öffnen es erneut.",
+      "closed": "Das Ticket ist geschlossen. Du kannst es jederzeit wieder öffnen."
+    },
+    "quick": {
+      "take": "Ticket übernehmen",
+      "waiting": "Wartet auf Kunden",
+      "resolve": "Gelöst",
+      "close": "Schließen",
+      "reopen": "Wieder öffnen"
+    },
+    "composerReply": "Antwort an den Kunden",
+    "sendHint": "Strg + Enter zum Senden",
+    "noteVisibility": "Nur für das Team sichtbar",
+    "people": "Personen",
+    "lastActivity": "Letzte Aktivität",
+    "firstResponse": "Erste Antwort",
+    "today": "Heute",
+    "yesterday": "Gestern",
+    "assignedToYou": "Dir zugewiesen"
   },
   "catalog": {
     "variant": {
