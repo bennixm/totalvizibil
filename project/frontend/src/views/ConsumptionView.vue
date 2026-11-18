@@ -608,7 +608,7 @@ watch(
 .cons__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 10px;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
@@ -616,7 +616,7 @@ watch(
 .cons__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -633,7 +633,7 @@ watch(
   align-items: center;
   gap: 0.35rem;
   color: rgb(var(--v-theme-error));
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 
 .card {
@@ -644,7 +644,7 @@ watch(
 }
 .card h3 {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.92rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 600;
   margin: 0 0 0.9rem;
 }
@@ -665,7 +665,7 @@ watch(
   border-radius: var(--tvz-radius-md);
   background: var(--tvz-ai-soft);
   border: 1px solid var(--tvz-glass-border);
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .cons__insight .v-icon {
@@ -724,13 +724,13 @@ watch(
   font-variant-numeric: tabular-nums;
 }
 .kpi__label {
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .kpi__sub {
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
@@ -743,7 +743,7 @@ watch(
 .cons__fx {
   display: block;
   margin-top: 0.15rem;
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 400;
   white-space: nowrap;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -762,7 +762,7 @@ watch(
 .cons__sectionTitle {
   margin: 0;
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -783,7 +783,7 @@ watch(
 }
 .cons__chartLabel {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -796,7 +796,7 @@ watch(
   margin: 0;
   padding-top: 0.6rem;
   border-top: 1px solid var(--tvz-hairline);
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgb(var(--v-theme-warning));
 }
 
@@ -808,12 +808,12 @@ watch(
 .cons__feedTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
 }
 .cons__feedTable th {
   text-align: left;
   padding: 0.7rem 0.6rem 0.6rem 0;
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -901,7 +901,7 @@ watch(
   display: flex;
   flex-wrap: wrap;
   gap: 1.25rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .qsum__item {
@@ -935,7 +935,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .qlist__dot {
   width: 8px;
@@ -1003,7 +1003,7 @@ watch(
   color: rgb(var(--v-theme-primary));
 }
 .cons__cardLabel {
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -1014,7 +1014,7 @@ watch(
   font-variant-numeric: tabular-nums;
 }
 .cons__cardCount {
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
@@ -1047,7 +1047,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -1057,7 +1057,7 @@ watch(
   border-radius: 8px;
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .cons__filterClear {
   display: inline-flex;
@@ -1065,7 +1065,7 @@ watch(
   gap: 0.25rem;
   padding: 0.4rem 0.6rem;
   border-radius: 8px;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -1077,7 +1077,7 @@ watch(
   padding: 1.5rem 0;
   text-align: center;
   color: rgba(var(--v-theme-on-surface), 0.5);
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 .cons__ledgerWrap {
   overflow-x: auto;
@@ -1085,13 +1085,13 @@ watch(
 .cons__ledgerTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   white-space: nowrap;
 }
 .cons__ledgerTable th {
   text-align: left;
   padding: 0 0.6rem 0.5rem 0;
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -1109,7 +1109,7 @@ watch(
 }
 .cons__ledgerDate {
   color: rgba(var(--v-theme-on-surface), 0.5);
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
 }
 .crow__id {
   font-variant-numeric: tabular-nums;
@@ -1124,7 +1124,7 @@ watch(
   padding: 0.6rem;
   border-radius: var(--tvz-radius-md);
   border: 1px solid var(--tvz-glass-border);
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
@@ -1194,7 +1194,7 @@ watch(
   }
   .cons__feedTable td::before {
     content: attr(data-label) ': ';
-    font-size: 0.68rem;
+    font-size: var(--tvz-fs-micro);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: rgba(var(--v-theme-on-surface), 0.45);
@@ -1252,7 +1252,7 @@ watch(
     flex: 1 1 auto;
     width: auto;
     text-align: left;
-    font-size: 0.78rem;
+    font-size: var(--tvz-fs-small);
     color: rgba(var(--v-theme-on-surface), 0.6);
   }
   .cons__ledgerClicks::before {

@@ -65,7 +65,7 @@ function short(v: string): string {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.55);
   text-decoration: none;
@@ -87,7 +87,7 @@ function short(v: string): string {
   height: 52px;
   flex: none;
   border-radius: 14px;
-  font-size: 1rem;
+  font-size: var(--tvz-fs-lead);
   font-weight: 700;
   color: #fff;
   background: var(--tvz-gradient-brand, linear-gradient(115deg, #3f63e8, #6d5ef0));
@@ -99,7 +99,7 @@ function short(v: string): string {
 .adh__title {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   line-height: 1.1;
   margin: 0;
@@ -112,14 +112,14 @@ function short(v: string): string {
   margin-top: 0.3rem;
 }
 .adh__mail {
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .adh__idbtn {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: rgba(var(--v-theme-on-surface), 0.45);
   padding: 0.1rem 0.4rem;

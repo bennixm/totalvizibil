@@ -23,7 +23,8 @@ const { t, locale } = useI18n()
 const admin = useAdminStore()
 const confirm = useConfirmStore()
 const toasts = useToastStore()
-const { credits } = useMoney()
+// `approx` = the "≈" equivalent in the top-nav EUR/RON display currency.
+const { credits, approx } = useMoney()
 
 function flash(text: string, color: 'success' | 'error' = 'success') {
   toasts.push(color === 'error' ? 'error' : 'success', text)
@@ -501,18 +502,21 @@ function cancelEditCredentials() {
               :label="t('adminGoogleAds.statDailyBudget')"
               :value="credits(admin.googleAdsAgentOverview.totalActiveDailyBudgetCredits)"
               value-is-credits
+              :sub="approx(admin.googleAdsAgentOverview.totalActiveDailyBudgetCredits)"
               icon="mdi-wallet-outline"
             />
             <AdminStatCard
               :label="t('adminGoogleAds.statSpendToday')"
               :value="credits(admin.googleAdsAgentOverview.spendTodayCredits)"
               value-is-credits
+              :sub="approx(admin.googleAdsAgentOverview.spendTodayCredits)"
               icon="mdi-cash-minus"
             />
             <AdminStatCard
               :label="t('adminGoogleAds.statSpendMonth')"
               :value="credits(admin.googleAdsAgentOverview.spendThisMonthCredits)"
               value-is-credits
+              :sub="approx(admin.googleAdsAgentOverview.spendThisMonthCredits)"
               icon="mdi-calendar-month-outline"
             />
           </div>
@@ -1147,7 +1151,7 @@ function cancelEditCredentials() {
 }
 .gaa__statusText {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
 }
 .gaa__statusCta {
   display: inline-flex;
@@ -1157,7 +1161,7 @@ function cancelEditCredentials() {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
 }
@@ -1166,7 +1170,7 @@ function cancelEditCredentials() {
 }
 .gaa__subhead {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1225,7 +1229,7 @@ function cancelEditCredentials() {
   display: block;
   line-height: 1.35;
   font-weight: 600;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
 }
 .gaa__input {
   flex: none;
@@ -1233,7 +1237,7 @@ function cancelEditCredentials() {
 }
 .gaa__note {
   line-height: 1.4;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
   margin: 0.4rem 0 1rem;
 }
@@ -1258,7 +1262,7 @@ function cancelEditCredentials() {
 .gaa__pairLabel {
   display: block;
   line-height: 1.35;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.85);
 }
@@ -1303,7 +1307,7 @@ function cancelEditCredentials() {
 }
 .gaa__toggleLabel {
   display: block;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 500;
   line-height: 1.25;
 }
@@ -1312,7 +1316,7 @@ function cancelEditCredentials() {
   align-items: center;
   gap: 0.2rem;
   width: fit-content;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   padding: 0.1rem 0.4rem;
   border-radius: 999px;
@@ -1327,7 +1331,7 @@ function cancelEditCredentials() {
   border: none;
   cursor: pointer;
   padding: 0.3rem 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
@@ -1342,7 +1346,7 @@ function cancelEditCredentials() {
   margin-bottom: 1rem;
 }
 .gaa__accountEmail {
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   word-break: break-all;
@@ -1358,7 +1362,7 @@ function cancelEditCredentials() {
   grid-template-columns: auto 1fr;
   gap: 0.3rem 1rem;
   margin: 0 0 1rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   max-width: 100%;
 }
 .gaa__accountFacts dt {
@@ -1385,7 +1389,7 @@ function cancelEditCredentials() {
 .runs {
   display: flex;
   flex-direction: column;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
 }
 .runs__row {
   display: flex;
@@ -1406,14 +1410,14 @@ function cancelEditCredentials() {
   min-width: 11rem;
 }
 .runs__meta {
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 .feedcpc {
   display: flex;
   flex-direction: column;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
 }
 .feedcpc__row {
   display: flex;
@@ -1436,7 +1440,7 @@ function cancelEditCredentials() {
   font-variant-numeric: tabular-nums;
 }
 .feedcpc__value--main {
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
 }
 
 /* Proposals, history and campaigns render as ONE framed list with hairline
@@ -1454,7 +1458,7 @@ function cancelEditCredentials() {
   border-radius: var(--tvz-radius-md);
   background: var(--tvz-glass-bg);
   overflow: hidden;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 .prow,
 .hrow {
@@ -1487,11 +1491,11 @@ function cancelEditCredentials() {
 }
 .prow__date,
 .hrow__date {
-  font-size: 0.75rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .hrow__cat {
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 /* A <button>, not a <p> — reasoning is clamped to one line by default
@@ -1506,7 +1510,7 @@ function cancelEditCredentials() {
   cursor: pointer;
   padding: 0;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
   margin: 0.2rem 0 0;
   overflow: hidden;
@@ -1519,7 +1523,7 @@ function cancelEditCredentials() {
   -webkit-line-clamp: unset;
 }
 .hrow__approver {
-  font-size: 0.75rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
   margin: 0.3rem 0 0;
 }
@@ -1528,7 +1532,7 @@ function cancelEditCredentials() {
   gap: 1.2rem;
   flex-wrap: wrap;
   margin-top: 0.4rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .prow__actions {
   display: flex;
@@ -1553,7 +1557,7 @@ function cancelEditCredentials() {
   display: grid;
   grid-template-columns: minmax(0, 2.2fr) repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.45);
@@ -1583,7 +1587,7 @@ function cancelEditCredentials() {
 }
 .crow__cellLbl {
   display: none;
-  font-size: 0.65rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 @media (max-width: 720px) {
@@ -1595,7 +1599,7 @@ function cancelEditCredentials() {
 .chip {
   display: inline-flex;
   align-items: center;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   padding: 0.05rem 0.5rem;
   border-radius: 999px;

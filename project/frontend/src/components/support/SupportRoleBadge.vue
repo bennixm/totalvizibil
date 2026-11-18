@@ -20,7 +20,8 @@ const { t } = useI18n()
   flex: none;
   padding: 0.08rem 0.42rem;
   border-radius: 999px;
-  font-size: 0.62rem;
+  /* Badge size of the admin typography scale (was 9.9px). */
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.5;

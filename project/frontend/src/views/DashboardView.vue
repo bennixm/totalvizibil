@@ -1057,7 +1057,7 @@ watch(
   border-bottom: 1px solid var(--tvz-hairline);
 }
 .dsite__headLabel {
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
@@ -1099,7 +1099,7 @@ watch(
   align-items: center;
   gap: 0.35rem;
   margin: 0 0 0.15rem;
-  font-size: 0.8125rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
@@ -1139,11 +1139,11 @@ watch(
   min-width: 0;
 }
 .dalert__body strong {
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .dalert__body p {
   margin: 0.15rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
 
@@ -1178,11 +1178,11 @@ watch(
 }
 .dupgrade__body strong {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.02rem;
+  font-size: var(--tvz-fs-lead);
 }
 .dupgrade__body p {
   margin: 0.2rem 0 0;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.72);
 }
 .dupgrade__cta {
@@ -1195,7 +1195,7 @@ watch(
 .dupgrade__price {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
   color: rgb(var(--v-theme-primary));
   font-variant-numeric: tabular-nums;
 }
@@ -1277,7 +1277,7 @@ watch(
   align-items: center;
   gap: 0.3rem;
   margin: 0 0 0.9rem;
-  font-size: 0.8125rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   letter-spacing: 0.01em;
   color: rgb(var(--acc));
@@ -1303,17 +1303,17 @@ watch(
   margin: 0;
 }
 .dcard__hero--wrap {
-  font-size: 1.05rem;
+  font-size: var(--tvz-fs-lead);
   line-height: 1.35;
 }
 .dcard__hero small {
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .dcard__sub {
   margin: 0.35rem 0 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.62);
 }
 .dcat__chips {
@@ -1326,7 +1326,7 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   padding: 0.22rem 0.55rem;
   border-radius: 999px;
@@ -1343,7 +1343,7 @@ watch(
   gap: 0.4rem;
 }
 .dcard__badge {
-  font-size: 0.75rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 500;
   padding: 0.24rem 0.62rem;
   border-radius: 8px;
@@ -1372,7 +1372,7 @@ watch(
   letter-spacing: 0.03em;
 }
 .dcard__tag {
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   padding: 0.24rem 0.58rem;
   border-radius: 0;
@@ -1392,7 +1392,7 @@ watch(
   border: 1px solid color-mix(in srgb, var(--acc-c) 32%, transparent);
   background: color-mix(in srgb, var(--acc-c) 11%, transparent);
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--acc));
   text-decoration: none;
@@ -1477,14 +1477,14 @@ watch(
 .dcard__txnLabel {
   flex: 1;
   min-width: 0;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .dcard__txnAmount {
   flex: none;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
 }
 .dcard__txnAmount.is-in {
@@ -1526,7 +1526,7 @@ watch(
 .ana__rankLine {
   margin: 0;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
 }
 .ana__heroHead,
 .ana__chartHead {
@@ -1534,7 +1534,7 @@ watch(
   align-items: center;
   gap: 0.3rem;
   margin: 0 0 1.1rem;
-  font-size: 0.8125rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
@@ -1571,7 +1571,7 @@ watch(
   background: rgba(var(--v-theme-primary), 0.04);
 }
 .astat__k {
-  font-size: 0.8125rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
@@ -1584,7 +1584,7 @@ watch(
   font-variant-numeric: tabular-nums;
 }
 .astat__x {
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .astat__unit {
@@ -1606,10 +1606,10 @@ watch(
 }
 .dash__danger strong {
   display: block;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .dash__danger span {
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
@@ -1634,11 +1634,11 @@ watch(
 }
 .dash__deleteBody strong {
   display: block;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .dash__deleteBody p {
   margin: 0.15rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.72);
 }
 .dash__deleteDays {
@@ -1658,7 +1658,7 @@ watch(
 .dash__select :deep(.v-field__input) {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.4rem, 4vw, 2rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   padding-top: 0;
   min-height: unset;
@@ -1701,7 +1701,7 @@ watch(
 }
 .dash__eyebrow {
   letter-spacing: 0.01em;
-  font-size: 0.8125rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 500;
   color: var(--tvz-label, rgba(var(--v-theme-on-surface), 0.6));
   margin: 0 0 0.3rem;
@@ -1709,7 +1709,7 @@ watch(
 .dash__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -1737,13 +1737,13 @@ watch(
   gap: 0.15rem;
 }
 .dash__taskBody strong {
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
   display: flex;
   align-items: center;
   gap: 0.3rem;
 }
 .dash__taskBody span {
-  font-size: 0.83rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .dash__taskAction {
@@ -1754,7 +1754,7 @@ watch(
   text-align: right;
 }
 .dash__taskAction small {
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 

@@ -83,7 +83,7 @@ function go(target: 'user' | 'admin'): void {
   flex: 1;
   min-width: 0;
   text-align: left;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-on-surface));
   white-space: nowrap;
@@ -114,7 +114,7 @@ function go(target: 'user' | 'admin'): void {
   padding: 0.55rem 0.6rem;
   border-radius: 8px;
   color: rgba(var(--v-theme-on-surface), 0.75);
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
   font-weight: 500;
   text-align: left;
   transition: background 0.14s ease;

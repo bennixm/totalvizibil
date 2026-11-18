@@ -695,7 +695,7 @@ watch(
 .ov__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 10px;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
@@ -703,7 +703,7 @@ watch(
 .ov__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -712,7 +712,7 @@ watch(
   align-items: center;
   gap: 0.35rem;
   color: rgb(var(--v-theme-error));
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 .ov__empty {
   display: flex;
@@ -729,7 +729,7 @@ watch(
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .ov__empty span {
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 
 .card {
@@ -740,7 +740,7 @@ watch(
 }
 .card h3 {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.92rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 600;
   margin: 0 0 0.9rem;
 }
@@ -762,7 +762,7 @@ watch(
   flex-wrap: wrap;
 }
 .chip {
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -804,7 +804,7 @@ watch(
   align-items: center;
   gap: 0.35rem;
   margin: 0.7rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-error));
 }
@@ -826,11 +826,11 @@ watch(
   min-width: 0;
 }
 .ov__banner strong {
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .ov__banner p {
   margin: 0.1rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .ov__banner--ai {
@@ -869,11 +869,11 @@ watch(
   background: rgba(var(--v-theme-error), 0.04);
 }
 .ov__danger strong {
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
 }
 .ov__danger p {
   margin: 0.15rem 0 0;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .ov__finish {
@@ -887,7 +887,7 @@ watch(
   gap: 0.3rem;
   justify-content: center;
   margin: 0.6rem 0 0;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
@@ -908,7 +908,7 @@ watch(
   border: 1px solid rgba(var(--v-theme-primary), 0.3);
 }
 .khero__k {
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgb(var(--v-theme-primary));
@@ -925,7 +925,7 @@ watch(
   font-variant-numeric: tabular-nums;
 }
 .khero__x {
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .khero__quality {
@@ -933,7 +933,7 @@ watch(
   align-items: center;
   gap: 0.3rem;
   margin-top: 0.5rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   color: rgb(var(--v-theme-success));
 }
@@ -953,7 +953,7 @@ watch(
 }
 .kt__k {
   display: block;
-  font-size: 0.6rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -962,7 +962,7 @@ watch(
   display: block;
   margin-top: 0.2rem;
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1rem;
+  font-size: var(--tvz-fs-lead);
   font-variant-numeric: tabular-nums;
 }
 .kt__unit {
@@ -972,7 +972,7 @@ watch(
 .kt__x {
   display: block;
   margin-top: 0.1rem;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
@@ -982,7 +982,7 @@ watch(
 }
 .today__label {
   margin: 0;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -996,12 +996,12 @@ watch(
   line-height: 1.1;
 }
 .today__slash {
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 500;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .today__pct {
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 700;
   color: rgb(var(--v-theme-primary));
   margin-left: 0.5rem;
@@ -1011,7 +1011,7 @@ watch(
 }
 .today__eq {
   margin: 0.2rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .today__eqSep {
@@ -1023,7 +1023,7 @@ watch(
 .ov__fx {
   display: block;
   margin: 0.15rem 0 0;
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 400;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
@@ -1057,7 +1057,7 @@ watch(
   gap: 0.35rem;
   flex-wrap: wrap;
   margin: 0.9rem 0 0;
-  font-size: 0.83rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
 }
 .today__proj--bad {
@@ -1082,7 +1082,7 @@ watch(
   margin-top: 0.9rem;
   padding-top: 0.9rem;
   border-top: 1px solid var(--tvz-hairline);
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.75);
 }
 .today__runway.is-low {
@@ -1115,11 +1115,11 @@ watch(
   width: 100%;
   min-width: 420px;
   border-collapse: collapse;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
 }
 .ov__spendTable th {
   text-align: left;
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
@@ -1216,7 +1216,7 @@ watch(
   .ov__spendTable td[data-label]::before {
     content: attr(data-label);
     flex-shrink: 0;
-    font-size: 0.62rem;
+    font-size: var(--tvz-fs-micro);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -1233,7 +1233,7 @@ watch(
 }
 .ov__lifeTitle {
   margin: 0 0 0.5rem;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -1250,7 +1250,7 @@ watch(
 }
 .lf__k {
   display: block;
-  font-size: 0.6rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -1258,12 +1258,12 @@ watch(
 .lf__v {
   display: block;
   margin-top: 0.2rem;
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
   font-variant-numeric: tabular-nums;
 }
 .lf__x {
   display: block;
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
@@ -1275,7 +1275,7 @@ watch(
   align-items: flex-start;
   gap: 0.4rem;
   margin: 0 0 0.5rem;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.82);
 }
 .ov__insights .insight:last-child {

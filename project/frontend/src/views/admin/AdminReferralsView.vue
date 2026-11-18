@@ -176,7 +176,7 @@ onMounted(() => admin.fetchReferralsList())
 }
 .rtable__head {
   padding: 0.65rem 1.1rem;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -204,11 +204,11 @@ onMounted(() => admin.fetchReferralsList())
 }
 .rrow__name {
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
   color: rgb(var(--v-theme-on-surface));
 }
 .rrow__email {
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -218,7 +218,7 @@ onMounted(() => admin.fetchReferralsList())
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .rrow__cell b {
@@ -228,14 +228,14 @@ onMounted(() => admin.fetchReferralsList())
 }
 .rrow__cellLbl {
   display: none;
-  font-size: 0.6rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: rgba(var(--v-theme-on-surface), 0.4);
 }
 .chip {
-  font-size: 0.58rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;

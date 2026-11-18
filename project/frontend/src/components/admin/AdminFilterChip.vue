@@ -70,7 +70,7 @@ defineEmits<{ click: [] }>()
   gap: 0.4rem;
 }
 .afc__label {
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .is-active .afc__label {

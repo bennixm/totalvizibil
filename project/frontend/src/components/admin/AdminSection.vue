@@ -54,7 +54,7 @@ defineProps<{
   align-items: center;
   gap: 0.4rem;
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 600;
   margin: 0;
 }

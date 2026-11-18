@@ -233,12 +233,12 @@ const filteredInvoices = computed(() => {
 }
 .irow__label {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 600;
 }
 .irow__date {
   margin: 0.1rem 0 0;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .irow__end {
@@ -249,7 +249,7 @@ const filteredInvoices = computed(() => {
   gap: 0.2rem;
 }
 .irow__total {
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -257,14 +257,14 @@ const filteredInvoices = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
   white-space: nowrap;
 }
 .inv__foot {
   margin-top: 1.25rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 </style>

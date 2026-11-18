@@ -48,7 +48,7 @@ function go(p: number) {
   padding: 0.4rem 0.2rem;
 }
 .apg__range {
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .apg__ctrl {
@@ -57,7 +57,7 @@ function go(p: number) {
   gap: 0.5rem;
 }
 .apg__page {
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-variant-numeric: tabular-nums;
   color: rgba(var(--v-theme-on-surface), 0.7);
   min-width: 3.5rem;

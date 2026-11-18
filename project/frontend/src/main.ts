@@ -12,6 +12,7 @@ import { vuetify } from '@/plugins/vuetify'
 import { router } from '@/router'
 import { initGoogleAdsConversionTracking } from '@/services/google-ads-conversion'
 import '@/styles/main.scss'
+import '@/styles/panel-typography.scss'
 
 // A route/chunk built before the last deploy references a hashed asset
 // filename that no longer exists on the server once a newer build has been

@@ -431,7 +431,7 @@ watch(
 .lds__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 10px;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
@@ -439,7 +439,7 @@ watch(
 .lds__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -462,7 +462,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 0.2rem;
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -477,7 +477,7 @@ watch(
   align-items: center;
   gap: 0.35rem;
   margin: 0 0 1.25rem;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
@@ -501,7 +501,7 @@ watch(
 }
 .lds__seg button {
   padding: 0.32rem 0.8rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -518,7 +518,7 @@ watch(
   align-items: center;
   gap: 0.35rem;
   color: rgb(var(--v-theme-error));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   margin-bottom: 0.75rem;
 }
 .lds__empty {
@@ -536,7 +536,7 @@ watch(
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .lds__empty span {
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 
 .lds__list {
@@ -605,17 +605,17 @@ watch(
   line-height: 1.3;
 }
 .lead__who strong {
-  font-size: 1rem;
+  font-size: var(--tvz-fs-lead);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .lead__time {
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .lead__badge {
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -636,7 +636,7 @@ watch(
 }
 .lead__msg {
   margin: 0.85rem 0 0;
-  font-size: 0.92rem;
+  font-size: var(--tvz-fs-section);
   line-height: 1.55;
   color: rgba(var(--v-theme-on-surface), 0.85);
   cursor: pointer;
@@ -691,13 +691,13 @@ watch(
   line-height: 1.3;
 }
 .crow__label {
-  font-size: 0.62rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .crow__val {
-  font-size: 0.92rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -731,7 +731,7 @@ watch(
   align-items: center;
   gap: 0.25rem;
   flex: none;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 700;
   color: rgb(var(--v-theme-primary));
 }
@@ -740,7 +740,7 @@ watch(
   align-items: center;
   gap: 0.3rem;
   margin: 0.45rem 0 0;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
@@ -751,7 +751,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-success));
 }
@@ -765,14 +765,14 @@ watch(
   border-left: 2px solid rgba(var(--v-theme-primary), 0.5);
   border-radius: 0 8px 8px 0;
   background: rgba(var(--v-theme-primary), 0.05);
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   line-height: 1.5;
   color: rgba(var(--v-theme-on-surface), 0.85);
   white-space: pre-wrap;
 }
 .lead__replyHead {
   display: block;
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -791,7 +791,7 @@ watch(
 }
 .qr__to {
   margin: 0 0 0.5rem;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .qr__input {
@@ -804,7 +804,7 @@ watch(
   background: rgb(var(--v-theme-surface));
   color: inherit;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-input);
   line-height: 1.5;
 }
 .qr__input:focus {
@@ -823,7 +823,7 @@ watch(
   align-items: center;
   gap: 0.35rem;
   margin: 0.9rem 0 0;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 

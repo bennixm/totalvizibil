@@ -16,6 +16,6 @@ defineProps<{ text: string; icon?: string }>()
   gap: 0.55rem;
   padding: 1.4rem 0.25rem;
   color: rgba(var(--v-theme-on-surface), 0.5);
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 </style>

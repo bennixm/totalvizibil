@@ -110,7 +110,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.35rem;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .fcp__status.is-bad {
   color: rgb(var(--v-theme-warning));
@@ -123,7 +123,7 @@ onMounted(() => {
 }
 .fcp__lead {
   margin: 0.5rem 0 1rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .fcp__center {
@@ -187,14 +187,14 @@ onMounted(() => {
   flex: 1;
 }
 .fcp__title b {
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
 }
 .fcp__title small {
-  font-size: 0.75rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .fcp__sum {
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -208,7 +208,7 @@ onMounted(() => {
   gap: 0.8rem;
   padding: 0.35rem 0;
   border-top: 1px dashed var(--tvz-hairline);
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
 }
 .fcp__slabel {
   overflow: hidden;

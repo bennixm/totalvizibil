@@ -577,7 +577,7 @@ onBeforeUnmount(() => {
 .sup__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  font-size: 0.62rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   color: rgb(var(--v-theme-primary));
   margin: 0 0 0.55rem;
@@ -585,13 +585,13 @@ onBeforeUnmount(() => {
 .sup__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.6rem, 4vw, 2.15rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.025em;
   margin: 0;
 }
 .sup__lead {
   margin: 0.45rem 0 0;
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.58);
 }
 .sup__headActions {
@@ -605,7 +605,7 @@ onBeforeUnmount(() => {
   gap: 0.35rem;
   padding: 0.35rem 0.7rem;
   border-radius: 999px;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   background: rgba(var(--v-theme-success), 0.12);
   color: rgb(var(--v-theme-success));
@@ -637,7 +637,7 @@ onBeforeUnmount(() => {
   flex: none;
   padding: 0.5rem 0.8rem;
   border-radius: 9px;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   white-space: nowrap;
   color: rgba(var(--v-theme-on-surface), 0.62);
@@ -657,7 +657,7 @@ onBeforeUnmount(() => {
   min-width: 1.35rem;
   padding: 0 0.35rem;
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   line-height: 1.35rem;
   text-align: center;
@@ -691,7 +691,7 @@ onBeforeUnmount(() => {
   border-radius: 5px;
   border: 1px solid var(--tvz-hairline);
   font-family: inherit;
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .tbtn {
@@ -704,7 +704,7 @@ onBeforeUnmount(() => {
   border-radius: 9px;
   border: 1px solid rgba(var(--v-theme-on-surface), 0.22);
   background: rgb(var(--v-theme-surface));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.75);
   transition: border-color var(--tvz-dur-fast) var(--tvz-ease-out);
@@ -722,7 +722,7 @@ onBeforeUnmount(() => {
   height: 1.15rem;
   padding: 0 0.3rem;
   border-radius: 999px;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   line-height: 1.15rem;
   text-align: center;
   background: rgb(var(--v-theme-primary));
@@ -743,7 +743,7 @@ onBeforeUnmount(() => {
   gap: 0.25rem;
   padding: 0.2rem 0.3rem 0.2rem 0.6rem;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   background: rgba(var(--v-theme-primary), 0.12);
   color: rgb(var(--v-theme-primary));
@@ -759,7 +759,7 @@ onBeforeUnmount(() => {
   background: rgba(var(--v-theme-primary), 0.18);
 }
 .chips__clear {
-  font-size: 0.75rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.55);
   padding: 0.2rem 0.4rem;
@@ -830,12 +830,12 @@ onBeforeUnmount(() => {
 .row__num {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.42);
   font-variant-numeric: tabular-nums;
 }
 .row__cat {
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.42);
@@ -843,7 +843,7 @@ onBeforeUnmount(() => {
 .row__subject {
   margin: 0.35rem 0 0;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -854,7 +854,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 0.35rem 1rem;
   margin-top: 0.45rem;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.58);
 }
 .meta,
@@ -877,7 +877,7 @@ onBeforeUnmount(() => {
   max-width: 11rem;
 }
 .row__when {
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
   white-space: nowrap;
 }
@@ -886,7 +886,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
-  font-size: 0.75rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .assignee__name {
@@ -906,7 +906,7 @@ onBeforeUnmount(() => {
   gap: 0.35rem;
   padding: 0.12rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   background: rgba(var(--v-theme-on-surface), 0.08);
   color: rgba(var(--v-theme-on-surface), 0.65);
@@ -937,7 +937,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.15rem;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -952,7 +952,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
 }
 .turn__dot {
@@ -990,7 +990,7 @@ onBeforeUnmount(() => {
 }
 .fpanel__label {
   margin: 0 0 0.45rem;
-  font-size: 0.62rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -1005,7 +1005,7 @@ onBeforeUnmount(() => {
   padding: 0.3rem 0.65rem;
   border-radius: 999px;
   border: 1px solid var(--tvz-hairline);
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.72);
   transition:
@@ -1025,7 +1025,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.3rem;
   margin-top: 1rem;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -1039,7 +1039,7 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 0.55rem 0.65rem;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   text-align: left;
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
@@ -1107,10 +1107,10 @@ onBeforeUnmount(() => {
 .sup__empty p {
   margin: 0;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: var(--tvz-fs-lead);
 }
 .sup__emptyHint {
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
@@ -1125,7 +1125,7 @@ onBeforeUnmount(() => {
   padding: 0.6rem;
   border-radius: 8px;
   color: rgb(var(--v-theme-primary));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
 }
 .sup__more:hover:not(:disabled) {
@@ -1140,7 +1140,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 0.35rem;
   margin: 0.75rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgb(var(--v-theme-error));
 }
 

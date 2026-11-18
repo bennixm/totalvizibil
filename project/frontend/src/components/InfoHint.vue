@@ -71,12 +71,12 @@ const open = ref(false)
 }
 .infohint__title {
   margin: 0 0 0.25rem;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 700;
 }
 .infohint__text {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   line-height: 1.5;
   color: rgba(var(--v-theme-on-surface), 0.8);
 }

@@ -283,7 +283,7 @@ function open(id: string): void {
   flex: none;
   border-radius: 0;
   clip-path: var(--tvz-hex-sm);
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 700;
   color: rgb(var(--v-theme-on-primary));
   background: rgb(var(--v-theme-primary));
@@ -298,15 +298,18 @@ function open(id: string): void {
 .urow__name {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  /* A long name can't shrink (nowrap text), so let the status chip drop
+     to the next line instead of being pushed out and clipped. */
+  flex-wrap: wrap;
+  gap: 0.25rem 0.45rem;
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: var(--tvz-fs-section);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .urow__mail {
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
   white-space: nowrap;
   overflow: hidden;
@@ -331,19 +334,19 @@ function open(id: string): void {
   gap: 0.2rem;
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .urow__stat em {
   font-style: normal;
-  font-size: 0.58rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .urow__login {
-  font-size: 0.74rem !important;
+  font-size: var(--tvz-fs-caption) !important;
   font-weight: 500 !important;
 }
 .urow__chev {
@@ -352,7 +355,7 @@ function open(id: string): void {
 }
 
 .chip {
-  font-size: 0.58rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;

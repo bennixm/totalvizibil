@@ -155,7 +155,7 @@ function onNavigate(): void {
 .sbar__brand-word {
   font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: 0.94rem;
+  font-size: var(--tvz-fs-section);
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
@@ -203,7 +203,7 @@ function onNavigate(): void {
   border-top: 1px solid var(--tvz-hairline);
 }
 .sbar__group-label {
-  font-size: 0.62rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -219,7 +219,7 @@ function onNavigate(): void {
   border-radius: 10px;
   color: rgba(var(--v-theme-on-surface), 0.68);
   text-decoration: none;
-  font-size: 0.89rem;
+  font-size: var(--tvz-fs-body);
   font-weight: 500;
   transition: background var(--tvz-dur-fast) var(--tvz-ease-out), color var(--tvz-dur-fast) var(--tvz-ease-out);
 }
@@ -244,7 +244,7 @@ function onNavigate(): void {
   min-width: 1.2rem;
   padding: 0.05rem 0.35rem;
   text-align: center;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   border-radius: 0;
   clip-path: var(--tvz-hex-xs);

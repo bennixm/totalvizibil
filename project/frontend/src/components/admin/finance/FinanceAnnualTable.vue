@@ -146,7 +146,7 @@ onMounted(() => {
   width: 100%;
   min-width: 680px;
   border-collapse: collapse;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
 }
 .fat__table th,
 .fat__table td {
@@ -160,7 +160,7 @@ onMounted(() => {
   text-transform: capitalize;
 }
 .fat__table thead th {
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -195,7 +195,7 @@ onMounted(() => {
 }
 .fat__hint {
   margin: 0.6rem 0 0;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .fat__detail {

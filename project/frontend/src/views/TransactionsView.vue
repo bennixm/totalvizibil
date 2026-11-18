@@ -310,7 +310,7 @@ function daysLeft(processAt: string): number {
 .txn__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 10px;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
@@ -318,7 +318,7 @@ function daysLeft(processAt: string): number {
 .txn__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -341,7 +341,7 @@ function daysLeft(processAt: string): number {
 }
 .txn__tabs button {
   padding: 0.45rem 1rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
   transition:
@@ -382,11 +382,11 @@ function daysLeft(processAt: string): number {
 .txn__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
 }
 .txn__table thead th {
   text-align: left;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
@@ -461,7 +461,7 @@ function daysLeft(processAt: string): number {
   font-weight: 600;
 }
 .trow__badge {
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   padding: 0.1rem 0.5rem;
   border-radius: 0;
   clip-path: var(--tvz-hex-xs);
@@ -500,7 +500,7 @@ function daysLeft(processAt: string): number {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
@@ -514,7 +514,7 @@ function daysLeft(processAt: string): number {
   padding: 0.6rem;
   border-radius: var(--tvz-radius-md);
   border: 1px solid var(--tvz-glass-border);
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
@@ -542,6 +542,9 @@ function daysLeft(processAt: string): number {
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    /* Without a cap the strip grew to its content width inside the wrapping
+       toolbar, so it never scrolled and its last filter was cut off. */
+    max-width: 100%;
   }
   .txn__tabs button {
     flex: none;
@@ -602,7 +605,7 @@ function daysLeft(processAt: string): number {
   .txn__table td[data-label]::before {
     content: attr(data-label);
     flex-shrink: 0;
-    font-size: 0.68rem;
+    font-size: var(--tvz-fs-micro);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;

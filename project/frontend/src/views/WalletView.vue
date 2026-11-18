@@ -459,7 +459,7 @@ watch(
 }
 .wal__sideLabel {
   display: block;
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -478,7 +478,7 @@ watch(
 }
 .wal__balanceLabel {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
   display: inline-flex;
   align-items: center;
@@ -520,7 +520,7 @@ watch(
   justify-content: space-between;
   gap: 1rem;
   padding: 0.7rem 1rem;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .wal__bybiz li + li {
   border-top: 1px solid var(--tvz-hairline);
@@ -549,21 +549,21 @@ watch(
   border-radius: var(--tvz-radius-md);
   background: rgba(var(--v-theme-error), 0.1);
   color: rgb(var(--v-theme-error));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .wal__refundLine {
   margin: 0 0 0.9rem;
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .wal__refundNote {
   margin: 0.7rem 0 0;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .wal__refundHoldNote {
   margin: 0.6rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
@@ -586,7 +586,7 @@ watch(
 }
 .wal__payTabs button {
   padding: 0.4rem 0.9rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
   transition:
@@ -610,7 +610,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -620,7 +620,7 @@ watch(
   border-radius: 8px;
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .wal__payDateClear {
   display: inline-flex;
@@ -628,7 +628,7 @@ watch(
   gap: 0.25rem;
   padding: 0.4rem 0.6rem;
   border-radius: 8px;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -649,11 +649,11 @@ watch(
 .wal__payTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
 }
 .wal__payTable thead th {
   text-align: left;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
@@ -696,7 +696,7 @@ watch(
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .payrow__badge {
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   padding: 0.1rem 0.5rem;
   border-radius: 0;
   clip-path: var(--tvz-hex-xs);
@@ -725,7 +725,7 @@ watch(
   padding: 0.6rem;
   border-radius: var(--tvz-radius-md);
   border: 1px solid var(--tvz-glass-border);
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
@@ -812,7 +812,7 @@ watch(
   .wal__payTable td::before {
     content: attr(data-label);
     flex-shrink: 0;
-    font-size: 0.68rem;
+    font-size: var(--tvz-fs-micro);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;

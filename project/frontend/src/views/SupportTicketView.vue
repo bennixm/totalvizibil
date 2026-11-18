@@ -476,80 +476,84 @@ onMounted(() => {
       <div class="grid">
         <!-- Conversation ------------------------------------------------- -->
         <div class="main">
-          <ol class="thread">
-            <template v-for="item in thread" :key="item.key">
-              <li v-if="item.kind === 'day'" class="day">
-                <span>{{ item.label }}</span>
-              </li>
+          <!-- The thread is a card of its own, like the header and the
+               sidebar panels, instead of floating on the page background. -->
+          <section class="chat">
+            <ol class="thread">
+              <template v-for="item in thread" :key="item.key">
+                <li v-if="item.kind === 'day'" class="day">
+                  <span>{{ item.label }}</span>
+                </li>
 
-              <li v-else-if="item.m.kind === 'system'" class="sys">
-                <v-icon :icon="systemIcon(item.m)" size="13" />
-                <span>{{ systemText(item.m) }}</span>
-                <span class="sys__when">{{ time(item.m.createdAt) }}</span>
-              </li>
+                <li v-else-if="item.m.kind === 'system'" class="sys">
+                  <v-icon :icon="systemIcon(item.m)" size="13" />
+                  <span>{{ systemText(item.m) }}</span>
+                  <span class="sys__when">{{ time(item.m.createdAt) }}</span>
+                </li>
 
-              <li
-                v-else
-                class="msg"
-                :class="{
-                  'msg--mine': item.m.mine,
-                  'msg--note': item.m.kind === 'note',
-                  'msg--team': !item.m.author?.requester,
-                  'msg--grouped': item.grouped,
-                }"
-              >
-                <SupportAvatar
-                  v-if="!item.grouped"
-                  class="msg__av"
-                  :name="item.m.author?.name ?? t('support.systemUser')"
-                  :role="item.m.author?.role ?? 'user'"
-                  :size="34"
-                />
-                <span v-else class="msg__avGap" />
-                <div class="msg__col">
-                  <div v-if="!item.grouped" class="msg__head">
-                    <span class="msg__who">{{
-                      item.m.author ? item.m.author.name : t('support.systemUser')
-                    }}</span>
-                    <SupportRoleBadge v-if="item.m.author" :role="item.m.author.role" />
-                    <span v-if="item.m.mine" class="msg__you">{{ t('support.you') }}</span>
-                    <span class="msg__when" :title="dateTime(item.m.createdAt)">{{
-                      time(item.m.createdAt)
-                    }}</span>
-                  </div>
-                  <div class="bubble">
-                    <p v-if="item.m.kind === 'note'" class="bubble__note">
-                      <v-icon icon="mdi-lock-outline" size="13" /> {{ t('support.internalNote') }}
-                      <span>· {{ t('support.noteVisibility') }}</span>
-                    </p>
-                    <p class="bubble__body">{{ item.m.body }}</p>
-                    <div v-if="item.m.attachments.length" class="files">
-                      <a
-                        v-for="a in item.m.attachments"
-                        :key="a.id"
-                        :href="support.attachmentUrl(id, a.id)"
-                        target="_blank"
-                        rel="noopener"
-                        class="file"
-                      >
-                        <v-icon
-                          :icon="
-                            a.mime === 'application/pdf'
-                              ? 'mdi-file-pdf-box'
-                              : 'mdi-file-image-outline'
-                          "
-                          size="16"
-                        />
-                        <span class="file__name">{{ a.filename }}</span>
-                        <span class="file__size">{{ fileSize(a.size) }}</span>
-                      </a>
+                <li
+                  v-else
+                  class="msg"
+                  :class="{
+                    'msg--mine': item.m.mine,
+                    'msg--note': item.m.kind === 'note',
+                    'msg--team': !item.m.author?.requester,
+                    'msg--grouped': item.grouped,
+                  }"
+                >
+                  <SupportAvatar
+                    v-if="!item.grouped"
+                    class="msg__av"
+                    :name="item.m.author?.name ?? t('support.systemUser')"
+                    :role="item.m.author?.role ?? 'user'"
+                    :size="34"
+                  />
+                  <span v-else class="msg__avGap" />
+                  <div class="msg__col">
+                    <div v-if="!item.grouped" class="msg__head">
+                      <span class="msg__who">{{
+                        item.m.author ? item.m.author.name : t('support.systemUser')
+                      }}</span>
+                      <SupportRoleBadge v-if="item.m.author" :role="item.m.author.role" />
+                      <span v-if="item.m.mine" class="msg__you">{{ t('support.you') }}</span>
+                      <span class="msg__when" :title="dateTime(item.m.createdAt)">{{
+                        time(item.m.createdAt)
+                      }}</span>
+                    </div>
+                    <div class="bubble">
+                      <p v-if="item.m.kind === 'note'" class="bubble__note">
+                        <v-icon icon="mdi-lock-outline" size="13" /> {{ t('support.internalNote') }}
+                        <span>· {{ t('support.noteVisibility') }}</span>
+                      </p>
+                      <p class="bubble__body">{{ item.m.body }}</p>
+                      <div v-if="item.m.attachments.length" class="files">
+                        <a
+                          v-for="a in item.m.attachments"
+                          :key="a.id"
+                          :href="support.attachmentUrl(id, a.id)"
+                          target="_blank"
+                          rel="noopener"
+                          class="file"
+                        >
+                          <v-icon
+                            :icon="
+                              a.mime === 'application/pdf'
+                                ? 'mdi-file-pdf-box'
+                                : 'mdi-file-image-outline'
+                            "
+                            size="16"
+                          />
+                          <span class="file__name">{{ a.filename }}</span>
+                          <span class="file__size">{{ fileSize(a.size) }}</span>
+                        </a>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </li>
-            </template>
-          </ol>
-          <div ref="endRef" />
+                </li>
+              </template>
+            </ol>
+            <div ref="endRef" />
+          </section>
 
           <!-- Composer -->
           <div v-if="!closed" class="composer" :class="{ 'composer--note': internal }">
@@ -832,17 +836,26 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* One spacing value for every gap between blocks on this page: the page
+   column, the conversation/sidebar grid, the conversation column and the
+   sidebar stack all use `--tv-gap`, and no block carries its own outer
+   margin, so the space above and below each card is always identical. */
 .tv {
+  --tv-gap: 1rem;
   max-width: 1040px;
   margin-inline: auto;
   padding: clamp(1rem, 4vw, 2rem) clamp(1rem, 4vw, 1.5rem) 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tv-gap);
 }
 /* The admin layout already pads its content. */
 .tv--staff {
   padding-top: 0;
 }
 .tv__back {
-  margin: 0 0 0.75rem -0.5rem;
+  align-self: flex-start;
+  margin-left: -0.5rem;
 }
 .tv__center {
   display: grid;
@@ -858,7 +871,6 @@ onMounted(() => {
 /* Header ---------------------------------------------------------------- */
 .head {
   padding: 1.2rem 1.3rem;
-  margin-bottom: 1rem;
   border: 1px solid var(--tvz-hairline);
   border-radius: 14px;
   background: rgb(var(--v-theme-surface));
@@ -876,7 +888,7 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
 }
 .head__cat {
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.42);
@@ -884,7 +896,7 @@ onMounted(() => {
 .head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.3rem, 3.5vw, 1.7rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.025em;
   margin: 0.6rem 0 0;
   overflow-wrap: anywhere;
@@ -895,7 +907,7 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 0.45rem;
   margin-top: 0.7rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .head__name {
@@ -924,7 +936,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.3rem;
   padding: 0 0.4rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
 }
@@ -936,7 +948,7 @@ onMounted(() => {
   gap: 0.35rem;
   padding: 0.12rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   background: rgba(var(--v-theme-on-surface), 0.08);
   color: rgba(var(--v-theme-on-surface), 0.65);
@@ -967,7 +979,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -985,10 +997,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin-bottom: 1rem;
   padding: 0.75rem 1rem;
   border-radius: 12px;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   border: 1px solid rgba(var(--v-theme-primary), 0.25);
   background: rgba(var(--v-theme-primary), 0.07);
   color: rgb(var(--v-theme-on-surface));
@@ -1022,11 +1033,32 @@ onMounted(() => {
 .grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 17rem;
-  gap: 1.5rem;
+  gap: var(--tv-gap);
   align-items: start;
+}
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tv-gap);
 }
 
 /* Thread ------------------------------------------------------------ */
+/* Deliberately lighter than the solid cards around it (header, composer,
+   sidebar panels): a translucent surface, so the conversation reads as its
+   own area. Only the background is translucent, never `opacity`, which
+   would also fade the messages themselves. */
+.chat {
+  padding: 1.2rem 1.3rem;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: 14px;
+  background: rgba(var(--v-theme-surface), 0.4);
+}
+/* The first date separator sits at the top edge of the card: no extra
+   offset, so the card's padding is the same on all four sides. */
+.thread > .day:first-child {
+  margin-top: 0;
+}
 .thread {
   list-style: none;
   margin: 0;
@@ -1040,7 +1072,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.75rem;
   margin: 0.4rem 0 0.1rem;
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1058,7 +1090,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.52);
 }
 .sys__when {
@@ -1099,7 +1131,7 @@ onMounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.4rem;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
 }
 .msg--mine .msg__head {
   flex-direction: row-reverse;
@@ -1108,7 +1140,7 @@ onMounted(() => {
   font-weight: 700;
 }
 .msg__you {
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
@@ -1143,7 +1175,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.3rem;
   margin: 0 0 0.4rem;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   color: rgb(var(--v-theme-warning));
 }
@@ -1153,7 +1185,7 @@ onMounted(() => {
 }
 .bubble__body {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1172,7 +1204,7 @@ onMounted(() => {
   border-radius: 7px;
   border: 1px solid var(--tvz-hairline);
   background: rgb(var(--v-theme-surface));
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgb(var(--v-theme-on-surface));
   text-decoration: none;
   max-width: 100%;
@@ -1194,7 +1226,6 @@ onMounted(() => {
 
 /* Composer -------------------------------------------------------- */
 .composer {
-  margin-top: 1.3rem;
   border: 1px solid rgba(var(--v-theme-on-surface), 0.18);
   border-radius: 14px;
   background: rgb(var(--v-theme-surface));
@@ -1218,7 +1249,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.35rem;
   padding: 0.6rem 0.95rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.55);
   border-bottom: 2px solid transparent;
@@ -1242,7 +1273,7 @@ onMounted(() => {
   padding: 0.55rem 0.7rem;
 }
 .composer__hint {
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.4);
 }
 .composer__send {
@@ -1261,7 +1292,7 @@ onMounted(() => {
   padding: 0.25rem 0.3rem 0.25rem 0.5rem;
   border-radius: 7px;
   background: rgba(var(--v-theme-on-surface), 0.06);
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   max-width: 100%;
 }
 .composer__pendingName {
@@ -1293,7 +1324,7 @@ onMounted(() => {
   gap: 0.3rem;
   margin: 0.45rem 0 0;
   padding: 0 0.95rem;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
 }
 .composer__attachErr {
   color: rgb(var(--v-theme-error));
@@ -1323,19 +1354,18 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  margin-top: 1.3rem;
   padding: 0.85rem 1rem;
   border: 1px dashed rgba(var(--v-theme-on-surface), 0.2);
   border-radius: 12px;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .tv__err {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  margin: 0.7rem 0 0;
-  font-size: 0.8rem;
+  margin: 0;
+  font-size: var(--tvz-fs-small);
   color: rgb(var(--v-theme-error));
 }
 
@@ -1345,7 +1375,7 @@ onMounted(() => {
   top: 5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: var(--tv-gap);
 }
 .panel {
   padding: 1rem 1.05rem;
@@ -1355,7 +1385,7 @@ onMounted(() => {
 }
 .panel__label {
   margin: 0 0 0.75rem;
-  font-size: 0.62rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.13em;
@@ -1379,13 +1409,13 @@ onMounted(() => {
   min-width: 0;
 }
 .person__k {
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .person__name {
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
   font-weight: 600;
   overflow-wrap: anywhere;
   color: rgb(var(--v-theme-on-surface));
@@ -1398,7 +1428,7 @@ onMounted(() => {
   text-decoration: underline;
 }
 .person__none {
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   font-style: italic;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
@@ -1442,11 +1472,11 @@ onMounted(() => {
   line-height: 1.3;
 }
 .jump__t {
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
 }
 .jump__s {
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
   white-space: nowrap;
   overflow: hidden;
@@ -1469,14 +1499,14 @@ onMounted(() => {
   gap: 0.12rem;
 }
 .meta dt {
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .meta dd {
   margin: 0;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
 }
 .panel__owner {
   margin-top: 1rem;

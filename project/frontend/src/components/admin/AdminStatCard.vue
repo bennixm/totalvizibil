@@ -95,7 +95,7 @@ function go() {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .asc__icon {
@@ -111,7 +111,7 @@ function go() {
   color: rgb(var(--asc-acc));
 }
 .asc__sub {
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .asc__unit {

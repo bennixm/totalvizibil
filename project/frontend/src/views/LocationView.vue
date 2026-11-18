@@ -332,7 +332,7 @@ watch(
 .loc__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 10px;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.6rem;
@@ -340,7 +340,7 @@ watch(
 .loc__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -379,11 +379,11 @@ watch(
   min-width: 0;
 }
 .loc__frozen strong {
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .loc__frozen p {
   margin: 0.1rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
@@ -392,7 +392,7 @@ watch(
   align-items: center;
   gap: 0.3rem;
   margin: 1.25rem 0 0.5rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -407,7 +407,7 @@ watch(
   margin-top: 0.9rem;
 }
 .loc__summaryEmpty {
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .locchip {
@@ -420,7 +420,7 @@ watch(
   background: rgba(var(--v-theme-primary), 0.1);
   border: 1px solid rgba(var(--v-theme-primary), 0.3);
   color: rgb(var(--v-theme-primary));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
 }
 .locchip--all {
@@ -457,7 +457,7 @@ watch(
   border-radius: var(--tvz-radius-md);
   background: var(--tvz-ai-soft);
   border: 1px solid var(--tvz-glass-border);
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .loc__note span {
   color: rgba(var(--v-theme-on-surface), 0.7);

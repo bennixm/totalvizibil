@@ -419,11 +419,11 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
   line-height: 1.15;
 }
 .grp__id strong {
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
 }
 .grp__id code,
 .kid code {
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .kid {
@@ -440,7 +440,7 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 .kid--off {
   opacity: 0.6;
@@ -450,7 +450,7 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
 }
 .kid__empty {
   margin: 0.55rem 0 0 1.6rem;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.4);
 }
 </style>

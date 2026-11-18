@@ -480,7 +480,7 @@ onMounted(async () => {
 .ws__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 10px;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
@@ -488,7 +488,7 @@ onMounted(async () => {
 .ws__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -525,17 +525,17 @@ onMounted(async () => {
   border-color: rgba(var(--v-theme-primary), 0.3);
 }
 .ws__editorCard strong {
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
 }
 .ws__editorCard p {
   margin: 0.2rem 0 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
 
 .ws__section h2 {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.92rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 600;
   margin: 0 0 0.6rem;
 }
@@ -561,7 +561,7 @@ onMounted(async () => {
   padding: 0.3rem 0.8rem;
   border-radius: 0;
   clip-path: var(--tvz-hex-sm);
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -572,7 +572,7 @@ onMounted(async () => {
 }
 .ws__hint {
   margin: 0.4rem 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .ws__hint--muted {
@@ -587,14 +587,14 @@ onMounted(async () => {
   border-radius: var(--tvz-radius-md);
   background: rgba(var(--v-theme-error), 0.1);
   color: rgb(var(--v-theme-error));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .ws__apptLink {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   margin-top: 0.9rem;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
   text-decoration: none;
@@ -611,7 +611,7 @@ onMounted(async () => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   border-top: 1px solid var(--tvz-hairline);
 }
 .ws__files li:first-child {
@@ -660,18 +660,18 @@ onMounted(async () => {
 }
 .ws__domainName {
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
 }
 .ws__domainNote {
   margin: 0.3rem 0 0;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .ws__domainNote--error {
   color: rgb(var(--v-theme-error));
 }
 .chip {
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -710,12 +710,12 @@ onMounted(async () => {
   align-items: center;
   gap: 0.35rem;
   margin: 0 0 0.4rem;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   font-weight: 600;
 }
 .ws__checkPrice {
   margin: 0 0 0.7rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .ws__checkApprox {

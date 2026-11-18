@@ -301,10 +301,18 @@ onMounted(() => setQuickRange('month'))
           <span class="rrow__cell afe__note">{{ r.note ?? '—' }}</span>
           <span class="rrow__cell afe__amount">
             <b>{{ amount(r.amountMinor, r.currency) }}</b>
-            <small v-if="r.currency !== 'EUR' && r.eurMinor !== null">
+            <!-- The document amount above stays in its own currency; the
+                 line below is its equivalent in the top-nav display currency,
+                 shown only when that currency differs from the document's. -->
+            <small v-if="r.currency !== 'EUR' && r.eurMinor !== null && money.currency.value !== r.currency">
               = {{ eur(r.eurMinor) }} · {{ t('adminFinance.fxAt', { rate: r.fxRate }) }}
             </small>
-            <small v-else-if="r.currency !== 'EUR'" class="afe__nofx">{{ t('adminFinance.noFx') }}</small>
+            <small v-else-if="r.currency !== 'EUR' && r.eurMinor === null" class="afe__nofx">
+              {{ t('adminFinance.noFx') }}
+            </small>
+            <small v-else-if="r.currency === 'EUR' && money.currency.value !== 'EUR'">
+              ≈ {{ eur(r.amountMinor) }}
+            </small>
           </span>
           <span class="afe__actions">
             <v-tooltip v-if="isLocked(r)" :text="lockedHint(r)" location="top">
@@ -401,7 +409,7 @@ onMounted(() => setQuickRange('month'))
   margin: 1.2rem 0 1.2rem;
 }
 .afe__total {
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .afe__total b {
@@ -414,7 +422,7 @@ onMounted(() => setQuickRange('month'))
   flex-direction: column;
 }
 .afe__amount small {
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .afe__amount .afe__nofx {
@@ -471,7 +479,7 @@ onMounted(() => setQuickRange('month'))
 }
 .rtable__head {
   padding: 0.65rem 1.1rem;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -488,7 +496,7 @@ onMounted(() => setQuickRange('month'))
   border-bottom: none;
 }
 .rrow__cell {
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .rrow__cell b {
@@ -497,7 +505,7 @@ onMounted(() => setQuickRange('month'))
   font-variant-numeric: tabular-nums;
 }
 .chip {
-  font-size: 0.58rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;

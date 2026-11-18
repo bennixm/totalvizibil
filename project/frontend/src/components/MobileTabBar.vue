@@ -124,7 +124,7 @@ function isActive(tab: Tab): boolean {
   background: rgba(var(--v-theme-primary), 0.14);
 }
 .tab__label {
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   letter-spacing: 0.01em;
   max-width: 8ch;
