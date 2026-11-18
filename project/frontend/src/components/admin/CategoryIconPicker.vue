@@ -128,7 +128,7 @@ function clear() {
 .cip__empty {
   grid-column: 1 / -1;
   margin: 0.5rem 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .cip__clear {
@@ -139,7 +139,7 @@ function clear() {
   border: none;
   background: none;
   padding: 0;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
   cursor: pointer;
 }

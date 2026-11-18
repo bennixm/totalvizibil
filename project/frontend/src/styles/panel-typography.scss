@@ -1,0 +1,109 @@
+// Panel typography scale — the signed-in app: the user panel and the admin.
+//
+// One set of sizes for every panel page and component, instead of the ~40
+// near-identical ad-hoc values (0.78 / 0.8 / 0.82 / 0.83rem…) the views had
+// grown. Every font-size in the panel views/components maps to one of these.
+// Public pages (home, feed, company sites) are deliberately NOT covered.
+//
+//   micro    11px  table column headers, status badges/tags, eyebrows,
+//                  uppercase micro-labels (never smaller: below this the
+//                  uppercase labels stop being readable)
+//   caption  12px  secondary info, meta lines, hints, floating field labels
+//   small    13px  table cells, descriptions, list rows
+//   body     14px  default text, dropdown options, checkbox labels, tabs
+//   section  15px  section / card titles
+//   lead     16px  emphasised single values inside a card
+//   dialog-title 18px  modal / confirm dialog titles
+//   title    page titles (h1), fluid 22px (phone) → 30px (desktop)
+//   input    form fields, filters, selects, native date inputs: 14px, but
+//            16px on phones, since iOS Safari zooms the page into any input
+//            whose text is smaller than 16px.
+:root {
+  --tvz-fs-micro: 0.6875rem;
+  --tvz-fs-caption: 0.75rem;
+  --tvz-fs-small: 0.8125rem;
+  --tvz-fs-body: 0.875rem;
+  --tvz-fs-section: 0.9375rem;
+  --tvz-fs-lead: 1rem;
+  --tvz-fs-dialog-title: 1.125rem;
+  --tvz-fs-title: clamp(1.375rem, 1.1rem + 1.15vw, 1.875rem);
+  --tvz-fs-input: 0.875rem;
+}
+@media (max-width: 600px) {
+  :root {
+    --tvz-fs-input: 1rem;
+  }
+}
+
+// Vuetify's form controls default to 16px regardless of context, which made
+// every panel filter, search box and select visibly larger than the table
+// it filters and the buttons beside it. Scoped to panel pages through the
+// `tvz-panel` class App.vue puts on <html> for panel routes (user + admin),
+// which also reaches the menus and dialogs Vuetify teleports out of the page.
+html.tvz-panel .panel-content,
+html.tvz-panel .v-overlay-container {
+  .v-field {
+    font-size: var(--tvz-fs-input);
+  }
+  // Placeholder-style (resting) label: same size as the text typed there.
+  .v-label.v-field-label {
+    font-size: var(--tvz-fs-input);
+  }
+  // Floating label: a fixed 12px. Vuetify derives it as 0.75em of the field,
+  // which at a 14px field would drop it to an unreadable 10.5px.
+  .v-label.v-field-label--floating {
+    --v-field-label-scale: var(--tvz-fs-caption);
+    font-size: var(--tvz-fs-caption);
+  }
+  .v-selection-control .v-label {
+    font-size: var(--tvz-fs-body);
+  }
+  .v-messages {
+    font-size: var(--tvz-fs-caption);
+  }
+  // Vuetify's x-small chip is 10px; status chips read at the badge size.
+  .v-chip.v-chip--size-x-small {
+    font-size: var(--tvz-fs-micro);
+  }
+  // Native date/month/select inputs sat at 13px next to 16px fields.
+  input[type='date']:not(.v-field__input),
+  input[type='month']:not(.v-field__input),
+  select:not(.v-field__input) {
+    font-size: var(--tvz-fs-input);
+  }
+}
+
+// VisibilityMeter is also used outside the panel, so it's aligned to the
+// scale here rather than in the component (its 9.9px uppercase caption and
+// 12.5px rows were off-scale). Extra `.vm` beats its scoped rules.
+html.tvz-panel .panel-content .vm {
+  .vm__score p {
+    font-size: var(--tvz-fs-micro);
+  }
+  .vm__row {
+    font-size: var(--tvz-fs-small);
+  }
+  .vm__score span {
+    font-size: var(--tvz-fs-small);
+  }
+}
+
+// Dropdown / menu options open in an overlay outside the page: 14px, the
+// same as the field that opened them (Vuetify: 16px).
+html.tvz-panel .v-overlay-container {
+  .v-list-item-title {
+    font-size: var(--tvz-fs-body);
+  }
+  .v-list-item-subtitle {
+    font-size: var(--tvz-fs-caption);
+  }
+  // Dialogs (confirm, top-up, invoice detail, diff…): Vuetify's 20px title
+  // over a 16px body sat above 14px buttons. Title 18px (between a 15px
+  // section title and a page title), body at the panel body size.
+  .v-card-title {
+    font-size: var(--tvz-fs-dialog-title);
+  }
+  .v-card-text {
+    font-size: var(--tvz-fs-body);
+  }
+}

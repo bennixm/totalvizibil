@@ -461,7 +461,7 @@ watch(
 }
 .apt__eyebrow {
   margin: 0 0 0.2rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -471,7 +471,7 @@ watch(
   margin: 0;
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.35rem, 3vw, 1.7rem);
+  font-size: var(--tvz-fs-title);
 }
 .apt__titleRow {
   display: flex;
@@ -485,7 +485,7 @@ watch(
   gap: 0.35rem;
   padding: 0.22rem 0.6rem 0.22rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 700;
   letter-spacing: 0.01em;
   text-transform: uppercase;
@@ -530,7 +530,7 @@ watch(
 }
 .apt__stats span {
   display: block;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .apt__stats strong {
@@ -552,7 +552,7 @@ watch(
   padding: 0.9rem 1rem;
   background: rgb(var(--v-theme-surface));
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .apt__chev {
   margin-left: auto;
@@ -572,7 +572,7 @@ watch(
 }
 .apt__disabledHint {
   margin: -0.5rem 0 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .apt__week {
@@ -595,13 +595,13 @@ watch(
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.4rem;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 .apt__addWindow {
   display: inline-flex;
   align-items: center;
   gap: 0.15rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgb(var(--v-theme-primary));
   font-weight: 600;
 }
@@ -618,7 +618,7 @@ watch(
   align-items: center;
   gap: 0.3rem;
   margin-bottom: 0.3rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
 }
 .apt__windowRow input[type='time'] {
   flex: 1 1 76px;
@@ -629,7 +629,7 @@ watch(
   border-radius: 6px;
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
 }
 .apt__removeWindow {
   margin-left: auto;
@@ -637,7 +637,7 @@ watch(
 }
 .apt__dayClosed {
   margin: 0;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.4);
 }
 
@@ -664,7 +664,7 @@ watch(
   padding: 0.35rem 0.75rem;
   border-radius: 0;
   clip-path: var(--tvz-hex-sm);
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   white-space: nowrap;
   color: rgba(var(--v-theme-on-surface), 0.65);
@@ -678,7 +678,7 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
@@ -693,7 +693,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -703,7 +703,7 @@ watch(
   border-radius: 8px;
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .apt__dateClear {
   display: inline-flex;
@@ -711,7 +711,7 @@ watch(
   gap: 0.25rem;
   padding: 0.4rem 0.6rem;
   border-radius: 8px;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -734,7 +734,7 @@ watch(
   color: rgba(var(--v-theme-on-surface), 0.75);
 }
 .apt__empty span {
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 
 .apt__list {
@@ -788,12 +788,12 @@ watch(
   gap: 0.1rem;
 }
 .apt__when {
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .apt__contact,
 .apt__notes {
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .apt__badge {
@@ -802,7 +802,7 @@ watch(
   padding: 0.2rem 0.55rem;
   border-radius: 0;
   clip-path: var(--tvz-hex-xs);
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -849,7 +849,7 @@ watch(
   padding: 0.6rem;
   border-radius: 8px;
   color: rgb(var(--v-theme-primary));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
 }
 .apt__more:hover:not(:disabled) {

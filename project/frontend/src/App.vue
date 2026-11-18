@@ -56,6 +56,16 @@ const showFullSidebar = computed(
 // single row. The drawer is temporary/overlay on mobile either way, so
 // making it always available there costs nothing while it's closed.
 const showSidebar = computed(() => showFullSidebar.value || !mdAndUp.value)
+// The panel typography scale (styles/panel-typography.scss) applies to the
+// signed-in panel — user and admin — and to the menus/dialogs it opens,
+// which are teleported outside the page. On a phone every page (public ones
+// too) renders inside `.panel-content`, so the scale keys off this class,
+// set exactly when the route is a panel page, never on public pages.
+watch(
+  showFullSidebar,
+  (v) => document.documentElement.classList.toggle('tvz-panel', v),
+  { immediate: true },
+)
 const sidebarGroups = computed(() => {
   if (isAdminRoute.value) return adminNavGroups.value
   if (auth.isAuthenticated) return userNavGroups.value
@@ -178,6 +188,12 @@ onUnmounted(() => window.removeEventListener('beforeunload', confirmExitOnUnload
        instead — a single, obvious number instead of two reserves stacked. */
     padding-left: 0 !important;
     margin-left: 24px;
+    /* Vuetify's v-main is `flex: 1 0 auto` (never shrinks, basis = its
+       content's natural width), so any page with one long unwrappable row
+       (KPI grids, filter bars, tables) pushed the whole content pane past
+       the viewport between ~960 and ~1280px wide, beside the sticky
+       sidebar. Let it take exactly the space left next to the sidebar. */
+    flex: 1 1 0%;
   }
 }
 .panel-content {

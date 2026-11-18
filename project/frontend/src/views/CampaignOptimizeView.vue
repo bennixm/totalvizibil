@@ -246,7 +246,7 @@ watch(
 .opt__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 10px;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
@@ -254,7 +254,7 @@ watch(
 .opt__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -274,17 +274,17 @@ watch(
 .opt__rankLine {
   margin: 0;
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: var(--tvz-fs-lead);
 }
 .opt__rankLine span {
   display: block;
   font-weight: 500;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .opt__rankLine--muted {
   font-weight: 500;
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .opt__scoreChip {
@@ -300,12 +300,12 @@ watch(
   font-weight: 700;
 }
 .opt__scoreChip strong span {
-  font-size: 1rem;
+  font-size: var(--tvz-fs-lead);
   opacity: 0.55;
 }
 .opt__scoreChip > span {
   margin-top: 0.3rem;
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -353,35 +353,35 @@ watch(
   margin-bottom: 0.35rem;
 }
 .ocard__sev {
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .ocard__gain {
-  font-size: 0.75rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 700;
   color: rgb(var(--v-theme-success));
 }
 .ocard__body h3 {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1rem;
+  font-size: var(--tvz-fs-section);
   margin: 0 0 0.25rem;
 }
 .ocard__text {
   margin: 0;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.75);
 }
 .ocard__stat {
   margin: 0.4rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .ocard__weight {
   margin: 0.5rem 0 0;
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.42);
@@ -412,7 +412,7 @@ watch(
 .opt__failed p {
   margin: 0 0 0.5rem;
   max-width: 42ch;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .opt__done {
@@ -433,7 +433,7 @@ watch(
 }
 .opt__done p {
   margin: 0;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 

@@ -754,14 +754,14 @@ function shortDate(iso: string): string {
 .acc__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
 .acc__head p {
   margin: 0;
   color: rgba(var(--v-theme-on-surface), 0.6);
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .acc__tabs {
   border-bottom: 1px solid var(--tvz-hairline);
@@ -780,12 +780,12 @@ function shortDate(iso: string): string {
 }
 .acc__h2 {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.05rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 600;
   margin: 0 0 0.3rem;
 }
 .acc__note {
-  font-size: 0.83rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
   margin: 0 0 1rem;
 }
@@ -799,7 +799,7 @@ function shortDate(iso: string): string {
 }
 .acc__currencyBtns button {
   padding: 0.4rem 1.1rem;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
   transition:
@@ -835,7 +835,7 @@ function shortDate(iso: string): string {
 }
 .totp-setup__secret {
   display: inline-block;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   letter-spacing: 0.12em;
   padding: 0.3rem 0.6rem;
   border-radius: 6px;
@@ -871,12 +871,12 @@ function shortDate(iso: string): string {
   font-family: 'Space Grotesk Variable', sans-serif;
 }
 .acc__refLbl {
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .acc__refEmpty {
   padding: 1.5rem 0.25rem;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .acc__refTableWrap {
@@ -886,11 +886,11 @@ function shortDate(iso: string): string {
   width: 100%;
   min-width: 480px;
   border-collapse: collapse;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
 }
 .acc__refTable th {
   text-align: left;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -910,14 +910,14 @@ function shortDate(iso: string): string {
   font-weight: 600;
 }
 .acc__refMail {
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .acc__refInv {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
   white-space: nowrap;
@@ -974,7 +974,7 @@ function shortDate(iso: string): string {
   .acc__refTable td[data-label]::before {
     content: attr(data-label);
     flex-shrink: 0;
-    font-size: 0.66rem;
+    font-size: var(--tvz-fs-micro);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;

@@ -179,7 +179,7 @@ watch(tab, (v) => {
     <v-window v-model="tab" class="jrn__window">
       <!-- ============ Staff log ============ -->
       <v-window-item v-if="isAdmin" value="staff">
-        <div class="jrn__filters">
+        <div class="jrn__filters jrn__filters--staff">
           <v-text-field
             v-model="staffActor"
             :placeholder="t('admin.jurnalSearchActorPlaceholder')"
@@ -197,7 +197,7 @@ watch(tab, (v) => {
             variant="outlined"
             density="compact"
             hide-details
-            class="jrn__sel jrn__sel--wide mono"
+            class="jrn__sel mono"
             @update:model-value="admin.setAuditLogFilter('action', $event as string)"
           />
           <v-select
@@ -210,20 +210,28 @@ watch(tab, (v) => {
             class="jrn__sel mono"
             @update:model-value="admin.setAuditLogFilter('targetType', $event as string)"
           />
-          <input
-            type="date"
-            class="jrn__date"
-            :value="admin.auditLogFilters.dateFrom"
-            :aria-label="t('admin.jurnalDateFrom')"
-            @change="admin.setAuditLogFilter('dateFrom', ($event.target as HTMLInputElement).value)"
-          />
-          <input
-            type="date"
-            class="jrn__date"
-            :value="admin.auditLogFilters.dateTo"
-            :aria-label="t('admin.jurnalDateTo')"
-            @change="admin.setAuditLogFilter('dateTo', ($event.target as HTMLInputElement).value)"
-          />
+          <div class="jrn__range">
+            <v-text-field
+              :model-value="admin.auditLogFilters.dateFrom"
+              type="date"
+              :label="t('admin.jurnalDateFrom')"
+              variant="outlined"
+              density="compact"
+              hide-details
+              class="jrn__date"
+              @update:model-value="admin.setAuditLogFilter('dateFrom', ($event as string) ?? '')"
+            />
+            <v-text-field
+              :model-value="admin.auditLogFilters.dateTo"
+              type="date"
+              :label="t('admin.jurnalDateTo')"
+              variant="outlined"
+              density="compact"
+              hide-details
+              class="jrn__date"
+              @update:model-value="admin.setAuditLogFilter('dateTo', ($event as string) ?? '')"
+            />
+          </div>
         </div>
 
         <div v-if="admin.loadingAuditLog && !admin.auditLog.length" class="jrn__center">
@@ -285,7 +293,7 @@ watch(tab, (v) => {
 
       <!-- ============ Owner log ============ -->
       <v-window-item v-if="canSeeOwnerLog" value="owners">
-        <div class="jrn__filters">
+        <div class="jrn__filters jrn__filters--owner">
           <v-text-field
             v-model="ownerActor"
             :placeholder="t('admin.jurnalSearchActorPlaceholder')"
@@ -313,23 +321,31 @@ watch(tab, (v) => {
             variant="outlined"
             density="compact"
             hide-details
-            class="jrn__sel jrn__sel--wide mono"
+            class="jrn__sel mono"
             @update:model-value="admin.setBusinessActionLogFilter('action', $event as string)"
           />
-          <input
-            type="date"
-            class="jrn__date"
-            :value="admin.businessActionLogFilters.dateFrom"
-            :aria-label="t('admin.jurnalDateFrom')"
-            @change="admin.setBusinessActionLogFilter('dateFrom', ($event.target as HTMLInputElement).value)"
-          />
-          <input
-            type="date"
-            class="jrn__date"
-            :value="admin.businessActionLogFilters.dateTo"
-            :aria-label="t('admin.jurnalDateTo')"
-            @change="admin.setBusinessActionLogFilter('dateTo', ($event.target as HTMLInputElement).value)"
-          />
+          <div class="jrn__range">
+            <v-text-field
+              :model-value="admin.businessActionLogFilters.dateFrom"
+              type="date"
+              :label="t('admin.jurnalDateFrom')"
+              variant="outlined"
+              density="compact"
+              hide-details
+              class="jrn__date"
+              @update:model-value="admin.setBusinessActionLogFilter('dateFrom', ($event as string) ?? '')"
+            />
+            <v-text-field
+              :model-value="admin.businessActionLogFilters.dateTo"
+              type="date"
+              :label="t('admin.jurnalDateTo')"
+              variant="outlined"
+              density="compact"
+              hide-details
+              class="jrn__date"
+              @update:model-value="admin.setBusinessActionLogFilter('dateTo', ($event as string) ?? '')"
+            />
+          </div>
         </div>
 
         <div v-if="admin.loadingBusinessActionLog && !admin.businessActionLog.length" class="jrn__center">
@@ -428,6 +444,8 @@ watch(tab, (v) => {
 <style scoped>
 .jrn {
   max-width: 1320px;
+  /* The filter bar lays itself out by this column's width (see below). */
+  container-type: inline-size;
 }
 .jrn__tabs {
   margin-bottom: 1.1rem;
@@ -438,35 +456,72 @@ watch(tab, (v) => {
   overflow: hidden;
 }
 
+/* Filter bar: free-text searches on the first row, the pickers (action /
+   target) and the From–To period on the second, and every row completely
+   filled, so no field is ever left alone on a half-empty line and no
+   placeholder gets cut off. Laid out by the page column's width (container
+   query on `.jrn`), not the viewport's, since the admin sidebar takes a
+   different amount at each screen size.
+
+   phone (< 480):  everything full width, From | To side by side
+   tablet:         owners  [person][business] / [action      ] / [from][to]
+                   staff   [person          ] / [action][type] / [from][to]
+   wide (>= 860):  owners  [person][business] / [action][from][to]
+                   staff   [person                 ] / [action][type][from][to] */
 .jrn__filters {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
-  flex-wrap: wrap;
-  align-items: center;
-  padding: 0.7rem;
+  padding: 0.75rem;
   margin-bottom: 1.1rem;
   border: 1px solid var(--tvz-glass-border);
   border-radius: var(--tvz-radius-md);
   background: rgba(var(--v-theme-on-surface), 0.015);
 }
-.jrn__search {
-  flex: 1 1 220px;
-  min-width: 180px;
+.jrn__filters > *,
+.jrn__range > * {
+  min-width: 0;
 }
+/* From / To sit directly in the bar's grid, so they line up with the
+   fields above them. */
+.jrn__range {
+  display: contents;
+}
+.jrn__search,
 .jrn__sel {
-  max-width: 13rem;
-}
-.jrn__sel--wide {
-  max-width: 17rem;
+  grid-column: span 2;
 }
 .jrn__date {
-  height: 40px;
-  padding: 0 0.7rem;
-  border: 1px solid var(--tvz-hairline);
-  border-radius: 8px;
-  background: rgb(var(--v-theme-surface));
-  color: rgb(var(--v-theme-on-surface));
-  font-size: 0.82rem;
+  grid-column: span 1;
+}
+@container (min-width: 480px) {
+  .jrn__filters--owner .jrn__search,
+  .jrn__filters--staff .jrn__sel {
+    grid-column: span 1;
+  }
+}
+@container (min-width: 860px) {
+  .jrn__filters--owner {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .jrn__filters--owner .jrn__search {
+    grid-column: span 3;
+  }
+  .jrn__filters--owner .jrn__sel,
+  .jrn__filters--owner .jrn__date {
+    grid-column: span 2;
+  }
+  .jrn__filters--staff {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .jrn__filters--staff .jrn__search {
+    grid-column: span 4;
+  }
+}
+/* The native picker's own text is sized like the other fields' text. */
+.jrn__date :deep(input) {
+  font-size: var(--tvz-fs-input);
+  min-width: 0;
 }
 .jrn__center {
   display: grid;
@@ -499,7 +554,7 @@ watch(tab, (v) => {
 }
 .jtable__head {
   padding: 0.65rem 1.1rem;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -532,20 +587,20 @@ watch(tab, (v) => {
   flex-direction: column;
   gap: 0.1rem;
   min-width: 0;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .jrow__date {
   font-variant-numeric: tabular-nums;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .jrow__actor b {
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   font-weight: 600;
 }
 .jrow__actorEmail {
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .jrow__company {
@@ -563,7 +618,7 @@ watch(tab, (v) => {
   min-width: 0;
 }
 .jrow__target code {
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   padding: 0.05rem 0.35rem;
   border-radius: 4px;
   background: rgba(var(--v-theme-on-surface), 0.06);
@@ -576,7 +631,7 @@ watch(tab, (v) => {
   white-space: nowrap;
 }
 .jrow__targetId {
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.4);
   flex-shrink: 0;
 }
@@ -588,7 +643,7 @@ watch(tab, (v) => {
 .tag {
   display: inline-flex;
   align-items: center;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -601,7 +656,7 @@ watch(tab, (v) => {
 .achip {
   display: inline-flex;
   align-items: center;
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   padding: 0.15rem 0.5rem;
   border-radius: 6px;
@@ -630,12 +685,12 @@ watch(tab, (v) => {
   flex-wrap: wrap;
 }
 .jrn__dDate {
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .jrn__reason {
   margin: 0 0 1rem;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .jrn__diff {
@@ -651,7 +706,7 @@ watch(tab, (v) => {
 }
 .jrn__diffHead {
   padding: 0.5rem 0.8rem;
-  font-size: 0.62rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -667,12 +722,12 @@ watch(tab, (v) => {
   align-items: baseline;
 }
 .jrn__diffKey {
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .jrn__diffVal {
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
   word-break: break-word;
 }
@@ -681,7 +736,7 @@ watch(tab, (v) => {
   font-weight: 600;
 }
 .jrn__diffEmpty {
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 

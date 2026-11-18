@@ -171,7 +171,7 @@ function missingText(m: MissingInfo): string {
 .fst__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
 }
 .fst__table th,
 .fst__table td {
@@ -190,7 +190,7 @@ function missingText(m: MissingInfo): string {
 }
 .fst--head th {
   padding-top: 1.1rem;
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -206,17 +206,17 @@ function missingText(m: MissingInfo): string {
 .fst--grand th,
 .fst--grand td {
   font-weight: 800;
-  font-size: 0.98rem;
+  font-size: var(--tvz-fs-lead);
   color: rgb(var(--v-theme-on-surface));
   background: rgba(var(--v-theme-primary), 0.06);
 }
 .fst--sub th {
   padding-left: 1.1rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .fst--sub td {
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 500;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -237,13 +237,13 @@ function missingText(m: MissingInfo): string {
   align-items: center;
   gap: 0.4rem;
   font-weight: 700;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   margin-bottom: 0.4rem;
 }
 .fst__missing ul {
   margin: 0;
   padding-left: 1.2rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   line-height: 1.5;
   color: rgba(var(--v-theme-on-surface), 0.75);
 }
@@ -252,7 +252,7 @@ function missingText(m: MissingInfo): string {
 }
 @media (max-width: 600px) {
   .fst__table th {
-    font-size: 0.8rem;
+    font-size: var(--tvz-fs-small);
   }
 }
 </style>

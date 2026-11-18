@@ -35,7 +35,7 @@ defineProps<{
 .aph__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 10px;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.35rem;
@@ -46,12 +46,12 @@ defineProps<{
   gap: 0.55rem;
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.35rem, 3.5vw, 1.9rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
 .aph__count {
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.5);
   background: rgba(var(--v-theme-on-surface), 0.07);
@@ -62,7 +62,7 @@ defineProps<{
 }
 .aph__sub {
   margin: 0.4rem 0 0;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.6);
   max-width: 60ch;
 }

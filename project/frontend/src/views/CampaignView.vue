@@ -596,7 +596,7 @@ watch(
 .camp__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 10px;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.3rem;
@@ -604,7 +604,7 @@ watch(
 .camp__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -623,7 +623,7 @@ watch(
   gap: 0.4rem;
   padding: 0.7rem 1rem;
   border-radius: var(--tvz-radius-md);
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   margin-bottom: 1.25rem;
 }
 .camp__live {
@@ -653,11 +653,11 @@ watch(
   min-width: 0;
 }
 .camp__builder strong {
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .camp__builder p {
   margin: 0.1rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
@@ -680,11 +680,11 @@ watch(
   min-width: 0;
 }
 .camp__market strong {
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .camp__market p {
   margin: 0.1rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
@@ -711,11 +711,11 @@ watch(
 }
 .camp__autoText strong {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 0.98rem;
+  font-size: var(--tvz-fs-lead);
 }
 .camp__autoText p {
   margin: 0.1rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .camp__autoPoints {
@@ -724,12 +724,12 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .camp__autoMarket {
   margin: 0.7rem 0 0;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
 }
@@ -738,7 +738,7 @@ watch(
   align-items: center;
   gap: 0.3rem;
   margin: 0.5rem 0 0;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-warning));
 }
@@ -746,7 +746,7 @@ watch(
 .camp__suggest h2,
 .camp__form h2 {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.05rem;
+  font-size: var(--tvz-fs-section);
   margin: 0 0 0.75rem;
   display: flex;
   align-items: center;
@@ -765,7 +765,7 @@ watch(
   align-items: center;
   gap: 0.3rem;
   margin: 0.55rem 0 0;
-  font-size: 0.75rem;
+  font-size: var(--tvz-fs-caption);
   color: rgb(var(--v-theme-primary));
 }
 .tier {
@@ -813,7 +813,7 @@ watch(
 }
 .tier__name {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
   display: flex;
   align-items: center;
   gap: 0.3rem;
@@ -823,7 +823,7 @@ watch(
   font-weight: 700;
 }
 .tier__budget {
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 /* The fiat "(≈ €x.xx)" / "(≈ y lei)" equivalent trailing a credit figure —
@@ -845,7 +845,7 @@ watch(
 }
 .camp__fx {
   margin: 0.3rem 0 0;
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .camp__first {
@@ -860,7 +860,7 @@ watch(
   gap: 0.35rem;
   flex-wrap: wrap;
   margin: 0.5rem 0 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-success));
 }
@@ -870,7 +870,7 @@ watch(
 .camp__cpcLiveHint {
   flex-basis: 100%;
   font-weight: 400;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .camp__funding {
@@ -882,7 +882,7 @@ watch(
   padding: 0.7rem 1rem;
   border-radius: var(--tvz-radius-md);
   background: rgba(var(--v-theme-on-surface), 0.05);
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 .camp__funding.is-short {
   background: rgba(var(--v-theme-warning), 0.14);
@@ -894,14 +894,14 @@ watch(
   gap: 0.35rem;
   margin-top: 0.75rem;
   color: rgb(var(--v-theme-error));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .camp__editnote {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   margin: 0.9rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgb(var(--v-theme-warning));
 }
 .camp__stats {
@@ -917,18 +917,18 @@ watch(
 }
 .camp__stats span {
   display: block;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .camp__stats strong {
-  font-size: 1rem;
+  font-size: var(--tvz-fs-lead);
 }
 .camp__statEq {
   display: block;
   margin-top: 0.15rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-style: normal;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }

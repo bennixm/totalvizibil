@@ -37,8 +37,13 @@ const kindItems = computed(() => [
   { value: 'affiliate_reward', title: t('admin.invKindAffiliateReward') },
 ])
 
-function total(minor: number): string {
-  return `${n(minor / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} RON`
+/** An invoice total in the invoice's OWN currency: it's a fiscal document,
+ *  so the issued amount is shown as-is, never re-converted by the EUR/RON
+ *  display toggle. The currency used to be hard-coded to "RON" here instead
+ *  of read from the invoice. */
+function total(minor: number, currency: string): string {
+  const value = n(minor / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return currency === 'EUR' ? `€${value}` : `${value} ${currency || 'RON'}`
 }
 function buyerKindLabel(kind: 'individual' | 'company'): string {
   return kind === 'company' ? t('account.billingKindCompany') : t('account.billingKindIndividual')
@@ -219,7 +224,7 @@ onMounted(() => admin.fetchInvoices())
 
           <span class="irow__cell irow__cell--total">
             <span class="irow__cellLbl">{{ t('admin.colTotal') }}</span>
-            <b>{{ total(inv.totalMinor) }}</b>
+            <b>{{ total(inv.totalMinor, inv.currency) }}</b>
           </span>
           <span class="irow__cell">
             <span class="irow__cellLbl">{{ t('admin.colDate') }}</span>
@@ -408,7 +413,7 @@ onMounted(() => admin.fetchInvoices())
 }
 .ai__voidNote {
   margin: 0 0 0.8rem;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
 
@@ -428,7 +433,7 @@ onMounted(() => admin.fetchInvoices())
 }
 .itable__head {
   padding: 0.65rem 1.1rem;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -475,16 +480,16 @@ onMounted(() => admin.fetchInvoices())
   align-items: center;
   gap: 0.4rem;
   font-weight: 700;
-  font-size: 0.92rem;
+  font-size: var(--tvz-fs-section);
   font-family: 'Space Grotesk Variable', sans-serif;
   color: rgb(var(--v-theme-on-surface));
 }
 .irow__buyer {
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .irow__user {
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
   align-self: flex-start;
 }
@@ -492,7 +497,7 @@ onMounted(() => admin.fetchInvoices())
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .irow__cell--total b {
@@ -502,7 +507,7 @@ onMounted(() => admin.fetchInvoices())
 }
 .irow__cellLbl {
   display: none;
-  font-size: 0.6rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -517,7 +522,7 @@ onMounted(() => admin.fetchInvoices())
 }
 
 .tag {
-  font-size: 0.58rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -535,7 +540,7 @@ onMounted(() => admin.fetchInvoices())
   align-items: center;
   align-self: flex-start;
   flex: none;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   padding: 0.18rem 0.55rem;
   border-radius: 0;
@@ -578,7 +583,7 @@ onMounted(() => admin.fetchInvoices())
   border-radius: 8px;
   background: rgba(var(--v-theme-error), 0.08);
   color: rgb(var(--v-theme-error));
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 .ai__dVoidNote p {
   margin: 0.2rem 0 0;
@@ -588,7 +593,7 @@ onMounted(() => admin.fetchInvoices())
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
   text-decoration: none;
 }

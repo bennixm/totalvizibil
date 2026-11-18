@@ -841,7 +841,7 @@ async function save() {
   border-radius: var(--tvz-radius-md);
   background: rgba(var(--v-theme-on-surface), 0.05);
   color: rgba(var(--v-theme-on-surface), 0.7);
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .as__window {
   margin-bottom: 1.2rem;
@@ -888,7 +888,7 @@ async function save() {
   align-items: center;
   gap: 0.35rem;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .as__input {
   flex: none;
@@ -920,7 +920,7 @@ async function save() {
 .as__dirty {
   display: inline-flex;
   align-items: center;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-warning));
   margin-right: auto;
@@ -929,7 +929,7 @@ async function save() {
   color: rgb(var(--v-theme-warning));
 }
 .as__saved {
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.5);
   margin-right: auto;
 }
@@ -949,7 +949,7 @@ async function save() {
   margin-bottom: 1.2rem;
   padding: 0.65rem 0.9rem;
   border-radius: var(--tvz-radius-sm, 8px);
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   background: rgba(var(--v-theme-on-surface), 0.05);
   color: rgba(var(--v-theme-on-surface), 0.7);
@@ -986,7 +986,7 @@ async function save() {
   font-weight: 700;
 }
 .as__affLbl {
-  font-size: 0.75rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 </style>

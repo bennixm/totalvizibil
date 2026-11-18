@@ -6,6 +6,7 @@ import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import TrendChart from '@/components/TrendChart.vue'
+import { useMoney } from '@/composables/useMoney'
 import { useAdminStore } from '@/stores/admin'
 
 const { t, n } = useI18n()
@@ -28,12 +29,25 @@ function int(v: number) {
 function cr(v: number) {
   return n(v, { maximumFractionDigits: v >= 100 ? 0 : 2 })
 }
-function ron(v: number) {
-  return n(v, { maximumFractionDigits: 0 }) + ' RON'
+// Every money figure here follows the top-nav EUR/RON toggle, like the rest
+// of the admin panel (it used to be hard-wired to RON). Credits are
+// EUR-denominated (1 cr = 1 €); the platform's own live rate converts.
+const money = useMoney()
+function rate(): number {
+  return s.value?.eurRonRate || money.eurRonRate.value
 }
-/** RON equivalent of a credit amount at the live platform rate (1 cr = 1 €). */
+/** "≈" equivalent of a credit amount in the selected currency. */
 function ronEq(credits: number) {
-  return '≈ ' + ron(credits * (s.value?.eurRonRate ?? 0))
+  return money.currency.value === 'RON'
+    ? `≈ ${n(credits * rate(), { maximumFractionDigits: 0 })} lei`
+    : money.approx(credits, 'EUR')
+}
+/** Money actually collected, which the backend reports in RON (what Stripe
+ *  charged). Exact in RON; in EUR it's the equivalent at the live rate. */
+function collected(ronAmount: number) {
+  if (money.currency.value === 'RON') return `${n(ronAmount, { maximumFractionDigits: 0 })} lei`
+  const r = rate()
+  return r > 0 ? money.approx(ronAmount / r, 'EUR') : `${n(ronAmount, { maximumFractionDigits: 0 })} lei`
 }
 
 // --- Hero KPIs -------------------------------------------------------------
@@ -107,7 +121,7 @@ const economyRows = computed(() => {
       unit: 'credits' as const,
       sub: t('admin.stat.allTimeShort'),
     },
-    { k: 'revenueAll', v: ron(e.ronCollected), sub: t('admin.stat.allTimeShort') },
+    { k: 'revenueAll', v: collected(e.ronCollected), sub: t('admin.stat.allTimeShort') },
     {
       k: 'ecoCommitted',
       v: cr(c.committedDailyBudget.credits),
@@ -326,7 +340,7 @@ const economyChart = computed(() => {
   gap: 0.5rem;
 }
 .kpi__label {
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .kpi__ic {
@@ -355,7 +369,7 @@ const economyChart = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .kpi__delta.is-up {
@@ -366,10 +380,11 @@ const economyChart = computed(() => {
 .adash__charts {
   display: grid;
   gap: 1rem;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …): a chart's rendered width must not hold its column open. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .adash__group {
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -409,7 +424,7 @@ const economyChart = computed(() => {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.55rem 0;
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
 }
 .rows li + li {
   border-top: 1px solid var(--tvz-hairline);
@@ -468,7 +483,7 @@ const economyChart = computed(() => {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .seglegend__dot {
   width: 9px;
@@ -486,7 +501,7 @@ const economyChart = computed(() => {
 }
 .seg__foot {
   margin: 1rem 0 0;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
@@ -502,7 +517,7 @@ const economyChart = computed(() => {
   gap: 0.1rem;
 }
 .fig__k {
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.45);
@@ -518,7 +533,7 @@ const economyChart = computed(() => {
   opacity: 0.7;
 }
 .fig__s {
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 @media (max-width: 520px) {
@@ -541,7 +556,7 @@ const economyChart = computed(() => {
   grid-template-columns: 3rem 1fr 2.2rem;
   align-items: center;
   gap: 0.7rem;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 .bars__track {
   height: 8px;

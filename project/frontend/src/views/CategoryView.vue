@@ -222,7 +222,7 @@ watch(
 .cat__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 10px;
+  font-size: var(--tvz-fs-micro);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.45);
   margin: 0 0 0.6rem;
@@ -230,7 +230,7 @@ watch(
 .cat__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -259,11 +259,11 @@ watch(
   min-width: 0;
 }
 .cat__frozen strong {
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .cat__frozen p {
   margin: 0.1rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .cat__fields {
@@ -282,7 +282,7 @@ watch(
   align-items: center;
   gap: 0.35rem;
   margin: 0.9rem 0 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .cat__actions {

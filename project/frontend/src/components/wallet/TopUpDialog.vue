@@ -272,12 +272,12 @@ async function confirm(): Promise<void> {
 .topup__head h2 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: 1.3rem;
+  font-size: var(--tvz-fs-dialog-title);
   margin: 0;
 }
 .topup__headNote {
   margin: 0.3rem 0 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .topup__center {
@@ -293,7 +293,7 @@ async function confirm(): Promise<void> {
   padding: 0.85rem 1rem;
   border-radius: var(--tvz-radius-md);
   margin-bottom: 1rem;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
 }
 .topup__note strong {
   display: block;
@@ -329,7 +329,7 @@ async function confirm(): Promise<void> {
 }
 .topup__paneLabel {
   margin: 0 0 0.6rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: rgba(var(--v-theme-on-surface), 0.5);
@@ -348,7 +348,7 @@ async function confirm(): Promise<void> {
   border-radius: var(--tvz-radius-md);
   border: 1px solid var(--tvz-glass-border);
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: var(--tvz-fs-section);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .topup__method.is-active {
@@ -375,11 +375,11 @@ async function confirm(): Promise<void> {
 }
 .topup__summaryRow span {
   flex: 1;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .topup__summaryRow strong {
-  font-size: 1rem;
+  font-size: var(--tvz-fs-lead);
 }
 .topup__unit {
   margin-left: 0.2em;
@@ -387,7 +387,7 @@ async function confirm(): Promise<void> {
 }
 .topup__summaryEq {
   flex-basis: 100%;
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   font-style: normal;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
@@ -425,7 +425,7 @@ async function confirm(): Promise<void> {
   border-radius: 10px;
   border: 1px solid var(--tvz-glass-border);
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .wal__presets button.is-on {
   border-color: rgb(var(--v-theme-primary));
@@ -442,7 +442,7 @@ async function confirm(): Promise<void> {
   margin-right: 0.3rem;
 }
 .wal__discountTag {
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 800;
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
@@ -458,7 +458,7 @@ async function confirm(): Promise<void> {
   padding: 2rem 1rem;
   text-align: center;
   color: rgba(var(--v-theme-on-surface), 0.65);
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
 }
 .wal__confirm {
   padding: 1.1rem;
@@ -475,11 +475,11 @@ async function confirm(): Promise<void> {
 }
 .wal__confirmSum {
   margin: 0 0 0.3rem;
-  font-size: 1.05rem;
+  font-size: var(--tvz-fs-lead);
 }
 .wal__devNote {
   margin: 0 0 0.8rem;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .wal__confirmActions {

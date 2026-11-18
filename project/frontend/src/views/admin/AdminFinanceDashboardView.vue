@@ -96,12 +96,18 @@ const trendLabels = computed(() => (finance.overview?.trend ?? []).map((p) => da
 // Earned revenue (ex-VAT) vs expenses vs net cash, per day — the same
 // figures as the statement, so the chart adds up to the KPIs above it.
 const dailyLabels = computed(() => (finance.overview?.daily ?? []).map((p) => dayLabel(p.date)))
+// Plotted in the top-nav display currency, like the KPIs above it (the chart
+// used to stay in € while every figure around it switched to lei).
+function chartUnit(minor: number): number {
+  const v = minor / 100
+  return money.currency.value === 'RON' ? v * money.eurRonRate.value : v
+}
 const moneySeries = computed(() => {
   const daily = finance.overview?.daily ?? []
   return [
-    { label: t('adminFinance.pl.revTotal'), values: daily.map((p) => p.revenueMinor / 100) },
-    { label: t('adminFinance.costs'), values: daily.map((p) => p.expenseMinor / 100) },
-    { label: t('adminFinance.cashNetSeries'), values: daily.map((p) => p.cashNetMinor / 100) },
+    { label: t('adminFinance.pl.revTotal'), values: daily.map((p) => chartUnit(p.revenueMinor)) },
+    { label: t('adminFinance.costs'), values: daily.map((p) => chartUnit(p.expenseMinor)) },
+    { label: t('adminFinance.cashNetSeries'), values: daily.map((p) => chartUnit(p.cashNetMinor)) },
   ]
 })
 const hasDaily = computed(() => (finance.overview?.daily.length ?? 0) > 0)
@@ -113,7 +119,8 @@ const refundRatioSeries = computed(() => [
 ])
 const hasTrend = computed(() => (finance.overview?.trend.length ?? 0) > 0)
 function eurAxis(value: number): string {
-  return `${Math.round(value).toLocaleString('ro-RO')} €`
+  const unit = money.currency.value === 'RON' ? 'lei' : '€'
+  return `${Math.round(value).toLocaleString('ro-RO')} ${unit}`
 }
 function pctAxis(value: number): string {
   return `${Math.round(value)}%`
@@ -163,7 +170,7 @@ onMounted(() => setQuickRange('month'))
 
 <template>
   <div class="afd">
-    <AdminPageHeader :title="t('adminFinance.dashboardTitle')" :eyebrow="t('admin.navGroupFinance')">
+    <AdminPageHeader class="afd__head" :title="t('adminFinance.dashboardTitle')" :eyebrow="t('admin.navGroupFinance')">
       <template #actions>
         <AdminExportMenu
           v-if="mainTab === 'summary' || mainTab === 'pnl'"
@@ -182,6 +189,7 @@ onMounted(() => setQuickRange('month'))
 
     <AdminPeriodFilter
       v-show="mainTab === 'summary' || mainTab === 'pnl'"
+      class="afd__filter"
       v-model:custom-from="customFrom"
       v-model:custom-to="customTo"
       :preset="activePreset"
@@ -615,9 +623,22 @@ onMounted(() => setQuickRange('month'))
 </template>
 
 <style scoped>
+/* One spacing value for the whole page: every block is a direct child of
+   this column, so the space above and below each one is always the same
+   `--afd-gap` (no per-block margins, which drifted apart and collapsed).
+   Card rows and the section grid use the same value internally, so a
+   wrapped/stacked row looks identical to the gap between rows. */
 .afd {
+  --afd-gap: 1rem;
   max-width: 1100px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--afd-gap);
+}
+.afd .afd__head,
+.afd .afd__filter {
+  margin: 0;
 }
 .afd__center {
   display: grid;
@@ -627,8 +648,7 @@ onMounted(() => setQuickRange('month'))
 .afd__kpis {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.7rem;
-  margin-bottom: 1.4rem;
+  gap: var(--afd-gap);
 }
 .afd__kpis--four {
   grid-template-columns: repeat(4, 1fr);
@@ -640,20 +660,13 @@ onMounted(() => setQuickRange('month'))
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 .afd__maintabs {
-  margin-top: 0.4rem;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--tvz-hairline);
-}
-.afd__chart {
-  margin-bottom: 1rem;
 }
 /* The one section meant to read as the page's headline, not just another
    card group — a subtle accent border/tint, same glass surface otherwise. */
 .afd__hero {
-  margin-bottom: 1.4rem;
   border-color: rgba(var(--v-theme-primary), 0.35);
-}
-.afd__hero .afd__kpis {
-  margin-bottom: 0;
 }
 .afd__soon {
   margin-left: 0.4rem;
@@ -662,10 +675,7 @@ onMounted(() => setQuickRange('month'))
 .afd__grid {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
-  gap: 1rem;
-}
-.afd__drill {
-  margin-top: 1rem;
+  gap: var(--afd-gap);
 }
 .afd__tabs {
   margin-bottom: 0.6rem;
@@ -676,12 +686,12 @@ onMounted(() => setQuickRange('month'))
   justify-content: space-between;
   gap: 1rem;
   padding: 0.6rem 0 0.9rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .afd__drillhead b {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1rem;
+  font-size: var(--tvz-fs-lead);
   font-variant-numeric: tabular-nums;
   color: rgba(var(--v-theme-on-surface), 0.9);
 }
@@ -694,7 +704,7 @@ onMounted(() => setQuickRange('month'))
   display: grid;
   align-items: center;
   gap: 0.8rem;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
 }
 .afd__vathead,
 .afd__vatrow {
@@ -710,7 +720,7 @@ onMounted(() => setQuickRange('month'))
 }
 .afd__vathead,
 .afd__rowhead {
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -752,7 +762,7 @@ onMounted(() => setQuickRange('month'))
   align-items: baseline;
   padding: 0.55rem 0;
   border-bottom: 1px dashed var(--tvz-hairline);
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
 }
 .afd__catrow:last-child {
   border-bottom: none;
@@ -766,7 +776,7 @@ onMounted(() => setQuickRange('month'))
 }
 .afd__catrow--sub {
   padding-left: 1rem;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   border-bottom: none;
 }
 .afd__catrow--sub .afd__catlabel {
@@ -782,7 +792,7 @@ onMounted(() => setQuickRange('month'))
 }
 .afd__muted {
   color: rgba(var(--v-theme-on-surface), 0.5);
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   margin: 0;
 }
 @media (max-width: 1100px) {
@@ -816,7 +826,7 @@ onMounted(() => setQuickRange('month'))
   .afd__row span[data-label]::before {
     content: attr(data-label) ': ';
     color: rgba(var(--v-theme-on-surface), 0.45);
-    font-size: 0.72rem;
+    font-size: var(--tvz-fs-caption);
   }
   .afd__reason {
     grid-column: span 2;

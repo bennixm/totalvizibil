@@ -219,7 +219,8 @@ onMounted(() => setQuickRange('month'))
 .afa__h2 {
   margin: 0.4rem 0 0.2rem;
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.05rem;
+  /* A section title like every other (AdminSection) — was 1.05rem. */
+  font-size: var(--tvz-fs-section);
   font-weight: 700;
 }
 .afa__bar {
@@ -254,7 +255,7 @@ onMounted(() => setQuickRange('month'))
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem 1.2rem;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 .afa__legend li {
@@ -274,7 +275,7 @@ onMounted(() => setQuickRange('month'))
 }
 .afa__muted {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 @media (max-width: 1100px) {
@@ -302,7 +303,7 @@ onMounted(() => setQuickRange('month'))
 }
 .rtable__head {
   padding: 0.65rem 1.1rem;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -319,7 +320,7 @@ onMounted(() => setQuickRange('month'))
   border-bottom: none;
 }
 .rrow__cell {
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.8);
 }
 .rrow__cell b {
@@ -342,7 +343,7 @@ onMounted(() => setQuickRange('month'))
   .rrow__cell[data-label]::before {
     content: attr(data-label) ': ';
     color: rgba(var(--v-theme-on-surface), 0.45);
-    font-size: 0.72rem;
+    font-size: var(--tvz-fs-caption);
   }
 }
 </style>

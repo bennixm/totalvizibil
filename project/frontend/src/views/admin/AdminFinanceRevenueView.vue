@@ -355,7 +355,7 @@ onMounted(() => setQuickRange('month'))
   flex-wrap: wrap;
   gap: 0.5rem 1.2rem;
   margin: 0.9rem 0 0;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .afr__subtotal {
   display: inline-flex;
@@ -421,7 +421,7 @@ onMounted(() => setQuickRange('month'))
 }
 .rtable__head {
   padding: 0.65rem 1.1rem;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -438,7 +438,7 @@ onMounted(() => setQuickRange('month'))
   border-bottom: none;
 }
 .rrow__cell {
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.8);
   min-width: 0;
 }
@@ -450,7 +450,7 @@ onMounted(() => setQuickRange('month'))
 .rrow__date small,
 .rrow__muted {
   color: rgba(var(--v-theme-on-surface), 0.45);
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
 }
 .rrow__trunc {
   overflow: hidden;
@@ -467,7 +467,7 @@ onMounted(() => setQuickRange('month'))
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: ui-monospace, monospace;
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .rrow__person {
@@ -478,7 +478,7 @@ onMounted(() => setQuickRange('month'))
 }
 .rrow__name {
   font-weight: 600;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: inherit;
   text-decoration: none;
   overflow: hidden;
@@ -489,7 +489,7 @@ a.rrow__name:hover {
   color: rgb(var(--v-theme-primary));
 }
 .rrow__email {
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -497,7 +497,7 @@ a.rrow__name:hover {
 }
 .chip {
   display: inline-block;
-  font-size: 0.58rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -542,7 +542,7 @@ a.rrow__name:hover {
 .rtable__footlabel {
   display: flex;
   flex-direction: column;
-  font-size: 0.7rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -554,7 +554,7 @@ a.rrow__name:hover {
   gap: 0.3rem;
 }
 .rtable__footlabel small {
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
@@ -570,18 +570,18 @@ a.rrow__name:hover {
   align-items: flex-end;
   font-family: 'Space Grotesk Variable', sans-serif;
   font-variant-numeric: tabular-nums;
-  font-size: 1rem;
+  font-size: var(--tvz-fs-lead);
 }
 .rtable__footval small {
   font-family: inherit;
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .rtable__footval--muted {
   color: rgba(var(--v-theme-on-surface), 0.55);
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
 }
 
 @media (max-width: 960px) {
@@ -599,7 +599,7 @@ a.rrow__name:hover {
   .rrow__cell[data-label]::before {
     content: attr(data-label) ': ';
     color: rgba(var(--v-theme-on-surface), 0.45);
-    font-size: 0.72rem;
+    font-size: var(--tvz-fs-caption);
   }
   .rrow__person,
   .rrow__ref {

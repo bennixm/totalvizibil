@@ -176,7 +176,7 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
   justify-content: space-between;
   padding: 1.1rem 1.25rem;
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.1);
-  font-size: 1.05rem;
+  font-size: var(--tvz-fs-lead);
 }
 .notiflist__headActions {
   display: flex;
@@ -187,7 +187,7 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
   border: 0;
   background: transparent;
   color: rgb(var(--v-theme-primary));
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   cursor: pointer;
 }
@@ -227,7 +227,7 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
   border: 0;
   background: transparent;
   color: rgb(var(--v-theme-primary));
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   cursor: pointer;
 }
@@ -239,7 +239,7 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
   margin: 1rem 0.6rem;
   padding: 1rem 0;
   text-align: center;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .notiflist__more {
@@ -253,7 +253,7 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
   border-radius: 8px;
   background: transparent;
   color: rgb(var(--v-theme-primary));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   cursor: pointer;
 }
@@ -340,10 +340,10 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
   min-width: 0;
 }
 .notifrow__body strong {
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
 }
 .notifrow__text {
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.65);
   overflow: hidden;
   display: -webkit-box;
@@ -351,7 +351,7 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
   -webkit-box-orient: vertical;
 }
 .notifrow__time {
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .notifrow__x {

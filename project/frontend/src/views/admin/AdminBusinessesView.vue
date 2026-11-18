@@ -337,16 +337,19 @@ function open(id: string): void {
 .brow__name {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  /* A long name can't shrink (nowrap text), so let the status chip drop
+     to the next line instead of being pushed out and clipped. */
+  flex-wrap: wrap;
+  gap: 0.25rem 0.45rem;
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: var(--tvz-fs-section);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .brow__meta,
 .brow__owner {
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
   white-space: nowrap;
   overflow: hidden;
@@ -361,11 +364,11 @@ function open(id: string): void {
   width: 12rem;
 }
 .brow__budget {
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .brow__nocamp {
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.4);
 }
 .brow__stats {
@@ -384,13 +387,13 @@ function open(id: string): void {
 .brow__stat b {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .brow__stat em {
   font-style: normal;
-  font-size: 0.58rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: rgba(var(--v-theme-on-surface), 0.45);
@@ -401,7 +404,7 @@ function open(id: string): void {
 }
 
 .chip {
-  font-size: 0.58rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;

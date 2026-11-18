@@ -118,7 +118,7 @@ onMounted(() => {
   text-align: left;
 }
 .csw__eyebrow {
-  font-size: 0.6rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -128,7 +128,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   font-weight: 600;
   color: rgb(var(--v-theme-on-surface));
   white-space: nowrap;
@@ -167,7 +167,7 @@ onMounted(() => {
 }
 .csw__menuLabel {
   margin: 0.3rem 0.55rem 0.4rem;
-  font-size: 0.6rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -182,7 +182,7 @@ onMounted(() => {
   border-radius: 8px;
   color: rgba(var(--v-theme-on-surface), 0.85);
   text-decoration: none;
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
   font-weight: 500;
   text-align: left;
   transition: background 0.14s ease;

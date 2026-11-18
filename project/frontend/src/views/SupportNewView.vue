@@ -191,13 +191,13 @@ onMounted(() => {
 .new h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-size: var(--tvz-fs-title);
   letter-spacing: -0.025em;
   margin: 0;
 }
 .new__lead {
   margin: 0.6rem 0 1.75rem;
-  font-size: 0.92rem;
+  font-size: var(--tvz-fs-section);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
@@ -214,7 +214,7 @@ onMounted(() => {
 .fld__label {
   display: block;
   margin-bottom: 0.5rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -232,7 +232,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.4rem;
   padding: 0.5rem 0.85rem;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
   font-weight: 500;
   border-radius: 8px;
   border: 1px solid var(--tvz-hairline);
@@ -266,7 +266,7 @@ onMounted(() => {
 }
 .pseg button {
   padding: 0.5rem 1rem;
-  font-size: 0.83rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
   transition: background var(--tvz-dur-fast) var(--tvz-ease-out);
@@ -284,7 +284,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.4rem;
   margin: 0;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   color: rgb(var(--v-theme-error));
 }
 .new__actions {

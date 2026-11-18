@@ -152,6 +152,7 @@ function onYear(v: number | null): void {
 /* Seven presets: let them wrap on a narrow screen instead of overflowing. */
 .apf :deep(.v-btn-toggle) {
   flex-wrap: wrap;
+  row-gap: 0.35rem;
   height: auto;
   max-width: 100%;
 }
@@ -165,7 +166,7 @@ function onYear(v: number | null): void {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -176,7 +177,8 @@ function onYear(v: number | null): void {
   border-radius: 8px;
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
-  font-size: 0.82rem;
+  /* Form-field size (16px on phones: no iOS focus zoom). */
+  font-size: var(--tvz-fs-input);
 }
 .apf__sep {
   width: 1px;
@@ -188,7 +190,7 @@ function onYear(v: number | null): void {
   align-items: center;
   gap: 0.35rem;
   margin-left: auto;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .apf__active b {

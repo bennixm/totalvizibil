@@ -79,10 +79,11 @@ function fmtInt(v: number) {
   return n(v, { maximumFractionDigits: 0 })
 }
 const money = useMoney()
-/** A credit amount's equivalent in this business owner's chosen wallet currency. */
+/** A credit amount's "≈" equivalent in the currency picked in the top-nav
+ *  EUR/RON toggle, like every other admin page. It used to be pinned to the
+ *  business owner's own wallet currency, so the toggle had no effect here. */
 function ownerEq(v: number): string {
-  const cur = data.value?.campaign.wallet.currency === 'RON' ? 'RON' : 'EUR'
-  return money.approx(v, cur)
+  return money.approx(v)
 }
 function nm(x: LocalizedName) {
   return x[locale.value as keyof LocalizedName] ?? x.en
@@ -1696,7 +1697,7 @@ const leadStatusItems = computed(() => [
 }
 .ac__muted {
   color: rgba(var(--v-theme-on-surface), 0.5);
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .ac__mt0 {
   margin-top: 0;
@@ -1734,7 +1735,7 @@ const leadStatusItems = computed(() => [
   background: rgba(var(--v-theme-primary), 0.1);
   border: 1px solid rgba(var(--v-theme-primary), 0.3);
   color: rgb(var(--v-theme-primary));
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
 }
 .locchip--all {
@@ -1767,14 +1768,14 @@ const leadStatusItems = computed(() => [
   gap: 0.1rem;
 }
 .ac__factLabel {
-  font-size: 0.62rem;
+  font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: rgba(var(--v-theme-on-surface), 0.4);
 }
 .ac__fact .ac__muted {
-  font-size: 0.76rem;
+  font-size: var(--tvz-fs-caption);
 }
 .ac__counts {
   display: grid;
@@ -1795,7 +1796,7 @@ const leadStatusItems = computed(() => [
   align-items: center;
   gap: 0.35rem;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
   padding: 0.25rem 0.6rem;
   border-radius: 8px;
   border: 1px solid var(--tvz-hairline);
@@ -1810,7 +1811,7 @@ const leadStatusItems = computed(() => [
   align-items: center;
   gap: 0.35rem;
   margin: 0.9rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   color: rgb(var(--v-theme-success));
 }
 .ac__webWarn {
@@ -1822,7 +1823,7 @@ const leadStatusItems = computed(() => [
   border-radius: 10px;
   background: rgba(var(--v-theme-warning), 0.13);
   color: rgb(var(--v-theme-warning));
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
 }
 .ac__webUpgrade {
   margin-top: 1.1rem;
@@ -1866,7 +1867,7 @@ const leadStatusItems = computed(() => [
 .ac__secLabel {
   margin: 0;
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
 }
 
 /* requests */
@@ -1882,11 +1883,11 @@ const leadStatusItems = computed(() => [
 .ac__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .ac__table th {
   text-align: left;
-  font-size: 0.66rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
@@ -1917,7 +1918,7 @@ const leadStatusItems = computed(() => [
   display: block;
 }
 .ac__leadWho .ac__muted {
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
 }
 .ac__leadMsg {
   color: rgba(var(--v-theme-on-surface), 0.78);
@@ -1925,7 +1926,7 @@ const leadStatusItems = computed(() => [
 }
 .ac__date {
   color: rgba(var(--v-theme-on-surface), 0.45);
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
 }
 .ac__leadSel {
   width: 142px;
@@ -1975,7 +1976,7 @@ const leadStatusItems = computed(() => [
   .ac__table td[data-label]::before {
     content: attr(data-label);
     flex-shrink: 0;
-    font-size: 0.66rem;
+    font-size: var(--tvz-fs-micro);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -1990,7 +1991,7 @@ const leadStatusItems = computed(() => [
     content: attr(data-label);
     display: block;
     margin-bottom: 0.3rem;
-    font-size: 0.66rem;
+    font-size: var(--tvz-fs-micro);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -2015,7 +2016,7 @@ const leadStatusItems = computed(() => [
 .ac__rank {
   margin: 0.7rem 0 0;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: var(--tvz-fs-section);
 }
 .ac__statGrid {
   display: grid;
@@ -2039,14 +2040,14 @@ const leadStatusItems = computed(() => [
   align-items: center;
   gap: 0.6rem;
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: var(--tvz-fs-body);
 }
 .ac__autoRow .v-switch {
   margin-left: auto;
 }
 .ac__autoNote {
   margin: 0.5rem 0 0;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-primary));
 }
@@ -2061,7 +2062,7 @@ const leadStatusItems = computed(() => [
   align-items: center;
   gap: 0.25rem;
   margin: -0.5rem 0 0.9rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   color: rgb(var(--v-theme-primary));
 }
 .tier {
@@ -2074,13 +2075,13 @@ const leadStatusItems = computed(() => [
   border: 1px solid var(--tvz-glass-border);
   background: rgb(var(--v-theme-surface));
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
 }
 .tier strong {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 .tier--on {
   border-color: rgb(var(--v-theme-primary));
@@ -2096,7 +2097,7 @@ const leadStatusItems = computed(() => [
   padding: 0.6rem 0.85rem;
   border-radius: 10px;
   background: rgba(var(--v-theme-on-surface), 0.05);
-  font-size: 0.82rem;
+  font-size: var(--tvz-fs-small);
 }
 .ac__funding.is-short {
   background: rgba(var(--v-theme-warning), 0.14);
@@ -2115,18 +2116,18 @@ const leadStatusItems = computed(() => [
 }
 .ac__campStats span {
   display: block;
-  font-size: 0.64rem;
+  font-size: var(--tvz-fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .ac__campStats strong {
-  font-size: 0.95rem;
+  font-size: var(--tvz-fs-section);
 }
 .ac__campStats .ac__eq {
   display: block;
   margin-top: 0.1rem;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   font-style: normal;
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
@@ -2161,7 +2162,7 @@ const leadStatusItems = computed(() => [
   padding: 0.5rem 0.7rem;
   border-radius: 8px;
   background: rgba(var(--v-theme-on-surface), 0.03);
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
 }
 .ac__feedName {
   color: rgba(var(--v-theme-on-surface), 0.75);
@@ -2182,7 +2183,7 @@ const leadStatusItems = computed(() => [
   gap: 0.35rem;
   flex-wrap: wrap;
   margin: 0.7rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--tvz-fs-small);
   font-weight: 600;
   color: rgb(var(--v-theme-success));
 }
@@ -2192,7 +2193,7 @@ const leadStatusItems = computed(() => [
 .ac__cpcLiveHint {
   flex-basis: 100%;
   font-weight: 400;
-  font-size: 0.74rem;
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 @media (max-width: 760px) {
@@ -2207,7 +2208,7 @@ const leadStatusItems = computed(() => [
   align-items: center;
   gap: 0.35rem;
   color: rgb(var(--v-theme-error));
-  font-size: 0.85rem;
+  font-size: var(--tvz-fs-body);
 }
 .ac__costsInsights {
   margin-bottom: 1rem;
@@ -2217,7 +2218,7 @@ const leadStatusItems = computed(() => [
   align-items: flex-start;
   gap: 0.4rem;
   margin: 0 0 0.5rem;
-  font-size: 0.86rem;
+  font-size: var(--tvz-fs-body);
   color: rgba(var(--v-theme-on-surface), 0.82);
 }
 .ac__costsInsight:last-child {
@@ -2228,7 +2229,7 @@ const leadStatusItems = computed(() => [
 }
 .ac__costsChartLabel {
   margin: 0 0 0.4rem;
-  font-size: 0.72rem;
+  font-size: var(--tvz-fs-caption);
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -2287,7 +2288,7 @@ const leadStatusItems = computed(() => [
   display: flex;
   gap: 1.2rem;
   flex-wrap: wrap;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
   margin-bottom: 0.9rem;
 }
 .ac__qsumItem {
@@ -2308,7 +2309,7 @@ const leadStatusItems = computed(() => [
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.84rem;
+  font-size: var(--tvz-fs-small);
 }
 .ac__qlistDot {
   width: 8px;
@@ -2359,7 +2360,7 @@ const leadStatusItems = computed(() => [
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .ac__costsCardLabel {
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
   margin-top: 0.3rem;
 }
@@ -2384,7 +2385,7 @@ const leadStatusItems = computed(() => [
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  font-size: 0.68rem;
+  font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .ac__costsFilterDate input {
@@ -2393,13 +2394,14 @@ const leadStatusItems = computed(() => [
   padding: 0.4rem 0.5rem;
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
-  font-size: 0.82rem;
+  /* Form-field size (16px on phones: no iOS focus zoom). */
+  font-size: var(--tvz-fs-input);
 }
 .ac__costsFilterClear {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.78rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .ac__costsFilterClear:hover {
