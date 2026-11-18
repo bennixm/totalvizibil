@@ -12,7 +12,13 @@ import { PlatformRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AppConfig } from '../config/env';
-import { OPEN_STATUSES, SUPPORT_STAFF_ROLES } from './support.constants';
+import {
+  DONE_STATUSES,
+  OPEN_STATUSES,
+  STATUS_GROUPS,
+  SUPPORT_STAFF_ROLES,
+  type TicketSort,
+} from './support.constants';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { ListTicketsQuery } from './dto/list-tickets.query';
 import { PostMessageDto } from './dto/post-message.dto';
@@ -55,6 +61,25 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  *  clears `resolvedAt`, since the ticket is demonstrably not resolved. */
 const ACTIVE_STATUSES: readonly string[] = OPEN_STATUSES;
 
+/**
+ * List ordering per `sort`. Every variant ends in `id` so the order is total:
+ * the cursor sits on one row id, and a tie on the leading key could otherwise
+ * skip or repeat a neighbour across a page boundary. `priority` relies on the
+ * Postgres enum's declaration order (low < normal < high < urgent).
+ */
+function orderFor(sort: TicketSort | undefined): Prisma.SupportTicketOrderByWithRelationInput[] {
+  switch (sort) {
+    case 'newest':
+      return [{ createdAt: 'desc' }, { id: 'desc' }];
+    case 'oldest':
+      return [{ createdAt: 'asc' }, { id: 'asc' }];
+    case 'priority':
+      return [{ priority: 'desc' }, { lastActivityAt: 'desc' }, { id: 'desc' }];
+    default:
+      return [{ lastActivityAt: 'desc' }, { id: 'desc' }];
+  }
+}
+
 @Injectable()
 export class SupportService {
   private readonly logger = new Logger(SupportService.name);
@@ -70,19 +95,37 @@ export class SupportService {
   async list(actor: SupportActor, query: ListTicketsQuery) {
     const mineOnly = !actor.staff || query.scope === 'mine';
 
+    const status = query.status
+      ? { status: query.status }
+      : query.statusGroup && STATUS_GROUPS[query.statusGroup]
+        ? { status: { in: [...STATUS_GROUPS[query.statusGroup]] } }
+        : {};
+
     const where: Prisma.SupportTicketWhereInput = {
       ...(mineOnly ? { requesterId: actor.id } : {}),
-      ...(query.status ? { status: query.status } : {}),
+      ...status,
       ...(query.priority ? { priority: query.priority } : {}),
+      ...(query.category ? { category: query.category } : {}),
       ...(actor.staff && query.assignee === 'me' ? { assigneeId: actor.id } : {}),
       ...(actor.staff && query.assignee === 'unassigned' ? { assigneeId: null } : {}),
     };
 
     if (query.q) {
       const asNumber = Number.parseInt(query.q.replace(/^#/, ''), 10);
+      const contains = { contains: query.q, mode: 'insensitive' as const };
       where.OR = [
-        { subject: { contains: query.q, mode: 'insensitive' } },
-        ...(Number.isFinite(asNumber) ? [{ number: asNumber }] : []),
+        { subject: contains },
+        ...(Number.isFinite(asNumber) && /^#?\d+$/.test(query.q) ? [{ number: asNumber }] : []),
+        // Staff search the whole queue, where "who/which business is this
+        // about" is the usual way to find a ticket. A customer only ever sees
+        // their own tickets, so matching their own name would match them all.
+        ...(actor.staff
+          ? [
+              { requester: { name: contains } },
+              { requester: { email: contains } },
+              { company: { displayName: contains } },
+            ]
+          : []),
       ];
     }
 
@@ -98,7 +141,7 @@ export class SupportService {
       // `id` as a tiebreaker makes the sort total — `lastActivityAt` alone
       // isn't unique, and a cursor sitting on one of several same-timestamp
       // rows could otherwise skip or repeat a neighbour across the boundary.
-      orderBy: [{ lastActivityAt: 'desc' }, { id: 'desc' }],
+      orderBy: orderFor(query.sort),
       take: LIST_LIMIT + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
       include: ticketListInclude,
@@ -109,6 +152,41 @@ export class SupportService {
       items: items.map(ticketListView),
       nextCursor: hasMore ? items[items.length - 1].id : null,
     };
+  }
+
+  /**
+   * Counts behind the list's filter tabs, scoped to what this caller can see.
+   * Staff (queue view): the whole queue, split the way an agent triages it.
+   * Requester view: their own tickets, plus how many wait on THEIR reply.
+   */
+  async counts(actor: SupportActor) {
+    const count = (where: Prisma.SupportTicketWhereInput) =>
+      this.prisma.supportTicket.count({ where });
+    const active: Prisma.SupportTicketWhereInput = { status: { in: OPEN_STATUSES } };
+
+    if (!actor.staff) {
+      const own: Prisma.SupportTicketWhereInput = { requesterId: actor.id };
+      const [activeN, waiting, done, all] = await Promise.all([
+        count({ ...own, ...active }),
+        count({ ...own, status: 'waiting' }),
+        count({ ...own, status: { in: DONE_STATUSES } }),
+        count(own),
+      ]);
+      return { active: activeN, waiting, done, all };
+    }
+
+    const [activeN, mine, unassigned, urgent, waiting, done, all, resolvedToday] =
+      await Promise.all([
+        count(active),
+        count({ ...active, assigneeId: actor.id }),
+        count({ ...active, assigneeId: null }),
+        count({ ...active, priority: 'urgent' }),
+        count({ status: 'waiting' }),
+        count({ status: { in: DONE_STATUSES } }),
+        count({}),
+        count({ resolvedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } }),
+      ]);
+    return { active: activeN, mine, unassigned, urgent, waiting, done, all, resolvedToday };
   }
 
   /** Queue counters for the staff dashboard. */

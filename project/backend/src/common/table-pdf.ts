@@ -35,12 +35,30 @@ export function generateTablePdf(opts: {
   /** Shown top-right, second line (e.g. a date range or filter summary). */
   subtitle?: string;
   columns: TablePdfColumn[];
-  /** Pre-formatted cell text, one array per row, same length/order as `columns`. */
-  rows: string[][];
+  /** Pre-formatted cell text, one array per row, same length/order as
+   *  `columns`. The object form marks a section/total row as bold. */
+  rows: (string[] | { cells: string[]; bold?: boolean })[];
   emptyText: string;
+  /** Wide tables (e.g. the transaction register) print in landscape. */
+  landscape?: boolean;
+  /** Small print under the table (notes, missing-information list). */
+  footnotes?: string[];
+  /** Body font size (default 9.5); smaller for dense tables. */
+  fontSize?: number;
+  /** Further tables, each starting on a new page with its own title. */
+  appendix?: {
+    title: string;
+    columns: TablePdfColumn[];
+    rows: (string[] | { cells: string[]; bold?: boolean })[];
+    emptyText?: string;
+  }[];
 }): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 50,
+      layout: opts.landscape ? 'landscape' : 'portrait',
+    });
     const chunks: Buffer[] = [];
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -72,52 +90,108 @@ export function generateTablePdf(opts: {
       .strokeColor(BRAND)
       .stroke();
 
-    // --- table ------------------------------------------------------------
-    const cols = opts.columns.map((c) => ({ ...c, width: c.width * pageWidth }));
+    // --- tables -----------------------------------------------------------
+    const fs = opts.fontSize ?? 9.5;
     let y = 118;
 
-    function header(): void {
-      let cx = left;
-      doc.font(FONT).fontSize(8).fillColor(MUTED);
-      cols.forEach((c) => {
-        doc.text(c.label.toUpperCase(), cx, y, { width: c.width, align: c.align ?? 'left' });
-        cx += c.width;
-      });
-      doc
-        .moveTo(left, y + 14)
-        .lineTo(left + pageWidth, y + 14)
-        .lineWidth(1)
-        .strokeColor(INK)
-        .stroke();
-      y += 22;
-    }
-    header();
-
-    doc.font(FONT).fontSize(9.5);
-    for (const row of opts.rows) {
-      if (y > doc.page.height - doc.page.margins.bottom - 30) {
-        doc.addPage();
-        y = 50;
-        header();
-        doc.font(FONT).fontSize(9.5);
+    function drawTable(
+      columns: TablePdfColumn[],
+      rows: (string[] | { cells: string[]; bold?: boolean })[],
+      emptyText: string,
+    ): void {
+      const cols = columns.map((c) => ({ ...c, width: c.width * pageWidth }));
+      function header(): void {
+        let cx = left;
+        doc.font(FONT).fontSize(Math.min(8, fs)).fillColor(MUTED);
+        const h = Math.max(
+          10,
+          ...cols.map((c) => doc.heightOfString(c.label.toUpperCase(), { width: c.width - 4 })),
+        );
+        cols.forEach((c) => {
+          doc.text(c.label.toUpperCase(), cx, y, { width: c.width - 4, align: c.align ?? 'left' });
+          cx += c.width;
+        });
+        doc
+          .moveTo(left, y + h + 4)
+          .lineTo(left + pageWidth, y + h + 4)
+          .lineWidth(1)
+          .strokeColor(INK)
+          .stroke();
+        y += h + 12;
       }
-      let cx = left;
-      doc.fillColor(INK);
-      row.forEach((v, i) => {
-        doc.text(v, cx, y, { width: cols[i].width, align: cols[i].align ?? 'left' });
-        cx += cols[i].width;
-      });
-      doc
-        .moveTo(left, y + 16)
-        .lineTo(left + pageWidth, y + 16)
-        .lineWidth(0.5)
-        .strokeColor(BORDER)
-        .stroke();
-      y += 20;
+      header();
+
+      doc.font(FONT).fontSize(fs);
+      for (const raw of rows) {
+        const row = Array.isArray(raw) ? raw : raw.cells;
+        const bold = !Array.isArray(raw) && !!raw.bold;
+        // Long text wraps instead of bleeding into the next row.
+        const rowH = Math.max(
+          fs + 4,
+          ...row.map((v, i) =>
+            doc
+              .font(FONT)
+              .fontSize(fs)
+              .heightOfString(v, { width: cols[i].width - 4 }),
+          ),
+        );
+        if (y + rowH > doc.page.height - doc.page.margins.bottom - 16) {
+          doc.addPage();
+          y = 50;
+          header();
+          doc.font(FONT).fontSize(fs);
+        }
+        let cx = left;
+        if (bold) {
+          doc
+            .rect(left, y - 3, pageWidth, rowH + 5)
+            .fillColor('#eef2fa')
+            .fill();
+        }
+        doc.fillColor(INK);
+        row.forEach((v, i) => {
+          const o = { width: cols[i].width - 4, align: cols[i].align ?? 'left' } as const;
+          doc.text(v, cx, y, o);
+          // Faux bold: the bundled font has a single weight.
+          if (bold) doc.text(v, cx + 0.25, y, o);
+          cx += cols[i].width;
+        });
+        doc
+          .moveTo(left, y + rowH + 2)
+          .lineTo(left + pageWidth, y + rowH + 2)
+          .lineWidth(0.5)
+          .strokeColor(BORDER)
+          .stroke();
+        y += rowH + 6;
+      }
+
+      if (rows.length === 0) {
+        doc.fillColor(MUTED).font(FONT).fontSize(fs).text(emptyText, left, y);
+        y += 20;
+      }
     }
 
-    if (opts.rows.length === 0) {
-      doc.fillColor(MUTED).font(FONT).fontSize(9.5).text(opts.emptyText, left, y);
+    drawTable(opts.columns, opts.rows, opts.emptyText);
+
+    if (opts.footnotes?.length) {
+      y += 10;
+      doc.font(FONT).fontSize(8).fillColor(MUTED);
+      for (const note of opts.footnotes) {
+        const h = doc.heightOfString(note, { width: pageWidth });
+        if (y + h > doc.page.height - doc.page.margins.bottom) {
+          doc.addPage();
+          y = 50;
+        }
+        doc.text(note, left, y, { width: pageWidth });
+        y += h + 4;
+      }
+    }
+
+    for (const extra of opts.appendix ?? []) {
+      doc.addPage();
+      doc.fillColor(INK).font(FONT).fontSize(12).text(extra.title, left, 50, { width: pageWidth });
+      y = 80;
+      drawTable(extra.columns, extra.rows, extra.emptyText ?? '');
     }
 
     doc.end();

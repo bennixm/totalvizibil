@@ -22,6 +22,15 @@ import { ListExpensesQuery } from './dto/list-expenses.query';
 import { PagedPeriodQuery } from './dto/paged-period.query';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
+import { MonthlyReportQuery, ReportExportQuery } from './dto/report-export.query';
+import type { ExportFile } from './finance.service';
+
+function fileResponse(f: ExportFile): StreamableFile {
+  return new StreamableFile(f.buffer, {
+    type: f.contentType,
+    disposition: `attachment; filename="${f.filename}"`,
+  });
+}
 
 /** Financial reporting (Contabil + admin) — venituri, costuri, profit. A
  *  separate controller from `AdminController` on purpose: everything here is
@@ -42,13 +51,10 @@ export class FinanceController {
     return this.finance.listRevenue(q);
   }
 
+  /** `?format=pdf|csv|xlsx` (default pdf), same filters as the list. */
   @Get('revenue/export')
   async exportRevenue(@Query() q: ListRevenueQuery) {
-    const buffer = await this.finance.exportRevenuePdf(q);
-    return new StreamableFile(buffer, {
-      type: 'application/pdf',
-      disposition: 'attachment; filename="venituri-totalvizibil.pdf"',
-    });
+    return fileResponse(await this.finance.exportRevenue(q));
   }
 
   @Get('expenses')
@@ -56,13 +62,29 @@ export class FinanceController {
     return this.finance.listExpenses(q);
   }
 
+  /** `?format=pdf|csv|xlsx` (default pdf), same filters as the list. */
   @Get('expenses/export')
   async exportExpenses(@Query() q: ListExpensesQuery) {
-    const buffer = await this.finance.exportExpensesPdf(q);
-    return new StreamableFile(buffer, {
-      type: 'application/pdf',
-      disposition: 'attachment; filename="costuri-totalvizibil.pdf"',
-    });
+    return fileResponse(await this.finance.exportExpenses(q));
+  }
+
+  /** The financial report (profit and loss) for a period, or `?year=` for
+   *  the annual report broken down by month. `?format=pdf|csv|xlsx`. */
+  @Get('report/export')
+  async exportReport(@Query() q: ReportExportQuery) {
+    return fileResponse(await this.finance.exportReport(q));
+  }
+
+  /** Annual view: twelve monthly statements + the year total. */
+  @Get('report/monthly')
+  monthlyReport(@Query() q: MonthlyReportQuery) {
+    return this.finance.monthlyReport(q.year);
+  }
+
+  /** Data-integrity checks (duplicates, balance reconciliation, ...). */
+  @Get('checks')
+  checks() {
+    return this.finance.checks();
   }
 
   @Post('expenses')

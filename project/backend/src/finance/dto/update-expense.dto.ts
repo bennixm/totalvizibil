@@ -1,5 +1,15 @@
 import { Transform, Type } from 'class-transformer';
-import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { EXPENSE_CURRENCIES, IsNotFutureDate, type ExpenseCurrency } from './create-expense.dto';
 
 const MANUAL_CATEGORIES = [
@@ -34,6 +44,15 @@ export class UpdateExpenseDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   @IsIn(EXPENSE_CURRENCIES)
   currency?: ExpenseCurrency;
+
+  /** Non-EUR documents: units of `currency` per 1 EUR (e.g. the BNR rate
+   *  on the document date). Required for RON/USD, ignored for EUR. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  @Max(100000)
+  fxRate?: number;
 
   @IsOptional()
   @IsString()

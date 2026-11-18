@@ -39,47 +39,74 @@ export function useUserNavGroups() {
     return current.value?.appointmentsEnabled ?? false
   })
 
+  // Overview loaded and genuinely empty: the user has no business yet. Every
+  // business-scoped page would just bounce back to the dashboard (the router
+  // guard sends them there), so don't list them at all, point at the one
+  // thing that unlocks them instead.
+  const noBusiness = computed(() => companies.overviewLoaded && companies.overview.length === 0)
+
+  const businessGroup = computed<SidebarNavGroup>(() =>
+    noBusiness.value
+      ? {
+          items: [
+            {
+              to: { name: 'dashboard' },
+              label: t('nav.dashboard'),
+              icon: 'mdi-view-dashboard-outline',
+            },
+            {
+              to: { name: 'create' },
+              label: t('nav.createBusiness'),
+              icon: 'mdi-plus-circle-outline',
+            },
+          ],
+        }
+      : businessPages.value,
+  )
+
+  const businessPages = computed<SidebarNavGroup>(() => ({
+    // Business/campaign-specific pages: whichever company the sidebar's own
+    // campaign switcher (SidebarCampaignSwitch) currently has selected.
+    items: [
+      { to: { name: 'dashboard' }, label: t('nav.dashboard'), icon: 'mdi-view-dashboard-outline' },
+      ...(showLeads.value
+        ? [{ to: { name: 'leads' }, label: t('nav.leads'), icon: 'mdi-inbox-arrow-down-outline' }]
+        : []),
+      ...(showAppointments.value
+        ? [
+            {
+              to: { name: 'appointments' },
+              label: t('nav.appointments'),
+              icon: 'mdi-calendar-check-outline',
+            },
+          ]
+        : []),
+      { to: { name: 'campaign' }, label: t('nav.campaign'), icon: 'mdi-bullhorn-outline' },
+      {
+        to: { name: 'consumption' },
+        label: t('nav.consumption'),
+        icon: 'mdi-chart-donut',
+      },
+      {
+        to: { name: 'location' },
+        label: t('nav.location'),
+        icon: 'mdi-map-marker-outline',
+      },
+      {
+        to: { name: 'category' },
+        label: t('nav.category'),
+        icon: 'mdi-shape-outline',
+      },
+      {
+        to: { name: 'website-settings' },
+        label: t('nav.websiteSettings'),
+        icon: 'mdi-cog-outline',
+      },
+    ],
+  }))
+
   const groups = computed<SidebarNavGroup[]>(() => [
-    {
-      // Business/campaign-specific pages: whichever company the sidebar's own
-      // campaign switcher (SidebarCampaignSwitch) currently has selected.
-      items: [
-        { to: { name: 'dashboard' }, label: t('nav.dashboard'), icon: 'mdi-view-dashboard-outline' },
-        ...(showLeads.value
-          ? [{ to: { name: 'leads' }, label: t('nav.leads'), icon: 'mdi-inbox-arrow-down-outline' }]
-          : []),
-        ...(showAppointments.value
-          ? [
-              {
-                to: { name: 'appointments' },
-                label: t('nav.appointments'),
-                icon: 'mdi-calendar-check-outline',
-              },
-            ]
-          : []),
-        { to: { name: 'campaign' }, label: t('nav.campaign'), icon: 'mdi-bullhorn-outline' },
-        {
-          to: { name: 'consumption' },
-          label: t('nav.consumption'),
-          icon: 'mdi-chart-donut',
-        },
-        {
-          to: { name: 'location' },
-          label: t('nav.location'),
-          icon: 'mdi-map-marker-outline',
-        },
-        {
-          to: { name: 'category' },
-          label: t('nav.category'),
-          icon: 'mdi-shape-outline',
-        },
-        {
-          to: { name: 'website-settings' },
-          label: t('nav.websiteSettings'),
-          icon: 'mdi-cog-outline',
-        },
-      ],
-    },
+    businessGroup.value,
     {
       // General account pages — not tied to any one business, so they stay
       // put regardless of which company is active above.

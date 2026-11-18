@@ -1,197 +1,475 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
-import { useAuthStore } from '@/stores/auth'
+import SupportAvatar from '@/components/support/SupportAvatar.vue'
+import SupportRoleBadge from '@/components/support/SupportRoleBadge.vue'
+import { useSupportRoutes } from '@/composables/useSupportRoutes'
+import { useSupportTime } from '@/composables/useSupportTime'
 import {
   useSupportStore,
+  TICKET_CATEGORIES,
   TICKET_PRIORITIES,
-  TICKET_STATUSES,
+  TICKET_SORTS,
+  type SupportCounts,
+  type TicketCategory,
   type TicketFilters,
+  type TicketListItem,
+  type TicketPriority,
+  type TicketSort,
+  type TicketStatus,
 } from '@/stores/support'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
+const { ticketRoute, perspective } = useSupportRoutes()
+const { ago, dateTime } = useSupportTime()
 const support = useSupportStore()
-const { list, overview, loading, loadingMore, moreError, nextCursor } = storeToRefs(support)
+const { list, counts, loading, loadingMore, moreError, nextCursor, error } = storeToRefs(support)
 
-// Only `admin`/`support` work the queue — `finance`/`moderator` are platform
-// staff but ordinary support *customers*, so they get the own-tickets view
-// (and the "New ticket" button) like anyone else.
-const isStaff = computed(() => auth.isSupportStaff)
+/**
+ * Admin panel (`/admin/support`) = the staff queue. Normal panel (`/support`)
+ * = the customer view, for every account, support agents included. The
+ * perspective is also sent to the API, which enforces the same split.
+ */
+const isStaff = computed(() => perspective.value === 'staff')
+// Set synchronously, before anything loads, so the first request already
+// goes out with the right perspective.
+support.setPerspective(perspective.value)
 
-const filters = reactive<TicketFilters>({
-  scope: 'all',
-  status: '',
-  priority: '',
-  assignee: '',
-  q: '',
-})
+// --- views (the tab row) ------------------------------------------------
+type StaffView = 'active' | 'mine' | 'unassigned' | 'urgent' | 'waiting' | 'done' | 'all'
+type RequesterView = 'active' | 'waiting' | 'done' | 'all'
+type View = StaffView | RequesterView
 
-const statusOptions = computed(() => [
-  { title: t('support.filterAny'), value: '' },
-  ...TICKET_STATUSES.map((s) => ({ title: t(`support.status.${s}`), value: s })),
-])
-const priorityOptions = computed(() => [
-  { title: t('support.filterAny'), value: '' },
-  ...TICKET_PRIORITIES.map((p) => ({ title: t(`support.priority.${p}`), value: p })),
-])
-const assigneeOptions = computed(() => [
-  { title: t('support.filterAny'), value: '' },
-  { title: t('support.assignedToMe'), value: 'me' },
-  { title: t('support.unassigned'), value: 'unassigned' },
-])
+const STAFF_VIEWS: StaffView[] = [
+  'active',
+  'mine',
+  'unassigned',
+  'urgent',
+  'waiting',
+  'done',
+  'all',
+]
+const REQUESTER_VIEWS: RequesterView[] = ['active', 'waiting', 'done', 'all']
+const views = computed<View[]>(() => (isStaff.value ? STAFF_VIEWS : REQUESTER_VIEWS))
 
-let debounce: ReturnType<typeof setTimeout> | undefined
-function reload(): void {
-  void support.loadList(isStaff.value ? { ...filters } : {})
+/** Each view is a preset over the API filters. */
+function viewFilters(v: View): TicketFilters {
+  switch (v) {
+    case 'active':
+      return { statusGroup: 'active' }
+    case 'mine':
+      return { statusGroup: 'active', assignee: 'me' }
+    case 'unassigned':
+      return { statusGroup: 'active', assignee: 'unassigned' }
+    case 'urgent':
+      return { statusGroup: 'active', priority: 'urgent' }
+    case 'waiting':
+      return { status: 'waiting' }
+    case 'done':
+      return { statusGroup: 'done' }
+    default:
+      return {}
+  }
 }
-watch(
-  () => ({ ...filters }),
-  () => {
-    clearTimeout(debounce)
-    debounce = setTimeout(reload, 220)
-  },
-  { deep: true },
+
+/** Statuses that make sense as a refinement inside each view. */
+function statusesFor(v: View): TicketStatus[] {
+  if (v === 'active' || v === 'mine' || v === 'unassigned' || v === 'urgent')
+    return ['open', 'in_progress', 'waiting']
+  if (v === 'done') return ['resolved', 'closed']
+  if (v === 'all') return ['open', 'in_progress', 'waiting', 'resolved', 'closed']
+  return []
+}
+
+function viewLabel(v: View): string {
+  if (v === 'waiting' && !isStaff.value) return t('support.view.waitingYou')
+  return t('support.view.' + v)
+}
+function viewCount(v: View): number | null {
+  const c = counts.value as SupportCounts | null
+  if (!c) return null
+  const n = c[v as keyof SupportCounts]
+  return typeof n === 'number' ? n : null
+}
+/** Tabs whose count deserves attention (work waiting for the viewer). */
+function viewAlert(v: View): boolean {
+  const n = viewCount(v) ?? 0
+  if (!n) return false
+  return isStaff.value ? v === 'unassigned' || v === 'urgent' : v === 'waiting'
+}
+
+// --- state, mirrored in the URL so "back" from a ticket restores it -------
+interface State {
+  view: View
+  status: TicketStatus | ''
+  priority: TicketPriority | ''
+  category: TicketCategory | ''
+  sort: TicketSort
+  q: string
+}
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v : ''
+}
+function fromQuery(): State {
+  const q = route.query
+  const view = views.value.includes(str(q.view) as View) ? (str(q.view) as View) : 'active'
+  const status = statusesFor(view).includes(str(q.status) as TicketStatus)
+    ? (str(q.status) as TicketStatus)
+    : ''
+  const priority =
+    isStaff.value && TICKET_PRIORITIES.includes(str(q.priority) as TicketPriority)
+      ? (str(q.priority) as TicketPriority)
+      : ''
+  const category = TICKET_CATEGORIES.includes(str(q.category) as TicketCategory)
+    ? (str(q.category) as TicketCategory)
+    : ''
+  const sort = sortOptions.value.some((s) => s === str(q.sort))
+    ? (str(q.sort) as TicketSort)
+    : 'activity'
+  return { view, status, priority, category, sort, q: str(q.q) }
+}
+
+const sortOptions = computed<TicketSort[]>(() =>
+  isStaff.value ? TICKET_SORTS : TICKET_SORTS.filter((s) => s !== 'priority'),
 )
 
-const overviewTiles = computed(() => {
-  const o = overview.value
-  if (!o) return []
-  return [
-    { k: 'open', v: o.open, tone: 'primary' },
-    { k: 'unassigned', v: o.unassigned, tone: o.unassigned ? 'warn' : 'muted' },
-    { k: 'urgent', v: o.urgent, tone: o.urgent ? 'error' : 'muted' },
-    { k: 'resolvedToday', v: o.resolvedToday, tone: 'ok' },
-  ]
+const state = reactive<State>(fromQuery())
+
+function setView(v: View): void {
+  if (state.view === v) return
+  state.view = v
+  // A refinement from the previous view may not exist in this one.
+  if (!statusesFor(v).includes(state.status as TicketStatus)) state.status = ''
+  if (v === 'urgent') state.priority = ''
+}
+
+const apiFilters = computed<TicketFilters>(() => {
+  const base = viewFilters(state.view)
+  return {
+    ...base,
+    ...(state.status ? { status: state.status, statusGroup: '' } : {}),
+    ...(state.priority && state.view !== 'urgent' ? { priority: state.priority } : {}),
+    ...(state.category ? { category: state.category } : {}),
+    ...(state.sort !== 'activity' ? { sort: state.sort } : {}),
+    ...(state.q.trim() ? { q: state.q.trim() } : {}),
+  }
 })
 
-function fmtWhen(iso: string): string {
-  const d = new Date(iso)
-  const sameDay = d.toDateString() === new Date().toDateString()
-  return sameDay
-    ? d.toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString(locale.value, { day: 'numeric', month: 'short' })
+/** Extra filters on top of the view, shown as removable chips. */
+const activeChips = computed(() => {
+  const chips: { key: 'status' | 'priority' | 'category'; label: string }[] = []
+  if (state.status) chips.push({ key: 'status', label: t('support.status.' + state.status) })
+  if (state.priority)
+    chips.push({ key: 'priority', label: t('support.priority.' + state.priority) })
+  if (state.category)
+    chips.push({ key: 'category', label: t('support.category.' + state.category) })
+  return chips
+})
+const filterCount = computed(() => activeChips.value.length)
+const hasRefinement = computed(() => filterCount.value > 0 || !!state.q.trim())
+
+function clearRefinements(): void {
+  state.status = ''
+  state.priority = ''
+  state.category = ''
+  state.q = ''
+}
+function toggle<K extends 'status' | 'priority' | 'category'>(key: K, value: State[K]): void {
+  state[key] = (state[key] === value ? '' : value) as State[K]
 }
 
-function open(id: string): void {
-  void router.push({ name: 'support-ticket', params: { id } })
+// --- loading -------------------------------------------------------------
+let debounce: ReturnType<typeof setTimeout> | undefined
+function reload(): void {
+  void support.loadList(apiFilters.value)
+}
+function refreshAll(): void {
+  reload()
+  void support.loadCounts()
 }
 
-function loadMore(): void {
-  void support.loadMore()
+watch(
+  () => JSON.stringify(apiFilters.value),
+  () => {
+    clearTimeout(debounce)
+    // Typing debounces; clicking a tab or chip should feel instant.
+    debounce = setTimeout(reload, state.q ? 260 : 0)
+    const query: Record<string, string> = {}
+    if (state.view !== 'active') query.view = state.view
+    if (state.status) query.status = state.status
+    if (state.priority) query.priority = state.priority
+    if (state.category) query.category = state.category
+    if (state.sort !== 'activity') query.sort = state.sort
+    if (state.q.trim()) query.q = state.q.trim()
+    support.listQuery[perspective.value] = query
+    void router.replace({ query })
+  },
+)
+
+function open(tk: TicketListItem): void {
+  void router.push(ticketRoute(tk.id))
+}
+
+/** Whose turn it is, from this viewer's side. */
+function turnBadge(tk: TicketListItem): { text: string; tone: 'accent' | 'warn' } | null {
+  const active = tk.status === 'open' || tk.status === 'in_progress' || tk.status === 'waiting'
+  if (!active) return null
+  if (isStaff.value) {
+    return tk.lastReplyBy === 'requester' && tk.messageCount > 1
+      ? { text: t('support.replyFromCustomer'), tone: 'accent' }
+      : null
+  }
+  if (tk.status === 'waiting') return { text: t('support.view.waitingYou'), tone: 'warn' }
+  return tk.lastReplyBy === 'team' ? { text: t('support.replyFromTeam'), tone: 'accent' } : null
+}
+
+// "/" jumps to search, like most queue tools.
+const searchRef = ref<{ focus: () => void } | null>(null)
+function onKey(e: KeyboardEvent): void {
+  if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+  const el = e.target as HTMLElement | null
+  if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return
+  e.preventDefault()
+  searchRef.value?.focus()
 }
 
 onMounted(() => {
-  reload()
-  if (isStaff.value) void support.loadOverview()
+  refreshAll()
+  window.addEventListener('keydown', onKey)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKey)
+  clearTimeout(debounce)
 })
 </script>
 
 <template>
-  <div class="sup">
+  <div class="sup" :class="{ 'sup--staff': isStaff }">
     <header class="sup__head">
       <div class="sup__headText">
         <p class="sup__eyebrow">{{ t('support.eyebrow') }}</p>
         <h1>{{ isStaff ? t('support.queueTitle') : t('support.title') }}</h1>
+        <p class="sup__lead">{{ isStaff ? t('support.leadStaff') : t('support.leadRequester') }}</p>
       </div>
-      <!-- Staff work the queue; they don't file tickets from here. -->
-      <v-btn
-        v-if="!isStaff"
-        color="primary"
-        variant="flat"
-        class="text-none sup__new"
-        prepend-icon="mdi-plus"
-        :to="{ name: 'support-new' }"
-      >
-        {{ t('support.newTicket') }}
-      </v-btn>
+      <div class="sup__headActions">
+        <span v-if="isStaff && counts?.resolvedToday != null" class="sup__today">
+          <v-icon icon="mdi-check-decagram-outline" size="15" />
+          {{ counts.resolvedToday }} {{ t('support.stat.resolvedToday').toLowerCase() }}
+        </span>
+        <v-btn
+          v-if="isStaff"
+          variant="tonal"
+          icon="mdi-refresh"
+          size="small"
+          :title="t('support.refresh')"
+          :aria-label="t('support.refresh')"
+          :loading="loading"
+          @click="refreshAll"
+        />
+        <v-btn
+          v-else
+          color="primary"
+          variant="flat"
+          class="text-none sup__new"
+          prepend-icon="mdi-plus"
+          :to="{ name: 'support-new' }"
+        >
+          {{ t('support.newTicket') }}
+        </v-btn>
+      </div>
     </header>
 
-    <!-- Staff queue counters -->
-    <div v-if="isStaff && overviewTiles.length" class="sup__stats">
-      <div
-        v-for="tile in overviewTiles"
-        :key="tile.k"
-        class="stat"
-        :class="`stat--${tile.tone}`"
+    <!-- Views: one click to the list you need, each with its live count -->
+    <nav class="tabs" role="tablist" :aria-label="t('support.filters')">
+      <button
+        v-for="v in views"
+        :key="v"
+        type="button"
+        role="tab"
+        class="tab"
+        :class="{ 'is-on': state.view === v, 'tab--alert': viewAlert(v) }"
+        :aria-selected="state.view === v"
+        @click="setView(v)"
       >
-        <span class="stat__v">{{ tile.v }}</span>
-        <span class="stat__k">{{ t('support.stat.' + tile.k) }}</span>
-      </div>
-    </div>
+        <span>{{ viewLabel(v) }}</span>
+        <span v-if="viewCount(v) !== null" class="tab__n">{{ viewCount(v) }}</span>
+      </button>
+    </nav>
 
-    <!-- Filters (staff only) -->
-    <div v-if="isStaff" class="sup__filters">
-      <div class="seg">
-        <button
-          type="button"
-          :class="{ 'is-on': filters.scope === 'all' }"
-          @click="filters.scope = 'all'"
-        >
-          {{ t('support.scopeAll') }}
-        </button>
-        <button
-          type="button"
-          :class="{ 'is-on': filters.scope === 'mine' }"
-          @click="filters.scope = 'mine'"
-        >
-          {{ t('support.scopeMine') }}
-        </button>
-      </div>
-      <v-select
-        v-model="filters.status"
-        :items="statusOptions"
-        :label="t('support.colStatus')"
-        variant="outlined"
-        density="compact"
-        hide-details
-        class="sup__filter"
-      />
-      <v-select
-        v-model="filters.priority"
-        :items="priorityOptions"
-        :label="t('support.colPriority')"
-        variant="outlined"
-        density="compact"
-        hide-details
-        class="sup__filter"
-      />
-      <v-select
-        v-model="filters.assignee"
-        :items="assigneeOptions"
-        :label="t('support.colAssignee')"
-        variant="outlined"
-        density="compact"
-        hide-details
-        class="sup__filter"
-      />
+    <!-- Search + refinements -->
+    <div class="tools">
       <v-text-field
-        v-model="filters.q"
-        :placeholder="t('support.searchPlaceholder')"
+        ref="searchRef"
+        v-model="state.q"
+        :placeholder="isStaff ? t('support.searchStaff') : t('support.searchRequester')"
         prepend-inner-icon="mdi-magnify"
         variant="outlined"
         density="compact"
         hide-details
         clearable
-        class="sup__search"
-      />
+        class="tools__search"
+        @click:clear="state.q = ''"
+      >
+        <template #append-inner>
+          <kbd v-if="!state.q" class="tools__kbd">/</kbd>
+        </template>
+      </v-text-field>
+
+      <v-menu location="bottom end" :close-on-content-click="false">
+        <template #activator="{ props: act }">
+          <button v-bind="act" type="button" class="tbtn" :class="{ 'is-on': filterCount }">
+            <v-icon icon="mdi-tune-variant" size="17" />
+            <span>{{ t('support.filters') }}</span>
+            <span v-if="filterCount" class="tbtn__n">{{ filterCount }}</span>
+          </button>
+        </template>
+        <v-card class="fpanel" rounded="lg">
+          <section v-if="statusesFor(state.view).length > 1" class="fpanel__group">
+            <p class="fpanel__label">{{ t('support.colStatus') }}</p>
+            <div class="fpanel__chips">
+              <button
+                v-for="s in statusesFor(state.view)"
+                :key="s"
+                type="button"
+                class="fchip"
+                :class="[`fchip--${s}`, { 'is-on': state.status === s }]"
+                @click="toggle('status', s)"
+              >
+                {{ t('support.status.' + s) }}
+              </button>
+            </div>
+          </section>
+          <section v-if="isStaff && state.view !== 'urgent'" class="fpanel__group">
+            <p class="fpanel__label">{{ t('support.colPriority') }}</p>
+            <div class="fpanel__chips">
+              <button
+                v-for="p in TICKET_PRIORITIES"
+                :key="p"
+                type="button"
+                class="fchip"
+                :class="[`fchip--p-${p}`, { 'is-on': state.priority === p }]"
+                @click="toggle('priority', p)"
+              >
+                {{ t('support.priority.' + p) }}
+              </button>
+            </div>
+          </section>
+          <section class="fpanel__group">
+            <p class="fpanel__label">{{ t('support.colCategory') }}</p>
+            <div class="fpanel__chips">
+              <button
+                v-for="c in TICKET_CATEGORIES"
+                :key="c"
+                type="button"
+                class="fchip"
+                :class="{ 'is-on': state.category === c }"
+                @click="toggle('category', c)"
+              >
+                {{ t('support.category.' + c) }}
+              </button>
+            </div>
+          </section>
+          <button
+            v-if="filterCount"
+            type="button"
+            class="fpanel__clear"
+            @click="
+              state.status = ''
+              state.priority = ''
+              state.category = ''
+            "
+          >
+            <v-icon icon="mdi-filter-remove-outline" size="15" /> {{ t('support.clearFilters') }}
+          </button>
+        </v-card>
+      </v-menu>
+
+      <v-menu location="bottom end">
+        <template #activator="{ props: act }">
+          <button v-bind="act" type="button" class="tbtn" :title="t('support.sortBy')">
+            <v-icon icon="mdi-sort" size="17" />
+            <span class="tbtn__sort">{{ t('support.sort.' + state.sort) }}</span>
+          </button>
+        </template>
+        <v-card class="fpanel fpanel--menu" rounded="lg">
+          <button
+            v-for="s in sortOptions"
+            :key="s"
+            type="button"
+            class="mitem"
+            :class="{ 'is-on': state.sort === s }"
+            @click="state.sort = s"
+          >
+            <span>{{ t('support.sort.' + s) }}</span>
+            <v-icon v-if="state.sort === s" icon="mdi-check" size="15" />
+          </button>
+        </v-card>
+      </v-menu>
     </div>
 
-    <div v-if="loading && !list.length" class="sup__center">
-      <v-progress-circular indeterminate color="primary" />
+    <div v-if="activeChips.length" class="chips">
+      <span v-for="c in activeChips" :key="c.key" class="chip">
+        {{ c.label }}
+        <button type="button" :aria-label="t('common.close')" @click="state[c.key] = ''">
+          <v-icon icon="mdi-close" size="13" />
+        </button>
+      </span>
+      <button type="button" class="chips__clear" @click="clearRefinements">
+        {{ t('support.clearFilters') }}
+      </button>
+    </div>
+
+    <!-- List -------------------------------------------------------------- -->
+    <div v-if="loading && !list.length" class="sup__skel">
+      <div v-for="i in 4" :key="i" class="skel" />
+    </div>
+
+    <div v-else-if="error && !list.length" class="sup__empty sup__empty--err">
+      <span class="sup__emptyIco"><v-icon icon="mdi-alert-circle-outline" size="24" /></span>
+      <p>{{ error }}</p>
+      <v-btn variant="tonal" size="small" class="text-none" @click="refreshAll">
+        {{ t('support.refresh') }}
+      </v-btn>
     </div>
 
     <div v-else-if="!list.length" class="sup__empty">
-      <span class="sup__emptyIco"><v-icon icon="mdi-lifebuoy" size="26" /></span>
-      <p>{{ t('support.emptyTitle') }}</p>
-      <span class="sup__emptyHint">{{ t('support.emptyHint') }}</span>
+      <span class="sup__emptyIco">
+        <v-icon :icon="hasRefinement ? 'mdi-magnify-close' : 'mdi-lifebuoy'" size="26" />
+      </span>
+      <template v-if="hasRefinement">
+        <p>{{ t('support.noMatchTitle') }}</p>
+        <span class="sup__emptyHint">{{ t('support.noMatchHint') }}</span>
+        <v-btn variant="tonal" size="small" class="text-none mt-2" @click="clearRefinements">
+          {{ t('support.clearFilters') }}
+        </v-btn>
+      </template>
+      <template v-else-if="isStaff">
+        <p>{{ t('support.emptyStaffTitle') }}</p>
+        <span class="sup__emptyHint">{{ t('support.emptyStaffHint') }}</span>
+      </template>
+      <template v-else>
+        <p>{{ t('support.emptyTitle') }}</p>
+        <span class="sup__emptyHint">{{ t('support.emptyHint') }}</span>
+        <v-btn
+          color="primary"
+          variant="flat"
+          size="small"
+          class="text-none mt-2"
+          prepend-icon="mdi-plus"
+          :to="{ name: 'support-new' }"
+        >
+          {{ t('support.newTicket') }}
+        </v-btn>
+      </template>
     </div>
 
-    <ul v-else class="sup__list">
+    <ul v-else class="list" :class="{ 'is-busy': loading }">
       <li
         v-for="tk in list"
         :key="tk.id"
@@ -199,48 +477,62 @@ onMounted(() => {
         :class="`row--${tk.priority}`"
         role="button"
         tabindex="0"
-        @click="open(tk.id)"
-        @keydown.enter="open(tk.id)"
+        @click="open(tk)"
+        @keydown.enter="open(tk)"
       >
-        <span class="row__num">#{{ tk.number }}</span>
-        <div class="row__body">
-          <div class="row__line1">
-            <span class="tag" :class="`tag--${tk.status}`">{{
-              t('support.status.' + tk.status)
-            }}</span>
+        <span class="row__prio" :title="t('support.priority.' + tk.priority)" />
+
+        <div class="row__main">
+          <div class="row__top">
+            <span class="row__num">#{{ tk.number }}</span>
+            <span class="pill" :class="`pill--${tk.status}`">
+              <span class="pill__dot" />{{ t('support.status.' + tk.status) }}
+            </span>
+            <span
+              v-if="tk.priority === 'high' || tk.priority === 'urgent'"
+              class="prio"
+              :class="`prio--${tk.priority}`"
+            >
+              <v-icon
+                :icon="tk.priority === 'urgent' ? 'mdi-alert' : 'mdi-chevron-double-up'"
+                size="12"
+              />
+              {{ t('support.priority.' + tk.priority) }}
+            </span>
             <span class="row__cat">{{ t('support.category.' + tk.category) }}</span>
+            <span v-if="turnBadge(tk)" class="turn" :class="`turn--${turnBadge(tk)!.tone}`">
+              <span class="turn__dot" />{{ turnBadge(tk)!.text }}
+            </span>
           </div>
           <p class="row__subject">{{ tk.subject }}</p>
           <div class="row__meta">
-            <span v-if="isStaff">
-              <v-icon icon="mdi-account-outline" size="13" /> {{ tk.requester.name }}
+            <span v-if="isStaff" class="who">
+              <SupportAvatar :name="tk.requester.name" :role="tk.requester.role" :size="20" />
+              <span class="who__name">{{ tk.requester.name }}</span>
+              <SupportRoleBadge :role="tk.requester.role" />
             </span>
-            <span v-if="tk.company">
+            <span v-if="tk.company" class="meta">
               <v-icon icon="mdi-domain" size="13" /> {{ tk.company.name }}
             </span>
-            <span><v-icon icon="mdi-comment-text-outline" size="13" /> {{ tk.messageCount }}</span>
+            <span class="meta">
+              <v-icon icon="mdi-message-text-outline" size="13" /> {{ tk.messageCount }}
+            </span>
           </div>
         </div>
-        <!-- Each side fact is its own `data-label` cell so the 640px
-             breakpoint can stack them as labeled rows instead of hiding
-             them (same pattern as the wallet/consumption tables). -->
+
         <div class="row__side">
-          <span class="row__cell" :data-label="t('support.colLastActivity')">
-            <span class="row__when">{{ fmtWhen(tk.lastActivityAt) }}</span>
+          <span class="row__when" :title="dateTime(tk.lastActivityAt)">{{
+            ago(tk.lastActivityAt)
+          }}</span>
+          <span v-if="isStaff" class="assignee" :class="{ 'assignee--none': !tk.assignee }">
+            <SupportAvatar :name="tk.assignee?.name" :role="tk.assignee?.role" :size="22" />
+            <span class="assignee__name">{{
+              tk.assignee ? tk.assignee.name : t('support.unassigned')
+            }}</span>
           </span>
-          <span
-            v-if="tk.priority !== 'normal'"
-            class="row__cell"
-            :data-label="t('support.colPriority')"
-          >
-            <span class="row__prio" :class="`row__prio--${tk.priority}`">
-              {{ t('support.priority.' + tk.priority) }}
-            </span>
-          </span>
-          <span v-if="isStaff" class="row__cell" :data-label="t('support.colAssignee')">
-            <span class="row__assignee">
-              {{ tk.assignee ? tk.assignee.name : t('support.unassigned') }}
-            </span>
+          <span v-else-if="tk.assignee" class="assignee">
+            <SupportAvatar :name="tk.assignee.name" :role="tk.assignee.role" :size="22" />
+            <span class="assignee__name">{{ tk.assignee.name }}</span>
           </span>
         </div>
       </li>
@@ -255,7 +547,7 @@ onMounted(() => {
         type="button"
         class="sup__more"
         :disabled="loadingMore"
-        @click="loadMore"
+        @click="support.loadMore()"
       >
         <v-progress-circular v-if="loadingMore" indeterminate size="14" width="2" />
         <template v-else>{{ t('support.loadMore') }}</template>
@@ -266,18 +558,24 @@ onMounted(() => {
 
 <style scoped>
 .sup {
-  max-width: 860px;
+  max-width: 920px;
   margin-inline: auto;
   padding: clamp(1.5rem, 5vw, 3rem) clamp(1rem, 4vw, 1.5rem) 4rem;
 }
+/* The admin layout already pads its content. */
+.sup--staff {
+  max-width: 1080px;
+  padding-top: 0.25rem;
+}
 
+/* Header ------------------------------------------------------------------ */
 .sup__head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 1.25rem;
   flex-wrap: wrap;
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.5rem;
 }
 .sup__eyebrow {
   text-transform: uppercase;
@@ -294,100 +592,497 @@ onMounted(() => {
   letter-spacing: -0.025em;
   margin: 0;
 }
+.sup__lead {
+  margin: 0.45rem 0 0;
+  font-size: 0.88rem;
+  color: rgba(var(--v-theme-on-surface), 0.58);
+}
+.sup__headActions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.sup__today {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  background: rgba(var(--v-theme-success), 0.12);
+  color: rgb(var(--v-theme-success));
+}
 .sup__new {
   border-radius: 9px;
   height: 40px;
 }
 
-/* Stat cards ---------------------------------------------------------------- */
-.sup__stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-.stat {
+/* View tabs --------------------------------------------------------------- */
+.tabs {
   display: flex;
-  flex-direction: column;
   gap: 0.25rem;
-  padding: 1rem 1.1rem;
-  border-radius: 10px;
+  padding: 0.3rem;
+  margin-bottom: 0.85rem;
   border: 1px solid var(--tvz-hairline);
+  border-radius: 12px;
   background: rgb(var(--v-theme-surface));
-  border-top: 2px solid rgba(var(--v-theme-on-surface), 0.14);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.stat--primary {
-  border-top-color: rgb(var(--v-theme-primary));
+.tabs::-webkit-scrollbar {
+  display: none;
 }
-.stat--warn {
-  border-top-color: rgb(var(--v-theme-warning));
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: none;
+  padding: 0.5rem 0.8rem;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: rgba(var(--v-theme-on-surface), 0.62);
+  transition:
+    background var(--tvz-dur-fast) var(--tvz-ease-out),
+    color var(--tvz-dur-fast) var(--tvz-ease-out);
 }
-.stat--error {
-  border-top-color: rgb(var(--v-theme-error));
+.tab:hover {
+  background: rgba(var(--v-theme-on-surface), 0.05);
+  color: rgb(var(--v-theme-on-surface));
 }
-.stat--ok {
-  border-top-color: rgb(var(--v-theme-success));
+.tab.is-on {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
 }
-.stat__v {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.7rem;
+.tab__n {
+  min-width: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.35rem;
+  text-align: center;
   font-variant-numeric: tabular-nums;
+  background: rgba(var(--v-theme-on-surface), 0.08);
 }
-.stat__k {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: rgba(var(--v-theme-on-surface), 0.55);
+.tab.is-on .tab__n {
+  background: rgba(var(--v-theme-primary), 0.2);
+}
+.tab--alert .tab__n {
+  background: rgba(var(--v-theme-warning), 0.2);
+  color: rgb(var(--v-theme-warning));
 }
 
-/* Filters ----------------------------------------------------------------- */
-.sup__filters {
+/* Tools row --------------------------------------------------------------- */
+.tools {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  margin-bottom: 1.5rem;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
-.sup__filter {
-  max-width: 10rem;
-}
-.sup__search {
+.tools__search {
   flex: 1;
-  min-width: 12rem;
+  min-width: 0;
 }
-.seg {
-  display: inline-flex;
+.tools__kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 5px;
   border: 1px solid var(--tvz-hairline);
-  border-radius: 9px;
-  overflow: hidden;
+  font-family: inherit;
+  font-size: 0.7rem;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.tbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
   height: 40px;
-  /* Missing here (same bug as the sibling segmented controls — Transactions'
-     `.txn__tabs`, Wallet's `.wal__payTabs`, Leads' `.lds__seg`) left the
-     off options fully transparent, just a border floating over the page. */
+  padding: 0 0.85rem;
+  border-radius: 9px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.22);
   background: rgb(var(--v-theme-surface));
-}
-.seg button {
-  padding: 0 1rem;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  transition: background var(--tvz-dur-fast) var(--tvz-ease-out);
+  color: rgba(var(--v-theme-on-surface), 0.75);
+  transition: border-color var(--tvz-dur-fast) var(--tvz-ease-out);
 }
-.seg button + button {
-  border-left: 1px solid var(--tvz-hairline);
+.tbtn:hover,
+.tbtn[aria-expanded='true'] {
+  border-color: rgba(var(--v-theme-on-surface), 0.4);
 }
-.seg button.is-on {
+.tbtn.is-on {
+  border-color: rgba(var(--v-theme-primary), 0.6);
+  color: rgb(var(--v-theme-primary));
+}
+.tbtn__n {
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  line-height: 1.15rem;
+  text-align: center;
+  background: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-on-primary));
+}
+
+/* Active refinement chips ------------------------------------------------ */
+.chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.3rem 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
   background: rgba(var(--v-theme-primary), 0.12);
   color: rgb(var(--v-theme-primary));
 }
-
-/* States ---------------------------------------------------------------- */
-.sup__center {
+.chip button {
   display: grid;
   place-items: center;
-  min-height: 220px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+.chip button:hover {
+  background: rgba(var(--v-theme-primary), 0.18);
+}
+.chips__clear {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  padding: 0.2rem 0.4rem;
+}
+.chips__clear:hover {
+  color: rgb(var(--v-theme-on-surface));
+}
+
+/* List -------------------------------------------------------------------- */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: 12px;
+  background: rgb(var(--v-theme-surface));
+  overflow: hidden;
+  transition: opacity var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.list.is-busy {
+  opacity: 0.6;
+}
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.95rem 1.1rem 0.95rem 1.3rem;
+  cursor: pointer;
+  transition: background var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.row + .row {
+  border-top: 1px solid var(--tvz-hairline);
+}
+.row:hover,
+.row:focus-visible {
+  outline: none;
+  background: rgba(var(--v-theme-primary), 0.05);
+}
+.row:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(var(--v-theme-primary), 0.5);
+}
+/* Priority as a slim left rail: invisible for normal/low, loud for urgent. */
+.row__prio {
+  position: absolute;
+  left: 0;
+  top: 0.7rem;
+  bottom: 0.7rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+}
+.row--high .row__prio {
+  background: rgb(var(--v-theme-warning));
+}
+.row--urgent .row__prio {
+  background: rgb(var(--v-theme-error));
+}
+.row__main {
+  flex: 1;
+  min-width: 0;
+}
+.row__top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.row__num {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.42);
+  font-variant-numeric: tabular-nums;
+}
+.row__cat {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(var(--v-theme-on-surface), 0.42);
+}
+.row__subject {
+  margin: 0.35rem 0 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin-top: 0.45rem;
+  font-size: 0.76rem;
+  color: rgba(var(--v-theme-on-surface), 0.58);
+}
+.meta,
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.who__name {
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.8);
+}
+.row__side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.45rem;
+  max-width: 11rem;
+}
+.row__when {
+  font-size: 0.74rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  white-space: nowrap;
+}
+.assignee {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.assignee__name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.assignee--none {
+  color: rgba(var(--v-theme-on-surface), 0.42);
+  font-style: italic;
+}
+
+/* Status pill, priority, "whose turn" ----------------------------------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pill--open {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.pill--in_progress {
+  background: rgba(var(--v-theme-info), 0.14);
+  color: rgb(var(--v-theme-info));
+}
+.pill--waiting {
+  background: rgba(var(--v-theme-warning), 0.15);
+  color: rgb(var(--v-theme-warning));
+}
+.pill--resolved {
+  background: rgba(var(--v-theme-success), 0.15);
+  color: rgb(var(--v-theme-success));
+}
+.prio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.prio--high {
+  color: rgb(var(--v-theme-warning));
+}
+.prio--urgent {
+  color: rgb(var(--v-theme-error));
+}
+.turn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.turn__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px rgba(var(--v-theme-primary), 0.18);
+}
+.turn--accent {
+  color: rgb(var(--v-theme-primary));
+}
+.turn--warn {
+  color: rgb(var(--v-theme-warning));
+}
+.turn--warn .turn__dot {
+  box-shadow: 0 0 0 3px rgba(var(--v-theme-warning), 0.2);
+}
+
+/* Filter / sort menus (teleported, but scoped attrs still apply) -------- */
+.fpanel {
+  width: 20rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.9rem;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.1);
+  box-shadow: var(--tvz-shadow-lg);
+}
+.fpanel--menu {
+  width: 14rem;
+  padding: 0.35rem;
+}
+.fpanel__group + .fpanel__group {
+  margin-top: 0.9rem;
+}
+.fpanel__label {
+  margin: 0 0 0.45rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.fpanel__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.fchip {
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--tvz-hairline);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+  transition:
+    background var(--tvz-dur-fast) var(--tvz-ease-out),
+    border-color var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.fchip:hover {
+  border-color: rgba(var(--v-theme-on-surface), 0.35);
+}
+.fchip.is-on {
+  border-color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.fpanel__clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.fpanel__clear:hover {
+  color: rgb(var(--v-theme-on-surface));
+}
+.mitem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  text-align: left;
+  color: rgba(var(--v-theme-on-surface), 0.8);
+}
+.mitem:hover {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+}
+.mitem.is-on {
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+}
+
+/* States ---------------------------------------------------------------- */
+.sup__skel {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.skel {
+  height: 84px;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--v-theme-on-surface), 0.03) 0%,
+    rgba(var(--v-theme-on-surface), 0.07) 50%,
+    rgba(var(--v-theme-on-surface), 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: skel 1.3s ease-in-out infinite;
+}
+@keyframes skel {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel {
+    animation: none;
+  }
 }
 .sup__empty {
   display: flex;
@@ -396,6 +1091,11 @@ onMounted(() => {
   text-align: center;
   gap: 0.4rem;
   padding: 3.5rem 1rem;
+  border: 1px dashed rgba(var(--v-theme-on-surface), 0.16);
+  border-radius: 12px;
+}
+.sup__empty--err {
+  color: rgb(var(--v-theme-error));
 }
 .sup__emptyIco {
   display: grid;
@@ -415,157 +1115,6 @@ onMounted(() => {
 .sup__emptyHint {
   font-size: 0.86rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
-}
-
-/* Ticket rows --------------------------------------------------------------- */
-.sup__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-.row {
-  display: flex;
-  gap: 1rem;
-  padding: 1rem 1.15rem;
-  border-radius: 10px;
-  border: 1px solid var(--tvz-hairline);
-  background: rgb(var(--v-theme-surface));
-  cursor: pointer;
-  border-left-width: 3px;
-  border-left-color: rgba(var(--v-theme-on-surface), 0.1);
-  transition:
-    border-color var(--tvz-dur-fast) var(--tvz-ease-out),
-    background var(--tvz-dur-fast) var(--tvz-ease-out);
-}
-.row--high {
-  border-left-color: rgb(var(--v-theme-warning));
-}
-.row--urgent {
-  border-left-color: rgb(var(--v-theme-error));
-}
-.row:hover,
-.row:focus-visible {
-  outline: none;
-  border-color: rgba(var(--v-theme-primary), 0.45);
-  border-left-color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.03);
-}
-.row__num {
-  flex: none;
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  font-size: 0.8rem;
-  color: rgba(var(--v-theme-on-surface), 0.4);
-  font-variant-numeric: tabular-nums;
-  padding-top: 0.1rem;
-}
-.row__body {
-  flex: 1;
-  min-width: 0;
-}
-.row__line1 {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-}
-.row__cat {
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(var(--v-theme-on-surface), 0.42);
-}
-.row__subject {
-  margin: 0.4rem 0 0;
-  font-weight: 600;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.row__meta {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 0.4rem;
-  font-size: 0.76rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.row__meta span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-.row__side {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.35rem;
-  text-align: right;
-}
-/* Plain wrapper on desktop (shrink-to-fit inside the column flex); turns
-   into a labeled `label · value` row at the mobile breakpoint. */
-.row__cell {
-  display: block;
-}
-.row__when {
-  font-size: 0.74rem;
-  color: rgba(var(--v-theme-on-surface), 0.45);
-}
-.row__prio {
-  /* No longer a flex item (it sits inside `.row__cell` now), so it has to
-     blockify itself for the padded badge box to hold its shape. */
-  display: inline-block;
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.12rem 0.4rem;
-  border-radius: 4px;
-  background: rgba(var(--v-theme-warning), 0.14);
-  color: rgb(var(--v-theme-warning));
-}
-.row__prio--urgent {
-  background: rgba(var(--v-theme-error), 0.14);
-  color: rgb(var(--v-theme-error));
-}
-.row__assignee {
-  /* Same reason as `.row__prio` — max-width/ellipsis need a block box. */
-  display: inline-block;
-  font-size: 0.72rem;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-  max-width: 8rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Status tag (shared) ---------------------------------------------------- */
-.tag {
-  font-size: 0.64rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.16rem 0.45rem;
-  border-radius: 4px;
-  background: rgba(var(--v-theme-on-surface), 0.08);
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.tag--open {
-  background: rgba(var(--v-theme-primary), 0.14);
-  color: rgb(var(--v-theme-primary));
-}
-.tag--in_progress {
-  background: rgba(var(--v-theme-warning), 0.16);
-  color: rgb(var(--v-theme-warning));
-}
-.tag--resolved,
-.tag--closed {
-  background: rgba(var(--v-theme-success), 0.16);
-  color: rgb(var(--v-theme-success));
 }
 
 /* Load more ------------------------------------------------------------- */
@@ -599,62 +1148,31 @@ onMounted(() => {
 }
 
 @media (max-width: 640px) {
-  .sup__stats {
-    grid-template-columns: 1fr 1fr;
-  }
-  /* Filters had no mobile rule at all — the fixed max/min-widths below just
-     wrapped into a cramped, uneven multi-row pile on a phone. Stack them
-     full-width instead, same pattern as the other filter bars on this page. */
-  .sup__filters {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .seg {
-    align-self: stretch;
-  }
-  .seg button {
-    flex: 1;
-  }
-  .sup__filter,
-  .sup__search {
-    max-width: none;
-    min-width: 0;
-    width: 100%;
-  }
-  /* The side column used to be `display: none` here, which silently dropped
-     the timestamp, priority and assignee on phones. Stack it under the
-     subject instead, one labeled fact per line. */
-  .row {
+  .tools {
     flex-wrap: wrap;
   }
-  .row__side {
-    flex: 1 1 100%;
+  .tools__search {
+    flex-basis: 100%;
+  }
+  .tools__kbd {
+    display: none;
+  }
+  .tbtn {
+    flex: 1;
+    justify-content: center;
+  }
+  .row {
+    flex-direction: column;
     align-items: stretch;
-    gap: 0.3rem;
-    margin-top: 0.7rem;
-    padding-top: 0.7rem;
-    border-top: 1px solid var(--tvz-hairline);
-    text-align: left;
+    gap: 0.6rem;
   }
-  .row__cell {
-    display: flex;
+  .row__side {
+    flex-direction: row;
+    align-items: center;
     justify-content: space-between;
-    align-items: baseline;
-    column-gap: 0.75rem;
-  }
-  .row__cell::before {
-    content: attr(data-label);
-    flex-shrink: 0;
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: rgba(var(--v-theme-on-surface), 0.45);
-  }
-  .row__assignee {
     max-width: none;
-    white-space: normal;
-    text-align: right;
+    padding-top: 0.55rem;
+    border-top: 1px dashed var(--tvz-hairline);
   }
 }
 </style>

@@ -4,13 +4,7 @@ import { apiFetch, ApiError, BASE_URL } from '@/services/api'
 
 export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed'
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent'
-export type TicketCategory =
-  | 'bug'
-  | 'problem'
-  | 'question'
-  | 'billing'
-  | 'feedback'
-  | 'other'
+export type TicketCategory = 'bug' | 'problem' | 'question' | 'billing' | 'feedback' | 'other'
 export type MessageKind = 'reply' | 'note' | 'system'
 
 export const TICKET_STATUSES: TicketStatus[] = [
@@ -35,6 +29,24 @@ interface UserMini {
   name: string
 }
 
+/** The badge shown next to a person's name in a ticket: their most
+ *  privileged platform role, or `user` for an ordinary customer account. */
+export type SupportPersonRole = 'admin' | 'support' | 'finance' | 'moderator' | 'user'
+export interface SupportPerson extends UserMini {
+  role: SupportPersonRole
+}
+
+/**
+ * Which side of the ticketing system the page is showing. The normal panel is
+ * always `requester` (own tickets, customer view), even for a support agent;
+ * only the admin panel's copy of the pages is `staff`. Sent to the API as
+ * `as=requester`, so the backend enforces the same split.
+ */
+export type SupportPerspective = 'staff' | 'requester'
+
+export type TicketSort = 'activity' | 'newest' | 'oldest' | 'priority'
+export const TICKET_SORTS: TicketSort[] = ['activity', 'newest', 'oldest', 'priority']
+
 export interface TicketListItem {
   id: string
   number: number
@@ -42,10 +54,12 @@ export interface TicketListItem {
   status: TicketStatus
   priority: TicketPriority
   category: TicketCategory
-  requester: UserMini
-  assignee: UserMini | null
+  requester: SupportPerson
+  assignee: SupportPerson | null
   company: { id: string; name: string } | null
   messageCount: number
+  /** Who wrote the latest public reply; null when nobody has replied yet. */
+  lastReplyBy?: 'requester' | 'team' | null
   createdAt: string
   lastActivityAt: string
 }
@@ -61,7 +75,7 @@ export interface TicketMessage {
   id: string
   kind: MessageKind
   body: string
-  author: { id: string; name: string; staff: boolean } | null
+  author: (SupportPerson & { staff: boolean; requester?: boolean }) | null
   mine: boolean
   createdAt: string
   attachments: TicketAttachment[]
@@ -74,8 +88,8 @@ export interface TicketDetail {
   status: TicketStatus
   priority: TicketPriority
   category: TicketCategory
-  requester: UserMini
-  assignee: UserMini | null
+  requester: SupportPerson
+  assignee: SupportPerson | null
   company: { id: string; name: string } | null
   firstResponseAt: string | null
   resolvedAt: string | null
@@ -95,6 +109,18 @@ export interface SupportOverview {
   resolvedToday: number
 }
 
+/** Filter-tab counters. Staff get the queue split, a requester only their own. */
+export interface SupportCounts {
+  active: number
+  waiting: number
+  done: number
+  all: number
+  mine?: number
+  unassigned?: number
+  urgent?: number
+  resolvedToday?: number
+}
+
 export interface CreateTicketInput {
   subject: string
   body: string
@@ -106,8 +132,11 @@ export interface CreateTicketInput {
 export interface TicketFilters {
   scope?: 'mine' | 'all'
   status?: TicketStatus | ''
+  statusGroup?: 'active' | 'done' | ''
   priority?: TicketPriority | ''
+  category?: TicketCategory | ''
   assignee?: 'me' | 'unassigned' | ''
+  sort?: TicketSort | ''
   q?: string
 }
 
@@ -117,6 +146,12 @@ interface State {
   nextCursor: string | null
   ticket: TicketDetail | null
   overview: SupportOverview | null
+  counts: SupportCounts | null
+  /** Set by the page from the panel it is mounted in; see `SupportPerspective`. */
+  perspective: SupportPerspective
+  /** The list's last URL query (view, filters, search) per panel, so a
+   *  ticket's "Back" link returns to the same filtered list. */
+  listQuery: Record<SupportPerspective, Record<string, string>>
   staff: UserMini[]
   loading: boolean
   /** Separate from `loading` so a "load more" spinner never makes the already
@@ -137,8 +172,18 @@ let listToken = 0
  *  so the next page is drawn from the same query. */
 let listFilters: TicketFilters = {}
 
-function ticketsPath(filters: TicketFilters, cursor?: string | null): string {
+/** `?as=requester` for the normal panel, nothing for the admin panel. */
+function asQuery(p: SupportPerspective): string {
+  return p === 'requester' ? '?as=requester' : ''
+}
+
+function ticketsPath(
+  filters: TicketFilters,
+  perspective: SupportPerspective,
+  cursor?: string | null,
+): string {
   const qs = new URLSearchParams()
+  if (perspective === 'requester') qs.set('as', 'requester')
   for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, String(v))
   if (cursor) qs.set('cursor', cursor)
   const q = qs.toString()
@@ -158,6 +203,9 @@ export const useSupportStore = defineStore('support', {
     nextCursor: null,
     ticket: null,
     overview: null,
+    counts: null,
+    perspective: 'requester',
+    listQuery: { staff: {}, requester: {} },
     staff: [],
     loading: false,
     loadingMore: false,
@@ -167,6 +215,26 @@ export const useSupportStore = defineStore('support', {
   }),
 
   actions: {
+    /** Switching side also drops whatever the other side had loaded, so the
+     *  queue can never flash on the customer page (or the other way round). */
+    setPerspective(p: SupportPerspective): void {
+      if (this.perspective === p) return
+      this.perspective = p
+      listToken += 1
+      this.list = []
+      this.nextCursor = null
+      this.counts = null
+      this.ticket = null
+    },
+
+    async loadCounts(): Promise<void> {
+      try {
+        this.counts = await apiFetch<SupportCounts>(`/support/counts${asQuery(this.perspective)}`)
+      } catch {
+        this.counts = null
+      }
+    },
+
     async loadList(filters: TicketFilters = {}): Promise<void> {
       listFilters = { ...filters }
       const token = ++listToken
@@ -174,7 +242,7 @@ export const useSupportStore = defineStore('support', {
       this.moreError = false
       this.error = ''
       try {
-        const res = await apiFetch<TicketPage>(ticketsPath(filters))
+        const res = await apiFetch<TicketPage>(ticketsPath(filters, this.perspective))
         if (token !== listToken) return // a newer loadList() already won
         this.list = res.items
         this.nextCursor = res.nextCursor ?? null
@@ -195,7 +263,7 @@ export const useSupportStore = defineStore('support', {
       this.loadingMore = true
       this.moreError = false
       try {
-        const res = await apiFetch<TicketPage>(ticketsPath(listFilters, cursor))
+        const res = await apiFetch<TicketPage>(ticketsPath(listFilters, this.perspective, cursor))
         if (token !== listToken) return // filters changed while this was in flight
         this.list = [...this.list, ...res.items]
         this.nextCursor = res.nextCursor ?? null
@@ -228,7 +296,9 @@ export const useSupportStore = defineStore('support', {
       this.loading = true
       this.error = ''
       try {
-        this.ticket = await apiFetch<TicketDetail>(`/support/tickets/${id}`)
+        this.ticket = await apiFetch<TicketDetail>(
+          `/support/tickets/${id}${asQuery(this.perspective)}`,
+        )
       } catch (err) {
         this.error = err instanceof Error ? err.message : 'error'
         this.ticket = null
@@ -262,7 +332,7 @@ export const useSupportStore = defineStore('support', {
       attachmentIds: string[] = [],
     ): Promise<boolean> {
       return this.run(() =>
-        apiFetch<TicketDetail>(`/support/tickets/${id}/messages`, {
+        apiFetch<TicketDetail>(`/support/tickets/${id}/messages${asQuery(this.perspective)}`, {
           method: 'POST',
           body: { body, internal, ...(attachmentIds.length ? { attachmentIds } : {}) },
         }),
@@ -280,14 +350,17 @@ export const useSupportStore = defineStore('support', {
     ): Promise<TicketAttachment | null> {
       this.error = ''
       try {
-        return await apiFetch<TicketAttachment>(`/support/tickets/${ticketId}/attachments`, {
-          method: 'POST',
-          body: { dataUri, filename },
-          // A base64 data URI of a multi-MB screenshot regularly outruns the
-          // 12s default — the request was being aborted client-side while the
-          // server was still happily storing it.
-          timeoutMs: 30_000,
-        })
+        return await apiFetch<TicketAttachment>(
+          `/support/tickets/${ticketId}/attachments${asQuery(this.perspective)}`,
+          {
+            method: 'POST',
+            body: { dataUri, filename },
+            // A base64 data URI of a multi-MB screenshot regularly outruns the
+            // 12s default — the request was being aborted client-side while the
+            // server was still happily storing it.
+            timeoutMs: 30_000,
+          },
+        )
       } catch (err) {
         this.error = err instanceof ApiError ? err.message : 'error'
         return null
@@ -295,7 +368,7 @@ export const useSupportStore = defineStore('support', {
     },
 
     attachmentUrl(ticketId: string, attachmentId: string): string {
-      return `${BASE_URL}/support/tickets/${ticketId}/attachments/${attachmentId}`
+      return `${BASE_URL}/support/tickets/${ticketId}/attachments/${attachmentId}${asQuery(this.perspective)}`
     },
 
     async patch(
@@ -308,7 +381,10 @@ export const useSupportStore = defineStore('support', {
       }>,
     ): Promise<boolean> {
       return this.run(() =>
-        apiFetch<TicketDetail>(`/support/tickets/${id}`, { method: 'PATCH', body }),
+        apiFetch<TicketDetail>(`/support/tickets/${id}${asQuery(this.perspective)}`, {
+          method: 'PATCH',
+          body,
+        }),
       )
     },
 

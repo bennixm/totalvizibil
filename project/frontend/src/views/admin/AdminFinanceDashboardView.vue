@@ -9,6 +9,10 @@ import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
 import TrendChart from '@/components/TrendChart.vue'
+import AdminExportMenu from '@/components/admin/AdminExportMenu.vue'
+import FinanceStatementTable from '@/components/admin/finance/FinanceStatementTable.vue'
+import FinanceAnnualTable from '@/components/admin/finance/FinanceAnnualTable.vue'
+import FinanceChecksPanel from '@/components/admin/finance/FinanceChecksPanel.vue'
 import { useMoney } from '@/composables/useMoney'
 import { usePeriodFilter } from '@/composables/usePeriodFilter'
 import { useAdminFinanceStore, type ExpenseCategory } from '@/stores/adminFinance'
@@ -44,15 +48,27 @@ const CATEGORY_LABEL_KEYS: Record<ExpenseCategory, string> = {
   other: 'adminFinance.catOther',
 }
 
+// Every cost of the period, in EUR, from the statement — the AI provider
+// costs (builder, campaign agent, homepage search) as their own lines.
 const categoryRows = computed(() => {
-  const o = finance.overview
-  if (!o) return []
+  const st = finance.overview?.statement
+  if (!st) return []
+  const ai = st.expenses.ai
   return (Object.keys(CATEGORY_LABEL_KEYS) as ExpenseCategory[])
-    .map((key) => ({ key, label: t(CATEGORY_LABEL_KEYS[key]), amountMinor: o.expensesByCategory[key] }))
-    .concat([{ key: 'ai_api' as ExpenseCategory, label: t('adminFinance.aiCost'), amountMinor: o.aiCostMinor }])
+    .map((key) => ({ key: key as string, label: t(CATEGORY_LABEL_KEYS[key]), amountMinor: st.expenses.byCategory[key] }))
+    .concat([
+      { key: 'aiB', label: t('adminFinance.pl.aiBuilder'), amountMinor: ai.builderMinor },
+      { key: 'aiA', label: t('adminFinance.pl.aiAgent'), amountMinor: ai.campaignAgentMinor },
+      { key: 'aiS', label: t('adminFinance.pl.aiSearch'), amountMinor: ai.searchMinor },
+    ])
     .filter((r) => r.amountMinor > 0)
     .sort((a, b) => b.amountMinor - a.amountMinor)
 })
+
+/** Summary / statement / annual / checks: one page, four views. The period
+ *  filter only drives the first two (annual has its own year; checks run
+ *  over all data). */
+const mainTab = ref<'summary' | 'pnl' | 'annual' | 'checks'>('summary')
 
 const ONE_OFF_LABEL_KEYS = {
   aiUsage: 'adminFinance.oneOffAiUsage',
@@ -72,19 +88,23 @@ const oneOffRows = computed(() => {
 // --- charts ----------------------------------------------------------------
 // `trend[]` has always been computed server-side and never rendered; these
 // feed it into the same TrendChart the rest of the panel uses.
-const trendLabels = computed(() =>
-  (finance.overview?.trend ?? []).map((p) => {
-    const [, m, d] = p.date.split('-')
-    return `${d}.${m}`
-  }),
-)
+function dayLabel(date: string): string {
+  const [, m, d] = date.split('-')
+  return `${d}.${m}`
+}
+const trendLabels = computed(() => (finance.overview?.trend ?? []).map((p) => dayLabel(p.date)))
+// Earned revenue (ex-VAT) vs expenses vs net cash, per day — the same
+// figures as the statement, so the chart adds up to the KPIs above it.
+const dailyLabels = computed(() => (finance.overview?.daily ?? []).map((p) => dayLabel(p.date)))
 const moneySeries = computed(() => {
-  const trend = finance.overview?.trend ?? []
+  const daily = finance.overview?.daily ?? []
   return [
-    { label: t('adminFinance.revenue'), values: trend.map((p) => p.revenueMinor / 100) },
-    { label: t('adminFinance.costs'), values: trend.map((p) => p.costMinor / 100) },
+    { label: t('adminFinance.pl.revTotal'), values: daily.map((p) => p.revenueMinor / 100) },
+    { label: t('adminFinance.costs'), values: daily.map((p) => p.expenseMinor / 100) },
+    { label: t('adminFinance.cashNetSeries'), values: daily.map((p) => p.cashNetMinor / 100) },
   ]
 })
+const hasDaily = computed(() => (finance.overview?.daily.length ?? 0) > 0)
 const refundRatioSeries = computed(() => [
   {
     label: t('adminFinance.refundRatioLabel'),
@@ -113,8 +133,16 @@ watch(
 // Drives the filter bar's highlighted preset — `v-btn-toggle` had no
 // `value` on its children before, so nothing was ever shown as active no
 // matter which range was actually applied.
-const { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, applyCustomRange } =
-  usePeriodFilter((from, to, lifetime) => finance.setPeriod(from, to, lifetime))
+const {
+  activePreset,
+  customFrom,
+  customTo,
+  canApplyCustom,
+  setQuickRange,
+  applyCustomRange,
+  pickMonth,
+  pickYear,
+} = usePeriodFilter((from, to, lifetime) => finance.setPeriod(from, to, lifetime))
 
 // What's actually being shown right now, straight from the resolved
 // server-side range — so switching a preset or a custom range always has a
@@ -136,19 +164,45 @@ onMounted(() => setQuickRange('month'))
 <template>
   <div class="afd">
     <AdminPageHeader :title="t('adminFinance.dashboardTitle')" :eyebrow="t('admin.navGroupFinance')">
+      <template #actions>
+        <AdminExportMenu
+          v-if="mainTab === 'summary' || mainTab === 'pnl'"
+          :url-for="(f) => finance.reportExportUrl(f)"
+          :label="t('adminFinance.exportReport')"
+        />
+      </template>
     </AdminPageHeader>
 
+    <v-tabs v-model="mainTab" density="compact" color="primary" class="afd__maintabs" show-arrows>
+      <v-tab value="summary" prepend-icon="mdi-view-dashboard-outline">{{ t('adminFinance.tabSummary') }}</v-tab>
+      <v-tab value="pnl" prepend-icon="mdi-scale-balance">{{ t('adminFinance.tabPnl') }}</v-tab>
+      <v-tab value="annual" prepend-icon="mdi-calendar-range">{{ t('adminFinance.tabAnnual') }}</v-tab>
+      <v-tab value="checks" prepend-icon="mdi-shield-check-outline">{{ t('adminFinance.tabChecks') }}</v-tab>
+    </v-tabs>
+
     <AdminPeriodFilter
+      v-show="mainTab === 'summary' || mainTab === 'pnl'"
       v-model:custom-from="customFrom"
       v-model:custom-to="customTo"
       :preset="activePreset"
       :can-apply-custom="canApplyCustom"
       :active-range-label="activeRangeLabel"
+      calendar-pickers
       @preset="setQuickRange"
       @apply="applyCustomRange"
+      @pick-month="pickMonth"
+      @pick-year="pickYear"
     />
 
-    <div v-if="finance.loadingOverview && !finance.overview" class="afd__center">
+    <AdminSection v-if="mainTab === 'annual'" :title="t('adminFinance.tabAnnual')" icon="mdi-calendar-range" wide>
+      <FinanceAnnualTable />
+    </AdminSection>
+
+    <AdminSection v-else-if="mainTab === 'checks'" :title="t('adminFinance.tabChecks')" icon="mdi-shield-check-outline" wide>
+      <FinanceChecksPanel />
+    </AdminSection>
+
+    <div v-else-if="finance.loadingOverview && !finance.overview" class="afd__center">
       <v-progress-circular indeterminate color="primary" />
     </div>
 
@@ -159,6 +213,16 @@ onMounted(() => setQuickRange('month'))
       icon="mdi-alert-circle-outline"
       :text="finance.overviewError"
     />
+
+    <AdminSection
+      v-else-if="finance.overview && mainTab === 'pnl'"
+      :title="t('adminFinance.tabPnl')"
+      icon="mdi-scale-balance"
+      :hint="t('adminFinance.pnlHint')"
+      wide
+    >
+      <FinanceStatementTable :statement="finance.overview.statement" :balance="finance.overview.balance" />
+    </AdminSection>
 
     <template v-else-if="finance.overview">
       <!-- The headline: real profit, always Today/This month/This year —
@@ -199,15 +263,19 @@ onMounted(() => setQuickRange('month'))
       <div class="afd__kpis afd__kpis--four">
         <AdminStatCard
           :label="t('adminFinance.collectedRevenue')"
-          :value="eur(finance.overview.revenueMinor)"
-          :sub="`${eur(finance.overview.unconsumedRevenueMinor)} ${t('adminFinance.unconsumedRevenue').toLowerCase()}`"
-          :hint="t('adminFinance.unconsumedRevenueHint')"
+          :value="eur(finance.overview.statement.cash.netExVatMinor)"
+          :sub="t('adminFinance.cashSub', {
+            gross: eur(finance.overview.statement.cash.netMinor),
+            vat: eur(finance.overview.statement.cash.netVatMinor),
+          })"
+          :hint="t('adminFinance.collectedRevenueHint')"
           icon="mdi-cash-plus"
         />
         <AdminStatCard
           :label="t('adminFinance.consumedRevenue')"
           :value="eur(finance.overview.consumedRevenueRealMoneyMinor)"
-          :sub="t('adminFinance.consumedRevenueHint')"
+          :sub="t('adminFinance.consumedRevenueSub')"
+          :hint="t('adminFinance.consumedRevenueHint')"
           icon="mdi-bank-transfer-in"
           tone="primary"
         />
@@ -215,6 +283,9 @@ onMounted(() => setQuickRange('month'))
         <AdminStatCard
           :label="t('adminFinance.netProfit')"
           :value="eur(finance.overview.profitMinor)"
+          :sub="finance.overview.statement.result.marginPct === null
+            ? t('adminFinance.beforeTax')
+            : t('adminFinance.marginSub', { pct: pct(finance.overview.statement.result.marginPct) })"
           icon="mdi-chart-line"
           :tone="profitTone(finance.overview.profitMinor)"
         />
@@ -247,8 +318,8 @@ onMounted(() => setQuickRange('month'))
 
       <AdminSection :title="t('adminFinance.dailyTrendTitle')" icon="mdi-chart-line" class="afd__chart">
         <TrendChart
-          v-if="hasTrend"
-          :labels="trendLabels"
+          v-if="hasDaily"
+          :labels="dailyLabels"
           :series="moneySeries"
           :format="eurAxis"
         />
@@ -407,7 +478,15 @@ onMounted(() => setQuickRange('month'))
            filter on purpose (a liability is what's owed right now).
            Reconciliation detail, not a headline figure — kept near the
            bottom, right before the drill-downs it's most related to. -->
-      <div class="afd__kpis afd__kpis--four">
+      <div class="afd__kpis afd__kpis--balance">
+        <AdminStatCard
+          :label="t('adminFinance.advances')"
+          :value="eur(finance.overview.balance.advancesMoneyMinor)"
+          :sub="t('adminFinance.advancesSub', { date: dt(finance.overview.balance.asOf) })"
+          :hint="t('adminFinance.pl.balanceHint')"
+          icon="mdi-hand-coin-outline"
+          tone="warning"
+        />
         <AdminStatCard
           :label="t('adminFinance.walletLiability')"
           :value="eur(finance.overview.walletLiabilityMinor)"
@@ -556,6 +635,13 @@ onMounted(() => setQuickRange('month'))
 }
 .afd__kpis--three {
   grid-template-columns: repeat(3, 1fr);
+}
+.afd__kpis--balance {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.afd__maintabs {
+  margin-top: 0.4rem;
+  border-bottom: 1px solid var(--tvz-hairline);
 }
 .afd__chart {
   margin-bottom: 1rem;

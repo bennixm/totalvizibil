@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
+import SupportAvatar from '@/components/support/SupportAvatar.vue'
+import SupportRoleBadge from '@/components/support/SupportRoleBadge.vue'
+import { useSupportRoutes } from '@/composables/useSupportRoutes'
+import { useSupportTime } from '@/composables/useSupportTime'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 import {
@@ -12,16 +16,29 @@ import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   type TicketMessage,
+  type TicketStatus,
 } from '@/stores/support'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
+const { listRoute, perspective } = useSupportRoutes()
+const { dateTime, time, dayKey, dayLabel } = useSupportTime()
 const auth = useAuthStore()
 const support = useSupportStore()
 const notifications = useNotificationsStore()
 const { ticket, staff, loading, working, error } = storeToRefs(support)
 
+// Before the first load: the normal panel asks the API as a customer
+// (`as=requester`), the admin panel as staff. See useSupportRoutes.ts.
+support.setPerspective(perspective.value)
+
 const id = computed(() => String(route.params.id))
+/** Back to the list exactly as it was left (view, filters, search). */
+const backRoute = computed(() => ({
+  ...listRoute.value,
+  query: support.listQuery[perspective.value],
+}))
 const draft = ref('')
 const internal = ref(false)
 
@@ -86,7 +103,9 @@ function removeFile(i: number): void {
   pendingFiles.value.splice(i, 1)
 }
 function fileSize(bytes: number): string {
-  return bytes >= 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.round(bytes / 1000)} KB`
+  return bytes >= 1_000_000
+    ? `${(bytes / 1_000_000).toFixed(1)} MB`
+    : `${Math.round(bytes / 1000)} KB`
 }
 function readFileAsDataUri(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -97,19 +116,27 @@ function readFileAsDataUri(file: File): Promise<string> {
   })
 }
 
-const isStaff = computed(() => ticket.value?.viewerIsStaff ?? false)
+// --- perspective ---------------------------------------------------------
+/** Staff tools only in the admin panel, and only for real queue staff. A
+ *  support agent looking at their OWN ticket from the normal panel gets the
+ *  plain customer view (the API already answers them as a customer there). */
+const isStaff = computed(
+  () => perspective.value === 'staff' && (ticket.value?.viewerIsStaff ?? false),
+)
 const isRequester = computed(() => ticket.value?.viewerIsRequester ?? false)
 const closed = computed(() => ticket.value?.status === 'closed')
-// The admin panel (users / businesses) requires the `admin` role, not just any
-// staff — only then do the "open in admin" shortcuts lead somewhere useful.
-const canAdmin = computed(() => (auth.user?.platformRoles ?? []).includes('admin'))
+const done = computed(() => ticket.value?.status === 'resolved' || closed.value)
+// The admin user/business pages need the `admin` role, and are only offered
+// from the admin panel, so following one never flips the panel.
+const canAdmin = computed(() => isStaff.value && (auth.user?.platformRoles ?? []).includes('admin'))
 const userAdminRoute = computed(() =>
   ticket.value ? { name: 'admin-user', params: { id: ticket.value.requester.id } } : null,
 )
 const companyAdminRoute = computed(() =>
-  ticket.value?.company
-    ? { name: 'admin-company', params: { id: ticket.value.company.id } }
-    : null,
+  ticket.value?.company ? { name: 'admin-company', params: { id: ticket.value.company.id } } : null,
+)
+const assignedToMe = computed(
+  () => !!ticket.value?.assignee && ticket.value.assignee.id === auth.user?.id,
 )
 
 const statusOptions = computed(() =>
@@ -126,15 +153,7 @@ const assigneeOptions = computed(() => [
   ...staff.value.map((s) => ({ title: s.name, value: s.id })),
 ])
 
-function fmtDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(locale.value, {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
+// --- thread --------------------------------------------------------------
 /** System messages carry a machine code in `body` — render it localized. */
 function systemText(m: TicketMessage): string {
   const [head, rest] = m.body.split(/:(.*)/s)
@@ -146,7 +165,43 @@ function systemText(m: TicketMessage): string {
   if (m.body === 'unassigned') return t('support.event.unassigned')
   return m.body
 }
+function systemIcon(m: TicketMessage): string {
+  if (m.body.startsWith('status:')) return 'mdi-swap-horizontal'
+  if (m.body.startsWith('priority:')) return 'mdi-flag-outline'
+  if (m.body.startsWith('assigned') || m.body === 'unassigned') return 'mdi-account-switch-outline'
+  return 'mdi-information-outline'
+}
 
+type ThreadItem =
+  | { kind: 'day'; key: string; label: string }
+  | { kind: 'msg'; key: string; m: TicketMessage; grouped: boolean }
+
+/** Messages with a date separator wherever the day changes, and consecutive
+ *  messages by the same author (within 5 min) visually grouped. */
+const thread = computed<ThreadItem[]>(() => {
+  const out: ThreadItem[] = []
+  let lastDay = ''
+  let prev: TicketMessage | null = null
+  for (const m of ticket.value?.messages ?? []) {
+    const day = dayKey(m.createdAt)
+    if (day !== lastDay) {
+      out.push({ kind: 'day', key: 'd' + day, label: dayLabel(m.createdAt) })
+      lastDay = day
+      prev = null
+    }
+    const grouped =
+      !!prev &&
+      prev.kind === m.kind &&
+      m.kind !== 'system' &&
+      prev.author?.id === m.author?.id &&
+      new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000
+    out.push({ kind: 'msg', key: m.id, m, grouped })
+    prev = m
+  }
+  return out
+})
+
+// --- actions -------------------------------------------------------------
 async function send(): Promise<void> {
   const text = draft.value.trim()
   if ((!text && !attachCount.value) || working.value || uploadingAttachments.value) return
@@ -165,9 +220,7 @@ async function send(): Promise<void> {
           const dataUri = await readFileAsDataUri(file)
           const att = await support.uploadAttachment(id.value, dataUri, file.name)
           if (!att) {
-            attachError.value = support.error
-              ? errorText(support.error)
-              : t('support.attachFailed')
+            attachError.value = support.error ? errorText(support.error) : t('support.attachFailed')
             return
           }
           attachmentId = att.id
@@ -196,11 +249,20 @@ async function send(): Promise<void> {
     pendingFiles.value = []
     uploadedIds.value = []
     attachError.value = ''
+    await nextTick()
+    endRef.value?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }
+}
+function onComposerKey(e: KeyboardEvent): void {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault()
+    void send()
   }
 }
 
 function setStatus(value: string): void {
-  if (value && value !== ticket.value?.status) void support.patch(id.value, { status: value as never })
+  if (value && value !== ticket.value?.status)
+    void support.patch(id.value, { status: value as TicketStatus })
 }
 function setPriority(value: string): void {
   if (value && value !== ticket.value?.priority)
@@ -223,13 +285,28 @@ function reopenTicket(): void {
   void support.patch(id.value, { status: 'open' })
 }
 
+const endRef = ref<HTMLElement | null>(null)
+
+/**
+ * Opened in the normal panel but not the viewer's own ticket: the API (asked
+ * as a customer) says "not found". For queue staff that's a ticket they
+ * reached through the wrong door, so send them to the admin panel's copy
+ * instead of showing a dead end. Everyone else just sees "not found".
+ */
+async function load(ticketId: string): Promise<void> {
+  await support.loadTicket(ticketId)
+  if (!ticket.value && perspective.value === 'requester' && auth.isSupportStaff) {
+    void router.replace({ name: 'admin-support-ticket', params: { id: ticketId } })
+  }
+}
+
 watch(id, (v) => {
   // A different ticket: anything staged for the previous one must not ride
   // along on this one's next reply.
   pendingFiles.value = []
   uploadedIds.value = []
   attachError.value = ''
-  if (v) void support.loadTicket(v)
+  if (v) void load(v)
 })
 
 /**
@@ -244,7 +321,6 @@ const SUPPORT_NOTIFICATION_TYPES = new Set([
   'ticket_reply',
   'ticket_assigned',
   'support_ticket_update',
-  // Types the backend is adding; harmless to listen for before they exist.
   'ticket_reopened',
   'ticket_assigned_requester',
   'ticket_unassigned',
@@ -263,21 +339,20 @@ watch(
 )
 
 onMounted(() => {
-  void support.loadTicket(id.value)
-  // Staff-only endpoint — asking as a plain customer just 403s into a bare
-  // catch, so don't ask at all.
-  if (auth.isSupportStaff) void support.loadStaff()
+  void load(id.value)
+  // Staff-only endpoint, and only needed for the admin panel's assignee picker.
+  if (perspective.value === 'staff') void support.loadStaff()
 })
 </script>
 
 <template>
-  <div class="tv">
+  <div class="tv" :class="{ 'tv--staff': perspective === 'staff' }">
     <v-btn
       variant="text"
       size="small"
       prepend-icon="mdi-arrow-left"
-      class="tv__back"
-      :to="{ name: 'support' }"
+      class="tv__back text-none"
+      :to="backRoute"
     >
       {{ t('support.back') }}
     </v-btn>
@@ -289,101 +364,226 @@ onMounted(() => {
     <div v-else-if="!ticket" class="tv__center tv__center--err">
       <v-icon icon="mdi-alert-circle-outline" size="26" />
       <p>{{ t('support.notFound') }}</p>
-      <v-btn variant="tonal" :to="{ name: 'support' }">{{ t('support.back') }}</v-btn>
+      <v-btn variant="tonal" :to="backRoute">{{ t('support.back') }}</v-btn>
     </div>
 
     <template v-else>
-      <header class="tv__head">
-        <div class="tv__headTags">
-          <span class="tv__num">#{{ ticket.number }}</span>
-          <span class="tag" :class="`tag--${ticket.status}`">{{
-            t('support.status.' + ticket.status)
-          }}</span>
+      <!-- Header -------------------------------------------------------- -->
+      <header class="head">
+        <div class="head__tags">
+          <span class="head__num">#{{ ticket.number }}</span>
+          <span class="pill" :class="`pill--${ticket.status}`">
+            <span class="pill__dot" />{{ t('support.status.' + ticket.status) }}
+          </span>
           <span
             v-if="ticket.priority !== 'normal'"
-            class="tag"
-            :class="`tag--prio-${ticket.priority}`"
-          >{{ t('support.priority.' + ticket.priority) }}</span>
-          <span class="tv__cat">{{ t('support.category.' + ticket.category) }}</span>
+            class="prio"
+            :class="`prio--${ticket.priority}`"
+          >
+            <v-icon icon="mdi-flag" size="12" /> {{ t('support.priority.' + ticket.priority) }}
+          </span>
+          <span class="head__cat">{{ t('support.category.' + ticket.category) }}</span>
         </div>
         <h1>{{ ticket.subject }}</h1>
-        <p class="tv__sub">
-          {{
-            t('support.openedBy', {
-              name: ticket.requester.name,
-              when: fmtDateTime(ticket.createdAt),
-            })
-          }}
-          <span v-if="ticket.company"> · {{ ticket.company.name }}</span>
-        </p>
+        <div class="head__by">
+          <SupportAvatar :name="ticket.requester.name" :role="ticket.requester.role" :size="24" />
+          <span class="head__name">{{ ticket.requester.name }}</span>
+          <SupportRoleBadge :role="ticket.requester.role" />
+          <span class="head__dot">·</span>
+          <span>{{ dateTime(ticket.createdAt) }}</span>
+          <template v-if="ticket.company">
+            <span class="head__dot">·</span>
+            <span class="head__co"
+              ><v-icon icon="mdi-domain" size="14" /> {{ ticket.company.name }}</span
+            >
+          </template>
+        </div>
+
+        <!-- Staff quick actions: the three moves an agent makes most -->
+        <div v-if="isStaff" class="quick">
+          <v-btn
+            v-if="!assignedToMe"
+            size="small"
+            variant="tonal"
+            color="primary"
+            class="text-none"
+            prepend-icon="mdi-account-arrow-left-outline"
+            :disabled="working"
+            @click="assignToMe"
+          >
+            {{ t('support.quick.take') }}
+          </v-btn>
+          <span v-else class="quick__mine">
+            <v-icon icon="mdi-account-check-outline" size="15" /> {{ t('support.assignedToYou') }}
+          </span>
+          <template v-if="!done">
+            <v-btn
+              v-if="ticket.status !== 'waiting'"
+              size="small"
+              variant="tonal"
+              class="text-none"
+              prepend-icon="mdi-timer-sand"
+              :disabled="working"
+              @click="setStatus('waiting')"
+            >
+              {{ t('support.quick.waiting') }}
+            </v-btn>
+            <v-btn
+              size="small"
+              variant="tonal"
+              color="success"
+              class="text-none"
+              prepend-icon="mdi-check"
+              :disabled="working"
+              @click="setStatus('resolved')"
+            >
+              {{ t('support.quick.resolve') }}
+            </v-btn>
+          </template>
+          <v-btn
+            v-else
+            size="small"
+            variant="tonal"
+            class="text-none"
+            prepend-icon="mdi-restore"
+            :disabled="working"
+            @click="reopenTicket"
+          >
+            {{ t('support.quick.reopen') }}
+          </v-btn>
+        </div>
       </header>
 
-      <div class="tv__grid">
-        <!-- Thread + composer -->
-        <div class="tv__main">
-          <ol class="thread">
-            <li
-              v-for="m in ticket.messages"
-              :key="m.id"
-              class="msg"
-              :class="{
-                'msg--mine': m.mine && m.kind !== 'system',
-                'msg--system': m.kind === 'system',
-                'msg--note': m.kind === 'note',
-              }"
-            >
-              <template v-if="m.kind === 'system'">
-                <span class="msg__sys">
-                  <span class="msg__sysDot" />
-                  {{ systemText(m) }}
-                  <span class="msg__sysWhen">{{ fmtDateTime(m.createdAt) }}</span>
-                </span>
-              </template>
-              <template v-else>
-                <div class="msg__head">
-                  <span class="msg__who">{{
-                    m.author ? m.author.name : t('support.systemUser')
-                  }}</span>
-                  <span v-if="m.author?.staff" class="mini mini--agent">{{
-                    t('support.agent')
-                  }}</span>
-                  <span v-if="m.kind === 'note'" class="mini mini--note">{{
-                    t('support.internalNote')
-                  }}</span>
-                  <span class="msg__when">{{ fmtDateTime(m.createdAt) }}</span>
-                </div>
-                <p class="msg__body">{{ m.body }}</p>
-                <div v-if="m.attachments.length" class="msg__files">
-                  <a
-                    v-for="a in m.attachments"
-                    :key="a.id"
-                    :href="support.attachmentUrl(id, a.id)"
-                    target="_blank"
-                    rel="noopener"
-                    class="msg__file"
-                  >
-                    <v-icon
-                      :icon="a.mime === 'application/pdf' ? 'mdi-file-pdf-box' : 'mdi-file-image-outline'"
-                      size="16"
-                    />
-                    <span class="msg__fileName">{{ a.filename }}</span>
-                    <span class="msg__fileSize">{{ fileSize(a.size) }}</span>
-                  </a>
-                </div>
-              </template>
-            </li>
-          </ol>
+      <!-- Customer status banner: what's happening, and what (if anything) they should do -->
+      <div v-if="!isStaff" class="banner" :class="`banner--${ticket.status}`">
+        <v-icon
+          :icon="
+            ticket.status === 'waiting'
+              ? 'mdi-reply-outline'
+              : ticket.status === 'resolved'
+                ? 'mdi-check-circle-outline'
+                : ticket.status === 'closed'
+                  ? 'mdi-lock-outline'
+                  : ticket.status === 'in_progress'
+                    ? 'mdi-progress-wrench'
+                    : 'mdi-email-check-outline'
+          "
+          size="18"
+        />
+        <span>{{ t('support.banner.' + ticket.status) }}</span>
+      </div>
 
+      <div class="grid">
+        <!-- Conversation ------------------------------------------------- -->
+        <div class="main">
+          <ol class="thread">
+            <template v-for="item in thread" :key="item.key">
+              <li v-if="item.kind === 'day'" class="day">
+                <span>{{ item.label }}</span>
+              </li>
+
+              <li v-else-if="item.m.kind === 'system'" class="sys">
+                <v-icon :icon="systemIcon(item.m)" size="13" />
+                <span>{{ systemText(item.m) }}</span>
+                <span class="sys__when">{{ time(item.m.createdAt) }}</span>
+              </li>
+
+              <li
+                v-else
+                class="msg"
+                :class="{
+                  'msg--mine': item.m.mine,
+                  'msg--note': item.m.kind === 'note',
+                  'msg--team': !item.m.author?.requester,
+                  'msg--grouped': item.grouped,
+                }"
+              >
+                <SupportAvatar
+                  v-if="!item.grouped"
+                  class="msg__av"
+                  :name="item.m.author?.name ?? t('support.systemUser')"
+                  :role="item.m.author?.role ?? 'user'"
+                  :size="34"
+                />
+                <span v-else class="msg__avGap" />
+                <div class="msg__col">
+                  <div v-if="!item.grouped" class="msg__head">
+                    <span class="msg__who">{{
+                      item.m.author ? item.m.author.name : t('support.systemUser')
+                    }}</span>
+                    <SupportRoleBadge v-if="item.m.author" :role="item.m.author.role" />
+                    <span v-if="item.m.mine" class="msg__you">{{ t('support.you') }}</span>
+                    <span class="msg__when" :title="dateTime(item.m.createdAt)">{{
+                      time(item.m.createdAt)
+                    }}</span>
+                  </div>
+                  <div class="bubble">
+                    <p v-if="item.m.kind === 'note'" class="bubble__note">
+                      <v-icon icon="mdi-lock-outline" size="13" /> {{ t('support.internalNote') }}
+                      <span>· {{ t('support.noteVisibility') }}</span>
+                    </p>
+                    <p class="bubble__body">{{ item.m.body }}</p>
+                    <div v-if="item.m.attachments.length" class="files">
+                      <a
+                        v-for="a in item.m.attachments"
+                        :key="a.id"
+                        :href="support.attachmentUrl(id, a.id)"
+                        target="_blank"
+                        rel="noopener"
+                        class="file"
+                      >
+                        <v-icon
+                          :icon="
+                            a.mime === 'application/pdf'
+                              ? 'mdi-file-pdf-box'
+                              : 'mdi-file-image-outline'
+                          "
+                          size="16"
+                        />
+                        <span class="file__name">{{ a.filename }}</span>
+                        <span class="file__size">{{ fileSize(a.size) }}</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            </template>
+          </ol>
+          <div ref="endRef" />
+
+          <!-- Composer -->
           <div v-if="!closed" class="composer" :class="{ 'composer--note': internal }">
+            <div v-if="isStaff" class="composer__mode" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                :class="{ 'is-on': !internal }"
+                :aria-selected="!internal"
+                @click="internal = false"
+              >
+                <v-icon icon="mdi-reply-outline" size="15" /> {{ t('support.composerReply') }}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="composer__modeNote"
+                :class="{ 'is-on': internal }"
+                :aria-selected="internal"
+                @click="internal = true"
+              >
+                <v-icon icon="mdi-lock-outline" size="15" /> {{ t('support.internalNote') }}
+              </button>
+            </div>
             <v-textarea
               v-model="draft"
-              :placeholder="
-                internal ? t('support.notePlaceholder') : t('support.replyPlaceholder')
-              "
-              variant="outlined"
+              :placeholder="internal ? t('support.notePlaceholder') : t('support.replyPlaceholder')"
+              variant="plain"
               auto-grow
               rows="3"
+              max-rows="12"
               hide-details
+              class="composer__input"
+              @keydown="onComposerKey"
             />
             <div v-if="pendingFiles.length" class="composer__pending">
               <span v-for="(f, i) in pendingFiles" :key="i" class="composer__pendingChip">
@@ -423,22 +623,20 @@ onMounted(() => {
                 class="composer__attachBtn"
                 :disabled="attachCount >= MAX_FILES"
                 :title="t('support.attachFile')"
+                :aria-label="t('support.attachFile')"
                 @click="onAttachClick"
               >
                 <v-icon icon="mdi-paperclip" size="18" />
               </button>
-              <label v-if="isStaff" class="composer__toggle">
-                <input v-model="internal" type="checkbox" />
-                <span>{{ t('support.internalNote') }}</span>
-              </label>
+              <span class="composer__hint">{{ t('support.sendHint') }}</span>
               <v-spacer />
               <v-btn
-                color="primary"
+                :color="internal ? 'warning' : 'primary'"
                 variant="flat"
-                class="composer__send"
+                class="composer__send text-none"
                 :loading="working || uploadingAttachments"
                 :disabled="!draft.trim() && !attachCount"
-                append-icon="mdi-send"
+                :append-icon="internal ? 'mdi-lock-outline' : 'mdi-send'"
                 @click="send"
               >
                 {{ internal ? t('support.addNote') : t('support.sendReply') }}
@@ -453,6 +651,7 @@ onMounted(() => {
               v-if="isStaff || isRequester"
               size="small"
               variant="tonal"
+              class="text-none"
               @click="reopenTicket"
             >
               {{ t('support.reopen') }}
@@ -464,8 +663,46 @@ onMounted(() => {
           </p>
         </div>
 
-        <!-- Sidebar -->
-        <aside class="tv__side">
+        <!-- Sidebar -------------------------------------------------------- -->
+        <aside class="side">
+          <section class="panel">
+            <p class="panel__label">{{ t('support.people') }}</p>
+            <div class="person">
+              <SupportAvatar
+                :name="ticket.requester.name"
+                :role="ticket.requester.role"
+                :size="36"
+              />
+              <div class="person__body">
+                <span class="person__k">{{ t('support.requester') }}</span>
+                <router-link
+                  v-if="canAdmin && userAdminRoute"
+                  :to="userAdminRoute"
+                  class="person__name person__name--link"
+                >
+                  {{ ticket.requester.name }}
+                </router-link>
+                <span v-else class="person__name">{{ ticket.requester.name }}</span>
+                <SupportRoleBadge :role="ticket.requester.role" />
+              </div>
+            </div>
+            <div class="person">
+              <SupportAvatar
+                :name="ticket.assignee?.name"
+                :role="ticket.assignee?.role"
+                :size="36"
+              />
+              <div class="person__body">
+                <span class="person__k">{{ t('support.assignee') }}</span>
+                <template v-if="ticket.assignee">
+                  <span class="person__name">{{ ticket.assignee.name }}</span>
+                  <SupportRoleBadge :role="ticket.assignee.role" />
+                </template>
+                <span v-else class="person__none">{{ t('support.unassigned') }}</span>
+              </div>
+            </div>
+          </section>
+
           <section v-if="isStaff" class="panel">
             <p class="panel__label">{{ t('support.manage') }}</p>
             <v-select
@@ -507,31 +744,18 @@ onMounted(() => {
               hide-details
               @update:model-value="setAssignee"
             />
-            <button
-              v-if="!ticket.assignee"
-              type="button"
-              class="panel__link"
-              @click="assignToMe"
-            >
-              <v-icon icon="mdi-account-arrow-left-outline" size="15" />
-              {{ t('support.assignToMe') }}
-            </button>
           </section>
 
-          <!-- Shortcuts into the admin panel to check what actually happened -->
+          <!-- Shortcuts into the admin panel (admin role, admin panel only) -->
           <section v-if="canAdmin" class="panel">
             <p class="panel__label">{{ t('support.investigate') }}</p>
-            <router-link
-              v-if="userAdminRoute"
-              :to="userAdminRoute"
-              class="jump"
-            >
+            <router-link v-if="userAdminRoute" :to="userAdminRoute" class="jump">
               <span class="jump__ic"><v-icon icon="mdi-account-search-outline" size="16" /></span>
               <span class="jump__body">
                 <span class="jump__t">{{ t('support.openUserAdmin') }}</span>
                 <span class="jump__s">{{ ticket.requester.name }}</span>
               </span>
-              <v-icon icon="mdi-arrow-top-right" size="15" class="jump__go" />
+              <v-icon icon="mdi-chevron-right" size="16" class="jump__go" />
             </router-link>
             <router-link
               v-if="companyAdminRoute && ticket.company"
@@ -543,60 +767,47 @@ onMounted(() => {
                 <span class="jump__t">{{ t('support.openBusinessAdmin') }}</span>
                 <span class="jump__s">{{ ticket.company.name }}</span>
               </span>
-              <v-icon icon="mdi-arrow-top-right" size="15" class="jump__go" />
+              <v-icon icon="mdi-chevron-right" size="16" class="jump__go" />
             </router-link>
           </section>
 
           <section class="panel">
             <p class="panel__label">{{ t('support.details') }}</p>
             <dl class="meta">
-              <div>
-                <dt>{{ t('support.requester') }}</dt>
-                <dd>
-                  <router-link v-if="canAdmin && userAdminRoute" :to="userAdminRoute" class="meta__link">
-                    {{ ticket.requester.name }}
-                  </router-link>
-                  <template v-else>{{ ticket.requester.name }}</template>
-                </dd>
-              </div>
               <div v-if="ticket.company">
                 <dt>{{ t('support.business') }}</dt>
-                <dd>
-                  <router-link
-                    v-if="canAdmin && companyAdminRoute"
-                    :to="companyAdminRoute"
-                    class="meta__link"
-                  >
-                    {{ ticket.company.name }}
-                  </router-link>
-                  <template v-else>{{ ticket.company.name }}</template>
-                </dd>
+                <dd>{{ ticket.company.name }}</dd>
               </div>
               <div v-if="!isStaff">
                 <dt>{{ t('support.colCategory') }}</dt>
                 <dd>{{ t('support.category.' + ticket.category) }}</dd>
               </div>
               <div>
-                <dt>{{ t('support.assignee') }}</dt>
-                <dd>{{ ticket.assignee ? ticket.assignee.name : t('support.unassigned') }}</dd>
+                <dt>{{ t('support.opened') }}</dt>
+                <dd>{{ dateTime(ticket.createdAt) }}</dd>
               </div>
               <div>
-                <dt>{{ t('support.opened') }}</dt>
-                <dd>{{ fmtDateTime(ticket.createdAt) }}</dd>
+                <dt>{{ t('support.lastActivity') }}</dt>
+                <dd>{{ dateTime(ticket.lastActivityAt) }}</dd>
+              </div>
+              <div v-if="isStaff && ticket.firstResponseAt">
+                <dt>{{ t('support.firstResponse') }}</dt>
+                <dd>{{ dateTime(ticket.firstResponseAt) }}</dd>
               </div>
               <div v-if="ticket.resolvedAt">
                 <dt>{{ t('support.resolvedAt') }}</dt>
-                <dd>{{ fmtDateTime(ticket.resolvedAt) }}</dd>
+                <dd>{{ dateTime(ticket.resolvedAt) }}</dd>
               </div>
             </dl>
 
-            <div v-if="isRequester && !closed" class="panel__owner">
+            <div v-if="!isStaff && isRequester && !closed" class="panel__owner">
               <v-btn
                 v-if="ticket.status !== 'resolved'"
                 block
                 variant="tonal"
                 color="success"
                 size="small"
+                class="text-none"
                 prepend-icon="mdi-check"
                 @click="setStatus('resolved')"
               >
@@ -607,7 +818,7 @@ onMounted(() => {
                 variant="text"
                 size="small"
                 prepend-icon="mdi-close"
-                class="mt-1"
+                class="mt-1 text-none"
                 @click="closeTicket"
               >
                 {{ t('support.closeTicket') }}
@@ -622,9 +833,13 @@ onMounted(() => {
 
 <style scoped>
 .tv {
-  max-width: 940px;
+  max-width: 1040px;
   margin-inline: auto;
   padding: clamp(1rem, 4vw, 2rem) clamp(1rem, 4vw, 1.5rem) 4rem;
+}
+/* The admin layout already pads its content. */
+.tv--staff {
+  padding-top: 0;
 }
 .tv__back {
   margin: 0 0 0.75rem -0.5rem;
@@ -641,47 +856,173 @@ onMounted(() => {
 }
 
 /* Header ---------------------------------------------------------------- */
-.tv__head {
-  padding-bottom: 1.4rem;
-  margin-bottom: 1.6rem;
-  border-bottom: 1px solid var(--tvz-hairline);
+.head {
+  padding: 1.2rem 1.3rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: 14px;
+  background: rgb(var(--v-theme-surface));
 }
-.tv__headTags {
+.head__tags {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
-.tv__num {
+.head__num {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  color: rgba(var(--v-theme-on-surface), 0.4);
+  color: rgba(var(--v-theme-on-surface), 0.42);
   font-variant-numeric: tabular-nums;
 }
-.tv__cat {
+.head__cat {
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(var(--v-theme-on-surface), 0.42);
 }
-.tv__head h1 {
+.head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;
   font-weight: 700;
-  font-size: clamp(1.3rem, 3.5vw, 1.75rem);
+  font-size: clamp(1.3rem, 3.5vw, 1.7rem);
   letter-spacing: -0.025em;
-  margin: 0.65rem 0 0;
+  margin: 0.6rem 0 0;
+  overflow-wrap: anywhere;
 }
-.tv__sub {
-  margin: 0.5rem 0 0;
+.head__by {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
   font-size: 0.82rem;
-  color: rgba(var(--v-theme-on-surface), 0.58);
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.head__name {
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+}
+.head__dot {
+  opacity: 0.5;
+}
+.head__co {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.quick {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--tvz-hairline);
+}
+.quick__mine {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+}
+
+/* Status pill / priority (same language as the list) ------------------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pill--open {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.pill--in_progress {
+  background: rgba(var(--v-theme-info), 0.14);
+  color: rgb(var(--v-theme-info));
+}
+.pill--waiting {
+  background: rgba(var(--v-theme-warning), 0.15);
+  color: rgb(var(--v-theme-warning));
+}
+.pill--resolved {
+  background: rgba(var(--v-theme-success), 0.15);
+  color: rgb(var(--v-theme-success));
+}
+.prio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.prio--high {
+  color: rgb(var(--v-theme-warning));
+}
+.prio--urgent {
+  color: rgb(var(--v-theme-error));
+}
+
+/* Customer banner ------------------------------------------------------- */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-size: 0.86rem;
+  border: 1px solid rgba(var(--v-theme-primary), 0.25);
+  background: rgba(var(--v-theme-primary), 0.07);
+  color: rgb(var(--v-theme-on-surface));
+}
+.banner .v-icon {
+  color: rgb(var(--v-theme-primary));
+}
+.banner--waiting {
+  border-color: rgba(var(--v-theme-warning), 0.35);
+  background: rgba(var(--v-theme-warning), 0.09);
+}
+.banner--waiting .v-icon {
+  color: rgb(var(--v-theme-warning));
+}
+.banner--resolved {
+  border-color: rgba(var(--v-theme-success), 0.3);
+  background: rgba(var(--v-theme-success), 0.08);
+}
+.banner--resolved .v-icon {
+  color: rgb(var(--v-theme-success));
+}
+.banner--closed {
+  border-color: var(--tvz-hairline);
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+.banner--closed .v-icon {
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 /* Layout -------------------------------------------------------------- */
-.tv__grid {
+.grid {
   display: grid;
-  grid-template-columns: 1fr 16.5rem;
-  gap: 1.75rem;
+  grid-template-columns: minmax(0, 1fr) 17rem;
+  gap: 1.5rem;
   align-items: start;
 }
 
@@ -692,78 +1033,138 @@ onMounted(() => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.9rem;
+}
+.day {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.4rem 0 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.day::before,
+.day::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--tvz-hairline);
+}
+.sys {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  color: rgba(var(--v-theme-on-surface), 0.52);
+}
+.sys__when {
+  opacity: 0.7;
 }
 .msg {
-  max-width: 88%;
-  padding: 0.9rem 1.05rem;
-  border-radius: 10px;
-  border: 1px solid var(--tvz-hairline);
-  background: rgb(var(--v-theme-surface));
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  max-width: 90%;
+}
+.msg--grouped {
+  margin-top: -0.55rem;
 }
 .msg--mine {
   align-self: flex-end;
-  background: rgba(var(--v-theme-primary), 0.08);
-  border-color: rgba(var(--v-theme-primary), 0.28);
+  flex-direction: row-reverse;
 }
 .msg--note {
   align-self: stretch;
   max-width: 100%;
-  background: rgba(var(--v-theme-warning), 0.07);
-  border-color: rgba(var(--v-theme-warning), 0.35);
-  border-style: dashed;
 }
-.msg--system {
-  align-self: center;
-  max-width: 100%;
-  padding: 0.2rem 0;
-  border: 0;
-  background: transparent;
+.msg__avGap {
+  width: 34px;
+  flex: none;
 }
-.msg__sys {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.74rem;
-  color: rgba(var(--v-theme-on-surface), 0.5);
+.msg__col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
-.msg__sysDot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(var(--v-theme-on-surface), 0.3);
-}
-.msg__sysWhen {
-  opacity: 0.65;
+.msg--mine .msg__col {
+  align-items: flex-end;
 }
 .msg__head {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+  gap: 0.4rem;
   font-size: 0.76rem;
+}
+.msg--mine .msg__head {
+  flex-direction: row-reverse;
 }
 .msg__who {
   font-weight: 700;
 }
-.msg__when {
-  margin-left: auto;
+.msg__you {
+  font-size: 0.66rem;
+  font-weight: 700;
   color: rgba(var(--v-theme-on-surface), 0.45);
 }
-.msg__body {
+.msg__when {
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.bubble {
+  max-width: 100%;
+  padding: 0.75rem 0.95rem;
+  border-radius: 4px 14px 14px 14px;
+  border: 1px solid var(--tvz-hairline);
+  background: rgb(var(--v-theme-surface));
+}
+.msg--team .bubble {
+  background: rgba(var(--v-theme-info), 0.06);
+  border-color: rgba(var(--v-theme-info), 0.22);
+}
+.msg--mine .bubble {
+  border-radius: 14px 4px 14px 14px;
+  background: rgba(var(--v-theme-primary), 0.1);
+  border-color: rgba(var(--v-theme-primary), 0.3);
+}
+.msg--note .bubble {
+  width: 100%;
+  border-radius: 12px;
+  border-style: dashed;
+  background: rgba(var(--v-theme-warning), 0.07);
+  border-color: rgba(var(--v-theme-warning), 0.45);
+}
+.bubble__note {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: rgb(var(--v-theme-warning));
+}
+.bubble__note span {
+  font-weight: 500;
+  opacity: 0.8;
+}
+.bubble__body {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.55;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
-.msg__files {
+.files {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   margin-top: 0.6rem;
 }
-.msg__file {
+.file {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -776,75 +1177,82 @@ onMounted(() => {
   text-decoration: none;
   max-width: 100%;
 }
-.msg__file:hover {
+.file:hover {
   border-color: rgba(var(--v-theme-primary), 0.5);
   color: rgb(var(--v-theme-primary));
 }
-.msg__fileName {
+.file__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 16rem;
 }
-.msg__fileSize {
+.file__size {
   flex: none;
   color: rgba(var(--v-theme-on-surface), 0.45);
-}
-.mini {
-  font-size: 0.56rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.1rem 0.35rem;
-  border-radius: 3px;
-}
-.mini--agent {
-  background: rgba(var(--v-theme-primary), 0.16);
-  color: rgb(var(--v-theme-primary));
-}
-.mini--note {
-  background: rgba(var(--v-theme-warning), 0.18);
-  color: rgb(var(--v-theme-warning));
 }
 
 /* Composer -------------------------------------------------------- */
 .composer {
-  margin-top: 1.4rem;
-  padding: 0.9rem;
-  border: 1px solid var(--tvz-hairline);
-  border-radius: 10px;
+  margin-top: 1.3rem;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.18);
+  border-radius: 14px;
   background: rgb(var(--v-theme-surface));
+  overflow: hidden;
+  transition: border-color var(--tvz-dur-fast) var(--tvz-ease-out);
 }
-.composer--note {
-  border-color: rgba(var(--v-theme-warning), 0.4);
-  background: rgba(var(--v-theme-warning), 0.05);
+.composer:focus-within {
+  border-color: rgba(var(--v-theme-primary), 0.6);
+}
+.composer--note,
+.composer--note:focus-within {
+  border-color: rgba(var(--v-theme-warning), 0.55);
+  background: rgba(var(--v-theme-warning), 0.04);
+}
+.composer__mode {
+  display: flex;
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.composer__mode button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.6rem 0.95rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.composer__mode button.is-on {
+  color: rgb(var(--v-theme-primary));
+  border-bottom-color: rgb(var(--v-theme-primary));
+}
+.composer__mode .composer__modeNote.is-on {
+  color: rgb(var(--v-theme-warning));
+  border-bottom-color: rgb(var(--v-theme-warning));
+}
+.composer__input {
+  padding: 0.35rem 0.95rem 0;
 }
 .composer__row {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  margin-top: 0.6rem;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
 }
-.composer__toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  cursor: pointer;
-  user-select: none;
-}
-.composer__toggle input {
-  accent-color: rgb(var(--v-theme-warning));
+.composer__hint {
+  font-size: 0.72rem;
+  color: rgba(var(--v-theme-on-surface), 0.4);
 }
 .composer__send {
-  border-radius: 8px;
+  border-radius: 9px;
 }
 .composer__pending {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  margin-top: 0.6rem;
+  padding: 0 0.95rem;
 }
 .composer__pendingChip {
   display: inline-flex;
@@ -872,27 +1280,25 @@ onMounted(() => {
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
+  border-radius: 50%;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .composer__pendingRemove:hover {
   background: rgba(var(--v-theme-on-surface), 0.12);
 }
-.composer__attachErr {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  margin: 0.5rem 0 0;
-  font-size: 0.78rem;
-  color: rgb(var(--v-theme-error));
-}
+.composer__attachErr,
 .composer__attachKept {
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  margin: 0.35rem 0 0;
-  font-size: 0.76rem;
+  margin: 0.45rem 0 0;
+  padding: 0 0.95rem;
+  font-size: 0.78rem;
+}
+.composer__attachErr {
+  color: rgb(var(--v-theme-error));
+}
+.composer__attachKept {
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .composer__fileInput {
@@ -917,10 +1323,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  margin-top: 1.4rem;
+  margin-top: 1.3rem;
   padding: 0.85rem 1rem;
-  border: 1px solid var(--tvz-hairline);
-  border-radius: 10px;
+  border: 1px dashed rgba(var(--v-theme-on-surface), 0.2);
+  border-radius: 12px;
   font-size: 0.85rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -934,36 +1340,67 @@ onMounted(() => {
 }
 
 /* Sidebar --------------------------------------------------------- */
-.tv__side {
+.side {
   position: sticky;
   top: 5rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.9rem;
 }
 .panel {
-  padding: 1.1rem;
+  padding: 1rem 1.05rem;
   border: 1px solid var(--tvz-hairline);
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgb(var(--v-theme-surface));
 }
 .panel__label {
-  margin: 0 0 0.7rem;
+  margin: 0 0 0.75rem;
   font-size: 0.62rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.13em;
   color: rgba(var(--v-theme-on-surface), 0.42);
 }
-.panel__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.7rem;
-  font-size: 0.8rem;
+.person {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+.person + .person {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--tvz-hairline);
+}
+.person__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.person__k {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.person__name {
+  font-size: 0.88rem;
   font-weight: 600;
+  overflow-wrap: anywhere;
+  color: rgb(var(--v-theme-on-surface));
+  text-decoration: none;
+}
+.person__name--link {
   color: rgb(var(--v-theme-primary));
-  cursor: pointer;
+}
+.person__name--link:hover {
+  text-decoration: underline;
+}
+.person__none {
+  font-size: 0.86rem;
+  font-style: italic;
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
 /* Admin jump shortcuts ------------------------------------------------- */
@@ -973,12 +1410,12 @@ onMounted(() => {
   gap: 0.6rem;
   padding: 0.6rem 0.65rem;
   border: 1px solid var(--tvz-hairline);
-  border-radius: 8px;
+  border-radius: 9px;
   text-decoration: none;
   color: inherit;
   transition:
-    border-color 0.14s cubic-bezier(0.22, 1, 0.36, 1),
-    background 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+    border-color var(--tvz-dur-fast) var(--tvz-ease-out),
+    background var(--tvz-dur-fast) var(--tvz-ease-out);
 }
 .jump + .jump {
   margin-top: 0.5rem;
@@ -993,7 +1430,7 @@ onMounted(() => {
   width: 30px;
   height: 30px;
   flex: none;
-  border-radius: 7px;
+  border-radius: 8px;
   background: rgba(var(--v-theme-primary), 0.12);
   color: rgb(var(--v-theme-primary));
 }
@@ -1018,13 +1455,6 @@ onMounted(() => {
 .jump__go {
   flex: none;
   color: rgba(var(--v-theme-on-surface), 0.4);
-}
-.meta__link {
-  color: rgb(var(--v-theme-primary));
-  text-decoration: none;
-}
-.meta__link:hover {
-  text-decoration: underline;
 }
 
 .meta {
@@ -1052,49 +1482,20 @@ onMounted(() => {
   margin-top: 1rem;
 }
 
-/* Tags ---------------------------------------------------------------- */
-.tag {
-  font-size: 0.64rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.16rem 0.45rem;
-  border-radius: 4px;
-  background: rgba(var(--v-theme-on-surface), 0.08);
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.tag--open {
-  background: rgba(var(--v-theme-primary), 0.14);
-  color: rgb(var(--v-theme-primary));
-}
-.tag--in_progress {
-  background: rgba(var(--v-theme-warning), 0.16);
-  color: rgb(var(--v-theme-warning));
-}
-.tag--resolved,
-.tag--closed {
-  background: rgba(var(--v-theme-success), 0.16);
-  color: rgb(var(--v-theme-success));
-}
-.tag--prio-high {
-  background: rgba(var(--v-theme-warning), 0.14);
-  color: rgb(var(--v-theme-warning));
-}
-.tag--prio-urgent {
-  background: rgba(var(--v-theme-error), 0.14);
-  color: rgb(var(--v-theme-error));
-}
-
-@media (max-width: 800px) {
-  .tv__grid {
-    grid-template-columns: 1fr;
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .tv__side {
+  /* Conversation first on a phone: it's what both sides came for. Staff
+     still get their quick actions up top, in the header. */
+  .side {
     position: static;
-    order: -1;
   }
   .msg {
-    max-width: 94%;
+    max-width: 100%;
+  }
+  .composer__hint {
+    display: none;
   }
 }
 </style>

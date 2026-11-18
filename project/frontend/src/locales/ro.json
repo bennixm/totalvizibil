@@ -1011,7 +1011,7 @@
     "navGroupManage": "Administrare",
     "navGroupFinance": "Financiar",
     "navFinanceDashboard": "Dashboard financiar",
-    "navFinanceRevenue": "Venituri",
+    "navFinanceRevenue": "Tranzacții",
     "navFinanceExpenses": "Costuri",
     "navFinanceAi": "Consum AI",
     "navGroupConfig": "Configurare",
@@ -1507,7 +1507,7 @@
     "colRecommendationType": "Tip recomandare",
     "recommendationsTitle": "Recomandări Google Ads",
     "recommendationsHint": "Google analizează fiecare campanie și sugerează îmbunătățiri. Cele de mai jos sunt sigure (doar text/elemente de reclamă). Activează-le ca agentul să le aplice singur, fără aprobare. Orice altceva (buget, licitare, targetare, cuvinte cheie) ajunge mereu la tab-ul „Propuneri” pentru decizia ta.",
-    "recoNeverApplyNote": "Google mai poate sugera și alte îmbunătățiri (buget, licitare, targetare, cuvinte cheie). Acelea nu sunt niciodată aplicate automat.",
+    "recoNeverApplyLabel": "Alte recomandări Google: doar cu aprobarea ta",
     "recoNeverApplyHint": "Recomandările despre buget și licitare, despre cine vede reclama și despre cuvinte cheie ajung mereu la tab-ul „Propuneri” pentru decizia ta, niciodată aplicate automat. Google mai poate sugera și recomandări pentru tipuri de campanii pe care platforma nu le folosește (Shopping, Performance Max, aplicații). Acestea sunt ignorate automat.",
     "recoBoostsAdStrength": "Crește puterea reclamei",
     "settingsGroupDefaults": "Campanie nouă (implicit)",
@@ -1676,7 +1676,7 @@
     "periodShowing": "Perioadă afișată",
     "revenue": "Venit total",
     "costs": "Costuri totale",
-    "netProfit": "Profit net",
+    "netProfit": "Profit operațional",
     "costBreakdown": "Costuri pe categorie",
     "noCosts": "Niciun cost înregistrat în perioada selectată.",
     "paidTraffic": "Trafic plătit",
@@ -1685,14 +1685,14 @@
     "trafficProfit": "Profit",
     "paidTrafficHint": "Costul Google Ads este preluat automat, zilnic, din contul Google Ads. Profitul de mai jos se actualizează singur pe măsură ce acel cost e sincronizat.",
     "aiCost": "Consum AI",
-    "collectedRevenue": "Bani încasați (total)",
-    "collectedRevenueHint": "Toate încasările de la clienți, indiferent dacă au consumat sau nu creditele.",
-    "consumedRevenue": "Bani încasați (consumați)",
-    "consumedRevenueHint": "Bani din credite deja consumate, nu mai pot fi rambursați. Aceasta e baza reală a profitului.",
+    "collectedRevenue": "Încasări nete fără TVA",
+    "collectedRevenueHint": "Bani încasați din vânzarea creditelor minus rambursările plătite, fără TVA-ul colectat (care aparține statului). Include și credite încă neconsumate.",
+    "consumedRevenue": "Venituri realizate",
+    "consumedRevenueHint": "Credite consumate de clienți (clicuri, AI, deblocări), evaluate la banii plătiți efectiv pentru fiecare credit (metoda FIFO), fără TVA. Creditele bonus sau din afiliere nu sunt venit.",
     "unconsumedRevenue": "Încă sub formă de credit",
     "unconsumedRevenueHint": "Credite vândute dar neconsumate, pot fi rambursate clienților, nu sunt profit realizat.",
     "finalProfitTitle": "Profit final",
-    "finalProfitHint": "Profitul real: banii din credite deja consumate, din care s-au scăzut absolut toate costurile (Google Ads, AI, operaționale).",
+    "finalProfitHint": "Profit operațional: venituri realizate (servicii prestate, fără TVA) minus toate cheltuielile, înainte de impozit. Mereu azi, luna aceasta și anul acesta, indiferent de perioada aleasă.",
     "promotionProfitTitle": "Profit promovare",
     "aiBuilderTitle": "Profitabilitate Builder AI",
     "aiBuilderProfit": "Profit Builder AI",
@@ -1704,7 +1704,7 @@
     "campaignAgentHint": "Costul real al Claude pentru agentul care administrează campaniile Google Ads (structurare, conținut, optimizare buget/CPC), niciodată facturat vreunui client.",
     "aiRevenue": "Venit AI (consumat)",
     "aiProfit": "Profit AI",
-    "revenueTitle": "Venituri",
+    "revenueTitle": "Registru tranzacții",
     "all": "Toate",
     "purchases": "Încărcări",
     "refunds": "Rambursări",
@@ -1769,7 +1769,7 @@
     "oneTimeFees": "Unic (taxe punctuale)",
     "totalConsumed": "Total consumat",
     "creditConsumptionHint": "Valoare nominală în credite. Taxele unice sunt clasificate identic cu defalcarea din portofelul clientului.",
-    "vatTitle": "TVA pe cote (facturi valide)",
+    "vatTitle": "TVA pe cote (facturi de vânzare valide)",
     "vatColRate": "Cotă",
     "vatColInvoices": "Facturi",
     "vatColBase": "Bază",
@@ -1822,6 +1822,192 @@
       "local": "Model local",
       "ai": "Claude",
       "guess": "Estimare locală"
+    },
+    "lastMonth": "Luna trecută",
+    "periodMonth": "Lună",
+    "periodYear": "An",
+    "export": "Export",
+    "exportPdf": "PDF (pentru tipărit)",
+    "exportXlsx": "Excel (.xlsx)",
+    "exportCsv": "CSV",
+    "exportReport": "Export raport",
+    "exportAnnual": "Export raport anual",
+    "tabSummary": "Rezumat",
+    "tabPnl": "Profit și pierdere",
+    "tabAnnual": "Anual, pe luni",
+    "tabChecks": "Verificări",
+    "pnlHint": "Aceleași cifre ca în exporturile PDF, Excel și CSV ale raportului.",
+    "cashSub": "{gross} cu TVA, din care TVA {vat}",
+    "consumedRevenueSub": "Servicii prestate, fără TVA",
+    "beforeTax": "Înainte de impozit",
+    "marginSub": "Marjă {pct}, înainte de impozit",
+    "cashNetSeries": "Încasări nete (cash)",
+    "advances": "Avansuri clienți",
+    "advancesSub": "Bani pentru credite neconsumate la {date}",
+    "registerMoney": "Bani (net) în selecție",
+    "registerMoneyHint": "Suma reală încasată minus cea returnată, pentru toate rândurile filtrate (nu doar pagina curentă). Cu filtrele implicite este aceeași cifră ca încasările brute din Dashboard.",
+    "searchPlaceholder": "Caută client, email, afacere, nr. factură, referință plată...",
+    "colStatus": "Status",
+    "amountMin": "Sumă min.",
+    "amountMax": "Sumă max.",
+    "sortBy": "Ordonare",
+    "resetFilters": "Resetează filtrele",
+    "colReference": "Factură / referință",
+    "colMoney": "Bani",
+    "clicks": "{n} clicuri",
+    "status": {
+      "completed": "Finalizate",
+      "pending": "În așteptare",
+      "processing": "În procesare",
+      "failed": "Eșuate",
+      "canceled": "Anulate",
+      "all": "Toate statusurile"
+    },
+    "sort": {
+      "date_desc": "Cele mai noi",
+      "date_asc": "Cele mai vechi",
+      "amount_desc": "Sumă descrescător",
+      "amount_asc": "Sumă crescător"
+    },
+    "txnType": {
+      "purchase": "Încărcare",
+      "refund": "Rambursare",
+      "adjustment": "Ajustare",
+      "spend": "Consum"
+    },
+    "txnTypePlural": {
+      "purchase": "Încărcări",
+      "refund": "Rambursări",
+      "adjustment": "Ajustări",
+      "spend": "Consum"
+    },
+    "consumption": {
+      "cpc": "Consum: clicuri",
+      "aiUsage": "Consum: AI",
+      "builderUnlock": "Consum: deblocare",
+      "other": "Consum: altele"
+    },
+    "expensesTotalEur": "Total în EUR",
+    "missingFxAlert": "{n} cheltuieli în altă monedă nu au curs de schimb și nu sunt incluse în totaluri și în profit. Editați-le și completați cursul.",
+    "fxAt": "curs {rate}",
+    "noFx": "Fără curs: neinclus în totaluri",
+    "fxRateLabel": "Curs: câți {cur} = 1 EUR",
+    "fxRateHint": "Cursul de la data documentului (de ex. cursul BNR).",
+    "fxPreview": "Echivalent: {amount}",
+    "missingTitle": "Informații lipsă sau estimate",
+    "missing": {
+      "vatUnknown": "TVA neconfirmat: {amount} din încasările sau veniturile perioadei provin din plăți fără factură emisă, deci cota TVA nu este documentată. Sumele sunt incluse integral, fără TVA dedus, până la emiterea facturii.",
+      "expenseFx": "{n} cheltuieli în altă monedă nu au curs de schimb și NU sunt incluse în totaluri. Completați cursul la fiecare.",
+      "aiEstimated": "Costul AI ({amount}) este estimat din tokeni la prețul de listă, în USD tratat 1:1 cu EUR. Factura furnizorului este sursa exactă; nu o introduceți și manual, ca să nu fie numărată de două ori.",
+      "unmatched": "Consum fără credite în spate în registru: {amount}. Vezi tab-ul Verificări.",
+      "forfeit": "Credite plătite retrase manual de admin: {amount}. Nu sunt incluse în venituri, pentru că din date nu reiese dacă banii au fost returnați în afara platformei.",
+      "incomeTax": "Impozitul pe profit sau pe venit nu este calculat (regimul fiscal al firmei nu este configurat). Profitul afișat este înainte de impozit.",
+      "expenseVat": "Cheltuielile sunt înregistrate cu suma totală a documentului; TVA-ul deductibil nu este separat."
+    },
+    "pl": {
+      "cashHead": "1. Încasări (cash)",
+      "collected": "Încasări din vânzarea creditelor, cu TVA ({n} plăți)",
+      "refunded": "Rambursări plătite clienților ({n})",
+      "cashNet": "Încasări nete, cu TVA",
+      "cashVat": "din care TVA colectat",
+      "cashVatHint": "TVA-ul din facturile de vânzare, net de rambursări. Aparține statului, nu este venit.",
+      "cashNetExVat": "Încasări nete fără TVA",
+      "cashVatUnknown": "din care fără factură (TVA neconfirmat)",
+      "faceValue": "Valoarea nominală a creditelor vândute",
+      "discount": "Reduceri acordate la cumpărare",
+      "revenueHead": "2. Venituri realizate (fără TVA)",
+      "revenueHint": "Credite consumate, evaluate FIFO la banii plătiți efectiv pentru fiecare credit. Creditele neconsumate rămân avans de la client.",
+      "revCpc": "Clicuri CPC (promovare)",
+      "revAi": "Consum AI (website builder)",
+      "revUnlock": "Deblocare builder avansat",
+      "revOther": "Alte servicii",
+      "revRefundFees": "Comisioane reținute din rambursări",
+      "revTotal": "Venituri realizate",
+      "revVat": "TVA aferent veniturilor realizate",
+      "expensesHead": "3. Cheltuieli",
+      "aiBuilder": "Cost AI: website builder (estimat)",
+      "aiAgent": "Cost AI: agent campanii Google Ads (estimat)",
+      "aiSearch": "Cost AI: căutare pagina principală (estimat)",
+      "expensesTotal": "Total cheltuieli",
+      "resultHead": "4. Rezultat",
+      "operatingProfit": "Profit operațional, înainte de impozit",
+      "operatingProfitHint": "Venituri realizate minus toate cheltuielile.",
+      "margin": "Marjă operațională",
+      "cashResult": "Rezultat pe bază de încasări",
+      "cashResultHint": "Încasări nete fără TVA minus cheltuieli. Include banii pentru credite încă neconsumate, care pot fi rambursați.",
+      "nonCashHead": "5. Fără încasare (informativ)",
+      "nonCashHint": "Valoare nominală în credite; nu au adus bani.",
+      "freeConsumed": "Credite gratuite consumate (bonus, afiliere, ajustări)",
+      "voidedConsumed": "Credite din facturi anulate, consumate",
+      "forfeited": "Credite retrase manual de admin",
+      "balanceHead": "6. Obligații față de clienți la {date}",
+      "balanceHint": "Bani încasați pentru credite pe care clienții nu le-au consumat încă: o obligație (avans), nu profit, pentru că pot fi rambursați.",
+      "advances": "Avansuri clienți (bani, cu TVA)",
+      "advancesVat": "din care TVA",
+      "unconsumedPaid": "Credite plătite neconsumate (valoare nominală)",
+      "unconsumedFree": "Credite gratuite neconsumate (valoare nominală)"
+    },
+    "annual": {
+      "colMonth": "Luna",
+      "colCashNet": "Încasări nete cu TVA",
+      "colVat": "TVA colectat",
+      "colRevenue": "Venituri realizate",
+      "colExpenses": "Cheltuieli",
+      "colProfit": "Profit operațional",
+      "total": "Total {year}",
+      "hint": "Apăsați pe o lună pentru contul de profit și pierdere complet al lunii."
+    },
+    "checks": {
+      "ok": "În regulă",
+      "count": "{n} cazuri",
+      "countAmount": "{n} cazuri, {amount}",
+      "problems": "{n} verificări cer atenție",
+      "allGood": "Toate verificările sunt în regulă",
+      "rerun": "Rulează din nou",
+      "lead": "Verificări automate pe toate datele, nu doar pe perioada selectată.",
+      "more": "și încă {n}",
+      "items": {
+        "duplicatePurchases": {
+          "title": "Plăți duplicate",
+          "desc": "Aceeași plată Stripe înregistrată de mai multe ori."
+        },
+        "walletBalance": {
+          "title": "Solduri care nu corespund registrului",
+          "desc": "Soldul salvat al portofelului diferă de suma tranzacțiilor lui (sold salvat / sold din registru)."
+        },
+        "uninvoicedPurchases": {
+          "title": "Încasări fără factură",
+          "desc": "Plăți finalizate pentru care nu s-a emis factură: TVA-ul nu este documentat."
+        },
+        "invoiceMismatch": {
+          "title": "Facturi diferite de plată",
+          "desc": "Totalul facturii nu corespunde sumei plătite (factură / plată)."
+        },
+        "refundSources": {
+          "title": "Rambursări cu alocare greșită",
+          "desc": "Suma pe surse nu este egală cu creditele rambursate."
+        },
+        "stripeFeeMissing": {
+          "title": "Comisioane Stripe neînregistrate",
+          "desc": "Plăți Stripe al căror comision nu apare la cheltuieli."
+        },
+        "expenseFx": {
+          "title": "Cheltuieli fără curs de schimb",
+          "desc": "Documente în RON sau USD fără curs: lipsesc din totaluri."
+        },
+        "duplicateExpenses": {
+          "title": "Posibile cheltuieli duplicate",
+          "desc": "Aceeași zi, categorie, sumă și monedă, introduse manual de mai multe ori."
+        },
+        "unmatchedConsumption": {
+          "title": "Consum fără credite",
+          "desc": "Consum înregistrat peste creditele existente în portofel."
+        },
+        "forfeitedCredits": {
+          "title": "Credite plătite retrase de admin",
+          "desc": "Ajustări negative din credite plătite (bani păstrați, serviciu neprestat)."
+        }
+      }
     }
   },
   "adminSettings": {
@@ -2192,7 +2378,68 @@
     },
     "investigate": "Investighează",
     "openUserAdmin": "Deschide utilizatorul în admin",
-    "openBusinessAdmin": "Deschide afacerea în admin"
+    "openBusinessAdmin": "Deschide afacerea în admin",
+    "role": {
+      "admin": "Administrator",
+      "support": "Agent suport",
+      "finance": "Contabil",
+      "moderator": "Moderator",
+      "user": "Utilizator"
+    },
+    "you": "Tu",
+    "leadRequester": "Urmărește-ți cererile și conversațiile cu echipa noastră.",
+    "leadStaff": "Toate cererile clienților, într-un singur loc. Alege o listă, caută sau filtrează.",
+    "view": {
+      "active": "Active",
+      "mine": "Ale mele",
+      "unassigned": "Neatribuite",
+      "urgent": "Urgente",
+      "waiting": "Așteaptă clientul",
+      "waitingYou": "Așteaptă răspunsul tău",
+      "done": "Rezolvate",
+      "all": "Toate"
+    },
+    "searchStaff": "Caută după subiect, #număr, client, email sau afacere",
+    "searchRequester": "Caută după subiect sau #număr",
+    "filters": "Filtre",
+    "clearFilters": "Șterge filtrele",
+    "sortBy": "Sortare",
+    "sort": {
+      "activity": "Activitate recentă",
+      "newest": "Cele mai noi",
+      "oldest": "Cele mai vechi",
+      "priority": "Prioritate"
+    },
+    "noMatchTitle": "Niciun ticket nu corespunde",
+    "noMatchHint": "Încearcă altă listă, alt filtru sau șterge căutarea.",
+    "emptyStaffTitle": "Nimic de făcut aici",
+    "emptyStaffHint": "Nu există tichete în această listă.",
+    "replyFromCustomer": "Clientul a răspuns",
+    "replyFromTeam": "Răspuns nou de la echipă",
+    "refresh": "Reîmprospătează",
+    "banner": {
+      "open": "Am primit ticketul. Echipa noastră îți răspunde cât mai curând.",
+      "in_progress": "Un membru al echipei lucrează la ticketul tău.",
+      "waiting": "Echipa așteaptă răspunsul tău ca să poată continua.",
+      "resolved": "Ticketul a fost marcat rezolvat. Dacă problema persistă, scrie un răspuns și îl redeschidem.",
+      "closed": "Ticketul este închis. Îl poți redeschide oricând."
+    },
+    "quick": {
+      "take": "Preia ticketul",
+      "waiting": "Așteaptă clientul",
+      "resolve": "Rezolvat",
+      "close": "Închide",
+      "reopen": "Redeschide"
+    },
+    "composerReply": "Răspuns către client",
+    "sendHint": "Ctrl + Enter pentru trimitere",
+    "noteVisibility": "Vizibilă doar pentru echipă",
+    "people": "Persoane",
+    "lastActivity": "Ultima activitate",
+    "firstResponse": "Primul răspuns",
+    "today": "Azi",
+    "yesterday": "Ieri",
+    "assignedToYou": "Atribuit ție"
   },
   "catalog": {
     "variant": {

@@ -7,7 +7,7 @@ import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
-import AdminHint from '@/components/admin/AdminHint.vue'
+import AdminHintText from '@/components/admin/AdminHintText.vue'
 import {
   useAdminStore,
   type GoogleAdsAgentActionRow,
@@ -784,8 +784,7 @@ function cancelEditCredentials() {
               <span class="gaa__ic"><v-icon icon="mdi-power" size="18" /></span>
               <div class="gaa__body">
                 <label class="gaa__label">
-                  {{ t('adminGoogleAds.settingEnabled') }}
-                  <AdminHint :text="t('adminGoogleAds.settingEnabledHint')" size="sm" />
+                  <AdminHintText :label="t('adminGoogleAds.settingEnabled')" :hint="t('adminGoogleAds.settingEnabledHint')" />
                 </label>
               </div>
               <v-switch
@@ -803,8 +802,7 @@ function cancelEditCredentials() {
             <div class="gaa__pairField">
               <label for="gaaBudget" class="gaa__pairLabel">
                 <v-icon icon="mdi-wallet-plus-outline" size="16" />
-                {{ t('adminGoogleAds.settingDefaultBudget') }}
-                <AdminHint :text="t('adminGoogleAds.settingDefaultBudgetHint')" size="sm" />
+                <AdminHintText :label="t('adminGoogleAds.settingDefaultBudget')" :hint="t('adminGoogleAds.settingDefaultBudgetHint')" />
               </label>
               <v-text-field
                 id="gaaBudget"
@@ -822,17 +820,7 @@ function cancelEditCredentials() {
             <div class="gaa__pairField">
               <label for="gaaCpc" class="gaa__pairLabel">
                 <v-icon icon="mdi-cursor-default-click-outline" size="16" />
-                {{ t('adminGoogleAds.settingDefaultCpc') }}
-                <AdminHint
-                  :text="
-                    admin.googleAdsAgentOverview?.feedCpc.rawAvgCpcCredits != null
-                      ? t('adminGoogleAds.settingDefaultCpcHintWithAvg', {
-                          avg: credits(admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits),
-                        })
-                      : t('adminGoogleAds.settingDefaultCpcHint')
-                  "
-                  size="sm"
-                />
+                <AdminHintText :label="t('adminGoogleAds.settingDefaultCpc')" :hint="admin.googleAdsAgentOverview?.feedCpc.rawAvgCpcCredits != null ? t('adminGoogleAds.settingDefaultCpcHintWithAvg', { avg: credits(admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits), }) : t('adminGoogleAds.settingDefaultCpcHint')" />
               </label>
               <v-text-field
                 id="gaaCpc"
@@ -853,8 +841,7 @@ function cancelEditCredentials() {
             <div class="gaa__pairField">
               <label for="gaaBudgetCap" class="gaa__pairLabel">
                 <v-icon icon="mdi-shield-check-outline" size="16" />
-                {{ t('adminGoogleAds.settingBudgetCap') }}
-                <AdminHint :text="t('adminGoogleAds.settingBudgetCapHint')" size="sm" />
+                <AdminHintText :label="t('adminGoogleAds.settingBudgetCap')" :hint="t('adminGoogleAds.settingBudgetCapHint')" />
               </label>
               <v-text-field
                 id="gaaBudgetCap"
@@ -872,8 +859,7 @@ function cancelEditCredentials() {
             <div class="gaa__pairField">
               <label for="gaaCpcCap" class="gaa__pairLabel">
                 <v-icon icon="mdi-speedometer" size="16" />
-                {{ t('adminGoogleAds.settingCpcCap') }}
-                <AdminHint :text="t('adminGoogleAds.settingCpcCapHint')" size="sm" />
+                <AdminHintText :label="t('adminGoogleAds.settingCpcCap')" :hint="t('adminGoogleAds.settingCpcCapHint')" />
               </label>
               <v-text-field
                 id="gaaCpcCap"
@@ -890,8 +876,7 @@ function cancelEditCredentials() {
           </div>
 
           <h3 class="gaa__subhead">
-            {{ t('adminGoogleAds.recommendationsTitle') }}
-            <AdminHint :text="t('adminGoogleAds.recommendationsHint')" size="sm" />
+            <AdminHintText :label="t('adminGoogleAds.recommendationsTitle')" :hint="t('adminGoogleAds.recommendationsHint')" />
           </h3>
           <div v-if="admin.loadingGoogleAdsRecommendationTypes" class="d-flex justify-center py-4">
             <v-progress-circular indeterminate color="primary" size="24" />
@@ -901,8 +886,7 @@ function cancelEditCredentials() {
               <v-icon :icon="recoIcon(r.type)" size="18" class="gaa__toggleIcon" />
               <div class="gaa__toggleBody">
                 <span class="gaa__toggleLabel">
-                  {{ r.labelRo }}
-                  <AdminHint :text="r.descriptionRo" size="sm" />
+                  <AdminHintText :label="r.labelRo" :hint="r.descriptionRo" />
                 </span>
                 <span v-if="boostsAdStrength(r.type)" class="gaa__toggleBadge">
                   <v-icon icon="mdi-trending-up" size="12" />
@@ -919,10 +903,12 @@ function cancelEditCredentials() {
               />
             </div>
           </div>
+          <!-- Short always-visible label only; the explanation lives in the
+               (i) tooltip, like every other hint on this page. It used to be
+               a full sentence next to a static info icon AND a hint icon,
+               which wrapped into a paragraph with the icons floating beside it. -->
           <p v-if="hasNeverApplyRecommendations" class="gaa__note">
-            <v-icon icon="mdi-information-outline" size="14" />
-            {{ t('adminGoogleAds.recoNeverApplyNote') }}
-            <AdminHint :text="t('adminGoogleAds.recoNeverApplyHint')" size="sm" />
+            <AdminHintText :label="t('adminGoogleAds.recoNeverApplyLabel')" :hint="t('adminGoogleAds.recoNeverApplyHint')" />
           </p>
 
           <button type="button" class="gaa__advancedToggle" @click="showAdvancedSettings = !showAdvancedSettings">
@@ -935,8 +921,7 @@ function cancelEditCredentials() {
                 <span class="gaa__ic"><v-icon icon="mdi-radar" size="18" /></span>
                 <div class="gaa__body">
                   <label for="gaaCadStruct" class="gaa__label">
-                    {{ t('adminGoogleAds.cadenceStructural') }}
-                    <AdminHint :text="t('adminGoogleAds.cadenceHint')" size="sm" />
+                    <AdminHintText :label="t('adminGoogleAds.cadenceStructural')" :hint="t('adminGoogleAds.cadenceHint')" />
                   </label>
                 </div>
                 <v-text-field
@@ -955,8 +940,7 @@ function cancelEditCredentials() {
                 <span class="gaa__ic"><v-icon icon="mdi-file-document-edit-outline" size="18" /></span>
                 <div class="gaa__body">
                   <label for="gaaCadContent" class="gaa__label">
-                    {{ t('adminGoogleAds.cadenceContent') }}
-                    <AdminHint :text="t('adminGoogleAds.cadenceHint')" size="sm" />
+                    <AdminHintText :label="t('adminGoogleAds.cadenceContent')" :hint="t('adminGoogleAds.cadenceHint')" />
                   </label>
                 </div>
                 <v-text-field
@@ -975,8 +959,7 @@ function cancelEditCredentials() {
                 <span class="gaa__ic"><v-icon icon="mdi-brain" size="18" /></span>
                 <div class="gaa__body">
                   <label for="gaaCadIntel" class="gaa__label">
-                    {{ t('adminGoogleAds.cadenceIntelligence') }}
-                    <AdminHint :text="t('adminGoogleAds.cadenceHint')" size="sm" />
+                    <AdminHintText :label="t('adminGoogleAds.cadenceIntelligence')" :hint="t('adminGoogleAds.cadenceHint')" />
                   </label>
                 </div>
                 <v-text-field
@@ -1188,9 +1171,6 @@ function cancelEditCredentials() {
   text-decoration: underline;
 }
 .gaa__subhead {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
   font-family: 'Space Grotesk Variable', sans-serif;
   font-size: 0.78rem;
   font-weight: 600;
@@ -1244,10 +1224,12 @@ function cancelEditCredentials() {
   flex: 1;
   min-width: 0;
 }
+/* Text flow, not flex: with flex, a label that wraps to two lines became one
+   block and the (i) hint floated beside it, vertically centred. In plain
+   text flow the hint stays glued to the last word, wherever it wraps. */
 .gaa__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  display: block;
+  line-height: 1.35;
   font-weight: 600;
   font-size: 0.86rem;
 }
@@ -1256,9 +1238,7 @@ function cancelEditCredentials() {
   width: 130px;
 }
 .gaa__note {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+  line-height: 1.4;
   font-size: 0.78rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
   margin: 0.4rem 0 1rem;
@@ -1282,12 +1262,15 @@ function cancelEditCredentials() {
   border-radius: 10px;
 }
 .gaa__pairLabel {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+  display: block;
+  line-height: 1.35;
   font-size: 0.82rem;
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.85);
+}
+.gaa__pairLabel > .v-icon {
+  vertical-align: -3px;
+  margin-right: 0.3rem;
 }
 .gaa__pairField .gaa__input {
   width: 100%;
@@ -1298,7 +1281,7 @@ function cancelEditCredentials() {
    on every row to find that out. */
 .gaa__toggleGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 0.6rem;
 }
 .gaa__toggleCard {
@@ -1325,11 +1308,9 @@ function cancelEditCredentials() {
   gap: 0.2rem;
 }
 .gaa__toggleLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.83rem;
-  font-weight: 600;
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 500;
   line-height: 1.25;
 }
 .gaa__toggleBadge {
@@ -1410,14 +1391,14 @@ function cancelEditCredentials() {
 .runs {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  font-size: 0.86rem;
 }
 .runs__row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
-  padding: 0.6rem 0.2rem;
+  padding: 0.45rem 0.2rem;
   border-bottom: 1px solid var(--tvz-hairline);
 }
 .runs__row:last-child {
@@ -1438,14 +1419,14 @@ function cancelEditCredentials() {
 .feedcpc {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  font-size: 0.86rem;
 }
 .feedcpc__row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
-  padding: 0.5rem 0.2rem;
+  padding: 0.4rem 0.2rem;
   border-bottom: 1px solid var(--tvz-hairline);
 }
 .feedcpc__row:last-child {
@@ -1461,24 +1442,39 @@ function cancelEditCredentials() {
   font-variant-numeric: tabular-nums;
 }
 .feedcpc__value--main {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
 }
 
+/* Proposals, history and campaigns render as ONE framed list with hairline
+   dividers between rows. A separate bordered card per row (25+ of them, each
+   in 15-16px text) was what made these tabs feel heavy. */
 .plist,
-.hlist {
+.hlist,
+.ctable__list {
   list-style: none;
   padding: 0;
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: var(--tvz-radius-md);
+  background: var(--tvz-glass-bg);
+  overflow: hidden;
+  font-size: 0.85rem;
 }
 .prow,
 .hrow {
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-surface));
-  padding: 0.85rem 1rem;
+  padding: 0.6rem 0.95rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+}
+.prow:last-child,
+.hrow:last-child {
+  border-bottom: none;
+}
+.prow:hover,
+.hrow:hover,
+.crow:hover {
+  background: rgba(var(--v-theme-on-surface), 0.025);
 }
 .prow__head,
 .hrow__head {
@@ -1486,6 +1482,10 @@ function cancelEditCredentials() {
   align-items: center;
   gap: 0.6rem;
   flex-wrap: wrap;
+}
+.hrow__head strong,
+.prow__head strong {
+  font-weight: 600;
 }
 .hrow__icon {
   opacity: 0.6;
@@ -1497,7 +1497,7 @@ function cancelEditCredentials() {
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .hrow__cat {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 /* A <button>, not a <p> — reasoning is clamped to one line by default
@@ -1512,9 +1512,9 @@ function cancelEditCredentials() {
   cursor: pointer;
   padding: 0;
   font: inherit;
-  font-size: 0.82rem;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  margin: 0.2rem 0 0;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -1533,8 +1533,8 @@ function cancelEditCredentials() {
   display: flex;
   gap: 1.2rem;
   flex-wrap: wrap;
-  margin-top: 0.5rem;
-  font-size: 0.85rem;
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
 }
 .prow__actions {
   display: flex;
@@ -1557,9 +1557,9 @@ function cancelEditCredentials() {
 
 .ctable__head {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: minmax(0, 2.2fr) repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.45);
@@ -1570,23 +1570,17 @@ function cancelEditCredentials() {
     display: none;
   }
 }
-.ctable__list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
 .crow {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: minmax(0, 2.2fr) repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
   align-items: center;
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: var(--tvz-radius-md);
-  background: rgb(var(--v-theme-surface));
-  padding: 0.7rem 0.9rem;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+  font-variant-numeric: tabular-nums;
+}
+.crow:last-child {
+  border-bottom: none;
 }
 @media (max-width: 720px) {
   .crow {
@@ -1607,9 +1601,9 @@ function cancelEditCredentials() {
 .chip {
   display: inline-flex;
   align-items: center;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 600;
-  padding: 0.1rem 0.55rem;
+  padding: 0.05rem 0.5rem;
   border-radius: 999px;
 }
 .chip--success {

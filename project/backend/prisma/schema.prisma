@@ -221,6 +221,12 @@ model PlatformExpense {
   incurredOn  DateTime        @map("incurred_on") @db.Date
   amountMinor Int             @map("amount_minor")
   currency    String          @default("EUR")
+  // Non-EUR supplier documents: the exchange rate the accountant booked it
+  // at (units of `currency` per 1 EUR, e.g. the BNR rate on the document
+  // date) and the resulting EUR cents every report sums. Null on EUR rows,
+  // whose `amountMinor` already is EUR cents.
+  fxRate         Decimal?      @map("fx_rate") @db.Decimal(12, 6)
+  eurAmountMinor Int?          @map("eur_amount_minor")
   source      ExpenseSource   @default(manual)
   note        String?
   // Idempotency key for an automatically-captured cost: the external object

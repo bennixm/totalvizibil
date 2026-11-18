@@ -86,6 +86,103 @@ export interface AiBuilderFigures {
   campaignAgentAvailable: boolean
 }
 
+export type ConsumptionCategory = 'cpc' | 'aiUsage' | 'builderUnlock' | 'other'
+export type ExportFormat = 'pdf' | 'csv' | 'xlsx'
+
+/** What the statement could not compute exactly (mirrors the backend). */
+export interface MissingInfo {
+  key: 'vatUnknown' | 'expenseFx' | 'aiEstimated' | 'unmatched' | 'forfeit' | 'incomeTax' | 'expenseVat'
+  count?: number
+  amountMinor?: number
+}
+
+/** The financial statement (profit and loss) for a period. All EUR cents.
+ *  See the backend's `FinanceStatementService` for how each figure is made. */
+export interface FinancialStatement {
+  range: { from: string; to: string }
+  cash: {
+    purchaseCount: number
+    collectedMinor: number
+    collectedVatMinor: number
+    refundCount: number
+    refundedMinor: number
+    refundedVatMinor: number
+    netMinor: number
+    netVatMinor: number
+    netExVatMinor: number
+    vatUnknownMinor: number
+    faceValueSoldMinor: number
+    discountMinor: number
+  }
+  revenue: {
+    byCategory: Record<ConsumptionCategory, number>
+    refundFeesMinor: number
+    totalNetMinor: number
+    totalVatMinor: number
+    totalGrossMinor: number
+    vatUnknownGrossMinor: number
+  }
+  nonCash: {
+    freeCreditsConsumedMinor: number
+    voidedCreditsConsumedMinor: number
+    forfeitedCreditsMinor: number
+    forfeitedMoneyMinor: number
+    unmatchedCreditsMinor: number
+  }
+  expenses: {
+    byCategory: Record<ExpenseCategory, number>
+    ai: { builderMinor: number; campaignAgentMinor: number; searchMinor: number; totalMinor: number }
+    totalMinor: number
+    missingFx: { count: number; byCurrency: Record<string, number> }
+  }
+  result: { operatingProfitMinor: number; cashResultMinor: number; marginPct: number | null }
+  missing: MissingInfo[]
+}
+
+/** Customer advances (paid credits not consumed yet) at a date. */
+export interface BalanceSnapshot {
+  asOf: string
+  advancesMoneyMinor: number
+  advancesVatMinor: number
+  advancesNetMinor: number
+  advancesVatUnknownMinor: number
+  unconsumedPaidCreditsMinor: number
+  unconsumedFreeCreditsMinor: number
+  unconsumedVoidedCreditsMinor: number
+}
+
+export interface DailyPoint {
+  date: string
+  revenueMinor: number
+  expenseMinor: number
+  cashNetMinor: number
+}
+
+export type CheckSeverity = 'ok' | 'info' | 'warning' | 'error'
+export interface CheckItem {
+  key:
+    | 'duplicatePurchases'
+    | 'walletBalance'
+    | 'uninvoicedPurchases'
+    | 'invoiceMismatch'
+    | 'refundSources'
+    | 'stripeFeeMissing'
+    | 'expenseFx'
+    | 'duplicateExpenses'
+    | 'unmatchedConsumption'
+    | 'forfeitedCredits'
+  severity: CheckSeverity
+  count: number
+  amountMinor: number | null
+  samples: { label: string; detail?: string; amountMinor?: number }[]
+}
+
+export interface MonthlyReport {
+  year: number
+  months: FinancialStatement[]
+  total: FinancialStatement
+}
+
 export interface FinanceOverview {
   range: { from: string; to: string }
   revenueMinor: number
@@ -134,13 +231,28 @@ export interface FinanceOverview {
   refundLiabilityInFlightMinor: number
   vatBreakdown: VatBreakdownRow[]
   trend: FinanceTrendPoint[]
+  /** The full statement for the period (same figures as the exports). */
+  statement: FinancialStatement
+  /** Customer advances at the period end. */
+  balance: BalanceSnapshot
+  daily: DailyPoint[]
 }
 
-export type RevenueTxnType = 'purchase' | 'refund' | 'adjustment'
+export type RevenueTxnType = 'purchase' | 'refund' | 'adjustment' | 'spend'
+export type TxnStatusFilter = 'completed' | 'pending' | 'processing' | 'failed' | 'canceled' | 'all'
+export type TxnSort = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
 export interface RevenueRow {
   id: string
   type: RevenueTxnType
+  status: Exclude<TxnStatusFilter, 'all'>
+  /** VAT inside a purchase's money, from its invoice (null = no invoice). */
+  vatMinor: number | null
+  userId: string | null
+  invoiceNumber: string | null
+  providerRef: string | null
+  clickCount: number | null
+  category: ConsumptionCategory | null
   /** Credit face value (what the wallet moved). */
   amountMinor: number
   /** Real money (what the bank moved) — reconciles with the dashboard KPI. */
@@ -161,6 +273,16 @@ export interface ExpenseRow {
   source: 'manual' | 'stripe_api' | 'google_ads_api'
   note: string | null
   createdBy: { name: string } | null
+  /** Units of `currency` per 1 EUR (non-EUR documents). */
+  fxRate: number | null
+  /** EUR cents every report sums; null = foreign currency without a rate. */
+  eurMinor: number | null
+}
+
+export interface TypeSubtotal {
+  count: number
+  amountMinor: number
+  moneyMinor: number
 }
 
 export interface VoidedInvoiceRow {
@@ -253,14 +375,29 @@ interface AdminFinanceState {
   /** The resolved range the ledger is actually filtered to right now. */
   revenueRange: { from: string; to: string } | null
   revenueFilters: PeriodFilter & {
-    type: 'purchase' | 'refund' | null
-    /** Adds `adjustment` rows (manual wallet corrections, affiliate rewards)
-     *  to the ledger. Off = the backend default (`purchase`+`refund`). */
-    includeAdjustments: boolean
+    /** Which kinds of rows; default the cash rows (purchases + refunds). */
+    types: RevenueTxnType[]
+    status: TxnStatusFilter
+    /** Free-text search (client, business, invoice, payment ref, id). */
+    q: string
+    /** Absolute amount bounds in EUR (null = open). */
+    minAmount: number | null
+    maxAmount: number | null
+    sort: TxnSort
     page: number
     pageSize: number
   }
+  revenueByType: Record<RevenueTxnType, TypeSubtotal> | null
   loadingRevenue: boolean
+
+  checks: CheckItem[] | null
+  checksGeneratedAt: string | null
+  loadingChecks: boolean
+  checksError: string | null
+
+  monthly: MonthlyReport | null
+  loadingMonthly: boolean
+  monthlyError: string | null
 
   voidedInvoices: VoidedInvoiceRow[]
   voidedInvoicesTotal: number
@@ -282,6 +419,9 @@ interface AdminFinanceState {
   /** The filter as actually applied — `{from: null, to: null}` means
    *  lifetime (this endpoint's own default when nothing is set). */
   expensesRange: { from: string | null; to: string | null } | null
+  /** EUR total of the whole filtered set (rate-less foreign rows excluded). */
+  expensesTotalEurMinor: number
+  expensesMissingFxCount: number
   loadingExpenses: boolean
 
   aiUsage: AiUsageReport | null
@@ -331,12 +471,26 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     revenueFilters: {
       from: null,
       to: null,
-      type: null,
-      includeAdjustments: false,
+      types: ['purchase', 'refund'],
+      status: 'completed',
+      q: '',
+      minAmount: null,
+      maxAmount: null,
+      sort: 'date_desc',
       page: 1,
-      pageSize: 20,
+      pageSize: 25,
     },
+    revenueByType: null,
     loadingRevenue: false,
+
+    checks: null,
+    checksGeneratedAt: null,
+    loadingChecks: false,
+    checksError: null,
+
+    monthly: null,
+    loadingMonthly: false,
+    monthlyError: null,
 
     voidedInvoices: [],
     voidedInvoicesTotal: 0,
@@ -356,6 +510,8 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     expensesTotal: 0,
     expenseFilters: { from: null, to: null, category: null, page: 1, pageSize: 20 },
     expensesRange: null,
+    expensesTotalEurMinor: 0,
+    expensesMissingFxCount: 0,
     loadingExpenses: false,
 
     aiUsage: null,
@@ -434,11 +590,27 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
     revenueParams(): URLSearchParams {
       const f = this.revenueFilters
       const params = periodFilterParams(f)
-      if (f.type) params.set('type', f.type)
-      else if (f.includeAdjustments) {
-        for (const t of ['purchase', 'refund', 'adjustment']) params.append('types', t)
-      }
+      for (const t of f.types.length ? f.types : ['purchase', 'refund']) params.append('types', t)
+      if (f.status !== 'completed') params.set('status', f.status)
+      if (f.q.trim()) params.set('q', f.q.trim())
+      if (f.minAmount !== null) params.set('minAmount', String(Math.round(f.minAmount * 100)))
+      if (f.maxAmount !== null) params.set('maxAmount', String(Math.round(f.maxAmount * 100)))
+      if (f.sort !== 'date_desc') params.set('sort', f.sort)
       return params
+    },
+
+    /** Resets every register filter except the period. */
+    resetRevenueFilters(): void {
+      Object.assign(this.revenueFilters, {
+        types: ['purchase', 'refund'],
+        status: 'completed',
+        q: '',
+        minAmount: null,
+        maxAmount: null,
+        sort: 'date_desc',
+        page: 1,
+      })
+      void this.fetchRevenue()
     },
 
     async fetchRevenue(): Promise<void> {
@@ -455,8 +627,10 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
           range: { from: string; to: string }
           periodTotalMinor: number
           periodFaceTotalMinor: number
+          byType: Record<RevenueTxnType, TypeSubtotal>
         }>(`/admin/finance/revenue?${params.toString()}`)
         if (seq !== this.revenueSeq) return
+        this.revenueByType = res.byType
         this.revenue = res.items
         this.revenueTotal = res.total
         this.revenueRange = res.range
@@ -470,9 +644,44 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
       }
     },
 
-    revenueExportUrl(): string {
-      const q = this.revenueParams().toString()
-      return `${BASE_URL}/admin/finance/revenue/export${q ? `?${q}` : ''}`
+    revenueExportUrl(format: ExportFormat = 'pdf'): string {
+      const params = this.revenueParams()
+      params.set('format', format)
+      return `${BASE_URL}/admin/finance/revenue/export?${params.toString()}`
+    },
+
+    /** The financial report (profit and loss) of the dashboard's period, or
+     *  the annual report of `year` (12 months + total). */
+    reportExportUrl(format: ExportFormat, year?: number): string {
+      const params = year ? new URLSearchParams({ year: String(year) }) : this.periodParams()
+      params.set('format', format)
+      return `${BASE_URL}/admin/finance/report/export?${params.toString()}`
+    },
+
+    async fetchChecks(): Promise<void> {
+      this.loadingChecks = true
+      try {
+        const res = await apiFetch<{ generatedAt: string; items: CheckItem[] }>('/admin/finance/checks')
+        this.checks = res.items
+        this.checksGeneratedAt = res.generatedAt
+        this.checksError = null
+      } catch (e) {
+        this.checksError = errMsg(e)
+      } finally {
+        this.loadingChecks = false
+      }
+    },
+
+    async fetchMonthly(year: number): Promise<void> {
+      this.loadingMonthly = true
+      try {
+        this.monthly = await apiFetch<MonthlyReport>(`/admin/finance/report/monthly?year=${year}`)
+        this.monthlyError = null
+      } catch (e) {
+        this.monthlyError = errMsg(e)
+      } finally {
+        this.loadingMonthly = false
+      }
     },
 
     async fetchVoidedInvoices(): Promise<void> {
@@ -567,8 +776,12 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
           items: ExpenseRow[]
           total: number
           range: { from: string | null; to: string | null }
+          totalEurMinor: number
+          missingFxCount: number
         }>(`/admin/finance/expenses?${params.toString()}`)
         if (seq !== this.expensesSeq) return
+        this.expensesTotalEurMinor = res.totalEurMinor
+        this.expensesMissingFxCount = res.missingFxCount
         this.expenses = res.items
         this.expensesTotal = res.total
         this.expensesRange = res.range
@@ -580,9 +793,10 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
       }
     },
 
-    expensesExportUrl(): string {
-      const q = this.expensesParams().toString()
-      return `${BASE_URL}/admin/finance/expenses/export${q ? `?${q}` : ''}`
+    expensesExportUrl(format: ExportFormat = 'pdf'): string {
+      const params = this.expensesParams()
+      params.set('format', format)
+      return `${BASE_URL}/admin/finance/expenses/export?${params.toString()}`
     },
 
     async createExpense(input: {
@@ -590,6 +804,7 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
       incurredOn: string
       amountMinor: number
       currency?: ExpenseCurrency
+      fxRate?: number
       note?: string
     }): Promise<void> {
       await apiFetch('/admin/finance/expenses', { method: 'POST', body: input })
@@ -603,6 +818,7 @@ export const useAdminFinanceStore = defineStore('adminFinance', {
         incurredOn: string
         amountMinor: number
         currency: ExpenseCurrency
+        fxRate: number
         note: string
       }>,
     ): Promise<void> {

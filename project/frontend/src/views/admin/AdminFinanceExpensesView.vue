@@ -6,6 +6,8 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
+import AdminExportMenu from '@/components/admin/AdminExportMenu.vue'
+import { useMoney } from '@/composables/useMoney'
 import {
   useAdminFinanceStore,
   type ExpenseCategory,
@@ -29,8 +31,20 @@ const toasts = useToastStore()
 // (this endpoint's own backend default, absent a filter, is actually
 // lifetime; `onMounted` below explicitly asks for this month instead so
 // the three finance pages behave the same way out of the box).
-const { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, applyCustomRange } =
-  usePeriodFilter((from, to, lifetime) => finance.setExpensesPeriod(from, to, lifetime))
+const {
+  activePreset,
+  customFrom,
+  customTo,
+  canApplyCustom,
+  setQuickRange,
+  applyCustomRange,
+  pickMonth,
+  pickYear,
+} = usePeriodFilter((from, to, lifetime) => finance.setExpensesPeriod(from, to, lifetime))
+const money = useMoney()
+function eur(minor: number): string {
+  return money.fiat(minor / 100)
+}
 
 const activeRangeLabel = computed(() => {
   const r = finance.expensesRange
@@ -100,9 +114,8 @@ function categoryLabel(c: ExpenseCategory): string {
 const CURRENCIES: ExpenseCurrency[] = ['EUR', 'RON', 'USD']
 const CURRENCY_SUFFIX: Record<string, string> = { EUR: '€', RON: 'lei', USD: '$' }
 
-/** An expense recorded in a foreign currency keeps the ORIGINAL document's
- *  currency; the platform reports still treat the minor amount as EUR cents,
- *  so the row shows what was actually entered. */
+/** The amount as written on the supplier document, in its own currency.
+ *  The EUR value every report sums is shown next to it (`eurMinor`). */
 function amount(minor: number, currency: string): string {
   const value = (minor / 100).toLocaleString('ro-RO', {
     minimumFractionDigits: 2,
@@ -123,6 +136,8 @@ const editor = reactive({
   incurredOn: localDateStr(),
   amount: 0,
   currency: 'EUR' as ExpenseCurrency,
+  /** Units of the document currency per 1 EUR (non-EUR only). */
+  fxRate: null as number | null,
   note: '',
 })
 const busy = reactive({ save: false, deleteId: null as string | null })
@@ -133,6 +148,7 @@ function openCreate(): void {
   editor.incurredOn = localDateStr()
   editor.amount = 0
   editor.currency = 'EUR'
+  editor.fxRate = null
   editor.note = ''
   editor.show = true
 }
@@ -143,12 +159,20 @@ function openEdit(row: ExpenseRow): void {
   editor.incurredOn = row.incurredOn.slice(0, 10)
   editor.amount = row.amountMinor / 100
   editor.currency = (CURRENCIES.find((c) => c === row.currency) ?? 'EUR') as ExpenseCurrency
+  editor.fxRate = row.fxRate
   editor.note = row.note ?? ''
   editor.show = true
 }
 const amountMinor = computed(() => Math.round(editor.amount * 100))
+const needsFx = computed(() => editor.currency !== 'EUR')
+const fxValid = computed(() => !needsFx.value || (!!editor.fxRate && editor.fxRate > 0))
+/** Live preview of the EUR value the reports will use. */
+const eurPreview = computed(() =>
+  needsFx.value && fxValid.value ? Math.round(amountMinor.value / (editor.fxRate as number)) : null,
+)
 const canSave = computed(
   () =>
+    fxValid.value &&
     amountMinor.value >= MIN_AMOUNT_MINOR &&
     amountMinor.value <= MAX_AMOUNT_MINOR &&
     editor.incurredOn.length === 10 &&
@@ -164,6 +188,7 @@ async function save(): Promise<void> {
       incurredOn: editor.incurredOn,
       amountMinor: amountMinor.value,
       currency: editor.currency,
+      ...(needsFx.value && editor.fxRate ? { fxRate: editor.fxRate } : {}),
       note: editor.note.trim() || undefined,
     }
     if (editor.id) await finance.updateExpense(editor.id, payload)
@@ -197,9 +222,7 @@ onMounted(() => setQuickRange('month'))
   <div class="afe">
     <AdminPageHeader :title="t('adminFinance.expensesTitle')" :eyebrow="t('admin.navGroupFinance')" :count="finance.expensesTotal">
       <template #actions>
-        <v-btn v-if="hasRows" :href="finance.expensesExportUrl()" variant="tonal" size="small" prepend-icon="mdi-file-pdf-box">
-          {{ t('transactions.exportPdf') }}
-        </v-btn>
+        <AdminExportMenu :url-for="(fmt) => finance.expensesExportUrl(fmt)" :disabled="!hasRows" />
         <v-btn color="primary" variant="flat" size="small" prepend-icon="mdi-plus" @click="openCreate">
           {{ t('adminFinance.addExpense') }}
         </v-btn>
@@ -212,8 +235,11 @@ onMounted(() => setQuickRange('month'))
       :preset="activePreset"
       :can-apply-custom="canApplyCustom"
       :active-range-label="activeRangeLabel"
+      calendar-pickers
       @preset="setQuickRange"
       @apply="applyCustomRange"
+      @pick-month="pickMonth"
+      @pick-year="pickYear"
     />
 
     <div class="afe__filters">
@@ -228,7 +254,19 @@ onMounted(() => setQuickRange('month'))
         style="max-width: 220px"
         @update:model-value="finance.setExpenseFilter('category', $event)"
       />
+      <span class="afe__total">
+        {{ t('adminFinance.expensesTotalEur') }}: <b>{{ eur(finance.expensesTotalEurMinor) }}</b>
+      </span>
     </div>
+
+    <v-alert
+      v-if="finance.expensesMissingFxCount"
+      type="warning"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      :text="t('adminFinance.missingFxAlert', { n: finance.expensesMissingFxCount })"
+    />
 
     <div v-if="finance.loadingExpenses && !hasRows" class="afe__center">
       <v-progress-circular indeterminate color="primary" />
@@ -261,7 +299,13 @@ onMounted(() => setQuickRange('month'))
             </span>
           </span>
           <span class="rrow__cell afe__note">{{ r.note ?? '—' }}</span>
-          <span class="rrow__cell"><b>{{ amount(r.amountMinor, r.currency) }}</b></span>
+          <span class="rrow__cell afe__amount">
+            <b>{{ amount(r.amountMinor, r.currency) }}</b>
+            <small v-if="r.currency !== 'EUR' && r.eurMinor !== null">
+              = {{ eur(r.eurMinor) }} · {{ t('adminFinance.fxAt', { rate: r.fxRate }) }}
+            </small>
+            <small v-else-if="r.currency !== 'EUR'" class="afe__nofx">{{ t('adminFinance.noFx') }}</small>
+          </span>
           <span class="afe__actions">
             <v-tooltip v-if="isLocked(r)" :text="lockedHint(r)" location="top">
               <template #activator="{ props: tip }">
@@ -317,6 +361,18 @@ onMounted(() => setQuickRange('month'))
               style="max-width: 120px"
             />
           </div>
+          <v-text-field
+            v-if="needsFx"
+            v-model.number="editor.fxRate"
+            type="number"
+            min="0"
+            step="0.0001"
+            :label="t('adminFinance.fxRateLabel', { cur: editor.currency })"
+            :hint="eurPreview !== null ? t('adminFinance.fxPreview', { amount: eur(eurPreview) }) : t('adminFinance.fxRateHint')"
+            persistent-hint
+            density="comfortable"
+            class="mb-2"
+          />
           <v-text-field v-model="editor.note" :label="t('adminFinance.colNote')" density="comfortable" maxlength="300" />
         </v-card-text>
         <v-card-actions>
@@ -337,7 +393,33 @@ onMounted(() => setQuickRange('month'))
   padding-block: clamp(1.5rem, 5vw, 3rem);
 }
 .afe__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
   margin: 1.2rem 0 1.2rem;
+}
+.afe__total {
+  font-size: 0.86rem;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.afe__total b {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--v-theme-on-surface));
+}
+.afe__amount {
+  display: flex;
+  flex-direction: column;
+}
+.afe__amount small {
+  font-size: 0.7rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.afe__amount .afe__nofx {
+  color: rgb(var(--v-theme-error));
+  font-weight: 600;
 }
 .afe__center {
   display: grid;

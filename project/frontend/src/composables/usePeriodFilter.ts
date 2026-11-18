@@ -26,15 +26,47 @@ export function usePeriodFilter(
       applyPeriod(null, null, true)
       return
     }
-    const months = { month: 1, '3months': 3, '12months': 12 }[preset]
     const now = new Date()
-    const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1))
-    const fromStr = from.toISOString().slice(0, 10)
+    const y = now.getUTCFullYear()
+    const m = now.getUTCMonth()
+    const iso = (d: Date) => d.toISOString().slice(0, 10)
+    let from: Date
+    let to: Date | null = null
+    if (preset === 'lastMonth') {
+      from = new Date(Date.UTC(y, m - 1, 1))
+      to = new Date(Date.UTC(y, m, 0))
+    } else if (preset === 'year') {
+      from = new Date(Date.UTC(y, 0, 1))
+    } else {
+      const months = { month: 1, '3months': 3, '12months': 12 }[preset]
+      from = new Date(Date.UTC(y, m - (months - 1), 1))
+    }
     // Keep the date fields showing whatever range the preset just resolved
     // to, instead of leaving them blank/stale — same state, same display.
-    customFrom.value = fromStr
-    customTo.value = ''
-    applyPeriod(fromStr, null)
+    customFrom.value = iso(from)
+    customTo.value = to ? iso(to) : ''
+    applyPeriod(iso(from), to ? iso(to) : null)
+  }
+
+  /** A whole calendar month (`YYYY-MM`), e.g. for a monthly closing. */
+  function pickMonth(ym: string): void {
+    const [yy, mm] = ym.split('-').map(Number)
+    if (!yy || !mm) return
+    const from = new Date(Date.UTC(yy, mm - 1, 1)).toISOString().slice(0, 10)
+    const to = new Date(Date.UTC(yy, mm, 0)).toISOString().slice(0, 10)
+    customFrom.value = from
+    customTo.value = to
+    activePreset.value = 'custom'
+    applyPeriod(from, to)
+  }
+
+  /** A whole calendar year, e.g. for the annual closing. */
+  function pickYear(year: number): void {
+    if (!year) return
+    customFrom.value = `${year}-01-01`
+    customTo.value = `${year}-12-31`
+    activePreset.value = 'custom'
+    applyPeriod(customFrom.value, customTo.value)
   }
 
   const canApplyCustom = computed(
@@ -47,5 +79,14 @@ export function usePeriodFilter(
     applyPeriod(customFrom.value, customTo.value || null)
   }
 
-  return { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, applyCustomRange }
+  return {
+    activePreset,
+    customFrom,
+    customTo,
+    canApplyCustom,
+    setQuickRange,
+    applyCustomRange,
+    pickMonth,
+    pickYear,
+  }
 }
