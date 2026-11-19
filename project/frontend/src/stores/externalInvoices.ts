@@ -597,6 +597,10 @@ export const useExternalInvoicesStore = defineStore('externalInvoices', {
       await apiFetch(`${PATH}/suppliers/${id}`, { method: 'PATCH', body: patch })
     },
 
+    async removeSupplier(id: string): Promise<void> {
+      await apiFetch(`${PATH}/suppliers/${id}`, { method: 'DELETE' })
+    },
+
     async fetchCalendar(month: string): Promise<{ month: string; items: CalendarItem[] }> {
       return apiFetch(`${PATH}/calendar?month=${encodeURIComponent(month)}`)
     },

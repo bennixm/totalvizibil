@@ -89,6 +89,14 @@ export class ExternalInvoicesController {
     return this.reports.updateSupplier(supplierId, dto, user);
   }
 
+  @Delete('suppliers/:supplierId')
+  removeSupplier(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('supplierId', ParseUUIDPipe) supplierId: string,
+  ) {
+    return this.reports.removeSupplier(supplierId, user);
+  }
+
   @Get('insights')
   insights() {
     return this.reports.insights();

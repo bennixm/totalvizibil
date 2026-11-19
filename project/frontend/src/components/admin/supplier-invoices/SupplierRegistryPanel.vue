@@ -8,6 +8,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useConfirmStore } from '@/stores/confirm'
 import { useExternalInvoicesStore, type SupplierRow } from '@/stores/externalInvoices'
 import { useToastStore } from '@/stores/toast'
 
@@ -18,6 +19,7 @@ const emit = defineEmits<{ showInvoices: [supplierId: string] }>()
 const { t } = useI18n()
 const store = useExternalInvoicesStore()
 const toasts = useToastStore()
+const confirm = useConfirmStore()
 const fmt = useInvoiceFormat()
 
 const rows = ref<SupplierRow[]>([])
@@ -69,6 +71,21 @@ function openEdit(r: SupplierRow): void {
     busy: false,
   })
 }
+function remove(r: SupplierRow): void {
+  confirm.ask(
+    t('supplierInvoices.removeSupplierTitle'),
+    t('supplierInvoices.removeSupplierText', { name: r.name }),
+    async () => {
+      try {
+        await store.removeSupplier(r.id)
+        await load()
+      } catch (e) {
+        toasts.error(fmt.errText(e))
+      }
+    },
+  )
+}
+
 async function save(): Promise<void> {
   edit.busy = true
   try {
@@ -149,6 +166,16 @@ async function save(): Promise<void> {
             {{ t('supplierInvoices.showInvoices') }}
           </v-btn>
           <v-btn size="small" variant="text" icon="mdi-pencil-outline" :aria-label="t('supplierInvoices.edit')" :title="t('supplierInvoices.edit')" @click="openEdit(r)" />
+          <v-btn
+            v-if="!r.invoiceCount"
+            size="small"
+            variant="text"
+            color="error"
+            icon="mdi-trash-can-outline"
+            :aria-label="t('supplierInvoices.delete')"
+            :title="t('supplierInvoices.delete')"
+            @click="remove(r)"
+          />
         </div>
       </li>
     </ul>

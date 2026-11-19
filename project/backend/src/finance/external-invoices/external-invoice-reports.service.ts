@@ -150,6 +150,27 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
     return after;
   }
 
+  /** Only a supplier with no invoices can go (test entries, typos); one
+   *  with invoices stays, because the invoices reference it. */
+  async removeSupplier(id: string, actor: AuthPrincipal) {
+    const s = await this.prisma.externalSupplier.findUnique({
+      where: { id },
+      include: { _count: { select: { invoices: true } } },
+    });
+    if (!s) throw new NotFoundException('supplier_not_found');
+    if (s._count.invoices > 0) throw new BadRequestException('supplier_has_invoices');
+    await this.prisma.externalSupplier.delete({ where: { id } });
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.platformRoles,
+      action: 'external_supplier.delete',
+      targetType: 'external_supplier',
+      targetId: id,
+      before: { name: s.name, provider: s.provider, vatId: s.vatId },
+    });
+    return { ok: true };
+  }
+
   // =========================================================================
   // Insights: recurring invoices, missing ones, anomalies
   // =========================================================================
