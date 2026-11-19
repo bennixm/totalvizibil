@@ -352,6 +352,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminFinanceAiUsageView.vue'),
       },
       {
+        path: 'financiar/facturi-furnizori',
+        name: 'admin-financiar-furnizori',
+        meta: { allowedRoles: ['admin', 'finance'] },
+        component: () => import('@/views/admin/AdminFinanceSupplierInvoicesView.vue'),
+      },
+      {
         path: 'jurnal',
         name: 'admin-jurnal',
         // `GET /admin/audit-log` is admin-only; `GET /admin/business-action-log`

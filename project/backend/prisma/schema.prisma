@@ -72,6 +72,10 @@ model User {
   aiUsageRecords           AiUsageRecord[]
   notifications            Notification[]
   platformExpensesCreated  PlatformExpense[]
+  externalInvoicesCreated  ExternalInvoice[]
+  externalInvoiceEvents    ExternalInvoiceEvent[]
+  externalInvoiceAttachments ExternalInvoiceAttachment[]
+  externalVatConfirmations   ExternalVatConfirmation[]
   adminAuditLogs           AdminAuditLog[]
   businessActionLogs       BusinessActionLog[]
   googleAdsActionsApproved GoogleAdsAgentAction[]
@@ -1782,4 +1786,214 @@ model FeedSearchDaily {
   aiOutputTokens Int   @default(0) @map("ai_output_tokens")
 
   @@map("feed_search_daily")
+}
+
+// ---------------------------------------------------------------------------
+// Supplier invoices — the ORIGINAL documents the platform's own providers
+// (Google Ads, Anthropic, DeepSeek, Stripe, hosting, …) issue to us, kept in
+// one place for the company's accounting. Never generated here: a row is
+// either imported from a provider's official invoice API (`source = api`,
+// deduplicated on `(provider, externalId)`) or an original document a staff
+// member downloaded from a provider that has no such API and uploaded
+// (`source = manual`). The file itself lives in `ExternalInvoiceDocument`
+// so listing invoices never drags the PDF bytes along.
+// ---------------------------------------------------------------------------
+
+// How the invoice reached us (the "collection method"). `email`, `efactura`
+// and `peppol` are reserved for the planned ingestion adapters (see
+// docs/SUPPLIER_INVOICE_AUTOMATION_RESEARCH.md) — nothing writes them yet.
+enum ExternalInvoiceSource {
+  api
+  manual
+  email
+  efactura
+  peppol
+}
+
+// `needs_review`: AI-extracted data a human hasn't confirmed, a failed
+// consistency check, or a possible duplicate. `verified`: confirmed by a
+// person or delivered as structured data by the provider's own API. Neither
+// is an accounting validation — that stays with the accountant.
+enum ExternalInvoiceProcessing {
+  needs_review
+  verified
+}
+
+model ExternalInvoice {
+  id            String                @id @default(uuid()) @db.Uuid
+  // Registry key (`google_ads`, `anthropic`, `deepseek`, `stripe`, …, or
+  // `other` with a free-text `providerName`).
+  provider      String
+  providerName  String?               @map("provider_name")
+  source        ExternalInvoiceSource
+  // The provider's own id for this invoice — the dedup key for API imports.
+  externalId    String?               @map("external_id")
+  invoiceNumber String?               @map("invoice_number")
+  // INVOICE / CREDIT_MEMO, as the provider labels it.
+  docType       String?               @map("doc_type")
+  issueDate     DateTime              @map("issue_date") @db.Date
+  dueDate       DateTime?             @map("due_date") @db.Date
+  periodStart   DateTime?             @map("period_start") @db.Date
+  periodEnd     DateTime?             @map("period_end") @db.Date
+  currency      String
+  // Minor units (cents) of `currency`. Subtotal/tax null when the provider
+  // doesn't break them out.
+  subtotalMinor Int?                  @map("subtotal_minor")
+  taxMinor      Int?                  @map("tax_minor")
+  totalMinor    Int                   @map("total_minor")
+  // `paid` / `unpaid` / null = the provider doesn't report it.
+  paymentStatus String?               @map("payment_status")
+  // Last failure fetching the original document from the provider (kept so
+  // the page can say WHY a document is missing; cleared on success).
+  documentError String?               @map("document_error")
+  note          String?
+  raw           Json?
+  // The supplier's VAT / fiscal code as printed on the invoice.
+  supplierVatId String?               @map("supplier_vat_id")
+  // VAT per rate: [{ rate: number|null, netMinor, vatMinor }].
+  vatLines      Json?                 @map("vat_lines")
+  // Invoice lines: [{ description, quantity, unitPriceMinor, netMinor, vatRate }].
+  lines         Json?
+  // When it was marked paid (only meaningful with paymentStatus = 'paid').
+  paidAt        DateTime?             @map("paid_at") @db.Date
+  processingStatus ExternalInvoiceProcessing @default(verified) @map("processing_status")
+  // Set when ingestion found a near-identical invoice (same supplier and
+  // total within a few days, or the same number written differently).
+  possibleDuplicateOfId String?        @map("possible_duplicate_of_id") @db.Uuid
+  // Automated extraction metadata: { engine, model, confidence,
+  // fieldConfidence, estimatedCostUsd, at }. Never accounting truth.
+  extraction    Json?
+  // Ingestion-time signals that need history to compute (so they can't be
+  // re-derived per row): amount_anomaly, vat_id_changed, due_from_terms.
+  flags         String[]              @default([])
+  // Supplier registry entry (auto-linked at ingestion by name/VAT id).
+  supplierId    String?               @map("supplier_id") @db.Uuid
+  createdById   String?               @map("created_by_id") @db.Uuid
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+
+  createdBy   User?                       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  supplier    ExternalSupplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  document    ExternalInvoiceDocument?
+  events      ExternalInvoiceEvent[]
+  attachments ExternalInvoiceAttachment[]
+
+  @@unique([provider, externalId])
+  @@index([issueDate])
+  @@index([provider, issueDate])
+  @@index([processingStatus])
+  @@index([paymentStatus, dueDate])
+  @@map("external_invoices")
+}
+
+// Append-only history of one supplier invoice: import, every manual
+// correction (before/after of just the changed fields), status changes,
+// internal notes, attachments, reminders sent.
+model ExternalInvoiceEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  invoiceId String   @map("invoice_id") @db.Uuid
+  actorId   String?  @map("actor_id") @db.Uuid
+  // created | imported | updated | payment | review | note |
+  // attachment_added | attachment_removed | duplicate_flag | reminder_due |
+  // reminder_overdue
+  kind      String
+  message   String?
+  changes   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  invoice ExternalInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  actor   User?           @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId, createdAt])
+  @@index([kind])
+  @@map("external_invoice_events")
+}
+
+// Extra files kept with an invoice (proof of payment, annexes, the XML next
+// to a PDF…). The original document stays in ExternalInvoiceDocument.
+model ExternalInvoiceAttachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  invoiceId    String   @map("invoice_id") @db.Uuid
+  filename     String
+  mime         String
+  size         Int
+  bytes        Bytes
+  uploadedById String?  @map("uploaded_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  invoice    ExternalInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  uploadedBy User?           @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@map("external_invoice_attachments")
+}
+
+model ExternalInvoiceDocument {
+  invoiceId String   @id @map("invoice_id") @db.Uuid
+  filename  String
+  mime      String
+  size      Int
+  bytes     Bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  invoice ExternalInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("external_invoice_documents")
+}
+
+// Last automatic-import run per provider, for the page's status line.
+// Supplier registry: one row per supplier we receive invoices from, created
+// automatically at ingestion (provider key + normalized name), enriched by
+// staff (VAT id, billing e-mail, payment terms). Payment terms fill in a
+// missing due date (flag `due_from_terms` on the invoice).
+model ExternalSupplier {
+  id               String   @id @default(uuid()) @db.Uuid
+  provider         String
+  name             String
+  // Lower-case alphanumeric form of `name`, the matching key.
+  nameKey          String   @map("name_key")
+  vatId            String?  @map("vat_id")
+  email            String?
+  paymentTermsDays Int?     @map("payment_terms_days")
+  defaultCurrency  String?  @map("default_currency")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  invoices ExternalInvoice[]
+
+  @@unique([provider, nameKey])
+  @@index([vatId])
+  @@map("external_suppliers")
+}
+
+// What the ACCOUNTANT confirmed for a month's deductible VAT, kept apart
+// from the platform's own calculated estimate so the two are never mixed.
+model ExternalVatConfirmation {
+  id                String   @id @default(uuid()) @db.Uuid
+  // YYYY-MM
+  period            String
+  currency          String
+  confirmedVatMinor Int      @map("confirmed_vat_minor")
+  note              String?
+  confirmedById     String?  @map("confirmed_by_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  confirmedBy User? @relation(fields: [confirmedById], references: [id], onDelete: SetNull)
+
+  @@unique([period, currency])
+  @@map("external_vat_confirmations")
+}
+
+model ExternalInvoiceSync {
+  provider  String   @id
+  lastRunAt DateTime @map("last_run_at")
+  ok        Boolean
+  message   String?
+  imported  Int      @default(0)
+  updated   Int      @default(0)
+  documents Int      @default(0)
+
+  @@map("external_invoice_syncs")
 }

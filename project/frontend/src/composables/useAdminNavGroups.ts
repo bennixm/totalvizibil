@@ -131,6 +131,11 @@ export function useAdminNavGroups() {
                 icon: 'mdi-robot-outline',
               },
               {
+                to: { name: 'admin-financiar-furnizori' },
+                label: t('admin.navFinanceSupplierInvoices'),
+                icon: 'mdi-file-document-multiple-outline',
+              },
+              {
                 to: { name: 'admin-invoices' },
                 label: t('admin.navInvoices'),
                 icon: 'mdi-receipt-text-outline',

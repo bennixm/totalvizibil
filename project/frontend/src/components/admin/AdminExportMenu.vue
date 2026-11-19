@@ -9,10 +9,12 @@ import { useI18n } from 'vue-i18n'
 
 import type { ExportFormat } from '@/stores/adminFinance'
 
-defineProps<{
+const props = defineProps<{
   urlFor: (format: ExportFormat) => string
   label?: string
   disabled?: boolean
+  /** Restrict the offered formats (default: all three). */
+  formats?: ExportFormat[]
 }>()
 
 const { t } = useI18n()
@@ -40,7 +42,7 @@ const FORMATS: { format: ExportFormat; icon: string; key: string }[] = [
     </template>
     <v-list density="compact" min-width="210">
       <v-list-item
-        v-for="f in FORMATS"
+        v-for="f in FORMATS.filter((x) => !props.formats || props.formats.includes(x.format))"
         :key="f.format"
         :href="urlFor(f.format)"
         :prepend-icon="f.icon"

@@ -607,6 +607,158 @@ export class AiService {
   }
 
   /**
+   * Reads one supplier invoice (PDF or image) and returns its fields as
+   * structured JSON with a 0–1 confidence per field. Amounts come back in
+   * MAJOR units (e.g. 121.50) exactly as printed; the caller converts. The
+   * result is a draft for a human to confirm, never accounting truth.
+   * Runs on the fast tier (mechanical extraction). Null when Claude isn't
+   * configured or the call fails/refuses.
+   */
+  async extractInvoiceDocument(input: {
+    base64: string;
+    mime: 'application/pdf' | 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+  }): Promise<{ data: Record<string, unknown>; usage: Anthropic.Usage; model: string } | null> {
+    if (!this.anthropic) return null;
+    const model = this.anthropicModelFast;
+    const n = { anyOf: [{ type: 'number' }, { type: 'null' }] };
+    const s = { anyOf: [{ type: 'string' }, { type: 'null' }] };
+    const d = { anyOf: [{ type: 'string', format: 'date' }, { type: 'null' }] };
+    const schema = {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'is_invoice',
+        'supplier_name',
+        'supplier_vat_id',
+        'invoice_number',
+        'document_type',
+        'issue_date',
+        'due_date',
+        'period_start',
+        'period_end',
+        'currency',
+        'net_amount',
+        'vat_amount',
+        'total_amount',
+        'paid',
+        'vat_breakdown',
+        'lines',
+        'confidence',
+      ],
+      properties: {
+        is_invoice: { type: 'boolean' },
+        supplier_name: s,
+        supplier_vat_id: s,
+        invoice_number: s,
+        document_type: {
+          anyOf: [
+            { type: 'string', enum: ['invoice', 'credit_note', 'receipt', 'other'] },
+            { type: 'null' },
+          ],
+        },
+        issue_date: d,
+        due_date: d,
+        period_start: d,
+        period_end: d,
+        currency: s,
+        net_amount: n,
+        vat_amount: n,
+        total_amount: n,
+        paid: { anyOf: [{ type: 'boolean' }, { type: 'null' }] },
+        vat_breakdown: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['rate', 'net', 'vat'],
+            properties: { rate: n, net: n, vat: n },
+          },
+        },
+        lines: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['description', 'quantity', 'unit_price', 'net', 'vat_rate'],
+            properties: {
+              description: { type: 'string' },
+              quantity: n,
+              unit_price: n,
+              net: n,
+              vat_rate: n,
+            },
+          },
+        },
+        confidence: {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'supplier_name',
+            'invoice_number',
+            'issue_date',
+            'due_date',
+            'currency',
+            'amounts',
+            'vat',
+          ],
+          properties: {
+            supplier_name: { type: 'number' },
+            invoice_number: { type: 'number' },
+            issue_date: { type: 'number' },
+            due_date: { type: 'number' },
+            currency: { type: 'number' },
+            amounts: { type: 'number' },
+            vat: { type: 'number' },
+          },
+        },
+      },
+    };
+    const system =
+      'You read supplier invoices for a company accounting archive. Extract only what is printed on the document. ' +
+      'Never guess or compute a value that is not on the document: use null instead. ' +
+      'Dates as YYYY-MM-DD. Currency as an ISO 4217 code (EUR, RON, USD…). ' +
+      'Amounts as plain numbers in the document currency, major units, exactly as printed (121.50, not 12150). ' +
+      'VAT rates as percentages (21, 19, 9, 0). supplier_vat_id: the SELLER/issuer VAT or fiscal code, never the buyer one. ' +
+      'paid: true only if the document explicitly says it is paid / a receipt; false if it shows an amount due; otherwise null. ' +
+      'confidence: 0 to 1 per group, how sure you are the value is read correctly (0 when the value is null). ' +
+      'If the document is not an invoice, credit note or receipt, set is_invoice false.';
+    const doc: Anthropic.ContentBlockParam =
+      input.mime === 'application/pdf'
+        ? {
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: input.base64 },
+          }
+        : { type: 'image', source: { type: 'base64', media_type: input.mime, data: input.base64 } };
+    try {
+      const res = await this.anthropic.messages.create(
+        {
+          model,
+          max_tokens: 8000,
+          system,
+          messages: [
+            {
+              role: 'user',
+              content: [doc, { type: 'text', text: 'Extract this invoice into the JSON schema.' }],
+            },
+          ],
+          output_config: { format: { type: 'json_schema', schema } },
+        },
+        { timeout: 120_000 },
+      );
+      if (res.stop_reason === 'refusal' || res.stop_reason === 'max_tokens') {
+        this.logger.warn(`Invoice extraction stopped: ${res.stop_reason}`);
+        return null;
+      }
+      const parsed = parseLooseJson(this.textOf(res));
+      if (!parsed) return null;
+      return { data: parsed, usage: res.usage, model };
+    } catch (err) {
+      this.logger.warn(`Invoice extraction failed: ${this.errMsg(err)}`);
+      return null;
+    }
+  }
+
+  /**
    * One raw Claude Messages call with native tool-use enabled — returns the
    * full `Message` (so the caller can inspect `stop_reason`, `content`
    * `tool_use` blocks, and `usage`) instead of pre-parsing it, because driving
