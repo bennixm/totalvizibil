@@ -860,6 +860,10 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
     const confValues = Object.values(conf).filter((v) => typeof v === 'number');
     const confidence = confValues.length ? Math.min(...confValues) : 0;
     const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+    const isoDay = (v: unknown) => {
+      const x = str(v);
+      return x && /^\d{4}-\d{2}-\d{2}$/.test(x) && dateOnly(x) ? x : null;
+    };
     const vatLines: VatLine[] = Array.isArray(d.vat_breakdown)
       ? (d.vat_breakdown as Record<string, unknown>[])
           .map((v) => ({
@@ -884,15 +888,20 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
       supplierVatId: str(d.supplier_vat_id),
       invoiceNumber: str(d.invoice_number),
       documentType: str(d.document_type),
-      issueDate: str(d.issue_date),
-      dueDate: str(d.due_date),
-      periodStart: str(d.period_start),
-      periodEnd: str(d.period_end),
+      issueDate: isoDay(d.issue_date),
+      dueDate: isoDay(d.due_date),
+      periodStart: isoDay(d.period_start),
+      periodEnd: isoDay(d.period_end),
       currency: currency && /^[A-Z]{3}$/.test(currency) ? currency : null,
       subtotalMinor: minorFromMajor(d.net_amount),
       taxMinor: minorFromMajor(d.vat_amount),
       totalMinor: minorFromMajor(d.total_amount),
-      paymentStatus: d.paid === true ? 'paid' : d.paid === false ? 'unpaid' : null,
+      paymentStatus:
+        d.paid === 'paid' || d.paid === true
+          ? 'paid'
+          : d.paid === 'unpaid' || d.paid === false
+            ? 'unpaid'
+            : null,
       vatLines,
       lines,
     };
