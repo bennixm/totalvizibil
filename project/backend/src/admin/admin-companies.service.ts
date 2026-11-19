@@ -57,6 +57,17 @@ export class AdminCompaniesService {
     };
   }
 
+  /** Shared email framing for every admin action on a business: greeting,
+   *  the support button, and a footer saying why the email was sent. */
+  private get adminActionEmail() {
+    return {
+      greet: true,
+      cta: this.supportCta,
+      footerNote:
+        'Primești acest email pentru că un administrator Totalvizibil a făcut o modificare la afacerea ta.',
+    };
+  }
+
   private async loadCompany(companyId: string) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
@@ -476,11 +487,11 @@ export class AdminCompaniesService {
         .notify({
           userId: existing.ownerUserId,
           type: 'company_category_changed_by_admin',
-          title: `Categoria afacerii „${existing.displayName}" a fost schimbată`,
-          body: `Un administrator a schimbat categoria afacerii „${existing.displayName}" — de acum concurează și este facturată într-un alt Feed.`,
+          title: `Categoria afacerii „${existing.displayName}” a fost schimbată`,
+          body: `Un administrator a schimbat categoria afacerii „${existing.displayName}”. De acum, anunțul apare și este facturat în Feed-ul noii categorii.`,
           channels: { panel: true, email: true },
           data: { companyId },
-          email: { cta: this.supportCta },
+          email: this.adminActionEmail,
         })
         .catch((err) =>
           this.logger.error(
@@ -545,11 +556,11 @@ export class AdminCompaniesService {
       .notify({
         userId: company.ownerUserId,
         type: 'company_location_changed_by_admin',
-        title: `Zona de acoperire a afacerii „${company.displayName}" a fost schimbată`,
-        body: `Un administrator a schimbat județele/zona de acoperire a afacerii „${company.displayName}" — de acolo apar acum anunțurile și se facturează clicurile.`,
+        title: `Zona de acoperire a afacerii „${company.displayName}” a fost schimbată`,
+        body: `Un administrator a schimbat județele în care este listată afacerea „${company.displayName}”. De acum, anunțul apare și clicurile se facturează în noua zonă.`,
         channels: { panel: true, email: true },
         data: { companyId },
-        email: { cta: this.supportCta },
+        email: this.adminActionEmail,
       })
       .catch((err) =>
         this.logger.error(
@@ -729,13 +740,13 @@ export class AdminCompaniesService {
         .notify({
           userId: company.ownerUserId,
           type: 'campaign_deleted_by_admin',
-          title: `Campania „${company.displayName}" a fost ștearsă`,
-          body: `„${company.displayName}" nu mai apare în feed — campania a fost ștearsă. Poți configura una nouă din panou.`,
+          title: `Campania afacerii „${company.displayName}” a fost ștearsă`,
+          body: `Un administrator a șters campania afacerii „${company.displayName}”, așa că anunțul nu mai apare în feed. Poți configura oricând o campanie nouă din panou.`,
           channels: { panel: true, email: true },
           data: { companyId },
           email: {
+            ...this.adminActionEmail,
             details: [{ label: 'Afacere', value: company.displayName }],
-            cta: this.supportCta,
           },
         })
         .catch((err) =>
@@ -773,17 +784,17 @@ export class AdminCompaniesService {
           .notify({
             userId: company.ownerUserId,
             type: 'campaign_paused_by_admin',
-            title: `Campania „${company.displayName}" a fost pusă pe pauză`,
+            title: `Campania afacerii „${company.displayName}” a fost pusă pe pauză`,
             body:
-              `„${company.displayName}" nu mai apare în feed. Campania este oprită și nu consumă buget.` +
+              `Un administrator a pus pe pauză campania afacerii „${company.displayName}”. Anunțul nu mai apare în feed și nu se consumă buget.` +
               (autoWasOn
-                ? ' Modul AUTO a fost dezactivat — va trebui repornit manual, nu se reactivează singur.'
+                ? ' Modul AUTO a fost dezactivat și nu se reactivează singur, așa că va trebui repornit manual.'
                 : ''),
             channels: { panel: true, email: true },
             data: { companyId },
             email: {
+              ...this.adminActionEmail,
               details: [{ label: 'Afacere', value: company.displayName }],
-              cta: this.supportCta,
             },
           })
           .catch((err) =>
@@ -852,13 +863,13 @@ export class AdminCompaniesService {
       .notify({
         userId: owner.ownerUserId,
         type: 'campaign_activated_by_admin',
-        title: `Campania „${company.displayName}" este acum live`,
-        body: `Un administrator a activat campania afacerii „${company.displayName}" — a apărut în feed și portofelul este debitat per clic.`,
+        title: `Campania afacerii „${company.displayName}” este acum activă`,
+        body: `Un administrator a activat campania afacerii „${company.displayName}”. Anunțul apare acum în feed, iar fiecare clic se plătește din portofel.`,
         channels: { panel: true, email: true },
         data: { companyId },
         email: {
+          ...this.adminActionEmail,
           details: [{ label: 'Afacere', value: company.displayName }],
-          cta: this.supportCta,
         },
       })
       .catch((err) =>
@@ -923,17 +934,17 @@ export class AdminCompaniesService {
         .notify({
           userId: company.ownerUserId,
           type: 'business_suspended',
-          title: `Afacerea „${company.displayName}" a fost suspendată`,
+          title: `Afacerea „${company.displayName}” a fost suspendată`,
           body:
-            `„${company.displayName}" nu mai apare în feed. Campania este oprită și nu consumă buget.` +
+            `Un administrator a suspendat afacerea „${company.displayName}”. Anunțul nu mai apare în feed, iar campania este oprită și nu consumă buget.` +
             (autoWasOn
-              ? ' Modul AUTO a fost dezactivat — va trebui repornit manual la reactivare.'
+              ? ' Modul AUTO a fost dezactivat și va trebui repornit manual după reactivare.'
               : ''),
           channels: { email: true, panel: true },
           data: { companyId },
           email: {
+            ...this.adminActionEmail,
             details: [{ label: 'Afacere', value: company.displayName }],
-            cta: this.supportCta,
           },
         })
         .catch((err) =>
@@ -967,13 +978,13 @@ export class AdminCompaniesService {
       .notify({
         userId: company.ownerUserId,
         type: 'business_reactivated',
-        title: `Afacerea „${company.displayName}" a fost reactivată`,
-        body: `„${company.displayName}" poate fi republicată — suspendarea a fost ridicată.`,
+        title: `Afacerea „${company.displayName}” a fost reactivată`,
+        body: `Suspendarea afacerii „${company.displayName}” a fost ridicată. Poți publica din nou anunțul din panou.`,
         channels: { email: true, panel: true },
         data: { companyId },
         email: {
+          ...this.adminActionEmail,
           details: [{ label: 'Afacere', value: company.displayName }],
-          cta: this.supportCta,
         },
       })
       .catch((err) =>
@@ -1026,13 +1037,13 @@ export class AdminCompaniesService {
       .notify({
         userId: company.ownerUserId,
         type: 'business_deletion_canceled',
-        title: `Ștergerea afacerii „${company.displayName}" a fost anulată`,
-        body: `„${company.displayName}" este din nou activă — ștergerea programată a fost anulată de un administrator.`,
+        title: `Ștergerea afacerii „${company.displayName}” a fost anulată`,
+        body: `Un administrator a anulat ștergerea programată a afacerii „${company.displayName}”. Afacerea este din nou activă.`,
         channels: { panel: true, email: true },
         data: { companyId },
         email: {
+          ...this.adminActionEmail,
           details: [{ label: 'Afacere', value: company.displayName }],
-          cta: this.supportCta,
         },
       })
       .catch((err) =>

@@ -4,7 +4,7 @@ import { Appointment, AppointmentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
-import { detailsTable, renderEmailLayout, textToHtml } from '../mail/templates/layout';
+import { appointmentClientEmail } from '../mail/templates/emails';
 import { AppConfig } from '../config/env';
 import { isLikelyBot } from '../campaigns/ad-click';
 import { SubmitAppointmentDto } from './dto/submit-appointment.dto';
@@ -407,7 +407,9 @@ export class AppointmentsService {
         channels: { panel: true, email: true },
         data: { companyId },
         email: {
-          text: `${appt.name} a rezervat o programare pentru ${companyName} pe ${when}.`,
+          greet: true,
+          preheader: `${when}, ${companyName}`,
+          text: `${appt.name} a făcut o programare la ${companyName} pentru ${when}. Găsești toate detaliile mai jos și în panou.`,
           details: [
             { label: 'Data și ora', value: when },
             { label: 'Nume', value: appt.name },
@@ -445,48 +447,16 @@ export class AppointmentsService {
       timeStyle: 'short',
       timeZone: 'Europe/Bucharest',
     });
-    const greeting = appt.name ? `Bună, ${appt.name},` : 'Bună,';
-    const COPY_BY_STATUS: Record<
-      'pending' | 'confirmed' | 'canceled',
-      { subject: string; heading: string; lead: string }
-    > = {
-      pending: {
-        subject: `Programarea ta la ${companyName} așteaptă confirmare`,
-        heading: 'Programarea ta așteaptă confirmare',
-        lead: `Am primit cererea ta de programare la ${companyName}. Îți vom trimite un email de îndată ce este confirmată.`,
-      },
-      confirmed: {
-        subject: `Programarea ta la ${companyName} a fost confirmată`,
-        heading: 'Programarea ta a fost confirmată',
-        lead: `Programarea ta la ${companyName} a fost confirmată. Te așteptăm la data și ora de mai jos.`,
-      },
-      canceled: {
-        subject: `Programarea ta la ${companyName} a fost anulată`,
-        heading: 'Programarea ta a fost anulată',
-        lead: `Programarea ta la ${companyName} a fost anulată. Dacă dorești o altă dată, te rugăm să faci o nouă programare pe site.`,
-      },
-    };
-    const COPY = COPY_BY_STATUS[status];
-
-    const bodyHtml =
-      textToHtml(`${greeting}\n\n${COPY.lead}`) +
-      detailsTable([
-        { label: 'Afacere', value: companyName },
-        { label: 'Data și ora', value: when },
-        { label: 'Durată', value: `${appt.durationMinutes} min` },
-      ]);
+    const message = appointmentClientEmail({
+      status,
+      visitorName: appt.name,
+      companyName,
+      when,
+      durationMinutes: appt.durationMinutes,
+    });
 
     await this.mail
-      .send({
-        to: appt.email,
-        subject: COPY.subject,
-        text: `${greeting}\n\n${COPY.lead}\n\nAfacere: ${companyName}\nData și ora: ${when}\nDurată: ${appt.durationMinutes} min`,
-        html: renderEmailLayout({
-          heading: COPY.heading,
-          preheader: COPY.lead,
-          bodyHtml,
-        }),
-      })
+      .send({ to: appt.email, ...message })
       .catch((err) =>
         this.logger.error(
           `Appointment ${status} client email failed`,

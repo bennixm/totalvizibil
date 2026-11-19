@@ -247,12 +247,13 @@ export class AffiliateService {
           userId: referral.referrerId,
           type: 'referral_rewarded',
           title: 'Ai primit o recompensă din programul de afiliere',
-          body: `Ai primit ${reward} credite pentru cineva pe care l-ai adus în Totalvizibil.`,
+          body: `Ai primit ${reward} credite pentru o persoană pe care ai adus-o în Totalvizibil.`,
           channels: { panel: true, email: true },
           data: { invoiceId: result.invoice.id },
           email: {
             greet: true,
-            text: `Cineva pe care l-ai adus în Totalvizibil și-a pornit prima campanie — iar tu tocmai ai primit recompensa pentru asta. Documentul de recompensă este atașat acestui email și disponibil oricând în cont.`,
+            preheader: `${reward} credite au fost adăugate în portofelul tău.`,
+            text: `O persoană pe care ai adus-o în Totalvizibil și-a pornit prima campanie, așa că ai primit recompensa. Documentul aferent este atașat acestui email și îl găsești oricând în cont.`,
             details: [
               { label: 'Credite primite', value: `${reward} credite` },
               { label: 'Document', value: result.invoice.number },

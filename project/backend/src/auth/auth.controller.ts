@@ -185,7 +185,11 @@ export class AuthController {
     const priorSessions = await this.sessions.listActiveForUser(userId);
     if (priorSessions.length === 0 || priorSessions.some((s) => s.userAgent === userAgent)) return;
     const device = describeUserAgent(userAgent);
-    const when = new Date().toLocaleString('ro-RO', { dateStyle: 'medium', timeStyle: 'short' });
+    const when = new Date().toLocaleString('ro-RO', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Europe/Bucharest',
+    });
     await this.notifications.notify({
       userId,
       type: 'new_session',
@@ -197,10 +201,12 @@ export class AuthController {
       channels: { panel: true, email: true },
       email: {
         greet: true,
-        text:
-          'Contul tău Totalvizibil a fost accesat de pe un dispozitiv pe care nu l-am mai văzut.\n\n' +
-          'Dacă ai fost tu, nu trebuie să faci nimic.\n\n' +
-          'Dacă NU ai fost tu, schimbă-ți parola acum și activează autentificarea în doi pași — cineva are datele tale de acces.',
+        text: 'Contul tău Totalvizibil a fost accesat de pe un dispozitiv nou. Dacă tu te-ai conectat, nu trebuie să faci nimic.',
+        notice: {
+          title: 'Nu ai fost tu?',
+          text: 'Schimbă-ți parola acum și activează autentificarea în doi pași. Este posibil ca altcineva să aibă datele tale de acces.',
+          tone: 'danger',
+        },
         details: [
           { label: 'Dispozitiv', value: device },
           { label: 'Data și ora', value: when },

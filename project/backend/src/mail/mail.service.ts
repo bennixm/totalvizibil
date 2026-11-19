@@ -33,9 +33,14 @@ export class MailService {
   private readonly isProd: boolean;
   private readonly from: string;
   private readonly transporter: Transporter | null;
+  /** Platform origin (FRONTEND_ORIGIN), for the email footer's links and for
+   *  resolving relative call-to-action paths. Undefined in unit tests that
+   *  build MailService from a partial config. */
+  readonly appOrigin: string | undefined;
 
   constructor(config: ConfigService<AppConfig, true>) {
     this.isProd = config.get('nodeEnv', { infer: true }) === 'production';
+    this.appOrigin = config.get('frontendOrigin', { infer: true }) || undefined;
     this.from = config.get('smtpFrom', { infer: true });
     const user = config.get('smtpUser', { infer: true });
     const pass = config.get('smtpPass', { infer: true });

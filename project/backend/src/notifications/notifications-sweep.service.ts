@@ -208,10 +208,14 @@ export class NotificationsSweepService implements OnModuleInit {
         await this.notifications.notify({
           userId: c.company.ownerUserId,
           type: 'campaign_depleted',
-          title: `Bugetul zilnic pentru ${c.company.displayName} s-a epuizat`,
-          body: `Anunțul nu mai apare în feed pentru "${c.company.displayName}" până mâine — bugetul zilnic a fost consumat integral.`,
+          title: `Bugetul zilnic pentru „${c.company.displayName}” s-a epuizat`,
+          body: `Bugetul zilnic al campaniei „${c.company.displayName}” a fost consumat integral, așa că anunțul nu mai apare în feed până mâine.`,
           channels: { panel: true, email: true },
           data: { companyId: c.company.id },
+          email: {
+            greet: true,
+            cta: { label: 'Vezi bugetul campaniei', url: '/campaign/budget' },
+          },
         });
         notified++;
       } catch (err) {
@@ -307,6 +311,10 @@ export class NotificationsSweepService implements OnModuleInit {
               : `${info.count} cereri de la clienți nu au niciun răspuns de peste 48 de ore.`,
           channels: { panel: true, email: true },
           data: { companyId },
+          email: {
+            greet: true,
+            cta: { label: 'Vezi cererile', url: '/leads' },
+          },
         });
         notified++;
       } catch (err) {
@@ -387,6 +395,10 @@ export class NotificationsSweepService implements OnModuleInit {
           title: 'Soldul din portofel este aproape epuizat',
           body: 'Soldul nu mai acoperă bugetul zilnic al campaniilor tale active. Adaugă credite ca acestea să nu se oprească.',
           channels: { panel: true, email: true },
+          email: {
+            greet: true,
+            cta: { label: 'Adaugă credite', url: '/wallet' },
+          },
         });
         notified++;
       } catch (err) {
@@ -594,10 +606,14 @@ export class NotificationsSweepService implements OnModuleInit {
           await this.notifications.notify({
             userId,
             type: 'ticket_unanswered_escalation',
-            title: `Tichetul #${t.number} nu a primit niciun răspuns în 24 de ore`,
-            body: `Tichetul #${t.number} („${t.subject}") a fost deschis acum peste 24 de ore și nu a primit încă niciun răspuns de la echipă.`,
+            title: `Ticketul #${t.number} nu a primit niciun răspuns în 24 de ore`,
+            body: `Ticketul #${t.number} („${t.subject}”) a fost deschis acum peste 24 de ore și nu a primit încă niciun răspuns de la echipă.`,
             channels: { panel: true, email: true },
             data: { ticketId: t.id },
+            email: {
+              greet: true,
+              cta: { label: 'Deschide ticketul', url: `/admin/support/${t.id}` },
+            },
           });
         }
         escalated++;

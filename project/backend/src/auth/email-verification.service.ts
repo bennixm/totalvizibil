@@ -2,7 +2,7 @@ import { randomInt, createHash } from 'node:crypto';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
-import { codeBlock, renderEmailLayout, textToHtml } from '../mail/templates/layout';
+import { verificationCodeEmail } from '../mail/templates/emails';
 
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes — long enough to check an inbox, short enough to matter
 const MAX_ATTEMPTS = 5;
@@ -76,29 +76,18 @@ export class EmailVerificationService {
       }),
     ]);
 
-    // One shared message for both MIME parts — the text and HTML versions
-    // used to say slightly different things ("apasă pe linkul" vs "apasă
-    // butonul" elsewhere in this app is the same class of drift this avoids
-    // here). The code itself is the one special-cased element: a plain
-    // digit string in the text part, a prominent boxed `codeBlock` in HTML —
-    // readable from a lock-screen notification once it's in the subject too.
-    const message = `Bună, ${user.name},\n\nIntrodu codul de mai jos în Totalvizibil ca să îți confirmi adresa de email.`;
-    const footerNote =
-      'Dacă nu ai cerut acest cod, ignoră acest email — contul tău rămâne neatins.';
-    const text = `${message}\n\n${code}\n\n${footerNote}`;
-    const html = renderEmailLayout({
-      heading: 'Confirmă-ți adresa de email',
-      preheader: 'Codul expiră în 10 minute.',
-      bodyHtml: textToHtml(message) + codeBlock(code),
-      footerNote,
+    // Subject, text and HTML come from one template (mail/templates/emails.ts),
+    // so the two MIME parts can't drift apart.
+    const { subject, text, html } = verificationCodeEmail({
+      name: user.name,
+      code,
+      ttlMinutes: CODE_TTL_MS / 60_000,
     });
 
-    const result = await this.mail
-      .send({ to: user.email, subject: `${code} — codul tău Totalvizibil`, text, html })
-      .catch((err) => {
-        this.logger.error('Verification-code email failed', err instanceof Error ? err.stack : err);
-        return { dispatched: false };
-      });
+    const result = await this.mail.send({ to: user.email, subject, text, html }).catch((err) => {
+      this.logger.error('Verification-code email failed', err instanceof Error ? err.stack : err);
+      return { dispatched: false };
+    });
 
     // `dispatched: false` in dev (no SMTP configured) is the expected
     // dev-log fallback, not a real failure — only a genuinely CONFIGURED

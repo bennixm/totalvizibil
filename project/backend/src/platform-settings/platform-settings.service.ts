@@ -549,10 +549,8 @@ export class PlatformSettingsService {
           channels: { panel: true, email: true },
           email: {
             preheader: 'Reducerea se aplică automat în coș.',
-            text: `Reducerea de ${after.pct}% se aplică automat la orice achiziție de credite, fără cod. Creditele nu expiră, deci poți cumpăra acum și le folosești când ai nevoie.`,
+            text: `Reducerea de ${after.pct}% se aplică automat la orice achiziție de credite, fără cod. Creditele nu expiră, așa că poți cumpăra acum și le folosești când ai nevoie.`,
             cta: { label: 'Cumpără credite', url: `${frontendOrigin}/wallet` },
-            footerNote:
-              'Primești acest email pentru că ai un cont Totalvizibil. Îți poți gestiona preferințele de notificare din contul tău.',
           },
         })
         .catch((err) =>
@@ -566,12 +564,10 @@ export class PlatformSettingsService {
         .notifyAll({
           type: 'discount_ended',
           title: 'Reducerea la achiziția de credite s-a încheiat',
-          body: 'Reducerea la achiziția de credite nu mai este activă — prețul standard se aplică din nou.',
+          body: 'Reducerea la achiziția de credite nu mai este activă, iar prețul standard se aplică din nou.',
           channels: { panel: true, email: true },
           email: {
             cta: { label: 'Vezi portofelul', url: `${frontendOrigin}/wallet` },
-            footerNote:
-              'Primești acest email pentru că ai un cont Totalvizibil. Îți poți gestiona preferințele de notificare din contul tău.',
           },
         })
         .catch((err) =>
