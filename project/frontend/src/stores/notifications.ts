@@ -104,6 +104,16 @@ export function routeForNotification(
   if (n.type === 'google_ads_agent_run_failed') {
     return { name: 'admin-google-ads-agent' }
   }
+  if (n.type === 'supplier_invoices_new') {
+    const id = n.data?.externalInvoiceId
+    return { name: 'admin-financiar-furnizori', query: typeof id === 'string' ? { invoice: id } : {} }
+  }
+  if (n.type === 'supplier_invoices_due' || n.type === 'supplier_invoices_overdue') {
+    return {
+      name: 'admin-financiar-furnizori',
+      query: { due: n.type === 'supplier_invoices_due' ? 'due_soon' : 'overdue' },
+    }
+  }
   if (
     (n.type === 'payment_succeeded' || n.type === 'referral_rewarded') &&
     typeof invoiceId === 'string'
@@ -190,6 +200,9 @@ const VISUALS: Record<string, NotificationVisual> = {
   ticket_unanswered_escalation: { icon: 'mdi-alert-octagon-outline', tone: 'error' },
   pro_build_failed: { icon: 'mdi-alert-circle-outline', tone: 'error' },
   google_ads_agent_run_failed: { icon: 'mdi-bullhorn-outline', tone: 'error' },
+  supplier_invoices_new: { icon: 'mdi-file-document-multiple-outline', tone: 'primary' },
+  supplier_invoices_due: { icon: 'mdi-clock-alert-outline', tone: 'warning' },
+  supplier_invoices_overdue: { icon: 'mdi-alert-circle-outline', tone: 'error' },
   leads_stale: { icon: 'mdi-clock-alert-outline', tone: 'warning' },
   campaign_activated_by_admin: { icon: 'mdi-bullhorn-outline', tone: 'success' },
   campaign_cpc_below_minimum: { icon: 'mdi-battery-alert-variant-outline', tone: 'warning' },

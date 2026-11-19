@@ -251,7 +251,7 @@ onMounted(() => setQuickRange('month'))
         :label="t('adminFinance.category')"
         density="compact"
         hide-details
-        style="max-width: 220px"
+        class="afe__cat"
         @update:model-value="finance.setExpenseFilter('category', $event)"
       />
       <span class="afe__total">
@@ -407,6 +407,15 @@ onMounted(() => setQuickRange('month'))
   justify-content: space-between;
   gap: 0.8rem;
   margin: 1.2rem 0 1.2rem;
+}
+.afe__cat {
+  flex: 0 1 220px;
+}
+/* Phone: the category dropdown takes the full row, the total sits under it. */
+@media (max-width: 600px) {
+  .afe__cat {
+    flex-basis: 100%;
+  }
 }
 .afe__total {
   font-size: var(--tvz-fs-body);

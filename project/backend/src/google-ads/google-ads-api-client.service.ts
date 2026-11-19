@@ -152,6 +152,26 @@ export interface GoogleAdsApplyRecommendationOperation {
   responsiveSearchAdImproveAdStrength?: { updatedAd: GoogleAdsRecommendedAd };
 }
 
+/** One `Invoice` as InvoiceService.ListInvoices returns it (REST/JSON
+ *  camelCase; int64 micros arrive as strings). Only the fields read here. */
+export interface GoogleAdsInvoice {
+  resourceName?: string;
+  id?: string;
+  type?: string;
+  billingSetup?: string;
+  issueDate?: string;
+  dueDate?: string;
+  serviceDateRange?: { startDate?: string; endDate?: string };
+  currencyCode?: string;
+  subtotalAmountMicros?: string;
+  taxAmountMicros?: string;
+  totalAmountMicros?: string;
+  correctedInvoice?: string;
+  replacedInvoices?: string[];
+  pdfUrl?: string;
+  [key: string]: unknown;
+}
+
 export interface GoogleAdsApplyAssetParameters {
   newAssets?: Record<string, unknown>[];
   existingAssets?: string[];
@@ -395,6 +415,53 @@ export class GoogleAdsApiClient implements OnModuleInit {
       throw formatApiError(res.status, data.error, this.logger);
     }
     return data.mutateOperationResponses ?? [];
+  }
+
+  /**
+   * InvoiceService.ListInvoices — the ORIGINAL invoices Google issued for one
+   * billing setup in one issue month. Only works for accounts on monthly
+   * invoicing (Google's own eligibility rule); a card-paid account gets an
+   * API error, which is surfaced as-is so the finance page can say why.
+   * `issueMonth` is the `MonthOfYear` enum (`JANUARY` … `DECEMBER`).
+   */
+  async listInvoices(
+    billingSetup: string,
+    issueYear: number,
+    issueMonth: string,
+  ): Promise<GoogleAdsInvoice[]> {
+    const headers = await this.headers();
+    const params = new URLSearchParams({
+      billingSetup,
+      issueYear: String(issueYear),
+      issueMonth,
+    });
+    const res = await fetch(
+      `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}/invoices?${params.toString()}`,
+      { method: 'GET', headers },
+    );
+    const data = (await res.json()) as { invoices?: GoogleAdsInvoice[]; error?: GoogleAdsApiError };
+    if (!res.ok) {
+      // Confirmed live: InvoiceService still answers 403 with this code for
+      // API access that isn't approved, while search/mutate keep working.
+      // Surfaced as a stable reason code the finance page can explain.
+      if (JSON.stringify(data.error?.details ?? []).includes('DEVELOPER_TOKEN_NOT_APPROVED')) {
+        throw new Error('google_invoice_access_not_approved');
+      }
+      throw formatApiError(res.status, data.error, this.logger);
+    }
+    return data.invoices ?? [];
+  }
+
+  /** Downloads an invoice's `pdfUrl` with the same credentials that listed
+   *  it (Google requires the same account + a Bearer token). */
+  async downloadInvoicePdf(pdfUrl: string): Promise<Buffer> {
+    if (!/^https:\/\/[a-z0-9.-]+\.google(apis)?\.com\//i.test(pdfUrl)) {
+      throw new Error('Unexpected invoice PDF host');
+    }
+    const { Authorization } = await this.headers();
+    const res = await fetch(pdfUrl, { headers: { Authorization } });
+    if (!res.ok) throw new Error(`Invoice PDF download failed: HTTP ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
   }
 
   /**
