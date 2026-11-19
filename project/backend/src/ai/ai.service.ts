@@ -645,9 +645,13 @@ export class AiService {
   > {
     if (!this.anthropic) return { error: 'ai_not_configured' };
     const model = this.anthropicModelFast;
+    // Anthropic compiles the schema into a grammar and rejects one with too
+    // many union (nullable) types: production answered "Schemas contains too
+    // many parameters with union types (20 …)". So only true numbers that
+    // may be absent stay nullable (7 unions); absent text is "", and the
+    // yes/no/unknown fields are enums.
     const n = { anyOf: [{ type: 'number' }, { type: 'null' }] };
-    const s = { anyOf: [{ type: 'string' }, { type: 'null' }] };
-    const d = { anyOf: [{ type: 'string', format: 'date' }, { type: 'null' }] };
+    const str = { type: 'string' };
     const schema = {
       type: 'object',
       additionalProperties: false,
@@ -672,31 +676,30 @@ export class AiService {
       ],
       properties: {
         is_invoice: { type: 'boolean' },
-        supplier_name: s,
-        supplier_vat_id: s,
-        invoice_number: s,
-        document_type: {
-          anyOf: [
-            { type: 'string', enum: ['invoice', 'credit_note', 'receipt', 'other'] },
-            { type: 'null' },
-          ],
-        },
-        issue_date: d,
-        due_date: d,
-        period_start: d,
-        period_end: d,
-        currency: s,
+        supplier_name: str,
+        supplier_vat_id: str,
+        invoice_number: str,
+        document_type: { type: 'string', enum: ['invoice', 'credit_note', 'receipt', 'other'] },
+        issue_date: str,
+        due_date: str,
+        period_start: str,
+        period_end: str,
+        currency: str,
         net_amount: n,
         vat_amount: n,
         total_amount: n,
-        paid: { anyOf: [{ type: 'boolean' }, { type: 'null' }] },
+        paid: { type: 'string', enum: ['paid', 'unpaid', 'unknown'] },
         vat_breakdown: {
           type: 'array',
           items: {
             type: 'object',
             additionalProperties: false,
             required: ['rate', 'net', 'vat'],
-            properties: { rate: n, net: n, vat: n },
+            properties: {
+              rate: { type: 'number' },
+              net: { type: 'number' },
+              vat: { type: 'number' },
+            },
           },
         },
         lines: {
@@ -709,7 +712,7 @@ export class AiService {
               description: { type: 'string' },
               quantity: n,
               unit_price: n,
-              net: n,
+              net: { type: 'number' },
               vat_rate: n,
             },
           },
@@ -740,12 +743,13 @@ export class AiService {
     };
     const system =
       'You read supplier invoices for a company accounting archive. Extract only what is printed on the document. ' +
-      'Never guess or compute a value that is not on the document: use null instead. ' +
+      'Never guess or compute a value that is not on the document: use an empty string "" for missing text or dates, ' +
+      'null for missing amounts, and leave vat_breakdown / lines empty when the document has none. ' +
       'Dates as YYYY-MM-DD. Currency as an ISO 4217 code (EUR, RON, USD…). ' +
       'Amounts as plain numbers in the document currency, major units, exactly as printed (121.50, not 12150). ' +
       'VAT rates as percentages (21, 19, 9, 0). supplier_vat_id: the SELLER/issuer VAT or fiscal code, never the buyer one. ' +
-      'paid: true only if the document explicitly says it is paid / a receipt; false if it shows an amount due; otherwise null. ' +
-      'confidence: 0 to 1 per group, how sure you are the value is read correctly (0 when the value is null). ' +
+      'paid: "paid" only if the document explicitly says it is paid / a receipt; "unpaid" if it shows an amount due; otherwise "unknown". ' +
+      'confidence: 0 to 1 per group, how sure you are the value is read correctly (0 when the value is missing). ' +
       'If the document is not an invoice, credit note or receipt, set is_invoice false.';
     const doc: Anthropic.ContentBlockParam =
       input.mime === 'application/pdf'
