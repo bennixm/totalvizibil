@@ -204,13 +204,17 @@ export class ProV2Service {
               ? 'advanced_unlock_charged_by_admin'
               : 'advanced_unlock_granted_by_admin',
             title: opts.chargeOwner
-              ? `Builder-ul avansat a fost activat pentru „${company.displayName}"`
-              : `Ai primit gratuit builder-ul avansat pentru „${company.displayName}"`,
+              ? `Builder-ul avansat a fost activat pentru „${company.displayName}”`
+              : `Ai primit gratuit builder-ul avansat pentru „${company.displayName}”`,
             body: opts.chargeOwner
-              ? `Un administrator a activat builder-ul avansat pentru „${company.displayName}" și ți-a taxat ${price} credite din portofel.${bonusLine}`
-              : `Un administrator ți-a oferit gratuit builder-ul avansat pentru „${company.displayName}".${bonusLine}`,
+              ? `Un administrator a activat builder-ul avansat pentru „${company.displayName}”, iar ${price} credite au fost debitate din portofel.${bonusLine}`
+              : `Un administrator ți-a oferit gratuit builder-ul avansat pentru „${company.displayName}”.${bonusLine}`,
             channels: opts.chargeOwner ? { panel: true, email: true } : { panel: true },
             data: { companyId },
+            email: {
+              greet: true,
+              cta: { label: 'Deschide builder-ul', url: '/website/builder' },
+            },
           })
           .catch((err) =>
             this.logger.error(

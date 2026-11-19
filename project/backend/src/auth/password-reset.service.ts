@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PasswordService } from './password.service';
 import { SessionService } from './session.service';
 import { MailService } from '../mail/mail.service';
-import { ctaButton, renderEmailLayout, textToHtml } from '../mail/templates/layout';
+import { passwordResetEmail } from '../mail/templates/emails';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AppConfig } from '../config/env';
 
@@ -61,18 +61,7 @@ export class PasswordResetService {
     });
 
     const url = `${this.frontendOrigin}/reset-password?token=${token}`;
-    const text =
-      `Am primit o cerere de resetare a parolei pentru contul tău.\n\n` +
-      `Apasă pe linkul de mai jos pentru a-ți alege o parolă nouă (valabil o oră):\n${url}\n\n` +
-      `Dacă nu ai cerut tu resetarea, poți ignora acest email — parola ta rămâne neschimbată.`;
-    const html = renderEmailLayout({
-      heading: 'Resetează-ți parola',
-      preheader: 'Cererea ta de resetare a parolei — linkul e valabil o oră.',
-      bodyHtml:
-        textToHtml(
-          'Am primit o cerere de resetare a parolei pentru contul tău. Apasă butonul de mai jos pentru a-ți alege o parolă nouă — linkul este valabil o oră.\n\nDacă nu ai cerut tu resetarea, poți ignora acest email — parola ta rămâne neschimbată.',
-        ) + ctaButton('Resetează parola', url),
-    });
+    const { subject, text, html } = passwordResetEmail({ url });
 
     // The token is already committed by this point — a mail hiccup must
     // never turn an already-valid reset link into a hung request. Not tied
@@ -81,7 +70,7 @@ export class PasswordResetService {
     // they typed, same pattern as the old-address notice in
     // AccountService.updateProfile.
     void this.mail
-      .send({ to: user.email, subject: 'Resetează-ți parola', text, html })
+      .send({ to: user.email, subject, text, html })
       .catch((err) =>
         this.logger.error('Password-reset email failed', err instanceof Error ? err.stack : err),
       );
@@ -145,11 +134,19 @@ export class PasswordResetService {
         channels: { email: true },
         email: {
           greet: true,
-          text: 'Parola contului tău Totalvizibil a fost resetată prin linkul „am uitat parola”. Toate sesiunile deschise au fost închise.\n\nDacă ai fost tu, nu trebuie să faci nimic.',
-          details: [{ label: 'Data și ora', value: new Date().toLocaleString('ro-RO') }],
+          text: 'Parola contului tău Totalvizibil a fost resetată prin linkul „Am uitat parola”, iar toate sesiunile deschise au fost închise.\n\nDacă tu ai făcut resetarea, nu trebuie să faci nimic.',
+          details: [
+            {
+              label: 'Data și ora',
+              value: new Date().toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' }),
+            },
+          ],
+          notice: {
+            title: 'Nu ai fost tu?',
+            text: 'Contactează imediat echipa de suport. Este posibil ca altcineva să aibă acces la contul tău.',
+            tone: 'danger',
+          },
           cta: { label: 'Contactează suportul', url: `${this.frontendOrigin}/support` },
-          footerNote:
-            'Dacă nu ai fost tu, contactează-ne imediat — cineva are acces la contul tău.',
         },
       })
       .catch((err) =>

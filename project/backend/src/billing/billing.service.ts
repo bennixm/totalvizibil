@@ -403,9 +403,9 @@ export class BillingService {
         email: {
           greet: true,
           text:
-            `Factura ${invoice.number} a fost anulată și nu mai este un document valabil — nu o folosi în contabilitate. ` +
-            'Creditele și plata asociate rămân neschimbate; dacă este nevoie de un document corect, îți emitem unul nou.\n\n' +
-            'Întrebări despre această anulare? Scrie-ne.',
+            `Factura ${invoice.number} a fost anulată și nu mai este un document fiscal valabil, așa că nu o folosi în contabilitate.\n\n` +
+            'Creditele și plata asociate rămân neschimbate. Dacă ai nevoie de un document corect, îți emitem unul nou.\n\n' +
+            'Ai întrebări despre această anulare? Scrie-ne din pagina de suport.',
           details: [
             { label: 'Factură', value: invoice.number },
             ...(reason ? [{ label: 'Motiv', value: reason.trim() }] : []),

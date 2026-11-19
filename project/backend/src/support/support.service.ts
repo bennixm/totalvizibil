@@ -359,7 +359,7 @@ export class SupportService {
             ticket.assigneeId,
             'ticket_reopened',
             `Ticketul #${ticket.number} a fost redeschis`,
-            `Ticketul #${ticket.number} a fost redeschis — clientul a răspuns după rezolvare.`,
+            `Ticketul #${ticket.number} a fost redeschis: clientul a răspuns după rezolvare.`,
             ticket.id,
           )
         : this.notifyStaff(
@@ -593,7 +593,7 @@ export class SupportService {
         ticket.assigneeId,
         'ticket_reopened',
         `Ticketul #${ticket.number} a fost redeschis`,
-        `Clientul a redeschis ticketul #${ticket.number} — ${ticket.subject}`,
+        `Clientul a redeschis ticketul #${ticket.number}: ${ticket.subject}`,
         ticket.id,
         { email: true },
       );
@@ -691,7 +691,7 @@ export class SupportService {
     const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
     const replyTo = this.supportInboxEmail();
     const quoted = replyExcerpt
-      ? `„${replyExcerpt.slice(0, 300)}${replyExcerpt.length > 300 ? '…' : ''}”`
+      ? `${replyExcerpt.slice(0, 300)}${replyExcerpt.length > 300 ? '…' : ''}`
       : null;
     await this.notifications
       .notify({
@@ -704,13 +704,8 @@ export class SupportService {
         email: {
           greet: true,
           ...(replyTo ? { replyTo } : {}),
-          text: [
-            line,
-            quoted,
-            'Răspunde direct din ticket — păstrăm tot istoricul conversației într-un singur loc.',
-          ]
-            .filter((p): p is string => !!p)
-            .join('\n\n'),
+          text: `${line} Poți răspunde direct din ticket, unde păstrăm tot istoricul conversației.`,
+          quote: quoted ? { text: quoted, label: 'Răspunsul echipei' } : undefined,
           details: [
             { label: 'Ticket', value: `#${ticketNumber}` },
             { label: 'Subiect', value: subject },
@@ -786,7 +781,6 @@ export class SupportService {
               ? {
                   email: {
                     greet: true,
-                    details: [{ label: 'Ticket', value: title }],
                     cta: {
                       label: 'Deschide ticketul',
                       url: `${frontendOrigin}/support/${ticketId}`,

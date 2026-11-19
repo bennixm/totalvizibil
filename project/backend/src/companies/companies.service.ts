@@ -94,10 +94,10 @@ export class CompaniesService implements OnModuleInit {
           greet: true,
           preheader: 'Următorii pași: site-ul și primul buget.',
           text:
-            `Afacerea „${displayName}" este creată pe Totalvizibil. Mai sunt doi pași până să apari în fața clienților:\n\n` +
-            `1. Construiește site-ul — îl generăm pe baza datelor afacerii tale, îl poți edita oricând după.\n` +
-            `2. Setează un buget zilnic — plătești doar pentru clicurile reale pe anunțul tău, iar bugetul îl poți schimba sau opri când vrei.\n\n` +
-            `Tot ce urmează se face din panoul tău.`,
+            `Afacerea „${displayName}” a fost creată pe Totalvizibil. Mai ai doi pași până să apari în fața clienților:\n\n` +
+            `1. Construiește site-ul. Îl generăm pe baza datelor afacerii tale și îl poți edita oricând.\n` +
+            `2. Setează un buget zilnic. Plătești doar pentru clicurile reale pe anunțul tău și poți schimba sau opri bugetul oricând.\n\n` +
+            `Toți pașii următori se fac din panoul tău.`,
           cta: { label: 'Continuă configurarea', url: `${frontendOrigin}/dashboard` },
         },
       })
@@ -288,10 +288,13 @@ export class CompaniesService implements OnModuleInit {
               greet: true,
               preheader: 'Anulează acum dacă vrei să păstrezi site-ul și datele.',
               text:
-                `Ștergerea afacerii „${c.displayName}" este programată pentru ${effectiveDate}.\n\n` +
-                `Ce se șterge definitiv: site-ul, cererile primite de la clienți, programările și istoricul campaniei. ` +
-                `Ștergerea nu poate fi anulată după această dată.\n\n` +
-                `Dacă vrei să păstrezi afacerea, anulează ștergerea din panou — îți revine activă imediat.`,
+                `Ștergerea afacerii „${c.displayName}” este programată pentru ${effectiveDate}. La această dată se șterg definitiv:\n\n` +
+                `- site-ul\n- cererile primite de la clienți\n- programările\n- istoricul campaniei\n\n` +
+                `Dacă vrei să păstrezi afacerea, anulează ștergerea din panou și va redeveni activă imediat.`,
+              notice: {
+                text: 'După această dată, ștergerea nu mai poate fi anulată.',
+                tone: 'danger',
+              },
               cta: { label: 'Anulează ștergerea', url: `${frontendOrigin}/dashboard` },
               footerNote: 'Dacă ștergerea este intenționată, nu trebuie să faci nimic.',
             },
@@ -1016,12 +1019,17 @@ export class CompaniesService implements OnModuleInit {
           // just after Romanian midnight is shown to a Romanian customer as
           // the previous day. The cutoff itself is UTC-derived, only its
           // presentation is local — see also `sweepDeletionReminders`.
-          `Anunțul a fost dat jos acum. Datele sunt șterse definitiv pe ${effectiveAt.toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest' })} — poți anula oricând până atunci.` +
+          `Anunțul a fost retras. Datele se șterg definitiv pe ${effectiveAt.toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest' })}, iar până atunci poți anula ștergerea oricând.` +
           (autoWasOn
             ? ' Modul AUTO al campaniei a fost dezactivat și nu se reactivează singur dacă anulezi ștergerea.'
             : ''),
         channels: { panel: true, email: true },
         data: { companyId },
+        email: {
+          greet: true,
+          cta: { label: 'Anulează ștergerea', url: '/dashboard' },
+          footerNote: 'Dacă ștergerea este intenționată, nu trebuie să faci nimic.',
+        },
       })
       .catch((err) =>
         this.logger.error(
@@ -1126,8 +1134,9 @@ export class CompaniesService implements OnModuleInit {
               userId: c.ownerUserId,
               type: 'business_deleted',
               title: `Afacerea „${c.displayName}" a fost ștearsă definitiv`,
-              body: `Datele afacerii „${c.displayName}" au fost șterse definitiv, conform programării. Acțiunea este ireversibilă.`,
+              body: `Așa cum a fost programat, datele afacerii „${c.displayName}” au fost șterse definitiv. Această acțiune nu poate fi anulată.`,
               channels: { email: true },
+              email: { greet: true },
             })
             .catch((err) =>
               this.logger.error(

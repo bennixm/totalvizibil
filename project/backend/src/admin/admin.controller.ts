@@ -361,11 +361,10 @@ export class AdminController {
       body: dto.message,
       channels: { panel: true, email: true },
       email: {
-        subject: `${dto.title} — Totalvizibil`,
+        subject: `Anunț Totalvizibil: ${dto.title}`,
         text:
           `Bună,\n\n${dto.message}\n\n` +
-          'Site-urile și campaniile tale continuă să funcționeze normal în acest timp, dacă nu am menționat altfel mai sus.\n\n' +
-          'Echipa Totalvizibil',
+          'Site-urile și campaniile tale continuă să funcționeze normal în acest timp, cu excepția cazului în care anunțul de mai sus spune altfel.',
         footerNote: 'Primești acest anunț pentru că ai un cont activ pe Totalvizibil.',
       },
     });

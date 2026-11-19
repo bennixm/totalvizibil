@@ -389,13 +389,16 @@ export class WalletService implements OnModuleInit {
           ? {
               greet: true,
               text:
-                'Portofelul contului tău Totalvizibil a fost blocat. Până la deblocare nu poți cumpăra credite, iar campaniile active nu mai consumă buget — anunțurile tale nu apar în feed.\n\n' +
-                'Creditele rămase nu se pierd: le vei regăsi integral la deblocare.\n\n' +
-                'Scrie-ne ca să clarificăm situația și să deblocăm portofelul.',
+                'Portofelul contului tău Totalvizibil a fost blocat. Până la deblocare nu poți cumpăra credite, iar campaniile active nu mai consumă buget și anunțurile tale nu apar în feed.\n\n' +
+                'Scrie-ne ca să clarificăm situația.',
+              notice: {
+                text: 'Creditele rămase nu se pierd. Le vei regăsi integral după deblocare.',
+                tone: 'neutral',
+              },
               details: reason ? [{ label: 'Motiv', value: reason }] : undefined,
               cta: { label: 'Contactează suportul', url: `${frontendOrigin}/support` },
             }
-          : { greet: true },
+          : { greet: true, cta: { label: 'Vezi portofelul', url: `${frontendOrigin}/wallet` } },
       })
       .catch((err) =>
         this.logger.error(
@@ -1401,10 +1404,14 @@ export class WalletService implements OnModuleInit {
         data: { invoiceId: invoice.id },
         email: {
           greet: true,
-          text: `Plata ta a fost procesată cu succes. ${credits} credite sunt deja în portofelul tău și pot fi folosite imediat. Factura ${invoice.number} este atașată acestui email și disponibilă oricând în cont.`,
+          preheader: `${credits} credite au fost adăugate în portofel.`,
+          text: `Plata ta a fost procesată cu succes, iar cele ${credits} credite sunt deja în portofel și le poți folosi imediat. Factura ${invoice.number} este atașată acestui email și o găsești oricând în cont.`,
           details: [
             { label: 'Factură', value: invoice.number },
-            { label: 'Data', value: invoice.issuedAt.toLocaleDateString('ro-RO') },
+            {
+              label: 'Data',
+              value: invoice.issuedAt.toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest' }),
+            },
             { label: 'Credite achiziționate', value: `${credits} credite` },
             {
               label: 'Sumă plătită',
@@ -1761,11 +1768,14 @@ export class WalletService implements OnModuleInit {
         email: {
           greet: true,
           text:
-            'Am înregistrat cererea ta de refund. Creditele au fost deja scoase din portofel, iar banii se întorc pe aceeași metodă de plată cu care ai achiziționat.\n\n' +
-            'Îți trimitem un email de îndată ce transferul este inițiat. În funcție de bancă, suma poate apărea în cont în câteva zile lucrătoare după aceea.',
+            'Am înregistrat cererea ta de refund. Creditele au fost scoase din portofel, iar banii se întorc pe aceeași metodă de plată pe care ai folosit-o la achiziție.\n\n' +
+            'Îți trimitem un email imediat ce transferul este inițiat. În funcție de bancă, suma poate apărea în cont după câteva zile lucrătoare.',
           details: [
             { label: 'Credite', value: `${credits} credite` },
-            { label: 'Data cererii', value: new Date().toLocaleDateString('ro-RO') },
+            {
+              label: 'Data cererii',
+              value: new Date().toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest' }),
+            },
           ],
           cta: {
             label: 'Vezi tranzacțiile',
@@ -1859,8 +1869,8 @@ export class WalletService implements OnModuleInit {
           ? 'Cererea ta de refund a fost anulată'
           : 'Ai anulat cererea de refund',
         body: initiatedByAdminId
-          ? `Un administrator a anulat cererea ta de refund pentru ${credits} credite — creditele rămân în portofel.`
-          : `Ai anulat cererea de refund pentru ${credits} credite — creditele rămân în portofel.`,
+          ? `Un administrator a anulat cererea ta de refund pentru ${credits} credite. Creditele rămân în portofel.`
+          : `Ai anulat cererea de refund pentru ${credits} credite. Creditele rămân în portofel.`,
         channels: initiatedByAdminId ? { panel: true, email: true } : { panel: true },
         email: initiatedByAdminId
           ? {
@@ -2066,7 +2076,7 @@ export class WalletService implements OnModuleInit {
         userId,
         type: 'refund_failed',
         title: 'Cererea de refund nu a putut fi procesată',
-        body: 'Cererea ta de refund a eșuat — creditele au fost puse înapoi în portofel.',
+        body: 'Cererea ta de refund nu a putut fi procesată, iar creditele au fost puse înapoi în portofel.',
         channels: { panel: true, email: true },
         email: {
           greet: true,
@@ -2075,7 +2085,7 @@ export class WalletService implements OnModuleInit {
             label: 'Vezi tranzacțiile',
             url: `${this.config.get('frontendOrigin', { infer: true })}/wallet/transactions`,
           },
-          footerNote: 'Contactează suportul dacă ai nevoie de ajutor.',
+          footerNote: 'Ai nevoie de ajutor? Contactează echipa de suport din panou.',
         },
       })
       .catch((err) =>
@@ -2094,7 +2104,7 @@ export class WalletService implements OnModuleInit {
         userId,
         type: 'refund_completed',
         title: 'Refund-ul tău a fost finalizat',
-        body: `${minorToCredits(amountMinor)} credite au fost rambursate — banii ar trebui să apară în contul tău în câteva zile lucrătoare, în funcție de bancă.`,
+        body: `${minorToCredits(amountMinor)} credite au fost rambursate. În funcție de bancă, banii pot apărea în cont în câteva zile lucrătoare.`,
         channels: { panel: true, email: true },
         data: { refundId },
         email: {
@@ -2215,14 +2225,18 @@ export class WalletService implements OnModuleInit {
       await this.notifications.notify({
         userId,
         type: 'purchase_pending_manual_review',
-        title: 'Plata a fost primită — finalizăm creditarea',
-        body: `Plata ta de ${credits} credite a fost confirmată de procesator, dar creditarea portofelului necesită o verificare manuală. Te anunțăm imediat ce e gata.`,
+        title: 'Plata a fost primită, finalizăm creditarea',
+        body: `Plata pentru ${credits} credite a fost confirmată de procesatorul de plăți, dar adăugarea creditelor în portofel necesită o verificare manuală. Te anunțăm imediat ce este gata.`,
         channels: { panel: true, email: true },
         email: {
           greet: true,
           details: [{ label: 'Credite', value: `${credits} credite` }],
           cta: { label: 'Contactează suportul', url: `${frontendOrigin}/support` },
-          footerNote: 'Banii tăi sunt în siguranță — nu trebuie să plătești din nou.',
+          notice: {
+            title: 'Banii tăi sunt în siguranță',
+            text: 'Nu este nevoie să plătești din nou.',
+            tone: 'success',
+          },
         },
       });
     } catch (err) {

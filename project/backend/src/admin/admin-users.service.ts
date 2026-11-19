@@ -16,7 +16,7 @@ import { BillingProfileDto } from '../billing/dto/billing-profile.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditActor, AuditLogService } from './audit-log.service';
 import { MailService } from '../mail/mail.service';
-import { ctaButton, detailsTable, renderEmailLayout, textToHtml } from '../mail/templates/layout';
+import { emailChangedOldAddressEmail } from '../mail/templates/emails';
 import { AppConfig } from '../config/env';
 import { money } from '../wallet/money';
 import { effectiveActiveSeconds } from '../analytics/visibility';
@@ -337,35 +337,15 @@ export class AdminUsersService {
       const oldEmail = target.email;
       const newEmail = dto.email as string;
       const supportCta = { label: 'Contactează suportul', url: `${this.frontendOrigin}/support` };
-      const oldEmailMessage = `Adresa de email a contului tău Totalvizibil a fost schimbată de un administrator.`;
-      const oldEmailDetails = [
-        { label: 'Adresa veche', value: oldEmail },
-        { label: 'Adresa nouă', value: newEmail },
-      ];
-      const oldEmailFooter = 'Mesaj de securitate trimis automat la adresa veche a contului.';
+      const oldAddressEmail = emailChangedOldAddressEmail({
+        name: target.name,
+        oldEmail,
+        newEmail,
+        byAdmin: true,
+        supportUrl: supportCta.url,
+      });
       void this.mail
-        .send({
-          to: oldEmail,
-          subject: 'Adresa de email a contului tău a fost schimbată',
-          text: [
-            oldEmailMessage,
-            oldEmailDetails.map((d) => `${d.label}: ${d.value}`).join('\n'),
-            'Dacă nu te aștepți la asta, deschide imediat un tichet de suport — contul poate fi compromis.',
-            `${supportCta.label}: ${supportCta.url}`,
-            oldEmailFooter,
-          ].join('\n\n'),
-          html: renderEmailLayout({
-            heading: 'Adresa de email a contului a fost schimbată',
-            preheader: `Noua adresă este ${newEmail}.`,
-            bodyHtml:
-              textToHtml(
-                `${oldEmailMessage} Dacă nu te aștepți la asta, deschide imediat un tichet de suport — contul poate fi compromis.`,
-              ) +
-              detailsTable(oldEmailDetails) +
-              ctaButton(supportCta.label, supportCta.url),
-            footerNote: oldEmailFooter,
-          }),
-        })
+        .send({ to: oldEmail, ...oldAddressEmail })
         .catch((err) =>
           this.logger.error(
             'Admin email-change (old address) notification failed',
@@ -381,7 +361,12 @@ export class AdminUsersService {
           channels: { email: true },
           email: {
             greet: true,
-            text: `Un administrator Totalvizibil a schimbat adresa de email a contului tău în ${newEmail}.\n\nCe trebuie să faci: confirmă noua adresă la următoarea conectare — îți trimitem un cod de verificare pe ${newEmail}. Până atunci, unele funcții ale contului rămân limitate.\n\nDacă nu te aștepți la această schimbare, scrie-ne înainte să confirmi.`,
+            text: `Un administrator Totalvizibil a schimbat adresa de email a contului tău în ${newEmail}.\n\nCe trebuie să faci: la următoarea conectare îți trimitem un cod de verificare la această adresă. Până confirmi noua adresă, unele funcții ale contului rămân limitate.`,
+            notice: {
+              title: 'Nu te așteptai la această schimbare?',
+              text: 'Contactează echipa de suport înainte să confirmi noua adresă.',
+              tone: 'warning',
+            },
             cta: supportCta,
           },
         })
@@ -409,7 +394,12 @@ export class AdminUsersService {
           channels: { email: true },
           email: {
             greet: true,
-            text: 'Un administrator Totalvizibil a dezactivat autentificarea în doi pași pe contul tău. De acum, pentru conectare este suficientă parola.\n\nDacă nu te aștepți la această schimbare, contactează suportul și reactivează autentificarea în doi pași.',
+            text: 'Un administrator Totalvizibil a dezactivat autentificarea în doi pași pentru contul tău. De acum, la conectare îți cerem doar parola.',
+            notice: {
+              title: 'Nu te așteptai la această schimbare?',
+              text: 'Contactează echipa de suport și reactivează autentificarea în doi pași din setările contului.',
+              tone: 'warning',
+            },
             cta: {
               label: 'Reactivează autentificarea în doi pași',
               url: `${this.frontendOrigin}/account?tab=security`,
@@ -446,9 +436,15 @@ export class AdminUsersService {
           type: suspended ? 'account_suspended' : 'account_reactivated',
           title: suspended ? 'Contul tău a fost suspendat' : 'Contul tău a fost reactivat',
           body: suspended
-            ? 'Contul tău a fost suspendat de un administrator. Afacerile tale au fost oprite din feed.'
-            : 'Contul tău a fost reactivat — te poți conecta din nou normal.',
+            ? 'Contul tău a fost suspendat de un administrator, iar afacerile tale au fost oprite din feed.'
+            : 'Contul tău a fost reactivat. Te poți conecta din nou ca de obicei.',
           channels: { email: true },
+          email: suspended
+            ? { greet: true }
+            : {
+                greet: true,
+                cta: { label: 'Conectează-te', url: `${this.frontendOrigin}/login` },
+              },
         })
         .catch((err) =>
           this.logger.error(
@@ -539,7 +535,12 @@ export class AdminUsersService {
         channels: { email: true },
         email: {
           greet: true,
-          text: 'Un administrator Totalvizibil a resetat parola contului tău, iar sesiunile deschise au fost închise.\n\nCe trebuie să faci: setează-ți o parolă nouă folosind „Am uitat parola” de pe pagina de conectare. Noi nu trimitem niciodată parole prin email.\n\nDacă nu te aștepți la această resetare, contactează-ne înainte să te reconectezi.',
+          text: 'Un administrator Totalvizibil a resetat parola contului tău și a închis toate sesiunile deschise.\n\nCe trebuie să faci: setează o parolă nouă folosind opțiunea „Am uitat parola” de pe pagina de conectare. Nu trimitem niciodată parole prin email.',
+          notice: {
+            title: 'Nu te așteptai la această resetare?',
+            text: 'Contactează echipa de suport înainte să te reconectezi.',
+            tone: 'warning',
+          },
           cta: { label: 'Setează o parolă nouă', url: `${this.frontendOrigin}/forgot-password` },
         },
       })

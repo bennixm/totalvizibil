@@ -14,7 +14,7 @@ import { AuthPrincipal, AuthUserView } from './auth.types';
 import { ChangePasswordDto, UpdateProfileDto } from './dto/account.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
-import { ctaButton, detailsTable, renderEmailLayout, textToHtml } from '../mail/templates/layout';
+import { emailChangedOldAddressEmail } from '../mail/templates/emails';
 import { AppConfig } from '../config/env';
 
 @Injectable()
@@ -89,35 +89,15 @@ export class AccountService {
       const oldEmail = user.email;
       const newEmail = data.email;
       const supportCta = { label: 'Contactează suportul', url: `${this.frontendOrigin}/support` };
-      const oldEmailMessage = `Bună, ${user.name},\n\nAdresa de email a contului tău Totalvizibil a fost schimbată. De acum, notificările și linkurile de recuperare a parolei merg la noua adresă.`;
-      const oldEmailDetails = [
-        { label: 'Adresa veche', value: oldEmail },
-        { label: 'Adresa nouă', value: newEmail },
-      ];
-      const oldEmailFooter = 'Mesaj de securitate trimis automat la adresa veche a contului.';
+      const oldAddressEmail = emailChangedOldAddressEmail({
+        name: user.name,
+        oldEmail,
+        newEmail,
+        byAdmin: false,
+        supportUrl: supportCta.url,
+      });
       void this.mail
-        .send({
-          to: oldEmail,
-          subject: 'Adresa de email a contului tău a fost schimbată',
-          text: [
-            oldEmailMessage,
-            oldEmailDetails.map((d) => `${d.label}: ${d.value}`).join('\n'),
-            'Îți trimitem acest mesaj și la adresa veche ca să afli despre schimbare chiar dacă nu ai făcut-o tu. Dacă nu ai cerut-o, deschide imediat un tichet de suport — contul poate fi compromis.',
-            `${supportCta.label}: ${supportCta.url}`,
-            oldEmailFooter,
-          ].join('\n\n'),
-          html: renderEmailLayout({
-            heading: 'Adresa de email a contului a fost schimbată',
-            preheader: `Noua adresă este ${newEmail}.`,
-            bodyHtml:
-              textToHtml(
-                `${oldEmailMessage}\n\nÎți trimitem acest mesaj și la adresa veche ca să afli despre schimbare chiar dacă nu ai făcut-o tu. Dacă nu ai cerut-o, deschide imediat un tichet de suport — contul poate fi compromis.`,
-              ) +
-              detailsTable(oldEmailDetails) +
-              ctaButton(supportCta.label, supportCta.url),
-            footerNote: oldEmailFooter,
-          }),
-        })
+        .send({ to: oldEmail, ...oldAddressEmail })
         .catch((err) =>
           this.logger.error(
             'Email-changed (old address) notification failed',
@@ -133,7 +113,12 @@ export class AccountService {
           channels: { email: true },
           email: {
             greet: true,
-            text: `Gata — contul tău Totalvizibil folosește de acum această adresă (${newEmail}). Aici vei primi facturile, cererile clienților și alertele de securitate.\n\nNu tu ai făcut schimbarea? Contactează-ne imediat.`,
+            text: `Contul tău Totalvizibil folosește de acum adresa ${newEmail}. Aici vei primi facturile, cererile de la clienți și alertele de securitate.`,
+            notice: {
+              title: 'Nu ai făcut tu această schimbare?',
+              text: 'Contactează imediat echipa de suport.',
+              tone: 'danger',
+            },
             cta: supportCta,
           },
         })
@@ -175,11 +160,19 @@ export class AccountService {
         channels: { email: true },
         email: {
           greet: true,
-          text: 'Parola contului tău Totalvizibil a fost schimbată. Toate sesiunile deschise pe alte dispozitive au fost închise.\n\nDacă ai fost tu, nu trebuie să faci nimic.',
-          details: [{ label: 'Data și ora', value: new Date().toLocaleString('ro-RO') }],
+          text: 'Parola contului tău Totalvizibil a fost schimbată, iar sesiunile deschise pe alte dispozitive au fost închise.\n\nDacă tu ai făcut schimbarea, nu trebuie să faci nimic.',
+          details: [
+            {
+              label: 'Data și ora',
+              value: new Date().toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' }),
+            },
+          ],
+          notice: {
+            title: 'Nu ai fost tu?',
+            text: 'Contactează imediat echipa de suport. Este posibil ca altcineva să aibă acces la contul tău.',
+            tone: 'danger',
+          },
           cta: { label: 'Contactează suportul', url: `${this.frontendOrigin}/support` },
-          footerNote:
-            'Dacă nu ai fost tu, contactează-ne imediat — cineva are acces la contul tău.',
         },
       })
       .catch((err) =>
@@ -237,7 +230,12 @@ export class AccountService {
         channels: { email: true },
         email: {
           greet: true,
-          text: 'Contul tău Totalvizibil este acum protejat prin autentificare în doi pași. La fiecare conectare îți vom cere codul din aplicația de autentificare, pe lângă parolă.\n\nPăstrează codurile de rezervă la îndemână — fără ele, pierderea telefonului îți blochează accesul.',
+          text: 'Contul tău Totalvizibil este acum protejat prin autentificarea în doi pași. La fiecare conectare îți vom cere, pe lângă parolă, un cod din aplicația de autentificare.',
+          notice: {
+            title: 'Păstrează codurile de rezervă',
+            text: 'Dacă pierzi telefonul, codurile de rezervă sunt singura cale de a intra în cont. Păstrează-le într-un loc sigur.',
+            tone: 'brand',
+          },
         },
       })
       .catch((err) =>
@@ -278,7 +276,12 @@ export class AccountService {
         channels: { email: true },
         email: {
           greet: true,
-          text: 'Autentificarea în doi pași a fost dezactivată pe contul tău Totalvizibil. De acum, pentru conectare este suficientă parola.\n\nNu ai făcut tu această schimbare? Schimbă-ți parola imediat și reactivează autentificarea în doi pași.',
+          text: 'Autentificarea în doi pași a fost dezactivată pentru contul tău Totalvizibil. De acum, la conectare îți cerem doar parola.',
+          notice: {
+            title: 'Nu ai făcut tu această schimbare?',
+            text: 'Schimbă-ți imediat parola și reactivează autentificarea în doi pași.',
+            tone: 'danger',
+          },
           cta: {
             label: 'Reactivează autentificarea în doi pași',
             url: `${this.frontendOrigin}/account?tab=security`,

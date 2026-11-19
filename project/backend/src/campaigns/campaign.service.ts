@@ -420,10 +420,14 @@ export class CampaignService implements OnModuleInit {
       .notify({
         userId: company.ownerUserId,
         type: 'campaign_paused_website_not_ready',
-        title: `Campania „${company.displayName}" a fost pusă pe pauză`,
-        body: `Ai trecut la planul avansat, așa că „${company.displayName}" nu mai poate fi listată până nu finalizezi și publici noul site cu AI. Campania a fost pusă automat pe pauză ca să nu mai consume buget — repornește-o din panou după ce publici.`,
+        title: `Campania afacerii „${company.displayName}” a fost pusă pe pauză`,
+        body: `Ai trecut la planul avansat, așa că „${company.displayName}” nu poate fi listată până nu finalizezi și publici noul site cu AI. Am pus campania pe pauză automat, ca să nu consume buget. O poți reporni din panou după ce publici site-ul.`,
         channels: { panel: true, email: true },
         data: { companyId },
+        email: {
+          greet: true,
+          cta: { label: 'Continuă site-ul', url: '/website/builder' },
+        },
       })
       .catch((err) =>
         this.logger.error(
@@ -537,10 +541,14 @@ export class CampaignService implements OnModuleInit {
           .notify({
             userId: owner,
             type: 'campaign_cpc_below_minimum',
-            title: `Campania „${company.displayName}" s-a oprit — CPC Maxim e sub pragul minim`,
-            body: `CPC Maxim al campaniei „${company.displayName}" a ajuns sub pragul minim al Feed-ului, așa că nu mai poate rula. Ridică CPC Maxim din panou ca să repornească.`,
+            title: `Campania afacerii „${company.displayName}” s-a oprit: CPC Maxim sub pragul minim`,
+            body: `CPC Maxim al campaniei „${company.displayName}” a ajuns sub pragul minim al Feed-ului, așa că anunțul nu mai poate rula. Mărește CPC Maxim din panou ca să repornești campania.`,
             channels: { panel: true, email: true },
             data: { companyId },
+            email: {
+              greet: true,
+              cta: { label: 'Ajustează CPC Maxim', url: '/campaign/budget' },
+            },
           })
           .catch((err) =>
             this.logger.error(
@@ -1491,15 +1499,16 @@ export class CampaignService implements OnModuleInit {
             .notify({
               userId: company.ownerUserId,
               type: adminInitiated ? 'campaign_paused_by_admin' : 'campaign_paused_on_edit',
-              title: `Campania „${company.displayName}" a fost pusă pe pauză`,
+              title: `Campania afacerii „${company.displayName}” a fost pusă pe pauză`,
               body: adminInitiated
-                ? `„${company.displayName}" nu mai apare în feed. Un administrator a modificat bugetul/CPC-ul campaniei — nu consumă buget cât e pe pauză. O poți reactiva din panou.`
-                : 'Editarea bugetului/CPC-ului a scos campania din feed — nu consumă buget cât e pe pauză. Reactiveaz-o din panou când ești gata.',
+                ? `Un administrator a modificat bugetul sau CPC-ul campaniei „${company.displayName}”, așa că anunțul nu mai apare în feed. Cât timp campania e pe pauză nu consumă buget. O poți reactiva din panou.`
+                : 'Editarea bugetului sau a CPC-ului a scos campania din feed. Cât timp e pe pauză nu consumă buget. Reactiveaz-o din panou când ești gata.',
               channels: adminInitiated ? { panel: true, email: true } : { panel: true },
               data: { companyId },
               ...(adminInitiated
                 ? {
                     email: {
+                      greet: true,
                       details: [{ label: 'Afacere', value: company.displayName }],
                       cta: {
                         label: 'Contactează suportul',

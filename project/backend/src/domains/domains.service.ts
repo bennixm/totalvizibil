@@ -133,7 +133,7 @@ export class DomainsService {
         data: { companyId },
         email: {
           greet: true,
-          text: `Achiziția domeniului ${domain} a fost înregistrată. Configurarea DNS este în curs — te anunțăm aici de îndată ce domeniul devine activ.`,
+          text: `Achiziția domeniului ${domain} a fost înregistrată, iar configurarea DNS este în curs. Te anunțăm imediat ce domeniul devine activ.`,
           details: [
             { label: 'Domeniu', value: domain },
             { label: 'Preț domeniu', value: `${minorToCredits(avail.priceCreditsMinor)} credite` },

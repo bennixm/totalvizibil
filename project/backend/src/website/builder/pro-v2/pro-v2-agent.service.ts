@@ -540,9 +540,13 @@ export class ProV2AgentService {
       userId,
       type: 'pro_build_failed',
       title: 'Nu am putut finaliza modificarea site-ului',
-      body: `Ultima cerere pentru „${company?.displayName ?? 'site-ul tău'}" nu a putut fi procesată. Încearcă din nou sau reformulează cererea.`,
+      body: `Ultima cerere pentru „${company?.displayName ?? 'site-ul tău'}” nu a putut fi procesată. Încearcă din nou sau reformulează cererea.`,
       channels: { panel: true, email: true },
       data: { companyId },
+      email: {
+        greet: true,
+        cta: { label: 'Deschide editorul site-ului', url: '/website/builder' },
+      },
     });
   }
 

@@ -3,8 +3,18 @@ import { randomUUID } from 'node:crypto';
 import { NotificationChannel, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailAttachment, MailService } from '../mail/mail.service';
-import { ctaButton, detailsTable, renderEmailLayout, textToHtml } from '../mail/templates/layout';
+import {
+  ctaButton,
+  detailsTable,
+  EmailTone,
+  noticeBox,
+  plainTextEmail,
+  quoteBlock,
+  renderEmailLayout,
+  textToHtml,
+} from '../mail/templates/layout';
 import { NotificationsGateway } from './notifications.gateway';
+import { emailPresentationFor } from './email-presentation';
 
 export interface NotifyChannels {
   /** Show in the bell/panel + push a real-time pop-up over the socket. */
@@ -16,7 +26,8 @@ export interface NotifyChannels {
 export interface NotifyInput {
   userId: string;
   /** Machine key, e.g. "lead_received" — lets the panel pick an icon and any
-   *  future feature filter by kind. Not used to decide routing. */
+   *  future feature filter by kind. Not used to decide routing. Also picks
+   *  the email's category label and tone (see email-presentation.ts). */
   type: string;
   /** Panel title / default email subject. */
   title: string;
@@ -27,21 +38,30 @@ export interface NotifyInput {
   data?: Record<string, unknown>;
   /** Override the email's own subject/text/reply-to, and add the richer
    *  content the shared HTML layout knows how to render — a receipt table,
-   *  a single call-to-action button, file attachments (e.g. an invoice PDF).
-   *  Ignored unless `channels.email` is set. Every email — this or the plain
-   *  title/body default — renders through the same branded layout
-   *  (mail/templates/layout.ts), so "custom" only ever means "extra
-   *  content", never a one-off template. */
+   *  a callout, a quote, a single call-to-action button, file attachments
+   *  (e.g. an invoice PDF). Ignored unless `channels.email` is set. Every
+   *  email — this or the plain title/body default — renders through the
+   *  same branded layout (mail/templates/layout.ts), so "custom" only ever
+   *  means "extra content", never a one-off template. */
   email?: {
     subject?: string;
+    /** In-email heading; defaults to the subject. */
+    heading?: string;
     text?: string;
     replyTo?: string;
+    /** Quoted user-written text (a lead's message, an agent's reply). */
+    quote?: { text: string; label?: string };
     details?: { label: string; value: string }[];
+    /** Tinted callout for the sentence that must not be skimmed past
+     *  ("Nu ai fost tu? ..."). */
+    notice?: { text: string; title?: string; tone?: EmailTone };
+    /** `url` may be an absolute URL or an app path ("/wallet"), which is
+     *  resolved against the platform origin. */
     cta?: { label: string; url: string };
     attachments?: MailAttachment[];
-    /** Inbox-preview line — defaults to the message's first line if omitted,
-     *  rather than a mid-sentence/mid-word slice of the whole body. Worth
-     *  overriding with something the subject doesn't already say. */
+    /** Inbox-preview line — defaults to the message's first sentence if
+     *  omitted. Worth overriding with something the subject doesn't
+     *  already say. */
     preheader?: string;
     /** Opens the message with "Bună, {name}," when the recipient's name is
      *  available (never applies to notifyAll() — a broadcast has no single
@@ -49,13 +69,14 @@ export interface NotifyInput {
      *  inline, or whose first line reads fine without one, aren't
      *  double-greeted. */
     greet?: boolean;
-    /** Short line under the footer — why this was sent / what to do if the
-     *  recipient didn't expect it. Kept visually and textually separate from
-     *  the main message instead of competing with it as just another
-     *  sentence in the body. */
+    /** Short line in the footer — why this was sent / what to do if the
+     *  recipient didn't expect it. Defaults to ACCOUNT_FOOTER. */
     footerNote?: string;
   };
 }
+
+/** Default footer for notification emails: every recipient has an account. */
+const ACCOUNT_FOOTER = 'Primești acest email pentru că ai un cont Totalvizibil.';
 
 /** "Bună, {name}," + the message — the one greeting rule shared by every
  *  email in the system, so `greet` behaves identically everywhere instead of
@@ -69,40 +90,76 @@ function composeMessage(
   return [greetLine, email?.text ?? body].filter((p): p is string => !!p).join('\n\n');
 }
 
-/** The plain-text MIME part — the message, plus `details`/`cta`/`footerNote`
- *  inlined as plain lines. Without this, a text-only client lost the
- *  details table and the call-to-action link entirely (e.g. a lead's
- *  contact info, an invoice link) — they used to exist only in the HTML
- *  alternative built by `buildHtml` below. */
-function buildText(message: string, email: NotifyInput['email']): string {
-  const parts = [message];
-  if (email?.details?.length) {
-    parts.push(email.details.map((d) => `${d.label}: ${d.value}`).join('\n'));
+/** Inbox-preview fallback: the first sentence of the content (not the
+ *  greeting, which would waste the preview on "Bună, Ana,"). */
+function firstSentence(text: string): string {
+  const firstBlock = text.split('\n')[0];
+  const m = /^(.{20,}?[.!?])(\s|$)/.exec(firstBlock);
+  return (m ? m[1] : firstBlock).slice(0, 140);
+}
+
+type Cta = { label: string; url: string };
+
+/** Resolves an app path ("/wallet") against the platform origin; absolute
+ *  URLs pass through untouched. */
+function resolveCta(cta: Cta | undefined, origin: string | undefined): Cta | undefined {
+  if (!cta) return undefined;
+  if (cta.url.startsWith('/') && origin) {
+    return { label: cta.label, url: `${origin.replace(/\/+$/, '')}${cta.url}` };
   }
-  if (email?.cta) parts.push(`${email.cta.label}: ${email.cta.url}`);
-  if (email?.footerNote) parts.push(email.footerNote);
-  return parts.join('\n\n');
+  return cta;
+}
+
+/** The plain-text MIME part — the message, plus every block the HTML part
+ *  renders (quote, details, notice, CTA link, sign-off, footer) inlined as
+ *  plain lines, so a text-only client never loses information that only
+ *  exists in the HTML alternative built by `buildHtml` below. */
+function buildText(message: string, email: NotifyInput['email'], cta: Cta | undefined): string {
+  return plainTextEmail(
+    [
+      message,
+      email?.quote
+        ? `${email.quote.label ? `${email.quote.label}:\n` : ''}"${email.quote.text}"`
+        : null,
+      email?.details?.length ? email.details.map((d) => `${d.label}: ${d.value}`).join('\n') : null,
+      email?.notice ? [email.notice.title, email.notice.text].filter(Boolean).join('\n') : null,
+      cta ? `${cta.label}: ${cta.url}` : null,
+    ],
+    email?.footerNote ?? ACCOUNT_FOOTER,
+  );
 }
 
 /** Builds the HTML alternative for one notification — shared by notify() and
  *  notifyAll() so a broadcast renders through the exact same layout as a
- *  per-user email, never a second code path. `details`/`cta` get their own
- *  styled widgets here, so they're intentionally NOT repeated as text inside
- *  `message` (that duplication is `buildText`'s job, for the plain part). */
+ *  per-user email, never a second code path. `details`/`quote`/`notice`/
+ *  `cta` get their own styled blocks here, so they're intentionally NOT
+ *  repeated as text inside `message` (that duplication is `buildText`'s
+ *  job, for the plain part). */
 function buildHtml(
-  heading: string,
+  type: string,
+  subject: string,
   message: string,
   preheader: string,
   email: NotifyInput['email'],
+  cta: Cta | undefined,
+  appOrigin: string | undefined,
 ): string {
+  const { eyebrow, tone } = emailPresentationFor(type);
   const parts = [textToHtml(message)];
+  if (email?.quote) parts.push(quoteBlock(email.quote.text, email.quote.label));
   if (email?.details?.length) parts.push(detailsTable(email.details));
-  if (email?.cta) parts.push(ctaButton(email.cta.label, email.cta.url));
+  if (email?.notice) {
+    parts.push(noticeBox(email.notice.text, email.notice.tone ?? 'neutral', email.notice.title));
+  }
+  if (cta) parts.push(ctaButton(cta.label, cta.url));
   return renderEmailLayout({
-    heading,
+    heading: email?.heading ?? subject,
+    eyebrow,
+    tone,
     preheader,
     bodyHtml: parts.join(''),
-    footerNote: email?.footerNote,
+    footerNote: email?.footerNote ?? ACCOUNT_FOOTER,
+    appOrigin,
   });
 }
 
@@ -164,12 +221,21 @@ export class NotificationsService {
       if (user?.email) {
         const message = composeMessage(input.body, user.name, input.email);
         const subject = input.email?.subject ?? input.title;
-        const preheader = input.email?.preheader ?? message.split('\n')[0].slice(0, 140);
+        const preheader = input.email?.preheader ?? firstSentence(input.email?.text ?? input.body);
+        const cta = resolveCta(input.email?.cta, this.mail.appOrigin);
         const { dispatched } = await this.mail.send({
           to: user.email,
           subject,
-          text: buildText(message, input.email),
-          html: buildHtml(subject, message, preheader, input.email),
+          text: buildText(message, input.email, cta),
+          html: buildHtml(
+            input.type,
+            subject,
+            message,
+            preheader,
+            input.email,
+            cta,
+            this.mail.appOrigin,
+          ),
           replyTo: input.email?.replyTo,
           attachments: input.email?.attachments,
         });
@@ -233,9 +299,18 @@ export class NotificationsService {
       const subject = input.email?.subject ?? input.title;
       // No name to greet with — a broadcast has no single recipient.
       const message = composeMessage(input.body, null, input.email);
-      const preheader = input.email?.preheader ?? message.split('\n')[0].slice(0, 140);
-      const text = buildText(message, input.email);
-      const html = buildHtml(subject, message, preheader, input.email);
+      const preheader = input.email?.preheader ?? firstSentence(input.email?.text ?? input.body);
+      const cta = resolveCta(input.email?.cta, this.mail.appOrigin);
+      const text = buildText(message, input.email, cta);
+      const html = buildHtml(
+        input.type,
+        subject,
+        message,
+        preheader,
+        input.email,
+        cta,
+        this.mail.appOrigin,
+      );
       // Backgrounded, not awaited: the DB rows + panel push above are
       // already committed by the time this starts, so a slow or failing
       // email leg can never undo or mask that. Without this, a broadcast to
