@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia'
 
 import { apiFetch, ApiError, BASE_URL } from '@/services/api'
+import { useMoneyStore } from '@/stores/money'
+
+/** Platform display currency (top-nav toggle) every amount is converted to. */
+function display(): 'EUR' | 'RON' {
+  return useMoneyStore().currency
+}
 
 /** Supplier invoices: the original documents our own providers bill us
  *  with (Google Ads, Anthropic, DeepSeek, Stripe, hosting, …). All provider
@@ -19,6 +25,18 @@ export type ValidationIssue =
   | 'issue_in_future'
   | 'paid_without_date'
   | 'missing_invoice_number'
+
+/** A document amount converted to a display currency at the BNR rate of its
+ *  issue date. */
+export interface FxConversion {
+  currency: 'EUR' | 'RON'
+  subtotalMinor: number | null
+  taxMinor: number | null
+  totalMinor: number
+  /** Display-currency units per 1 unit of the document currency. */
+  rate: number
+  rateDate: string | null
+}
 
 export type InvoiceFlag = 'amount_anomaly' | 'vat_id_changed' | 'due_from_terms'
 
@@ -88,7 +106,14 @@ export interface VatPeriod {
     totalMinor: number
     byRate: { rate: number | null; netMinor: number; vatMinor: number }[]
   }
-  confirmed: { vatMinor: number; note: string | null; by: string | null; at: string } | null
+  confirmed: {
+    vatMinor: number
+    enteredMinor: number
+    enteredCurrency: string
+    note: string | null
+    by: string | null
+    at: string
+  } | null
   differenceMinor: number | null
 }
 
@@ -147,6 +172,7 @@ export interface ExternalInvoice {
   supplierId: string | null
   flags: InvoiceFlag[]
   dueState: 'overdue' | 'due_soon' | null
+  fx: { EUR: FxConversion | null; RON: FxConversion | null }
   issues: ValidationIssue[]
   note: string | null
   document: { filename: string; mime: string; size: number } | null
@@ -365,6 +391,7 @@ export const useExternalInvoicesStore = defineStore('externalInvoices', {
       if (f.source) p.set('source', f.source)
       if (f.supplierId) p.set('supplierId', f.supplierId)
       p.set('sort', `${f.sortField}:${f.sortDir}`)
+      p.set('display', display())
       return p
     },
 
@@ -379,7 +406,7 @@ export const useExternalInvoicesStore = defineStore('externalInvoices', {
 
     async loadSummary(): Promise<void> {
       try {
-        this.summary = await apiFetch<InvoiceSummary>(`${PATH}/summary`)
+        this.summary = await apiFetch<InvoiceSummary>(`${PATH}/summary?display=${display()}`)
         this.summaryError = null
       } catch (e) {
         this.summaryError = errMsg(e)
@@ -491,7 +518,7 @@ export const useExternalInvoicesStore = defineStore('externalInvoices', {
       if (scope.ids) body.ids = scope.ids
       if (scope.all) body.all = true
       if (scope.filters) {
-        for (const [k, v] of this.filterParams().entries()) if (k !== 'sort') body[k] = v
+        for (const [k, v] of this.filterParams().entries()) if (k !== 'sort' && k !== 'display') body[k] = v
       }
       const res = await fetch(`${BASE_URL}${PATH}/zip`, {
         method: 'POST',
@@ -583,14 +610,14 @@ export const useExternalInvoicesStore = defineStore('externalInvoices', {
 
     async loadInsights(): Promise<void> {
       try {
-        this.insights = await apiFetch<InvoiceInsights>(`${PATH}/insights`)
+        this.insights = await apiFetch<InvoiceInsights>(`${PATH}/insights?display=${display()}`)
       } catch {
         this.insights = null
       }
     },
 
     async fetchSuppliers(): Promise<SupplierRow[]> {
-      return apiFetch<SupplierRow[]>(`${PATH}/suppliers`)
+      return apiFetch<SupplierRow[]>(`${PATH}/suppliers?display=${display()}`)
     },
 
     async updateSupplier(id: string, patch: Record<string, unknown>): Promise<void> {
@@ -602,11 +629,11 @@ export const useExternalInvoicesStore = defineStore('externalInvoices', {
     },
 
     async fetchCalendar(month: string): Promise<{ month: string; items: CalendarItem[] }> {
-      return apiFetch(`${PATH}/calendar?month=${encodeURIComponent(month)}`)
+      return apiFetch(`${PATH}/calendar?month=${encodeURIComponent(month)}&display=${display()}`)
     },
 
     async fetchVatReport(year: number): Promise<{ year: number; years: number[]; periods: VatPeriod[] }> {
-      return apiFetch(`${PATH}/vat-report?year=${year}`)
+      return apiFetch(`${PATH}/vat-report?year=${year}&display=${display()}`)
     },
 
     async confirmVat(body: { period: string; currency: string; confirmedVatMinor: number; note?: string }) {

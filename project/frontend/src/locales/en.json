@@ -3082,6 +3082,7 @@
     "vatUnconfirmText": "The confirmed value for {period} will be deleted; the estimate stays unchanged.",
     "vatNotStated": "not stated on the invoices",
     "removeSupplierTitle": "Delete this supplier?",
-    "removeSupplierText": "{name} has no invoices and will be removed from the registry."
+    "removeSupplierText": "{name} has no invoices and will be removed from the registry.",
+    "convertedNote": "Converted from the document currency at the BNR rate {rate} of {date} (invoice issue date)."
   }
 }

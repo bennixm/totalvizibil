@@ -35,6 +35,7 @@ import {
   type ExternalInvoiceProviderKey,
   type SortField,
 } from '@/stores/externalInvoices'
+import { useMoneyStore } from '@/stores/money'
 import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
@@ -81,7 +82,7 @@ const SOURCE_ITEMS = computed(() =>
   (['api', 'manual'] as const).map((s) => ({ value: s, title: fmt.sourceLabel(s) })),
 )
 const showMoreFilters = ref(false)
-const moreActive = computed(() => !!(f.processing || f.currency || f.source))
+const moreActive = computed(() => !!(f.processing || f.source))
 function resetFilters(): void {
   search.value = ''
   store.resetFilters()
@@ -244,6 +245,18 @@ function clearSupplier(): void {
   store.setFilter('supplierId', null)
 }
 
+// Amounts follow the platform display currency (top-nav EUR/RON toggle):
+// list items carry both conversions, aggregates are recomputed server-side.
+const moneyStore = useMoneyStore()
+watch(
+  () => moneyStore.currency,
+  () => {
+    void store.loadSummary()
+    void store.loadInsights()
+    void store.load()
+  },
+)
+
 const hasAny = computed(() => store.providers.some((p) => p.invoiceCount > 0))
 const filtered = computed(() => store.activeFilterCount > 0 || !!f.from || !!f.to)
 
@@ -403,16 +416,6 @@ onMounted(() => {
             @update:model-value="store.setFilter('processing', $event ?? null)"
           />
           <v-select
-            :model-value="f.currency"
-            :items="store.currencies"
-            :label="t('supplierInvoices.currency')"
-            density="compact"
-            variant="outlined"
-            hide-details
-            clearable
-            @update:model-value="store.setFilter('currency', $event ?? null)"
-          />
-          <v-select
             :model-value="f.source"
             :items="SOURCE_ITEMS"
             :label="t('supplierInvoices.colSource')"
@@ -549,11 +552,10 @@ onMounted(() => {
           <span class="c-date c-date--due" role="cell" :data-label="t('supplierInvoices.colDue')" :class="r.dueState ? `due--${r.dueState}` : ''">
             {{ fmt.date(r.dueDate) }}
           </span>
-          <span class="c-net num" role="cell">{{ fmt.amount(r.subtotalMinor, r.currency) }}</span>
-          <span class="c-vat num" role="cell">{{ fmt.amount(r.taxMinor, r.currency) }}</span>
+          <span class="c-net num" role="cell">{{ fmt.dAmount(r.subtotalMinor, r) }}</span>
+          <span class="c-vat num" role="cell">{{ fmt.dAmount(r.taxMinor, r) }}</span>
           <span class="c-total num" role="cell">
-            <b>{{ fmt.amount(r.totalMinor, r.currency) }}</b>
-            <small class="sub cur">{{ r.currency }}</small>
+            <b>{{ fmt.dAmount(r.totalMinor, r) }}</b>
           </span>
           <span class="c-status" role="cell">
             <InvoiceBadge v-bind="fmt.payment(r)" />

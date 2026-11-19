@@ -1,7 +1,8 @@
 import { useI18n } from 'vue-i18n'
 
 import { ApiError } from '@/services/api'
-import type { ExternalInvoice, InvoiceSource } from '@/stores/externalInvoices'
+import { useMoneyStore } from '@/stores/money'
+import type { ExternalInvoice, FxConversion, InvoiceSource } from '@/stores/externalInvoices'
 
 const CURRENCY_SUFFIX: Record<string, string> = { EUR: '€', RON: 'lei', USD: '$', GBP: '£' }
 
@@ -10,6 +11,26 @@ export type Tone = 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'prima
 /** Formatting + status vocabulary shared by every supplier-invoice view. */
 export function useInvoiceFormat() {
   const { t, locale } = useI18n()
+  const money = useMoneyStore()
+
+  /** The conversion of a document to the platform display currency (BNR
+   *  rate of its issue date), or null when no rate exists. */
+  function conversion(r: { fx?: { EUR: FxConversion | null; RON: FxConversion | null } | null }): FxConversion | null {
+    return r.fx?.[money.currency] ?? null
+  }
+
+  /** Any amount of a document (total, VAT, a line, a VAT-rate row) in the
+   *  platform display currency. Falls back to the document currency only
+   *  when BNR publishes no rate for it. */
+  function dAmount(
+    minor: number | null | undefined,
+    r: { currency: string; fx?: { EUR: FxConversion | null; RON: FxConversion | null } | null },
+  ): string {
+    if (minor === null || minor === undefined) return '-'
+    const c = conversion(r)
+    if (!c) return amount(minor, r.currency)
+    return amount(Math.round(minor * c.rate), c.currency)
+  }
 
   /** Amount in the document's own currency (never converted). */
   function amount(minor: number | null | undefined, currency: string): string {
@@ -126,6 +147,8 @@ export function useInvoiceFormat() {
 
   return {
     amount,
+    dAmount,
+    conversion,
     date,
     dateTime,
     fileSize,

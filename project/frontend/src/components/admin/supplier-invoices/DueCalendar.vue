@@ -7,6 +7,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useMoneyStore } from '@/stores/money'
+
 import { useExternalInvoicesStore, type CalendarItem } from '@/stores/externalInvoices'
 
 import { useInvoiceFormat } from './useInvoiceFormat'
@@ -35,6 +37,8 @@ async function load(): Promise<void> {
   }
 }
 onMounted(load)
+// Amounts are in the platform display currency: reload when it changes.
+watch(() => useMoneyStore().currency, load)
 watch(month, load)
 
 function shift(delta: number): void {
