@@ -2843,8 +2843,7 @@
       "api_invoice_not_deletable": "Facturile importate automat nu pot fi șterse.",
       "google_invoice_access_not_approved": "Google a refuzat accesul la facturi: accesul API al contului nu este aprobat pentru facturare (DEVELOPER_TOKEN_NOT_APPROVED). Până la aprobare, facturile se descarcă din Google Ads (Facturare > Documente) și se încarcă aici.",
       "export_too_large": "Prea multe facturi pentru un export. Restrânge filtrul.",
-      "ai_not_configured": "Extragerea cu AI nu este configurată pe server.",
-      "extraction_failed": "Datele nu au putut fi extrase automat. Completează-le manual.",
+      "ai_not_configured": "Extragerea cu AI nu este configurată pe server (lipsește ANTHROPIC_API_KEY).",
       "not_an_invoice": "Documentul nu pare a fi o factură.",
       "too_many_attachments": "O factură poate avea cel mult 20 de fișiere atașate.",
       "invoice_not_found": "Factura nu mai există.",
@@ -2857,7 +2856,20 @@
       "xml_unreadable": "Fișierul XML nu a putut fi citit.",
       "supplier_not_found": "Furnizorul nu a fost găsit.",
       "confirmation_not_found": "Confirmarea nu a fost găsită.",
-      "bad_month": "Lună invalidă."
+      "bad_month": "Lună invalidă.",
+      "supplier_has_invoices": "Furnizorul are facturi și nu poate fi șters.",
+      "ai_auth_failed": "Cheia API Anthropic (ANTHROPIC_API_KEY) de pe server este invalidă sau revocată. Înlocuiește-o în configurația serverului.",
+      "ai_permission_denied": "Cheia API Anthropic nu are acces la acest model.",
+      "ai_model_not_found": "Modelul AI configurat nu există sau nu e disponibil pentru această cheie",
+      "ai_rate_limited": "Limita de cereri AI a fost atinsă. Încearcă din nou peste un minut.",
+      "ai_bad_request": "Anthropic a respins cererea",
+      "ai_timeout": "Extragerea a durat prea mult. Încearcă din nou.",
+      "ai_unreachable": "Serverul nu poate contacta Anthropic.",
+      "ai_provider_error": "Anthropic are o problemă temporară. Încearcă din nou.",
+      "ai_refused": "Modelul a refuzat să citească documentul.",
+      "ai_output_too_long": "Documentul e prea lung pentru extragerea automată.",
+      "ai_unparseable": "Răspunsul AI nu a putut fi citit. Completează datele manual.",
+      "ai_error": "Extragerea automată a eșuat."
     },
     "addInvoice": "Adaugă factură",
     "emptyTitle": "Nu există încă facturi de la furnizori",
@@ -3068,6 +3080,8 @@
     "vatConfirmed": "Valoarea confirmată a fost salvată.",
     "vatUnconfirmTitle": "Ștergi confirmarea?",
     "vatUnconfirmText": "Valoarea confirmată pentru {period} va fi ștearsă; estimarea rămâne neschimbată.",
-    "vatNotStated": "nespecificat pe facturi"
+    "vatNotStated": "nespecificat pe facturi",
+    "removeSupplierTitle": "Ștergi furnizorul?",
+    "removeSupplierText": "{name} nu are facturi și va fi scos din registru."
   }
 }

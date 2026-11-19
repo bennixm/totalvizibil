@@ -2843,8 +2843,7 @@
       "api_invoice_not_deletable": "Automatisch importierte Rechnungen können nicht gelöscht werden.",
       "google_invoice_access_not_approved": "Google hat den Zugriff auf Rechnungen verweigert: Der API-Zugang des Kontos ist für die Abrechnung nicht freigegeben (DEVELOPER_TOKEN_NOT_APPROVED). Bis zur Freigabe die Rechnungen in Google Ads (Abrechnung > Dokumente) herunterladen und hier hochladen.",
       "export_too_large": "Zu viele Rechnungen für einen Export. Schränke den Filter ein.",
-      "ai_not_configured": "Die KI-Auslesung ist auf dem Server nicht eingerichtet.",
-      "extraction_failed": "Die Daten konnten nicht automatisch ausgelesen werden. Bitte manuell eingeben.",
+      "ai_not_configured": "Die KI-Auslesung ist auf dem Server nicht eingerichtet (ANTHROPIC_API_KEY fehlt).",
       "not_an_invoice": "Das Dokument scheint keine Rechnung zu sein.",
       "too_many_attachments": "Eine Rechnung kann höchstens 20 angehängte Dateien haben.",
       "invoice_not_found": "Die Rechnung existiert nicht mehr.",
@@ -2857,7 +2856,20 @@
       "xml_unreadable": "Die XML-Datei konnte nicht gelesen werden.",
       "supplier_not_found": "Der Lieferant wurde nicht gefunden.",
       "confirmation_not_found": "Die Bestätigung wurde nicht gefunden.",
-      "bad_month": "Ungültiger Monat."
+      "bad_month": "Ungültiger Monat.",
+      "supplier_has_invoices": "Der Lieferant hat Rechnungen und kann nicht gelöscht werden.",
+      "ai_auth_failed": "Der Anthropic-API-Schlüssel (ANTHROPIC_API_KEY) auf dem Server ist ungültig oder widerrufen. Bitte in der Serverkonfiguration ersetzen.",
+      "ai_permission_denied": "Der Anthropic-API-Schlüssel hat keinen Zugriff auf dieses Modell.",
+      "ai_model_not_found": "Das konfigurierte KI-Modell existiert nicht oder ist für diesen Schlüssel nicht verfügbar",
+      "ai_rate_limited": "Das KI-Anfragelimit ist erreicht. In einer Minute erneut versuchen.",
+      "ai_bad_request": "Anthropic hat die Anfrage abgelehnt",
+      "ai_timeout": "Die Auslesung hat zu lange gedauert. Erneut versuchen.",
+      "ai_unreachable": "Der Server erreicht Anthropic nicht.",
+      "ai_provider_error": "Anthropic hat ein vorübergehendes Problem. Erneut versuchen.",
+      "ai_refused": "Das Modell hat das Lesen des Dokuments abgelehnt.",
+      "ai_output_too_long": "Das Dokument ist für die automatische Auslesung zu lang.",
+      "ai_unparseable": "Die KI-Antwort konnte nicht gelesen werden. Daten bitte manuell eingeben.",
+      "ai_error": "Die automatische Auslesung ist fehlgeschlagen."
     },
     "addInvoice": "Rechnung hinzufügen",
     "emptyTitle": "Noch keine Lieferantenrechnungen",
@@ -3068,6 +3080,8 @@
     "vatConfirmed": "Der bestätigte Wert wurde gespeichert.",
     "vatUnconfirmTitle": "Bestätigung löschen?",
     "vatUnconfirmText": "Der bestätigte Wert für {period} wird gelöscht; die Schätzung bleibt unverändert.",
-    "vatNotStated": "auf den Rechnungen nicht angegeben"
+    "vatNotStated": "auf den Rechnungen nicht angegeben",
+    "removeSupplierTitle": "Lieferant löschen?",
+    "removeSupplierText": "{name} hat keine Rechnungen und wird aus dem Verzeichnis entfernt."
   }
 }

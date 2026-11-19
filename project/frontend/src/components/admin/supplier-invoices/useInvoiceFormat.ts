@@ -111,11 +111,17 @@ export function useInvoiceFormat() {
     const raw = e instanceof ApiError || e instanceof Error ? e.message : ''
     return reason(raw) || t('admin.genericError')
   }
+  /** `code` or `code:detail` (e.g. `ai_bad_request:<API message>`): the
+   *  code is translated, the detail is shown after it as-is. */
   function reason(code: string | null | undefined): string {
     if (!code) return ''
-    const key = `supplierInvoices.err.${code}`
+    const i = code.indexOf(':')
+    const head = i === -1 ? code : code.slice(0, i)
+    const detail = i === -1 ? '' : code.slice(i + 1).trim()
+    const key = `supplierInvoices.err.${head}`
     const translated = t(key)
-    return translated !== key ? translated : code
+    if (translated === key) return code
+    return detail ? `${translated} (${detail})` : translated
   }
 
   return {

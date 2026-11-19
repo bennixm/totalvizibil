@@ -2843,8 +2843,7 @@
       "api_invoice_not_deletable": "Automatically imported invoices cannot be deleted.",
       "google_invoice_access_not_approved": "Google refused access to invoices: the account API access is not approved for billing (DEVELOPER_TOKEN_NOT_APPROVED). Until it is approved, download the invoices from Google Ads (Billing > Documents) and upload them here.",
       "export_too_large": "Too many invoices for one export. Narrow the filter.",
-      "ai_not_configured": "AI extraction is not configured on the server.",
-      "extraction_failed": "The data could not be extracted automatically. Enter it by hand.",
+      "ai_not_configured": "AI extraction is not configured on the server (ANTHROPIC_API_KEY is missing).",
       "not_an_invoice": "The document does not look like an invoice.",
       "too_many_attachments": "An invoice can have at most 20 attached files.",
       "invoice_not_found": "The invoice no longer exists.",
@@ -2857,7 +2856,20 @@
       "xml_unreadable": "The XML file could not be read.",
       "supplier_not_found": "The supplier was not found.",
       "confirmation_not_found": "The confirmation was not found.",
-      "bad_month": "Invalid month."
+      "bad_month": "Invalid month.",
+      "supplier_has_invoices": "The supplier has invoices and cannot be deleted.",
+      "ai_auth_failed": "The Anthropic API key (ANTHROPIC_API_KEY) on the server is invalid or revoked. Replace it in the server configuration.",
+      "ai_permission_denied": "The Anthropic API key has no access to this model.",
+      "ai_model_not_found": "The configured AI model does not exist or is not available for this key",
+      "ai_rate_limited": "The AI request limit was reached. Try again in a minute.",
+      "ai_bad_request": "Anthropic rejected the request",
+      "ai_timeout": "Extraction took too long. Try again.",
+      "ai_unreachable": "The server cannot reach Anthropic.",
+      "ai_provider_error": "Anthropic has a temporary problem. Try again.",
+      "ai_refused": "The model declined to read the document.",
+      "ai_output_too_long": "The document is too long for automatic extraction.",
+      "ai_unparseable": "The AI response could not be read. Enter the data by hand.",
+      "ai_error": "Automatic extraction failed."
     },
     "addInvoice": "Add invoice",
     "emptyTitle": "No supplier invoices yet",
@@ -3068,6 +3080,8 @@
     "vatConfirmed": "The confirmed value was saved.",
     "vatUnconfirmTitle": "Delete the confirmation?",
     "vatUnconfirmText": "The confirmed value for {period} will be deleted; the estimate stays unchanged.",
-    "vatNotStated": "not stated on the invoices"
+    "vatNotStated": "not stated on the invoices",
+    "removeSupplierTitle": "Delete this supplier?",
+    "removeSupplierText": "{name} has no invoices and will be removed from the registry."
   }
 }

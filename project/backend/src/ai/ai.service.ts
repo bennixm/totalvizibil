@@ -211,6 +211,29 @@ export function estimateClaudeCostMinor(usage: {
   return Math.round(usd * 100);
 }
 
+/**
+ * Stable, secret-free reason for a failed extraction call, so the admin
+ * sees WHY (invalid key, unknown model, rejected request…) instead of a
+ * generic failure. A rejected request also carries the API's own short
+ * message, which never contains the key.
+ */
+function extractionErrorCode(err: unknown, model: string): string {
+  if (err instanceof Anthropic.AuthenticationError) return 'ai_auth_failed';
+  if (err instanceof Anthropic.PermissionDeniedError) return 'ai_permission_denied';
+  if (err instanceof Anthropic.NotFoundError) return `ai_model_not_found:${model}`;
+  if (err instanceof Anthropic.RateLimitError) return 'ai_rate_limited';
+  if (err instanceof Anthropic.BadRequestError) {
+    const msg = (err.message || '').replace(/sk-ant-[\w-]+/g, '[key]').slice(0, 240);
+    return `ai_bad_request:${msg}`;
+  }
+  if (err instanceof Anthropic.APIConnectionTimeoutError) return 'ai_timeout';
+  if (err instanceof Anthropic.APIConnectionError) return 'ai_unreachable';
+  if (err instanceof Anthropic.APIError && typeof err.status === 'number' && err.status >= 500) {
+    return 'ai_provider_error';
+  }
+  return 'ai_error';
+}
+
 /** Shared knobs for one Claude call. */
 interface CallOpts {
   maxTokens: number;
@@ -617,8 +640,10 @@ export class AiService {
   async extractInvoiceDocument(input: {
     base64: string;
     mime: 'application/pdf' | 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
-  }): Promise<{ data: Record<string, unknown>; usage: Anthropic.Usage; model: string } | null> {
-    if (!this.anthropic) return null;
+  }): Promise<
+    { data: Record<string, unknown>; usage: Anthropic.Usage; model: string } | { error: string }
+  > {
+    if (!this.anthropic) return { error: 'ai_not_configured' };
     const model = this.anthropicModelFast;
     const n = { anyOf: [{ type: 'number' }, { type: 'null' }] };
     const s = { anyOf: [{ type: 'string' }, { type: 'null' }] };
@@ -747,14 +772,14 @@ export class AiService {
       );
       if (res.stop_reason === 'refusal' || res.stop_reason === 'max_tokens') {
         this.logger.warn(`Invoice extraction stopped: ${res.stop_reason}`);
-        return null;
+        return { error: res.stop_reason === 'refusal' ? 'ai_refused' : 'ai_output_too_long' };
       }
       const parsed = parseLooseJson(this.textOf(res));
-      if (!parsed) return null;
+      if (!parsed) return { error: 'ai_unparseable' };
       return { data: parsed, usage: res.usage, model };
     } catch (err) {
-      this.logger.warn(`Invoice extraction failed: ${this.errMsg(err)}`);
-      return null;
+      this.logger.warn(`Invoice extraction failed (model ${model}): ${this.errMsg(err)}`);
+      return { error: extractionErrorCode(err, model) };
     }
   }
 

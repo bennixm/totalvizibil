@@ -852,7 +852,7 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
       mime: file.mime as
         'application/pdf' | 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif',
     });
-    if (!res) throw new BadRequestException('extraction_failed');
+    if ('error' in res) throw new BadRequestException(res.error);
     const d = res.data;
     if (d.is_invoice === false) throw new BadRequestException('not_an_invoice');
 
