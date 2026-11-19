@@ -136,53 +136,52 @@ async function save(): Promise<void> {
       <p>{{ rows.length ? t('supplierInvoices.noMatches') : t('supplierInvoices.regEmpty') }}</p>
     </div>
 
-    <ul v-else class="reg__list">
-      <li v-for="r in filtered" :key="r.id" class="sup">
-        <div class="sup__main">
-          <div class="sup__name">
-            <strong>{{ r.name }}</strong>
-            <span v-if="r.recurring" class="sup__tag" :title="t('supplierInvoices.recurringTitle', { day: r.recurring.usualDay })">
-              <v-icon icon="mdi-repeat" size="12" /> {{ t('supplierInvoices.monthly') }}
-            </span>
-            <span v-if="r.recurring?.missingThisMonth" class="sup__tag sup__tag--warn">
-              <v-icon icon="mdi-alert-outline" size="12" /> {{ t('supplierInvoices.missingThisMonth') }}
-            </span>
-          </div>
-          <div class="sup__meta">
-            <span>{{ r.vatId ?? t('supplierInvoices.noVatId') }}</span>
-            <span v-if="r.email">{{ r.email }}</span>
-            <span>
-              {{ r.paymentTermsDays !== null ? t('supplierInvoices.termsDays', { n: r.paymentTermsDays }) : t('supplierInvoices.noTerms') }}
-            </span>
-          </div>
-        </div>
-        <div class="sup__stats">
-          <span class="sup__tot">
-            <b v-for="tot in r.totals.slice(0, 2)" :key="tot.currency">{{ fmt.amount(tot.totalMinor, tot.currency) }}</b>
-          </span>
-          <span class="sup__sub">
-            {{ t('supplierInvoices.regStats', { n: r.invoiceCount, unpaid: r.unpaidCount }) }}
-            <template v-if="r.lastIssueDate"> · {{ t('supplierInvoices.lastInvoice', { date: fmt.date(r.lastIssueDate) }) }}</template>
-          </span>
-        </div>
-        <div class="sup__actions">
-          <v-btn size="small" variant="text" prepend-icon="mdi-format-list-bulleted" :disabled="!r.invoiceCount" @click="emit('showInvoices', r.id)">
-            {{ t('supplierInvoices.showInvoices') }}
-          </v-btn>
-          <v-btn size="small" variant="text" icon="mdi-pencil-outline" :aria-label="t('supplierInvoices.edit')" :title="t('supplierInvoices.edit')" @click="openEdit(r)" />
-          <v-btn
-            v-if="!r.invoiceCount"
-            size="small"
-            variant="text"
-            color="error"
-            icon="mdi-trash-can-outline"
-            :aria-label="t('supplierInvoices.delete')"
-            :title="t('supplierInvoices.delete')"
-            @click="remove(r)"
+    <div v-else class="rtbl" role="table" :aria-label="t('supplierInvoices.tabSuppliers')">
+      <div class="rtbl__head" role="row">
+        <span role="columnheader">{{ t('supplierInvoices.colProvider') }}</span>
+        <span role="columnheader" class="c-vat">{{ t('supplierInvoices.vatIdShort') }}</span>
+        <span role="columnheader" class="c-terms">{{ t('supplierInvoices.paymentTerms') }}</span>
+        <span role="columnheader" class="r">{{ t('supplierInvoices.colInvoices') }}</span>
+        <span role="columnheader" class="r">{{ t('supplierInvoices.colTotal') }}</span>
+        <span role="columnheader" class="c-last">{{ t('supplierInvoices.colLast') }}</span>
+        <span role="columnheader"><span class="sr-only">{{ t('supplierInvoices.colActions') }}</span></span>
+      </div>
+      <div v-for="r in filtered" :key="r.id" class="rrow" role="row">
+        <span class="rname" role="cell" :title="[r.name, r.email].filter(Boolean).join(' · ')">
+          <span class="ell strong">{{ r.name }}</span>
+          <v-icon
+            v-if="r.recurring"
+            icon="mdi-repeat"
+            size="14"
+            class="rname__i"
+            :title="t('supplierInvoices.recurringTitle', { day: r.recurring.usualDay })"
+            :aria-label="t('supplierInvoices.monthly')"
           />
-        </div>
-      </li>
-    </ul>
+          <span v-if="r.recurring?.missingThisMonth" class="rname__warn" :title="t('supplierInvoices.missingThisMonth')">
+            <v-icon icon="mdi-alert-outline" size="13" /> {{ t('supplierInvoices.missingShortTag') }}
+          </span>
+        </span>
+        <span class="c-vat mono ell" role="cell">{{ r.vatId ?? '-' }}</span>
+        <span class="c-terms" role="cell">{{ r.paymentTermsDays !== null ? t('supplierInvoices.daysN', { n: r.paymentTermsDays }) : '-' }}</span>
+        <span class="r mono" role="cell">
+          {{ r.invoiceCount }}<span v-if="r.unpaidCount" class="unpaid" :title="t('supplierInvoices.statusUnpaid')"> · {{ r.unpaidCount }}</span>
+        </span>
+        <span class="r mono strong" role="cell">{{ r.totals[0] ? fmt.amount(r.totals[0].totalMinor, r.totals[0].currency) : '-' }}</span>
+        <span class="c-last mono" role="cell">{{ r.lastIssueDate ? fmt.date(r.lastIssueDate) : '-' }}</span>
+        <span class="ract" role="cell">
+          <v-menu location="bottom end">
+            <template #activator="{ props: menu }">
+              <v-btn v-bind="menu" icon="mdi-dots-horizontal" size="small" variant="text" density="comfortable" :aria-label="t('supplierInvoices.colActions')" />
+            </template>
+            <v-list density="compact" min-width="200">
+              <v-list-item prepend-icon="mdi-format-list-bulleted" :title="t('supplierInvoices.showInvoices')" :disabled="!r.invoiceCount" @click="emit('showInvoices', r.id)" />
+              <v-list-item prepend-icon="mdi-pencil-outline" :title="t('supplierInvoices.edit')" @click="openEdit(r)" />
+              <v-list-item v-if="!r.invoiceCount" prepend-icon="mdi-trash-can-outline" base-color="error" :title="t('supplierInvoices.delete')" @click="remove(r)" />
+            </v-list>
+          </v-menu>
+        </span>
+      </div>
+    </div>
 
     <v-dialog v-model="edit.open" max-width="480">
       <v-card rounded="lg">
@@ -354,6 +353,100 @@ async function save(): Promise<void> {
   .reg__search {
     max-width: none;
     flex: 1 1 100%;
+  }
+}
+.rtbl {
+  border: 1px solid var(--tvz-glass-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface));
+}
+.rtbl__head,
+.rrow {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) 6rem 5.5rem minmax(0, 1fr) 6rem 3rem;
+  align-items: center;
+  column-gap: 0.75rem;
+  padding: 0 0.75rem;
+}
+.rtbl__head {
+  height: 2.4rem;
+  background: rgba(var(--v-theme-on-surface), 0.03);
+  border-bottom: 1px solid var(--tvz-hairline);
+  font-size: var(--tvz-fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.rrow {
+  height: 2.9rem;
+  border-bottom: 1px solid var(--tvz-hairline);
+  font-size: var(--tvz-fs-body);
+}
+.rrow:last-child {
+  border-bottom: 0;
+}
+.rrow > span {
+  min-width: 0;
+}
+.rname {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.rname__i {
+  flex-shrink: 0;
+  color: rgb(var(--v-theme-primary));
+}
+.rname__warn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: var(--tvz-fs-caption);
+  color: rgb(var(--v-theme-warning));
+}
+.ell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.strong {
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+}
+.mono {
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.r {
+  text-align: right;
+  white-space: nowrap;
+}
+.unpaid {
+  color: rgb(var(--v-theme-info));
+}
+.ract {
+  display: flex;
+  justify-content: flex-end;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+@container (max-width: 760px) {
+  .rtbl__head,
+  .rrow {
+    grid-template-columns: minmax(0, 2fr) 5rem minmax(0, 1fr) 3rem;
+  }
+  .c-vat,
+  .c-terms,
+  .c-last {
+    display: none;
   }
 }
 </style>

@@ -15,7 +15,6 @@ import { useI18n } from 'vue-i18n'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
 import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
-import AdminExportMenu from '@/components/admin/AdminExportMenu.vue'
 import InvoiceBadge from '@/components/admin/supplier-invoices/InvoiceBadge.vue'
 import SupplierInvoiceDrawer from '@/components/admin/supplier-invoices/SupplierInvoiceDrawer.vue'
 import SupplierInvoiceSources from '@/components/admin/supplier-invoices/SupplierInvoiceSources.vue'
@@ -56,6 +55,7 @@ const activeRangeLabel = computed(() => {
 })
 
 // --- filters ------------------------------------------------------------------
+const supplierFilterName = ref<string | null>(null)
 const search = ref(f.q)
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 watch(search, (v) => {
@@ -81,11 +81,64 @@ const PROC_ITEMS = computed(() => [
 const SOURCE_ITEMS = computed(() =>
   (['api', 'manual'] as const).map((s) => ({ value: s, title: fmt.sourceLabel(s) })),
 )
-const showMoreFilters = ref(false)
-const moreActive = computed(() => !!(f.processing || f.source))
 function resetFilters(): void {
   search.value = ''
+  supplierFilterName.value = null
   store.resetFilters()
+}
+
+// --- compact toolbar: period and filters live in menus -------------------------
+const periodOpen = ref(false)
+const filtersOpen = ref(false)
+const sourcesOpen = ref(false)
+/** Active narrowing filters as closable chips (the "active filters"
+ *  indicator); period and sort are not filters here. */
+const filterChips = computed(() => {
+  const out: { key: string; label: string; clear: () => void }[] = []
+  const item = (list: { value: string; title: string }[], v: string | null) => list.find((x) => x.value === v)?.title ?? v ?? ''
+  if (f.q.trim()) out.push({ key: 'q', label: `"${f.q.trim()}"`, clear: () => { search.value = '' } })
+  if (f.supplierId) {
+    out.push({ key: 'supplier', label: supplierFilterName.value ?? t('supplierInvoices.oneSupplier'), clear: clearSupplier })
+  }
+  if (f.provider) out.push({ key: 'provider', label: item(PROVIDER_ITEMS.value, f.provider), clear: () => store.setFilter('provider', null) })
+  if (f.payment) out.push({ key: 'payment', label: item(PAYMENT_ITEMS.value, f.payment), clear: () => store.setFilter('payment', null) })
+  if (f.due) out.push({ key: 'due', label: item(DUE_ITEMS.value, f.due), clear: () => store.setFilter('due', null) })
+  if (f.processing) out.push({ key: 'processing', label: item(PROC_ITEMS.value, f.processing), clear: () => store.setFilter('processing', null) })
+  if (f.source) out.push({ key: 'source', label: item(SOURCE_ITEMS.value, f.source), clear: () => store.setFilter('source', null) })
+  return out
+})
+/** A dot on "Sources" when an automatic import needs attention. */
+const sourcesWarning = computed(() =>
+  store.providers.some((p) => p.automated && (p.configured === false || (p.lastSync && !p.lastSync.ok))),
+)
+
+// --- rows grouped by month when sorted by date -----------------------------------
+type ListEntry = { kind: 'month'; key: string; label: string } | { kind: 'row'; key: string; row: ExternalInvoice }
+const entries = computed<ListEntry[]>(() => {
+  const byDate = f.sortField === 'issueDate'
+  const out: ListEntry[] = []
+  let last = ''
+  for (const r of store.items) {
+    if (byDate) {
+      const ym = String(r.issueDate).slice(0, 7)
+      if (ym !== last) {
+        last = ym
+        out.push({ kind: 'month', key: `m-${ym}`, label: fmt.monthName(Number(ym.slice(5, 7)), Number(ym.slice(0, 4))) })
+      }
+    }
+    out.push({ kind: 'row', key: r.id, row: r })
+  }
+  return out
+})
+
+/** One-click payment change from the row menu (same API as the panel). */
+async function quick(r: ExternalInvoice, patch: Record<string, unknown>, msg: string): Promise<void> {
+  try {
+    await store.update(r.id, patch)
+    toasts.success(msg)
+  } catch (e) {
+    toasts.error(fmt.errText(e))
+  }
 }
 
 /** Which KPI card mirrors the current filters (highlighted). */
@@ -232,7 +285,6 @@ const pageTab = computed<PageTab>({
     void router.replace({ query })
   },
 })
-const supplierFilterName = ref<string | null>(null)
 function showSupplier(id: string): void {
   void store.fetchSuppliers().then((list) => {
     supplierFilterName.value = list.find((x) => x.id === id)?.name ?? null
@@ -257,7 +309,6 @@ watch(
   },
 )
 
-const hasAny = computed(() => store.providers.some((p) => p.invoiceCount > 0))
 const filtered = computed(() => store.activeFilterCount > 0 || !!f.from || !!f.to)
 
 onMounted(() => {
@@ -274,6 +325,7 @@ onMounted(() => {
 
 <template>
   <div class="asi">
+    <!-- 1. Title + primary action; secondary actions grouped -->
     <AdminPageHeader
       class="asi__head"
       :title="t('supplierInvoices.title')"
@@ -281,14 +333,29 @@ onMounted(() => {
       :sub="t('supplierInvoices.sub')"
     >
       <template #actions>
-        <AdminExportMenu v-if="pageTab === 'invoices'" :url-for="(fmtName) => store.exportUrl(fmtName as 'csv' | 'xlsx')" :formats="['xlsx', 'csv']" :disabled="!store.total" />
+        <v-btn variant="text" size="small" prepend-icon="mdi-source-branch" class="hd-btn" @click="sourcesOpen = true">
+          {{ t('supplierInvoices.providersTitle') }}
+          <span v-if="sourcesWarning" class="hd-dot" :title="t('supplierInvoices.sourcesWarning')" />
+        </v-btn>
         <v-menu v-if="pageTab === 'invoices'" location="bottom end">
           <template #activator="{ props: menu }">
-            <v-btn v-bind="menu" variant="tonal" size="small" prepend-icon="mdi-folder-zip-outline" append-icon="mdi-chevron-down" :loading="!!zipBusy">
-              {{ t('supplierInvoices.zip') }}
+            <v-btn
+              v-bind="menu"
+              variant="tonal"
+              size="small"
+              prepend-icon="mdi-tray-arrow-down"
+              append-icon="mdi-chevron-down"
+              :loading="!!zipBusy"
+            >
+              {{ t('supplierInvoices.exportMenu') }}
             </v-btn>
           </template>
-          <v-list density="compact" min-width="240">
+          <v-list density="compact" min-width="250">
+            <v-list-subheader>{{ t('supplierInvoices.exportData') }}</v-list-subheader>
+            <v-list-item prepend-icon="mdi-microsoft-excel" :title="t('adminFinance.exportXlsx')" :href="store.exportUrl('xlsx')" :disabled="!store.total" />
+            <v-list-item prepend-icon="mdi-file-delimited-outline" :title="t('adminFinance.exportCsv')" :href="store.exportUrl('csv')" :disabled="!store.total" />
+            <v-divider class="my-1" />
+            <v-list-subheader>{{ t('supplierInvoices.exportDocuments') }}</v-list-subheader>
             <v-list-item
               prepend-icon="mdi-filter-outline"
               :title="t('supplierInvoices.zipFiltered')"
@@ -296,7 +363,7 @@ onMounted(() => {
               :disabled="!store.total"
               @click="zip({ filters: true }, 'filters')"
             />
-            <v-list-item prepend-icon="mdi-folder-multiple-outline" :title="t('supplierInvoices.downloadAll')" @click="zip({ all: true }, 'all')" />
+            <v-list-item prepend-icon="mdi-folder-zip-outline" :title="t('supplierInvoices.downloadAll')" @click="zip({ all: true }, 'all')" />
           </v-list>
         </v-menu>
         <v-btn color="primary" variant="flat" size="small" prepend-icon="mdi-plus" @click="openUpload()">
@@ -306,10 +373,10 @@ onMounted(() => {
     </AdminPageHeader>
 
     <v-tabs v-model="pageTab" density="compact" color="primary" class="asi__tabs" show-arrows>
-      <v-tab value="invoices" prepend-icon="mdi-file-document-multiple-outline">{{ t('supplierInvoices.tabInvoices') }}</v-tab>
-      <v-tab value="suppliers" prepend-icon="mdi-domain">{{ t('supplierInvoices.tabSuppliers') }}</v-tab>
-      <v-tab value="calendar" prepend-icon="mdi-calendar-month-outline">{{ t('supplierInvoices.tabCalendar') }}</v-tab>
-      <v-tab value="vat" prepend-icon="mdi-percent-outline">{{ t('supplierInvoices.tabVat') }}</v-tab>
+      <v-tab value="invoices">{{ t('supplierInvoices.tabInvoices') }}</v-tab>
+      <v-tab value="suppliers">{{ t('supplierInvoices.tabSuppliers') }}</v-tab>
+      <v-tab value="calendar">{{ t('supplierInvoices.tabCalendar') }}</v-tab>
+      <v-tab value="vat">{{ t('supplierInvoices.tabVat') }}</v-tab>
     </v-tabs>
 
     <SupplierRegistryPanel v-if="pageTab === 'suppliers'" @show-invoices="showSupplier" />
@@ -317,284 +384,271 @@ onMounted(() => {
     <VatReportPanel v-else-if="pageTab === 'vat'" />
 
     <template v-else>
-    <InvoiceInsights :insights="store.insights" @open="openInvoice" @supplier="showSupplier" />
+      <!-- 2. Essentials -->
+      <SupplierInvoiceSummary :summary="store.summary" :error="store.summaryError" :active="activeKpi" @pick="pickKpi" />
+      <InvoiceInsights :insights="store.insights" @open="openInvoice" @supplier="showSupplier" />
 
-    <SupplierInvoiceSummary :summary="store.summary" :error="store.summaryError" :active="activeKpi" @pick="pickKpi" />
-
-    <SupplierInvoiceSources
-      :providers="store.providers"
-      :error="store.providersError"
-      :syncing="syncBusy"
-      :active-provider="f.provider"
-      :default-open="store.loaded && !hasAny"
-      @sync="syncGoogle"
-      @upload="openUpload"
-      @filter="(p) => store.setFilter('provider', p)"
-    />
-
-    <section class="asi__list">
-      <AdminPeriodFilter
-        class="asi__period"
-        v-model:custom-from="customFrom"
-        v-model:custom-to="customTo"
-        :preset="activePreset"
-        :can-apply-custom="canApplyCustom"
-        :active-range-label="activeRangeLabel"
-        calendar-pickers
-        @preset="setQuickRange"
-        @apply="applyCustomRange"
-        @pick-month="pickMonth"
-        @pick-year="pickYear"
-      />
-
-      <!-- Filters -->
-      <div class="tb" role="search">
-        <v-text-field
-          v-model="search"
-          prepend-inner-icon="mdi-magnify"
-          :placeholder="t('supplierInvoices.searchPlaceholder')"
-          density="compact"
-          variant="outlined"
-          hide-details
-          clearable
-          class="tb__search"
-          @click:clear="search = ''"
-        />
-        <v-select
-          :model-value="f.provider"
-          :items="PROVIDER_ITEMS"
-          :label="t('supplierInvoices.colProvider')"
-          density="compact"
-          variant="outlined"
-          hide-details
-          clearable
-          class="tb__sel"
-          @update:model-value="store.setFilter('provider', $event ?? null)"
-        />
-        <v-select
-          :model-value="f.payment"
-          :items="PAYMENT_ITEMS"
-          :label="t('supplierInvoices.colPayment')"
-          density="compact"
-          variant="outlined"
-          hide-details
-          clearable
-          class="tb__sel"
-          @update:model-value="store.setFilter('payment', $event ?? null)"
-        />
-        <v-select
-          :model-value="f.due"
-          :items="DUE_ITEMS"
-          :label="t('supplierInvoices.colDue')"
-          density="compact"
-          variant="outlined"
-          hide-details
-          clearable
-          class="tb__sel"
-          @update:model-value="store.setFilter('due', $event ?? null)"
-        />
-        <v-btn
-          variant="text"
-          size="small"
-          :prepend-icon="showMoreFilters ? 'mdi-chevron-up' : 'mdi-tune-variant'"
-          :color="moreActive ? 'primary' : undefined"
-          class="tb__more"
-          :aria-expanded="showMoreFilters"
-          @click="showMoreFilters = !showMoreFilters"
-        >
-          {{ t('supplierInvoices.moreFilters') }}
-        </v-btn>
-        <div v-if="showMoreFilters || moreActive" class="tb__extra">
-          <v-select
-            :model-value="f.processing"
-            :items="PROC_ITEMS"
-            :label="t('supplierInvoices.colProcessing')"
+      <!-- 3. Main content -->
+      <section class="asi__list">
+        <div class="tb" role="search">
+          <v-text-field
+            v-model="search"
+            prepend-inner-icon="mdi-magnify"
+            :placeholder="t('supplierInvoices.searchPlaceholder')"
             density="compact"
             variant="outlined"
             hide-details
             clearable
-            @update:model-value="store.setFilter('processing', $event ?? null)"
+            class="tb__search"
+            @click:clear="search = ''"
           />
-          <v-select
-            :model-value="f.source"
-            :items="SOURCE_ITEMS"
-            :label="t('supplierInvoices.colSource')"
-            density="compact"
-            variant="outlined"
-            hide-details
-            clearable
-            @update:model-value="store.setFilter('source', $event ?? null)"
-          />
+
+          <v-menu v-model="periodOpen" :close-on-content-click="false" location="bottom end" max-width="640">
+            <template #activator="{ props: menu }">
+              <v-btn v-bind="menu" variant="outlined" class="tb__btn" prepend-icon="mdi-calendar-range" append-icon="mdi-chevron-down">
+                <span class="tb__btnlabel">{{ activeRangeLabel }}</span>
+              </v-btn>
+            </template>
+            <v-card class="tb__panel tb__periodcard" rounded="lg">
+              <AdminPeriodFilter
+                v-model:custom-from="customFrom"
+                v-model:custom-to="customTo"
+                :preset="activePreset"
+                :can-apply-custom="canApplyCustom"
+                :active-range-label="activeRangeLabel"
+                calendar-pickers
+                class="tb__period"
+                @preset="(p) => { setQuickRange(p); periodOpen = false }"
+                @apply="() => { applyCustomRange(); periodOpen = false }"
+                @pick-month="(m) => { pickMonth(m); periodOpen = false }"
+                @pick-year="(y) => { pickYear(y); periodOpen = false }"
+              />
+            </v-card>
+          </v-menu>
+
+          <v-menu v-model="filtersOpen" :close-on-content-click="false" location="bottom end">
+            <template #activator="{ props: menu }">
+              <v-btn
+                v-bind="menu"
+                variant="outlined"
+                class="tb__btn"
+                prepend-icon="mdi-tune-variant"
+                :color="filterChips.length ? 'primary' : undefined"
+              >
+                {{ t('supplierInvoices.filters') }}
+                <span v-if="filterChips.length" class="tb__count">{{ filterChips.length }}</span>
+              </v-btn>
+            </template>
+            <v-card class="tb__panel tb__filters" rounded="lg">
+              <v-select :model-value="f.provider" :items="PROVIDER_ITEMS" :label="t('supplierInvoices.colProvider')" density="compact" variant="outlined" hide-details clearable @update:model-value="store.setFilter('provider', $event ?? null)" />
+              <v-select :model-value="f.payment" :items="PAYMENT_ITEMS" :label="t('supplierInvoices.colPayment')" density="compact" variant="outlined" hide-details clearable @update:model-value="store.setFilter('payment', $event ?? null)" />
+              <v-select :model-value="f.due" :items="DUE_ITEMS" :label="t('supplierInvoices.colDue')" density="compact" variant="outlined" hide-details clearable @update:model-value="store.setFilter('due', $event ?? null)" />
+              <v-select :model-value="f.processing" :items="PROC_ITEMS" :label="t('supplierInvoices.colProcessing')" density="compact" variant="outlined" hide-details clearable @update:model-value="store.setFilter('processing', $event ?? null)" />
+              <v-select :model-value="f.source" :items="SOURCE_ITEMS" :label="t('supplierInvoices.colSource')" density="compact" variant="outlined" hide-details clearable @update:model-value="store.setFilter('source', $event ?? null)" />
+              <div class="tb__filters-foot">
+                <v-btn variant="text" size="small" :disabled="!filterChips.length" @click="resetFilters">{{ t('supplierInvoices.resetFilters') }}</v-btn>
+                <v-btn variant="tonal" size="small" color="primary" @click="filtersOpen = false">{{ t('supplierInvoices.done') }}</v-btn>
+              </div>
+            </v-card>
+          </v-menu>
         </div>
-      </div>
 
-      <!-- Result line: count, totals per currency, reset -->
-      <div class="res">
-        <span class="res__count">{{ t('supplierInvoices.resultCount', { n: store.total }) }}</span>
-        <v-chip v-if="f.supplierId" size="small" closable prepend-icon="mdi-domain" @click:close="clearSupplier">
-          {{ supplierFilterName ?? t('supplierInvoices.oneSupplier') }}
-        </v-chip>
-        <span v-for="tot in store.totalsByCurrency" :key="tot.currency" class="res__tot">
-          <b>{{ fmt.amount(tot.totalMinor, tot.currency) }}</b>
-          <small v-if="tot.taxMinor">{{ t('supplierInvoices.vatIncluded', { amount: fmt.amount(tot.taxMinor, tot.currency) }) }}</small>
-        </span>
-        <v-btn v-if="store.activeFilterCount" variant="text" size="small" prepend-icon="mdi-filter-remove-outline" class="res__reset" @click="resetFilters">
-          {{ t('supplierInvoices.resetFilters') }} ({{ store.activeFilterCount }})
-        </v-btn>
-      </div>
-
-      <!-- Bulk bar -->
-      <div v-if="selected.size" class="bulk" role="region" :aria-label="t('supplierInvoices.bulkLabel')">
-        <span class="bulk__n">{{ t('supplierInvoices.selectedCount', { n: selected.size }) }}</span>
-        <v-btn size="small" variant="tonal" color="success" prepend-icon="mdi-cash-check" :loading="bulkBusy === 'mark_paid'" @click="bulk('mark_paid')">
-          {{ t('supplierInvoices.markPaid') }}
-        </v-btn>
-        <v-btn size="small" variant="tonal" prepend-icon="mdi-cash-remove" :loading="bulkBusy === 'mark_unpaid'" @click="bulk('mark_unpaid')">
-          {{ t('supplierInvoices.markUnpaid') }}
-        </v-btn>
-        <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-shield-check-outline" :loading="bulkBusy === 'mark_verified'" @click="bulk('mark_verified')">
-          {{ t('supplierInvoices.markVerified') }}
-        </v-btn>
-        <v-btn size="small" variant="tonal" prepend-icon="mdi-folder-zip-outline" :loading="zipBusy === 'sel'" @click="zip({ ids: [...selected] }, 'sel')">
-          {{ t('supplierInvoices.zip') }}
-        </v-btn>
-        <v-btn size="small" variant="text" class="bulk__clear" @click="selected = new Set()">{{ t('supplierInvoices.clearSelection') }}</v-btn>
-      </div>
-
-      <!-- Table -->
-      <div v-if="store.loading && !store.loaded" class="tbl tbl--skel">
-        <v-skeleton-loader type="table-thead, table-row-divider@6" />
-      </div>
-      <div v-else-if="store.error" class="state">
-        <v-icon icon="mdi-alert-circle-outline" size="26" />
-        <p>{{ store.error }}</p>
-        <v-btn variant="tonal" size="small" @click="store.load()">{{ t('common.retry') }}</v-btn>
-      </div>
-      <div v-else-if="!store.items.length" class="state">
-        <v-icon :icon="filtered ? 'mdi-filter-off-outline' : 'mdi-file-document-multiple-outline'" size="28" />
-        <p class="state__title">{{ filtered ? t('supplierInvoices.noMatches') : t('supplierInvoices.emptyTitle') }}</p>
-        <p v-if="!filtered" class="state__text">{{ t('supplierInvoices.empty') }}</p>
-        <div class="state__actions">
-          <v-btn v-if="filtered" variant="tonal" size="small" @click="resetFilters(); setQuickRange('lifetime')">
-            {{ t('supplierInvoices.resetFilters') }}
-          </v-btn>
-          <v-btn v-else color="primary" variant="flat" size="small" prepend-icon="mdi-plus" @click="openUpload()">
-            {{ t('supplierInvoices.addInvoice') }}
-          </v-btn>
-        </div>
-      </div>
-
-      <div v-else class="tbl" :class="{ 'is-loading': store.loading }" role="table" :aria-label="t('supplierInvoices.title')">
-        <div class="tbl__head" role="row">
-          <span class="c-check" role="columnheader">
-            <v-checkbox-btn
-              color="primary"
-              :model-value="allOnPage"
-              :indeterminate="someOnPage"
-              density="compact"
-              :aria-label="t('supplierInvoices.selectPage')"
-              @update:model-value="toggleAll"
-            />
+        <!-- Result line: active filters, count, totals -->
+        <div class="res">
+          <div class="res__chips">
+            <span class="res__count">{{ t('supplierInvoices.resultCount', { n: store.total }) }}</span>
+            <v-chip v-for="c in filterChips" :key="c.key" size="small" variant="tonal" closable @click:close="c.clear">
+              {{ c.label }}
+            </v-chip>
+            <button v-if="filterChips.length > 1" type="button" class="res__reset" @click="resetFilters">
+              {{ t('supplierInvoices.resetFilters') }}
+            </button>
+          </div>
+          <span v-for="tot in store.totalsByCurrency" :key="tot.currency" class="res__tot">
+            <b>{{ fmt.amount(tot.totalMinor, tot.currency) }}</b>
+            <small v-if="tot.taxMinor">{{ t('supplierInvoices.vatIncluded', { amount: fmt.amount(tot.taxMinor, tot.currency) }) }}</small>
           </span>
-          <button type="button" class="c-sup th" role="columnheader" :aria-sort="ariaSort('provider')" @click="store.toggleSort('provider')">
-            {{ t('supplierInvoices.colProvider') }} <v-icon :icon="sortIcon('provider')" size="13" />
-          </button>
-          <button type="button" class="c-num th" role="columnheader" :aria-sort="ariaSort('invoiceNumber')" @click="store.toggleSort('invoiceNumber')">
-            {{ t('supplierInvoices.colNumber') }} <v-icon :icon="sortIcon('invoiceNumber')" size="13" />
-          </button>
-          <button type="button" class="c-date th" role="columnheader" :aria-sort="ariaSort('issueDate')" @click="store.toggleSort('issueDate')">
-            {{ t('supplierInvoices.colIssuedShort') }} <v-icon :icon="sortIcon('issueDate')" size="13" />
-          </button>
-          <button type="button" class="c-date th" role="columnheader" :aria-sort="ariaSort('dueDate')" @click="store.toggleSort('dueDate')">
-            {{ t('supplierInvoices.colDue') }} <v-icon :icon="sortIcon('dueDate')" size="13" />
-          </button>
-          <span class="c-net th-r" role="columnheader">{{ t('supplierInvoices.colNet') }}</span>
-          <span class="c-vat th-r" role="columnheader">{{ t('supplierInvoices.colVat') }}</span>
-          <button type="button" class="c-total th th-r" role="columnheader" :aria-sort="ariaSort('totalMinor')" @click="store.toggleSort('totalMinor')">
-            {{ t('supplierInvoices.colTotal') }} <v-icon :icon="sortIcon('totalMinor')" size="13" />
-          </button>
-          <span class="c-status" role="columnheader">{{ t('supplierInvoices.colStatus') }}</span>
-          <span class="c-act" role="columnheader"><span class="sr-only">{{ t('supplierInvoices.colActions') }}</span></span>
         </div>
 
-        <div
-          v-for="r in store.items"
-          :key="r.id"
-          class="tr"
-          :class="{ 'is-selected': selected.has(r.id), 'is-open': openId === r.id }"
-          role="row"
-          tabindex="0"
-          :aria-label="`${r.providerName} ${r.invoiceNumber ?? ''}`"
-          @click="openInvoice(r.id)"
-          @keydown="onRowKey($event, r)"
-        >
-          <span class="c-check" role="cell" @click.stop>
-            <v-checkbox-btn
-              color="primary"
-              :model-value="selected.has(r.id)"
-              density="compact"
-              :aria-label="t('supplierInvoices.selectRow', { n: r.invoiceNumber ?? r.id })"
-              @update:model-value="toggle(r.id)"
-            />
-          </span>
-          <span class="c-sup" role="cell">
-            <span class="sup">
-              <v-icon :icon="fmt.sourceIcon(r.source)" size="14" class="sup__src" :title="fmt.sourceLabel(r.source)" />
-              <b>{{ r.providerName }}</b>
+        <!-- Bulk bar (only with a selection) -->
+        <div v-if="selected.size" class="bulk" role="region" :aria-label="t('supplierInvoices.bulkLabel')">
+          <span class="bulk__n">{{ t('supplierInvoices.selectedCount', { n: selected.size }) }}</span>
+          <v-menu location="bottom start">
+            <template #activator="{ props: menu }">
+              <v-btn v-bind="menu" size="small" variant="tonal" color="primary" append-icon="mdi-chevron-down" :loading="!!bulkBusy">
+                {{ t('supplierInvoices.markAs') }}
+              </v-btn>
+            </template>
+            <v-list density="compact">
+              <v-list-item prepend-icon="mdi-cash-check" :title="t('supplierInvoices.markPaid')" @click="bulk('mark_paid')" />
+              <v-list-item prepend-icon="mdi-cash-remove" :title="t('supplierInvoices.markUnpaid')" @click="bulk('mark_unpaid')" />
+              <v-list-item prepend-icon="mdi-shield-check-outline" :title="t('supplierInvoices.markVerified')" @click="bulk('mark_verified')" />
+            </v-list>
+          </v-menu>
+          <v-btn size="small" variant="text" prepend-icon="mdi-folder-zip-outline" :loading="zipBusy === 'sel'" @click="zip({ ids: [...selected] }, 'sel')">
+            {{ t('supplierInvoices.zip') }}
+          </v-btn>
+          <v-btn size="small" variant="text" icon="mdi-close" class="bulk__clear" :aria-label="t('supplierInvoices.clearSelection')" :title="t('supplierInvoices.clearSelection')" @click="selected = new Set()" />
+        </div>
+
+        <div v-if="store.loading && !store.loaded" class="tbl tbl--skel">
+          <v-skeleton-loader type="table-thead, table-row-divider@6" />
+        </div>
+        <div v-else-if="store.error" class="state">
+          <v-icon icon="mdi-alert-circle-outline" size="26" />
+          <p>{{ store.error }}</p>
+          <v-btn variant="tonal" size="small" @click="store.load()">{{ t('common.retry') }}</v-btn>
+        </div>
+        <div v-else-if="!store.items.length" class="state">
+          <v-icon :icon="filtered ? 'mdi-filter-off-outline' : 'mdi-file-document-multiple-outline'" size="28" />
+          <p class="state__title">{{ filtered ? t('supplierInvoices.noMatches') : t('supplierInvoices.emptyTitle') }}</p>
+          <p v-if="!filtered" class="state__text">{{ t('supplierInvoices.empty') }}</p>
+          <div class="state__actions">
+            <v-btn v-if="filtered" variant="tonal" size="small" @click="resetFilters(); setQuickRange('lifetime')">
+              {{ t('supplierInvoices.resetFilters') }}
+            </v-btn>
+            <template v-else>
+              <v-btn color="primary" variant="flat" size="small" prepend-icon="mdi-plus" @click="openUpload()">
+                {{ t('supplierInvoices.addInvoice') }}
+              </v-btn>
+              <v-btn variant="text" size="small" @click="sourcesOpen = true">{{ t('supplierInvoices.providersTitle') }}</v-btn>
+            </template>
+          </div>
+        </div>
+
+        <div v-else class="tbl" :class="{ 'is-loading': store.loading }" role="table" :aria-label="t('supplierInvoices.title')">
+          <div class="tbl__head" role="row">
+            <span class="c-check" role="columnheader">
+              <v-checkbox-btn color="primary" :model-value="allOnPage" :indeterminate="someOnPage" density="compact" :aria-label="t('supplierInvoices.selectPage')" @update:model-value="toggleAll" />
             </span>
-            <small v-if="r.supplierVatId" class="sub">{{ r.supplierVatId }}</small>
-          </span>
-          <span class="c-num" role="cell">
-            <span class="mono">{{ r.invoiceNumber ?? '-' }}</span>
-            <small v-if="r.docType && r.docType !== 'INVOICE'" class="sub">{{ r.docType }}</small>
-          </span>
-          <span class="c-date c-date--issued" role="cell" :data-label="t('supplierInvoices.colIssuedShort')">{{ fmt.date(r.issueDate) }}</span>
-          <span class="c-date c-date--due" role="cell" :data-label="t('supplierInvoices.colDue')" :class="r.dueState ? `due--${r.dueState}` : ''">
-            {{ fmt.date(r.dueDate) }}
-          </span>
-          <span class="c-net num" role="cell">{{ fmt.dAmount(r.subtotalMinor, r) }}</span>
-          <span class="c-vat num" role="cell">{{ fmt.dAmount(r.taxMinor, r) }}</span>
-          <span class="c-total num" role="cell">
-            <b>{{ fmt.dAmount(r.totalMinor, r) }}</b>
-          </span>
-          <span class="c-status" role="cell">
-            <InvoiceBadge v-bind="fmt.payment(r)" />
-            <InvoiceBadge v-if="r.processingStatus === 'needs_review'" v-bind="fmt.processing(r)" />
-          </span>
-          <span class="c-act" role="cell" @click.stop>
-            <v-icon v-if="r.attachmentCount" icon="mdi-paperclip" size="14" class="att" :title="t('supplierInvoices.nFiles', { n: r.attachmentCount })" />
-            <v-btn
-              v-if="r.document"
-              icon="mdi-eye-outline"
-              size="small"
-              variant="text"
-              :href="store.documentUrl(r.id, true)"
-              target="_blank"
-              rel="noopener"
-              :aria-label="t('supplierInvoices.open')"
-              :title="t('supplierInvoices.open')"
-            />
-            <v-tooltip v-else :text="r.documentError ? fmt.reason(r.documentError) : t('supplierInvoices.noDocument')" location="top">
-              <template #activator="{ props: tip }">
-                <span v-bind="tip" class="nodoc"><v-icon icon="mdi-file-alert-outline" size="17" /></span>
-              </template>
-            </v-tooltip>
-            <v-btn
-              v-if="r.document"
-              icon="mdi-download-outline"
-              size="small"
-              variant="text"
-              :href="store.documentUrl(r.id)"
-              :aria-label="t('supplierInvoices.download')"
-              :title="t('supplierInvoices.download')"
-            />
-          </span>
-        </div>
-      </div>
+            <button type="button" class="c-sup th" role="columnheader" :aria-sort="ariaSort('provider')" @click="store.toggleSort('provider')">
+              {{ t('supplierInvoices.colProvider') }} <v-icon :icon="sortIcon('provider')" size="12" class="th__i" />
+            </button>
+            <button type="button" class="c-num th" role="columnheader" :aria-sort="ariaSort('invoiceNumber')" @click="store.toggleSort('invoiceNumber')">
+              {{ t('supplierInvoices.colNumberShort') }} <v-icon :icon="sortIcon('invoiceNumber')" size="12" class="th__i" />
+            </button>
+            <button type="button" class="c-date th" role="columnheader" :aria-sort="ariaSort('issueDate')" @click="store.toggleSort('issueDate')">
+              {{ t('supplierInvoices.colIssuedShort') }} <v-icon :icon="sortIcon('issueDate')" size="12" class="th__i" />
+            </button>
+            <button type="button" class="c-due th" role="columnheader" :aria-sort="ariaSort('dueDate')" @click="store.toggleSort('dueDate')">
+              {{ t('supplierInvoices.colDue') }} <v-icon :icon="sortIcon('dueDate')" size="12" class="th__i" />
+            </button>
+            <span class="c-net th-r" role="columnheader">{{ t('supplierInvoices.colNet') }}</span>
+            <span class="c-vat th-r" role="columnheader">{{ t('supplierInvoices.colVat') }}</span>
+            <button type="button" class="c-total th th-r" role="columnheader" :aria-sort="ariaSort('totalMinor')" @click="store.toggleSort('totalMinor')">
+              <v-icon :icon="sortIcon('totalMinor')" size="12" class="th__i" /> {{ t('supplierInvoices.colTotal') }}
+            </button>
+            <span class="c-status" role="columnheader">{{ t('supplierInvoices.colStatus') }}</span>
+            <span class="c-act" role="columnheader"><span class="sr-only">{{ t('supplierInvoices.colActions') }}</span></span>
+          </div>
 
-      <AdminPager :page="f.page" :page-size="f.pageSize" :total="store.total" @update:page="store.setFilter('page', $event)" />
-    </section>
+          <template v-for="e in entries" :key="e.key">
+            <div v-if="e.kind === 'month'" class="tgroup" role="row">
+              <span role="cell">{{ e.label }}</span>
+            </div>
+            <div
+              v-else
+              class="tr"
+              :class="{ 'is-selected': selected.has(e.row.id), 'is-open': openId === e.row.id }"
+              role="row"
+              tabindex="0"
+              :aria-label="`${e.row.providerName} ${e.row.invoiceNumber ?? ''}`"
+              @click="openInvoice(e.row.id)"
+              @keydown="onRowKey($event, e.row)"
+            >
+              <span class="c-check" role="cell" @click.stop>
+                <v-checkbox-btn color="primary" :model-value="selected.has(e.row.id)" density="compact" :aria-label="t('supplierInvoices.selectRow', { n: e.row.invoiceNumber ?? e.row.id })" @update:model-value="toggle(e.row.id)" />
+              </span>
+              <span class="c-sup" role="cell" :title="[e.row.providerName, e.row.supplierVatId, fmt.sourceLabel(e.row.source)].filter(Boolean).join(' · ')">
+                <span class="ell strong">{{ e.row.providerName }}</span>
+              </span>
+              <span class="c-num" role="cell" :title="e.row.invoiceNumber ?? ''">
+                <span class="ell mono">{{ e.row.invoiceNumber ?? '-' }}</span>
+                <span v-if="e.row.docType && e.row.docType !== 'INVOICE'" class="mini">{{ e.row.docType }}</span>
+              </span>
+              <span class="c-date mono" role="cell" :data-label="t('supplierInvoices.colIssuedShort')">{{ fmt.date(e.row.issueDate) }}</span>
+              <span class="c-due mono" role="cell" :data-label="t('supplierInvoices.colDue')" :class="e.row.dueState ? `due--${e.row.dueState}` : ''">
+                {{ fmt.date(e.row.dueDate) }}
+              </span>
+              <span class="c-net num" role="cell">{{ fmt.dAmount(e.row.subtotalMinor, e.row) }}</span>
+              <span class="c-vat num" role="cell">{{ fmt.dAmount(e.row.taxMinor, e.row) }}</span>
+              <span class="c-total num strong" role="cell">{{ fmt.dAmount(e.row.totalMinor, e.row) }}</span>
+              <span class="c-status" role="cell">
+                <InvoiceBadge v-bind="fmt.payment(e.row)" />
+                <v-icon
+                  v-if="e.row.processingStatus === 'needs_review'"
+                  :icon="fmt.processing(e.row).icon"
+                  size="15"
+                  :class="`flag--${fmt.processing(e.row).tone}`"
+                  :title="fmt.processing(e.row).label"
+                  :aria-label="fmt.processing(e.row).label"
+                />
+              </span>
+              <span class="c-act" role="cell" @click.stop>
+                <v-btn
+                  v-if="e.row.document"
+                  icon="mdi-file-eye-outline"
+                  size="small"
+                  variant="text"
+                  density="comfortable"
+                  :href="store.documentUrl(e.row.id, true)"
+                  target="_blank"
+                  rel="noopener"
+                  :aria-label="t('supplierInvoices.open')"
+                  :title="t('supplierInvoices.open')"
+                />
+                <span v-else class="nodoc" :title="e.row.documentError ? fmt.reason(e.row.documentError) : t('supplierInvoices.noDocument')">
+                  <v-icon icon="mdi-file-alert-outline" size="17" />
+                </span>
+                <v-menu location="bottom end">
+                  <template #activator="{ props: menu }">
+                    <v-btn v-bind="menu" icon="mdi-dots-horizontal" size="small" variant="text" density="comfortable" :aria-label="t('supplierInvoices.colActions')" />
+                  </template>
+                  <v-list density="compact" min-width="220">
+                    <v-list-item prepend-icon="mdi-text-box-search-outline" :title="t('supplierInvoices.details')" @click="openInvoice(e.row.id)" />
+                    <v-list-item v-if="e.row.document" prepend-icon="mdi-download-outline" :title="t('supplierInvoices.download')" :href="store.documentUrl(e.row.id)" />
+                    <v-divider class="my-1" />
+                    <v-list-item v-if="e.row.paymentStatus !== 'paid'" prepend-icon="mdi-cash-check" :title="t('supplierInvoices.markPaid')" @click="quick(e.row, { paymentStatus: 'paid' }, t('supplierInvoices.markedPaid'))" />
+                    <v-list-item v-else prepend-icon="mdi-cash-remove" :title="t('supplierInvoices.markUnpaid')" @click="quick(e.row, { paymentStatus: 'unpaid' }, t('supplierInvoices.markedUnpaid'))" />
+                    <v-list-item
+                      v-if="e.row.processingStatus === 'needs_review'"
+                      prepend-icon="mdi-shield-check-outline"
+                      :title="t('supplierInvoices.markVerified')"
+                      @click="openInvoice(e.row.id)"
+                    />
+                  </v-list>
+                </v-menu>
+              </span>
+            </div>
+          </template>
+        </div>
+
+        <AdminPager :page="f.page" :page-size="f.pageSize" :total="store.total" @update:page="store.setFilter('page', $event)" />
+      </section>
     </template>
+
+    <!-- Collection sources (secondary): a dialog, not a block on the page -->
+    <v-dialog v-model="sourcesOpen" max-width="760" scrollable>
+      <v-card rounded="lg">
+        <v-card-title class="d-flex align-center">
+          {{ t('supplierInvoices.providersTitle') }}
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" size="small" :aria-label="t('common.close')" @click="sourcesOpen = false" />
+        </v-card-title>
+        <v-card-text class="pa-0">
+          <SupplierInvoiceSources
+            embedded
+            :providers="store.providers"
+            :error="store.providersError"
+            :syncing="syncBusy"
+            :active-provider="f.provider"
+            @sync="syncGoogle"
+            @upload="(p) => { sourcesOpen = false; openUpload(p) }"
+            @filter="(p) => { sourcesOpen = false; pageTab = 'invoices'; store.setFilter('provider', p) }"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
 
     <SupplierInvoiceUploadDialog v-model="uploadOpen" :provider="uploadProvider" @saved="openInvoice" />
     <SupplierInvoiceDrawer :invoice-id="openId" @close="openInvoice(null)" @open="openInvoice" />
@@ -603,10 +657,14 @@ onMounted(() => {
 
 <style scoped>
 .asi {
-  --asi-gap: 1rem;
+  /* One spacing scale for the whole module. */
+  --s1: 0.5rem;
+  --s2: 0.75rem;
+  --s3: 1rem;
+  --row-h: 2.9rem;
   display: flex;
   flex-direction: column;
-  gap: var(--asi-gap);
+  gap: var(--s3);
   max-width: 1180px;
   padding-block: clamp(1.5rem, 5vw, 3rem);
 }
@@ -616,88 +674,154 @@ onMounted(() => {
 .asi__tabs {
   border-bottom: 1px solid var(--tvz-hairline);
 }
-/* Four tabs fit a phone without scrolling once the icons go. */
 @media (max-width: 600px) {
-  .asi__tabs :deep(.v-tab .v-icon) {
-    display: none;
-  }
   .asi__tabs :deep(.v-tab) {
     padding-inline: 0.7rem;
     min-width: 0;
   }
 }
+.hd-btn {
+  position: relative;
+}
+.hd-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(var(--v-theme-warning));
+}
 .asi__list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--s2);
   container-type: inline-size;
 }
-.asi__list .asi__period {
-  margin: 0.25rem 0 0;
-  padding-bottom: 0.9rem;
+
+/* --- toolbar --------------------------------------------------------- */
+.tb {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+.tb__search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tb__btn {
+  flex: 0 0 auto;
+  height: 40px !important;
+  max-width: 16rem;
+  border-color: var(--tvz-glass-border) !important;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+.tb__btnlabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  margin-left: 0.4rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-on-primary));
+  font-size: var(--tvz-fs-micro);
+  font-weight: 700;
+}
+.tb__panel {
+  /* Menus render in the overlay container, outside .asi: no --s* vars. */
+  padding: 1rem;
+}
+.tb__periodcard {
+  width: min(40rem, 92vw);
+}
+.tb__period {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.tb__filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(20rem, 90vw);
+}
+.tb__filters-foot {
+  display: flex;
+  justify-content: space-between;
 }
 
-/* --- toolbar ------------------------------------------------------------ */
-.tb {
-  display: grid;
-  grid-template-columns: minmax(14rem, 1.6fr) repeat(3, minmax(0, 1fr)) auto;
-  gap: 0.55rem;
-  align-items: center;
-}
-.tb__extra {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 12rem));
-  gap: 0.55rem;
-}
+/* --- result line --------------------------------------------------------- */
 .res {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.3rem 1.2rem;
-  font-size: var(--tvz-fs-small);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s1) var(--s3);
+  min-height: 1.75rem;
+}
+.res__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
 }
 .res__count {
+  margin-right: 0.25rem;
+  font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.res__reset {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgb(var(--v-theme-primary));
+  font: inherit;
+  font-size: var(--tvz-fs-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+.res__tot {
+  font-size: var(--tvz-fs-small);
+  font-variant-numeric: tabular-nums;
 }
 .res__tot b {
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-variant-numeric: tabular-nums;
 }
 .res__tot small {
-  margin-left: 0.3rem;
+  margin-left: 0.35rem;
   font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
-.res__reset {
-  margin-left: auto;
-}
 
-/* --- bulk bar ------------------------------------------------------------- */
+/* --- bulk bar ------------------------------------------------------------ */
 .bulk {
   position: sticky;
   top: 0.5rem;
   z-index: 3;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid rgba(var(--v-theme-primary), 0.45);
-  border-radius: 12px;
+  gap: var(--s1);
+  padding: 0.4rem 0.4rem 0.4rem 0.9rem;
+  border: 1px solid rgba(var(--v-theme-primary), 0.4);
+  border-radius: 10px;
   background: rgb(var(--v-theme-surface));
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
 }
 .bulk__n {
-  margin-right: 0.35rem;
+  margin-right: auto;
   font-size: var(--tvz-fs-body);
-  font-weight: 700;
-}
-.bulk__clear {
-  margin-left: auto;
+  font-weight: 600;
 }
 
-/* --- states ------------------------------------------------------------- */
+/* --- states -------------------------------------------------------------- */
 .state {
   display: flex;
   flex-direction: column;
@@ -722,10 +846,12 @@ onMounted(() => {
   max-width: 34rem;
 }
 .state__actions {
-  margin-top: 0.5rem;
+  display: flex;
+  gap: var(--s1);
+  margin-top: var(--s1);
 }
 
-/* --- table ------------------------------------------------------------- */
+/* --- table --------------------------------------------------------------- */
 .tbl {
   border: 1px solid var(--tvz-glass-border);
   border-radius: 12px;
@@ -737,20 +863,20 @@ onMounted(() => {
   opacity: 0.6;
 }
 .tbl--skel {
-  padding: 0.5rem;
+  padding: var(--s1);
 }
 .tbl__head,
 .tr {
   display: grid;
   grid-template-columns:
-    2rem minmax(0, 1.35fr) minmax(0, 1fr) 5.6rem 5.6rem minmax(0, 0.85fr) minmax(0, 0.75fr)
-    minmax(0, 0.95fr) minmax(0, 1.05fr) 4.6rem;
+    2rem minmax(0, 1.5fr) minmax(0, 1.1fr) 5.4rem 5.4rem minmax(0, 0.9fr) minmax(0, 0.8fr)
+    minmax(0, 1fr) 9.6rem 4.6rem;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0 0.9rem;
+  column-gap: var(--s2);
+  padding: 0 var(--s2);
 }
 .tbl__head {
-  min-height: 2.4rem;
+  height: 2.4rem;
   background: rgba(var(--v-theme-on-surface), 0.03);
   border-bottom: 1px solid var(--tvz-hairline);
   font-size: var(--tvz-fs-micro);
@@ -764,8 +890,6 @@ onMounted(() => {
   align-items: center;
   gap: 0.2rem;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
   padding: 0;
   border: 0;
   background: transparent;
@@ -773,12 +897,21 @@ onMounted(() => {
   font: inherit;
   text-transform: inherit;
   letter-spacing: inherit;
+  white-space: nowrap;
+  overflow: hidden;
   cursor: pointer;
+}
+.th__i {
+  opacity: 0.55;
 }
 .th:hover,
 .th[aria-sort='ascending'],
 .th[aria-sort='descending'] {
   color: rgb(var(--v-theme-on-surface));
+}
+.th[aria-sort='ascending'] .th__i,
+.th[aria-sort='descending'] .th__i {
+  opacity: 1;
 }
 .th:focus-visible {
   outline: 2px solid rgb(var(--v-theme-primary));
@@ -789,9 +922,16 @@ onMounted(() => {
   justify-content: flex-end;
   text-align: right;
 }
+.tgroup {
+  padding: 0.3rem var(--s2) 0.3rem calc(var(--s2) + 2rem + var(--s2));
+  font-size: var(--tvz-fs-caption);
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  background: rgba(var(--v-theme-on-surface), 0.025);
+  border-bottom: 1px solid var(--tvz-hairline);
+}
 .tr {
-  min-height: 3.4rem;
-  padding-block: 0.45rem;
+  height: var(--row-h);
   border-bottom: 1px solid var(--tvz-hairline);
   font-size: var(--tvz-fs-body);
   cursor: pointer;
@@ -815,83 +955,74 @@ onMounted(() => {
   min-width: 0;
 }
 .c-sup,
-.c-num,
-.c-total {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-.sup {
+.c-num {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  min-width: 0;
+  overflow: hidden;
 }
-.sup b {
+.ell {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.strong {
   font-weight: 600;
-}
-.sup__src {
-  flex-shrink: 0;
-  color: rgba(var(--v-theme-on-surface), 0.42);
-}
-.sub {
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.5);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: rgb(var(--v-theme-on-surface));
 }
 .mono {
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  color: rgba(var(--v-theme-on-surface), 0.78);
+}
+.mini {
+  flex-shrink: 0;
+  padding: 0 0.3rem;
+  border-radius: 4px;
+  background: rgba(var(--v-theme-on-surface), 0.07);
+  font-size: var(--tvz-fs-micro);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: rgba(var(--v-theme-on-surface), 0.75);
-}
-.c-total {
-  align-items: flex-end;
-}
-.c-total b {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  color: rgb(var(--v-theme-on-surface));
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(var(--v-theme-on-surface), 0.72);
 }
-.cur {
-  display: none;
+.num.strong {
+  color: rgb(var(--v-theme-on-surface));
 }
 .c-status {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+}
+.flag--warning {
+  color: rgb(var(--v-theme-warning));
+}
+.flag--error {
+  color: rgb(var(--v-theme-error));
 }
 .c-act {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0;
-}
-.att {
-  margin-right: 0.15rem;
-  color: rgba(var(--v-theme-on-surface), 0.45);
 }
 .nodoc {
   display: inline-flex;
-  padding: 0.4rem;
-  color: rgba(var(--v-theme-on-surface), 0.35);
-  cursor: help;
+  width: 36px;
+  justify-content: center;
+  color: rgba(var(--v-theme-on-surface), 0.3);
 }
 .due--overdue {
   color: rgb(var(--v-theme-error));
-  font-weight: 700;
+  font-weight: 600;
 }
 .due--due_soon {
   color: rgb(var(--v-theme-warning));
-  font-weight: 700;
+  font-weight: 600;
 }
 .sr-only {
   position: absolute;
@@ -902,27 +1033,31 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-/* Medium width: drop net/VAT columns (both are in the detail panel). */
-@container (max-width: 1020px) {
+/* Laptop width: net and VAT move to the detail panel. */
+@container (max-width: 1000px) {
   .tbl__head,
   .tr {
-    grid-template-columns:
-      2rem minmax(0, 1.4fr) minmax(0, 1fr) 5.6rem 5.6rem minmax(0, 1fr) minmax(0, 1.1fr) 4.6rem;
+    grid-template-columns: 2rem minmax(0, 1.5fr) minmax(0, 1.1fr) 5.4rem 5.4rem minmax(0, 1fr) 9.6rem 4.6rem;
   }
   .c-net,
   .c-vat {
     display: none;
   }
-  .tb {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+}
+/* Tablet: dates fold away (issue date is in the month group header; the
+   status badge already says "overdue N days" / "due in N days"). */
+@container (max-width: 780px) {
+  .tbl__head,
+  .tr {
+    grid-template-columns: 2rem minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 9.6rem 4.6rem;
   }
-  .tb__search {
-    grid-column: 1 / -1;
+  .c-date,
+  .c-due {
+    display: none;
   }
 }
-
-/* Narrow: each invoice becomes a compact card. */
-@container (max-width: 680px) {
+/* Phone: a compact two-line row (a real list, not cards). */
+@container (max-width: 560px) {
   .tbl__head {
     grid-template-columns: 2rem 1fr;
   }
@@ -930,18 +1065,17 @@ onMounted(() => {
     display: none;
   }
   .tr {
+    height: auto;
+    min-height: 3.6rem;
     grid-template-columns: 2rem minmax(0, 1fr) auto;
     grid-template-areas:
       'check sup total'
-      'check num act'
-      'check issued due'
-      'check status status';
-    row-gap: 0.3rem;
-    padding-block: 0.7rem;
+      'check num status';
+    row-gap: 0.1rem;
+    padding-block: 0.45rem;
   }
   .tr .c-check {
     grid-area: check;
-    align-self: start;
   }
   .tr .c-sup {
     grid-area: sup;
@@ -949,48 +1083,27 @@ onMounted(() => {
   .tr .c-num {
     grid-area: num;
     font-size: var(--tvz-fs-small);
-    color: rgba(var(--v-theme-on-surface), 0.7);
   }
   .tr .c-total {
     grid-area: total;
-    align-self: start;
-  }
-  .tr .c-date {
-    display: inline;
-    font-size: var(--tvz-fs-caption);
-  }
-  .tr .c-date--issued {
-    grid-area: issued;
-  }
-  .tr .c-date--due {
-    grid-area: due;
-    text-align: right;
-  }
-  .tr .c-date[data-label]::before {
-    content: attr(data-label) ': ';
-    color: rgba(var(--v-theme-on-surface), 0.45);
   }
   .tr .c-status {
     grid-area: status;
+    justify-content: flex-end;
   }
+  /* Every action is in the detail panel, which a tap opens. */
   .tr .c-act {
-    grid-area: act;
-    margin-block: -0.35rem;
-  }
-  .cur {
     display: none;
   }
   .tb {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-wrap: wrap;
   }
-  .tb__more {
-    justify-self: start;
+  .tb__search {
+    flex-basis: 100%;
   }
-  .tb__extra {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .res__reset {
-    margin-left: 0;
+  .tb__btn {
+    flex: 1 1 0;
+    max-width: none;
   }
 }
 </style>

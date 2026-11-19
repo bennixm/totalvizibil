@@ -17,7 +17,9 @@ const props = defineProps<{
   syncing: boolean
   activeProvider: string | null
   /** Open by default (e.g. no invoices yet). */
-  defaultOpen: boolean
+  defaultOpen?: boolean
+  /** Rendered inside a dialog: always open, no own collapse bar/border. */
+  embedded?: boolean
 }>()
 const emit = defineEmits<{
   sync: []
@@ -37,11 +39,11 @@ function stored(): boolean | null {
     return null
   }
 }
-const open = ref(stored() ?? props.defaultOpen)
+const open = ref(props.embedded ? true : (stored() ?? !!props.defaultOpen))
 watch(
   () => props.defaultOpen,
   (v) => {
-    if (stored() === null) open.value = v
+    if (!props.embedded && stored() === null) open.value = !!v
   },
 )
 function toggle(): void {
@@ -68,8 +70,8 @@ function status(p: ExternalInvoiceProvider): { text: string; tone: 'ok' | 'warn'
 </script>
 
 <template>
-  <section class="src">
-    <button type="button" class="src__toggle" :aria-expanded="open" @click="toggle">
+  <section class="src" :class="{ 'src--embedded': embedded }">
+    <button v-if="!embedded" type="button" class="src__toggle" :aria-expanded="open" @click="toggle">
       <v-icon icon="mdi-source-branch" size="17" aria-hidden="true" />
       <span class="src__title">{{ t('supplierInvoices.providersTitle') }}</span>
       <span class="src__meta">
@@ -156,6 +158,13 @@ function status(p: ExternalInvoiceProvider): { text: string; tone: 'ok' | 'warn'
   border-radius: 12px;
   background: rgb(var(--v-theme-surface));
   container-type: inline-size;
+}
+.src--embedded {
+  border: 0;
+  background: transparent;
+}
+.src--embedded .src__body {
+  border-top: 0;
 }
 .src__toggle {
   display: flex;
