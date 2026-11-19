@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsEmail,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -52,9 +53,17 @@ export class UpdateSupplierDto {
 export class CalendarQuery {
   @Matches(/^\d{4}-\d{2}$/)
   month!: string;
+
+  @IsOptional()
+  @IsIn(['EUR', 'RON'])
+  display?: 'EUR' | 'RON';
 }
 
 export class VatReportQuery {
+  @IsOptional()
+  @IsIn(['EUR', 'RON'])
+  display?: 'EUR' | 'RON';
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

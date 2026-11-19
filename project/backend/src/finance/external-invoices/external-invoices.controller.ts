@@ -28,6 +28,7 @@ import {
 } from './external-invoice-reports.dto';
 import {
   BulkExternalInvoicesDto,
+  DisplayQuery,
   ExportExternalInvoicesQuery,
   ExternalInvoiceFileDto,
   ExternalInvoiceNoteDto,
@@ -69,15 +70,15 @@ export class ExternalInvoicesController {
   }
 
   @Get('summary')
-  summary() {
-    return this.invoices.summary();
+  summary(@Query() q: DisplayQuery) {
+    return this.invoices.summary(q.display);
   }
 
   // --- registry / insights / calendar / VAT report ------------------------
 
   @Get('suppliers')
-  suppliers() {
-    return this.reports.suppliers();
+  suppliers(@Query() q: DisplayQuery) {
+    return this.reports.suppliers(q.display);
   }
 
   @Patch('suppliers/:supplierId')
@@ -98,13 +99,13 @@ export class ExternalInvoicesController {
   }
 
   @Get('insights')
-  insights() {
-    return this.reports.insights();
+  insights(@Query() q: DisplayQuery) {
+    return this.reports.insights(q.display);
   }
 
   @Get('calendar')
   calendar(@Query() q: CalendarQuery) {
-    return this.reports.calendar(q.month);
+    return this.reports.calendar(q.month, q.display);
   }
 
   /** Calculated VAT per month (an estimate) next to what the accountant

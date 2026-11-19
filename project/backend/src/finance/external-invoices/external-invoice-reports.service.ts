@@ -10,6 +10,7 @@ import { AuditLogService } from '../../admin/audit-log.service';
 import type { AuthPrincipal } from '../../auth/auth.types';
 import { parseVatLines, startOfUtcToday, type VatLine } from './external-invoice-model';
 import { resolveSupplier } from './supplier-registry';
+import { BnrRatesService, type DisplayCurrency } from './bnr-rates.service';
 import type {
   ConfirmVatDto,
   UpdateSupplierDto,
@@ -41,6 +42,7 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
+    private readonly fx: BnrRatesService,
   ) {}
 
   /** Links invoices stored before the registry existed (once, at boot). */
@@ -85,42 +87,46 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
   // Supplier registry
   // =========================================================================
 
-  async suppliers() {
-    const [suppliers, totals, unpaid, last] = await Promise.all([
+  async suppliers(display: DisplayCurrency = 'EUR') {
+    const [suppliers, rows] = await Promise.all([
       this.prisma.externalSupplier.findMany({ orderBy: { name: 'asc' } }),
-      this.prisma.externalInvoice.groupBy({
-        by: ['supplierId', 'currency'],
+      this.prisma.externalInvoice.findMany({
         where: { supplierId: { not: null } },
-        _sum: { totalMinor: true, taxMinor: true },
-        _count: { _all: true },
-      }),
-      this.prisma.externalInvoice.groupBy({
-        by: ['supplierId'],
-        where: { supplierId: { not: null }, paymentStatus: 'unpaid' },
-        _count: { _all: true },
-      }),
-      this.prisma.externalInvoice.groupBy({
-        by: ['supplierId'],
-        where: { supplierId: { not: null } },
-        _max: { issueDate: true },
+        select: {
+          supplierId: true,
+          currency: true,
+          issueDate: true,
+          totalMinor: true,
+          taxMinor: true,
+          subtotalMinor: true,
+          paymentStatus: true,
+        },
       }),
     ]);
-    const recurring = await this.recurringBySupplier();
+    await this.fx.ensure(rows.map((r) => r.issueDate.getUTCFullYear()));
+    const recurring = await this.recurringBySupplier(display);
     return suppliers.map((s) => {
-      const t = totals.filter((x) => x.supplierId === s.id);
+      const mine = rows.filter((r) => r.supplierId === s.id);
+      let totalMinor = 0;
+      let taxMinor = 0;
+      for (const r of mine) {
+        const c = this.fx.convert(r, r.currency, display, r.issueDate);
+        totalMinor += c?.totalMinor ?? 0;
+        taxMinor += c?.taxMinor ?? 0;
+      }
+      const last = mine.reduce<Date | null>(
+        (m, r) => (!m || r.issueDate > m ? r.issueDate : m),
+        null,
+      );
       return {
         ...s,
-        invoiceCount: t.reduce((a, x) => a + x._count._all, 0),
-        totals: t
-          .map((x) => ({
-            currency: x.currency,
-            count: x._count._all,
-            totalMinor: x._sum.totalMinor ?? 0,
-            taxMinor: x._sum.taxMinor ?? 0,
-          }))
-          .sort((a, b) => b.totalMinor - a.totalMinor),
-        unpaidCount: unpaid.find((x) => x.supplierId === s.id)?._count._all ?? 0,
-        lastIssueDate: last.find((x) => x.supplierId === s.id)?._max.issueDate ?? null,
+        invoiceCount: mine.length,
+        // Converted to the display currency (BNR rate of each issue date).
+        totals: mine.length
+          ? [{ currency: display, count: mine.length, totalMinor, taxMinor }]
+          : [],
+        unpaidCount: mine.filter((r) => r.paymentStatus === 'unpaid').length,
+        lastIssueDate: last,
         recurring: recurring.get(s.id) ?? null,
       };
     });
@@ -177,13 +183,14 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
 
   /** Suppliers that bill monthly: invoices in at least 3 of the previous
    *  4 calendar months. Returns the usual issue day and average amount. */
-  private async recurringBySupplier() {
+  private async recurringBySupplier(display: DisplayCurrency) {
     const today = startOfUtcToday();
     const from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 4, 1));
     const rows = await this.prisma.externalInvoice.findMany({
       where: { supplierId: { not: null }, issueDate: { gte: from } },
       select: { supplierId: true, issueDate: true, totalMinor: true, currency: true },
     });
+    await this.fx.ensure(rows.map((r) => r.issueDate.getUTCFullYear()));
     const thisMonth = ym(today);
     const by = new Map<string, typeof rows>();
     for (const r of rows) by.set(r.supplierId!, [...(by.get(r.supplierId!) ?? []), r]);
@@ -203,9 +210,13 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
       const months = new Set(prev.map((r) => ym(r.issueDate)));
       if (months.size < 3) continue;
       const usualDay = median(prev.map((r) => r.issueDate.getUTCDate()));
-      const currency = prev[0].currency;
-      const same = prev.filter((r) => r.currency === currency);
-      const avgMinor = Math.round(same.reduce((s, r) => s + r.totalMinor, 0) / same.length);
+      const currency = display;
+      const converted = prev
+        .map((r) => this.fx.amount(r.totalMinor, r.currency, display, r.issueDate))
+        .filter((v): v is number => v !== null);
+      const avgMinor = converted.length
+        ? Math.round(converted.reduce((s, v) => s + v, 0) / converted.length)
+        : 0;
       const gotThisMonth = list.some((r) => ym(r.issueDate) === thisMonth);
       // A week of grace after the usual day before calling it missing.
       const expected = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), usualDay));
@@ -222,8 +233,8 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
     return out;
   }
 
-  async insights() {
-    const recurring = await this.recurringBySupplier();
+  async insights(display: DisplayCurrency = 'EUR') {
+    const recurring = await this.recurringBySupplier(display);
     const suppliers = await this.prisma.externalSupplier.findMany({
       where: { id: { in: [...recurring.keys()] } },
       select: { id: true, name: true, provider: true },
@@ -248,18 +259,22 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
         supplier: { select: { name: true } },
       },
     });
+    await this.fx.ensure(flagged.map((f) => f.issueDate.getUTCFullYear()));
     return {
       recurringCount: recurring.size,
       missingRecurring: missing,
-      anomalies: flagged.map((f) => ({
-        id: f.id,
-        invoiceNumber: f.invoiceNumber,
-        issueDate: f.issueDate,
-        totalMinor: f.totalMinor,
-        currency: f.currency,
-        flags: f.flags,
-        supplierName: f.supplier?.name ?? null,
-      })),
+      anomalies: flagged.map((f) => {
+        const conv = this.fx.amount(f.totalMinor, f.currency, display, f.issueDate);
+        return {
+          id: f.id,
+          invoiceNumber: f.invoiceNumber,
+          issueDate: f.issueDate,
+          totalMinor: conv ?? f.totalMinor,
+          currency: conv === null ? f.currency : display,
+          flags: f.flags,
+          supplierName: f.supplier?.name ?? null,
+        };
+      }),
     };
   }
 
@@ -267,7 +282,7 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
   // Due-date calendar
   // =========================================================================
 
-  async calendar(month: string) {
+  async calendar(month: string, display: DisplayCurrency = 'EUR') {
     if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('bad_month');
     const [y, m] = month.split('-').map(Number);
     const from = new Date(Date.UTC(y, m - 1, 1));
@@ -281,25 +296,30 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
         providerName: true,
         invoiceNumber: true,
         dueDate: true,
+        issueDate: true,
         totalMinor: true,
         currency: true,
         paymentStatus: true,
         supplier: { select: { name: true } },
       },
     });
+    await this.fx.ensure(rows.map((r) => r.issueDate.getUTCFullYear()));
     const today = startOfUtcToday().getTime();
     return {
       month,
-      items: rows.map((r) => ({
-        id: r.id,
-        supplierName: r.supplier?.name ?? r.providerName ?? r.provider,
-        invoiceNumber: r.invoiceNumber,
-        dueDate: r.dueDate!.toISOString().slice(0, 10),
-        totalMinor: r.totalMinor,
-        currency: r.currency,
-        paymentStatus: r.paymentStatus,
-        overdue: r.paymentStatus === 'unpaid' && r.dueDate!.getTime() < today,
-      })),
+      items: rows.map((r) => {
+        const conv = this.fx.amount(r.totalMinor, r.currency, display, r.issueDate);
+        return {
+          id: r.id,
+          supplierName: r.supplier?.name ?? r.providerName ?? r.provider,
+          invoiceNumber: r.invoiceNumber,
+          dueDate: r.dueDate!.toISOString().slice(0, 10),
+          totalMinor: conv ?? r.totalMinor,
+          currency: conv === null ? r.currency : display,
+          paymentStatus: r.paymentStatus,
+          overdue: r.paymentStatus === 'unpaid' && r.dueDate!.getTime() < today,
+        };
+      }),
     };
   }
 
@@ -308,6 +328,7 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
   // =========================================================================
 
   async vatReport(q: VatReportQuery) {
+    const display: DisplayCurrency = q.display ?? 'EUR';
     const year = q.year ?? startOfUtcToday().getUTCFullYear();
     const from = new Date(Date.UTC(year, 0, 1));
     const to = new Date(Date.UTC(year + 1, 0, 1));
@@ -329,6 +350,7 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
         include: { confirmedBy: { select: { name: true } } },
       }),
     ]);
+    await this.fx.ensure([year]);
     type Cell = {
       period: string;
       currency: string;
@@ -344,14 +366,22 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
       byRate: Map<string, { rate: number | null; netMinor: number; vatMinor: number }>;
     };
     const cells = new Map<string, Cell>();
+    // One row per month in the display currency: every invoice converted at
+    // the BNR rate of its issue date.
+    let unconverted = 0;
     for (const r of rows) {
+      const fx = this.fx.convert(r, r.currency, display, r.issueDate);
+      if (!fx) {
+        unconverted++;
+        continue;
+      }
       const period = ym(r.issueDate);
-      const key = `${period}|${r.currency}`;
+      const key = period;
       const c =
         cells.get(key) ??
         ({
           period,
-          currency: r.currency,
+          currency: display,
           invoices: 0,
           unverified: 0,
           netMinor: 0,
@@ -363,11 +393,11 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
         } as Cell);
       c.invoices++;
       if (r.processingStatus !== 'verified') c.unverified++;
-      c.netMinor += r.subtotalMinor ?? 0;
-      c.vatMinor += r.taxMinor ?? 0;
+      c.netMinor += fx.subtotalMinor ?? 0;
+      c.vatMinor += fx.taxMinor ?? 0;
       if (r.subtotalMinor !== null) c.netKnown++;
       if (r.taxMinor !== null) c.vatKnown++;
-      c.totalMinor += r.totalMinor;
+      c.totalMinor += fx.totalMinor;
       const lines: VatLine[] =
         parseVatLines(r.vatLines) ??
         (r.taxMinor !== null
@@ -376,8 +406,8 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
       for (const l of lines) {
         const k = String(l.rate ?? 'x');
         const b = c.byRate.get(k) ?? { rate: l.rate, netMinor: 0, vatMinor: 0 };
-        b.netMinor += l.netMinor;
-        b.vatMinor += l.vatMinor;
+        b.netMinor += Math.round(l.netMinor * fx.rate);
+        b.vatMinor += Math.round(l.vatMinor * fx.rate);
         c.byRate.set(k, b);
       }
       cells.set(key, c);
@@ -385,11 +415,11 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
     // Confirmed periods with no invoice still show up (the accountant's
     // figure is the source of truth for that period).
     for (const cf of confirmations) {
-      const key = `${cf.period}|${cf.currency}`;
+      const key = cf.period;
       if (!cells.has(key)) {
         cells.set(key, {
           period: cf.period,
-          currency: cf.currency,
+          currency: display,
           invoices: 0,
           unverified: 0,
           netMinor: 0,
@@ -404,7 +434,20 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
     const periods = [...cells.values()]
       .sort((a, b) => a.period.localeCompare(b.period) || a.currency.localeCompare(b.currency))
       .map((c) => {
-        const cf = confirmations.find((x) => x.period === c.period && x.currency === c.currency);
+        // The accountant figure as entered; shown in the other display
+        // currency at the BNR rate of the last day of the period.
+        const raw =
+          confirmations.find((x) => x.period === c.period && x.currency === display) ??
+          confirmations.find((x) => x.period === c.period);
+        const periodEnd = new Date(
+          Date.UTC(Number(c.period.slice(0, 4)), Number(c.period.slice(5, 7)), 0),
+        );
+        const confVat = raw
+          ? raw.currency === display
+            ? raw.confirmedVatMinor
+            : this.fx.amount(raw.confirmedVatMinor, raw.currency, display, periodEnd)
+          : null;
+        const cf = raw && confVat !== null ? { ...raw, confirmedVatMinor: confVat } : null;
         return {
           period: c.period,
           currency: c.currency,
@@ -419,6 +462,8 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
           confirmed: cf
             ? {
                 vatMinor: cf.confirmedVatMinor,
+                enteredMinor: raw!.confirmedVatMinor,
+                enteredCurrency: raw!.currency,
                 note: cf.note,
                 by: cf.confirmedBy?.name ?? null,
                 at: cf.updatedAt,
@@ -429,7 +474,7 @@ export class ExternalInvoiceReportsService implements OnModuleInit {
       });
     const years = await this.prisma.$queryRaw<{ y: number }[]>`
       SELECT DISTINCT EXTRACT(YEAR FROM issue_date)::int AS y FROM external_invoices ORDER BY y DESC`;
-    return { year, years: years.map((r) => r.y), periods };
+    return { year, display, unconverted, years: years.map((r) => r.y), periods };
   }
 
   async confirmVat(dto: ConfirmVatDto, actor: AuthPrincipal) {

@@ -3082,6 +3082,7 @@
     "vatUnconfirmText": "Der bestätigte Wert für {period} wird gelöscht; die Schätzung bleibt unverändert.",
     "vatNotStated": "auf den Rechnungen nicht angegeben",
     "removeSupplierTitle": "Lieferant löschen?",
-    "removeSupplierText": "{name} hat keine Rechnungen und wird aus dem Verzeichnis entfernt."
+    "removeSupplierText": "{name} hat keine Rechnungen und wird aus dem Verzeichnis entfernt.",
+    "convertedNote": "Aus der Belegwährung umgerechnet zum BNR-Kurs {rate} vom {date} (Rechnungsdatum)."
   }
 }

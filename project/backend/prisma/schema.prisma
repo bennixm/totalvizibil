@@ -1997,3 +1997,19 @@ model ExternalInvoiceSync {
 
   @@map("external_invoice_syncs")
 }
+
+// Official BNR reference rates (RON per 1 unit of `currency`), stored
+// locally as BNR asks ("stocarea locală a informațiilor preluate") and so
+// conversions keep working when curs.bnr.ro is unreachable. Used to show
+// supplier invoices in the platform's display currency at the rate of the
+// invoice's issue date.
+model FxRate {
+  date       DateTime @db.Date
+  currency   String
+  ronPerUnit Decimal  @map("ron_per_unit") @db.Decimal(14, 6)
+  source     String   @default("BNR")
+
+  @@id([date, currency])
+  @@index([currency, date])
+  @@map("fx_rates")
+}

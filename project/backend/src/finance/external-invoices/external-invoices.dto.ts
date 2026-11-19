@@ -80,6 +80,18 @@ export class ExternalInvoiceFilterQuery {
   @IsOptional()
   @IsUUID()
   supplierId?: string;
+
+  /** Platform display currency the amounts and totals are converted to
+   *  (BNR rate of each invoice's issue date). */
+  @IsOptional()
+  @IsIn(['EUR', 'RON'])
+  display?: 'EUR' | 'RON';
+}
+
+export class DisplayQuery {
+  @IsOptional()
+  @IsIn(['EUR', 'RON'])
+  display?: 'EUR' | 'RON';
 }
 
 export class ListExternalInvoicesQuery extends ExternalInvoiceFilterQuery {

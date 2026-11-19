@@ -8,6 +8,7 @@ import { FinanceStatementService } from './finance-statement.service';
 import { ExternalInvoicesController } from './external-invoices/external-invoices.controller';
 import { ExternalInvoicesService } from './external-invoices/external-invoices.service';
 import { GoogleAdsInvoiceSource } from './external-invoices/sources/google-ads.source';
+import { BnrRatesService } from './external-invoices/bnr-rates.service';
 import { ExternalInvoiceReportsService } from './external-invoices/external-invoice-reports.service';
 
 @Module({
@@ -19,6 +20,7 @@ import { ExternalInvoiceReportsService } from './external-invoices/external-invo
     ExternalInvoicesService,
     GoogleAdsInvoiceSource,
     ExternalInvoiceReportsService,
+    BnrRatesService,
   ],
 })
 export class FinanceModule {}

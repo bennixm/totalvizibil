@@ -5,8 +5,10 @@
  * pattern. Staff add the VAT id, billing e-mail and payment terms; the
  * terms fill in a missing due date on future invoices.
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+
+import { useMoneyStore } from '@/stores/money'
 
 import { useConfirmStore } from '@/stores/confirm'
 import { useExternalInvoicesStore, type SupplierRow } from '@/stores/externalInvoices'
@@ -39,6 +41,8 @@ async function load(): Promise<void> {
   }
 }
 onMounted(load)
+// Amounts are in the platform display currency: reload when it changes.
+watch(() => useMoneyStore().currency, load)
 
 const filtered = computed(() => {
   const s = q.value.trim().toLowerCase()

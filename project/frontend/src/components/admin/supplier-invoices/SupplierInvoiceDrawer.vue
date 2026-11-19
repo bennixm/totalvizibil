@@ -300,7 +300,7 @@ function fieldLabel(k: string): string {
 }
 function valueText(k: string, v: unknown): string {
   if (v === null || v === undefined || v === '') return '-'
-  if (/Minor$/.test(k) && typeof v === 'number') return fmt.amount(v, inv.value?.currency ?? '')
+  if (/Minor$/.test(k) && typeof v === 'number') return inv.value ? fmt.dAmount(v, inv.value) : String(v)
   if (k === 'paymentStatus') return v === 'paid' ? t('supplierInvoices.statusPaid') : t('supplierInvoices.statusUnpaid')
   if (Array.isArray(v)) return t('supplierInvoices.nItems', { n: v.length })
   if (/^\d{4}-\d{2}-\d{2}/.test(String(v))) return fmt.date(String(v))
@@ -397,7 +397,7 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
           <v-btn icon="mdi-close" variant="text" size="small" :aria-label="t('common.close')" @click="emit('close')" />
         </div>
         <div class="sidr__amount">
-          <b>{{ fmt.amount(inv.totalMinor, inv.currency) }}</b>
+          <b>{{ fmt.dAmount(inv.totalMinor, inv) }}</b>
           <span>{{ t('supplierInvoices.issuedOn', { date: fmt.date(inv.issueDate) }) }}</span>
         </div>
         <div class="sidr__badges">
@@ -463,7 +463,10 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
             t('supplierInvoices.duplicateOf', {
               number: inv.possibleDuplicateOf.invoiceNumber ?? '-',
               date: fmt.date(inv.possibleDuplicateOf.issueDate),
-              amount: fmt.amount(inv.possibleDuplicateOf.totalMinor, inv.possibleDuplicateOf.currency),
+              amount:
+                inv.possibleDuplicateOf.currency === inv.currency
+                  ? fmt.dAmount(inv.possibleDuplicateOf.totalMinor, inv)
+                  : fmt.amount(inv.possibleDuplicateOf.totalMinor, inv.possibleDuplicateOf.currency),
             })
           }}
           <a href="#" class="sidr__link" @click.prevent="emit('open', inv.possibleDuplicateOf.id)">{{ t('supplierInvoices.openIt') }}</a>
@@ -536,15 +539,23 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
           <section class="blk">
             <h3 class="blk__title">{{ t('supplierInvoices.secAmounts') }}</h3>
             <div class="sums">
-              <div class="sums__row"><span>{{ t('supplierInvoices.colNet') }}</span><b>{{ fmt.amount(inv.subtotalMinor, inv.currency) }}</b></div>
+              <div class="sums__row"><span>{{ t('supplierInvoices.colNet') }}</span><b>{{ fmt.dAmount(inv.subtotalMinor, inv) }}</b></div>
               <template v-if="inv.vatLines.length">
                 <div v-for="(v, i) in inv.vatLines" :key="i" class="sums__row sums__row--sub">
-                  <span>{{ t('supplierInvoices.vatAtRate', { rate: v.rate === null ? '?' : v.rate, base: fmt.amount(v.netMinor, inv.currency) }) }}</span>
-                  <b>{{ fmt.amount(v.vatMinor, inv.currency) }}</b>
+                  <span>{{ t('supplierInvoices.vatAtRate', { rate: v.rate === null ? '?' : v.rate, base: fmt.dAmount(v.netMinor, inv) }) }}</span>
+                  <b>{{ fmt.dAmount(v.vatMinor, inv) }}</b>
                 </div>
               </template>
-              <div class="sums__row"><span>{{ t('supplierInvoices.colVat') }}</span><b>{{ fmt.amount(inv.taxMinor, inv.currency) }}</b></div>
-              <div class="sums__row sums__row--total"><span>{{ t('supplierInvoices.colTotal') }}</span><b>{{ fmt.amount(inv.totalMinor, inv.currency) }}</b></div>
+              <div class="sums__row"><span>{{ t('supplierInvoices.colVat') }}</span><b>{{ fmt.dAmount(inv.taxMinor, inv) }}</b></div>
+              <div class="sums__row sums__row--total"><span>{{ t('supplierInvoices.colTotal') }}</span><b>{{ fmt.dAmount(inv.totalMinor, inv) }}</b></div>
+              <div v-if="fmt.conversion(inv) && fmt.conversion(inv)!.rate !== 1" class="sums__fx">
+                {{
+                  t('supplierInvoices.convertedNote', {
+                    rate: fmt.conversion(inv)!.rate.toLocaleString('ro-RO', { maximumFractionDigits: 4 }),
+                    date: fmt.date(fmt.conversion(inv)!.rateDate),
+                  })
+                }}
+              </div>
             </div>
           </section>
 
@@ -561,8 +572,8 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
               <div v-for="(l, i) in inv.lines" :key="i" class="lines__row">
                 <span>{{ l.description }}</span>
                 <span class="num">{{ l.quantity ?? '-' }}</span>
-                <span class="num">{{ fmt.amount(l.unitPriceMinor, inv.currency) }}</span>
-                <span class="num">{{ fmt.amount(l.netMinor, inv.currency) }}</span>
+                <span class="num">{{ fmt.dAmount(l.unitPriceMinor, inv) }}</span>
+                <span class="num">{{ fmt.dAmount(l.netMinor, inv) }}</span>
                 <span class="num">{{ l.vatRate === null ? '-' : `${l.vatRate}%` }}</span>
               </div>
             </div>
@@ -917,6 +928,12 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
   padding-left: 1.4rem;
   font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.sums__fx {
+  padding: 0.45rem 0.8rem;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  border-top: 1px solid var(--tvz-hairline);
 }
 .sums__row--total {
   border-bottom: 0;

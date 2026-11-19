@@ -30,6 +30,7 @@ import { decodeInvoiceFile } from './external-invoice-files';
 import { resolveSupplier, supplierSignals } from './supplier-registry';
 import { type EInvoiceDraft, readEInvoice } from './einvoice-xml';
 import { GoogleAdsInvoiceSource } from './sources/google-ads.source';
+import { BnrRatesService, type DisplayCurrency } from './bnr-rates.service';
 import type { FetchedDocument, InvoiceSourceAdapter } from './sources/invoice-source';
 import type {
   BulkExternalInvoicesDto,
@@ -174,6 +175,7 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
     private readonly notifications: NotificationsService,
     private readonly ai: AiService,
     googleAds: GoogleAdsInvoiceSource,
+    private readonly fx: BnrRatesService,
   ) {
     this.adapters = [googleAds];
   }
@@ -244,132 +246,124 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
   // Dashboard summary (all values computed from stored invoices)
   // =========================================================================
 
-  async summary() {
+  /** Rows' issue years → BNR rates loaded for each. */
+  private async fxFor(rows: { issueDate: Date }[]): Promise<void> {
+    await this.fx.ensure(rows.map((r) => r.issueDate.getUTCFullYear()));
+  }
+
+  async summary(display: DisplayCurrency = 'EUR') {
     const today = startOfUtcToday();
     const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
     const nextMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1));
-    const monthWhere = { issueDate: { gte: monthStart, lt: nextMonth } };
-    const unpaid = { paymentStatus: 'unpaid' };
+    const sel = {
+      currency: true,
+      issueDate: true,
+      dueDate: true,
+      subtotalMinor: true,
+      taxMinor: true,
+      totalMinor: true,
+      vatLines: true,
+      source: true,
+    } as const;
 
-    const [
-      month,
-      unpaidAgg,
-      dueSoon,
-      overdue,
-      unknownPayment,
-      needsReview,
-      bySourceMonth,
-      bySourceAll,
-      monthRows,
-    ] = await Promise.all([
-      this.prisma.externalInvoice.groupBy({
-        by: ['currency'],
-        where: monthWhere,
-        _sum: { totalMinor: true, taxMinor: true, subtotalMinor: true },
-        _count: { _all: true },
+    const [monthRows, unpaidRows, unknownPayment, needsReview, bySourceAll] = await Promise.all([
+      this.prisma.externalInvoice.findMany({
+        where: { issueDate: { gte: monthStart, lt: nextMonth } },
+        select: sel,
       }),
-      this.prisma.externalInvoice.groupBy({
-        by: ['currency'],
-        where: unpaid,
-        _sum: { totalMinor: true },
-        _count: { _all: true },
-      }),
-      this.prisma.externalInvoice.groupBy({
-        by: ['currency'],
-        where: { ...unpaid, dueDate: { gte: today, lte: addDays(today, DUE_SOON_DAYS) } },
-        _sum: { totalMinor: true },
-        _count: { _all: true },
-      }),
-      this.prisma.externalInvoice.groupBy({
-        by: ['currency'],
-        where: { ...unpaid, dueDate: { lt: today } },
-        _sum: { totalMinor: true },
-        _count: { _all: true },
-      }),
+      this.prisma.externalInvoice.findMany({ where: { paymentStatus: 'unpaid' }, select: sel }),
       this.prisma.externalInvoice.count({ where: { paymentStatus: null } }),
       this.prisma.externalInvoice.count({ where: { processingStatus: 'needs_review' } }),
-      this.prisma.externalInvoice.groupBy({
-        by: ['source'],
-        where: monthWhere,
-        _count: { _all: true },
-      }),
       this.prisma.externalInvoice.groupBy({ by: ['source'], _count: { _all: true } }),
-      this.prisma.externalInvoice.findMany({
-        where: monthWhere,
-        select: { currency: true, taxMinor: true, subtotalMinor: true, vatLines: true },
-      }),
     ]);
+    await this.fxFor([...monthRows, ...unpaidRows]);
 
-    // VAT by rate for the month: from the per-rate breakdown when the
-    // invoice has one, otherwise the invoice's whole VAT under "rate unknown".
+    // Every amount in the display currency, at the BNR rate of the
+    // invoice's issue date; a row without a rate is counted apart.
+    let unconverted = 0;
+    const conv = (r: (typeof monthRows)[number]) => {
+      const c = this.fx.convert(r, r.currency, display, r.issueDate);
+      if (!c) unconverted++;
+      return c;
+    };
+    const sum = (rows: typeof monthRows) => {
+      let totalMinor = 0;
+      for (const r of rows) totalMinor += conv(r)?.totalMinor ?? 0;
+      return rows.length ? [{ currency: display, count: rows.length, totalMinor }] : [];
+    };
+
+    let mTotal = 0;
+    let mTax = 0;
+    let mNet = 0;
     const byRate = new Map<
       string,
       { currency: string; rate: number | null; netMinor: number; vatMinor: number }
     >();
     for (const r of monthRows) {
+      const c = conv(r);
+      if (!c) continue;
+      mTotal += c.totalMinor;
+      mTax += c.taxMinor ?? 0;
+      mNet += c.subtotalMinor ?? 0;
+      // VAT by rate: the per-rate breakdown when the invoice has one,
+      // otherwise its whole VAT under "rate unknown".
       const lines: VatLine[] =
         parseVatLines(r.vatLines) ??
         (r.taxMinor !== null
           ? [{ rate: null, netMinor: r.subtotalMinor ?? 0, vatMinor: r.taxMinor }]
           : []);
       for (const l of lines) {
-        const key = `${r.currency}|${l.rate ?? 'x'}`;
+        const key = String(l.rate ?? 'x');
         const cur = byRate.get(key) ?? {
-          currency: r.currency,
+          currency: display,
           rate: l.rate,
           netMinor: 0,
           vatMinor: 0,
         };
-        cur.netMinor += l.netMinor;
-        cur.vatMinor += l.vatMinor;
+        cur.netMinor += Math.round(l.netMinor * c.rate);
+        cur.vatMinor += Math.round(l.vatMinor * c.rate);
         byRate.set(key, cur);
       }
     }
 
-    const money = (
-      rows: { currency: string; _count: { _all: number }; _sum: { totalMinor: number | null } }[],
-    ) =>
-      rows
-        .map((r) => ({
-          currency: r.currency,
-          count: r._count._all,
-          totalMinor: r._sum.totalMinor ?? 0,
-        }))
-        .sort((a, b) => b.totalMinor - a.totalMinor);
-    const count = (rows: { _count: { _all: number } }[]) =>
-      rows.reduce((s, r) => s + r._count._all, 0);
-    const sources = (rows: { source: ExternalInvoiceSource; _count: { _all: number } }[]) => {
-      const automated = rows
-        .filter((r) => r.source !== 'manual')
-        .reduce((s, r) => s + r._count._all, 0);
-      const manual = rows.find((r) => r.source === 'manual')?._count._all ?? 0;
-      return { automated, manual };
-    };
+    const dueSoonRows = unpaidRows.filter(
+      (r) => r.dueDate && r.dueDate >= today && r.dueDate <= addDays(today, DUE_SOON_DAYS),
+    );
+    const overdueRows = unpaidRows.filter((r) => r.dueDate && r.dueDate < today);
+    const sources = (rows: { source: ExternalInvoiceSource; n: number }[]) => ({
+      automated: rows.filter((r) => r.source !== 'manual').reduce((s, r) => s + r.n, 0),
+      manual: rows.find((r) => r.source === 'manual')?.n ?? 0,
+    });
+    const monthBySource = new Map<ExternalInvoiceSource, number>();
+    for (const r of monthRows) monthBySource.set(r.source, (monthBySource.get(r.source) ?? 0) + 1);
 
     return {
+      display,
+      rateSource: 'BNR',
+      unconverted,
       month: {
         from: ymd(monthStart),
         to: ymd(addDays(nextMonth, -1)),
-        count: count(month),
-        totals: month
-          .map((r) => ({
-            currency: r.currency,
-            count: r._count._all,
-            totalMinor: r._sum.totalMinor ?? 0,
-            taxMinor: r._sum.taxMinor ?? 0,
-            subtotalMinor: r._sum.subtotalMinor ?? 0,
-          }))
-          .sort((a, b) => b.totalMinor - a.totalMinor),
-        vatByRate: [...byRate.values()].sort(
-          (a, b) => a.currency.localeCompare(b.currency) || (b.rate ?? -1) - (a.rate ?? -1),
-        ),
-        sources: sources(bySourceMonth),
+        count: monthRows.length,
+        totals: monthRows.length
+          ? [
+              {
+                currency: display,
+                count: monthRows.length,
+                totalMinor: mTotal,
+                taxMinor: mTax,
+                subtotalMinor: mNet,
+              },
+            ]
+          : [],
+        vatByRate: [...byRate.values()].sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1)),
+        sources: sources([...monthBySource.entries()].map(([source, n]) => ({ source, n }))),
       },
-      unpaid: { count: count(unpaidAgg), totals: money(unpaidAgg), unknownPayment },
-      dueSoon: { count: count(dueSoon), totals: money(dueSoon), days: DUE_SOON_DAYS },
-      overdue: { count: count(overdue), totals: money(overdue) },
+      unpaid: { count: unpaidRows.length, totals: sum(unpaidRows), unknownPayment },
+      dueSoon: { count: dueSoonRows.length, totals: sum(dueSoonRows), days: DUE_SOON_DAYS },
+      overdue: { count: overdueRows.length, totals: sum(overdueRows) },
       needsReview,
-      sources: sources(bySourceAll),
+      sources: sources(bySourceAll.map((r) => ({ source: r.source, n: r._count._all }))),
     };
   }
 
@@ -483,6 +477,13 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
       supplierId: r.supplierId,
       flags: r.flags,
       dueState: this.dueState(r),
+      // Both display currencies, at the BNR rate of the issue date, so the
+      // page follows the top-nav currency toggle without refetching. Null
+      // when BNR has no rate for the document currency.
+      fx: {
+        EUR: this.fx.convert(r, r.currency, 'EUR', r.issueDate),
+        RON: this.fx.convert(r, r.currency, 'RON', r.issueDate),
+      },
       issues,
       note: r.note,
       document: r.document,
@@ -496,7 +497,8 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
     const page = q.page ?? 1;
     const pageSize = q.pageSize ?? 25;
     const where = this.where(q);
-    const [rows, total, totals, years, currencies] = await Promise.all([
+    const display: DisplayCurrency = q.display ?? 'EUR';
+    const [rows, total, amounts, years, currencies] = await Promise.all([
       this.prisma.externalInvoice.findMany({
         where,
         orderBy: this.orderBy(q.sort),
@@ -508,28 +510,46 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
         },
       }),
       this.prisma.externalInvoice.count({ where }),
-      this.prisma.externalInvoice.groupBy({
-        by: ['currency'],
+      this.prisma.externalInvoice.findMany({
         where,
-        _sum: { totalMinor: true, taxMinor: true },
-        _count: { _all: true },
+        select: {
+          currency: true,
+          issueDate: true,
+          subtotalMinor: true,
+          taxMinor: true,
+          totalMinor: true,
+        },
       }),
       this.prisma.$queryRaw<{ y: number }[]>`
         SELECT DISTINCT EXTRACT(YEAR FROM issue_date)::int AS y
         FROM external_invoices ORDER BY y DESC`,
       this.prisma.externalInvoice.groupBy({ by: ['currency'], _count: { _all: true } }),
     ]);
+    await this.fxFor([...rows, ...amounts]);
+    let totalMinor = 0;
+    let taxMinor = 0;
+    let unconverted = 0;
+    for (const a of amounts) {
+      const c = this.fx.convert(a, a.currency, display, a.issueDate);
+      if (!c) {
+        unconverted++;
+        continue;
+      }
+      totalMinor += c.totalMinor;
+      taxMinor += c.taxMinor ?? 0;
+    }
     return {
       items: rows.map((r) => this.listItem(r)),
       total,
       page,
       pageSize,
-      totalsByCurrency: totals.map((t) => ({
-        currency: t.currency,
-        count: t._count._all,
-        totalMinor: t._sum.totalMinor ?? 0,
-        taxMinor: t._sum.taxMinor ?? 0,
-      })),
+      display,
+      unconverted,
+      // All matching invoices converted to the display currency (BNR rate
+      // of each issue date). One entry, kept as a list for the page.
+      totalsByCurrency: amounts.length
+        ? [{ currency: display, count: amounts.length, totalMinor, taxMinor }]
+        : [],
       years: years.map((y) => y.y),
       currencies: currencies.map((c) => c.currency).sort(),
     };
@@ -546,12 +566,15 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
       orderBy: this.orderBy(q.sort),
       include: { document: { select: { filename: true } } },
     });
+    const display: DisplayCurrency = q.display ?? 'EUR';
+    await this.fxFor(rows);
     const major = (m: number | null) => (m === null ? null : m / 100);
     const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '');
     const sheet: Sheet = {
       name: 'Facturi furnizori',
       title: [
         `Facturi furnizori, exportat ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`,
+        `Sume convertite în ${display} la cursul BNR din data emiterii fiecărei facturi; valorile din document sunt păstrate alături.`,
       ],
       columns: [
         { label: 'Furnizor', width: 26 },
@@ -562,10 +585,15 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
         { label: 'Scadența', width: 12 },
         { label: 'Perioadă de la', width: 12 },
         { label: 'Perioadă până la', width: 12 },
-        { label: 'Fără TVA', width: 12, money: true },
-        { label: 'TVA', width: 12, money: true },
-        { label: 'Total', width: 12, money: true },
-        { label: 'Monedă', width: 8 },
+        { label: `Fără TVA (${display})`, width: 14, money: true },
+        { label: `TVA (${display})`, width: 12, money: true },
+        { label: `Total (${display})`, width: 14, money: true },
+        { label: 'Curs BNR', width: 10 },
+        { label: 'Data cursului', width: 12 },
+        { label: 'Fără TVA (document)', width: 14, money: true },
+        { label: 'TVA (document)', width: 12, money: true },
+        { label: 'Total (document)', width: 14, money: true },
+        { label: 'Moneda documentului', width: 10 },
         { label: 'Status plată', width: 12 },
         { label: 'Plătită la', width: 12 },
         { label: 'Status procesare', width: 14 },
@@ -573,30 +601,38 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
         { label: 'Document', width: 28 },
         { label: 'Notă', width: 30 },
       ],
-      rows: rows.map((r) => [
-        r.providerName ?? providerInfo(r.provider)?.name ?? r.provider,
-        r.supplierVatId,
-        r.invoiceNumber,
-        r.docType,
-        day(r.issueDate),
-        day(r.dueDate),
-        day(r.periodStart),
-        day(r.periodEnd),
-        major(r.subtotalMinor),
-        major(r.taxMinor),
-        major(r.totalMinor),
-        r.currency,
-        r.paymentStatus === 'paid'
-          ? 'plătită'
-          : r.paymentStatus === 'unpaid'
-            ? 'neplătită'
-            : 'necunoscut',
-        day(r.paidAt),
-        r.processingStatus === 'verified' ? 'verificată' : 'de verificat',
-        r.source,
-        r.document?.filename ?? '',
-        r.note,
-      ]),
+      rows: rows.map((r) => {
+        const c = this.fx.convert(r, r.currency, display, r.issueDate);
+        return [
+          r.providerName ?? providerInfo(r.provider)?.name ?? r.provider,
+          r.supplierVatId,
+          r.invoiceNumber,
+          r.docType,
+          day(r.issueDate),
+          day(r.dueDate),
+          day(r.periodStart),
+          day(r.periodEnd),
+          c ? major(c.subtotalMinor) : null,
+          c ? major(c.taxMinor) : null,
+          c ? major(c.totalMinor) : null,
+          c ? c.rate : null,
+          c?.rateDate ?? '',
+          major(r.subtotalMinor),
+          major(r.taxMinor),
+          major(r.totalMinor),
+          r.currency,
+          r.paymentStatus === 'paid'
+            ? 'plătită'
+            : r.paymentStatus === 'unpaid'
+              ? 'neplătită'
+              : 'necunoscut',
+          day(r.paidAt),
+          r.processingStatus === 'verified' ? 'verificată' : 'de verificat',
+          r.source,
+          r.document?.filename ?? '',
+          r.note,
+        ];
+      }),
     };
     const stem = `facturi-furnizori-${new Date().toISOString().slice(0, 10)}`;
     if (q.format === 'xlsx') {
@@ -643,6 +679,7 @@ export class ExternalInvoicesService implements OnModuleInit, OnModuleDestroy {
       },
     });
     if (!r) throw new NotFoundException('invoice_not_found');
+    await this.fxFor([r]);
     const dup = r.possibleDuplicateOfId
       ? await this.prisma.externalInvoice.findUnique({
           where: { id: r.possibleDuplicateOfId },

@@ -3082,6 +3082,7 @@
     "vatUnconfirmText": "Valoarea confirmată pentru {period} va fi ștearsă; estimarea rămâne neschimbată.",
     "vatNotStated": "nespecificat pe facturi",
     "removeSupplierTitle": "Ștergi furnizorul?",
-    "removeSupplierText": "{name} nu are facturi și va fi scos din registru."
+    "removeSupplierText": "{name} nu are facturi și va fi scos din registru.",
+    "convertedNote": "Convertit din moneda documentului la cursul BNR {rate} din {date} (data emiterii facturii)."
   }
 }
