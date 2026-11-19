@@ -84,11 +84,11 @@ export function useInvoiceFormat() {
     if (r.paymentStatus === 'unpaid') {
       const d = daysToDue(r.dueDate)
       if (r.dueState === 'overdue' && d !== null) {
-        return { label: t('supplierInvoices.overdueBy', { n: Math.abs(d) }), tone: 'error', icon: 'mdi-alert-circle-outline' }
+        return { label: t('supplierInvoices.overdueBy', { n: Math.abs(d) }, Math.abs(d)), tone: 'error', icon: 'mdi-alert-circle-outline' }
       }
       if (r.dueState === 'due_soon' && d !== null) {
         return {
-          label: d === 0 ? t('supplierInvoices.dueToday') : t('supplierInvoices.dueIn', { n: d }),
+          label: d === 0 ? t('supplierInvoices.dueToday') : t('supplierInvoices.dueIn', { n: d }, d),
           tone: 'warning',
           icon: 'mdi-clock-alert-outline',
         }

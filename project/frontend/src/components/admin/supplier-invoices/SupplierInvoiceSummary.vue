@@ -1,124 +1,60 @@
 <script setup lang="ts">
 /**
- * The dashboard row: eight KPIs computed server-side from stored invoices.
- * Each card that maps to a list filter is a button that applies it, so
- * "12 overdue" is one click away from the 12 invoices. Multi-currency
- * totals are never converted: the largest currency is shown, the rest are
- * listed under it.
+ * Compact summary. The four numbers that ask for action (unpaid, overdue,
+ * due soon, needs review) sit in one strip and double as quick filters;
+ * the month figures (received, value, VAT estimate, automatic vs manual)
+ * are one quiet line, with the VAT-by-rate breakdown and all-time counts
+ * one click away. Every value is still computed server-side from stored
+ * invoices, in the platform display currency.
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { InvoiceSummary } from '@/stores/externalInvoices'
 
 import { useInvoiceFormat } from './useInvoiceFormat'
 
+type Key = 'month' | 'unpaid' | 'due_soon' | 'overdue' | 'needs_review'
 const props = defineProps<{ summary: InvoiceSummary | null; error: string | null; active: string | null }>()
-const emit = defineEmits<{ pick: [key: 'month' | 'unpaid' | 'due_soon' | 'overdue' | 'needs_review'] }>()
+const emit = defineEmits<{ pick: [key: Key] }>()
 
 const { t } = useI18n()
 const fmt = useInvoiceFormat()
+const showMore = ref(false)
 
-function main(rows: { currency: string; totalMinor: number }[]): { value: string; rest: string } {
-  if (!rows.length) return { value: '0', rest: '' }
-  const [first, ...rest] = rows
-  return {
-    value: fmt.amount(first.totalMinor, first.currency),
-    rest: rest.map((r) => fmt.amount(r.totalMinor, r.currency)).join(' · '),
-  }
-}
+const total = (rows: { currency: string; totalMinor: number }[]) =>
+  rows.length ? rows.map((r) => fmt.amount(r.totalMinor, r.currency)).join(' · ') : ''
 
-const monthLabel = computed(() => {
-  const from = props.summary?.month.from
-  if (!from) return ''
-  return fmt.monthName(Number(from.slice(5, 7)), Number(from.slice(0, 4)))
-})
-
-const cards = computed(() => {
+const primary = computed(() => {
   const s = props.summary
   if (!s) return []
-  const monthValue = main(s.month.totals)
-  const vat = main(s.month.totals.map((r) => ({ currency: r.currency, totalMinor: r.taxMinor })).filter((r) => r.totalMinor))
-  const rates = s.month.vatByRate
-    .filter((r) => r.vatMinor)
-    .slice(0, 3)
-    .map((r) => `${r.rate === null ? t('supplierInvoices.rateUnknown') : `${r.rate}%`}: ${fmt.amount(r.vatMinor, r.currency)}`)
-    .join(' · ')
-  const unpaid = main(s.unpaid.totals)
-  const dueSoon = main(s.dueSoon.totals)
-  const overdue = main(s.overdue.totals)
-  const auto = s.month.sources.automated
-  const manual = s.month.sources.manual
   return [
-    {
-      key: 'month' as const,
-      label: t('supplierInvoices.kpiReceived'),
-      value: String(s.month.count),
-      sub: monthLabel.value,
-      icon: 'mdi-inbox-arrow-down-outline',
-      tone: 'neutral',
-    },
-    {
-      key: 'month' as const,
-      label: t('supplierInvoices.kpiValue'),
-      value: monthValue.value,
-      sub: monthValue.rest || monthLabel.value,
-      icon: 'mdi-cash-multiple',
-      tone: 'neutral',
-    },
-    {
-      key: 'unpaid' as const,
-      label: t('supplierInvoices.kpiUnpaid'),
-      value: String(s.unpaid.count),
-      sub:
-        (s.unpaid.count ? unpaid.value : '') +
-        (s.unpaid.unknownPayment ? `${s.unpaid.count ? ' · ' : ''}${t('supplierInvoices.kpiUnknownPayment', { n: s.unpaid.unknownPayment })}` : ''),
-      icon: 'mdi-clock-outline',
-      tone: s.unpaid.count ? 'info' : 'neutral',
-    },
+    { key: 'unpaid' as const, label: t('supplierInvoices.kpiUnpaid'), n: s.unpaid.count, amount: total(s.unpaid.totals), tone: 'info' },
+    { key: 'overdue' as const, label: t('supplierInvoices.kpiOverdue'), n: s.overdue.count, amount: total(s.overdue.totals), tone: 'error' },
     {
       key: 'due_soon' as const,
       label: t('supplierInvoices.kpiDueSoon', { n: s.dueSoon.days }),
-      value: String(s.dueSoon.count),
-      sub: s.dueSoon.count ? dueSoon.value : t('supplierInvoices.kpiNothing'),
-      icon: 'mdi-clock-alert-outline',
-      tone: s.dueSoon.count ? 'warning' : 'neutral',
+      n: s.dueSoon.count,
+      amount: total(s.dueSoon.totals),
+      tone: 'warning',
     },
-    {
-      key: 'overdue' as const,
-      label: t('supplierInvoices.kpiOverdue'),
-      value: String(s.overdue.count),
-      sub: s.overdue.count ? overdue.value : t('supplierInvoices.kpiNothing'),
-      icon: 'mdi-alert-circle-outline',
-      tone: s.overdue.count ? 'error' : 'neutral',
-    },
-    {
-      key: 'month' as const,
-      label: t('supplierInvoices.kpiVat'),
-      value: vat.value,
-      sub: rates || vat.rest || monthLabel.value,
-      icon: 'mdi-percent-outline',
-      tone: 'neutral',
-      estimate: true,
-    },
-    {
-      key: 'needs_review' as const,
-      label: t('supplierInvoices.kpiReview'),
-      value: String(s.needsReview),
-      sub: s.needsReview ? t('supplierInvoices.kpiReviewSub') : t('supplierInvoices.kpiNothing'),
-      icon: 'mdi-eye-check-outline',
-      tone: s.needsReview ? 'warning' : 'neutral',
-    },
-    {
-      key: null,
-      label: t('supplierInvoices.kpiAutomation'),
-      value: `${auto} / ${manual}`,
-      sub: t('supplierInvoices.kpiAutomationSub', { auto: s.sources.automated, manual: s.sources.manual }),
-      icon: 'mdi-robot-outline',
-      tone: 'neutral',
-      ratio: auto + manual ? auto / (auto + manual) : 0,
-    },
+    { key: 'needs_review' as const, label: t('supplierInvoices.kpiReview'), n: s.needsReview, amount: '', tone: 'warning' },
   ]
+})
+
+const month = computed(() => {
+  const s = props.summary
+  if (!s) return null
+  const [y, m] = s.month.from.split('-').map(Number)
+  const tot = s.month.totals[0]
+  return {
+    label: fmt.monthName(m, y),
+    count: s.month.count,
+    value: tot ? fmt.amount(tot.totalMinor, tot.currency) : fmt.amount(0, s.unpaid.totals[0]?.currency ?? 'EUR'),
+    vat: tot ? fmt.amount(tot.taxMinor, tot.currency) : null,
+    auto: s.month.sources.automated,
+    manual: s.month.sources.manual,
+  }
 })
 </script>
 
@@ -128,39 +64,79 @@ const cards = computed(() => {
       <v-icon icon="mdi-alert-circle-outline" size="16" />
       {{ error }}
     </p>
-    <div v-else-if="!summary" class="sis__grid">
-      <v-skeleton-loader v-for="i in 8" :key="i" type="list-item-two-line" class="sis__skel" />
-    </div>
-    <div v-else class="sis__grid">
-      <component
-        :is="c.key ? 'button' : 'div'"
-        v-for="(c, i) in cards"
-        :key="i"
-        :type="c.key ? 'button' : undefined"
-        class="kpi"
-        :class="[`kpi--${c.tone}`, { 'kpi--link': !!c.key, 'is-active': c.key && c.key === active && c.key !== 'month' }]"
-        :aria-pressed="c.key && c.key !== 'month' ? c.key === active : undefined"
-        @click="c.key && emit('pick', c.key)"
-      >
-        <span class="kpi__top">
+    <v-skeleton-loader v-else-if="!summary" type="list-item-two-line" class="sis__skel" />
+    <template v-else>
+      <div class="strip" role="group">
+        <button
+          v-for="c in primary"
+          :key="c.key"
+          type="button"
+          class="kpi"
+          :class="[`kpi--${c.tone}`, { 'is-active': c.key === active, 'is-zero': !c.n }]"
+          :aria-pressed="c.key === active"
+          :title="t('supplierInvoices.kpiFilterHint')"
+          @click="emit('pick', c.key)"
+        >
           <span class="kpi__label">{{ c.label }}</span>
-          <v-icon :icon="c.icon" size="17" class="kpi__icon" aria-hidden="true" />
-        </span>
-        <span class="kpi__value">{{ c.value }}</span>
-        <span v-if="c.ratio !== undefined" class="kpi__bar" aria-hidden="true">
-          <span :style="{ width: `${Math.round(c.ratio * 100)}%` }" />
-        </span>
-        <span class="kpi__sub">
-          {{ c.sub }}
-          <span v-if="c.estimate" class="kpi__est">{{ t('supplierInvoices.estimate') }}</span>
-        </span>
-      </component>
-    </div>
+          <span class="kpi__row">
+            <b class="kpi__n">{{ c.n }}</b>
+            <span v-if="c.amount && c.n" class="kpi__amt">{{ c.amount }}</span>
+          </span>
+        </button>
+      </div>
+
+      <div v-if="month" class="line">
+        <button type="button" class="line__month" @click="emit('pick', 'month')">
+          {{ month.label }}
+        </button>
+        <span>{{ t('supplierInvoices.lineInvoices', { n: month.count }) }}</span>
+        <span class="dot" aria-hidden="true">·</span>
+        <span>{{ month.value }}</span>
+        <template v-if="month.vat">
+          <span class="dot" aria-hidden="true">·</span>
+          <span>{{ t('supplierInvoices.lineVat', { amount: month.vat }) }} <em>{{ t('supplierInvoices.estimate') }}</em></span>
+        </template>
+        <span class="dot" aria-hidden="true">·</span>
+        <span>{{ t('supplierInvoices.lineSources', { auto: month.auto, manual: month.manual }) }}</span>
+        <button type="button" class="line__more" :aria-expanded="showMore" @click="showMore = !showMore">
+          {{ showMore ? t('supplierInvoices.less') : t('supplierInvoices.more') }}
+          <v-icon :icon="showMore ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="15" />
+        </button>
+      </div>
+
+      <v-expand-transition>
+        <dl v-if="showMore" class="more">
+          <div>
+            <dt>{{ t('supplierInvoices.vatByRate') }} ({{ month?.label }})</dt>
+            <dd>
+              <template v-if="summary.month.vatByRate.length">
+                <span v-for="r in summary.month.vatByRate" :key="String(r.rate)">
+                  {{ r.rate === null ? t('supplierInvoices.rateUnknown') : `${r.rate}%` }}:
+                  {{ fmt.amount(r.vatMinor, r.currency) }}
+                </span>
+              </template>
+              <span v-else>-</span>
+            </dd>
+          </div>
+          <div>
+            <dt>{{ t('supplierInvoices.statusUnknown') }}</dt>
+            <dd>{{ t('supplierInvoices.kpiUnknownPayment', { n: summary.unpaid.unknownPayment }) }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('supplierInvoices.kpiAutomation') }}</dt>
+            <dd>{{ t('supplierInvoices.kpiAutomationSub', { auto: summary.sources.automated, manual: summary.sources.manual }) }}</dd>
+          </div>
+        </dl>
+      </v-expand-transition>
+    </template>
   </section>
 </template>
 
 <style scoped>
 .sis {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   container-type: inline-size;
 }
 .sis__error {
@@ -171,128 +147,165 @@ const cards = computed(() => {
   font-size: var(--tvz-fs-small);
   color: rgb(var(--v-theme-error));
 }
-.sis__grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
-}
 .sis__skel {
   border-radius: 12px;
   background: rgb(var(--v-theme-surface));
 }
-.kpi {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  min-width: 0;
-  padding: 0.85rem 0.95rem 0.8rem;
+.strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   border: 1px solid var(--tvz-glass-border);
   border-radius: 12px;
   background: rgb(var(--v-theme-surface));
+  overflow: hidden;
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-right: 1px solid var(--tvz-hairline);
+  background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
-  transition:
-    border-color var(--tvz-dur-fast) var(--tvz-ease-out),
-    background var(--tvz-dur-fast) var(--tvz-ease-out);
-}
-.kpi--link {
   cursor: pointer;
+  transition: background var(--tvz-dur-fast) var(--tvz-ease-out);
 }
-.kpi--link:hover {
-  border-color: rgba(var(--v-theme-on-surface), 0.22);
+.kpi:last-child {
+  border-right: 0;
 }
-.kpi--link:focus-visible {
+.kpi:hover {
+  background: rgba(var(--v-theme-on-surface), 0.03);
+}
+.kpi:focus-visible {
   outline: 2px solid rgb(var(--v-theme-primary));
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 .kpi.is-active {
-  border-color: rgba(var(--v-theme-primary), 0.6);
-  background: rgba(var(--v-theme-primary), 0.06);
-}
-.kpi__top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem;
+  background: rgba(var(--v-theme-primary), 0.08);
+  box-shadow: inset 0 -2px 0 rgb(var(--v-theme-primary));
 }
 .kpi__label {
   font-size: var(--tvz-fs-caption);
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.62);
-}
-.kpi__icon {
-  flex-shrink: 0;
-  color: rgba(var(--v-theme-on-surface), 0.38);
-}
-.kpi__value {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.35rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
-  overflow-wrap: anywhere;
-}
-.kpi__sub {
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.55);
-  overflow-wrap: anywhere;
-}
-.kpi__est {
-  display: inline-block;
-  margin-left: 0.25rem;
-  padding: 0 0.3rem;
-  border-radius: 4px;
-  background: rgba(var(--v-theme-on-surface), 0.07);
-  font-size: var(--tvz-fs-micro);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.kpi__bar {
-  display: block;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
-.kpi__bar span {
-  display: block;
-  height: 100%;
-  background: rgb(var(--v-theme-primary));
+.kpi__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
 }
-/* Only the number takes the semantic colour; the card stays calm. */
-.kpi--warning .kpi__value,
-.kpi--warning .kpi__icon {
-  color: rgb(var(--v-theme-warning));
+.kpi__n {
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
-.kpi--error .kpi__value,
-.kpi--error .kpi__icon {
+.kpi__amt {
+  font-size: var(--tvz-fs-small);
+  color: rgba(var(--v-theme-on-surface), 0.65);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Colour only on non-zero numbers that need attention. */
+.kpi--error:not(.is-zero) .kpi__n {
   color: rgb(var(--v-theme-error));
 }
-.kpi--info .kpi__icon {
-  color: rgb(var(--v-theme-info));
+.kpi--warning:not(.is-zero) .kpi__n {
+  color: rgb(var(--v-theme-warning));
+}
+.kpi.is-zero .kpi__n {
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.45rem;
+  padding: 0 0.25rem;
+  font-size: var(--tvz-fs-small);
+  color: rgba(var(--v-theme-on-surface), 0.62);
+  font-variant-numeric: tabular-nums;
+}
+.line em {
+  font-style: normal;
+  font-size: var(--tvz-fs-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+.line__month {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgb(var(--v-theme-on-surface));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.line__month:hover {
+  text-decoration: underline;
+}
+.dot {
+  opacity: 0.5;
+}
+.line__more {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgb(var(--v-theme-primary));
+  font: inherit;
+  font-size: var(--tvz-fs-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+.more {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem 1.2rem;
+  margin: 0;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: 10px;
+  font-size: var(--tvz-fs-small);
+}
+.more dt {
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.more dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.6rem;
+  margin: 0.15rem 0 0;
 }
 
-@container (max-width: 820px) {
-  .sis__grid {
+@container (max-width: 640px) {
+  .strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
-@container (max-width: 480px) {
-  .sis__grid {
-    gap: 0.5rem;
+  .kpi:nth-child(2) {
+    border-right: 0;
   }
-  .kpi {
-    padding: 0.65rem 0.7rem;
+  .kpi:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--tvz-hairline);
   }
-  .kpi__value {
-    font-size: 1.15rem;
-  }
-}
-@container (max-width: 250px) {
-  .sis__grid {
+  .more {
     grid-template-columns: 1fr;
+  }
+  .line__more {
+    margin-left: 0;
   }
 }
 </style>

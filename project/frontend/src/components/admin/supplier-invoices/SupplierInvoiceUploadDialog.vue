@@ -57,6 +57,8 @@ const form = reactive({
   reviewed: false,
 })
 const extraction = ref<ExtractionResult | null>(null)
+const showExtra = ref(false)
+const extraFilled = computed(() => !!(form.periodStart || form.periodEnd || form.note))
 const extracting = ref(false)
 const saving = ref(false)
 
@@ -83,6 +85,7 @@ function reset(): void {
     reviewed: false,
   })
   extraction.value = null
+  showExtra.value = false
 }
 watch(
   () => props.modelValue,
@@ -153,6 +156,7 @@ async function runExtraction(): Promise<void> {
     form.vatLines = d.vatLines
     form.linesCount = d.lines.length
     form.reviewed = false
+    if (form.periodStart || form.periodEnd) showExtra.value = true
   } catch (e) {
     toasts.error(fmt.errText(e))
   } finally {
@@ -327,8 +331,6 @@ async function save(): Promise<void> {
             density="comfortable"
             :class="{ 'is-low': low.due }"
           />
-          <v-text-field v-model="form.periodStart" type="date" :label="t('supplierInvoices.periodStart')" density="comfortable" />
-          <v-text-field v-model="form.periodEnd" type="date" :label="t('supplierInvoices.periodEnd')" density="comfortable" />
         </div>
 
         <div class="sud__money">
@@ -393,7 +395,20 @@ async function save(): Promise<void> {
             density="comfortable"
           />
         </div>
-        <v-text-field v-model="form.note" :label="t('supplierInvoices.note')" maxlength="300" density="comfortable" />
+        <!-- Secondary fields: folded until needed (opened automatically when
+             the AI/XML read filled them in). -->
+        <button type="button" class="sud__more" :aria-expanded="showExtra" @click="showExtra = !showExtra">
+          <v-icon :icon="showExtra ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="16" />
+          {{ t('supplierInvoices.moreDetails') }}
+          <span v-if="!showExtra && extraFilled" class="sud__more-hint">{{ t('supplierInvoices.filledIn') }}</span>
+        </button>
+        <div v-if="showExtra" class="sud__extra">
+          <div class="sud__grid">
+            <v-text-field v-model="form.periodStart" type="date" :label="t('supplierInvoices.periodStart')" density="comfortable" />
+            <v-text-field v-model="form.periodEnd" type="date" :label="t('supplierInvoices.periodEnd')" density="comfortable" />
+          </div>
+          <v-text-field v-model="form.note" :label="t('supplierInvoices.note')" maxlength="300" density="comfortable" />
+        </div>
 
         <v-checkbox
           v-if="extraction && extraction.extraction.engine !== 'xml'"
@@ -460,6 +475,25 @@ async function save(): Promise<void> {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 0.6rem;
+}
+.sud__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: flex-start;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgb(var(--v-theme-primary));
+  font: inherit;
+  font-size: var(--tvz-fs-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+.sud__more-hint {
+  font-weight: 400;
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .sud__money {
   display: grid;

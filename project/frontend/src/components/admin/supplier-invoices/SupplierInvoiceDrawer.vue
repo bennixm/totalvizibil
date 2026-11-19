@@ -366,6 +366,37 @@ function changeRows(e: InvoiceEvent): { field: string; from: string; to: string 
 }
 const issuesText = computed(() => (inv.value?.issues ?? []).map((i) => t(`supplierInvoices.issue.${i}`)))
 const flagsText = computed(() => (inv.value?.flags ?? []).map((f) => t(`supplierInvoices.flag.${f}`)))
+const showLines = ref(true)
+const showCollection = ref(false)
+
+/** Everything that needs a person, in one list (duplicates, consistency
+ *  checks, supplier flags, a missing original). */
+const attention = computed(() => {
+  const i = inv.value
+  if (!i) return []
+  const out: { key: string; text: string; tone: 'error' | 'warning'; openId?: string }[] = []
+  if (i.possibleDuplicateOf) {
+    const d = i.possibleDuplicateOf
+    out.push({
+      key: 'dup',
+      tone: 'error',
+      openId: d.id,
+      text: t('supplierInvoices.duplicateOf', {
+        number: d.invoiceNumber ?? '-',
+        date: fmt.date(d.issueDate),
+        amount: d.currency === i.currency ? fmt.dAmount(d.totalMinor, i) : fmt.amount(d.totalMinor, d.currency),
+      }),
+    })
+  }
+  issuesText.value.forEach((x, n) => out.push({ key: `i${n}`, tone: 'warning', text: x }))
+  ;(i.flags ?? []).forEach((f, n) => {
+    if (f !== 'due_from_terms') out.push({ key: `f${n}`, tone: 'warning', text: flagsText.value[n] })
+  })
+  if (!i.document && i.documentError) {
+    out.push({ key: 'doc', tone: 'warning', text: `${t('supplierInvoices.documentMissing')}: ${fmt.reason(i.documentError)}` })
+  }
+  return out
+})
 const isPdf = computed(() => inv.value?.document?.mime === 'application/pdf')
 const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
 </script>
@@ -387,7 +418,7 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
     </div>
 
     <template v-else-if="inv">
-      <!-- Header -->
+      <!-- Header: who / what / how much, one status, predictable actions -->
       <header class="sidr__head">
         <div class="sidr__headtop">
           <div class="sidr__id">
@@ -398,106 +429,71 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
         </div>
         <div class="sidr__amount">
           <b>{{ fmt.dAmount(inv.totalMinor, inv) }}</b>
-          <span>{{ t('supplierInvoices.issuedOn', { date: fmt.date(inv.issueDate) }) }}</span>
-        </div>
-        <div class="sidr__badges">
           <InvoiceBadge v-if="pay" v-bind="pay" size="md" />
-          <InvoiceBadge v-if="proc" v-bind="proc" size="md" />
-          <InvoiceBadge :label="fmt.sourceLabel(inv.source)" :icon="fmt.sourceIcon(inv.source)" tone="neutral" size="md" />
+          <span v-if="inv.processingStatus === 'needs_review' && proc" class="sidr__proc" :class="`sidr__proc--${proc.tone}`">
+            <v-icon :icon="proc.icon" size="14" /> {{ proc.label }}
+          </span>
         </div>
         <div class="sidr__actions">
-          <v-btn
-            v-if="inv.paymentStatus !== 'paid'"
-            size="small"
-            color="success"
-            variant="tonal"
-            prepend-icon="mdi-cash-check"
-            :loading="busy === 'paid'"
-            @click="markPaid"
-          >
-            {{ t('supplierInvoices.markPaid') }}
-          </v-btn>
-          <v-btn v-else size="small" variant="tonal" prepend-icon="mdi-cash-remove" :loading="busy === 'unpaid'" @click="markUnpaid">
-            {{ t('supplierInvoices.markUnpaid') }}
-          </v-btn>
           <v-btn
             v-if="inv.processingStatus === 'needs_review'"
             size="small"
             color="primary"
-            variant="tonal"
+            variant="flat"
             prepend-icon="mdi-shield-check-outline"
             :loading="busy === 'verify'"
             @click="markVerified"
           >
             {{ t('supplierInvoices.markVerified') }}
           </v-btn>
-          <v-btn size="small" variant="text" prepend-icon="mdi-pencil-outline" :disabled="editing" @click="startEdit">
+          <v-btn
+            v-else-if="inv.paymentStatus !== 'paid'"
+            size="small"
+            color="primary"
+            variant="flat"
+            prepend-icon="mdi-cash-check"
+            :loading="busy === 'paid'"
+            @click="markPaid"
+          >
+            {{ t('supplierInvoices.markPaid') }}
+          </v-btn>
+          <v-btn size="small" variant="tonal" prepend-icon="mdi-pencil-outline" :disabled="editing" @click="startEdit">
             {{ t('supplierInvoices.edit') }}
           </v-btn>
-          <v-btn
-            v-if="inv.document"
-            size="small"
-            variant="text"
-            prepend-icon="mdi-download-outline"
-            :href="store.documentUrl(inv.id)"
-          >
-            {{ t('supplierInvoices.download') }}
-          </v-btn>
-          <v-btn
-            v-if="inv.source === 'manual'"
-            size="small"
-            variant="text"
-            color="error"
-            icon="mdi-trash-can-outline"
-            :aria-label="t('supplierInvoices.delete')"
-            :title="t('supplierInvoices.delete')"
-            @click="remove"
-          />
+          <v-menu location="bottom end">
+            <template #activator="{ props: menu }">
+              <v-btn v-bind="menu" size="small" variant="text" icon="mdi-dots-horizontal" :aria-label="t('supplierInvoices.moreActions')" />
+            </template>
+            <v-list density="compact" min-width="230">
+              <v-list-item v-if="inv.document" prepend-icon="mdi-download-outline" :title="t('supplierInvoices.download')" :href="store.documentUrl(inv.id)" />
+              <v-list-item
+                v-if="inv.processingStatus === 'needs_review' && inv.paymentStatus !== 'paid'"
+                prepend-icon="mdi-cash-check"
+                :title="t('supplierInvoices.markPaid')"
+                @click="markPaid"
+              />
+              <v-list-item v-if="inv.paymentStatus !== 'unpaid'" prepend-icon="mdi-cash-remove" :title="t('supplierInvoices.markUnpaid')" @click="markUnpaid" />
+              <template v-if="inv.source === 'manual'">
+                <v-divider class="my-1" />
+                <v-list-item prepend-icon="mdi-trash-can-outline" base-color="error" :title="t('supplierInvoices.delete')" @click="remove" />
+              </template>
+            </v-list>
+          </v-menu>
         </div>
       </header>
 
-      <!-- Attention needed -->
-      <div v-if="inv.possibleDuplicateOf || issuesText.length || flagsText.length || inv.documentError || inv.extraction" class="sidr__alerts">
-        <v-alert v-if="inv.possibleDuplicateOf" type="error" variant="tonal" density="compact" icon="mdi-content-duplicate">
-          {{
-            t('supplierInvoices.duplicateOf', {
-              number: inv.possibleDuplicateOf.invoiceNumber ?? '-',
-              date: fmt.date(inv.possibleDuplicateOf.issueDate),
-              amount:
-                inv.possibleDuplicateOf.currency === inv.currency
-                  ? fmt.dAmount(inv.possibleDuplicateOf.totalMinor, inv)
-                  : fmt.amount(inv.possibleDuplicateOf.totalMinor, inv.possibleDuplicateOf.currency),
-            })
-          }}
-          <a href="#" class="sidr__link" @click.prevent="emit('open', inv.possibleDuplicateOf.id)">{{ t('supplierInvoices.openIt') }}</a>
-        </v-alert>
-        <v-alert v-if="issuesText.length" type="warning" variant="tonal" density="compact">
-          <strong>{{ t('supplierInvoices.checksTitle') }}</strong>
-          <ul class="sidr__issues">
-            <li v-for="x in issuesText" :key="x">{{ x }}</li>
-          </ul>
-        </v-alert>
-        <v-alert v-if="flagsText.length" type="warning" variant="tonal" density="compact" icon="mdi-alert-decagram-outline">
-          <strong>{{ t('supplierInvoices.flagsTitle') }}</strong>
-          <ul class="sidr__issues">
-            <li v-for="x in flagsText" :key="x">{{ x }}</li>
-          </ul>
-        </v-alert>
-        <v-alert v-if="!inv.document && inv.documentError" type="warning" variant="tonal" density="compact">
-          {{ t('supplierInvoices.documentMissing') }}: {{ fmt.reason(inv.documentError) }}
-        </v-alert>
-        <v-alert v-if="inv.extraction && inv.extraction.engine === 'xml'" type="info" variant="tonal" density="compact" icon="mdi-xml">
-          {{ t('supplierInvoices.extractedXml', { format: inv.extraction.model }) }}
-        </v-alert>
-        <v-alert v-else-if="inv.extraction" type="info" variant="tonal" density="compact" icon="mdi-creation-outline">
-          {{
-            t('supplierInvoices.extractedBy', {
-              model: inv.extraction.model,
-              pct: Math.round((inv.extraction.confidence ?? 0) * 100),
-            })
-          }}
-          {{ t('supplierInvoices.aiDisclaimer') }}
-        </v-alert>
+      <!-- Attention: one list instead of one box per problem -->
+      <div v-if="attention.length" class="att" role="status">
+        <div class="att__title">
+          <v-icon icon="mdi-alert-circle-outline" size="16" />
+          {{ t('supplierInvoices.attentionTitle', { n: attention.length }) }}
+        </div>
+        <ul>
+          <li v-for="a in attention" :key="a.key" :class="`att--${a.tone}`">
+            {{ a.text }}
+            <a v-if="a.openId" href="#" class="sidr__link" @click.prevent="emit('open', a.openId)">{{ t('supplierInvoices.openIt') }}</a>
+          </li>
+        </ul>
       </div>
 
       <v-tabs v-model="tab" density="compact" color="primary" class="sidr__tabs" show-arrows>
@@ -517,7 +513,7 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
         <!-- DETAILS (read) -->
         <template v-if="tab === 'details' && !editing">
           <section class="blk">
-            <h3 class="blk__title">{{ t('supplierInvoices.secSupplier') }}</h3>
+            <h3 class="blk__title">{{ t('supplierInvoices.secInvoice') }}</h3>
             <dl class="dl">
               <div><dt>{{ t('supplierInvoices.colProvider') }}</dt><dd>{{ inv.providerName }}</dd></div>
               <div><dt>{{ t('supplierInvoices.vatId') }}</dt><dd>{{ inv.supplierVatId ?? '-' }}</dd></div>
@@ -532,20 +528,22 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
                 <dt>{{ t('supplierInvoices.colPeriod') }}</dt>
                 <dd>{{ inv.periodStart || inv.periodEnd ? `${fmt.date(inv.periodStart)} - ${fmt.date(inv.periodEnd)}` : '-' }}</dd>
               </div>
-              <div><dt>{{ t('supplierInvoices.currency') }}</dt><dd>{{ inv.currency }}</dd></div>
+              <div>
+                <dt>{{ t('supplierInvoices.colPayment') }}</dt>
+                <dd>{{ pay?.label }}<template v-if="inv.paidAt"> · {{ fmt.date(inv.paidAt) }}</template></dd>
+              </div>
             </dl>
+            <p v-if="inv.note" class="blk__note">{{ inv.note }}</p>
           </section>
 
           <section class="blk">
             <h3 class="blk__title">{{ t('supplierInvoices.secAmounts') }}</h3>
             <div class="sums">
               <div class="sums__row"><span>{{ t('supplierInvoices.colNet') }}</span><b>{{ fmt.dAmount(inv.subtotalMinor, inv) }}</b></div>
-              <template v-if="inv.vatLines.length">
-                <div v-for="(v, i) in inv.vatLines" :key="i" class="sums__row sums__row--sub">
-                  <span>{{ t('supplierInvoices.vatAtRate', { rate: v.rate === null ? '?' : v.rate, base: fmt.dAmount(v.netMinor, inv) }) }}</span>
-                  <b>{{ fmt.dAmount(v.vatMinor, inv) }}</b>
-                </div>
-              </template>
+              <div v-for="(v, i) in inv.vatLines" :key="i" class="sums__row sums__row--sub">
+                <span>{{ t('supplierInvoices.vatAtRate', { rate: v.rate === null ? '?' : v.rate, base: fmt.dAmount(v.netMinor, inv) }) }}</span>
+                <b>{{ fmt.dAmount(v.vatMinor, inv) }}</b>
+              </div>
               <div class="sums__row"><span>{{ t('supplierInvoices.colVat') }}</span><b>{{ fmt.dAmount(inv.taxMinor, inv) }}</b></div>
               <div class="sums__row sums__row--total"><span>{{ t('supplierInvoices.colTotal') }}</span><b>{{ fmt.dAmount(inv.totalMinor, inv) }}</b></div>
               <div v-if="fmt.conversion(inv) && fmt.conversion(inv)!.rate !== 1" class="sums__fx">
@@ -560,8 +558,11 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
           </section>
 
           <section v-if="inv.lines.length" class="blk">
-            <h3 class="blk__title">{{ t('supplierInvoices.lines') }} ({{ inv.lines.length }})</h3>
-            <div class="lines">
+            <button type="button" class="blk__toggle" :aria-expanded="showLines" @click="showLines = !showLines">
+              <span class="blk__title">{{ t('supplierInvoices.lines') }} ({{ inv.lines.length }})</span>
+              <v-icon :icon="showLines ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="16" />
+            </button>
+            <div v-if="showLines" class="lines">
               <div class="lines__head">
                 <span>{{ t('supplierInvoices.lineDesc') }}</span>
                 <span class="num">{{ t('supplierInvoices.lineQty') }}</span>
@@ -570,7 +571,7 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
                 <span class="num">{{ t('supplierInvoices.lineVat') }}</span>
               </div>
               <div v-for="(l, i) in inv.lines" :key="i" class="lines__row">
-                <span>{{ l.description }}</span>
+                <span class="lines__desc" :title="l.description">{{ l.description }}</span>
                 <span class="num">{{ l.quantity ?? '-' }}</span>
                 <span class="num">{{ fmt.dAmount(l.unitPriceMinor, inv) }}</span>
                 <span class="num">{{ fmt.dAmount(l.netMinor, inv) }}</span>
@@ -580,16 +581,12 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
           </section>
 
           <section class="blk">
-            <h3 class="blk__title">{{ t('supplierInvoices.secPayment') }}</h3>
-            <dl class="dl">
-              <div><dt>{{ t('supplierInvoices.colPayment') }}</dt><dd><InvoiceBadge v-if="pay" v-bind="pay" /></dd></div>
-              <div v-if="inv.paidAt"><dt>{{ t('supplierInvoices.paidAt') }}</dt><dd>{{ fmt.date(inv.paidAt) }}</dd></div>
-            </dl>
-          </section>
-
-          <section class="blk">
-            <h3 class="blk__title">{{ t('supplierInvoices.secCollection') }}</h3>
-            <dl class="dl">
+            <button type="button" class="blk__toggle" :aria-expanded="showCollection" @click="showCollection = !showCollection">
+              <span class="blk__title">{{ t('supplierInvoices.secCollection') }}</span>
+              <span class="blk__hint">{{ fmt.sourceLabel(inv.source) }} · {{ fmt.dateTime(inv.createdAt) }}</span>
+              <v-icon :icon="showCollection ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="16" />
+            </button>
+            <dl v-if="showCollection" class="dl">
               <div><dt>{{ t('supplierInvoices.collectionMethod') }}</dt><dd>{{ fmt.sourceLabel(inv.source) }}</dd></div>
               <div><dt>{{ t('supplierInvoices.importedAt') }}</dt><dd>{{ fmt.dateTime(inv.createdAt) }}</dd></div>
               <div v-if="inv.createdByName"><dt>{{ t('supplierInvoices.addedBy') }}</dt><dd>{{ inv.createdByName }}</dd></div>
@@ -598,8 +595,17 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
                 <dt>{{ t('supplierInvoices.correctedFields') }}</dt>
                 <dd>{{ inv.correctedFields.map(fieldLabel).join(', ') }}</dd>
               </div>
+              <div v-if="inv.extraction" class="dl__wide">
+                <dt>{{ t('supplierInvoices.extraction') }}</dt>
+                <dd>
+                  <template v-if="inv.extraction.engine === 'xml'">{{ t('supplierInvoices.extractedXml', { format: inv.extraction.model }) }}</template>
+                  <template v-else>
+                    {{ t('supplierInvoices.extractedBy', { model: inv.extraction.model, pct: Math.round((inv.extraction.confidence ?? 0) * 100) }) }}
+                    {{ t('supplierInvoices.aiDisclaimer') }}
+                  </template>
+                </dd>
+              </div>
             </dl>
-            <p v-if="inv.note" class="blk__note">{{ inv.note }}</p>
           </section>
         </template>
 
@@ -812,7 +818,7 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
 .sidr__amount {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 0.25rem 0.75rem;
 }
 .sidr__amount b {
@@ -820,15 +826,78 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
   font-size: 1.6rem;
   font-variant-numeric: tabular-nums;
 }
-.sidr__amount span {
-  font-size: var(--tvz-fs-small);
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.sidr__badges,
 .sidr__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+.sidr__proc {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: var(--tvz-fs-small);
+  font-weight: 600;
+}
+.sidr__proc--warning {
+  color: rgb(var(--v-theme-warning));
+}
+.sidr__proc--error {
+  color: rgb(var(--v-theme-error));
+}
+.att {
+  margin: 0.9rem 1.25rem 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid rgba(var(--v-theme-warning), 0.35);
+  border-radius: 10px;
+  background: rgba(var(--v-theme-warning), 0.05);
+  font-size: var(--tvz-fs-small);
+}
+.att__title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-warning));
+}
+.att ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.4rem;
+  color: rgba(var(--v-theme-on-surface), 0.8);
+}
+.att li {
+  padding: 0.1rem 0;
+}
+.att--error::marker {
+  color: rgb(var(--v-theme-error));
+}
+.blk__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.blk__toggle .blk__title {
+  margin: 0;
+}
+.blk__hint {
+  margin-left: auto;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.dl__wide {
+  grid-column: 1 / -1;
+}
+.lines__desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sidr__alerts {
   display: flex;
