@@ -32,6 +32,8 @@ const campaignsLoading = ref(false)
 const picked = ref<string | null>(null)
 const saving = ref(false)
 const loadError = ref('')
+/** Google's own reason (from the backend), shown under the message. */
+const loadErrorDetail = ref('')
 const email = ref<string | null>(null)
 
 const ERRORS = ['denied', 'access_denied', 'expired', 'state', 'scope', 'refresh', 'exchange']
@@ -125,6 +127,8 @@ onMounted(async () => {
       if (state.selected && previous) picked.value = state.selected.campaignId
     }
   } catch (e) {
+    loadErrorDetail.value =
+      e instanceof ApiError && e.message !== 'google_ads_reconnect_required' ? e.message : ''
     loadError.value =
       e instanceof ApiError && e.message === 'google_ads_reconnect_required'
         ? t('ads.campaigns.reconnect')
@@ -141,6 +145,7 @@ onMounted(async () => {
 
     <div v-else-if="loadError" class="ab-card ag__narrow">
       <p class="ab-note ab-note--warn"><v-icon icon="mdi-alert-circle-outline" size="18" /> {{ loadError }}</p>
+      <p v-if="loadErrorDetail" class="ag__detail">{{ t('ads.campaigns.googleSaid') }} {{ loadErrorDetail }}</p>
       <v-btn color="primary" :to="{ name: 'ads-connect' }">{{ t('ads.campaigns.reconnectCta') }}</v-btn>
     </div>
 
@@ -251,6 +256,13 @@ onMounted(async () => {
   grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
+}
+.ag__detail {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  overflow-wrap: anywhere;
 }
 .ag__narrow {
   max-width: 560px;

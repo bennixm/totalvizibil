@@ -3677,7 +3677,8 @@
         "scope": "Did you allow access to Google Ads? Without it we cannot read your campaigns.",
         "refresh": "Google did not grant lasting access. Please try again.",
         "exchange": "The Google sign-in did not work. Please try again."
-      }
+      },
+      "googleSaid": "Google said:"
     },
     "account": {
       "seoTitle": "Your account",

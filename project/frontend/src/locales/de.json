@@ -3677,7 +3677,8 @@
         "scope": "Hast du den Zugriff auf Google Ads erlaubt? Ohne ihn können wir deine Kampagnen nicht lesen.",
         "refresh": "Google hat keinen dauerhaften Zugriff erteilt. Bitte versuche es erneut.",
         "exchange": "Die Google-Anmeldung hat nicht geklappt. Bitte versuche es erneut."
-      }
+      },
+      "googleSaid": "Antwort von Google:"
     },
     "account": {
       "seoTitle": "Dein Konto",
