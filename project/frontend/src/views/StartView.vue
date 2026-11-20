@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useSeo } from '@/composables/useSeo'
-import { googleAdsUserApi } from '@/services/googleAdsUser'
 
 /**
- * Navbar entry point: build from scratch (the full /create flow, untouched)
- * or optimize a Google Ads campaign the visitor already runs (the Google Ads
- * optimization builder). Both cards share one design; the difference is in
- * the content: the create card walks through the complete process, the
- * optimize card lists only what the optimization builder actually does.
+ * Navbar entry point. Two options with clearly different purposes:
+ *  - create a website and get online (the full /create flow, unchanged),
+ *  - optimize a Google Ads campaign the visitor already runs (the
+ *    optimization builder; it does not create a website).
+ * Same card design for both; the illustration, title and one sentence carry
+ * the difference.
  */
 const { t } = useI18n()
 useSeo(() => ({
@@ -19,24 +18,8 @@ useSeo(() => ({
   canonicalPath: '/start',
 }))
 
-/** The real steps of the /create flow (lib/flowSteps.ts, easy plan). */
-const CREATE_STEPS = ['plan', 'build', 'location', 'account', 'budget', 'launch'] as const
-/** Only capabilities implemented in the optimization builder. */
-const OPTIMIZE_FEATURES = [
-  { key: 'connect', icon: 'mdi-google' },
-  { key: 'analyze', icon: 'mdi-gauge' },
-  { key: 'improve', icon: 'mdi-auto-fix' },
-  { key: 'approve', icon: 'mdi-account-check-outline' },
-] as const
-
-const minCredits = ref<number | null>(null)
-onMounted(async () => {
-  try {
-    minCredits.value = (await googleAdsUserApi.status()).minCredits
-  } catch {
-    /* the note falls back to the wording without a number */
-  }
-})
+const CREATE_TAGS = ['site', 'online', 'campaign'] as const
+const OPTIMIZE_TAGS = ['existing', 'improve', 'noSite'] as const
 </script>
 
 <template>
@@ -48,67 +31,48 @@ onMounted(async () => {
     </header>
 
     <div class="st__cards">
-      <!-- Create: the complete process -->
+      <!-- 1. Create a website & campaign (main option) -->
       <RouterLink :to="{ name: 'create' }" class="card" data-guide="start-scratch">
-        <div class="card__head">
-          <span class="card__icon"><v-icon icon="mdi-rocket-launch-outline" size="22" /></span>
-          <div>
-            <p class="card__kicker">{{ t('start.scratchKicker') }}</p>
-            <h2>{{ t('start.scratchTitle') }}</h2>
+        <div class="art art--site" aria-hidden="true">
+          <div class="win">
+            <div class="win__bar"><i /><i /><i /><span class="win__url" /></div>
+            <div class="win__hero" />
+            <div class="win__row"><span /><span /><span /></div>
           </div>
-        </div>
-        <p class="card__text">{{ t('start.scratchText') }}</p>
-
-        <div class="card__body">
-          <p class="card__label">{{ t('start.scratchStepsTitle') }}</p>
-          <ol class="steps">
-            <li v-for="(s, i) in CREATE_STEPS" :key="s" class="steps__item">
-              <span class="steps__num">{{ i + 1 }}</span>
-              <span class="steps__text">
-                <b>{{ t(`start.scratchSteps.${s}.title`) }}</b>
-                <span>{{ t(`start.scratchSteps.${s}.text`) }}</span>
-              </span>
-            </li>
-          </ol>
+          <span class="art__badge"><v-icon icon="mdi-web" size="18" /></span>
         </div>
 
-        <p class="card__note"><v-icon icon="mdi-information-outline" size="16" /> {{ t('start.scratchNote') }}</p>
-        <span class="card__cta">
-          {{ t('start.scratchCta') }} <v-icon icon="mdi-arrow-right" size="18" />
-        </span>
-      </RouterLink>
-
-      <!-- Optimize: an additional capability for existing campaigns -->
-      <RouterLink :to="{ name: 'ads-connect' }" class="card" data-guide="start-optimize">
-        <div class="card__head">
-          <span class="card__icon"><v-icon icon="mdi-google-ads" size="22" /></span>
-          <div>
-            <p class="card__kicker">{{ t('start.optimizeKicker') }}</p>
-            <h2>{{ t('start.optimizeTitle') }}</h2>
-          </div>
-        </div>
-        <p class="card__text">{{ t('start.optimizeText') }}</p>
-
-        <div class="card__body">
-          <p class="card__label">{{ t('start.optimizeFeaturesTitle') }}</p>
-          <ul class="feats">
-            <li v-for="f in OPTIMIZE_FEATURES" :key="f.key" class="feats__item">
-              <span class="feats__icon"><v-icon :icon="f.icon" size="16" /></span>
-              <span class="steps__text">
-                <b>{{ t(`start.optimizeFeatures.${f.key}.title`) }}</b>
-                <span>{{ t(`start.optimizeFeatures.${f.key}.text`) }}</span>
-              </span>
-            </li>
+        <div class="card__main">
+          <p class="card__kicker">{{ t('start.createKicker') }}</p>
+          <h2>{{ t('start.createTitle') }}</h2>
+          <p class="card__text">{{ t('start.createText') }}</p>
+          <ul class="tags">
+            <li v-for="k in CREATE_TAGS" :key="k">{{ t(`start.createTags.${k}`) }}</li>
           </ul>
         </div>
+        <span class="card__cta">{{ t('start.createCta') }} <v-icon icon="mdi-arrow-right" size="18" /></span>
+      </RouterLink>
 
-        <p class="card__note">
-          <v-icon icon="mdi-information-outline" size="16" />
-          {{ minCredits != null ? t('start.optimizeNote', { credits: minCredits }) : t('start.optimizeNoteShort') }}
-        </p>
-        <span class="card__cta">
-          {{ t('start.optimizeCta') }} <v-icon icon="mdi-arrow-right" size="18" />
-        </span>
+      <!-- 2. Optimize an existing Google Ads campaign -->
+      <RouterLink :to="{ name: 'ads-connect' }" class="card" data-guide="start-optimize">
+        <div class="art art--ads" aria-hidden="true">
+          <div class="chart">
+            <span style="height: 34%" /><span style="height: 46%" /><span style="height: 42%" />
+            <span style="height: 62%" /><span style="height: 78%" /><span style="height: 92%" />
+            <v-icon icon="mdi-trending-up" size="26" class="chart__arrow" />
+          </div>
+          <span class="art__badge"><v-icon icon="mdi-google-ads" size="18" /></span>
+        </div>
+
+        <div class="card__main">
+          <p class="card__kicker">{{ t('start.optimizeKicker') }}</p>
+          <h2>{{ t('start.optimizeTitle') }}</h2>
+          <p class="card__text">{{ t('start.optimizeText') }}</p>
+          <ul class="tags">
+            <li v-for="k in OPTIMIZE_TAGS" :key="k">{{ t(`start.optimizeTags.${k}`) }}</li>
+          </ul>
+        </div>
+        <span class="card__cta">{{ t('start.optimizeCta') }} <v-icon icon="mdi-arrow-right" size="18" /></span>
       </RouterLink>
     </div>
   </v-container>
@@ -116,12 +80,12 @@ onMounted(async () => {
 
 <style scoped>
 .st {
-  max-width: 1040px;
+  max-width: 980px;
   padding-block: clamp(2.5rem, 7vw, 5rem);
 }
 .st__head {
   text-align: center;
-  margin-bottom: 2.75rem;
+  margin-bottom: 2.5rem;
 }
 .st__eyebrow {
   display: inline-flex;
@@ -152,7 +116,7 @@ onMounted(async () => {
 }
 .st__lead {
   margin: 1rem auto 0;
-  max-width: 52ch;
+  max-width: 46ch;
   font-size: 1.05rem;
   color: rgba(var(--v-theme-on-surface), 0.66);
 }
@@ -165,35 +129,22 @@ onMounted(async () => {
 
 /* One card design for both options. */
 .card {
-  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
-  padding: 1.75rem 1.75rem 1.6rem;
+  gap: 1.25rem;
+  padding: 1rem 1rem 1.4rem;
   border-radius: var(--tvz-radius-lg);
   border: 1px solid var(--tvz-glass-border);
-  background:
-    radial-gradient(120% 60% at 0% 0%, rgba(var(--v-theme-primary), 0.08), transparent 60%),
-    var(--tvz-glass-bg);
+  background: var(--tvz-glass-bg);
   backdrop-filter: blur(var(--tvz-glass-blur));
   -webkit-backdrop-filter: blur(var(--tvz-glass-blur));
   box-shadow: var(--tvz-shadow-sm);
   color: inherit;
   text-decoration: none;
-  overflow: hidden;
   transition:
     transform var(--tvz-dur-med, 0.25s) var(--tvz-ease-out, ease),
     box-shadow var(--tvz-dur-med, 0.25s) var(--tvz-ease-out, ease),
     border-color var(--tvz-dur-med, 0.25s) var(--tvz-ease-out, ease);
-}
-/* Thin brand line on top, identical on both cards. */
-.card::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: var(--tvz-gradient-brand);
-  opacity: 0.85;
 }
 .card:hover,
 .card:focus-visible {
@@ -205,127 +156,57 @@ onMounted(async () => {
   outline: 2px solid rgb(var(--v-theme-primary));
   outline-offset: 3px;
 }
-.card__head {
+.card__main {
+  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 0.9rem;
-}
-.card__icon {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  flex: none;
-  border-radius: 14px;
-  background: var(--tvz-ai-soft);
-  color: var(--tvz-ai);
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-inline: 0.6rem;
 }
 .card__kicker {
-  margin: 0 0 0.15rem;
+  margin: 0;
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: rgba(var(--v-theme-on-surface), 0.55);
+  color: rgb(var(--v-theme-primary));
 }
 .card h2 {
   margin: 0;
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
 }
 .card__text {
   margin: 0;
-  font-size: 0.93rem;
-  line-height: 1.55;
+  font-size: 0.95rem;
+  line-height: 1.5;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
-.card__body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--tvz-hairline);
-}
-.card__label {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-
-/* Create: numbered process */
-.steps,
-.feats {
+.tags {
   list-style: none;
-  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.35rem 0 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
 }
-.steps__item,
-.feats__item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.7rem;
-}
-.steps__num,
-.feats__icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  flex: none;
-  border-radius: 8px;
+.tags li {
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--tvz-hairline);
   font-size: 0.78rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  background: rgba(var(--v-theme-primary), 0.12);
-  color: rgb(var(--v-theme-primary));
-}
-.steps__text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.05rem;
-  min-width: 0;
-  font-size: 0.86rem;
-  line-height: 1.4;
-}
-.steps__text b {
-  font-weight: 600;
-}
-.steps__text span {
-  color: rgba(var(--v-theme-on-surface), 0.62);
-}
-
-.card__note {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.45rem;
-  margin: 0;
-  padding: 0.65rem 0.8rem;
-  border-radius: var(--tvz-radius-md);
-  background: rgba(var(--v-theme-on-surface), 0.05);
-  font-size: 0.82rem;
-  line-height: 1.45;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-}
-.card__note .v-icon {
-  flex: none;
-  margin-top: 0.1rem;
-  color: rgb(var(--v-theme-primary));
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.78);
 }
 .card__cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
+  margin-inline: 0.6rem;
   padding: 0.8rem 1rem;
   border-radius: 999px;
   font-weight: 600;
@@ -337,12 +218,112 @@ onMounted(async () => {
   filter: brightness(1.08);
 }
 
-@media (max-width: 820px) {
+/* --- illustrations: same frame, different picture --- */
+.art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 168px;
+  border-radius: calc(var(--tvz-radius-lg) - 6px);
+  background:
+    radial-gradient(90% 90% at 20% 0%, rgba(var(--v-theme-primary), 0.22), transparent 60%),
+    radial-gradient(80% 80% at 100% 100%, rgba(var(--v-theme-primary), 0.12), transparent 60%),
+    rgba(var(--v-theme-on-surface), 0.04);
+  overflow: hidden;
+}
+.art__badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: rgb(var(--v-theme-primary));
+  color: #fff;
+  box-shadow: var(--tvz-glow-primary);
+}
+/* Website mockup */
+.win {
+  width: min(62%, 260px);
+  border-radius: 10px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.14);
+  background: rgb(var(--v-theme-surface));
+  box-shadow: var(--tvz-shadow-lg);
+  overflow: hidden;
+  transform: translateY(10px);
+}
+.win__bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+}
+.win__bar i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-on-surface), 0.2);
+}
+.win__url {
+  flex: 1;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+}
+.win__hero {
+  height: 46px;
+  margin: 8px;
+  border-radius: 6px;
+  background: linear-gradient(120deg, rgba(var(--v-theme-primary), 0.55), rgba(var(--v-theme-primary), 0.15));
+}
+.win__row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 0 8px 10px;
+}
+.win__row span {
+  height: 22px;
+  border-radius: 5px;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+}
+/* Rising chart */
+.chart {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: min(58%, 240px);
+  height: 104px;
+  padding: 10px 12px 0;
+  border-bottom: 2px solid rgba(var(--v-theme-on-surface), 0.16);
+  transform: translateY(10px);
+}
+.chart span {
+  flex: 1;
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(180deg, rgba(var(--v-theme-primary), 0.85), rgba(var(--v-theme-primary), 0.3));
+}
+.chart span:nth-child(-n + 3) {
+  background: rgba(var(--v-theme-on-surface), 0.16);
+}
+.chart__arrow {
+  position: absolute;
+  top: -14px;
+  right: -6px;
+  color: rgb(var(--v-theme-success));
+}
+
+@media (max-width: 760px) {
   .st__cards {
     grid-template-columns: minmax(0, 1fr);
   }
-  .card {
-    padding: 1.4rem 1.25rem 1.3rem;
+  .art {
+    height: 140px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

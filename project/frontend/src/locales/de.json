@@ -3603,67 +3603,28 @@
     }
   },
   "start": {
-    "seoTitle": "Werde sichtbar: erstellen oder optimieren",
-    "seoDesc": "Baue deine Präsenz von Grund auf auf oder optimiere eine bestehende Google-Ads-Kampagne.",
+    "seoTitle": "Werde sichtbar: neue Website oder optimierte Kampagne",
+    "seoDesc": "Erstelle deine Website und Online-Präsenz oder optimiere eine bestehende Google-Ads-Kampagne.",
     "eyebrow": "Werde sichtbar",
-    "title": "Womit fangen wir an?",
-    "lead": "Geh den kompletten Weg von Grund auf oder optimiere eine Google-Ads-Kampagne, die du schon hast.",
-    "scratchKicker": "Der komplette Prozess",
-    "scratchTitle": "Von Grund auf erstellen",
-    "scratchText": "Der Assistent begleitet dich durch den ganzen Prozess: Er erstellt deine Website, listet dein Unternehmen auf der Plattform und startet deine Werbekampagne.",
-    "scratchStepsTitle": "Was du Schritt für Schritt durchläufst",
-    "scratchSteps": {
-      "plan": {
-        "title": "Plan wählen",
-        "text": "Einfach oder Erweitert, je nachdem, wie viel Kontrolle du über die Website willst."
-      },
-      "build": {
-        "title": "Website erstellen",
-        "text": "Der KI-Assistent schreibt die Inhalte gemeinsam mit dir."
-      },
-      "location": {
-        "title": "Branche und Gebiet",
-        "text": "Die Kategorie deines Unternehmens und dein Einsatzgebiet."
-      },
-      "account": {
-        "title": "Dein Konto",
-        "text": "Speichere alles, was du erstellt hast."
-      },
-      "budget": {
-        "title": "Kampagnenbudget",
-        "text": "Lege fest, wie viel du in Werbung investieren willst."
-      },
-      "launch": {
-        "title": "Start",
-        "text": "Starte die Kampagne und erscheine im Feed der Plattform."
-      }
+    "title": "Was möchtest du tun?",
+    "lead": "Erstelle deine Website von Grund auf oder verbessere eine Google-Ads-Kampagne, die du schon hast.",
+    "createKicker": "Die komplette Option",
+    "createTitle": "Website & Kampagne erstellen",
+    "createText": "Erstelle deine Website und geh online, inklusive Werbekampagne.",
+    "createTags": {
+      "site": "Website",
+      "online": "Online-Präsenz",
+      "campaign": "Kampagne"
     },
-    "scratchNote": "Passend, wenn du jetzt startest: Website, Eintrag und Kampagne in einem Ablauf.",
-    "scratchCta": "Von Grund auf starten",
-    "optimizeKicker": "Für bestehende Kampagnen",
-    "optimizeTitle": "Eine Google-Ads-Kampagne optimieren",
-    "optimizeText": "Du hast schon eine Suchkampagne in Google Ads? Verbinde dein Konto, wähle die Kampagne und lass den Optimierungsagenten sie verbessern.",
-    "optimizeFeaturesTitle": "Was du tun kannst",
-    "optimizeFeatures": {
-      "connect": {
-        "title": "Mit Google verbinden",
-        "text": "Melde dich mit deinem Google-Konto an und wähle dein Google-Ads-Konto und die Kampagne."
-      },
-      "analyze": {
-        "title": "Wert und Probleme",
-        "text": "Die Kampagne wird an den Google-Anforderungen gemessen: Wert, Ad Strength, fehlende Elemente."
-      },
-      "improve": {
-        "title": "Optimierungsagent",
-        "text": "Ergänzt Anzeigentitel, Beschreibungen, Sitelinks und Callouts und bringt Keywords in die Anzeigentitel, nach deinen Einstellungen."
-      },
-      "approve": {
-        "title": "Du behältst die Kontrolle",
-        "text": "Das Budget ändert sich nur nach deiner Freigabe; du entscheidest, was der Agent selbst tun darf."
-      }
+    "createCta": "Website erstellen",
+    "optimizeKicker": "Für Google Ads",
+    "optimizeTitle": "Bestehende Kampagne optimieren",
+    "optimizeText": "Du hast schon eine Google-Ads-Kampagne? Wir verbessern sie. Es wird keine neue Website erstellt.",
+    "optimizeTags": {
+      "existing": "Bestehende Kampagne",
+      "improve": "Optimierung",
+      "noSite": "Keine neue Website"
     },
-    "optimizeNote": "Die Einrichtung ist kostenlos. Du zahlst Credits nur für die Optimierungszyklen, die du startest (ab {credits} Credits).",
-    "optimizeNoteShort": "Die Einrichtung ist kostenlos. Du zahlst Credits nur für die Optimierungszyklen, die du startest.",
     "optimizeCta": "Kampagne optimieren"
   },
   "ads": {
