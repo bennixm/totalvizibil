@@ -83,8 +83,10 @@ export class GoogleAdsAgentRecommendationsService {
 
       const action = `recommendation.${type}`;
       // Already handled, awaiting a human, being executed, revised, or
-      // decided recently — never re-queued every tick. A rejection or a
-      // failure blocks the same recommendation type for 30 days.
+      // rejected recently — never re-queued every tick. Only an admin's
+      // rejection blocks the type for 30 days; a FAILED execution (a
+      // technical error, not a decision) may be queued again next cycle if
+      // Google still recommends it — the pending row then blocks repeats.
       const recent = new Date(Date.now() - REJECTION_MEMORY_MS);
       const already = await this.prisma.googleAdsAgentAction.findFirst({
         where: {
@@ -92,7 +94,7 @@ export class GoogleAdsAgentRecommendationsService {
           action,
           OR: [
             { status: { in: ['pending_approval', 'approved', 'applied', 'superseded'] } },
-            { status: { in: ['rejected', 'failed'] }, createdAt: { gte: recent } },
+            { status: 'rejected', createdAt: { gte: recent } },
           ],
         },
       });

@@ -240,8 +240,9 @@ const ACTION_LABELS_RO: Record<string, string> = {
   'cpc.adjusted': 'CPC maxim ajustat',
   'budget.increase.proposed': 'Propunere de creștere a bugetului',
   'creative.rsa_gap_fill': 'Titluri/descrieri adăugate în reclamă',
-  'creative.assets_gap_fill': 'Sitelink-uri/callout-uri adăugate',
-  'creative.replace_text': 'Înlocuire text cu performanță scăzută',
+  'creative.assets_gap_fill': 'Extensii adăugate (sitelink-uri, callout-uri, snippet, nume)',
+  'creative.images_gap_fill': 'Imagini adăugate (Pexels)',
+  'creative.replace_text': 'Înlocuire text (performanță / Ad Strength)',
 }
 /** A per-row icon for the History list — gives each action type a visual
  *  identity instead of every row reading as identical text, since this is
@@ -257,6 +258,7 @@ const ACTION_ICONS_RO: Record<string, string> = {
   'budget.increase.proposed': 'mdi-trending-up',
   'creative.rsa_gap_fill': 'mdi-format-title',
   'creative.assets_gap_fill': 'mdi-link-box-variant-outline',
+  'creative.images_gap_fill': 'mdi-image-plus-outline',
   'creative.replace_text': 'mdi-swap-horizontal',
 }
 function historyRowIcon(action: string): string {

@@ -65,6 +65,7 @@ const STEP_ICON: Record<string, string> = {
   logos: 'mdi-shield-star-outline',
   policy: 'mdi-shield-check-outline',
   score: 'mdi-gauge',
+  rescore: 'mdi-gauge',
   prioritize: 'mdi-sort-descending',
   optimize: 'mdi-auto-fix',
   generate: 'mdi-creation-outline',

@@ -293,9 +293,17 @@ describe('text validation', () => {
 });
 
 describe('GoogleAdsOptimizerService.fillGaps', () => {
-  function setup(opts: { writesAllowed: boolean; verifyHeadlines?: string[] }) {
+  function setup(opts: {
+    writesAllowed: boolean;
+    verifyHeadlines?: string[];
+    /** Campaign already has a structured snippet + business name. */
+    extensions?: boolean;
+    /** Live campaign_asset rows returned by the post-apply re-read. */
+    assetRows?: unknown[];
+  }) {
     const mutate = jest.fn().mockResolvedValue([]);
     const search = jest.fn(async (q: string) => {
+      if (q.includes('FROM campaign_asset')) return opts.assetRows ?? [];
       if (q.includes('FROM ad_group_ad')) {
         return [
           {
@@ -326,6 +334,7 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
         ],
         descriptions: ['Compară vulcanizări din zona ta și alege rapid.'],
         callouts: [],
+        snippetValues: ['Montaj anvelope', 'Echilibrare roți', 'Reparații jante', 'Depozitare'],
         sitelinks: [],
         costEstimateMinor: 3,
         inputTokens: 1,
@@ -347,7 +356,7 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
       googleAdsAgentEvent: { create: jest.fn().mockResolvedValue({ id: 'e' }), update: jest.fn() },
       category: { findMany: jest.fn().mockResolvedValue([]) },
     };
-    const config = { get: () => 'https://totalvizibil.ro' };
+    const config = { get: (k: string) => (k === 'pexelsApiKey' ? '' : 'https://totalvizibil.ro') };
     const svc = new GoogleAdsOptimizerService(
       client as never,
       ai as never,
@@ -364,6 +373,21 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
           primaryStatusReasons: [],
           text: `C${n}`,
         })),
+        ...(opts.extensions === false
+          ? []
+          : [
+              {
+                level: 'campaign' as const,
+                fieldType: 'STRUCTURED_SNIPPET',
+                primaryStatusReasons: [],
+              },
+              {
+                level: 'campaign' as const,
+                fieldType: 'BUSINESS_NAME',
+                primaryStatusReasons: [],
+                text: 'Totalvizibil',
+              },
+            ]),
       ],
     });
     const ev = evaluateCampaign(c, ctx);
@@ -446,6 +470,57 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
     );
   });
 
+  it('adds a missing structured snippet and business name even during the ad-text cooldown', async () => {
+    const values = ['Montaj anvelope', 'Echilibrare roți', 'Reparații jante', 'Depozitare'];
+    const { svc, c, ev, mapping, activity, mutate, prisma } = setup({
+      writesAllowed: true,
+      extensions: false,
+      assetRows: [
+        { asset: { structuredSnippetAsset: { values } } },
+        { asset: { textAsset: { text: 'Totalvizibil' } } },
+      ],
+    });
+    expect(ev.issues.find((i) => i.code === 'snippets_missing')?.autoFixable).toBe(true);
+    expect(ev.issues.find((i) => i.code === 'brand_missing')?.autoFixable).toBe(true);
+    // A recent ad-text change: headlines/descriptions wait, extensions don't.
+    prisma.googleAdsAgentAction.findFirst.mockResolvedValue({ createdAt: new Date() });
+    const r = await svc.fillGaps(c, ev, mapping as never, activity);
+    expect(r.applied).toBe(1);
+    const ops = mutate.mock.calls[1][0];
+    expect(ops.some((o: any) => o.adOperation)).toBe(false);
+    expect(ops).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          assetOperation: {
+            create: expect.objectContaining({
+              structuredSnippetAsset: { header: 'Servicii', values },
+            }),
+          },
+        }),
+        expect.objectContaining({
+          assetOperation: {
+            create: expect.objectContaining({ textAsset: { text: 'Totalvizibil' } }),
+          },
+        }),
+        expect.objectContaining({
+          campaignAssetOperation: {
+            create: expect.objectContaining({ fieldType: 'STRUCTURED_SNIPPET' }),
+          },
+        }),
+        expect.objectContaining({
+          campaignAssetOperation: {
+            create: expect.objectContaining({ fieldType: 'BUSINESS_NAME' }),
+          },
+        }),
+      ]),
+    );
+    expect(prisma.googleAdsAgentAction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'creative.assets_gap_fill', status: 'applied' }),
+      }),
+    );
+  });
+
   it('respects the creative cooldown', async () => {
     const { svc, c, ev, mapping, activity, mutate, prisma } = setup({ writesAllowed: true });
     prisma.googleAdsAgentAction.findFirst.mockResolvedValue({ createdAt: new Date() });
@@ -458,3 +533,261 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
 function c0Headlines(): string[] {
   return Array.from({ length: 10 }, (_, i) => `Titlu numărul ${i + 1}`);
 }
+
+describe('GoogleAdsOptimizerService.proposeAdStrengthRewrite', () => {
+  const H = Array.from({ length: 15 }, (_, i) => `Titlu numărul ${i + 1}`);
+  const D = Array.from({ length: 4 }, (_, i) => `Descriere diferită ${i + 1}`);
+
+  function setup(strength = 'AVERAGE') {
+    const search = jest.fn(async (q: string) => {
+      if (q.includes('FROM ad_group_criterion')) {
+        return [{ adGroupCriterion: { keyword: { text: 'vulcanizare bucuresti' } } }];
+      }
+      if (q.includes('FROM ad_group_ad')) {
+        return [
+          {
+            adGroupAd: {
+              adStrength: strength,
+              actionItems: ['Try including more keywords in your headlines.'],
+            },
+          },
+        ];
+      }
+      return [];
+    });
+    const mutate = jest.fn();
+    const ai = {
+      configured: true,
+      // Keeps 12 headlines, rewrites 3 (one of them invalid: "!"), keeps descriptions.
+      googleAdsImproveAdStrength: jest.fn().mockResolvedValue({
+        headlines: [
+          ...H.slice(0, 12),
+          'Vulcanizare Bucuresti',
+          'Vulcanizare bucuresti rapid',
+          'Sună acum!',
+        ],
+        descriptions: D,
+        costEstimateMinor: 2,
+      }),
+    };
+    const settings = {
+      googleAdsAgentAutoFillGapsEnabled: jest.fn().mockResolvedValue(true),
+      googleAdsAgentCreativeCooldownDays: jest.fn().mockResolvedValue(14),
+    };
+    const prisma = {
+      googleAdsAgentAction: {
+        count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'a', ...data })),
+      },
+      googleAdsAgentEvent: { create: jest.fn().mockResolvedValue({ id: 'e' }), update: jest.fn() },
+    };
+    const svc = new GoogleAdsOptimizerService(
+      { writesAllowed: true, customerId: '1', search, mutate } as never,
+      ai as never,
+      settings as never,
+      prisma as never,
+      { get: (k: string) => (k === 'pexelsApiKey' ? '' : 'https://totalvizibil.ro') } as never,
+    );
+    const base = searchCampaign();
+    const c = searchCampaign({
+      ads: [
+        {
+          ...base.ads[0],
+          headlines: H.map((text) => ({ text })),
+          descriptions: D.map((text) => ({ text })),
+        },
+      ],
+    });
+    const mapping = {
+      categoryId: 'cat',
+      category: { id: 'cat', slug: 'vulcanizare', parent: null, nameI18n: { ro: 'Vulcanizare' } },
+    };
+    const activity = new AgentActivity(prisma as never, 'run');
+    return { svc, c, mapping, activity, prisma, mutate, ai };
+  }
+
+  it('turns Google action items into approval proposals, never applying anything', async () => {
+    const { svc, c, mapping, activity, prisma, mutate, ai } = setup();
+    const r = await svc.proposeAdStrengthRewrite(c, mapping as never, activity);
+    expect(mutate).not.toHaveBeenCalled();
+    expect(ai.googleAdsImproveAdStrength).toHaveBeenCalledWith(
+      expect.objectContaining({
+        keywords: ['vulcanizare bucuresti'],
+        googleActionItems: ['Try including more keywords in your headlines.'],
+      }),
+    );
+    // Two valid new headlines ("!" rejected) replace two removed ones.
+    expect(r.proposed).toBe(2);
+    const rows = prisma.googleAdsAgentAction.create.mock.calls.map((x: any) => x[0].data);
+    expect(rows.every((d: any) => d.status === 'pending_approval')).toBe(true);
+    expect(rows.every((d: any) => d.action === 'creative.replace_text')).toBe(true);
+    expect(rows.map((d: any) => d.before.text)).toEqual(['Titlu numărul 13', 'Titlu numărul 14']);
+    expect(rows.map((d: any) => d.after.text)).toEqual([
+      'Vulcanizare Bucuresti',
+      'Vulcanizare bucuresti rapid',
+    ]);
+  });
+
+  it('does nothing when Google already rates the ad GOOD', async () => {
+    const { svc, c, mapping, activity, prisma } = setup('GOOD');
+    c.ads[0].adStrength = 'GOOD';
+    const r = await svc.proposeAdStrengthRewrite(c, mapping as never, activity);
+    expect(r.proposed).toBe(0);
+    expect(prisma.googleAdsAgentAction.create).not.toHaveBeenCalled();
+  });
+
+  it('waits while an ad-text proposal is open or the cooldown runs', async () => {
+    const { svc, c, mapping, activity, prisma, ai } = setup();
+    prisma.googleAdsAgentAction.count.mockResolvedValue(1);
+    const r = await svc.proposeAdStrengthRewrite(c, mapping as never, activity);
+    expect(r.proposed).toBe(0);
+    expect(ai.googleAdsImproveAdStrength).not.toHaveBeenCalled();
+  });
+});
+
+describe('GoogleAdsOptimizerService.fillGaps — images (Pexels)', () => {
+  const photo = (id: number, width = 4000, height = 3000) => ({
+    id,
+    width,
+    height,
+    url: `https://www.pexels.com/photo/${id}/`,
+    photographer: 'P',
+    photographerUrl: '',
+    avgColor: '',
+    alt: `Tire service ${id}`,
+    src: { original: `https://images.pexels.com/photos/${id}/x.jpeg` },
+  });
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  function setup(previousIds: number[] = []) {
+    const mutate = jest.fn().mockResolvedValue([]);
+    let names: string[] = [];
+    mutate.mockImplementation(async (ops: any[], o?: { validateOnly?: boolean }) => {
+      if (!o?.validateOnly)
+        names = ops.filter((x) => x.assetOperation).map((x) => x.assetOperation.create.name);
+      return [];
+    });
+    const search = jest.fn(async (q: string) =>
+      q.includes("field_type = 'AD_IMAGE'") ? names.map((name) => ({ asset: { name } })) : [],
+    );
+    const prisma = {
+      googleAdsAgentAction: {
+        count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest
+          .fn()
+          .mockResolvedValue(
+            previousIds.length
+              ? [{ after: { added: { images: previousIds.map((pexelsId) => ({ pexelsId })) } } }]
+              : [],
+          ),
+        create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'a', ...data })),
+      },
+      googleAdsCampaignSnapshot: { update: jest.fn().mockResolvedValue({}) },
+      googleAdsAgentEvent: { create: jest.fn().mockResolvedValue({ id: 'e' }), update: jest.fn() },
+      category: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const svc = new GoogleAdsOptimizerService(
+      { writesAllowed: true, customerId: '1', mutate, search } as never,
+      { configured: true } as never,
+      {
+        googleAdsAgentAutoFillGapsEnabled: jest.fn().mockResolvedValue(true),
+        googleAdsAgentCreativeCooldownDays: jest.fn().mockResolvedValue(14),
+      } as never,
+      prisma as never,
+      { get: (k: string) => (k === 'pexelsApiKey' ? 'key' : 'https://totalvizibil.ro') } as never,
+    );
+    const pexelsSearch = jest.fn(async (_q: string, o: { orientation: string }) => ({
+      photos:
+        o.orientation === 'square'
+          ? [photo(1), photo(2, 800, 800), photo(3), photo(4)]
+          : [photo(1), photo(5), photo(6)],
+      rateLimit: {},
+      errored: false,
+    }));
+    (svc as any).pexels = { configured: true, search: pexelsSearch };
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      headers: new Headers({ 'content-type': 'image/jpeg' }),
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    })) as never;
+    // Complete text + extensions so only images are missing.
+    const c = searchCampaign({
+      ads: [
+        {
+          ...searchCampaign().ads[0],
+          headlines: Array.from({ length: 15 }, (_, i) => ({ text: `Titlu numărul ${i + 1}` })),
+          descriptions: Array.from({ length: 4 }, (_, i) => ({ text: `Descriere ${i + 1}` })),
+        },
+      ],
+      assets: [
+        ...[1, 2, 3, 4, 5, 6].map(sitelink),
+        ...[1, 2, 3, 4].map((n) => ({
+          level: 'campaign' as const,
+          fieldType: 'CALLOUT',
+          primaryStatusReasons: [],
+          text: `C${n}`,
+        })),
+        { level: 'campaign' as const, fieldType: 'STRUCTURED_SNIPPET', primaryStatusReasons: [] },
+        {
+          level: 'campaign' as const,
+          fieldType: 'BUSINESS_NAME',
+          primaryStatusReasons: [],
+          text: 'Totalvizibil',
+        },
+      ],
+    });
+    const ev = evaluateCampaign(c, ctx);
+    const mapping = {
+      categoryId: 'cat',
+      category: {
+        id: 'cat',
+        slug: 'vulcanizare',
+        parent: null,
+        nameI18n: { ro: 'Vulcanizare', en: 'Tire & wheel service' },
+      },
+    };
+    const activity = new AgentActivity(prisma as never, 'run');
+    return { svc, c, ev, mapping, activity, mutate, prisma, pexelsSearch };
+  }
+
+  it('adds 2 landscape + 2 square Pexels photos cropped to Google sizes, skipping reused/small ones', async () => {
+    const { svc, c, ev, mapping, activity, mutate, prisma, pexelsSearch } = setup([1]);
+    expect(ev.issues.find((i) => i.code === 'images_missing')?.autoFixable).toBe(true);
+    const r = await svc.fillGaps(c, ev, mapping as never, activity);
+    expect(r.applied).toBe(1);
+    expect(pexelsSearch).toHaveBeenCalledWith('Tire   wheel service', expect.anything());
+    const urls = (global.fetch as jest.Mock).mock.calls.map((x) => x[0]);
+    expect(urls).toEqual([
+      'https://images.pexels.com/photos/5/x.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1200&h=628',
+      'https://images.pexels.com/photos/6/x.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1200&h=628',
+      'https://images.pexels.com/photos/3/x.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1200&h=1200',
+      'https://images.pexels.com/photos/4/x.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1200&h=1200',
+    ]);
+    const ops = mutate.mock.calls[1][0];
+    expect(
+      ops.filter((o: any) => o.campaignAssetOperation?.create.fieldType === 'AD_IMAGE'),
+    ).toHaveLength(4);
+    expect(prisma.googleAdsAgentAction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'creative.images_gap_fill',
+          status: 'applied',
+          verifiedAt: expect.any(Date),
+        }),
+      }),
+    );
+  });
+
+  it('does nothing when Pexels is not configured', async () => {
+    const { svc, c, ev, mapping, activity, mutate } = setup();
+    (svc as any).pexels = { configured: false };
+    const r = await svc.fillGaps(c, ev, mapping as never, activity);
+    expect(r.applied).toBe(0);
+    expect(mutate).not.toHaveBeenCalled();
+  });
+});

@@ -52,6 +52,8 @@ export const CALLOUTS = {
 export const STRUCTURED_SNIPPETS = {
   minValues: 3,
   recommendedValues: 4,
+  /** Max characters per snippet value. */
+  valueMaxChars: 25,
 } as const;
 
 /** Image assets on Search campaigns. */

@@ -577,7 +577,40 @@ export function buildProposalPreview(row: {
           items: callouts.map((text) => ({ text, status: 'added' })),
         });
       }
+      const snippet = obj(added.structuredSnippet);
+      const snippetValues = arr(snippet.values)
+        .map(str)
+        .filter((t): t is string => !!t);
+      if (snippetValues.length) {
+        sections.push({
+          kind: 'texts',
+          title: `Structured snippet adăugat (antet „${str(snippet.header) ?? 'Servicii'}”)`,
+          items: snippetValues.map((text) => ({ text, status: 'added' })),
+        });
+      }
+      const businessName = str(added.businessName);
+      if (businessName) {
+        sections.push({
+          kind: 'diff',
+          title: 'Numele afacerii',
+          rows: [{ label: 'Nume', before: null, after: businessName }],
+        });
+      }
       return { sections };
+    }
+    case 'creative.images_gap_fill': {
+      const images = arr(obj(after.added).images)
+        .map(obj)
+        .map((x) => ({
+          title: `${str(x.format) ?? ''} ${str(x.alt) ? `„${str(x.alt)}”` : ''}`.trim(),
+          lines: [str(x.photographer) ? `Foto: ${str(x.photographer)} (Pexels)` : null].filter(
+            (l): l is string => !!l,
+          ),
+          ...(str(x.pexelsUrl) ? { url: str(x.pexelsUrl) } : {}),
+        }));
+      return images.length
+        ? { sections: [{ kind: 'items', title: 'Imagini adăugate', items: images }] }
+        : { sections: [] };
     }
     case 'creative.replace_text': {
       const oldText = str(before.text);

@@ -142,12 +142,16 @@ export interface GoogleAdsCreativeGapFillInput {
   /** One sitelink is requested per destination, so every sitelink leads
    *  to a different real page. */
   sitelinkDestinations: { url: string; pageName: string }[];
-  need: { headlines: number; descriptions: number; callouts: number };
+  /** `snippetValues` > 0 asks for the values of one structured snippet
+   *  (header „Servicii”); optional so older callers keep working. */
+  need: { headlines: number; descriptions: number; callouts: number; snippetValues?: number };
 }
 export interface GoogleAdsCreativeGapFill {
   headlines: string[];
   descriptions: string[];
   callouts: string[];
+  /** Structured snippet values (header „Servicii”), max 25 chars each. */
+  snippetValues: string[];
   sitelinks: { url: string; linkText: string; description1: string; description2: string }[];
   costEstimateMinor: number;
   inputTokens: number;
@@ -1444,6 +1448,13 @@ export class AiService {
       `Generează: ${need.headlines} titluri noi (max 30 caractere fiecare), ${need.descriptions} descrieri noi ` +
         `(max 90 caractere fiecare), ${need.callouts} callout-uri noi (max 25 caractere fiecare) și câte un sitelink ` +
         'pentru FIECARE destinație de mai jos (exact în ordinea dată).',
+      ...(need.snippetValues
+        ? [
+            `Generează și ${need.snippetValues} valori pentru un structured snippet cu antetul „Servicii”: ` +
+              'tipuri concrete de servicii oferite în această subcategorie (ex. pentru instalații electrice: ' +
+              '„Tablouri electrice”), max 25 caractere fiecare, fără nume de firme, fără prețuri.',
+          ]
+        : []),
       `Destinații sitelink: ${JSON.stringify(input.sitelinkDestinations)}`,
       '',
       'Reguli (cerințele Google Ads + politica editorială):',
@@ -1453,6 +1464,7 @@ export class AiService {
       '- Sitelink: linkText max 25 caractere și descrie exact pagina destinației; description1 și description2 max 35 caractere fiecare.',
       '',
       'Răspunde STRICT JSON: {"headlines": string[], "descriptions": string[], "callouts": string[], ' +
+        '"snippetValues": string[], ' +
         '"sitelinks": [{"url": string, "linkText": string, "description1": string, "description2": string}]}.',
     ].join('\n');
 
@@ -1491,6 +1503,7 @@ export class AiService {
       headlines: strs(d.headlines, 30, need.headlines),
       descriptions: strs(d.descriptions, 90, need.descriptions),
       callouts: strs(d.callouts, 25, need.callouts),
+      snippetValues: strs(d.snippetValues, 25, need.snippetValues ?? 0),
       sitelinks,
       costEstimateMinor: estimateClaudeCostMinor(result.usage),
       inputTokens: result.usage.input_tokens,
