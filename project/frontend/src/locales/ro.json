@@ -3677,7 +3677,8 @@
         "scope": "Ai bifat accesul la Google Ads? Fără el nu putem citi campaniile.",
         "refresh": "Google nu a acordat accesul permanent. Încearcă din nou.",
         "exchange": "Conectarea la Google nu a reușit. Încearcă din nou."
-      }
+      },
+      "googleSaid": "Răspunsul Google:"
     },
     "account": {
       "seoTitle": "Contul tău",

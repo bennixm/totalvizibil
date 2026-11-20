@@ -207,14 +207,24 @@ export class GoogleAdsUserService {
     return this.guard(conn, async () => {
       const root = await this.rootClient(conn, '0', null);
       const ids = (await root.listAccessibleCustomers()).slice(0, MAX_ACCOUNTS);
+      this.logger.log(`Connection ${conn.id}: Google lists ${ids.length} accessible customer(s).`);
       const out: AccountRow[] = [];
+      // Why an account could not be read, so an empty result is never
+      // reported as "no access" when Google actually said something else.
+      const failures: string[] = [];
       for (const id of ids) {
         const client = await this.rootClient(conn, id, null);
         const row = await client
           .search(
             'SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.manager, customer.test_account FROM customer LIMIT 1',
           )
-          .catch(() => []);
+          .catch((err: unknown) => {
+            if (err instanceof GoogleAdsConnectionRevokedError) throw err;
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Connection ${conn.id}: customer ${id} not readable: ${msg}`);
+            failures.push(`${id}: ${msg}`);
+            return [];
+          });
         const c = row[0]?.customer as
           | {
               descriptiveName?: string;
@@ -241,7 +251,14 @@ export class GoogleAdsUserService {
               'customer_client.manager, customer_client.test_account, customer_client.status ' +
               "FROM customer_client WHERE customer_client.manager = FALSE AND customer_client.status = 'ENABLED'",
           )
-          .catch(() => []);
+          .catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(
+              `Connection ${conn.id}: clients of manager ${id} not readable: ${msg}`,
+            );
+            failures.push(`${id}: ${msg}`);
+            return [];
+          });
         for (const r of clients) {
           const cc = r.customerClient as
             | {
@@ -262,6 +279,10 @@ export class GoogleAdsUserService {
           });
           if (out.length >= MAX_ACCOUNTS) break;
         }
+      }
+      if (!out.length && failures.length) {
+        // Accounts exist but none could be read: surface Google's reason.
+        throw new Error(failures[0]);
       }
       return out;
     });
