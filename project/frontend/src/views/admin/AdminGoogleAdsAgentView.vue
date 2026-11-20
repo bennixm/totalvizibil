@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import GoogleAdsProposalPreview from '@/components/admin/GoogleAdsProposalPreview.vue'
 import GoogleAdsOptimizationPanel from '@/components/admin/google-ads/GoogleAdsOptimizationPanel.vue'
+import GoogleAdsTechDetails from '@/components/admin/google-ads/GoogleAdsTechDetails.vue'
 import GoogleAdsCampaignTable from '@/components/admin/google-ads/GoogleAdsCampaignTable.vue'
 import GoogleAdsActivityFeed from '@/components/admin/google-ads/GoogleAdsActivityFeed.vue'
 import GaChip from '@/components/admin/google-ads/GaChip.vue'
@@ -141,8 +142,10 @@ const cycleHours = computed(() => {
   const m = summary.value?.monitorIntervalMinutes ?? 0
   return m % 60 === 0 ? String(m / 60) : (m / 60).toFixed(1)
 })
-const showTechDetails = ref(false)
 const busy = ref<string | null>(null)
+const busyRunKind = computed<RunKind | null>(() =>
+  busy.value?.startsWith('run-') ? (busy.value.slice(4) as RunKind) : null,
+)
 
 onMounted(() => {
   void admin.fetchGoogleAdsAgentOverview()
@@ -173,14 +176,7 @@ watch(
 
 // --- overview ------------------------------------------------------------
 
-const RUN_KINDS = ['structural', 'content', 'intelligence'] as const
-
-function runTone(status?: string): 'success' | 'error' | 'warning' | undefined {
-  if (status === 'success') return 'success'
-  if (status === 'failed') return 'error'
-  if (status === 'partial') return 'warning'
-  return undefined
-}
+type RunKind = 'structural' | 'content' | 'intelligence'
 function fmtDate(iso?: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString(undefined, {
@@ -191,7 +187,7 @@ function fmtDate(iso?: string | null): string {
   })
 }
 
-function runNow(kind: (typeof RUN_KINDS)[number]) {
+function runNow(kind: RunKind) {
   confirm.ask(
     t('adminGoogleAds.runConfirmTitle'),
     t('adminGoogleAds.runConfirmText', { kind: t(`adminGoogleAds.run.${kind}`) }),
@@ -647,64 +643,69 @@ function cancelEditCredentials() {
       </template>
     </AdminPageHeader>
 
-    <!-- One status line instead of banners -->
+    <!-- Status: what state the agent is in (chips), then when it last did
+         things (muted meta). Each warning chip links to where it is fixed. -->
     <div v-if="summary" class="gaa__status">
-      <span class="st" :class="summary.enabled ? 'st--ok' : 'st--off'">
-        <i class="st__dot" />
-        {{ summary.enabled ? t('adminGoogleAdsOpt.agentOn') : t('adminGoogleAdsOpt.agentOff') }}
-        <button v-if="!summary.enabled" type="button" class="st__link" @click="tab = 'settings'">
-          {{ t('adminGoogleAds.statusActivateCta') }}
-        </button>
-      </span>
-      <span v-if="isRunning" class="st st--live">
-        <i class="st__dot" />{{ t('adminGoogleAdsOpt.running') }}
-      </span>
-      <v-tooltip
-        v-if="!summary.writesAllowed"
-        :text="t('adminGoogleAdsOpt.readOnlyBanner')"
-        location="bottom"
-        max-width="340"
-      >
-        <template #activator="{ props }">
-          <span v-bind="props" class="st st--warn" tabindex="0">
-            <v-icon icon="mdi-shield-lock-outline" size="15" />{{
-              t('adminGoogleAdsOpt.readOnlyChip')
-            }}
-          </span>
-        </template>
-      </v-tooltip>
-      <span v-if="summary.enabled" class="st">
-        <v-icon icon="mdi-timer-sync-outline" size="15" />
-        {{ t('adminGoogleAdsOpt.cycleEvery', { hours: cycleHours }) }}
-      </span>
-      <span class="st" :class="{ 'st--warn': !summary.autoFillEnabled }">
-        <v-icon icon="mdi-auto-fix" size="15" />
-        {{
-          summary.autoFillEnabled
-            ? t('adminGoogleAdsOpt.autoFillOn')
-            : t('adminGoogleAdsOpt.autoFillOff')
-        }}
-        <!-- Off = cycles only analyse; make the way back obvious. -->
-        <button
-          v-if="!summary.autoFillEnabled"
-          type="button"
-          class="st__link"
-          @click="tab = 'settings'"
+      <div class="gaa__statusMain">
+        <span class="st" :class="summary.enabled ? 'st--ok' : 'st--off'">
+          <i class="st__dot" />
+          {{ summary.enabled ? t('adminGoogleAdsOpt.agentOn') : t('adminGoogleAdsOpt.agentOff') }}
+          <button v-if="!summary.enabled" type="button" class="st__link" @click="tab = 'settings'">
+            {{ t('adminGoogleAds.statusActivateCta') }}
+          </button>
+        </span>
+        <span v-if="isRunning" class="st st--live">
+          <i class="st__dot" />{{ t('adminGoogleAdsOpt.running') }}
+        </span>
+        <span class="st" :class="{ 'st--warn': !summary.autoFillEnabled }">
+          <v-icon icon="mdi-auto-fix" size="15" />
+          {{
+            summary.autoFillEnabled
+              ? t('adminGoogleAdsOpt.autoFillOn')
+              : t('adminGoogleAdsOpt.autoFillOff')
+          }}
+          <!-- Off = cycles only analyse; make the way back obvious. -->
+          <button
+            v-if="!summary.autoFillEnabled"
+            type="button"
+            class="st__link"
+            @click="tab = 'settings'"
+          >
+            {{ t('adminGoogleAdsOpt.autoFillActivateCta') }}
+          </button>
+        </span>
+        <v-tooltip
+          v-if="!summary.writesAllowed"
+          :text="t('adminGoogleAdsOpt.readOnlyBanner')"
+          location="bottom"
+          max-width="340"
         >
-          {{ t('adminGoogleAdsOpt.autoFillActivateCta') }}
-        </button>
-      </span>
-      <span class="st st--muted">
-        {{ t('adminGoogleAdsOpt.lastOptimization') }}:
-        {{
-          summary.lastOptimization
-            ? fmtDate(summary.lastOptimization.at)
-            : t('adminGoogleAdsOpt.never')
-        }}
-      </span>
-      <span v-if="summary.lastSyncAt" class="st st--muted">
-        {{ t('adminGoogleAdsOpt.syncedAt', { when: fmtDate(summary.lastSyncAt) }) }}
-      </span>
+          <template #activator="{ props }">
+            <span v-bind="props" class="st st--warn" tabindex="0">
+              <v-icon icon="mdi-shield-lock-outline" size="15" />{{
+                t('adminGoogleAdsOpt.readOnlyChip')
+              }}
+            </span>
+          </template>
+        </v-tooltip>
+      </div>
+      <p class="gaa__statusMeta">
+        <span v-if="summary.enabled">
+          <v-icon icon="mdi-timer-sync-outline" size="14" />
+          {{ t('adminGoogleAdsOpt.cycleEvery', { hours: cycleHours }) }}
+        </span>
+        <span>
+          {{ t('adminGoogleAdsOpt.lastOptimization') }}:
+          {{
+            summary.lastOptimization
+              ? fmtDate(summary.lastOptimization.at)
+              : t('adminGoogleAdsOpt.never')
+          }}
+        </span>
+        <span v-if="summary.lastSyncAt">
+          {{ t('adminGoogleAdsOpt.syncedAt', { when: fmtDate(summary.lastSyncAt) }) }}
+        </span>
+      </p>
     </div>
 
     <v-tabs v-model="tab" color="primary" class="gaa__tabs" show-arrows density="comfortable">
@@ -739,7 +740,10 @@ function cancelEditCredentials() {
         <template v-if="admin.googleAdsAgentOverview">
           <!-- Spend: compact, always visible -->
           <section class="gaa__sec">
-            <h3 class="gaa__h">{{ t('adminGoogleAds.overviewGroupSpend') }}</h3>
+            <h3 class="gaa__h">
+              <v-icon icon="mdi-cash-multiple" size="18" />
+              {{ t('adminGoogleAds.overviewGroupSpend') }}
+            </h3>
             <dl class="mrow">
               <div>
                 <dt>{{ t('adminGoogleAds.statDailyBudget') }}</dt>
@@ -761,149 +765,14 @@ function cancelEditCredentials() {
             </dl>
           </section>
 
-          <!-- Technical details: collapsed by default -->
-          <section class="gaa__sec">
-            <button
-              type="button"
-              class="gaa__disclosure"
-              :aria-expanded="showTechDetails"
-              @click="showTechDetails = !showTechDetails"
-            >
-              <v-icon
-                :icon="showTechDetails ? 'mdi-chevron-down' : 'mdi-chevron-right'"
-                size="20"
-              />
-              <span class="gaa__disclosureTitle">{{ t('adminGoogleAdsOpt.techDetails') }}</span>
-              <span class="gaa__disclosureSub">{{ t('adminGoogleAdsOpt.techDetailsSub') }}</span>
-            </button>
-
-            <div v-if="showTechDetails" class="tech">
-              <div class="tech__block">
-                <h4 class="tech__h">{{ t('adminGoogleAds.overviewGroupCampaigns') }}</h4>
-                <dl class="mrow mrow--small">
-                  <div>
-                    <dt>{{ t('adminGoogleAds.statActiveCampaigns') }}</dt>
-                    <dd class="tone-success">
-                      {{ admin.googleAdsAgentOverview.campaigns.active }}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>{{ t('adminGoogleAds.statPausedCampaigns') }}</dt>
-                    <dd>{{ admin.googleAdsAgentOverview.campaigns.paused }}</dd>
-                  </div>
-                  <div>
-                    <dt>{{ t('adminGoogleAds.statPendingCampaigns') }}</dt>
-                    <dd
-                      :class="{
-                        'tone-warning': admin.googleAdsAgentOverview.campaigns.pendingCreation,
-                      }"
-                    >
-                      {{ admin.googleAdsAgentOverview.campaigns.pendingCreation }}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>{{ t('adminGoogleAds.statSubcategoriesWithout') }}</dt>
-                    <dd
-                      :class="{
-                        'tone-warning': admin.googleAdsAgentOverview.subcategoriesWithoutCampaign,
-                      }"
-                    >
-                      {{ admin.googleAdsAgentOverview.subcategoriesWithoutCampaign }}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-
-              <div class="tech__block">
-                <h4 class="tech__h">{{ t('adminGoogleAds.lastRunsTitle') }}</h4>
-                <ul class="runs">
-                  <li v-for="kind in RUN_KINDS" :key="kind" class="runs__row">
-                    <span class="runs__name">{{ t(`adminGoogleAds.run.${kind}`) }}</span>
-                    <span
-                      class="chip"
-                      :class="`chip--${runTone(admin.googleAdsAgentOverview.lastRuns[kind]?.status) ?? 'neutral'}`"
-                    >
-                      {{
-                        admin.googleAdsAgentOverview.lastRuns[kind]
-                          ? t(
-                              `adminGoogleAds.runStatus.${admin.googleAdsAgentOverview.lastRuns[kind]?.status}`,
-                            )
-                          : t('adminGoogleAds.runNever')
-                      }}
-                    </span>
-                    <span class="runs__meta">
-                      {{ fmtDate(admin.googleAdsAgentOverview.lastRuns[kind]?.startedAt) }} ·
-                      {{
-                        t('adminGoogleAds.runActionsTaken', {
-                          n: admin.googleAdsAgentOverview.lastRuns[kind]?.actionsTaken ?? 0,
-                        })
-                      }}
-                    </span>
-                    <v-btn
-                      size="small"
-                      variant="text"
-                      color="primary"
-                      :loading="busy === `run-${kind}`"
-                      @click="runNow(kind)"
-                    >
-                      {{ t('adminGoogleAds.runNowCta') }}
-                    </v-btn>
-                  </li>
-                </ul>
-              </div>
-
-              <div class="tech__block">
-                <h4 class="tech__h">
-                  <AdminHintText
-                    :label="t('adminGoogleAds.feedCpcTitle')"
-                    :hint="
-                      t('adminGoogleAds.feedCpcHint', {
-                        minutes: admin.googleAdsAgentOverview.feedCpc.staleAfterMinutes,
-                      })
-                    "
-                  />
-                </h4>
-                <dl class="facts">
-                  <dt>{{ t('adminGoogleAds.feedCpcActive') }}</dt>
-                  <dd>
-                    <b>{{
-                      credits(admin.googleAdsAgentOverview.feedCpc.activeCostPromovareCredits)
-                    }}</b>
-                    <span
-                      class="chip"
-                      :class="
-                        admin.googleAdsAgentOverview.feedCpc.fresh
-                          ? 'chip--success'
-                          : 'chip--warning'
-                      "
-                    >
-                      {{
-                        t(
-                          admin.googleAdsAgentOverview.feedCpc.fresh
-                            ? 'adminGoogleAds.feedCpcFresh'
-                            : 'adminGoogleAds.feedCpcStale',
-                        )
-                      }}
-                    </span>
-                  </dd>
-                  <dt>{{ t('adminGoogleAds.feedCpcRaw') }}</dt>
-                  <dd>
-                    {{
-                      admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits != null
-                        ? credits(admin.googleAdsAgentOverview.feedCpc.rawAvgCpcCredits)
-                        : '–'
-                    }}
-                  </dd>
-                  <dt>{{ t('adminGoogleAds.feedCpcBuffer') }}</dt>
-                  <dd>{{ admin.googleAdsAgentOverview.feedCpc.bufferPct }}%</dd>
-                  <dt>{{ t('adminGoogleAds.feedCpcFallback') }}</dt>
-                  <dd>{{ credits(admin.googleAdsAgentOverview.feedCpc.fallbackCredits) }}</dd>
-                  <dt>{{ t('adminGoogleAds.feedCpcUpdatedAt') }}</dt>
-                  <dd>{{ fmtDate(admin.googleAdsAgentOverview.feedCpc.updatedAt) }}</dd>
-                </dl>
-              </div>
-            </div>
-          </section>
+          <!-- Technical details: three organized cards, collapsed by default
+               with an at-a-glance summary in the header. -->
+          <GoogleAdsTechDetails
+            class="gaa__sec"
+            :overview="admin.googleAdsAgentOverview"
+            :busy-kind="busyRunKind"
+            @run="runNow"
+          />
         </template>
         <p v-else-if="admin.googleAdsAgentOverviewError" class="gaa__error">
           {{ admin.googleAdsAgentOverviewError }}
@@ -1654,18 +1523,40 @@ function cancelEditCredentials() {
 /* ---------- header status line ---------- */
 .gaa__status {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem 1.1rem;
+  flex-direction: column;
+  gap: 0.45rem;
   margin: -0.75rem 0 1.25rem;
   font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.gaa__statusMain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.gaa__statusMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1rem;
+  margin: 0;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.gaa__statusMeta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 .st {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   white-space: nowrap;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: 999px;
+  background: rgba(var(--v-theme-surface), 0.6);
 }
 .st .v-icon {
   opacity: 0.6;
@@ -1763,9 +1654,15 @@ function cancelEditCredentials() {
   margin-top: 1.75rem;
 }
 .gaa__h {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   margin: 0 0 0.6rem;
   font-size: var(--tvz-fs-body, 1rem);
   font-weight: 600;
+}
+.gaa__h .v-icon {
+  color: rgb(var(--v-theme-primary));
 }
 .tone-success {
   color: rgb(var(--v-theme-success));
@@ -1849,16 +1746,7 @@ function cancelEditCredentials() {
   font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
-.mrow--small {
-  border: 0;
-  background: none;
-}
-.mrow--small > div {
-  padding: 0.25rem 1rem 0.25rem 0;
-  border-left: 0;
-}
-
-/* disclosure (technical details, advanced settings) */
+/* disclosure (advanced settings) */
 .gaa__disclosure {
   display: flex;
   align-items: baseline;
@@ -1883,56 +1771,6 @@ function cancelEditCredentials() {
 .gaa__disclosureSub {
   font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.5);
-}
-.tech {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem 2rem;
-  padding: 0.75rem 0 0 1.75rem;
-}
-.tech__block:first-child {
-  grid-column: 1 / -1;
-}
-.tech__h {
-  margin: 0 0 0.5rem;
-  font-size: var(--tvz-fs-small);
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-}
-.runs {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.runs__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: 'name btn' 'meta btn';
-  align-items: center;
-  column-gap: 0.75rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--tvz-hairline);
-}
-.runs__row:last-child {
-  border-bottom: 0;
-}
-.runs__name {
-  grid-area: name;
-  font-size: var(--tvz-fs-small);
-  font-weight: 500;
-}
-.runs__row .chip {
-  grid-area: name;
-  justify-self: end;
-  margin-right: 0.25rem;
-}
-.runs__meta {
-  grid-area: meta;
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-.runs__row .v-btn {
-  grid-area: btn;
 }
 .facts {
   display: grid;
@@ -2303,10 +2141,6 @@ function cancelEditCredentials() {
   }
   .sinput {
     flex: 1 1 140px;
-  }
-  .tech {
-    padding-left: 0;
-    grid-template-columns: 1fr;
   }
   /* subcategories table → stacked rows */
   .tbl thead {
