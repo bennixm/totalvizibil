@@ -35,6 +35,7 @@ const ACTION_LABELS_RO: Record<string, string> = {
   'cpc.adjusted': 'CPC maxim ajustat',
   'budget.increase.proposed': 'Propunere de creștere a bugetului',
   'creative.rsa_gap_fill': 'Titluri/descrieri adăugate în reclamă',
+  'creative.keyword_headlines': 'Cuvinte cheie adăugate în titluri',
   'creative.assets_gap_fill': 'Sitelink-uri/callout-uri adăugate',
   'creative.replace_text': 'Înlocuire text cu performanță scăzută',
 };

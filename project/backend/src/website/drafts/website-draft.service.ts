@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AiService } from '../../ai/ai.service';
+import { AiService, ParsedIntro } from '../../ai/ai.service';
 import { resolveLocationInput } from '../../geo/ro-cities';
 import { WebsiteAssetService } from '../assets/website-asset.service';
 import { ServiceItem, ToneOfVoice } from '../website.types';
@@ -17,7 +17,11 @@ import {
   NO_CHAT_STEPS,
   TranscriptTurn,
   advanceEasy,
+  foldText,
+  isCopiedSentence,
+  looksLikeName,
   openingTranscript,
+  quickNameGuess,
 } from './website-draft.script';
 import {
   EasyAnswers,
@@ -249,16 +253,48 @@ export class WebsiteDraftService {
     rawIntro: string,
     toneGuess: ToneOfVoice | null | undefined,
     draftId: string,
-  ): Promise<void> {
+    allowUnclear: boolean,
+  ): Promise<'ok' | 'unclear'> {
     const parsed = await this.ai.parseIntro({ rawIntro, locale: a.locale ?? 'ro' });
-    if (parsed) {
-      if (parsed.companyName) a.companyName = parsed.companyName;
+    // Not a description of a business at all (greeting, question…): ask
+    // again instead of turning it into a name. Only once, so a misread can
+    // never trap the visitor on this step.
+    if (parsed?.isIntro === false && allowUnclear) return 'unclear';
+    if (parsed && parsed.isIntro !== false) {
       if (parsed.businessType) a.businessType = parsed.businessType;
       if (parsed.city) a.city = parsed.city;
       if (parsed.landingTitle) a.landingTitle = parsed.landingTitle;
     }
+    a.companyName = this.introName(parsed, rawIntro, a);
     const tone = toneGuess ?? parsed?.tone ?? null;
     a.template = pickTemplate(tone, a.businessType ?? '', draftId);
+    return 'ok';
+  }
+
+  /**
+   * The business name from the first message, always INTERPRETED: the AI's
+   * name unless it is just the sentence copied back; else a short name from
+   * the AI's trade + city; else (AI unavailable) the text itself only when
+   * it plausibly is a bare name ("Frizeria Ionuț"). Otherwise undefined, so
+   * the preview shows its neutral default and the end-of-intake AI call or
+   * the owner sets it, never the raw sentence.
+   */
+  private introName(
+    parsed: ParsedIntro | null,
+    rawIntro: string,
+    a: EasyAnswers,
+  ): string | undefined {
+    const name = parsed?.companyName?.trim();
+    if (name && !isCopiedSentence(name, rawIntro)) return name.slice(0, 80);
+    const type = parsed?.businessType?.trim();
+    if (type) {
+      const base = type.charAt(0).toUpperCase() + type.slice(1);
+      const city = parsed?.city?.trim() ?? a.city?.trim();
+      const composed = city && !foldText(base).includes(foldText(city)) ? `${base} ${city}` : base;
+      if (!isCopiedSentence(composed, rawIntro)) return composed.slice(0, 80);
+    }
+    const guess = quickNameGuess(rawIntro);
+    return looksLikeName(guess) ? guess : undefined;
   }
 
   /** Compact snapshot of the editable text handed to `AiService.interpretEasyEdit`
@@ -411,14 +447,31 @@ export class WebsiteDraftService {
     const transcript = ((draft.transcript as unknown as TranscriptTurn[]) ?? []).slice();
     const at = new Date().toISOString();
 
-    const result = advanceEasy(draft.step as EasyStep, answers, text);
+    let result = advanceEasy(draft.step as EasyStep, answers, text);
+
+    // The first answer always goes through the AI read before anything uses
+    // it; a message that isn't an intro keeps the visitor on this step.
+    if (result.parseIntroFor) {
+      const askedAgain = transcript.some((x) => x.key === 'introUnclear');
+      const verdict = await this.applyParsedIntro(
+        result.answers,
+        result.parseIntroFor,
+        result.toneGuess,
+        draft.id,
+        !askedAgain,
+      );
+      if (verdict === 'unclear') {
+        result = {
+          answers,
+          step: 'intro',
+          assistant: ['introUnclear'],
+          regenerate: false,
+        };
+      }
+    }
 
     transcript.push({ role: 'user', text: text.slice(0, 2000), at });
     for (const key of result.assistant) transcript.push({ role: 'assistant', key, at });
-
-    if (result.parseIntroFor) {
-      await this.applyParsedIntro(result.answers, result.parseIntroFor, result.toneGuess, draft.id);
-    }
     if (result.generateServicesFor?.length) {
       result.answers.services = await this.writeServiceCopy(
         result.answers,

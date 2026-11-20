@@ -8,6 +8,7 @@ import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { useAdvancedUnlockStore } from '@/stores/advanced-unlock'
 import { useCompaniesStore } from '@/stores/companies'
 import { useToastStore } from '@/stores/toast'
+import { rememberUnlockReturn, walletQueryFor } from '@/lib/unlockReturn'
 
 /**
  * Advanced-plan onboarding step: pay the one-time fee that unlocks the
@@ -95,6 +96,15 @@ async function toBuilder(): Promise<void> {
   })
 }
 
+/** Top-up detour: the wallet page (and the guide) help add credits, then
+ *  bring the owner back here. Remembered across a Stripe redirect. */
+function addCredits(): void {
+  if (!companyId.value) return
+  const r = { c: companyId.value, ...(isUpgrade.value ? { flow: 'upgrade' } : {}) }
+  rememberUnlockReturn(r)
+  void router.push({ name: 'wallet', query: walletQueryFor(r) })
+}
+
 async function pay(): Promise<void> {
   if (!companyId.value || working.value) return
   error.value = ''
@@ -170,7 +180,13 @@ onMounted(async () => {
 
       <div v-if="!funded" class="unl__short" data-guide="unl-short">
         <span>{{ t('unlock.short', { credits: n(short, { maximumFractionDigits: 2 }) }) }}</span>
-        <v-btn size="x-small" variant="tonal" color="primary" :to="{ name: 'wallet' }">
+        <v-btn
+          size="x-small"
+          variant="tonal"
+          color="primary"
+          data-guide="unl-add-credits"
+          @click="addCredits"
+        >
           {{ t('unlock.addCredits') }}
         </v-btn>
       </div>

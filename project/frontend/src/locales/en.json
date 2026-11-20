@@ -172,6 +172,8 @@
     },
     "advancedTitle": "Advanced",
     "advancedText": "AI writes real code for a unique site, through a live chat with the assistant.",
+    "advancedBoostTitle": "More visibility",
+    "advancedBoost": "The Advanced plan helps you get more visible: more pages about your services mean more searches where customers can find you.",
     "advancedTag": "Unlock cost",
     "advancedBadge": "Recommended",
     "compareHeading": "Features",
@@ -262,6 +264,7 @@
     },
     "msg": {
       "opening": "Hi, I’m Andrei 👋 Tell me your business name, what you do, and your city if you like, all in one message.",
+      "introUnclear": "I didn't quite catch what your business is yet. Tell me briefly its name, what you do and, if you like, your city. Example: Ionut's Barbershop, haircuts and shaves in Cluj.",
       "askColor": "Got it. Now pick the site's main colour from the palette below.",
       "askLanding": "Now the top section: upload a background image and, if you like, change the headline shown.",
       "askServices": "List your services in the chat, comma-separated. I’ll write the descriptions.",
@@ -769,7 +772,14 @@
     "paymentsToLabel": "To",
     "paymentsClearDates": "Clear dates",
     "paymentsDownloadPdf": "Download PDF",
-    "paymentsEmpty": "No records yet."
+    "paymentsEmpty": "No records yet.",
+    "unlockReturn": {
+      "title": "Unlock the advanced builder",
+      "textNoPrice": "Add credits, then go back to the unlock step.",
+      "ready": "You have enough credits to unlock ({price} credits). Go back and continue.",
+      "short": "You still need {short} credits to unlock (it costs {price} credits).",
+      "back": "Back to unlock"
+    }
   },
   "auth": {
     "loginTitle": "Log in",
@@ -3414,7 +3424,7 @@
       },
       "unlShort": {
         "title": "Not enough credits",
-        "text": "Add credits to your wallet, then come back here to unlock."
+        "text": "You're a few credits short of unlocking. No problem, I'll help you add them."
       },
       "unlPay": {
         "title": "Unlock",
@@ -3471,6 +3481,26 @@
       "launchFinish": {
         "title": "Finish",
         "text": "Turns on once the campaign is active and takes you to your dashboard."
+      },
+      "unlAddCredits": {
+        "title": "Add credits",
+        "text": "Press “{addCredits}”. I'll take you to your wallet, guide you through payment and then bring you back here to unlock the builder."
+      },
+      "walletUnlock": {
+        "title": "You're almost there",
+        "text": "Here you can see how many credits you still need to unlock the advanced builder. It updates right after payment."
+      },
+      "walletTopup": {
+        "title": "Top up your wallet",
+        "text": "Press “{topUp}”, pick an amount (at least what you are missing) and pay by card."
+      },
+      "walletBack": {
+        "title": "The way back",
+        "text": "After paying, press “{backToUnlock}” to return to the unlock step."
+      },
+      "walletReady": {
+        "title": "You have enough credits",
+        "text": "Done! Press “{backToUnlock}” to unlock the builder and carry on."
       }
     }
   }

@@ -125,6 +125,9 @@ const labels = computed(() => ({
   publish: t('proV2.publish'),
   easy: t('create.easyTitle'),
   advanced: t('create.advancedTitle'),
+  topUp: t('wallet.topUpCta'),
+  addCredits: t('unlock.addCredits'),
+  backToUnlock: t('wallet.unlockReturn.back'),
 }))
 
 // ------------------------------------------------------ open / close -------

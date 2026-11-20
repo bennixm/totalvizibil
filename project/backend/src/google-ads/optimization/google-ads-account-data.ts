@@ -2,7 +2,7 @@ import { GoogleAdsApiClient, GoogleAdsSearchRow } from '../google-ads-api-client
 
 /**
  * Reads everything the monitor needs from the live account in a FIXED,
- * small number of account-wide GAQL queries (9 per cycle, regardless of how
+ * small number of account-wide GAQL queries (10 per cycle, regardless of how
  * many campaigns exist) instead of per-campaign calls, which keeps every
  * cycle far inside Google Ads API quotas. Every query and field here was
  * run against the real account (read-only) before being written.
@@ -41,6 +41,10 @@ export interface RsaAd {
   descriptions: TextAsset[];
   path1?: string;
   path2?: string;
+  /** Google's own improvement suggestions for this ad (`action_items`). */
+  actionItems: string[];
+  /** Positive, non-removed keywords of the ad's ad group. */
+  keywords: string[];
 }
 
 export type AssetLevel = 'campaign' | 'ad_group' | 'account' | 'asset_group';
@@ -227,6 +231,7 @@ export async function fetchAccountData(
     assetGroupRows,
     assetGroupAssetRows,
     recommendationRows,
+    keywordRows,
   ] = await Promise.all([
     client.search(
       'SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, ' +
@@ -242,7 +247,7 @@ export async function fetchAccountData(
     ),
     client.search(
       'SELECT campaign.id, ad_group_ad.resource_name, ad_group_ad.ad.resource_name, ad_group_ad.status, ' +
-        'ad_group_ad.ad_strength, ad_group_ad.primary_status, ad_group_ad.primary_status_reasons, ' +
+        'ad_group_ad.ad_strength, ad_group_ad.action_items, ad_group_ad.primary_status, ad_group_ad.primary_status_reasons, ' +
         'ad_group_ad.policy_summary.approval_status, ad_group_ad.ad.final_urls, ad_group_ad.ad.type, ' +
         'ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions, ' +
         'ad_group_ad.ad.responsive_search_ad.path1, ad_group_ad.ad.responsive_search_ad.path2 ' +
@@ -279,7 +284,22 @@ export async function fetchAccountData(
     client.search(
       'SELECT recommendation.resource_name, recommendation.type, recommendation.campaign FROM recommendation',
     ),
+    client.search(
+      'SELECT ad_group.id, ad_group_criterion.keyword.text FROM ad_group_criterion ' +
+        "WHERE ad_group_criterion.type = 'KEYWORD' AND ad_group_criterion.negative = FALSE " +
+        "AND ad_group_criterion.status != 'REMOVED' AND ad_group.status != 'REMOVED' AND campaign.status != 'REMOVED'",
+    ),
   ]);
+
+  const keywordsByAdGroup = new Map<string, string[]>();
+  for (const row of keywordRows) {
+    const adGroupId = s(obj(row.adGroup).id);
+    const text = s(obj(obj(row.adGroupCriterion).keyword).text);
+    if (!adGroupId || !text) continue;
+    const list = keywordsByAdGroup.get(adGroupId) ?? [];
+    list.push(text);
+    keywordsByAdGroup.set(adGroupId, list);
+  }
 
   const byId = new Map<string, CampaignData>();
   for (const row of campaignRows) {
@@ -338,6 +358,10 @@ export async function fetchAccountData(
       descriptions: textAssets(rsa.descriptions),
       path1: s(rsa.path1),
       path2: s(rsa.path2),
+      actionItems: arr<string>(aga.actionItems),
+      // adGroupAds/{adGroupId}~{adId}
+      keywords:
+        keywordsByAdGroup.get(s(aga.resourceName)?.split('/').pop()?.split('~')[0] ?? '') ?? [],
     });
   }
 
@@ -383,7 +407,7 @@ export async function fetchAccountData(
 
   return {
     campaigns: [...byId.values()],
-    queriesRun: 9,
+    queriesRun: 10,
     period: {
       current: { from: ymd(curFrom), to: ymd(curTo) },
       previous: { from: ymd(prevFrom), to: ymd(prevTo) },

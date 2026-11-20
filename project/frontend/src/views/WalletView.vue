@@ -14,6 +14,15 @@ import { useCompaniesStore } from '@/stores/companies'
 import { useWalletStore, type PaymentKind } from '@/stores/wallet'
 import { useToastStore } from '@/stores/toast'
 import { fetchPricing } from '@/services/platform'
+import { useAdvancedUnlockStore } from '@/stores/advanced-unlock'
+import {
+  clearUnlockReturn,
+  readStoredUnlockReturn,
+  unlockReturnFromQuery,
+  unlockRouteFor,
+  walletQueryFor,
+  type UnlockReturn,
+} from '@/lib/unlockReturn'
 
 const { t, n } = useI18n()
 const route = useRoute()
@@ -26,6 +35,36 @@ const { overview } = storeToRefs(companies)
 const { payments, paymentsNextCursor } = storeToRefs(wallet)
 
 const showTopUp = ref(false)
+
+// --- "Add credits, then back to unlock" detour (advanced onboarding) ---
+// Carried by `?from=unlock&c=…`; after a Stripe round-trip (URL has only
+// `checkout`/`txn`) restored from the short-lived session copy.
+const unlockStore = useAdvancedUnlockStore()
+const unlockReturn = ref<UnlockReturn | null>(
+  unlockReturnFromQuery(route.query) ?? (route.query.checkout ? readStoredUnlockReturn() : null),
+)
+const unlockPrice = computed<number | null>(() =>
+  unlockReturn.value && unlockStore.view ? unlockStore.view.priceCredits : null,
+)
+const unlockShort = computed(() =>
+  unlockPrice.value == null
+    ? 0
+    : Math.max(0, unlockPrice.value - (summary.value?.balance.credits ?? 0)),
+)
+const unlockReady = computed(
+  () => unlockPrice.value != null && (unlockShort.value === 0 || !!unlockStore.view?.unlocked),
+)
+/** Query to keep after consuming one-shot params, so the banner and the
+ *  guide stay on while the detour is active. */
+function keptQuery() {
+  return unlockReturn.value ? walletQueryFor(unlockReturn.value) : {}
+}
+function backToUnlock(): void {
+  const r = unlockReturn.value
+  if (!r) return
+  clearUnlockReturn()
+  void router.push(unlockRouteFor(r))
+}
 
 const KNOWN_ERRORS = [
   'wallet_blocked',
@@ -154,6 +193,7 @@ onMounted(async () => {
     wallet.load(),
     companies.fetchOverview().catch(() => {}),
     loadPaymentsInitial(),
+    unlockReturn.value ? unlockStore.load(unlockReturn.value.c) : Promise.resolve(),
   ])
   try {
     const pricing = await fetchPricing()
@@ -169,10 +209,10 @@ onMounted(async () => {
   if (checkout === 'success' && txn) {
     const ok = await wallet.confirmTransaction(txn)
     toasts[ok ? 'success' : 'error'](ok ? t('wallet.checkoutSuccess') : errorText.value)
-    void router.replace({ query: {} })
+    void router.replace({ query: keptQuery() })
   } else if (checkout === 'cancel') {
     toasts.error(t('wallet.checkoutCanceled'))
-    void router.replace({ query: {} })
+    void router.replace({ query: keptQuery() })
   }
 })
 
@@ -186,7 +226,7 @@ watch(
   (v) => {
     if (v !== '1') return
     showTopUp.value = true
-    void router.replace({ query: {} })
+    void router.replace({ query: keptQuery() })
   },
   { immediate: true },
 )
@@ -210,6 +250,54 @@ watch(
     <div v-if="loading" class="wal__center"><v-progress-circular indeterminate color="primary" /></div>
 
     <template v-else-if="summary">
+      <!-- Advanced onboarding detour: add credits, then back to unlock. -->
+      <section
+        v-if="unlockReturn"
+        class="wal__unlock"
+        :class="{ 'is-ready': unlockReady }"
+        data-guide="wallet-unlock-banner"
+      >
+        <v-icon
+          :icon="unlockReady ? 'mdi-lock-open-check-outline' : 'mdi-lock-open-variant-outline'"
+          size="22"
+          class="wal__unlockIcon"
+        />
+        <div class="wal__unlockBody">
+          <p class="wal__unlockTitle">{{ t('wallet.unlockReturn.title') }}</p>
+          <p class="wal__unlockText">
+            <template v-if="unlockPrice == null">{{ t('wallet.unlockReturn.textNoPrice') }}</template>
+            <template v-else-if="unlockReady">
+              {{ t('wallet.unlockReturn.ready', { price: credits(unlockPrice) }) }}
+            </template>
+            <template v-else>
+              {{ t('wallet.unlockReturn.short', { short: credits(unlockShort), price: credits(unlockPrice) }) }}
+            </template>
+          </p>
+        </div>
+        <div class="wal__unlockActions">
+          <v-btn
+            v-if="!unlockReady"
+            size="small"
+            color="primary"
+            prepend-icon="mdi-plus"
+            @click="showTopUp = true"
+          >
+            {{ t('wallet.topUpCta') }}
+          </v-btn>
+          <v-btn
+            size="small"
+            :variant="unlockReady ? 'flat' : 'text'"
+            :color="unlockReady ? 'primary' : undefined"
+            append-icon="mdi-arrow-right"
+            data-guide="wallet-unlock-return"
+            :class="{ 'is-ready': unlockReady }"
+            @click="backToUnlock"
+          >
+            {{ t('wallet.unlockReturn.back') }}
+          </v-btn>
+        </div>
+      </section>
+
       <!-- Balance + at-a-glance figures + top-up trigger, one 3-column panel. -->
       <section class="wal__card">
         <div class="wal__side">
@@ -235,6 +323,7 @@ watch(
             color="primary"
             size="large"
             class="wal__topUpBtn"
+            data-guide="wallet-topup"
             prepend-icon="mdi-plus"
             @click="showTopUp = true"
           >
@@ -501,6 +590,57 @@ watch(
   margin: 0;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
+.wal__unlock {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--tvz-radius-lg);
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
+  background: rgba(var(--v-theme-primary), 0.07);
+}
+.wal__unlock.is-ready {
+  border-color: rgba(var(--v-theme-success), 0.45);
+  background: rgba(var(--v-theme-success), 0.09);
+}
+.wal__unlockIcon {
+  flex: none;
+  color: rgb(var(--v-theme-primary));
+}
+.wal__unlock.is-ready .wal__unlockIcon {
+  color: rgb(var(--v-theme-success));
+}
+.wal__unlockBody {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.wal__unlockTitle {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.wal__unlockText {
+  margin: 0.15rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+}
+.wal__unlockActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+@media (max-width: 600px) {
+  .wal__unlockActions {
+    width: 100%;
+  }
+  .wal__unlockActions .v-btn {
+    flex: 1 1 auto;
+  }
+}
+
 .wal__topUpBtn {
   margin-top: 1.1rem;
   background-color: var(--tvz-accept-green) !important;

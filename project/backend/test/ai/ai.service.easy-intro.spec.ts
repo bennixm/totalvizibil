@@ -62,12 +62,20 @@ describe('AiService.parseIntro', () => {
     });
 
     expect(result).toEqual({
+      isIntro: true,
       companyName: 'AquaFix SRL',
       businessType: 'instalații sanitare',
       city: 'Cluj-Napoca',
       landingTitle: 'Instalatori de încredere în Cluj',
       tone: 'professional',
     });
+  });
+
+  it('reports a message that is not an intro at all', async () => {
+    const svc = new AiService(fakeConfig('test-key'));
+    withFakeTransport(svc, JSON.stringify({ isIntro: false }));
+    const result = await svc.parseIntro({ rawIntro: 'salut, ce faci?', locale: 'ro' });
+    expect(result).toEqual({ isIntro: false });
   });
 
   it('drops an unrecognised tone value instead of passing it through', async () => {

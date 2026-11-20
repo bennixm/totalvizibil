@@ -15,6 +15,7 @@ import {
   STRUCTURED_SNIPPETS,
   ratioMatches,
 } from './google-ads-specs';
+import { keywordCoverage, keywordsHurtAdStrength } from './google-ads-headline-keywords';
 
 /**
  * Pure evaluation of ONE campaign from real Google Ads data: our own
@@ -114,6 +115,8 @@ export interface AssetSummary {
   businessName: string | null;
   finalUrls: string[];
   adsCount: number;
+  /** Search only: which ad-group keywords appear in the headlines. */
+  headlineKeywords?: { covered: string[]; missing: string[]; googleFlagged: boolean };
 }
 
 export interface PerformanceSummary {
@@ -853,6 +856,38 @@ function evaluateSearch(c: CampaignData, ctx: EvaluationContext): CampaignEvalua
   textQualityIssues('Titluri', 'headlines', headlines, ctx.managed, issues);
   textQualityIssues('Descrieri', 'descriptions', descriptions, ctx.managed, issues);
 
+  // Keywords in headlines: a direct Ad Strength factor ("Include popular
+  // keywords in your headlines"). Monitored on every cycle.
+  const kwCoverage = rsa
+    ? keywordCoverage(
+        headlines.map((h) => h.text),
+        rsa.keywords ?? [],
+        rsa.actionItems ?? [],
+      )
+    : null;
+  if (rsa && kwCoverage && keywordsHurtAdStrength(rsa.adStrength, kwCoverage)) {
+    const shown = kwCoverage.missing
+      .slice(0, 6)
+      .map((k) => `„${k}”`)
+      .join(', ');
+    issues.push({
+      code: 'headlines_missing_keywords',
+      priority: kwCoverage.googleFlagged ? 'high' : 'medium',
+      area: 'headlines',
+      title: `Titlurile nu conțin ${kwCoverage.missing.length} din ${kwCoverage.keywords.length} cuvinte cheie`,
+      why:
+        `Lipsesc din titluri: ${shown}${kwCoverage.missing.length > 6 ? ' …' : ''}. ` +
+        (kwCoverage.googleFlagged
+          ? 'Google indică explicit lipsa cuvintelor cheie din titluri ca motiv pentru care Ad Strength nu este „Excelent”.'
+          : `Doar ${kwCoverage.headlinesWithKeyword} titluri conțin un cuvânt cheie; Ad Strength ține cont de relevanța titlurilor față de cuvintele cheie.`),
+      action: ctx.managed
+        ? 'Agentul adaugă sau rescrie titluri care conțin cuvintele cheie lipsă (verificat apoi în Google).'
+        : 'Adaugă titluri care conțin cuvintele cheie lipsă, întregi, cuvânt cu cuvânt.',
+      autoFixable: ctx.managed,
+      source: SOURCES.adStrength,
+    });
+  }
+
   components.push(adStrengthComponent(rsa?.adStrength, 15, issues, ctx.managed));
   components.push(
     ...extensionComponents(common, ctx.managed, issues, {
@@ -989,6 +1024,15 @@ function evaluateSearch(c: CampaignData, ctx: EvaluationContext): CampaignEvalua
     issues,
     {
       evaluatedOn: rsa ? rsa.adResourceName : null,
+      ...(kwCoverage
+        ? {
+            headlineKeywords: {
+              covered: kwCoverage.covered,
+              missing: kwCoverage.missing,
+              googleFlagged: kwCoverage.googleFlagged,
+            },
+          }
+        : {}),
       headlines,
       longHeadlines: [],
       descriptions,

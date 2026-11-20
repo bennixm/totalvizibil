@@ -128,6 +128,13 @@ function pick(key: 'easy' | 'advanced'): void {
           </div>
         </div>
         <p class="plan__text">{{ t('create.advancedText') }}</p>
+        <div class="plan__boost" data-guide="plan-advanced-boost">
+          <v-icon icon="mdi-trending-up" size="18" />
+          <p>
+            <strong>{{ t('create.advancedBoostTitle') }}</strong>
+            {{ t('create.advancedBoost') }}
+          </p>
+        </div>
 
         <div class="plan__price">
           <span>{{ t('create.priceLabel') }}</span>
@@ -329,6 +336,34 @@ function pick(key: 'easy' | 'advanced'): void {
   line-height: 1.5;
   color: rgba(var(--v-theme-on-surface), 0.66);
   min-height: 3.4em;
+}
+
+.plan__boost {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0.9rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--tvz-radius-md);
+  border: 1px solid rgba(var(--v-theme-primary), 0.28);
+  background: rgba(var(--v-theme-primary), 0.07);
+}
+.plan__boost .v-icon {
+  flex: none;
+  margin-top: 0.1rem;
+  color: rgb(var(--v-theme-primary));
+}
+.plan__boost p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: rgba(var(--v-theme-on-surface), 0.78);
+}
+.plan__boost strong {
+  display: block;
+  margin-bottom: 0.1rem;
+  font-size: 0.86rem;
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .plan__own {

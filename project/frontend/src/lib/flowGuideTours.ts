@@ -101,7 +101,20 @@ export const TOURS: Record<string, GuideTour> = {
     tips: [
       { id: 'un-price', target: g('unl-price'), key: 'guide.tip.unlPrice', icon: 'mdi-lock-open-variant-outline' },
       { id: 'un-short', target: g('unl-short'), key: 'guide.tip.unlShort', icon: 'mdi-wallet-plus-outline', contextual: true },
+      { id: 'un-add', target: g('unl-add-credits'), key: 'guide.tip.unlAddCredits', icon: 'mdi-plus-circle-outline' },
       { id: 'un-pay', target: g('unl-pay'), key: 'guide.tip.unlPay', icon: 'mdi-arrow-right-circle-outline' },
+    ],
+  },
+  // Detour from the unlock step when credits are short: top up, then go back.
+  'wallet-unlock': {
+    page: 'wallet-unlock',
+    step: 'unlock',
+    mode: 'advanced',
+    tips: [
+      { id: 'wu-why', target: g('wallet-unlock-banner'), key: 'guide.tip.walletUnlock', icon: 'mdi-lock-open-variant-outline' },
+      { id: 'wu-topup', target: g('wallet-topup'), key: 'guide.tip.walletTopup', icon: 'mdi-wallet-plus-outline' },
+      { id: 'wu-back', target: g('wallet-unlock-return'), key: 'guide.tip.walletBack', icon: 'mdi-arrow-left-circle-outline' },
+      { id: 'wu-ready', target: `${g('wallet-unlock-return')}.is-ready`, key: 'guide.tip.walletReady', icon: 'mdi-lock-open-check-outline', contextual: true },
     ],
   },
   'build-advanced': {
@@ -161,6 +174,11 @@ export function tourForRoute(route: RouteLocationNormalizedLoaded): GuideTour | 
       return TOURS.account
     case 'create-unlock':
       return route.query.flow === 'upgrade' ? null : TOURS.unlock
+    case 'wallet':
+      // Only while the "add credits, then back to unlock" detour is active.
+      return route.query.from === 'unlock' && route.query.flow !== 'upgrade'
+        ? TOURS['wallet-unlock']
+        : null
     case 'website-builder':
       return inFlow ? TOURS['build-advanced'] : null
     case 'campaign-budget':

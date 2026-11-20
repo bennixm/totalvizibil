@@ -249,6 +249,29 @@ export class GoogleAdsMonitorService implements OnModuleInit {
             );
           }
         }
+        // Headline keyword monitoring: missing ad-group keywords that hold
+        // Ad Strength back are written into the headlines (automatic, same
+        // policy as gap filling; Ad Strength read back, restored if worse).
+        // Campaigns whose ad text changed this cycle wait for Google first.
+        for (const e of evaluated.filter(
+          (x) =>
+            x.mapping &&
+            !changedIds.has(x.c.googleCampaignId) &&
+            x.ev.issues.some((i) => i.code === 'headlines_missing_keywords'),
+        )) {
+          try {
+            const r = await this.optimizer.fixHeadlineKeywords(e.c, e.mapping!, activity);
+            if (r.applied) changedIds.add(e.c.googleCampaignId);
+            applied += r.applied;
+            cost += r.costEstimateMinor;
+          } catch (err) {
+            hadError = true;
+            this.logger.error(
+              `Headline keyword fix failed for ${e.c.googleCampaignId}.`,
+              err instanceof Error ? err.stack : err,
+            );
+          }
+        }
         for (const e of evaluated.filter((x) => x.mapping)) {
           try {
             const r = await this.optimizer.proposeReplacements(e.c, e.mapping!, activity);

@@ -380,7 +380,60 @@ describe('WebsiteDraftService', () => {
       const raw = 'salut, eu sunt Andrei si fac gradinarit in zona Brasov';
       const view = await svc.sendMessage('d1', 'tok1', raw);
       expect(view.easy?.companyName).not.toBe(raw);
-      expect(view.easy?.companyName).toBe('salut');
+      // "salut" is not a name: nothing from the raw sentence is adopted.
+      expect(view.easy?.companyName).toBe('');
+    });
+
+    it('keeps a bare business name when the AI read is unavailable', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'intro',
+        mode: 'easy',
+        answers: { locale: 'ro' },
+      });
+      const view = await svc.sendMessage('d1', 'tok1', 'Frizeria Ionuț');
+      expect(view.easy?.companyName).toBe('Frizeria Ionuț');
+    });
+
+    it('rejects an AI name that is just the sentence copied, composing one from trade + city', async () => {
+      const { svc, prisma, ai } = makeService();
+      const raw = 'fac gradinarit si amenajari spatii verzi in zona Brasov';
+      ai.parseIntro.mockResolvedValue({
+        isIntro: true,
+        companyName: raw,
+        businessType: 'grădinărit',
+        city: 'Brașov',
+      });
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'intro',
+        mode: 'easy',
+        answers: { locale: 'ro' },
+      });
+      const view = await svc.sendMessage('d1', 'tok1', raw);
+      expect(view.easy?.companyName).toBe('Grădinărit Brașov');
+    });
+
+    it('asks again (once) when the first message is not an intro', async () => {
+      const { svc, prisma, ai } = makeService();
+      ai.parseIntro.mockResolvedValue({ isIntro: false });
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'intro',
+        mode: 'easy',
+        answers: { locale: 'ro' },
+      });
+      let view = await svc.sendMessage('d1', 'tok1', 'salut');
+      expect(view.step).toBe('intro');
+      expect(view.easy?.companyName).toBe('');
+      expect(view.transcript.at(-1)).toMatchObject({ role: 'assistant', key: 'introUnclear' });
+      // Second time it is accepted, so a misread can never trap the visitor.
+      view = await svc.sendMessage('d1', 'tok1', 'salut din nou');
+      expect(view.step).toBe('services');
     });
 
     // Auto-picks a template right away (tone-aware) instead of every draft
