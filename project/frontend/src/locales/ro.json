@@ -3604,26 +3604,66 @@
   },
   "start": {
     "seoTitle": "Devino vizibil: creează sau optimizează",
-    "seoDesc": "Construiește-ți afacerea de la zero sau optimizează campania Google Ads pe care o ai deja.",
+    "seoDesc": "Construiește-ți prezența de la zero sau optimizează o campanie Google Ads pe care o ai deja.",
     "eyebrow": "Devino vizibil",
     "title": "Cu ce începem?",
-    "lead": "Construiește-ți prezența de la zero sau lasă agentul nostru să optimizeze campania Google Ads pe care o ai deja.",
+    "lead": "Alege drumul complet, de la zero, sau optimizează o campanie Google Ads pe care o ai deja.",
+    "scratchKicker": "Procesul complet",
     "scratchTitle": "Creează de la zero",
-    "scratchText": "Asistentul îți face site-ul, te listează în platformă și îți pornește campania.",
-    "scratch": {
-      "site": "Site făcut de asistent, simplu sau avansat",
-      "feed": "Listare în feed-ul de firme locale",
-      "campaign": "Campanie de promovare cu buget controlat"
+    "scratchText": "Asistentul te ghidează prin tot procesul: îți face site-ul, îți listează afacerea în platformă și îți pornește campania de promovare.",
+    "scratchStepsTitle": "Ce parcurgi, pas cu pas",
+    "scratchSteps": {
+      "plan": {
+        "title": "Alegi planul",
+        "text": "Simplu sau Avansat, după cât control vrei asupra site-ului."
+      },
+      "build": {
+        "title": "Îți construiești site-ul",
+        "text": "Asistentul AI scrie conținutul împreună cu tine."
+      },
+      "location": {
+        "title": "Domeniu și zonă",
+        "text": "Categoria afacerii și zona în care lucrezi."
+      },
+      "account": {
+        "title": "Contul tău",
+        "text": "Salvezi tot ce ai creat."
+      },
+      "budget": {
+        "title": "Bugetul campaniei",
+        "text": "Stabilești cât vrei să investești în promovare."
+      },
+      "launch": {
+        "title": "Lansarea",
+        "text": "Pornești campania și apari în feed-ul platformei."
+      }
     },
+    "scratchNote": "Potrivit dacă pornești acum: obții site, listare și campanie într-un singur flux.",
     "scratchCta": "Începe de la zero",
-    "optimizeTitle": "Optimizează o campanie existentă",
-    "optimizeText": "Conectează-ți contul Google Ads, alege campania și agentul o duce cât mai aproape de scorul maxim.",
-    "optimize": {
-      "connect": "Conectare sigură cu contul tău Google",
-      "agent": "Același agent de optimizare pe care îl folosim pentru campaniile noastre",
-      "approve": "Bugetul nu se schimbă niciodată fără aprobarea ta"
+    "optimizeKicker": "Pentru campanii existente",
+    "optimizeTitle": "Optimizează o campanie Google Ads",
+    "optimizeText": "Ai deja o campanie de căutare (Search) în Google Ads? Conectează contul, alege campania și lasă agentul de optimizare să o îmbunătățească.",
+    "optimizeFeaturesTitle": "Ce poți face",
+    "optimizeFeatures": {
+      "connect": {
+        "title": "Conectare cu Google",
+        "text": "Te autentifici cu contul Google și alegi contul și campania Google Ads."
+      },
+      "analyze": {
+        "title": "Scor și probleme",
+        "text": "Campania este verificată față de cerințele Google: scor, Ad Strength, elemente lipsă."
+      },
+      "improve": {
+        "title": "Agent de optimizare",
+        "text": "Completează titluri, descrieri, sitelink-uri și callout-uri și pune cuvintele cheie în titluri, după setările tale."
+      },
+      "approve": {
+        "title": "Controlul rămâne la tine",
+        "text": "Bugetul se schimbă doar după aprobarea ta; alegi ce poate face agentul singur."
+      }
     },
-    "optimizeFree": "Configurarea este gratuită",
+    "optimizeNote": "Configurarea este gratuită. Plătești în credite doar ciclurile de optimizare pe care le pornești (de la {credits} credite).",
+    "optimizeNoteShort": "Configurarea este gratuită. Plătești în credite doar ciclurile de optimizare pe care le pornești.",
     "optimizeCta": "Optimizează campania"
   },
   "ads": {
