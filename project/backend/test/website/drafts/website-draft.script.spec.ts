@@ -32,7 +32,8 @@ describe('website-draft guided script', () => {
 
     let r = feed('AquaFix, instalații sanitare și termice, din Cluj');
     expect(step).toBe('services');
-    expect(answers.companyName).toBe('AquaFix');
+    // the raw text is never adopted as the name here; the service's AI read sets it
+    expect(answers.companyName).toBeUndefined();
     expect(answers.rawIntro).toBe('AquaFix, instalații sanitare și termice, din Cluj');
     expect(r.assistant).toEqual(['askServices']);
     // the service should run the immediate intro-parse AI call on this text

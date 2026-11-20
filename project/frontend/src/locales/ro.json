@@ -172,6 +172,8 @@
     },
     "advancedTitle": "Avansat",
     "advancedText": "AI scrie cod real pentru un site unic, printr-un chat live cu asistentul.",
+    "advancedBoostTitle": "Mai multă vizibilitate",
+    "advancedBoost": "Planul Avansat te ajută să fii mai vizibil: mai multe pagini cu serviciile tale înseamnă mai multe căutări în care clienții te pot găsi.",
     "advancedTag": "Cost de deblocare",
     "advancedBadge": "Recomandat",
     "compareHeading": "Funcționalități",
@@ -262,6 +264,7 @@
     },
     "msg": {
       "opening": "Salut, eu sunt Andrei 👋 Spune-mi numele afacerii tale, cu ce te ocupi și, dacă vrei, orașul, totul într-un singur mesaj.",
+      "introUnclear": "Nu am înțeles încă despre ce afacere e vorba. Scrie-mi pe scurt numele firmei, cu ce te ocupi și, dacă vrei, orașul. Exemplu: Frizeria Ionuț, tuns și bărbierit în Cluj.",
       "askColor": "Am notat. Acum alege culoarea principală a site-ului din paleta de mai jos.",
       "askLanding": "Acum secțiunea de sus: încarcă o imagine de fundal și, dacă vrei, schimbă titlul afișat.",
       "askServices": "Enumeră serviciile tale în chat, separate prin virgulă. Le scriu eu descrierile.",
@@ -769,7 +772,14 @@
     "paymentsToLabel": "Până la",
     "paymentsClearDates": "Șterge datele",
     "paymentsDownloadPdf": "Descarcă PDF",
-    "paymentsEmpty": "Nicio înregistrare încă."
+    "paymentsEmpty": "Nicio înregistrare încă.",
+    "unlockReturn": {
+      "title": "Deblochează builderul avansat",
+      "textNoPrice": "Adaugă credite, apoi revino la pasul de deblocare.",
+      "ready": "Ai destule credite pentru deblocare ({price} credite). Revino și continuă.",
+      "short": "Îți mai lipsesc {short} credite pentru deblocare (costă {price} credite).",
+      "back": "Înapoi la deblocare"
+    }
   },
   "auth": {
     "loginTitle": "Autentificare",
@@ -3414,7 +3424,7 @@
       },
       "unlShort": {
         "title": "Credite insuficiente",
-        "text": "Adaugă credite în portofel, apoi revino aici ca să deblochezi."
+        "text": "Îți lipsesc câteva credite pentru deblocare. Nicio problemă, te ajut să le adaugi."
       },
       "unlPay": {
         "title": "Deblochează",
@@ -3471,6 +3481,26 @@
       "launchFinish": {
         "title": "Finalizează",
         "text": "Butonul se activează după ce campania e activă și te duce în panou."
+      },
+      "unlAddCredits": {
+        "title": "Adaugă credite",
+        "text": "Apasă „{addCredits}”. Te duc în portofel, te ghidez la plată și apoi te aduc înapoi aici, ca să deblochezi builderul."
+      },
+      "walletUnlock": {
+        "title": "Ești aproape",
+        "text": "Aici vezi câte credite îți mai lipsesc pentru deblocarea builderului avansat. Se actualizează imediat după plată."
+      },
+      "walletTopup": {
+        "title": "Încarcă portofelul",
+        "text": "Apasă „{topUp}”, alege suma (cel puțin cât îți lipsește) și plătește cu cardul."
+      },
+      "walletBack": {
+        "title": "Drumul înapoi",
+        "text": "După plată, apasă „{backToUnlock}” ca să revii la pasul de deblocare."
+      },
+      "walletReady": {
+        "title": "Ai destule credite",
+        "text": "Gata! Apasă „{backToUnlock}” ca să deblochezi builderul și să continui."
       }
     }
   }

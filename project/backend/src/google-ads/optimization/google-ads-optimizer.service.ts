@@ -19,6 +19,12 @@ import { AgentActivity } from './google-ads-activity';
 import { CampaignData, RsaAd } from './google-ads-account-data';
 import { CampaignEvaluation } from './google-ads-campaign-evaluator';
 import { CALLOUTS, RSA, SEARCH_IMAGES, SITELINKS, STRUCTURED_SNIPPETS } from './google-ads-specs';
+import {
+  headlineHasKeyword,
+  keywordCoverage,
+  keywordsHurtAdStrength,
+  replaceableHeadlines,
+} from './google-ads-headline-keywords';
 
 /**
  * Executes optimizations on AGENT-MANAGED campaigns only (the ones with a
@@ -30,6 +36,11 @@ import { CALLOUTS, RSA, SEARCH_IMAGES, SITELINKS, STRUCTURED_SNIPPETS } from './
  *    Google's 15/4) and missing sitelinks/callouts (up to 6/4). Never
  *    removes or rewrites an existing asset; never touches budget, bidding,
  *    targeting or conversion goals.
+ *  - Automatically (same setting): when the ad group's keywords are missing
+ *    from the headlines and that holds Ad Strength back, add (or, in a full
+ *    ad, rewrite the weakest keyword-less) headlines so they carry those
+ *    keywords. Ad Strength is read back from Google afterwards and the
+ *    previous headlines are restored if Google rates the new set lower.
  *  - Only with approval: replacing a headline/description Google itself
  *    labelled LOW (a `pending_approval` action, applied by `approveProposal`).
  *
@@ -53,7 +64,15 @@ export interface OptimizeOutcome {
 
 const MAX_REPLACEMENTS_PER_CAMPAIGN_PER_CYCLE = 2;
 /** Actions that change the RSA text itself (subject to the cooldown). */
-const RSA_TEXT_ACTIONS = ['creative.rsa_gap_fill', 'creative.replace_text'];
+const RSA_TEXT_ACTIONS = [
+  'creative.rsa_gap_fill',
+  'creative.replace_text',
+  'creative.keyword_headlines',
+];
+/** Keyword headlines added/rewritten per ad per run. */
+const MAX_KEYWORD_HEADLINES = 4;
+const STRENGTH_RANK: Record<string, number> = { POOR: 1, AVERAGE: 2, GOOD: 3, EXCELLENT: 4 };
+const STRENGTH_PENDING = new Set(['PENDING', 'UNSPECIFIED', 'UNKNOWN', 'NO_ADS']);
 /** Business name shown next to the ads (Google: max 25 characters). */
 const BUSINESS_NAME = 'Totalvizibil';
 /** Images the agent aims for per campaign: Google recommends 4 unique
@@ -867,6 +886,8 @@ export class GoogleAdsOptimizerService {
     verify: (results: GoogleAdsMutateResult[]) => Promise<string | null>;
     /** The ad changed by this batch, for the Ad Strength read-back. */
     adId?: string;
+    /** Called with the history row id once the change is applied + verified. */
+    onApplied?: (actionId: string) => void;
   }): Promise<boolean> {
     const meta = { googleCampaignId: p.c.googleCampaignId, campaignName: p.c.name };
     const validated = await p.activity
@@ -944,7 +965,290 @@ export class GoogleAdsOptimizerService {
     if (!error && created?.action === 'creative.rsa_gap_fill' && p.adId) {
       this.scheduleStrengthReadback(created.id, p.adId);
     }
+    if (!error && created?.id) p.onApplied?.(created.id);
     return !error;
+  }
+
+  /**
+   * Headline keyword monitoring: checks whether the ad group's keywords
+   * appear (whole, word for word) in the ad's headlines. When some are
+   * missing AND that holds Ad Strength below EXCELLENT (Google's own action
+   * item says so, or most keywords are absent), it writes headlines that
+   * carry the missing keywords: added when the ad has room, otherwise
+   * replacing the weakest headlines that have no keyword (never pinned,
+   * never BEST/GOOD). Same safety path as every write (local validation →
+   * validateOnly → mutate → re-read), then Ad Strength is read back from
+   * Google and the previous headlines are restored if it got worse.
+   */
+  async fixHeadlineKeywords(
+    c: CampaignData,
+    mapping: MappingWithCategory,
+    activity: AgentActivity,
+  ): Promise<OptimizeOutcome> {
+    const outcome: OptimizeOutcome = { applied: 0, proposed: 0, costEstimateMinor: 0 };
+    if (c.channelType !== 'SEARCH') return outcome;
+    const rsa = this.pickRsa(c);
+    if (!rsa || !rsa.keywords?.length) return outcome;
+    const cov = keywordCoverage(
+      rsa.headlines.map((h) => h.text),
+      rsa.keywords,
+      rsa.actionItems ?? [],
+    );
+    if (!keywordsHurtAdStrength(rsa.adStrength, cov)) return outcome;
+
+    const meta = { googleCampaignId: c.googleCampaignId, campaignName: c.name };
+    const message = `Cuvinte cheie lipsă din titluri (${cov.missing.length} din ${cov.keywords.length}, Ad Strength ${rsa.adStrength})`;
+    const skip = (result: string) =>
+      activity.record(
+        { ...meta, step: 'optimize', message },
+        {
+          status: 'skipped',
+          result,
+          details: { missing: cov.missing, covered: cov.covered, googleFlagged: cov.googleFlagged },
+        },
+      );
+    if (!(await this.settings.googleAdsAgentAutoFillGapsEnabled())) {
+      await skip('Amânat: completarea automată este dezactivată din setări.');
+      return outcome;
+    }
+    if (!this.ai.configured) {
+      await skip('Serviciul AI nu este configurat; nu se pot genera titluri noi.');
+      return outcome;
+    }
+    const blocker = await this.rsaChangeBlocker(c);
+    if (blocker) {
+      await skip(`Amânat pentru textul reclamei: ${blocker}.`);
+      return outcome;
+    }
+
+    const room = Math.max(0, RSA.headlines.max - rsa.headlines.length);
+    const swappable = room ? [] : replaceableHeadlines(rsa.headlines, cov.keywords);
+    const slots = Math.min(cov.missing.length, MAX_KEYWORD_HEADLINES, room || swappable.length);
+    if (!slots) {
+      await skip(
+        'Reclama are deja 15 titluri și niciunul nu poate fi înlocuit automat (fixate, evaluate BEST/GOOD de Google sau conțin deja un cuvânt cheie).',
+      );
+      return outcome;
+    }
+    const targets = cov.missing.slice(0, slots + 2);
+
+    const generated = await activity
+      .step(
+        { ...meta, step: 'generate', message: `${message}: generare titluri cu cuvintele cheie` },
+        async () => {
+          const r = await this.ai.googleAdsKeywordHeadlines({
+            categoryName: plainName(mapping.category.nameI18n),
+            landingUrl: rsa.finalUrls[0] ?? '',
+            missingKeywords: targets,
+            existingHeadlines: rsa.headlines.map((h) => h.text),
+            googleActionItems: rsa.actionItems ?? [],
+            count: targets.length,
+          });
+          if (!r) throw new Error('AI nu a returnat un răspuns utilizabil.');
+          return {
+            value: r,
+            outcome: {
+              result: `Propuse ${r.headlines.length} titluri: ${r.headlines.join(' | ')}`,
+            },
+          };
+        },
+      )
+      .catch(() => null);
+    if (!generated) return outcome;
+    outcome.costEstimateMinor += generated.costEstimateMinor;
+
+    // Local validation: Google limits + editorial rules + no duplicates, and
+    // each headline must really contain a still-missing keyword (one each).
+    const valid = acceptTexts(
+      generated.headlines,
+      [...rsa.headlines.map((h) => h.text), ...rsa.descriptions.map((d) => d.text)],
+      RSA.headlines.maxChars,
+      'headline',
+      RSA.headlines.max,
+    ).accepted;
+    const used = new Set<string>();
+    const picked: { text: string; keyword: string }[] = [];
+    for (const text of valid) {
+      if (picked.length >= slots) break;
+      const kw = targets.find((k) => !used.has(k) && headlineHasKeyword(text, k));
+      if (!kw) continue;
+      used.add(kw);
+      picked.push({ text, keyword: kw });
+    }
+    await activity.record(
+      { ...meta, step: 'validate_local', message: 'Validare titluri cu cuvinte cheie' },
+      {
+        status: picked.length ? 'completed' : 'failed',
+        result: picked.length
+          ? `Acceptate ${picked.length}: ${picked.map((p) => `„${p.text}” (${p.keyword})`).join(', ')}.`
+          : 'Niciun titlu generat nu respectă regulile Google și nu conține întreg un cuvânt cheie lipsă.',
+      },
+    );
+    if (!picked.length) return outcome;
+
+    const previous = rsa.headlines.map((x) => ({
+      text: x.text,
+      ...(x.pinnedField ? { pinnedField: x.pinnedField } : {}),
+    }));
+    const replaced: { oldText: string; newText: string; keyword: string }[] = [];
+    let headlines: { text: string; pinnedField?: string }[];
+    if (room) {
+      headlines = [...previous, ...picked.map((p) => ({ text: p.text }))];
+    } else {
+      const swap = new Map<string, (typeof picked)[number]>();
+      picked.forEach((p, i) => swap.set(swappable[i].text, p));
+      headlines = previous.map((h) => {
+        const p = swap.get(h.text);
+        if (!p) return h;
+        replaced.push({ oldText: h.text, newText: p.text, keyword: p.keyword });
+        return { ...h, text: p.text };
+      });
+    }
+    const added = room ? picked.map((p) => p.text) : [];
+    const newTexts = picked.map((p) => p.text);
+    const adId = rsa.adResourceName.split('/').pop()!;
+    const ok = await this.executeChange({
+      c,
+      mapping,
+      activity,
+      action: 'creative.keyword_headlines',
+      adId,
+      label: room
+        ? `Adăugare ${picked.length} titluri cu cuvintele cheie lipsă`
+        : `Rescriere ${picked.length} titluri fără cuvinte cheie`,
+      ops: [
+        {
+          adOperation: {
+            update: { resourceName: rsa.adResourceName, responsiveSearchAd: { headlines } },
+            updateMask: 'responsive_search_ad.headlines',
+          },
+        },
+      ],
+      before: { headlines: previous.map((h) => h.text), adStrength: rsa.adStrength ?? null },
+      after: {
+        headlines: headlines.map((h) => h.text),
+        added,
+        replaced,
+        missingKeywords: picked.map((p) => p.keyword),
+        adStrengthBefore: rsa.adStrength ?? null,
+      },
+      reasoning:
+        `Titlurile nu conțin ${cov.missing.length} din ${cov.keywords.length} cuvinte cheie ale grupului (${cov.missing.slice(0, 6).join(', ')}), ` +
+        `iar Google evaluează reclama cu Ad Strength ${rsa.adStrength}` +
+        (cov.googleFlagged ? ` și indică explicit: ${(rsa.actionItems ?? []).join(' | ')}` : '') +
+        '. ' +
+        (room
+          ? 'Titlurile noi se adaugă; cele existente rămân neschimbate.'
+          : 'Se rescriu doar titlurile fără cuvânt cheie, nefixate și neevaluate BEST/GOOD de Google.') +
+        ' Dacă Google evaluează varianta nouă mai slab, titlurile anterioare sunt restaurate automat.',
+      verify: async () => {
+        const rows = await this.client.search(
+          'SELECT ad_group_ad.ad.id, ad_group_ad.ad.responsive_search_ad.headlines ' +
+            `FROM ad_group_ad WHERE ad_group_ad.ad.id = ${adId}`,
+        );
+        const live = new Set(
+          (
+            (
+              rows[0]?.adGroupAd as
+                { ad?: { responsiveSearchAd?: { headlines?: { text?: string }[] } } } | undefined
+            )?.ad?.responsiveSearchAd?.headlines ?? []
+          ).map((x) => x.text),
+        );
+        const missing = newTexts.filter((t) => !live.has(t));
+        const stale = replaced.map((r) => r.oldText).filter((t) => live.has(t));
+        if (missing.length) return `Lipsesc după aplicare: ${missing.join(', ')}`;
+        if (stale.length) return `Apar încă după aplicare: ${stale.join(', ')}`;
+        return null;
+      },
+      onApplied: (actionId) =>
+        this.scheduleKeywordReadback({
+          actionId,
+          adResourceName: rsa.adResourceName,
+          previous,
+          strengthBefore: rsa.adStrength ?? null,
+        }),
+    });
+    if (ok) outcome.applied++;
+    return outcome;
+  }
+
+  /**
+   * After a keyword-headline change: reads the REAL Ad Strength back from
+   * Google (retrying while it is still PENDING) and, if Google rates the new
+   * headlines lower than before, restores the previous headlines. The
+   * result is appended to the history row; nothing is assumed.
+   */
+  scheduleKeywordReadback(
+    p: {
+      actionId: string;
+      adResourceName: string;
+      previous: { text: string; pinnedField?: string }[];
+      strengthBefore: string | null;
+    },
+    delayMs = 90_000,
+    attempt = 1,
+  ): void {
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const adId = p.adResourceName.split('/').pop();
+          const rows = await this.client.search(
+            'SELECT ad_group_ad.ad.id, ad_group_ad.ad_strength, ad_group_ad.action_items ' +
+              `FROM ad_group_ad WHERE ad_group_ad.ad.id = ${adId}`,
+          );
+          const a = rows[0]?.adGroupAd as
+            { adStrength?: string; actionItems?: string[] } | undefined;
+          if (!a) return;
+          if (!a.adStrength || STRENGTH_PENDING.has(a.adStrength)) {
+            if (attempt < 4) this.scheduleKeywordReadback(p, delayMs * 2, attempt + 1);
+            return;
+          }
+          const worse =
+            (STRENGTH_RANK[a.adStrength] ?? 0) < (STRENGTH_RANK[p.strengthBefore ?? ''] ?? 0);
+          let note =
+            ` Ad Strength citit din Google după modificare: ${a.adStrength}` +
+            (a.actionItems?.length ? ` (sugestii Google: ${a.actionItems.join(' | ')})` : '') +
+            '.';
+          let reverted = false;
+          if (worse && this.client.writesAllowed) {
+            const ops: GoogleAdsMutateOperation[] = [
+              {
+                adOperation: {
+                  update: {
+                    resourceName: p.adResourceName,
+                    responsiveSearchAd: { headlines: p.previous },
+                  },
+                  updateMask: 'responsive_search_ad.headlines',
+                },
+              },
+            ];
+            await this.client.mutate(ops, { validateOnly: true });
+            await this.client.mutate(ops);
+            reverted = true;
+            note += ` Mai slab decât înainte (${p.strengthBefore}), așa că titlurile anterioare au fost restaurate.`;
+          }
+          const row = await this.prisma.googleAdsAgentAction.findUnique({
+            where: { id: p.actionId },
+          });
+          await this.prisma.googleAdsAgentAction.update({
+            where: { id: p.actionId },
+            data: {
+              executionResult: `${row?.executionResult ?? ''}${note}`.trim(),
+              after: {
+                ...((row?.after as Record<string, unknown> | null) ?? {}),
+                adStrengthAfter: a.adStrength,
+                ...(reverted ? { reverted: true } : {}),
+              } as Prisma.InputJsonValue,
+            },
+          });
+        } catch (err) {
+          this.logger.warn(
+            `Keyword-headline read-back failed for action ${p.actionId}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      })();
+    }, delayMs);
+    timer.unref?.();
   }
 
   /**

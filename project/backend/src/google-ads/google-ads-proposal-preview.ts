@@ -612,6 +612,48 @@ export function buildProposalPreview(row: {
         ? { sections: [{ kind: 'items', title: 'Imagini adăugate', items: images }] }
         : { sections: [] };
     }
+    case 'creative.keyword_headlines': {
+      const sections: ProposalPreviewSection[] = [];
+      const kws = arr(after.missingKeywords)
+        .map(str)
+        .filter((t): t is string => !!t);
+      if (kws.length)
+        sections.push({
+          kind: 'texts',
+          title: 'Cuvinte cheie care lipseau din titluri',
+          items: kws.map((text) => ({ text, status: 'existing' as const })),
+        });
+      const rows = arr(after.replaced)
+        .map(obj)
+        .filter((r) => str(r.newText))
+        .map((r) => ({ label: 'Titlu', before: str(r.oldText) ?? null, after: str(r.newText)! }));
+      if (rows.length) sections.push({ kind: 'diff', title: 'Titluri rescrise', rows });
+      const added = arr(after.added)
+        .map(str)
+        .filter((t): t is string => !!t);
+      if (added.length)
+        sections.push({
+          kind: 'texts',
+          title: 'Titluri adăugate',
+          items: added.map((text) => ({ text, status: 'added' as const })),
+        });
+      const strengthRows = [
+        str(after.adStrengthAfter) && {
+          label: 'Ad Strength',
+          before: str(after.adStrengthBefore) ?? null,
+          after: str(after.adStrengthAfter)!,
+        },
+      ].filter(Boolean) as { label: string; before: string | null; after: string }[];
+      if (strengthRows.length)
+        sections.push({ kind: 'diff', title: 'Rezultat confirmat de Google', rows: strengthRows });
+      if (after.reverted === true)
+        sections.push({
+          kind: 'note',
+          tone: 'warning',
+          text: 'Google a evaluat varianta nouă mai slab, așa că titlurile anterioare au fost restaurate.',
+        });
+      return { sections };
+    }
     case 'creative.replace_text': {
       const oldText = str(before.text);
       const newText = str(after.text);

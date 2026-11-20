@@ -6,6 +6,7 @@ import {
   textProblem,
 } from 'src/google-ads/optimization/google-ads-optimizer.service';
 import { AgentActivity } from 'src/google-ads/optimization/google-ads-activity';
+import * as kw from 'src/google-ads/optimization/google-ads-headline-keywords';
 
 const metrics = (impressions = 0, clicks = 0, conversions = 0, costMicros = 0) => ({
   impressions,
@@ -39,6 +40,8 @@ function searchCampaign(overrides: Partial<CampaignData> = {}): CampaignData {
         descriptions: Array.from({ length: 3 }, (_, i) => ({
           text: `Descriere diferită ${i + 1}`,
         })),
+        actionItems: [],
+        keywords: [],
       },
     ],
     assets: [],
@@ -799,5 +802,143 @@ describe('GoogleAdsOptimizerService.fillGaps — images (Pexels)', () => {
     const r = await svc.fillGaps(c, ev, mapping as never, activity);
     expect(r.applied).toBe(0);
     expect(mutate).not.toHaveBeenCalled();
+  });
+});
+
+describe('headline keyword coverage', () => {
+  it('counts a keyword only when the whole phrase is in one headline (diacritics ignored)', () => {
+    const cov = kw.keywordCoverage(
+      ['Vulcanizare București Rapid', 'Schimb anvelope azi'],
+      ['vulcanizare bucuresti', 'echilibrare roti', '"schimb anvelope"', 'vulcanizare bucuresti'],
+      ['Try including more keywords in your headlines.'],
+    );
+    expect(cov.keywords).toEqual(['vulcanizare bucuresti', 'echilibrare roti', 'schimb anvelope']);
+    expect(cov.covered).toEqual(['vulcanizare bucuresti', 'schimb anvelope']);
+    expect(cov.missing).toEqual(['echilibrare roti']);
+    expect(cov.googleFlagged).toBe(true);
+  });
+
+  it('flags Ad Strength impact only below EXCELLENT', () => {
+    const cov = kw.keywordCoverage(['Titlu'], ['vulcanizare'], []);
+    expect(kw.keywordsHurtAdStrength('AVERAGE', cov)).toBe(true);
+    expect(kw.keywordsHurtAdStrength('EXCELLENT', cov)).toBe(false);
+    expect(kw.keywordsHurtAdStrength('PENDING', cov)).toBe(false);
+  });
+
+  it('evaluator reports the missing keywords as an auto-fixable headline issue', () => {
+    const c = searchCampaign();
+    c.ads[0].keywords = ['vulcanizare bucuresti', 'echilibrare roti'];
+    c.ads[0].actionItems = ['Try including more keywords in your headlines.'];
+    const ev = evaluateCampaign(c, ctx);
+    const issue = ev.issues.find((i) => i.code === 'headlines_missing_keywords');
+    expect(issue).toBeDefined();
+    expect(issue!.priority).toBe('high');
+    expect(issue!.autoFixable).toBe(true);
+    expect(ev.assets.headlineKeywords?.missing).toEqual([
+      'vulcanizare bucuresti',
+      'echilibrare roti',
+    ]);
+  });
+});
+
+describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
+  function setup(headlineCount: number, aiHeadlines: string[]) {
+    const H = Array.from({ length: headlineCount }, (_, i) => `Titlu numărul ${i + 1}`);
+    let live = H.map((text) => ({ text }));
+    const mutate = jest.fn(async (ops: any[], opts?: { validateOnly?: boolean }) => {
+      if (!opts?.validateOnly) live = ops[0].adOperation.update.responsiveSearchAd.headlines;
+      return [];
+    });
+    const search = jest.fn(async () => [
+      { adGroupAd: { ad: { responsiveSearchAd: { headlines: live } } } },
+    ]);
+    const ai = {
+      configured: true,
+      googleAdsKeywordHeadlines: jest
+        .fn()
+        .mockResolvedValue({ headlines: aiHeadlines, costEstimateMinor: 1 }),
+    };
+    const settings = {
+      googleAdsAgentAutoFillGapsEnabled: jest.fn().mockResolvedValue(true),
+      googleAdsAgentCreativeCooldownDays: jest.fn().mockResolvedValue(14),
+    };
+    const prisma = {
+      googleAdsAgentAction: {
+        count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'a1', ...data })),
+      },
+      googleAdsAgentEvent: { create: jest.fn().mockResolvedValue({ id: 'e' }), update: jest.fn() },
+    };
+    const svc = new GoogleAdsOptimizerService(
+      { writesAllowed: true, customerId: '1', search, mutate } as never,
+      ai as never,
+      settings as never,
+      prisma as never,
+      { get: (k: string) => (k === 'pexelsApiKey' ? '' : 'https://totalvizibil.ro') } as never,
+    );
+    jest.spyOn(svc, 'scheduleKeywordReadback').mockImplementation(() => undefined);
+    const base = searchCampaign();
+    const c = searchCampaign({
+      ads: [
+        {
+          ...base.ads[0],
+          headlines: H.map((text, i) => ({
+            text,
+            ...(i === 0 ? { performanceLabel: 'BEST' } : {}),
+          })),
+          keywords: ['vulcanizare bucuresti', 'echilibrare roti'],
+          actionItems: ['Try including more keywords in your headlines.'],
+        },
+      ],
+    });
+    const mapping = {
+      categoryId: 'cat',
+      category: { id: 'cat', slug: 'vulcanizare', parent: null, nameI18n: { ro: 'Vulcanizare' } },
+    };
+    const activity = new AgentActivity(prisma as never, 'run');
+    return { svc, c, mapping, activity, prisma, mutate, ai, live: () => live };
+  }
+
+  it('adds keyword headlines when the ad has room, keeping existing ones', async () => {
+    const t = setup(10, ['Vulcanizare Bucuresti Rapid', 'Echilibrare Roti pe Loc', 'Sună acum!']);
+    const r = await t.svc.fixHeadlineKeywords(t.c, t.mapping as never, t.activity);
+    expect(r.applied).toBe(1);
+    expect(t.live().map((h: any) => h.text)).toEqual([
+      ...Array.from({ length: 10 }, (_, i) => `Titlu numărul ${i + 1}`),
+      'Vulcanizare Bucuresti Rapid',
+      'Echilibrare Roti pe Loc',
+    ]);
+    const row = t.prisma.googleAdsAgentAction.create.mock.calls[0][0].data;
+    expect(row.action).toBe('creative.keyword_headlines');
+    expect(row.status).toBe('applied');
+    expect(row.after.missingKeywords).toEqual(['vulcanizare bucuresti', 'echilibrare roti']);
+    expect(t.svc.scheduleKeywordReadback).toHaveBeenCalled();
+  });
+
+  it('in a full ad rewrites only keyword-less, non-BEST headlines', async () => {
+    const t = setup(15, ['Vulcanizare Bucuresti Rapid', 'Echilibrare Roti pe Loc']);
+    const r = await t.svc.fixHeadlineKeywords(t.c, t.mapping as never, t.activity);
+    expect(r.applied).toBe(1);
+    const texts = t.live().map((h: any) => h.text);
+    expect(texts).toHaveLength(15);
+    expect(texts[0]).toBe('Titlu numărul 1'); // BEST stays
+    expect(texts).toContain('Vulcanizare Bucuresti Rapid');
+    expect(texts).toContain('Echilibrare Roti pe Loc');
+  });
+
+  it('rejects AI headlines that do not really contain a missing keyword', async () => {
+    const t = setup(10, ['Service auto rapid', 'Cel mai bun preț']);
+    const r = await t.svc.fixHeadlineKeywords(t.c, t.mapping as never, t.activity);
+    expect(r.applied).toBe(0);
+    expect(t.mutate).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when every keyword is already in the headlines', async () => {
+    const t = setup(10, []);
+    t.c.ads[0].keywords = ['titlu numarul 1'];
+    const r = await t.svc.fixHeadlineKeywords(t.c, t.mapping as never, t.activity);
+    expect(r.applied).toBe(0);
+    expect(t.ai.googleAdsKeywordHeadlines).not.toHaveBeenCalled();
   });
 });

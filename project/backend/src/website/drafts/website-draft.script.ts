@@ -99,6 +99,43 @@ export function quickNameGuess(text: string): string {
   return (head || text).slice(0, 80);
 }
 
+export const foldText = (s: string): string =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+/** Sentence openers that mean the text is a description, not a name. */
+const SENTENCE_START =
+  /^(sunt|suntem|eu|noi|fac|facem|am|avem|ma|ne|vreau|vrem|lucrez|lucram|ofer|oferim|salut|buna|hello|hi|hey|i|im|we|were|my|our|ich|wir|hallo|mein|meine|unser|unsere)\b/;
+
+/**
+ * Whether a short text plausibly IS a business name (used only when the AI
+ * read is unavailable): at most 4 words / 40 chars, no sentence opener, no
+ * sentence punctuation.
+ */
+export function looksLikeName(text: string): boolean {
+  const t = text.trim();
+  if (!t || [...t].length > 40 || /[.!?]/.test(t)) return false;
+  if (t.split(/\s+/).length > 4) return false;
+  return !SENTENCE_START.test(foldText(t));
+}
+
+/**
+ * True when an AI-proposed name is really the visitor's sentence copied
+ * back (whole or nearly whole) rather than an interpreted name.
+ */
+export function isCopiedSentence(name: string, rawIntro: string): boolean {
+  const n = foldText(name);
+  const r = foldText(rawIntro);
+  if (!n) return true;
+  if (n === r) return true;
+  const words = n.split(' ').length;
+  return words > 6 || (r.length > 0 && n.length >= r.length * 0.8 && r.startsWith(n));
+}
+
 const TONE_PATTERNS: [RegExp, ToneOfVoice][] = [
   [/prieten|friendl|warm|cald|apropiat/i, 'friendly'],
   [/profesional|professional|serios|formal|corporate/i, 'professional'],
@@ -170,14 +207,10 @@ export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string)
 
   switch (step) {
     case 'intro': {
-      // A quick deterministic guess so the preview is never blank while the
-      // AI call below is in flight — `parseIntroFor` tells the service to
-      // run that call and overwrite this guess before the first compose, so
-      // the visitor's raw sentence never actually reaches the live preview.
-      if (t) {
-        a.rawIntro = t.slice(0, 500);
-        a.companyName = quickNameGuess(t);
-      }
+      // The raw sentence is NEVER used as the name here: `parseIntroFor`
+      // tells the service to run it through the AI read first, which sets
+      // the interpreted name (or asks again when the text isn't an intro).
+      if (t) a.rawIntro = t.slice(0, 500);
       return {
         answers: a,
         step: 'services',

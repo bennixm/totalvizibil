@@ -172,6 +172,8 @@
     },
     "advancedTitle": "Erweitert",
     "advancedText": "KI schreibt echten Code für eine einzigartige Website, per Live-Chat mit dem Assistenten.",
+    "advancedBoostTitle": "Mehr Sichtbarkeit",
+    "advancedBoost": "Der Erweitert-Plan hilft dir, sichtbarer zu werden: Mehr Seiten über deine Leistungen bedeuten mehr Suchanfragen, bei denen Kunden dich finden.",
     "advancedTag": "Freischaltkosten",
     "advancedBadge": "Empfohlen",
     "compareHeading": "Funktionen",
@@ -262,6 +264,7 @@
     },
     "msg": {
       "opening": "Hallo, ich bin Andrei 👋 Sag mir den Namen deines Unternehmens, was du machst, und wenn du magst deine Stadt, alles in einer Nachricht.",
+      "introUnclear": "Ich habe noch nicht verstanden, um welches Unternehmen es geht. Schreib mir kurz den Namen, was du machst und, wenn du willst, die Stadt. Beispiel: Friseur Ionut, Haarschnitt und Rasur in Köln.",
       "askColor": "Notiert. Wähle jetzt unten die Hauptfarbe der Website aus der Palette.",
       "askLanding": "Jetzt der obere Bereich: Lade ein Hintergrundbild hoch und ändere bei Bedarf die angezeigte Überschrift.",
       "askServices": "Nenne deine Leistungen im Chat, mit Komma getrennt. Die Beschreibungen schreibe ich.",
@@ -769,7 +772,14 @@
     "paymentsToLabel": "Bis",
     "paymentsClearDates": "Daten löschen",
     "paymentsDownloadPdf": "PDF herunterladen",
-    "paymentsEmpty": "Noch keine Einträge."
+    "paymentsEmpty": "Noch keine Einträge.",
+    "unlockReturn": {
+      "title": "Erweiterten Builder freischalten",
+      "textNoPrice": "Lade Credits auf und kehre dann zum Freischalten zurück.",
+      "ready": "Du hast genug Credits zum Freischalten ({price} Credits). Geh zurück und mach weiter.",
+      "short": "Dir fehlen noch {short} Credits zum Freischalten (es kostet {price} Credits).",
+      "back": "Zurück zum Freischalten"
+    }
   },
   "auth": {
     "loginTitle": "Anmelden",
@@ -3414,7 +3424,7 @@
       },
       "unlShort": {
         "title": "Nicht genug Credits",
-        "text": "Lade Credits ins Wallet und komm dann hierher zurück, um freizuschalten."
+        "text": "Dir fehlen ein paar Credits zum Freischalten. Kein Problem, ich helfe dir beim Aufladen."
       },
       "unlPay": {
         "title": "Freischalten",
@@ -3471,6 +3481,26 @@
       "launchFinish": {
         "title": "Fertigstellen",
         "text": "Wird aktiv, sobald die Kampagne läuft, und bringt dich zum Dashboard."
+      },
+      "unlAddCredits": {
+        "title": "Credits hinzufügen",
+        "text": "Drück auf „{addCredits}“. Ich bringe dich zur Wallet, führe dich durch die Zahlung und bringe dich dann hierher zurück, um den Builder freizuschalten."
+      },
+      "walletUnlock": {
+        "title": "Fast geschafft",
+        "text": "Hier siehst du, wie viele Credits dir noch zum Freischalten des erweiterten Builders fehlen. Es aktualisiert sich direkt nach der Zahlung."
+      },
+      "walletTopup": {
+        "title": "Wallet aufladen",
+        "text": "Drück auf „{topUp}“, wähle einen Betrag (mindestens so viel, wie dir fehlt) und zahle per Karte."
+      },
+      "walletBack": {
+        "title": "Der Weg zurück",
+        "text": "Drück nach der Zahlung auf „{backToUnlock}“, um zum Freischalten zurückzukehren."
+      },
+      "walletReady": {
+        "title": "Du hast genug Credits",
+        "text": "Fertig! Drück auf „{backToUnlock}“, um den Builder freizuschalten und weiterzumachen."
       }
     }
   }

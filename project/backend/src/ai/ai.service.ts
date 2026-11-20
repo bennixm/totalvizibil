@@ -61,6 +61,13 @@ export interface ParsedIntro {
    *  here rather than importing that type — same decoupling reasoning as
    *  `InterpretEasyEditInput.current` below. */
   tone?: 'professional' | 'friendly' | 'premium' | 'bold' | 'calm';
+  /** false when the message does not describe a business at all (a
+   *  greeting, a question, gibberish): the studio asks again instead of
+   *  using it. */
+  isIntro?: boolean;
+  /** true when `companyName` is a name the visitor actually wrote; false
+   *  when the AI composed a short descriptive one (trade + city). */
+  nameGiven?: boolean;
 }
 
 /** The homepage's "ask" entry point — one free-text request ("unde găsesc o
@@ -184,6 +191,16 @@ export interface GoogleAdsImproveAdStrengthInput {
   descriptions: string[];
   adStrength: string;
   googleActionItems: string[];
+}
+
+/** Headlines that carry the ad group keywords missing from the ad. */
+export interface GoogleAdsKeywordHeadlinesInput {
+  categoryName: string;
+  landingUrl: string;
+  missingKeywords: string[];
+  existingHeadlines: string[];
+  googleActionItems: string[];
+  count: number;
 }
 
 export interface GoogleAdsReplacementInput {
@@ -412,23 +429,32 @@ const PARSE_INTRO_SYSTEM: Record<AiLocale, string> = {
     'afacerea lui. Extragi: numele real al afacerii (curat, cu majusculă, fără cuvinte de umplutură gen "sunt" sau "eu fac"), ' +
     'domeniul de activitate, orașul (dacă e menționat), și scrii un titlu principal scurt și clar pentru pagina site-ului ' +
     '(NICIODATĂ propoziția brută copiată). Clasifici și tonul general al propoziției într-una din: professional, friendly, ' +
-    'premium, bold, calm. NU inventezi un nume sau un oraș care nu reiese din text — dacă nu poți determina un câmp, îl omiți. ' +
-    'Răspunzi DOAR cu JSON valid de forma {"companyName":"...","businessType":"...","city":"...","landingTitle":"...","tone":"..."}.',
+    'premium, bold, calm. NU inventezi un oraș care nu reiese din text. companyName NU este niciodată propoziția (sau o bucată ' +
+    'din ea) copiată: dacă textul conține un nume propriu al afacerii, îl folosești și pui "nameGiven":true; altfel compui un ' +
+    'nume scurt și descriptiv (2-4 cuvinte) din domeniu și oraș, ex. "Frizerie Cluj", și pui "nameGiven":false. Dacă mesajul ' +
+    'nu descrie deloc o afacere (salut, întrebare, text fără sens), pui "isIntro":false și omiți restul câmpurilor. ' +
+    'Răspunzi DOAR cu JSON valid de forma {"isIntro":true,"companyName":"...","nameGiven":true,"businessType":"...","city":"...","landingTitle":"...","tone":"..."}.',
   en:
     'You read one informally written sentence where the owner of a small local business describes themselves and their ' +
     'business. You extract: the real business name (clean, capitalized, no filler words like "I am" or "I do"), the trade, ' +
     'the city (if mentioned), and you write a short, clear landing-page headline (NEVER the raw sentence copied as-is). You ' +
     "also classify the sentence's overall tone into one of: professional, friendly, premium, bold, calm. Do NOT invent a " +
-    "name or city that isn't implied by the text — omit a field you can't determine. Reply with ONLY valid JSON shaped " +
-    '{"companyName":"...","businessType":"...","city":"...","landingTitle":"...","tone":"..."}.',
+    "city that isn't implied by the text. companyName is NEVER the sentence (or a chunk of it) copied: if the text contains " +
+    'the business\'s own proper name, use it and set "nameGiven":true; otherwise compose a short descriptive name (2-4 words) ' +
+    'from the trade and city, e.g. "Cluj Barber Shop", and set "nameGiven":false. If the message does not describe a business ' +
+    'at all (a greeting, a question, gibberish), set "isIntro":false and omit the other fields. Reply with ONLY valid JSON shaped ' +
+    '{"isIntro":true,"companyName":"...","nameGiven":true,"businessType":"...","city":"...","landingTitle":"...","tone":"..."}.',
   de:
     'Du liest einen einzigen, informell geschriebenen Satz, in dem sich der Inhaber eines kleinen lokalen Unternehmens und ' +
     'sein Geschäft beschreibt. Du extrahierst: den echten Firmennamen (sauber, großgeschrieben, ohne Füllwörter wie "ich bin" ' +
     'oder "ich mache"), die Branche, die Stadt (falls genannt), und schreibst eine kurze, klare Überschrift für die ' +
     'Landingpage (NIEMALS den rohen Satz unverändert). Du klassifizierst außerdem den Gesamtton des Satzes in eine von: ' +
-    'professional, friendly, premium, bold, calm. Erfinde KEINEN Namen oder Stadt, die sich nicht aus dem Text ergibt — lass ' +
-    'ein Feld weg, das du nicht bestimmen kannst. Antworte NUR mit gültigem JSON in der Form ' +
-    '{"companyName":"...","businessType":"...","city":"...","landingTitle":"...","tone":"..."}.',
+    'professional, friendly, premium, bold, calm. Erfinde KEINE Stadt, die sich nicht aus dem Text ergibt. companyName ist ' +
+    'NIEMALS der Satz (oder ein Stück davon) kopiert: enthält der Text den eigenen Namen des Unternehmens, nimm ihn und setze ' +
+    '"nameGiven":true; sonst bilde einen kurzen beschreibenden Namen (2-4 Wörter) aus Branche und Stadt, z. B. "Friseur Köln", ' +
+    'und setze "nameGiven":false. Beschreibt die Nachricht gar kein Unternehmen (Gruß, Frage, sinnloser Text), setze ' +
+    '"isIntro":false und lass die übrigen Felder weg. Antworte NUR mit gültigem JSON in der Form ' +
+    '{"isIntro":true,"companyName":"...","nameGiven":true,"businessType":"...","city":"...","landingTitle":"...","tone":"..."}.',
 };
 
 const FEED_QUERY_SYSTEM: Record<AiLocale, string> = {
@@ -1086,7 +1112,7 @@ export class AiService {
 
     const user =
       `Intro: "${intro.slice(0, 500)}"\n` +
-      'Reply with JSON {"companyName":"...","businessType":"...","city":"...","landingTitle":"...","tone":"..."}.';
+      'Reply with JSON {"isIntro":true,"companyName":"...","nameGiven":true,"businessType":"...","city":"...","landingTitle":"...","tone":"..."}.';
 
     const parsed = (await this.json(
       PARSE_INTRO_SYSTEM[input.locale] ?? PARSE_INTRO_SYSTEM.ro,
@@ -1105,6 +1131,7 @@ export class AiService {
         ? (parsed.tone as ParsedIntro['tone'])
         : undefined;
 
+    if (parsed.isIntro === false) return { isIntro: false };
     const out: ParsedIntro = {
       companyName: str(parsed.companyName, 80),
       businessType: str(parsed.businessType, 60),
@@ -1112,7 +1139,12 @@ export class AiService {
       landingTitle: str(parsed.landingTitle, 120),
       tone,
     };
-    return Object.values(out).some((v) => v !== undefined) ? out : null;
+    if (!Object.values(out).some((v) => v !== undefined)) return null;
+    return {
+      ...out,
+      isIntro: true,
+      ...(typeof parsed.nameGiven === 'boolean' ? { nameGiven: parsed.nameGiven } : {}),
+    };
   }
 
   /**
@@ -1634,6 +1666,41 @@ export class AiService {
     const text = typeof result?.data?.text === 'string' ? result.data.text.trim() : '';
     if (!result || !text || [...text].length > maxLen || text === input.current) return null;
     return { text, costEstimateMinor: estimateClaudeCostMinor(result.usage) };
+  }
+
+  /**
+   * Google Ads optimizer: new headlines (max 30 chars) that each contain one
+   * of the ad group's keywords missing from the ad's headlines, whole and
+   * word for word. The caller re-checks every returned headline locally
+   * (length, editorial rules, duplicates, keyword really present).
+   */
+  async googleAdsKeywordHeadlines(
+    input: GoogleAdsKeywordHeadlinesInput,
+  ): Promise<{ headlines: string[]; costEstimateMinor: number } | null> {
+    if (!this.configured || !input.missingKeywords.length || input.count < 1) return null;
+    const prompt = [
+      `Subcategorie: ${input.categoryName}. Pagina de destinație: ${input.landingUrl}.`,
+      `Sugestiile Google pentru reclamă: ${JSON.stringify(input.googleActionItems)}`,
+      `Cuvinte cheie ale grupului care NU apar în niciun titlu: ${JSON.stringify(input.missingKeywords)}`,
+      `Titlurile actuale (nu le repeta și nu le reformula aproape identic): ${JSON.stringify(input.existingHeadlines)}`,
+      '',
+      `Scrie ${input.count} titluri noi pentru o reclamă responsivă de căutare. Reguli:`,
+      '- Fiecare titlu conține UN cuvânt cheie din listă, ÎNTREG și cuvânt cu cuvânt (poți folosi majuscule la început de cuvânt și diacritice), fiecare titlu cu alt cuvânt cheie, în ordinea listei.',
+      '- Max 30 de caractere fiecare (inclusiv spațiile), natural, ca o frază de reclamă, cu un unghi diferit (beneficiu, CTA, încredere, localizare).',
+      '- Fără semne de exclamare, fără MAJUSCULE excesive, fără telefoane/URL-uri, fără promisiuni de preț.',
+      `Răspunde STRICT JSON: {"headlines": string[${input.count}]}.`,
+    ].join('\n');
+    const result = await this.anthropicJsonWithUsage(
+      'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
+      prompt,
+      { maxTokens: 800, effort: 'low', model: this.anthropicModelFast },
+    );
+    if (!result) return null;
+    const list = (result.data as { headlines?: unknown[] }).headlines;
+    const headlines = (Array.isArray(list) ? list : [])
+      .map((x) => (typeof x === 'string' ? x.trim() : ''))
+      .filter((x) => x && [...x].length <= 30);
+    return { headlines, costEstimateMinor: estimateClaudeCostMinor(result.usage) };
   }
 
   /**
