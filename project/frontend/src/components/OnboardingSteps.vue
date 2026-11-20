@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { stepsFor, type FlowStep } from '@/lib/flowSteps'
+
 /**
  * Presentational progress strip for the "create a business" flow. Pure display:
  * the parent passes which step is current — this component never touches the
@@ -15,21 +17,9 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const EASY = ['plan', 'build', 'location', 'account', 'budget', 'launch'] as const
-const ADVANCED = [
-  'plan',
-  'pitch',
-  'location',
-  'account',
-  'unlock',
-  'build',
-  'budget',
-  'launch',
-] as const
-
-const steps = computed(() => (props.mode === 'advanced' ? ADVANCED : EASY))
+const steps = computed(() => stepsFor(props.mode))
 const currentIndex = computed(() => {
-  const i = steps.value.indexOf(props.current as (typeof EASY)[number])
+  const i = steps.value.indexOf(props.current as FlowStep)
   return i === -1 ? 0 : i
 })
 </script>
@@ -145,6 +135,48 @@ const currentIndex = computed(() => {
   border-color: rgb(var(--v-theme-primary));
   background: rgb(var(--v-theme-primary));
   color: #fff;
+  animation: ost-arrive 0.5s var(--tvz-ease-spring, ease) both;
+}
+.ost__step.is-current .ost__label {
+  animation: ost-label 0.4s var(--tvz-ease-out, ease) both;
+}
+.ost__mark,
+.ost__step {
+  transition:
+    color var(--tvz-dur-slow, 0.3s) var(--tvz-ease-out, ease),
+    background-color var(--tvz-dur-slow, 0.3s) var(--tvz-ease-out, ease),
+    border-color var(--tvz-dur-slow, 0.3s) var(--tvz-ease-out, ease);
+}
+/* Done steps: the connector after them is drawn in the brand color, so the
+   path already walked reads at a glance. */
+.ost__step.is-done::after {
+  background: rgba(var(--v-theme-primary), 0.55);
+}
+@keyframes ost-arrive {
+  from {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes ost-label {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ost__step.is-current .ost__mark,
+  .ost__step.is-current .ost__label {
+    animation: none;
+  }
 }
 
 /* Very narrow viewports: if the numbered path can't fit, it scrolls — anchor it

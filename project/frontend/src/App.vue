@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
 
@@ -22,6 +22,9 @@ import { useUserNavGroups } from '@/composables/useUserNavGroups'
 import { useAuthStore } from '@/stores/auth'
 import { usePreferencesStore } from '@/stores/preferences'
 import { useUiStore } from '@/stores/ui'
+
+// Optional "Devino vizibil" guide overlay: renders nothing outside the flow's pages.
+const FlowGuide = defineAsyncComponent(() => import('@/components/guide/FlowGuide.vue'))
 
 // Keep Vuetify theme + i18n locale in sync with the persisted preferences store.
 useThemeSync()
@@ -151,6 +154,7 @@ onUnmounted(() => window.removeEventListener('beforeunload', confirmExitOnUnload
 
     <AppToasts />
     <ConfirmDialog />
+    <FlowGuide />
   </v-app>
 </template>
 

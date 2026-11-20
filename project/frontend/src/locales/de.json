@@ -32,7 +32,7 @@
     "admin": "Verwaltung",
     "login": "Anmelden",
     "create": "Erstellen",
-    "createBusiness": "Unternehmen erstellen",
+    "createBusiness": "Werde sichtbar",
     "resumeDraft": "Entwurf fortsetzen",
     "activeCampaign": "Aktive Kampagne",
     "myBusinesses": "Meine Unternehmen",
@@ -157,7 +157,7 @@
     "createBusiness": "Eigenes Unternehmen? Mach es sichtbar"
   },
   "create": {
-    "assistant": "KI-Baukasten",
+    "assistant": "Werde sichtbar",
     "headline": "Mit einer Idee kommen. Mit einem Unternehmen gehen.",
     "lead": "Wähle, wie du deine Website bauen willst. Den Rest macht der Assistent.",
     "easyTitle": "Einfach",
@@ -189,7 +189,7 @@
     "priceEq": "≈ €{eur} / ~{ron} RON",
     "choose": "{name} wählen",
     "registerLaterNote": "Kein Konto nötig zum Start · Sie registrieren sich nur zum Speichern und Veröffentlichen.",
-    "seoTitle": "Baue dein Unternehmen online mit KI · Totalvizibil",
+    "seoTitle": "Werde sichtbar: dein Unternehmen online mit KI · Totalvizibil",
     "seoDesc": "Beantworte ein paar Fragen und der Assistent baut deine Unternehmenswebsite. Einfach starten oder die volle Kontrolle über Design, Abschnitte und SEO."
   },
   "studio": {
@@ -492,7 +492,7 @@
     "walletCta": "Credits hinzufügen",
     "noBusinessTitle": "Noch kein Unternehmen",
     "noBusinessText": "Erstellen Sie Ihr Unternehmen mit dem KI-Assistenten und kommen Sie hierher zurück.",
-    "createCta": "Unternehmen erstellen",
+    "createCta": "Werde sichtbar",
     "taskAdvancedTitle": "Erweiterten Website-Builder aktivieren",
     "taskAdvancedText": "Zahlen Sie den erweiterten Plan aus dem Wallet, um den vollen Builder freizuschalten.",
     "taskLocationTitle": "Legen Sie den Bereich fest, in dem Sie im Feed erscheinen",
@@ -2920,7 +2920,7 @@
     "cta": "Guthaben kaufen"
   },
   "onboarding": {
-    "aria": "Fortschritt der Einrichtung",
+    "aria": "Fortschritt Werde sichtbar",
     "step": {
       "plan": "Plan",
       "build": "Website",
@@ -3317,5 +3317,161 @@
     "reviseMin": "Mindestens 5 Zeichen schreiben.",
     "customerId": "Die ID muss 10 Ziffern haben (z. B. 123-456-7890).",
     "serviceKey": "Der Schlüssel muss die base64-kodierte JSON-Datei des Dienstkontos sein."
+  },
+  "guide": {
+    "name": "Werde-sichtbar-Guide",
+    "brand": "Guide",
+    "stepOf": "Schritt {n} von {total} · {label}",
+    "stepOnly": "Schritt {n} · {label}",
+    "next": "Weiter",
+    "back": "Zurück",
+    "done": "Verstanden",
+    "close": "Guide ausblenden",
+    "open": "Guide öffnen",
+    "showMe": "Zeig es mir",
+    "autoOff": "Guide nicht mehr automatisch öffnen",
+    "autoOn": "Guide bei jedem Schritt automatisch öffnen",
+    "tip": {
+      "planEasy": {
+        "title": "Plan {easy}, kostenlos",
+        "text": "Beantworte ein paar Fragen und der Assistent baut dir eine einseitige Website. Tippe auf den Button, um zu starten."
+      },
+      "planAdvanced": {
+        "title": "Plan {advanced}",
+        "text": "KI-Builder mit echtem Code, unbegrenzten Seiten und Buchungsformularen. Mit einer einmaligen Gebühr, auf der Karte angezeigt."
+      },
+      "planLater": {
+        "title": "Das Konto kommt später",
+        "text": "Zum Starten brauchst du kein Konto. Du erstellst es, sobald Website und Gebiet stehen."
+      },
+      "studioChat": {
+        "title": "Sprich mit dem Assistenten",
+        "text": "Beantworte hier die Fragen. Deine Website entsteht aus deinen Antworten."
+      },
+      "studioProgress": {
+        "title": "Wo du stehst",
+        "text": "Hier siehst du die aktuelle Frage und wie viel noch fehlt."
+      },
+      "studioTabs": {
+        "title": "{chat} oder {preview}",
+        "text": "Tippe auf „{preview}“, um deine Website zu sehen, dann zurück zu „{chat}“."
+      },
+      "studioPreview": {
+        "title": "Live-Vorschau",
+        "text": "Deine Website erscheint hier und aktualisiert sich mit deinen Antworten."
+      },
+      "studioPhotos": {
+        "title": "Fotos deiner Arbeit",
+        "text": "Füge Fotos mit dem Plus-Button hinzu. Der Schritt ist optional, du kannst ihn überspringen."
+      },
+      "studioCustomize": {
+        "title": "Anpassen",
+        "text": "Wähle eine andere Vorlage oder Farbe für deine Website."
+      },
+      "studioContinue": {
+        "title": "Deine Website ist fertig",
+        "text": "Wenn sie dir gefällt, tippe hier, um Angebot und Gebiet zu wählen."
+      },
+      "pitchName": {
+        "title": "Name des Unternehmens",
+        "text": "Gib den Namen deines Unternehmens ein. Die weiteren Details folgen in den nächsten Schritten."
+      },
+      "pitchCta": {
+        "title": "Weiter",
+        "text": "Der Button wird aktiv, sobald du den Namen eingibst."
+      },
+      "locCategory": {
+        "title": "Was du anbietest",
+        "text": "Wähle den Bereich, dann eine oder mehrere Leistungen. So finden dich Kunden, die genau das suchen."
+      },
+      "locArea": {
+        "title": "Wo du arbeitest",
+        "text": "Wähle einen oder mehrere Kreise oder „{nationwide}“. Du erscheinst im Feed bei Suchen im gewählten Gebiet."
+      },
+      "locMap": {
+        "title": "Genaue Adresse, optional",
+        "text": "Tippe auf die Karte, um deine Adresse zu markieren. Sie erscheint nur auf deiner Seite und ändert nicht, wo du erscheinst."
+      },
+      "locContinue": {
+        "title": "Weiter",
+        "text": "Wird aktiv, sobald du mindestens eine Leistung und ein Gebiet gewählt hast."
+      },
+      "accNew": {
+        "title": "Konto erstellen",
+        "text": "Name, E-Mail und ein Passwort mit mindestens 8 Zeichen. Danach bestätigst du deine E-Mail mit einem Code."
+      },
+      "accSigned": {
+        "title": "Du bist bereits angemeldet",
+        "text": "Das Unternehmen wird deinem Konto hinzugefügt. Falls eine Gebühr anfällt, siehst du sie über dem Button."
+      },
+      "accVerify": {
+        "title": "Prüfe deine E-Mail",
+        "text": "Gib den erhaltenen 6-stelligen Code ein. Nicht angekommen? Prüfe den Spam-Ordner oder fordere ihn erneut an."
+      },
+      "unlPrice": {
+        "title": "Einmalige Gebühr",
+        "text": "Du zahlst einmal aus deinem Wallet und schaltest den erweiterten Builder frei."
+      },
+      "unlShort": {
+        "title": "Nicht genug Credits",
+        "text": "Lade Credits ins Wallet und komm dann hierher zurück, um freizuschalten."
+      },
+      "unlPay": {
+        "title": "Freischalten",
+        "text": "Nach der Zahlung gelangst du direkt in den Builder."
+      },
+      "v2Chat": {
+        "title": "Sag, welche Website du willst",
+        "text": "Beschreibe dein Unternehmen und was auf die Website soll. Der Assistent baut sie, du verfeinerst sie per Nachricht. Nutzt Wallet-Credits."
+      },
+      "v2Tabs": {
+        "title": "Ansicht wechseln",
+        "text": "Wechsle zwischen Chat, Dateien und Website-Vorschau."
+      },
+      "v2Preview": {
+        "title": "Vorschau",
+        "text": "Hier siehst du deine Website laufen, während der Assistent sie baut."
+      },
+      "v2Publish": {
+        "title": "{publish}",
+        "text": "Wenn du zufrieden bist, veröffentliche die Website. Ohne Veröffentlichung geht es nicht weiter."
+      },
+      "v2Continue": {
+        "title": "Weiter zum Budget",
+        "text": "Der Button wird nach der ersten Veröffentlichung aktiv."
+      },
+      "budgetAuto": {
+        "title": "Automatisch oder manuell",
+        "text": "An: Die Plattform übernimmt das Bieten für dich. Aus: Du wählst Platzierung und Kosten pro Klick."
+      },
+      "budgetTiers": {
+        "title": "Platzierung",
+        "text": "Wähle „{standard}“ oder „{first}“. Die Werte unten füllen sich von selbst und du kannst sie ändern."
+      },
+      "budgetFields": {
+        "title": "Budget und Kosten pro Klick",
+        "text": "Das Tagesbudget ist das Maximum pro Tag. Die Kosten pro Klick sind das Maximum für einen Klick."
+      },
+      "budgetShort": {
+        "title": "Du brauchst mehr Credits",
+        "text": "Dein Guthaben deckt das gewählte Budget nicht. Lade Credits über das Wallet auf."
+      },
+      "budgetSave": {
+        "title": "Speichern",
+        "text": "Speichere deine Einstellungen und geh dann zum Aktivierungsschritt."
+      },
+      "launchActivate": {
+        "title": "{activate}",
+        "text": "Tippe auf den Button, damit dein Unternehmen im Feed erscheint. Du kannst sie jederzeit stoppen."
+      },
+      "launchLinks": {
+        "title": "Jederzeit anpassen",
+        "text": "Ändere hier dein Budget oder sieh dir Optimierungstipps an."
+      },
+      "launchFinish": {
+        "title": "Fertigstellen",
+        "text": "Wird aktiv, sobald die Kampagne läuft, und bringt dich zum Dashboard."
+      }
+    }
   }
 }

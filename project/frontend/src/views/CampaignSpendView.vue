@@ -321,7 +321,7 @@ watch(
 
     <template v-else-if="s">
       <!-- Control bar: status + activate/stop + links to optimise / budget -->
-      <section class="ov__control card">
+      <section class="ov__control card" data-guide="launch-control">
         <div class="ov__controlTop">
           <div class="ctl__chips">
             <span class="chip" :class="`chip--${statusColor[status ?? 'draft']}`">
@@ -353,7 +353,7 @@ watch(
           </v-btn>
         </div>
 
-        <div class="ov__controlLinks">
+        <div class="ov__controlLinks" data-guide="launch-links">
           <v-btn
             variant="tonal"
             color="primary"
@@ -652,7 +652,7 @@ watch(
       <!-- Onboarding only: close the setup and go to the dashboard — gated on
            the campaign actually being live, so the business is guaranteed to
            show up in the feed once the flow says "done". -->
-      <div v-if="inFlow" class="ov__finish">
+      <div v-if="inFlow" class="ov__finish" data-guide="launch-finish">
         <v-btn
           color="primary"
           size="large"

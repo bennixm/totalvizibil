@@ -319,7 +319,7 @@ onMounted(async () => {
         <span>{{ t('location.categorySection') }}</span>
         <InfoHint :text="t('location.categoryHint')" />
       </div>
-      <div class="loc__cat">
+      <div class="loc__cat" data-guide="loc-category">
         <v-select
           v-model="groupSlug"
           :items="groupItems"
@@ -353,6 +353,7 @@ onMounted(async () => {
         :model-value="countySelections"
         :items="countyItems"
         :label="t('location.countyLabel')"
+        data-guide="loc-area"
         prepend-inner-icon="mdi-map-marker-outline"
         variant="outlined"
         density="comfortable"
@@ -405,7 +406,8 @@ onMounted(async () => {
             :text="countiesChosen.length > 1 ? t('location.mapOverviewHint') : t('location.mapHint')"
           />
         </div>
-        <div class="loc__map">
+        <!-- The single-pin tip only applies to one county (several = read-only overview). -->
+        <div class="loc__map" :data-guide="countiesChosen.length > 1 ? 'loc-map-overview' : 'loc-map'">
           <LocationMap :lat="lat" :lng="lng" :markers="overviewMarkers" @pick="onMapPick" />
         </div>
       </template>
@@ -419,6 +421,7 @@ onMounted(async () => {
           append-icon="mdi-arrow-right"
           :disabled="!canContinue"
           :loading="saving"
+          data-guide="loc-continue"
           @click="save"
         >
           {{ saved ? t('location.savedContinue') : t('location.continue') }}

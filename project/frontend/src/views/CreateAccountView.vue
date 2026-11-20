@@ -260,7 +260,12 @@ onMounted(async () => {
     </div>
 
     <!-- Email verification (blocks continuing until the code checks out) -->
-    <form v-else-if="needsVerification" class="acc__card" @submit.prevent="submitVerify">
+    <form
+      v-else-if="needsVerification"
+      class="acc__card"
+      data-guide="acc-verify"
+      @submit.prevent="submitVerify"
+    >
       <p class="acc__signed">
         <v-icon icon="mdi-email-check-outline" size="18" />
         {{ t('verify.sentTo', { email }) }}
@@ -301,7 +306,7 @@ onMounted(async () => {
     </form>
 
     <!-- Already signed in -->
-    <div v-else-if="auth.isAuthenticated" class="acc__card">
+    <div v-else-if="auth.isAuthenticated" class="acc__card" data-guide="acc-signed">
       <p class="acc__signed">
         <v-icon icon="mdi-account-check-outline" size="18" />
         {{ t('claim.signedInAs', { email: auth.user?.email }) }}
@@ -336,7 +341,7 @@ onMounted(async () => {
     </div>
 
     <!-- New account -->
-    <form v-else class="acc__card" @submit.prevent="submitNew">
+    <form v-else class="acc__card" data-guide="acc-new" @submit.prevent="submitNew">
       <v-text-field
         v-model="name"
         :label="t('auth.name')"

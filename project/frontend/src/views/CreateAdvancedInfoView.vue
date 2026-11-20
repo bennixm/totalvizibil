@@ -48,6 +48,7 @@ async function start(): Promise<void> {
         variant="outlined"
         density="comfortable"
         prepend-inner-icon="mdi-domain"
+        data-guide="pitch-name"
         autofocus
       />
       <v-btn
@@ -56,6 +57,7 @@ async function start(): Promise<void> {
         block
         size="large"
         :disabled="!canStart"
+        data-guide="pitch-cta"
         :loading="busy"
         append-icon="mdi-arrow-right"
       >

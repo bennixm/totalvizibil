@@ -374,7 +374,7 @@ watch(
       </div>
 
       <!-- AUTO mode -->
-      <section class="camp__auto" :class="{ 'is-on': auto }">
+      <section class="camp__auto" :class="{ 'is-on': auto }" data-guide="budget-auto">
         <div class="camp__autoHead">
           <v-icon icon="mdi-robot-outline" size="22" />
           <div class="camp__autoText">
@@ -412,7 +412,7 @@ watch(
       </section>
 
       <!-- Placement — a real toggle: pick a tier, it sets the suggested numbers -->
-      <section v-if="!auto" class="camp__suggest">
+      <section v-if="!auto" class="camp__suggest" data-guide="budget-tiers">
         <h2>
           {{ t('campaign.suggestTitle') }}
           <InfoHint :text="t('campaign.appearFirstHint')" />
@@ -468,7 +468,7 @@ watch(
 
       <!-- Form -->
       <section class="camp__form">
-        <div class="camp__row">
+        <div class="camp__row" data-guide="budget-fields">
           <div class="camp__field">
             <v-text-field
               v-model.number="dailyBudget"
@@ -526,7 +526,7 @@ watch(
           <span class="camp__cpcLiveHint">{{ t('campaign.cpcScoreLiveHint') }}</span>
         </p>
 
-        <div class="camp__funding" :class="{ 'is-short': !funded }">
+        <div class="camp__funding" :class="{ 'is-short': !funded }" data-guide="budget-funding">
           <span>
             {{ t('campaign.needCredits', { need: fmt(required), balance: fmt(balance) }) }}
             <span class="camp__fundEq">{{ money.approx(required) }} / {{ money.approx(balance) }}</span>
@@ -547,7 +547,7 @@ watch(
           <v-icon icon="mdi-information-outline" size="15" /> {{ t('campaign.editStopsNote') }}
         </p>
 
-        <div class="camp__actions">
+        <div class="camp__actions" data-guide="budget-actions">
           <v-btn
             v-if="dirty"
             color="primary"
