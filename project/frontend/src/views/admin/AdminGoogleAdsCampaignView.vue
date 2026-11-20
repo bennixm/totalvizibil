@@ -737,9 +737,6 @@ const issueCount = computed(() => s.value?.issues.length ?? 0)
   background: rgba(var(--v-theme-on-surface), 0.08);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
-.gcv__window {
-  overflow: visible;
-}
 .gcv__h {
   margin: 0 0 0.6rem;
   font-size: var(--tvz-fs-body, 1rem);

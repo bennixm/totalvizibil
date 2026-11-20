@@ -1662,9 +1662,6 @@ function cancelEditCredentials() {
   line-height: 1.25rem;
   text-align: center;
 }
-.gaa__window {
-  overflow: visible;
-}
 .gaa__error {
   color: rgb(var(--v-theme-error));
   font-size: var(--tvz-fs-small);
