@@ -68,6 +68,22 @@ async function loadCampaigns(a: AdsAccount): Promise<void> {
   }
 }
 
+/** Forget the connected Google account and go back to connecting one. */
+const switching = ref(false)
+async function switchAccount(): Promise<void> {
+  if (switching.value) return
+  switching.value = true
+  try {
+    await googleAdsUserApi.disconnectDraft()
+    toasts.success(t('ads.campaigns.switched'))
+    void router.replace({ name: 'ads-connect' })
+  } catch {
+    toasts.error(t('ads.campaigns.switchError'))
+  } finally {
+    switching.value = false
+  }
+}
+
 async function confirm(): Promise<void> {
   if (!account.value || !picked.value || saving.value) return
   saving.value = true
@@ -146,21 +162,25 @@ onMounted(async () => {
     <div v-else-if="loadError" class="ab-card ag__narrow">
       <p class="ab-note ab-note--warn"><v-icon icon="mdi-alert-circle-outline" size="18" /> {{ loadError }}</p>
       <p v-if="loadErrorDetail" class="ag__detail">{{ t('ads.campaigns.googleSaid') }} {{ loadErrorDetail }}</p>
-      <v-btn color="primary" :to="{ name: 'ads-connect' }">{{ t('ads.campaigns.reconnectCta') }}</v-btn>
+      <v-btn color="primary" :loading="switching" @click="switchAccount">{{ t('ads.campaigns.reconnectCta') }}</v-btn>
     </div>
 
     <div v-else-if="!accounts.length" class="ab-card ag__narrow">
       <p class="ab-note ab-note--warn"><v-icon icon="mdi-account-search-outline" size="18" /> {{ t('ads.campaigns.noAccounts', { email: email ?? '' }) }}</p>
-      <v-btn variant="tonal" :to="{ name: 'ads-connect' }">{{ t('ads.campaigns.otherAccount') }}</v-btn>
+      <v-btn variant="tonal" :loading="switching" @click="switchAccount">{{ t('ads.campaigns.otherAccount') }}</v-btn>
     </div>
 
     <div v-else class="ag">
       <!-- Accounts -->
       <section class="ag__accounts" data-guide="ads-accounts">
-        <p class="ag__label">
-          {{ t('ads.campaigns.accounts') }}
-          <span v-if="email" class="ag__email">{{ email }}</span>
-        </p>
+        <p class="ag__label">{{ t('ads.campaigns.accounts') }}</p>
+        <div class="ag__who">
+          <v-icon icon="mdi-google" size="15" />
+          <span class="ag__email">{{ email ?? t('ads.campaigns.connectedAccount') }}</span>
+          <button type="button" class="ag__switch" :disabled="switching" @click="switchAccount">
+            {{ t('ads.campaigns.switchAccount') }}
+          </button>
+        </div>
         <button
           v-for="a in accounts"
           :key="a.customerId"
@@ -285,6 +305,27 @@ onMounted(async () => {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.ag__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin: -0.2rem 0 0.2rem;
+  font-size: 0.8rem;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.ag__switch {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  cursor: pointer;
+}
+.ag__switch:disabled {
+  opacity: 0.5;
 }
 .ag__email {
   font-weight: 500;

@@ -3678,7 +3678,11 @@
         "refresh": "Google hat keinen dauerhaften Zugriff erteilt. Bitte versuche es erneut.",
         "exchange": "Die Google-Anmeldung hat nicht geklappt. Bitte versuche es erneut."
       },
-      "googleSaid": "Antwort von Google:"
+      "googleSaid": "Antwort von Google:",
+      "switchAccount": "Anderes Google-Konto nutzen",
+      "connectedAccount": "Verbundenes Google-Konto",
+      "switched": "Das Google-Konto wurde getrennt. Verbinde ein anderes.",
+      "switchError": "Das Google-Konto konnte nicht getrennt werden. Bitte versuche es erneut."
     },
     "account": {
       "seoTitle": "Dein Konto",
@@ -3935,7 +3939,12 @@
       "removed": "Die Kampagne wurde aus deinem Dashboard entfernt.",
       "removeRunning": "Warte, bis der laufende Zyklus fertig ist.",
       "saved": "Einstellungen gespeichert.",
-      "error": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      "error": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+      "disconnect": "Google-Konto trennen",
+      "disconnectHint": "Entzieht der Plattform den Zugriff auf das Google-Konto {email}. Die Kampagne bleibt in deinem Dashboard und kann jederzeit neu verbunden werden.",
+      "disconnectTitle": "Google-Konto trennen?",
+      "disconnectText": "Der Agent hat keinen Zugriff auf Google Ads, bis du dich neu verbindest. In Google Ads ändert sich nichts und dein Verlauf bleibt erhalten.",
+      "disconnected": "Das Google-Konto wurde getrennt."
     },
     "cost": {
       "howTitle": "Wie die Kosten berechnet werden",

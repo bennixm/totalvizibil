@@ -94,8 +94,13 @@ export class GoogleAdsOAuthService {
 
   /** Best-effort revoke at Google when a customer disconnects. */
   async revoke(refreshTokenEnc: string): Promise<void> {
-    const client = await this.client();
-    await client.revokeToken(this.crypto.decrypt(refreshTokenEnc)).catch(() => undefined);
+    try {
+      const client = await this.client();
+      await client.revokeToken(this.crypto.decrypt(refreshTokenEnc));
+    } catch {
+      /* already revoked, or issued by a previous OAuth client / key:
+         the stored token is deleted by the caller either way */
+    }
   }
 
   /** A Google Ads client acting as the customer, for one of their accounts. */

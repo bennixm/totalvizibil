@@ -62,6 +62,18 @@ async function togglePause(): Promise<void> {
   }
 }
 
+function disconnect(): void {
+  confirm.ask(t('ads.set.disconnectTitle'), t('ads.set.disconnectText'), async () => {
+    try {
+      await googleAdsUserApi.disconnect(id.value)
+      toasts.success(t('ads.set.disconnected'))
+      emit('changed')
+    } catch (e) {
+      toasts.error(e instanceof ApiError && e.message === 'cycle_running' ? t('ads.set.removeRunning') : t('ads.set.error'))
+    }
+  })
+}
+
 function remove(): void {
   confirm.ask(t('ads.set.removeTitle'), t('ads.set.removeText'), async () => {
     try {
@@ -155,6 +167,17 @@ function remove(): void {
         </div>
         <v-btn variant="tonal" :disabled="detail.campaign.status === 'disconnected'" @click="togglePause">
           {{ detail.campaign.status === 'paused' ? t('ads.set.resume') : t('ads.set.pause') }}
+        </v-btn>
+      </div>
+      <div v-if="detail.campaign.status !== 'disconnected'" class="se__row">
+        <div>
+          <p class="se__label">{{ t('ads.set.disconnect') }}</p>
+          <p class="se__hint">
+            {{ t('ads.set.disconnectHint', { email: detail.connection?.googleEmail ?? '' }) }}
+          </p>
+        </div>
+        <v-btn variant="tonal" prepend-icon="mdi-link-variant-off" @click="disconnect">
+          {{ t('ads.set.disconnect') }}
         </v-btn>
       </div>
       <div class="se__row">

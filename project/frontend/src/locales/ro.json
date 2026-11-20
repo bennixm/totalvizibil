@@ -3678,7 +3678,11 @@
         "refresh": "Google nu a acordat accesul permanent. Încearcă din nou.",
         "exchange": "Conectarea la Google nu a reușit. Încearcă din nou."
       },
-      "googleSaid": "Răspunsul Google:"
+      "googleSaid": "Răspunsul Google:",
+      "switchAccount": "Schimbă contul Google",
+      "connectedAccount": "Cont Google conectat",
+      "switched": "Contul Google a fost deconectat. Conectează alt cont.",
+      "switchError": "Nu am putut deconecta contul Google. Încearcă din nou."
     },
     "account": {
       "seoTitle": "Contul tău",
@@ -3935,7 +3939,12 @@
       "removed": "Campania a fost scoasă din panou.",
       "removeRunning": "Așteaptă să se termine ciclul în curs.",
       "saved": "Setările au fost salvate.",
-      "error": "Ceva n-a mers. Încearcă din nou."
+      "error": "Ceva n-a mers. Încearcă din nou.",
+      "disconnect": "Deconectează contul Google",
+      "disconnectHint": "Retrage accesul platformei la contul Google {email}. Campania rămâne în panou, o poți reconecta oricând.",
+      "disconnectTitle": "Deconectezi contul Google?",
+      "disconnectText": "Agentul nu mai are acces la Google Ads până te reconectezi. Nimic nu se schimbă în Google Ads, iar istoricul rămâne.",
+      "disconnected": "Contul Google a fost deconectat."
     },
     "cost": {
       "howTitle": "Cum se calculează costul",

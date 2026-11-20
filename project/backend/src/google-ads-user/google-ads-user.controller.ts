@@ -115,6 +115,12 @@ export class GoogleAdsUserController {
     return this.service.campaigns(draft, customerId ?? '', loginCustomerId || null);
   }
 
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Post('builder/disconnect')
+  disconnectDraft(@Headers(DRAFT_HEADER) draft?: string) {
+    return this.service.disconnectDraft(draft);
+  }
+
   @Post('builder/select')
   select(@Headers(DRAFT_HEADER) draft: string | undefined, @Body() dto: SelectDto) {
     return this.service.select(draft, dto);
@@ -212,6 +218,12 @@ export class GoogleAdsUserController {
   @Delete('campaigns/:id')
   remove(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
     return this.service.remove(user.id, id);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('campaigns/:id/disconnect')
+  disconnect(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.service.disconnectCampaign(user.id, id);
   }
 
   @UseGuards(AuthGuard)

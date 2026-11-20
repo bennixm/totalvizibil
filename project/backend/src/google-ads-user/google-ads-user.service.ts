@@ -616,6 +616,63 @@ export class GoogleAdsUserService {
     return { ok: true };
   }
 
+  /**
+   * Builder: forget the connected Google account (revoke at Google, delete
+   * the stored token, clear the picked campaign) so the visitor can connect
+   * a different one. The draft itself stays.
+   */
+  async disconnectDraft(draftToken: string | undefined) {
+    const conn = await this.draft(draftToken);
+    if (conn.refreshTokenEnc) await this.oauth.revoke(conn.refreshTokenEnc);
+    const updated = await this.prisma.googleAdsConnection.update({
+      where: { id: conn.id },
+      data: {
+        refreshTokenEnc: null,
+        status: 'pending',
+        googleEmail: null,
+        connectedAt: null,
+        lastError: null,
+        selectedCustomerId: null,
+        selectedLoginCustomerId: null,
+        selectedCampaignId: null,
+      },
+    });
+    return this.connectionView(updated);
+  }
+
+  /**
+   * Dashboard: disconnect the Google account behind a campaign. Access is
+   * revoked at Google and the token deleted; every campaign on that
+   * connection becomes `disconnected` (history kept, reconnect anytime).
+   * Nothing changes in Google Ads itself.
+   */
+  async disconnectCampaign(userId: string, id: string) {
+    const row = await this.agent.ownedCampaign(userId, id);
+    const running = await this.prisma.googleAdsOptimizationCycle.count({
+      where: { userCampaignId: id, status: 'running' },
+    });
+    if (running) throw new BadRequestException('cycle_running');
+    const conn = await this.prisma.googleAdsConnection.findUnique({
+      where: { id: row.connectionId },
+    });
+    if (conn?.refreshTokenEnc) await this.oauth.revoke(conn.refreshTokenEnc);
+    await this.prisma.$transaction([
+      this.prisma.googleAdsConnection.update({
+        where: { id: row.connectionId },
+        data: {
+          refreshTokenEnc: null,
+          status: 'revoked',
+          lastError: 'Deconectat de utilizator.',
+        },
+      }),
+      this.prisma.googleAdsUserCampaign.updateMany({
+        where: { connectionId: row.connectionId },
+        data: { status: 'disconnected' },
+      }),
+    ]);
+    return { ok: true };
+  }
+
   /** Reconnect an existing campaign's Google account (after a revoke). */
   async reconnectUrl(userId: string, id: string) {
     const row = await this.agent.ownedCampaign(userId, id);

@@ -222,6 +222,11 @@ export const googleAdsUserApi = {
       method: 'POST',
       headers: draftHeaders(),
     }),
+  disconnectDraft: () =>
+    apiFetch<ConnectionView>(`${BASE}/builder/disconnect`, {
+      method: 'POST',
+      headers: draftHeaders(),
+    }),
   accounts: () =>
     apiFetch<AdsAccount[]>(`${BASE}/builder/accounts`, { headers: draftHeaders(), timeoutMs: 45_000 }),
   campaigns: (customerId: string, loginCustomerId: string | null) =>
@@ -268,6 +273,8 @@ export const googleAdsUserApi = {
   pause: (id: string) => apiFetch(`${BASE}/campaigns/${id}/pause`, { method: 'POST' }),
   resume: (id: string) => apiFetch(`${BASE}/campaigns/${id}/resume`, { method: 'POST' }),
   remove: (id: string) => apiFetch(`${BASE}/campaigns/${id}`, { method: 'DELETE' }),
+  disconnect: (id: string) =>
+    apiFetch<{ ok: true }>(`${BASE}/campaigns/${id}/disconnect`, { method: 'POST' }),
   reconnectUrl: (id: string) =>
     apiFetch<{ url: string }>(`${BASE}/campaigns/${id}/reconnect-url`, { method: 'POST' }),
   approve: (id: string, actionId: string) =>
