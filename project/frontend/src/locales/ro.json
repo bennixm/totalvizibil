@@ -3682,7 +3682,11 @@
       "switchAccount": "Schimbă contul Google",
       "connectedAccount": "Cont Google conectat",
       "switched": "Contul Google a fost deconectat. Conectează alt cont.",
-      "switchError": "Nu am putut deconecta contul Google. Încearcă din nou."
+      "switchError": "Nu am putut deconecta contul Google. Încearcă din nou.",
+      "reason": {
+        "manager_no_clients": "Cont de manager fără conturi client. Creează în el un cont client și o campanie Search.",
+        "not_enabled": "Contul nu este activ încă. Termină configurarea lui în Google Ads (sau a fost anulat/suspendat)."
+      }
     },
     "account": {
       "seoTitle": "Contul tău",

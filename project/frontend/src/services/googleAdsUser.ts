@@ -58,6 +58,9 @@ export interface AdsAccount {
   currencyCode: string | null
   manager: boolean
   testAccount: boolean
+  selectable: boolean
+  reason?: 'manager_no_clients' | 'not_enabled' | string
+  status?: string
 }
 
 export interface AdsCampaignListItem {

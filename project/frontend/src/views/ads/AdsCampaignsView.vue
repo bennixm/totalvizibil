@@ -54,6 +54,7 @@ function money(micros: number | string | null, currency: string | null): string 
 const supported = computed(() => campaigns.value.filter((c) => c.supported))
 
 async function loadCampaigns(a: AdsAccount): Promise<void> {
+  if (!a.selectable) return
   account.value = a
   picked.value = null
   campaignsLoading.value = true
@@ -62,7 +63,13 @@ async function loadCampaigns(a: AdsAccount): Promise<void> {
     if (supported.value.length === 1) picked.value = supported.value[0].id
   } catch (e) {
     campaigns.value = []
-    toasts.error(e instanceof ApiError ? e.message : t('ads.campaigns.loadError'))
+    toasts.error(
+      e instanceof ApiError && e.message === 'customer_not_enabled'
+        ? t('ads.campaigns.reason.not_enabled')
+        : e instanceof ApiError
+          ? e.message
+          : t('ads.campaigns.loadError'),
+    )
   } finally {
     campaignsLoading.value = false
   }
@@ -137,7 +144,8 @@ onMounted(async () => {
     const previous = state.selected
       ? accounts.value.find((a) => a.customerId === state.selected!.customerId)
       : undefined
-    const first = previous ?? (accounts.value.length === 1 ? accounts.value[0] : undefined)
+    const selectable = accounts.value.filter((a) => a.selectable)
+    const first = previous ?? (selectable.length === 1 ? selectable[0] : undefined)
     if (first) {
       await loadCampaigns(first)
       if (state.selected && previous) picked.value = state.selected.campaignId
@@ -186,7 +194,8 @@ onMounted(async () => {
           :key="a.customerId"
           type="button"
           class="acc"
-          :class="{ 'is-on': account?.customerId === a.customerId }"
+          :class="{ 'is-on': account?.customerId === a.customerId, 'is-off': !a.selectable }"
+          :disabled="!a.selectable"
           @click="loadCampaigns(a)"
         >
           <v-icon icon="mdi-briefcase-outline" size="18" />
@@ -198,6 +207,7 @@ onMounted(async () => {
               <template v-if="a.loginCustomerId"> · {{ t('ads.campaigns.viaManager') }}</template>
               <template v-if="a.testAccount"> · {{ t('ads.campaigns.test') }}</template>
             </span>
+            <span v-if="a.reason" class="acc__reason">{{ t(`ads.campaigns.reason.${a.reason}`, a.reason) }}</span>
           </span>
           <v-icon v-if="account?.customerId === a.customerId" icon="mdi-check" size="16" class="acc__chk" />
         </button>
@@ -375,6 +385,19 @@ onMounted(async () => {
 .acc__meta {
   font-size: 0.78rem;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.acc.is-off {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+.acc.is-off:hover {
+  border-color: var(--tvz-glass-border);
+}
+.acc__reason {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: rgb(var(--v-theme-warning));
 }
 .acc__chk {
   color: rgb(var(--v-theme-primary));

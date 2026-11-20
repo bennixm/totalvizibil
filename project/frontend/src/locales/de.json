@@ -3682,7 +3682,11 @@
       "switchAccount": "Anderes Google-Konto nutzen",
       "connectedAccount": "Verbundenes Google-Konto",
       "switched": "Das Google-Konto wurde getrennt. Verbinde ein anderes.",
-      "switchError": "Das Google-Konto konnte nicht getrennt werden. Bitte versuche es erneut."
+      "switchError": "Das Google-Konto konnte nicht getrennt werden. Bitte versuche es erneut.",
+      "reason": {
+        "manager_no_clients": "Verwaltungskonto ohne Kundenkonten. Erstelle darin ein Kundenkonto mit einer Suchkampagne.",
+        "not_enabled": "Dieses Konto ist noch nicht aktiv. Schließe die Einrichtung in Google Ads ab (oder es wurde gekündigt/gesperrt)."
+      }
     },
     "account": {
       "seoTitle": "Dein Konto",

@@ -3682,7 +3682,11 @@
       "switchAccount": "Use another Google account",
       "connectedAccount": "Connected Google account",
       "switched": "The Google account was disconnected. Connect another one.",
-      "switchError": "We could not disconnect the Google account. Please try again."
+      "switchError": "We could not disconnect the Google account. Please try again.",
+      "reason": {
+        "manager_no_clients": "Manager account with no client accounts. Create a client account with a Search campaign in it.",
+        "not_enabled": "This account is not active yet. Finish its setup in Google Ads (or it was cancelled/suspended)."
+      }
     },
     "account": {
       "seoTitle": "Your account",

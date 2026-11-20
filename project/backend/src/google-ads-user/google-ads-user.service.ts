@@ -31,6 +31,13 @@ export interface AccountRow {
   currencyCode: string | null;
   manager: boolean;
   testAccount: boolean;
+  /** Can be opened to pick a campaign. False rows are shown with `reason`
+   *  so the visitor knows why (never silently dropped). */
+  selectable: boolean;
+  /** `manager_no_clients` | `not_enabled` (CANCELED/SUSPENDED/CLOSED/…) */
+  reason?: string;
+  /** Google's customer status, when known. */
+  status?: string;
 }
 
 /**
@@ -196,7 +203,9 @@ export class GoogleAdsUserService {
         });
         throw new BadRequestException('google_ads_reconnect_required');
       }
-      throw new BadRequestException(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/CUSTOMER_NOT_ENABLED/.test(msg)) throw new BadRequestException('customer_not_enabled');
+      throw new BadRequestException(msg);
     }
   }
 
@@ -242,14 +251,17 @@ export class GoogleAdsUserService {
             currencyCode: c.currencyCode ?? null,
             manager: false,
             testAccount: !!c.testAccount,
+            selectable: true,
           });
           continue;
         }
+        // Every client account under the manager, whatever its status:
+        // inactive ones are listed as not selectable, with the reason.
         const clients = await client
           .search(
             'SELECT customer_client.id, customer_client.descriptive_name, customer_client.currency_code, ' +
               'customer_client.manager, customer_client.test_account, customer_client.status ' +
-              "FROM customer_client WHERE customer_client.manager = FALSE AND customer_client.status = 'ENABLED'",
+              'FROM customer_client WHERE customer_client.manager = FALSE',
           )
           .catch((err: unknown) => {
             const msg = err instanceof Error ? err.message : String(err);
@@ -259,6 +271,7 @@ export class GoogleAdsUserService {
             failures.push(`${id}: ${msg}`);
             return [];
           });
+        let listed = 0;
         for (const r of clients) {
           const cc = r.customerClient as
             | {
@@ -266,9 +279,11 @@ export class GoogleAdsUserService {
                 descriptiveName?: string;
                 currencyCode?: string;
                 testAccount?: boolean;
+                status?: string;
               }
             | undefined;
           if (!cc?.id || out.some((o) => o.customerId === cc.id)) continue;
+          const enabled = !cc.status || cc.status === 'ENABLED';
           out.push({
             customerId: String(cc.id),
             loginCustomerId: id,
@@ -276,8 +291,27 @@ export class GoogleAdsUserService {
             currencyCode: cc.currencyCode ?? null,
             manager: false,
             testAccount: !!cc.testAccount,
+            selectable: enabled,
+            ...(enabled ? {} : { reason: 'not_enabled', status: cc.status }),
           });
+          listed++;
           if (out.length >= MAX_ACCOUNTS) break;
+        }
+        this.logger.log(
+          `Connection ${conn.id}: manager ${id} has ${clients.length} client account(s) (${listed} listed).`,
+        );
+        if (!listed && !failures.some((f) => f.startsWith(`${id}:`))) {
+          // A manager with no client accounts: say so instead of "no access".
+          out.push({
+            customerId: id,
+            loginCustomerId: null,
+            name: c.descriptiveName || id,
+            currencyCode: c.currencyCode ?? null,
+            manager: true,
+            testAccount: !!c.testAccount,
+            selectable: false,
+            reason: 'manager_no_clients',
+          });
         }
       }
       if (!out.length && failures.length) {
