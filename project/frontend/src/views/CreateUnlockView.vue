@@ -158,7 +158,7 @@ onMounted(async () => {
         </li>
       </ul>
 
-      <div class="unl__price">
+      <div class="unl__price" data-guide="unl-price">
         <span class="unl__priceLabel">{{ t('advanced.priceLabel') }}</span>
         <span class="unl__priceValue">{{ t('builder.priceValue', { credits: price }) }}</span>
       </div>
@@ -168,7 +168,7 @@ onMounted(async () => {
         {{ t('unlock.bonus', { credits: n(bonus, { maximumFractionDigits: 2 }) }) }}
       </p>
 
-      <div v-if="!funded" class="unl__short">
+      <div v-if="!funded" class="unl__short" data-guide="unl-short">
         <span>{{ t('unlock.short', { credits: n(short, { maximumFractionDigits: 2 }) }) }}</span>
         <v-btn size="x-small" variant="tonal" color="primary" :to="{ name: 'wallet' }">
           {{ t('unlock.addCredits') }}
@@ -182,6 +182,7 @@ onMounted(async () => {
         :loading="working"
         :disabled="!funded"
         append-icon="mdi-arrow-right"
+        data-guide="unl-pay"
         @click="pay"
       >
         {{ t('unlock.pay', { credits: price }) }}

@@ -32,7 +32,7 @@
     "admin": "Admin",
     "login": "Log in",
     "create": "Create",
-    "createBusiness": "Create your business",
+    "createBusiness": "Get visible",
     "resumeDraft": "Resume your draft",
     "activeCampaign": "Active campaign",
     "myBusinesses": "My businesses",
@@ -157,7 +157,7 @@
     "createBusiness": "Own a business? Get it seen"
   },
   "create": {
-    "assistant": "AI builder",
+    "assistant": "Get visible",
     "headline": "Come with an idea. Leave with a business.",
     "lead": "Choose how you want to build your site. The assistant does the rest.",
     "easyTitle": "Easy",
@@ -189,7 +189,7 @@
     "priceEq": "≈ €{eur} / ~{ron} RON",
     "choose": "Choose {name}",
     "registerLaterNote": "No sign-up required to start · you'll register only to save and publish.",
-    "seoTitle": "Build your business online with AI · Totalvizibil",
+    "seoTitle": "Get visible: your business online with AI · Totalvizibil",
     "seoDesc": "Answer a few questions and the assistant builds your business website. Go simple, or take full control of design, sections and SEO."
   },
   "studio": {
@@ -492,7 +492,7 @@
     "walletCta": "Add credits",
     "noBusinessTitle": "No business yet",
     "noBusinessText": "Build your business with the AI assistant and come back here.",
-    "createCta": "Create your business",
+    "createCta": "Get visible",
     "taskAdvancedTitle": "Activate the Advanced Website Builder",
     "taskAdvancedText": "Pay for the advanced plan from your wallet to unlock the full builder.",
     "taskLocationTitle": "Set the area you appear in the feed",
@@ -2920,7 +2920,7 @@
     "cta": "Buy credits"
   },
   "onboarding": {
-    "aria": "Business setup progress",
+    "aria": "Get visible progress",
     "step": {
       "plan": "Plan",
       "build": "Website",
@@ -3317,5 +3317,161 @@
     "reviseMin": "Write at least 5 characters.",
     "customerId": "The ID must have 10 digits (e.g. 123-456-7890).",
     "serviceKey": "The key must be the service account JSON file, base64-encoded."
+  },
+  "guide": {
+    "name": "Get visible guide",
+    "brand": "Guide",
+    "stepOf": "Step {n} of {total} · {label}",
+    "stepOnly": "Step {n} · {label}",
+    "next": "Next",
+    "back": "Back",
+    "done": "Got it",
+    "close": "Hide the guide",
+    "open": "Open the guide",
+    "showMe": "Show me",
+    "autoOff": "Don't open the guide automatically",
+    "autoOn": "Open the guide automatically on each step",
+    "tip": {
+      "planEasy": {
+        "title": "The {easy} plan, free",
+        "text": "Answer a few questions and the assistant builds you a one-page site. Tap the button to start."
+      },
+      "planAdvanced": {
+        "title": "The {advanced} plan",
+        "text": "AI builder with real code, unlimited pages and booking forms. It has a one-time fee, shown on the card."
+      },
+      "planLater": {
+        "title": "The account comes later",
+        "text": "You need no account to start. You create it once your site and area are set."
+      },
+      "studioChat": {
+        "title": "Talk to the assistant",
+        "text": "Answer the questions here. Your site is built from your answers."
+      },
+      "studioProgress": {
+        "title": "Where you are",
+        "text": "See the current question and how much is left."
+      },
+      "studioTabs": {
+        "title": "{chat} or {preview}",
+        "text": "Tap \"{preview}\" to see your site, then go back to \"{chat}\" to continue."
+      },
+      "studioPreview": {
+        "title": "Live preview",
+        "text": "Your site shows up here and updates as you answer."
+      },
+      "studioPhotos": {
+        "title": "Photos of your work",
+        "text": "Add photos with the plus button. This step is optional, you can skip it."
+      },
+      "studioCustomize": {
+        "title": "Customize",
+        "text": "Pick another template or color for your site."
+      },
+      "studioContinue": {
+        "title": "Your site is ready",
+        "text": "When you like how it looks, tap here to choose what you offer and where you work."
+      },
+      "pitchName": {
+        "title": "Business name",
+        "text": "Type your business name. The rest of the details come in the next steps."
+      },
+      "pitchCta": {
+        "title": "Continue",
+        "text": "The button turns on once you type the name."
+      },
+      "locCategory": {
+        "title": "What you offer",
+        "text": "Pick the field, then one or more services. This is how customers looking for exactly that find you."
+      },
+      "locArea": {
+        "title": "Where you work",
+        "text": "Pick one or more counties, or \"{nationwide}\". You appear in the feed for searches in the chosen area."
+      },
+      "locMap": {
+        "title": "Exact address, optional",
+        "text": "Tap the map to mark your address. It only shows on your page and does not change where you appear."
+      },
+      "locContinue": {
+        "title": "Continue",
+        "text": "Turns on once you pick at least one service and one area."
+      },
+      "accNew": {
+        "title": "Create your account",
+        "text": "Name, email and a password of at least 8 characters. Then you confirm your email with a code."
+      },
+      "accSigned": {
+        "title": "You're already signed in",
+        "text": "The business is added to your account. If there is a fee, you see it above the button."
+      },
+      "accVerify": {
+        "title": "Check your email",
+        "text": "Enter the 6-digit code you received. Didn't get it? Check Spam or request it again."
+      },
+      "unlPrice": {
+        "title": "One-time fee",
+        "text": "You pay once from your wallet and unlock the advanced builder."
+      },
+      "unlShort": {
+        "title": "Not enough credits",
+        "text": "Add credits to your wallet, then come back here to unlock."
+      },
+      "unlPay": {
+        "title": "Unlock",
+        "text": "After paying you go straight to the builder."
+      },
+      "v2Chat": {
+        "title": "Say what site you want",
+        "text": "Describe your business and what you want on the site. The assistant builds it and you refine it by message. Uses wallet credits."
+      },
+      "v2Tabs": {
+        "title": "Switch the view",
+        "text": "Move between the chat, the files and the site preview."
+      },
+      "v2Preview": {
+        "title": "Preview",
+        "text": "See your site running here as the assistant builds it."
+      },
+      "v2Publish": {
+        "title": "{publish}",
+        "text": "When you're happy, publish the site. You can't move on without publishing."
+      },
+      "v2Continue": {
+        "title": "Continue to budget",
+        "text": "The button turns on after the first publish."
+      },
+      "budgetAuto": {
+        "title": "Automatic or manual",
+        "text": "On, the platform handles bidding for you. Off, you choose the placement and cost per click."
+      },
+      "budgetTiers": {
+        "title": "Placement",
+        "text": "Choose \"{standard}\" or \"{first}\". The values below fill in on their own and you can change them."
+      },
+      "budgetFields": {
+        "title": "Budget and cost per click",
+        "text": "The daily budget is the most spent per day. The cost per click is the most paid for one click."
+      },
+      "budgetShort": {
+        "title": "You need more credits",
+        "text": "Your balance doesn't cover the chosen budget. Add credits from the wallet."
+      },
+      "budgetSave": {
+        "title": "Save",
+        "text": "Save your settings, then move on to the activation step."
+      },
+      "launchActivate": {
+        "title": "{activate}",
+        "text": "Tap the button so your business appears in the feed. You can stop it anytime."
+      },
+      "launchLinks": {
+        "title": "Adjust anytime",
+        "text": "Change your budget or see optimization tips from here."
+      },
+      "launchFinish": {
+        "title": "Finish",
+        "text": "Turns on once the campaign is active and takes you to your dashboard."
+      }
+    }
   }
 }

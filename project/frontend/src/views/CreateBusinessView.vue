@@ -102,6 +102,7 @@ function pick(key: 'easy' | 'advanced'): void {
 
         <v-btn
           class="plan__cta plan__cta--easy"
+          data-guide="plan-easy"
           variant="outlined"
           color="primary"
           rounded="pill"
@@ -151,6 +152,7 @@ function pick(key: 'easy' | 'advanced'): void {
 
         <v-btn
           class="plan__cta plan__cta--adv"
+          data-guide="plan-advanced"
           variant="flat"
           color="primary"
           rounded="pill"
@@ -164,7 +166,7 @@ function pick(key: 'easy' | 'advanced'): void {
       </div>
     </div>
 
-    <p class="cb__foot">{{ t('create.registerLaterNote') }}</p>
+    <p class="cb__foot" data-guide="plan-foot">{{ t('create.registerLaterNote') }}</p>
   </v-container>
 </template>
 

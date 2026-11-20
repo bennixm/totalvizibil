@@ -58,7 +58,7 @@ onMounted(ensureEasyDraft)
         <h1>{{ t('studio.title') }}</h1>
       </div>
       <OnboardingSteps mode="easy" current="build" class="studio__steps" />
-      <div class="studio__tabs">
+      <div class="studio__tabs" data-guide="studio-tabs">
         <button :class="{ 'is-on': mobilePane === 'chat' }" type="button" @click="mobilePane = 'chat'">
           <v-icon icon="mdi-message-text-outline" size="18" /> {{ t('studio.paneChat') }}
         </button>
@@ -76,6 +76,7 @@ onMounted(ensureEasyDraft)
       <!-- LEFT: live website preview -->
       <section
         class="studio__preview"
+        data-guide="studio-preview"
         :class="{ 'is-hidden-mobile': mobilePane !== 'preview' }"
         :aria-label="t('studio.panePreview')"
       >

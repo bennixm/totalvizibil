@@ -212,7 +212,7 @@ function askRestart(): void {
 
 <template>
   <div class="ag">
-    <header class="ag__head">
+    <header class="ag__head" data-guide="studio-progress">
       <span class="ag__chip">
         <template v-if="step !== 'done'">
           {{ t('studio.stepOf', { n: stepIndex + 1, total: STEPS.length }) }} · {{ stepLabel }}
@@ -244,7 +244,11 @@ function askRestart(): void {
       </div>
 
       <!-- photo upload: available at the `photos` step, and any time after -->
-      <div v-if="step === 'photos' || (easy?.portfolio?.length ?? 0) > 0" class="photos">
+      <div
+        v-if="step === 'photos' || (easy?.portfolio?.length ?? 0) > 0"
+        class="photos"
+        data-guide="studio-photos"
+      >
         <div class="photos__grid">
           <div v-for="(url, i) in easy?.portfolio ?? []" :key="url" class="ph">
             <img :src="url" alt="" />
@@ -263,7 +267,7 @@ function askRestart(): void {
     </div>
 
     <div class="ag__foot">
-      <div v-if="step === 'done'" class="customizeRow">
+      <div v-if="step === 'done'" class="customizeRow" data-guide="studio-customize">
         <button type="button" class="customizeToggle" @click="showCustomize = !showCustomize">
           <v-icon icon="mdi-palette-outline" size="14" /> {{ t('studio.customize') }}
         </button>
@@ -318,7 +322,13 @@ function askRestart(): void {
       </div>
 
       <div v-if="step === 'done'" class="done">
-        <v-btn color="primary" size="small" append-icon="mdi-arrow-right" :to="{ name: 'create-location' }">
+        <v-btn
+          color="primary"
+          size="small"
+          append-icon="mdi-arrow-right"
+          data-guide="studio-continue"
+          :to="{ name: 'create-location' }"
+        >
           {{ t('studio.continueLocation') }}
         </v-btn>
         <button class="restart" type="button" :disabled="restarting" @click="askRestart">
@@ -340,7 +350,7 @@ function askRestart(): void {
         </button>
       </div>
 
-      <form class="inp" @submit.prevent="sendChat">
+      <form class="inp" data-guide="studio-composer" @submit.prevent="sendChat">
         <textarea
           v-model="chatDraft"
           rows="1"

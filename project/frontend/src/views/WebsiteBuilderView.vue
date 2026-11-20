@@ -508,7 +508,7 @@ watch(
         <p class="v2__eyebrow"><span class="v2__dot" /> {{ t('proV2.eyebrow') }}</p>
         <h1>{{ t('proV2.title') }}</h1>
       </div>
-      <div class="v2__headerActions">
+      <div class="v2__headerActions" data-guide="v2-actions">
         <span v-if="wallet.summary" class="v2__usagePill" :title="t('proV2.walletTooltip')">
           <v-icon icon="mdi-wallet-outline" size="14" />
           <CreditsValue :credits="wallet.summary.balance.credits" :approx="false" />
@@ -522,6 +522,7 @@ watch(
           color="primary"
           size="small"
           prepend-icon="mdi-cloud-upload-outline"
+          data-guide="v2-publish"
           :disabled="status !== 'ready' || publishing || v2.publishing"
           :loading="publishing || v2.publishing"
           @click="publish"
@@ -535,6 +536,7 @@ watch(
           append-icon="mdi-arrow-right"
           :disabled="!canContinue"
           :title="canContinue ? '' : t('proV2.continueNeedsPublish')"
+          data-guide="v2-continue"
           @click="continueToBudget"
         >
           {{ t('proV2.continueToBudget') }}
@@ -589,7 +591,7 @@ watch(
     >
       <!-- MOBILE-ONLY: 3-way switch, static (not fixed) so it never fights
            the app's own fixed bottom nav — hidden on desktop via CSS. -->
-      <nav class="v2__mobileTabs">
+      <nav class="v2__mobileTabs" data-guide="v2-tabs">
         <button
           type="button"
           :class="{ 'is-active': mobileView === 'panel' && leftTab === 'chat' }"
@@ -681,7 +683,7 @@ watch(
             </div>
           </div>
 
-          <form class="v2__composer" @submit.prevent="submit">
+          <form class="v2__composer" data-guide="v2-composer" @submit.prevent="submit">
             <input
               ref="fileInput"
               type="file"
@@ -753,7 +755,7 @@ watch(
       </div>
 
       <!-- LIVE PREVIEW — smaller while Files is open, wide otherwise -->
-      <section class="v2__previewPane">
+      <section class="v2__previewPane" data-guide="v2-preview">
         <div class="v2__previewBar">
           <span class="v2__statusPill" :class="`is-${status}`">
             <span class="v2__statusDot" />

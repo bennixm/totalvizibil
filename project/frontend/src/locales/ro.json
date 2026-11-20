@@ -32,7 +32,7 @@
     "admin": "Administrare",
     "login": "Autentificare",
     "create": "Creează",
-    "createBusiness": "Creează-ți afacerea",
+    "createBusiness": "Devino vizibil",
     "resumeDraft": "Reia ciorna",
     "activeCampaign": "Campanie activă",
     "myBusinesses": "Afacerile mele",
@@ -157,7 +157,7 @@
     "createBusiness": "Ai o afacere? Fă-o vizibilă"
   },
   "create": {
-    "assistant": "Constructor AI",
+    "assistant": "Devino vizibil",
     "headline": "Vii cu o idee. Pleci cu o afacere.",
     "lead": "Alege cum vrei să-ți construiești site-ul. Restul îl face asistentul.",
     "easyTitle": "Simplu",
@@ -189,7 +189,7 @@
     "priceEq": "≈ €{eur} / ~{ron} RON",
     "choose": "Alege {name}",
     "registerLaterNote": "Nu e nevoie de cont ca să începi · te înregistrezi doar ca să salvezi și să publici.",
-    "seoTitle": "Creează-ți afacerea online cu AI · Totalvizibil",
+    "seoTitle": "Devino vizibil: afacerea ta online cu AI · Totalvizibil",
     "seoDesc": "Răspunde la câteva întrebări și asistentul îți construiește site-ul afacerii. Varianta simplă sau control complet asupra design-ului, secțiunilor și SEO."
   },
   "studio": {
@@ -492,7 +492,7 @@
     "walletCta": "Adaugă credite",
     "noBusinessTitle": "Nicio afacere încă",
     "noBusinessText": "Creează-ți afacerea cu asistentul AI și revino aici.",
-    "createCta": "Creează-ți afacerea",
+    "createCta": "Devino vizibil",
     "taskAdvancedTitle": "Activează Website Builder-ul Avansat",
     "taskAdvancedText": "Plătește planul avansat din portofel ca să deblochezi builder-ul complet.",
     "taskLocationTitle": "Setează zona în care apari în feed",
@@ -2920,7 +2920,7 @@
     "cta": "Cumpără credite"
   },
   "onboarding": {
-    "aria": "Progres creare afacere",
+    "aria": "Progres Devino vizibil",
     "step": {
       "plan": "Plan",
       "build": "Site",
@@ -3317,5 +3317,161 @@
     "reviseMin": "Scrie cel puțin 5 caractere.",
     "customerId": "ID-ul trebuie să aibă 10 cifre (ex. 123-456-7890).",
     "serviceKey": "Cheia trebuie să fie conținutul fișierului JSON al contului de serviciu, codificat base64."
+  },
+  "guide": {
+    "name": "Ghid Devino vizibil",
+    "brand": "Ghid",
+    "stepOf": "Pasul {n} din {total} · {label}",
+    "stepOnly": "Pasul {n} · {label}",
+    "next": "Următorul",
+    "back": "Înapoi",
+    "done": "Am înțeles",
+    "close": "Ascunde ghidul",
+    "open": "Deschide ghidul",
+    "showMe": "Arată-mi",
+    "autoOff": "Nu mai deschide ghidul automat",
+    "autoOn": "Deschide ghidul automat pe fiecare pas",
+    "tip": {
+      "planEasy": {
+        "title": "Planul {easy}, gratuit",
+        "text": "Răspunzi la câteva întrebări și asistentul îți face un site de o pagină. Apasă butonul ca să începi."
+      },
+      "planAdvanced": {
+        "title": "Planul {advanced}",
+        "text": "Builder AI cu cod real, pagini nelimitate și formulare de programare. Are o taxă unică, afișată pe card."
+      },
+      "planLater": {
+        "title": "Contul vine mai târziu",
+        "text": "Nu ai nevoie de cont ca să începi. Îl creezi după ce ai site-ul și zona."
+      },
+      "studioChat": {
+        "title": "Vorbește cu asistentul",
+        "text": "Răspunde aici la întrebări. Site-ul se construiește din răspunsurile tale."
+      },
+      "studioProgress": {
+        "title": "Unde ai ajuns",
+        "text": "Aici vezi întrebarea curentă și cât mai ai până la final."
+      },
+      "studioTabs": {
+        "title": "{chat} sau {preview}",
+        "text": "Atinge „{preview}” ca să vezi site-ul, apoi revino la „{chat}” ca să continui."
+      },
+      "studioPreview": {
+        "title": "Previzualizare live",
+        "text": "Site-ul apare aici și se actualizează pe măsură ce răspunzi."
+      },
+      "studioPhotos": {
+        "title": "Poze cu lucrările tale",
+        "text": "Adaugă poze cu butonul plus. Pasul e opțional, poți sări peste el."
+      },
+      "studioCustomize": {
+        "title": "Personalizează",
+        "text": "Alege alt șablon sau altă culoare pentru site."
+      },
+      "studioContinue": {
+        "title": "Site-ul e gata",
+        "text": "Când îți place cum arată, apasă aici ca să alegi ce oferi și unde lucrezi."
+      },
+      "pitchName": {
+        "title": "Numele afacerii",
+        "text": "Scrie numele afacerii tale. Restul detaliilor vin în pașii următori."
+      },
+      "pitchCta": {
+        "title": "Continuă",
+        "text": "Butonul devine activ după ce scrii numele."
+      },
+      "locCategory": {
+        "title": "Ce oferi",
+        "text": "Alege domeniul, apoi unul sau mai multe servicii. Așa te găsesc clienții care caută exact asta."
+      },
+      "locArea": {
+        "title": "Unde lucrezi",
+        "text": "Alege unul sau mai multe județe, sau „{nationwide}”. Apari în feed pentru căutările din zona aleasă."
+      },
+      "locMap": {
+        "title": "Adresa exactă, opțional",
+        "text": "Atinge harta ca să marchezi adresa. Se afișează doar pe pagina ta și nu schimbă unde apari."
+      },
+      "locContinue": {
+        "title": "Continuă",
+        "text": "Se activează după ce alegi cel puțin un serviciu și o zonă."
+      },
+      "accNew": {
+        "title": "Creează contul",
+        "text": "Nume, email și o parolă de minim 8 caractere. Apoi confirmi emailul cu un cod."
+      },
+      "accSigned": {
+        "title": "Ești deja conectat",
+        "text": "Afacerea se adaugă în contul tău. Dacă există o taxă, o vezi deasupra butonului."
+      },
+      "accVerify": {
+        "title": "Verifică emailul",
+        "text": "Introdu codul de 6 cifre primit. Nu a venit? Verifică Spam sau cere-l din nou."
+      },
+      "unlPrice": {
+        "title": "Taxă unică",
+        "text": "Plătești o singură dată din portofel și deblochezi builderul avansat."
+      },
+      "unlShort": {
+        "title": "Credite insuficiente",
+        "text": "Adaugă credite în portofel, apoi revino aici ca să deblochezi."
+      },
+      "unlPay": {
+        "title": "Deblochează",
+        "text": "După plată ajungi direct în builder."
+      },
+      "v2Chat": {
+        "title": "Spune ce site vrei",
+        "text": "Descrie afacerea și ce vrei pe site. Asistentul îl construiește, iar tu îl ajustezi prin mesaje. Folosește credite din portofel."
+      },
+      "v2Tabs": {
+        "title": "Comută vederea",
+        "text": "Treci între conversație, fișiere și previzualizarea site-ului."
+      },
+      "v2Preview": {
+        "title": "Previzualizare",
+        "text": "Aici vezi site-ul rulând, pe măsură ce asistentul îl construiește."
+      },
+      "v2Publish": {
+        "title": "{publish}",
+        "text": "Când ești mulțumit, publică site-ul. Fără publicare nu poți trece mai departe."
+      },
+      "v2Continue": {
+        "title": "Continuă la buget",
+        "text": "Butonul se activează după prima publicare."
+      },
+      "budgetAuto": {
+        "title": "Automat sau manual",
+        "text": "Pornit, platforma gestionează licitația pentru tine. Oprit, alegi tu plasarea și costul pe click."
+      },
+      "budgetTiers": {
+        "title": "Plasare",
+        "text": "Alege „{standard}” sau „{first}”. Valorile de mai jos se completează singure și le poți modifica."
+      },
+      "budgetFields": {
+        "title": "Buget și cost pe click",
+        "text": "Bugetul zilnic e maximul cheltuit pe zi. Costul pe click e suma maximă plătită pentru un click."
+      },
+      "budgetShort": {
+        "title": "Mai ai nevoie de credite",
+        "text": "Soldul nu acoperă bugetul ales. Adaugă credite din portofel."
+      },
+      "budgetSave": {
+        "title": "Salvează",
+        "text": "Salvează setările, apoi treci la pasul de activare."
+      },
+      "launchActivate": {
+        "title": "{activate}",
+        "text": "Apasă butonul ca afacerea să apară în feed. O poți opri oricând."
+      },
+      "launchLinks": {
+        "title": "Ajustări oricând",
+        "text": "De aici modifici bugetul sau vezi sugestii de optimizare."
+      },
+      "launchFinish": {
+        "title": "Finalizează",
+        "text": "Butonul se activează după ce campania e activă și te duce în panou."
+      }
+    }
   }
 }
