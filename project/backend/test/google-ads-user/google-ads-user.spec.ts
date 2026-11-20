@@ -4,6 +4,7 @@ import { extractSiteLinks } from 'src/google-ads-user/site-pages';
 import { TokenCrypto } from 'src/google-ads-user/token-crypto';
 import { readSettings } from 'src/google-ads-user/agent-settings';
 import { GoogleAdsUserAgentService } from 'src/google-ads-user/google-ads-user-agent.service';
+import { GoogleAdsUserService } from 'src/google-ads-user/google-ads-user.service';
 
 describe('optimizer pricing', () => {
   it('never charges less than the admin minimum', () => {
@@ -219,5 +220,72 @@ describe('cycle settlement (billing)', () => {
     const { svc, captured } = setup({ id: 'c3', status: 'completed', actions: [] });
     await svc.settle('c3', { error: null, aiCostMinor: 0, scoreAfter: null });
     expect(captured).toEqual([]);
+  });
+});
+
+describe('connected Google accounts', () => {
+  function setup(ownerId: string) {
+    const conn = {
+      id: 'conn1',
+      userId: ownerId,
+      status: 'connected',
+      refreshTokenEnc: 'enc',
+      selections: null,
+    };
+    const client = {
+      search: jest.fn(async (q: string) =>
+        q.includes('segments.date')
+          ? []
+          : [
+              {
+                campaign: {
+                  id: '1',
+                  name: 'A',
+                  status: 'ENABLED',
+                  advertisingChannelType: 'SEARCH',
+                },
+              },
+              {
+                campaign: {
+                  id: '2',
+                  name: 'B',
+                  status: 'ENABLED',
+                  advertisingChannelType: 'SEARCH',
+                },
+              },
+            ],
+      ),
+    };
+    const prisma = {
+      googleAdsConnection: { findUnique: jest.fn(async () => conn) },
+      googleAdsUserCampaign: {
+        findMany: jest.fn(async () => [{ googleCampaignId: '2', status: 'active' }]),
+      },
+    };
+    const oauth = { adsClient: jest.fn(async () => client) };
+    const svc = new GoogleAdsUserService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { get: () => 'https://x.ro' } as never,
+    );
+    return { svc };
+  }
+
+  it("never exposes another user's connection", async () => {
+    const { svc } = setup('owner');
+    await expect(svc.connectionAccounts('intruder', 'conn1')).rejects.toThrow();
+    await expect(svc.disconnectConnection('intruder', 'conn1')).rejects.toThrow();
+  });
+
+  it("flags the campaigns already in the owner's panel", async () => {
+    const { svc } = setup('owner');
+    const list = await svc.connectionCampaigns('owner', 'conn1', '1234567890', null);
+    expect(list.map((c: { id: string; managed: boolean }) => [c.id, c.managed])).toEqual([
+      ['1', false],
+      ['2', true],
+    ]);
   });
 });

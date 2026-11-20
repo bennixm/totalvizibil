@@ -57,7 +57,8 @@
     "adsCampaign": "Google Ads campaign",
     "adsCampaigns": "Google Ads campaigns",
     "addAdsCampaign": "Optimize a campaign",
-    "pickCampaign": "Choose"
+    "pickCampaign": "Choose",
+    "adsConnections": "Connected Google accounts"
   },
   "notifications": {
     "bell": "Notifications",
@@ -3686,7 +3687,11 @@
       "reason": {
         "manager_no_clients": "Manager account with no client accounts. Create a client account with a Search campaign in it.",
         "not_enabled": "This account is not active yet. Finish its setup in Google Ads (or it was cancelled/suspended)."
-      }
+      },
+      "selectAll": "Select all",
+      "continueN": "Continue with {n} campaigns",
+      "multiHint": "You can tick several campaigns, even from different accounts. Each gets its own dashboard.",
+      "alreadyManaged": "already in panel"
     },
     "account": {
       "seoTitle": "Your account",
@@ -3710,7 +3715,8 @@
         "exists": "An account with this email already exists. Please sign in.",
         "code": "The code is wrong or has expired.",
         "generic": "Something went wrong. Please try again."
-      }
+      },
+      "doneN": "{n} campaigns were added to your panel."
     },
     "tab": {
       "overview": "Overview",
@@ -3967,6 +3973,25 @@
       "colReturned": "Returned",
       "colStatus": "Status",
       "walletNote": "All payments also appear in your wallet history, under Google Ads optimization."
+    },
+    "conn": {
+      "title": "Connected Google accounts",
+      "lead": "The Google accounts you connected Google Ads with and the campaigns optimized from each. Add new campaigns without signing in again.",
+      "connectNew": "Connect another Google account",
+      "empty": "You have not connected a Google account yet.",
+      "since": "connected {when}",
+      "campaigns": "Campaigns in panel ({n})",
+      "addCampaigns": "Add campaigns",
+      "disconnectText": "The agent stops for the {n} campaigns from this account. Your campaigns in Google Ads stay unchanged.",
+      "loadError": "Could not load the connected accounts.",
+      "addTitle": "Add campaigns",
+      "addLead": "Pick one or more campaigns from this Google account. Those already optimized are disabled.",
+      "status": {
+        "connected": "Connected",
+        "revoked": "Disconnected",
+        "error": "Error",
+        "pending": "Pending"
+      }
     }
   },
   "adminAdsOpt": {

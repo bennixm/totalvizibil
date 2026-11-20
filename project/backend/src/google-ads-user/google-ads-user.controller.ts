@@ -14,7 +14,18 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
-import { IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
@@ -31,7 +42,7 @@ class StartDto {
   draftToken?: string;
 }
 
-class SelectDto {
+class SelectItemDto {
   @Matches(/^[\d-]{6,20}$/)
   customerId!: string;
   @IsOptional()
@@ -39,6 +50,38 @@ class SelectDto {
   loginCustomerId?: string | null;
   @Matches(/^\d{1,20}$/)
   campaignId!: string;
+}
+
+/** Several campaigns (`items`), or one with the legacy flat fields. */
+class SelectDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => SelectItemDto)
+  items?: SelectItemDto[];
+  @IsOptional()
+  @Matches(/^[\d-]{6,20}$/)
+  customerId?: string;
+  @IsOptional()
+  @Matches(/^[\d-]{6,20}$/)
+  loginCustomerId?: string | null;
+  @IsOptional()
+  @Matches(/^\d{1,20}$/)
+  campaignId?: string;
+}
+
+function selectionItems(dto: SelectDto): SelectItemDto[] {
+  if (dto.items?.length) return dto.items;
+  return dto.customerId && dto.campaignId
+    ? [
+        {
+          customerId: dto.customerId,
+          loginCustomerId: dto.loginCustomerId ?? null,
+          campaignId: dto.campaignId,
+        },
+      ]
+    : [];
 }
 
 class StartCycleDto {
@@ -123,13 +166,63 @@ export class GoogleAdsUserController {
 
   @Post('builder/select')
   select(@Headers(DRAFT_HEADER) draft: string | undefined, @Body() dto: SelectDto) {
-    return this.service.select(draft, dto);
+    return this.service.select(draft, selectionItems(dto));
   }
 
   @UseGuards(AuthGuard)
   @Post('builder/claim')
   claim(@Headers(DRAFT_HEADER) draft: string | undefined, @CurrentUser() user: AuthPrincipal) {
     return this.service.claim(draft, user.id);
+  }
+
+  // ------------------------------------------- connected Google accounts
+
+  @UseGuards(AuthGuard)
+  @Get('connections')
+  connections(@CurrentUser() user: AuthPrincipal) {
+    return this.service.connections(user.id);
+  }
+
+  @UseGuards(AuthGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @Get('connections/:id/accounts')
+  connectionAccounts(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.service.connectionAccounts(user.id, id);
+  }
+
+  @UseGuards(AuthGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @Get('connections/:id/campaigns')
+  connectionCampaigns(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('customerId') customerId: string,
+    @Query('loginCustomerId') loginCustomerId?: string,
+  ) {
+    return this.service.connectionCampaigns(user.id, id, customerId ?? '', loginCustomerId || null);
+  }
+
+  @UseGuards(AuthGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Post('connections/:id/campaigns')
+  addCampaigns(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SelectDto,
+  ) {
+    return this.service.addCampaigns(user.id, id, selectionItems(dto));
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('connections/:id/disconnect')
+  disconnectConnection(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.service.disconnectConnection(user.id, id);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('connections/:id/reconnect-url')
+  reconnectConnection(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.service.reconnectConnectionUrl(user.id, id);
   }
 
   // ------------------------------------------------------------ campaigns

@@ -127,7 +127,11 @@ onMounted(() => {
         <span v-if="c.pendingApprovals" class="csw__badge">{{ c.pendingApprovals }}</span>
         <v-icon v-if="currentAds?.id === c.id" icon="mdi-check" size="15" class="csw__chk" />
       </button>
-      <RouterLink :to="{ name: 'ads-connect' }" class="csw__item csw__item--add" @click="goCreate">
+      <RouterLink
+        :to="{ name: ads.campaigns.length ? 'ads-connections' : 'ads-connect' }"
+        class="csw__item csw__item--add"
+        @click="goCreate"
+      >
         <v-icon icon="mdi-google-ads" size="15" />
         <span>{{ t('nav.addAdsCampaign') }}</span>
       </RouterLink>

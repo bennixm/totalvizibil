@@ -2186,6 +2186,10 @@ model GoogleAdsConnection {
   selectedCustomerId      String?                   @map("selected_customer_id")
   selectedLoginCustomerId String?                   @map("selected_login_customer_id")
   selectedCampaignId      String?                   @map("selected_campaign_id")
+  /// All campaigns picked in the builder (multi-select):
+  /// [{customerId, loginCustomerId, campaignId}]. The single `selected*`
+  /// columns above mirror the first one (older clients).
+  selections              Json?
   createdAt               DateTime                  @default(now()) @map("created_at")
   updatedAt               DateTime                  @updatedAt @map("updated_at")
 

@@ -43,10 +43,11 @@ function errText(e: unknown): string {
 }
 
 async function claim(): Promise<void> {
-  const { campaignId } = await googleAdsUserApi.claim()
+  const { campaignId, campaignIds } = await googleAdsUserApi.claim()
   clearDraftToken()
   await adsStore.fetch(true)
-  toasts.success(t('ads.account.done'))
+  const n = campaignIds?.length ?? 1
+  toasts.success(n > 1 ? t('ads.account.doneN', { n }) : t('ads.account.done'))
   void router.replace({ name: 'ads-dashboard', params: { id: campaignId }, query: { welcome: '1' } })
 }
 
@@ -101,7 +102,7 @@ onMounted(async () => {
       void router.replace({ name: 'ads-connect' })
       return
     }
-    if (!state.selected) {
+    if (!state.selected && !state.selections?.length) {
       void router.replace({ name: 'ads-campaigns' })
       return
     }

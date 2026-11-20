@@ -57,7 +57,8 @@
     "adsCampaign": "Campanie Google Ads",
     "adsCampaigns": "Campanii Google Ads",
     "addAdsCampaign": "Optimizează o campanie",
-    "pickCampaign": "Alege"
+    "pickCampaign": "Alege",
+    "adsConnections": "Conturi Google conectate"
   },
   "notifications": {
     "bell": "Notificări",
@@ -3686,7 +3687,11 @@
       "reason": {
         "manager_no_clients": "Cont de manager fără conturi client. Creează în el un cont client și o campanie Search.",
         "not_enabled": "Contul nu este activ încă. Termină configurarea lui în Google Ads (sau a fost anulat/suspendat)."
-      }
+      },
+      "selectAll": "Selectează toate",
+      "continueN": "Continuă cu {n} campanii",
+      "multiHint": "Poți bifa mai multe campanii, chiar din conturi diferite. Fiecare primește propriul panou.",
+      "alreadyManaged": "deja în panou"
     },
     "account": {
       "seoTitle": "Contul tău",
@@ -3710,7 +3715,8 @@
         "exists": "Există deja un cont cu acest email. Intră în cont.",
         "code": "Codul nu este corect sau a expirat.",
         "generic": "Ceva n-a mers. Încearcă din nou."
-      }
+      },
+      "doneN": "{n} campanii au fost adăugate în panoul tău."
     },
     "tab": {
       "overview": "Prezentare",
@@ -3967,6 +3973,25 @@
       "colReturned": "Returnat",
       "colStatus": "Stare",
       "walletNote": "Toate plățile apar și în istoricul portofelului, la categoria Optimizare Google Ads."
+    },
+    "conn": {
+      "title": "Conturi Google conectate",
+      "lead": "Conturile Google prin care ai conectat Google Ads și campaniile optimizate din fiecare. Adaugă campanii noi fără să te autentifici din nou.",
+      "connectNew": "Conectează alt cont Google",
+      "empty": "Nu ai conectat încă niciun cont Google.",
+      "since": "conectat {when}",
+      "campaigns": "Campanii în panou ({n})",
+      "addCampaigns": "Adaugă campanii",
+      "disconnectText": "Agentul se oprește pentru cele {n} campanii din acest cont. Campaniile din Google Ads rămân neschimbate.",
+      "loadError": "Nu am putut încărca conturile conectate.",
+      "addTitle": "Adaugă campanii",
+      "addLead": "Alege una sau mai multe campanii din acest cont Google. Cele deja optimizate apar dezactivate.",
+      "status": {
+        "connected": "Conectat",
+        "revoked": "Deconectat",
+        "error": "Eroare",
+        "pending": "În așteptare"
+      }
     }
   },
   "adminAdsOpt": {
