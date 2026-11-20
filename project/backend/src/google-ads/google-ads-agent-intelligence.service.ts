@@ -396,7 +396,9 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
       (action.status !== 'pending_approval' && action.status !== 'approved') ||
       action.action !== 'budget.increase.proposed'
     ) {
-      throw new BadRequestException('No pending budget proposal with that id');
+      throw new BadRequestException(
+        'Propunerea de buget nu mai este în așteptare (a fost deja procesată sau ștearsă).',
+      );
     }
     const after = action.after as {
       proposedDailyBudgetCredits?: number;
@@ -457,7 +459,9 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
   async rejectProposal(actionId: string, approvedByUserId: string): Promise<void> {
     const action = await this.prisma.googleAdsAgentAction.findUnique({ where: { id: actionId } });
     if (!action || action.status !== 'pending_approval') {
-      throw new BadRequestException('No pending proposal with that id');
+      throw new BadRequestException(
+        'Propunerea nu mai este în așteptare (a fost deja procesată sau ștearsă).',
+      );
     }
     await this.prisma.googleAdsAgentAction.update({
       where: { id: actionId },

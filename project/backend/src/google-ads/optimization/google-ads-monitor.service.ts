@@ -122,7 +122,8 @@ export class GoogleAdsMonitorService implements OnModuleInit {
   }
 
   async run(trigger: MonitorTrigger): Promise<void> {
-    if (!this.client.configured) throw new Error('Google Ads API client is not configured.');
+    if (!this.client.configured)
+      throw new Error('Contul Google Ads nu este conectat (lipsesc datele de acces din Setări).');
     const existing = await this.prisma.googleAdsAgentRun.findFirst({
       where: { kind: 'monitor', status: 'in_progress' },
       orderBy: { startedAt: 'desc' },
@@ -218,6 +219,7 @@ export class GoogleAdsMonitorService implements OnModuleInit {
         .filter((e) => e.mapping && e.ev.issues.some((i) => i.autoFixable))
         .sort((a, b) => (a.ev.score ?? 100) - (b.ev.score ?? 100));
       const generateAllowed = this.client.writesAllowed || trigger === 'manual';
+      const autoFillOn = await this.settings.googleAdsAgentAutoFillGapsEnabled();
       await activity.record(
         { step: 'prioritize', message: 'Prioritizare optimizări' },
         {
@@ -225,7 +227,10 @@ export class GoogleAdsMonitorService implements OnModuleInit {
             ? `${candidates.length} campanii ale agentului au lipsuri pe care le poate completa; în acest ciclu: ${Math.min(candidates.length, MAX_OPTIMIZED_PER_CYCLE)} (cele cu scorul cel mai mic).` +
               (generateAllowed
                 ? ''
-                : ' Generarea de texte este omisă în ciclurile programate în mod doar-citire.')
+                : ' Generarea de texte este omisă în ciclurile programate în mod doar-citire.') +
+              (autoFillOn
+                ? ''
+                : ' ATENȚIE: completarea automată este oprită din Setări, deci lipsurile NU se completează în acest ciclu (doar analiză și propuneri).')
             : 'Nicio campanie a agentului nu are lipsuri pe care să le poată completa automat.',
         },
       );
@@ -329,7 +334,10 @@ export class GoogleAdsMonitorService implements OnModuleInit {
           result:
             `${scanned} campanii analizate, ${applied} optimizări aplicate și verificate, ${proposed} propuneri noi pentru aprobare.` +
             (pruned ? ` ${pruned} evenimente mai vechi de 30 de zile șterse.` : '') +
-            (hadError ? ' Unele campanii au avut erori (vezi jurnalul).' : ''),
+            (hadError ? ' Unele campanii au avut erori (vezi jurnalul).' : '') +
+            (autoFillOn
+              ? ''
+              : ' Completarea automată este oprită din Setări: activeaz-o ca agentul să rezolve lipsurile.'),
         },
       );
       await this.prisma.googleAdsAgentRun.update({

@@ -25,6 +25,7 @@ import {
   type GoogleAdsTextItem,
 } from '@/services/google-ads-optimization'
 import { ApiError } from '@/services/api'
+import { gaErrorText } from '@/components/admin/google-ads/gaErrors'
 
 const { t, te } = useI18n()
 const route = useRoute()
@@ -42,9 +43,7 @@ async function load() {
     error.value =
       e instanceof ApiError && e.status === 404
         ? t('adminGoogleAdsOpt.notFound')
-        : e instanceof ApiError
-          ? e.message
-          : t('admin.genericError')
+        : gaErrorText(e, t, t('admin.genericError'))
   } finally {
     loading.value = false
   }

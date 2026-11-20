@@ -603,6 +603,13 @@ export class AiService {
     }
   }
 
+  /** Why the most recent JSON call returned null (for callers that surface
+   *  failures to admins, e.g. the Google Ads content pass). */
+  private lastJsonFailure: string | null = null;
+  get lastFailureReason(): string | null {
+    return this.lastJsonFailure;
+  }
+
   /** True when Claude is configured. */
   get configured(): boolean {
     return !!this.anthropic;
@@ -637,6 +644,7 @@ export class AiService {
     opts: CallOpts,
   ): Promise<{ data: Record<string, unknown>; usage: Anthropic.Usage } | null> {
     if (!this.anthropic) return null;
+    this.lastJsonFailure = null;
     try {
       const res = await this.anthropic.messages.create(
         {
@@ -651,17 +659,20 @@ export class AiService {
         { timeout: opts.timeoutMs ?? TIMEOUT_MS },
       );
       if (res.stop_reason === 'max_tokens') {
+        this.lastJsonFailure = `răspuns AI trunchiat (limita de ${opts.maxTokens} tokeni)`;
         this.logger.warn(
           `Claude hit max_tokens (${opts.maxTokens}) — attempting to repair truncated JSON`,
         );
       }
       const parsed = parseLooseJson(this.textOf(res));
       if (!parsed) {
+        this.lastJsonFailure = this.lastJsonFailure ?? 'răspuns AI în format invalid';
         this.logger.warn('Claude returned unparseable JSON (even after repair)');
         return null;
       }
       return { data: parsed, usage: res.usage };
     } catch (err) {
+      this.lastJsonFailure = `apel AI eșuat: ${this.errMsg(err)}`.slice(0, 300);
       this.logger.warn(`Claude call failed: ${this.errMsg(err)}`);
       return null;
     }
@@ -1357,8 +1368,10 @@ export class AiService {
 
     const system =
       'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.';
+    // 15 keywords + 15 headlines + 4 descriptions + callouts + sitelinks in
+    // Romanian: 1800 tokens could truncate the JSON and lose the plan.
     const callOpts: CallOpts = {
-      maxTokens: 1800,
+      maxTokens: 4000,
       effort: 'medium',
       model: this.anthropicModelFast,
     };
@@ -1399,6 +1412,9 @@ export class AiService {
     // so fail here (caller keeps the campaign pending_creation) instead of
     // sending a doomed mutate call.
     if (plan.keywords.length < 3 || plan.headlines.length < 3 || plan.descriptions.length < 2) {
+      this.lastJsonFailure =
+        `plan AI incomplet (${plan.keywords.length} cuvinte cheie, ${plan.headlines.length} titluri, ` +
+        `${plan.descriptions.length} descrieri valide; minimul Google: 3/3/2)`;
       this.logger.warn(
         `Google Ads keyword plan came back under the minimum sizes ` +
           `(keywords=${plan.keywords.length}, headlines=${plan.headlines.length}, descriptions=${plan.descriptions.length})`,
@@ -1471,7 +1487,7 @@ export class AiService {
     const result = await this.anthropicJsonWithUsage(
       'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
       prompt,
-      { maxTokens: 1500, effort: 'medium', model: this.anthropicModelFast },
+      { maxTokens: 3000, effort: 'medium', model: this.anthropicModelFast },
     );
     if (!result) return null;
 
@@ -1539,7 +1555,7 @@ export class AiService {
     const result = await this.anthropicJsonWithUsage(
       'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
       prompt,
-      { maxTokens: 1500, effort: 'medium', model: this.anthropicModelFast },
+      { maxTokens: 3000, effort: 'medium', model: this.anthropicModelFast },
     );
     if (!result) return null;
     return {
@@ -1576,7 +1592,7 @@ export class AiService {
     const result = await this.anthropicJsonWithUsage(
       'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
       prompt,
-      { maxTokens: 1500, effort: 'medium', model: this.anthropicModelFast },
+      { maxTokens: 3000, effort: 'medium', model: this.anthropicModelFast },
     );
     if (!result) return null;
     const d = result.data as { headlines?: unknown[]; descriptions?: unknown[] };

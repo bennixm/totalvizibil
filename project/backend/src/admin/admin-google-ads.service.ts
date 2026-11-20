@@ -353,7 +353,7 @@ export class AdminGoogleAdsService {
   /** "Recomandă manual": a corrected proposal from the admin's instructions,
    *  queued again for approval (never executed by itself). */
   async reviseProposal(actionId: string, userId: string, instructions: string) {
-    if (!this.workflow) throw new BadRequestException('Workflow unavailable.');
+    if (!this.workflow) throw new BadRequestException('Fluxul de aprobare nu este disponibil.');
     const created = await this.workflow.revise(actionId, userId, instructions);
     return { ...withPreview(created), contentHash: proposalContentHash(created) };
   }
@@ -669,7 +669,8 @@ export class AdminGoogleAdsService {
     const snapshot = await this.prisma.googleAdsCampaignSnapshot.findUnique({
       where: { googleCampaignId },
     });
-    if (!snapshot) throw new NotFoundException('Campaign not found in the latest sync');
+    if (!snapshot)
+      throw new NotFoundException('Campania nu apare în ultima sincronizare cu Google Ads.');
     const historyWhere: Prisma.GoogleAdsAgentActionWhereInput = snapshot.categoryId
       ? { OR: [{ googleCampaignId }, { categoryId: snapshot.categoryId, googleCampaignId: null }] }
       : { googleCampaignId };

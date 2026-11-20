@@ -1567,6 +1567,7 @@
     "readOnlyBanner": "Mod doar-citire: în acest mediu agentul analizează campaniile și validează modificările la Google, dar nu le aplică. Scrierile sunt permise doar în producție.",
     "autoFillOn": "Completarea automată a lipsurilor este activă",
     "autoFillOff": "Completarea automată a lipsurilor este oprită",
+    "autoFillActivateCta": "Activeaz-o din tab-ul Setări",
     "accountIssuesTitle": "Probleme la nivel de cont",
     "priority": {
       "critical": "Critic",
@@ -3289,5 +3290,32 @@
     "colLast": "Ultima",
     "missingShortTag": "lipsă",
     "daysN": "{n} zile"
+  },
+  "adminGoogleAdsErr": {
+    "generic": "Operațiunea nu a reușit. Încearcă din nou.",
+    "required": "Completează o valoare.",
+    "integer": "Folosește un număr întreg.",
+    "min": "Minimul este {min}.",
+    "max": "Maximul este {max}.",
+    "fieldMin": "{field}: valoarea minimă permisă este {min}.",
+    "fieldMax": "{field}: valoarea maximă permisă este {max}.",
+    "fieldInteger": "{field}: folosește un număr întreg.",
+    "fieldNumber": "{field}: introdu un număr valid.",
+    "fieldInvalid": "{field}: valoare invalidă.",
+    "fieldMinLength": "{field}: scrie cel puțin {n} caractere.",
+    "fieldMaxLength": "{field}: maximum {n} caractere.",
+    "fieldUnknown": "{field}: câmp necunoscut pentru server.",
+    "timeout": "Serverul nu a răspuns la timp. Operațiunea poate continua în fundal: reîncarcă pagina peste câteva secunde.",
+    "network": "Nu există conexiune cu serverul. Verifică internetul și încearcă din nou.",
+    "unauthorized": "Sesiunea a expirat. Autentifică-te din nou.",
+    "forbidden": "Nu ai drepturi pentru această acțiune.",
+    "notFound": "Elementul nu mai există (poate a fost modificat sau șters între timp).",
+    "conflict": "Elementul a fost modificat între timp. Reîncarcă pagina.",
+    "rateLimited": "Prea multe cereri. Așteaptă puțin și încearcă din nou.",
+    "server": "Eroare de server. Încearcă din nou; dacă persistă, verifică jurnalul agentului.",
+    "fixFields": "Corectează câmpurile marcate înainte de salvare.",
+    "reviseMin": "Scrie cel puțin 5 caractere.",
+    "customerId": "ID-ul trebuie să aibă 10 cifre (ex. 123-456-7890).",
+    "serviceKey": "Cheia trebuie să fie conținutul fișierului JSON al contului de serviciu, codificat base64."
   }
 }

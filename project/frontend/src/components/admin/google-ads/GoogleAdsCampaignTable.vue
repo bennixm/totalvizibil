@@ -15,7 +15,7 @@ import {
   googleAdsOptimizationApi,
   type GoogleAdsOptimizationCampaignRow,
 } from '@/services/google-ads-optimization'
-import { ApiError } from '@/services/api'
+import { gaErrorText } from './gaErrors'
 
 const { t, te } = useI18n()
 const router = useRouter()
@@ -29,7 +29,7 @@ async function load() {
     rows.value = await googleAdsOptimizationApi.campaigns()
     error.value = null
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : t('admin.genericError')
+    error.value = gaErrorText(e, t, t('admin.genericError'))
   } finally {
     loading.value = false
   }
