@@ -3603,67 +3603,28 @@
     }
   },
   "start": {
-    "seoTitle": "Get visible: create or optimize",
-    "seoDesc": "Build your presence from scratch or optimize a Google Ads campaign you already run.",
+    "seoTitle": "Get visible: new website or optimized campaign",
+    "seoDesc": "Create your website and online presence, or optimize an existing Google Ads campaign.",
     "eyebrow": "Get visible",
-    "title": "Where do we start?",
-    "lead": "Take the complete path from scratch, or optimize a Google Ads campaign you already have.",
-    "scratchKicker": "The complete process",
-    "scratchTitle": "Create from scratch",
-    "scratchText": "The assistant guides you through the whole process: it builds your site, lists your business on the platform and starts your promotion campaign.",
-    "scratchStepsTitle": "What you go through, step by step",
-    "scratchSteps": {
-      "plan": {
-        "title": "Choose your plan",
-        "text": "Simple or Advanced, depending on how much control you want over the site."
-      },
-      "build": {
-        "title": "Build your site",
-        "text": "The AI assistant writes the content together with you."
-      },
-      "location": {
-        "title": "Field and area",
-        "text": "Your business category and the area you serve."
-      },
-      "account": {
-        "title": "Your account",
-        "text": "Save everything you created."
-      },
-      "budget": {
-        "title": "Campaign budget",
-        "text": "Decide how much you want to invest in promotion."
-      },
-      "launch": {
-        "title": "Launch",
-        "text": "Start the campaign and appear in the platform feed."
-      }
+    "title": "What do you want to do?",
+    "lead": "Create your website from scratch or improve a Google Ads campaign you already run.",
+    "createKicker": "The complete option",
+    "createTitle": "Create a website & campaign",
+    "createText": "Build your website and get online, with a promotion campaign included.",
+    "createTags": {
+      "site": "Website",
+      "online": "Online presence",
+      "campaign": "Campaign"
     },
-    "scratchNote": "A good fit if you are starting now: site, listing and campaign in one flow.",
-    "scratchCta": "Start from scratch",
-    "optimizeKicker": "For existing campaigns",
-    "optimizeTitle": "Optimize a Google Ads campaign",
-    "optimizeText": "Already running a Search campaign in Google Ads? Connect your account, pick the campaign and let the optimization agent improve it.",
-    "optimizeFeaturesTitle": "What you can do",
-    "optimizeFeatures": {
-      "connect": {
-        "title": "Connect with Google",
-        "text": "Sign in with your Google account and pick your Google Ads account and campaign."
-      },
-      "analyze": {
-        "title": "Score and issues",
-        "text": "The campaign is checked against Google's requirements: score, Ad Strength, missing elements."
-      },
-      "improve": {
-        "title": "Optimization agent",
-        "text": "Adds headlines, descriptions, sitelinks and callouts and puts keywords into headlines, per your settings."
-      },
-      "approve": {
-        "title": "You stay in control",
-        "text": "The budget only changes after you approve it; you choose what the agent may do on its own."
-      }
+    "createCta": "Create my website",
+    "optimizeKicker": "For Google Ads",
+    "optimizeTitle": "Optimize an existing campaign",
+    "optimizeText": "Already have a Google Ads campaign? We improve it. No new website is created.",
+    "optimizeTags": {
+      "existing": "Existing campaign",
+      "improve": "Optimization",
+      "noSite": "No new website"
     },
-    "optimizeNote": "Setup is free. You only pay credits for the optimization cycles you start (from {credits} credits).",
-    "optimizeNoteShort": "Setup is free. You only pay credits for the optimization cycles you start.",
     "optimizeCta": "Optimize my campaign"
   },
   "ads": {
