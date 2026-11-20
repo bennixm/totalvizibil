@@ -708,7 +708,7 @@ function extensionComponents(
       title: 'Nu există structured snippets',
       why: `Listează tipurile de servicii (ex. antet „Service catalog”), minim ${STRUCTURED_SNIPPETS.minValues} valori.`,
       action: 'Adaugă un structured snippet cu serviciile principale.',
-      autoFixable: false,
+      autoFixable: managed,
       source: SOURCES.snippets,
     });
   }
@@ -898,7 +898,7 @@ function evaluateSearch(c: CampaignData, ctx: EvaluationContext): CampaignEvalua
       title: 'Nicio imagine validă',
       why: 'Imaginile fac reclama mai vizibilă pe căutare (dacă contul e eligibil).',
       action: 'Adaugă cel puțin o imagine pătrată 1200×1200 și una peisaj 1200×628 relevante.',
-      autoFixable: false,
+      autoFixable: ctx.managed,
       source: SOURCES.searchImages,
     });
   } else if (!hasSquare || !hasLandscape) {
@@ -909,7 +909,7 @@ function evaluateSearch(c: CampaignData, ctx: EvaluationContext): CampaignEvalua
       title: `Lipsește formatul ${!hasSquare ? 'pătrat 1:1' : 'peisaj 1.91:1'}`,
       why: 'Google recomandă ambele formate ca să poată folosi imaginile în toate plasările.',
       action: imageMissing[0],
-      autoFixable: false,
+      autoFixable: ctx.managed,
       source: SOURCES.searchImages,
     });
   }
@@ -948,8 +948,12 @@ function evaluateSearch(c: CampaignData, ctx: EvaluationContext): CampaignEvalua
       area: 'brand',
       title: `Lipsește ${[!hasName && 'numele afacerii', !hasLogo && 'logo-ul'].filter(Boolean).join(' și ')}`,
       why: 'Numele și logo-ul afacerii apar lângă reclamă și cresc încrederea.',
-      action: 'Configurează-le în Google Ads (necesită verificarea advertiserului).',
-      autoFixable: false,
+      action: hasName
+        ? 'Încarcă un logo pătrat valid în Google Ads (Elemente la nivel de cont); necesită verificarea advertiserului.'
+        : 'Agentul adaugă numele afacerii la campanie; logo-ul se încarcă manual în Google Ads.',
+      // The agent can add the business name (a text asset); a logo needs
+      // a real brand image uploaded by a person.
+      autoFixable: ctx.managed && !hasName,
       source: SOURCES.businessInfo,
     });
   }

@@ -467,7 +467,13 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       });
       const photo = photos[0];
       if (photo) {
-        const res = await fetch(photo.src.medium);
+        // Cropped by the Pexels CDN to Google's recommended landscape size
+        // (1200×628); `medium` was below it.
+        const res = await fetch(
+          photo.src.original
+            ? `${photo.src.original}?auto=compress&cs=tinysrgb&fit=crop&w=1200&h=628`
+            : photo.src.medium,
+        );
         if (res.ok) {
           const base64 = Buffer.from(await res.arrayBuffer()).toString('base64');
           ops.push({

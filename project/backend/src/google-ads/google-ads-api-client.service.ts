@@ -164,6 +164,30 @@ export interface GoogleAdsApplyRecommendationOperation {
  * event; anything else that reaches a write gets this loud error instead of
  * silently changing a real, money-spending account from a dev machine.
  */
+/**
+ * Parses a Google Ads API response body. Google answers an unknown REST path
+ * (or some proxy/edge failures) with an HTML page, not JSON — surfaced here
+ * as a clear error with the HTTP status instead of an opaque
+ * "Unexpected token '<'" JSON parse failure.
+ */
+async function readJson(res: Response): Promise<unknown> {
+  // Partial Response stubs (unit tests) may only implement json().
+  if (typeof res.text !== 'function') return res.json();
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(
+      `Google Ads API a răspuns cu HTTP ${res.status} fără JSON (${res.url || 'URL necunoscut'}): ` +
+        text
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 160),
+    );
+  }
+}
+
 export class GoogleAdsWritesDisabledError extends Error {
   constructor() {
     super(
@@ -418,7 +442,7 @@ export class GoogleAdsApiClient implements OnModuleInit {
       `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}/googleAds:search`,
       { method: 'POST', headers, body: JSON.stringify({ query }) },
     );
-    const data = (await res.json()) as GoogleAdsSearchResponse;
+    const data = (await readJson(res)) as GoogleAdsSearchResponse;
     if (!res.ok) {
       throw formatApiError(res.status, data.error, this.logger);
     }
@@ -457,7 +481,7 @@ export class GoogleAdsApiClient implements OnModuleInit {
         }),
       },
     );
-    const data = (await res.json()) as GoogleAdsMutateResponse;
+    const data = (await readJson(res)) as GoogleAdsMutateResponse;
     if (!res.ok) {
       throw formatApiError(res.status, data.error, this.logger);
     }
@@ -486,7 +510,10 @@ export class GoogleAdsApiClient implements OnModuleInit {
       `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}/invoices?${params.toString()}`,
       { method: 'GET', headers },
     );
-    const data = (await res.json()) as { invoices?: GoogleAdsInvoice[]; error?: GoogleAdsApiError };
+    const data = (await readJson(res)) as {
+      invoices?: GoogleAdsInvoice[];
+      error?: GoogleAdsApiError;
+    };
     if (!res.ok) {
       // Confirmed live: InvoiceService still answers 403 with this code for
       // API access that isn't approved, while search/mutate keep working.
@@ -512,7 +539,10 @@ export class GoogleAdsApiClient implements OnModuleInit {
   }
 
   /**
-   * `customers/{id}:applyRecommendation` — a separate RPC from `mutate`
+   * `customers/{id}/recommendations:apply` (RecommendationService.
+   * ApplyRecommendation) — a separate RPC from `mutate`. The REST path is
+   * `/recommendations:apply`; the former `customers/{id}:applyRecommendation`
+   * does not exist and returned Google's HTML 404 page (confirmed live).
    * (Direction 4). Most maintenance-only types need no extra parameters
    * (a bare resource name, or an equivalent `{resourceName}` operation);
    * asset/content types (see `GoogleAdsApplyRecommendationOperation`'s doc
@@ -529,7 +559,7 @@ export class GoogleAdsApiClient implements OnModuleInit {
     if (!this.writesAllowed) throw new GoogleAdsWritesDisabledError();
     const headers = await this.headers();
     const res = await fetch(
-      `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}:applyRecommendation`,
+      `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}/recommendations:apply`,
       {
         method: 'POST',
         headers,
@@ -538,7 +568,7 @@ export class GoogleAdsApiClient implements OnModuleInit {
         }),
       },
     );
-    const data = (await res.json()) as {
+    const data = (await readJson(res)) as {
       results?: { resourceName?: string }[];
       error?: GoogleAdsApiError;
     };

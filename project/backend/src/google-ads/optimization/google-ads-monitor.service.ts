@@ -35,9 +35,10 @@ import { GoogleAdsProposalWorkflowService } from './google-ads-proposal-workflow
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
 const STALE_LOCK_MS = 45 * 60 * 1000;
-/** Managed campaigns optimized per cycle — bounds AI cost and the number of
- *  creative changes Google has to absorb at once. */
-const MAX_OPTIMIZED_PER_CYCLE = 3;
+/** Safety bound on managed campaigns optimized per cycle (AI cost). High
+ *  enough that every agent campaign with gaps is handled in one cycle; the
+ *  per-campaign cooldown on ad text still paces what Google has to absorb. */
+const MAX_OPTIMIZED_PER_CYCLE = 25;
 const MAX_URLS_CHECKED = 40;
 const URL_TIMEOUT_MS = 8_000;
 
@@ -144,6 +145,8 @@ export class GoogleAdsMonitorService implements OnModuleInit {
     let proposed = 0;
     let cost = 0;
     let hadError = false;
+    /** Campaigns this cycle actually changed (applied + verified). */
+    const changedIds = new Set<string>();
 
     try {
       await activity.record(
@@ -230,6 +233,7 @@ export class GoogleAdsMonitorService implements OnModuleInit {
         for (const e of candidates.slice(0, MAX_OPTIMIZED_PER_CYCLE)) {
           try {
             const r = await this.optimizer.fillGaps(e.c, e.ev, e.mapping!, activity);
+            if (r.applied) changedIds.add(e.c.googleCampaignId);
             applied += r.applied;
             cost += r.costEstimateMinor;
           } catch (err) {
@@ -245,6 +249,14 @@ export class GoogleAdsMonitorService implements OnModuleInit {
             const r = await this.optimizer.proposeReplacements(e.c, e.mapping!, activity);
             proposed += r.proposed;
             cost += r.costEstimateMinor;
+            // Complete ads still rated POOR/AVERAGE by Google: rewrite
+            // proposals (approval required). Skipped for campaigns changed
+            // in this cycle — Google re-evaluates them first.
+            if (!changedIds.has(e.c.googleCampaignId)) {
+              const s = await this.optimizer.proposeAdStrengthRewrite(e.c, e.mapping!, activity);
+              proposed += s.proposed;
+              cost += s.costEstimateMinor;
+            }
           } catch (err) {
             hadError = true;
             this.logger.error(
@@ -253,6 +265,37 @@ export class GoogleAdsMonitorService implements OnModuleInit {
             );
           }
         }
+      }
+
+      // Re-read the changed campaigns from Google so the score shown reflects
+      // what is live now, not the state before this cycle's changes.
+      if (changedIds.size) {
+        await activity
+          .step(
+            { step: 'rescore', message: 'Recalculare scor după optimizări (recitire din Google)' },
+            async () => {
+              const fresh = await fetchAccountData(this.client);
+              const before = new Map(evaluated.map((e) => [e.c.googleCampaignId, e.ev.score]));
+              const lines: string[] = [];
+              for (const c of fresh.campaigns.filter((x) => changedIds.has(x.googleCampaignId))) {
+                const mapping = mappingByCampaign.get(c.googleCampaignId);
+                const ev = evaluateCampaign(c, { managed: !!mapping, urlChecks });
+                await this.saveSnapshot(c, ev, mapping);
+                lines.push(
+                  `${c.name}: ${before.get(c.googleCampaignId) ?? '–'} → ${ev.score ?? '–'}`,
+                );
+              }
+              return {
+                value: lines.length,
+                outcome: {
+                  result:
+                    `Scor actualizat pentru ${lines.length} campanii: ${lines.join('; ')}.` +
+                    ' Ad Strength poate apărea „în curs” câteva ore, cât timp Google reevaluează reclamele.',
+                },
+              };
+            },
+          )
+          .catch(() => 0);
       }
 
       // Performance observation ~30 days after each executed change, from

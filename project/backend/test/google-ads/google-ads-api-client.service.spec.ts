@@ -270,4 +270,36 @@ describe('GoogleAdsApiClient', () => {
       expect(body.validateOnly).toBeUndefined();
     });
   });
+
+  describe('applyRecommendations endpoint + non-JSON responses', () => {
+    it('posts to customers/{id}/recommendations:apply (the real REST path)', async () => {
+      jest.spyOn(JWT.prototype, 'getAccessToken').mockResolvedValue({ token: 't' } as never);
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          results: [{ resourceName: 'customers/1234567890/recommendations/x' }],
+        }),
+      } as Response);
+      const client = await configuredClient();
+      const applied = await client.applyRecommendations(['customers/1234567890/recommendations/x']);
+      expect(String(fetchSpy.mock.calls[0][0])).toBe(
+        'https://googleads.googleapis.com/v25/customers/1234567890/recommendations:apply',
+      );
+      expect(applied).toEqual(['customers/1234567890/recommendations/x']);
+    });
+
+    it('turns an HTML error page into a clear error with the HTTP status', async () => {
+      jest.spyOn(JWT.prototype, 'getAccessToken').mockResolvedValue({ token: 't' } as never);
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: false,
+        status: 404,
+        url: 'https://googleads.googleapis.com/v25/bad',
+        text: async () => '<!DOCTYPE html><html><title>Error 404 (Not Found)</title></html>',
+      } as Response);
+      const client = await configuredClient();
+      await expect(client.applyRecommendations(['r'])).rejects.toThrow(
+        /HTTP 404 fără JSON.*Error 404/,
+      );
+    });
+  });
 });
