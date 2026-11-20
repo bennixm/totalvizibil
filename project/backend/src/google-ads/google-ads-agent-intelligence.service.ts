@@ -56,6 +56,10 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
 
   private async tick(): Promise<void> {
     if (!this.client.configured || !this.ai.configured) return;
+    // Write-based pass: skipped entirely where Google Ads writes are
+    // disabled (outside production, see GoogleAdsApiClient.writesAllowed)
+    // instead of failing against the real account every poll.
+    if (!this.client.writesAllowed) return;
     if (!(await this.settings.googleAdsAgentEnabled())) return;
     if (!(await this.isDue())) return;
 
@@ -328,7 +332,12 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
     mappingId: string,
     dailyBudgetCredits: number,
     maxCpcCredits: number,
-  ): Promise<void> {
+  ): Promise<{
+    budgetResourceName: string;
+    adGroupResourceName: string;
+    budgetMicros: string;
+    cpcMicros: string;
+  }> {
     const mapping = await this.prisma.googleAdsSubcategoryCampaign.findUniqueOrThrow({
       where: { id: mappingId },
     });
@@ -344,11 +353,13 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
     const cpcMicros = creditsToAmountMicros(maxCpcCredits, currencyCode, eurRonRate);
     const customerId = this.client.customerId;
 
+    const budgetResourceName = `customers/${customerId}/campaignBudgets/${mapping.googleBudgetResourceId}`;
+    const adGroupResourceName = `customers/${customerId}/adGroups/${mapping.googleAdGroupId}`;
     await this.client.mutate([
       {
         campaignBudgetOperation: {
           update: {
-            resourceName: `customers/${customerId}/campaignBudgets/${mapping.googleBudgetResourceId}`,
+            resourceName: budgetResourceName,
             amountMicros: budgetMicros,
           },
           updateMask: 'amount_micros',
@@ -357,7 +368,7 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
       {
         adGroupOperation: {
           update: {
-            resourceName: `customers/${customerId}/adGroups/${mapping.googleAdGroupId}`,
+            resourceName: adGroupResourceName,
             cpcBidMicros: cpcMicros,
           },
           updateMask: 'cpc_bid_micros',
@@ -372,15 +383,17 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
         maxCpcMinor: Math.round(maxCpcCredits * 100),
       },
     });
+    return { budgetResourceName, adGroupResourceName, budgetMicros, cpcMicros };
   }
 
   /** Admin approves a pending budget/CPC increase (Faza 4 endpoint). Sends
    *  the real Google Ads mutate only now. */
   async approveProposal(actionId: string, approvedByUserId: string): Promise<void> {
     const action = await this.prisma.googleAdsAgentAction.findUnique({ where: { id: actionId } });
+    // `approved` = claimed for execution by the approval workflow.
     if (
       !action ||
-      action.status !== 'pending_approval' ||
+      (action.status !== 'pending_approval' && action.status !== 'approved') ||
       action.action !== 'budget.increase.proposed'
     ) {
       throw new BadRequestException('No pending budget proposal with that id');
@@ -400,10 +413,43 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
     });
     if (!mapping) throw new Error(`No campaign mapping for category ${action.categoryId}.`);
 
-    await this.applyBudgetChange(mapping.id, dailyBudgetCredits, maxCpcCredits);
+    const sent = await this.applyBudgetChange(mapping.id, dailyBudgetCredits, maxCpcCredits);
+    // Re-read both values from Google: "applied" must mean the exact
+    // approved budget/CPC is what Google now holds.
+    let verified = false;
+    let executionResult = 'Google a confirmat modificarea (răspuns API).';
+    try {
+      const [budgetRows, adGroupRows] = await Promise.all([
+        this.client.search(
+          `SELECT campaign_budget.amount_micros FROM campaign_budget WHERE campaign_budget.resource_name = '${sent.budgetResourceName}'`,
+        ),
+        this.client.search(
+          `SELECT ad_group.cpc_bid_micros FROM ad_group WHERE ad_group.resource_name = '${sent.adGroupResourceName}'`,
+        ),
+      ]);
+      const liveBudget = String(
+        (budgetRows[0]?.campaignBudget as { amountMicros?: string } | undefined)?.amountMicros ??
+          '',
+      );
+      const liveCpc = String(
+        (adGroupRows[0]?.adGroup as { cpcBidMicros?: string } | undefined)?.cpcBidMicros ?? '',
+      );
+      verified = liveBudget === sent.budgetMicros && liveCpc === sent.cpcMicros;
+      executionResult = verified
+        ? `Confirmat în Google: buget zilnic ${dailyBudgetCredits} credite, CPC maxim ${maxCpcCredits} credite.`
+        : `Google a acceptat modificarea, dar la recitire valorile diferă (buget ${liveBudget || '?'} / CPC ${liveCpc || '?'} micros, așteptat ${sent.budgetMicros} / ${sent.cpcMicros}).`;
+    } catch (err) {
+      executionResult = `Google a confirmat modificarea, dar recitirea a eșuat: ${err instanceof Error ? err.message : String(err)}`;
+    }
     await this.prisma.googleAdsAgentAction.update({
       where: { id: actionId },
-      data: { status: 'applied', approvedByUserId, approvedAt: new Date() },
+      data: {
+        status: 'applied',
+        approvedByUserId: action.approvedByUserId ?? approvedByUserId,
+        approvedAt: action.approvedAt ?? new Date(),
+        verifiedAt: verified ? new Date() : null,
+        executionResult,
+      },
     });
   }
 

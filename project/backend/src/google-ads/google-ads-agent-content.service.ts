@@ -11,6 +11,7 @@ import { notifyAdminsOfFailedGoogleAdsAgentRun } from './google-ads-agent-alerts
 import { GoogleAdsApiClient } from './google-ads-api-client.service';
 import { subcategoryLandingUrl } from './google-ads-landing-url';
 import { pushNegativesOntoSiblings } from './google-ads-negative-keywords';
+import { AdStrengthMaximizer, StrengthResult } from './optimization/google-ads-ad-strength';
 
 /** ValueTrack suffix appended to every ad's final URL (research doc,
  *  Direction 6) — `{loc_physical_ms}` is the geo-target id of the click's
@@ -26,7 +27,13 @@ const FINAL_URL_SUFFIX = 'loc={loc_physical_ms}&gclid={gclid}';
  *  (`googleAdsAgentContentIntervalMinutes`, read live on every tick via
  *  `isDue()`), not this — same shape as the structural pass. */
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
-const STALE_LOCK_MS = 30 * 60 * 1000;
+/** Longer than the other passes: each new ad now waits for Google's Ad
+ *  Strength evaluation (several reads, a few improvement rounds). */
+const STALE_LOCK_MS = 60 * 60 * 1000;
+/** New campaigns activated per run — bounds the run length now that each
+ *  one includes the Ad Strength maximization loop. The rest follow on the
+ *  next runs. */
+const MAX_ACTIVATIONS_PER_RUN = 5;
 
 type MappingWithCategory = Prisma.GoogleAdsSubcategoryCampaignGetPayload<{
   include: { category: { include: { parent: true } } };
@@ -53,6 +60,8 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
   private readonly logger = new Logger(GoogleAdsAgentContentService.name);
   private readonly frontendOrigin: string;
   private readonly pexels: PexelsProvider;
+  /** Exposed (not private) so tests can stub its sleep/reads. */
+  readonly adStrength: AdStrengthMaximizer;
 
   constructor(
     private readonly client: GoogleAdsApiClient,
@@ -64,6 +73,7 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
     this.pexels = new PexelsProvider(config.get('pexelsApiKey', { infer: true }) ?? '');
+    this.adStrength = new AdStrengthMaximizer(client, ai);
   }
 
   onModuleInit(): void {
@@ -73,6 +83,10 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
 
   private async tick(): Promise<void> {
     if (!this.client.configured || !this.ai.configured) return;
+    // Write-based pass: skipped entirely where Google Ads writes are
+    // disabled (outside production, see GoogleAdsApiClient.writesAllowed)
+    // instead of failing against the real account every poll.
+    if (!this.client.writesAllowed) return;
     if (!(await this.settings.googleAdsAgentEnabled())) return;
     if (!(await this.isDue())) return;
     try {
@@ -144,6 +158,8 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       const pending = await this.prisma.googleAdsSubcategoryCampaign.findMany({
         where: { status: 'pending_creation' },
         include: { category: { include: { parent: true } } },
+        orderBy: { createdAt: 'asc' },
+        take: MAX_ACTIVATIONS_PER_RUN,
       });
 
       for (const mapping of pending) {
@@ -295,7 +311,49 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       },
     };
 
-    await this.client.mutate([...keywordOps, adOp, enableOp]);
+    // 1. Keywords + ad, campaign still PAUSED (nothing can spend yet).
+    const created = await this.client.mutate([...keywordOps, adOp]);
+    const adGroupAdResourceName = created[keywordOps.length]?.adGroupAdResult?.resourceName;
+
+    // 2. Optional assets BEFORE Ad Strength is evaluated: sitelinks are an
+    //    Ad Strength factor. Best-effort, as before; a failure is reported
+    //    in the result instead of being silently swallowed.
+    let assetsError: string | null = null;
+    await this.addOptionalAdAssets(
+      campaignResourceName,
+      landingUrl,
+      plan.callouts,
+      plan.sitelinkLabels,
+      plan.imageSearchQuery,
+    ).catch((err) => {
+      assetsError = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `addOptionalAdAssets failed for '${category.slug}'.`,
+        err instanceof Error ? err.stack : assetsError,
+      );
+    });
+
+    // 3. Read the real Ad Strength from Google and improve toward Excellent
+    //    using Google's own action items, re-reading after every change.
+    let strength: StrengthResult | null = null;
+    if (adGroupAdResourceName) {
+      strength = await this.adStrength
+        .maximize({ adGroupAdResourceName, categoryName, landingUrl })
+        .catch((err) => {
+          this.logger.warn(
+            `Ad Strength maximization failed for '${category.slug}'.`,
+            err instanceof Error ? err.stack : String(err),
+          );
+          return null;
+        });
+    }
+
+    // 4. Only now can the campaign start serving.
+    await this.client.mutate([enableOp]);
+
+    const strengthText = strength
+      ? strength.explanation
+      : 'Ad Strength nu a putut fi citit din Google pentru această reclamă.';
 
     await this.prisma.$transaction([
       this.prisma.googleAdsSubcategoryCampaign.update({
@@ -312,10 +370,21 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
             headlineCount: plan.headlines.length,
             descriptionCount: plan.descriptions.length,
             landingUrl,
+            // Read from Google, never assumed — see AdStrengthMaximizer.
+            adStrength: strength?.finalAdStrength ?? null,
+            adStrengthRounds: (strength?.rounds ?? []) as unknown as Prisma.InputJsonValue,
+            adStrengthRemainingActionItems: strength?.remainingActionItems ?? [],
+            ...(assetsError ? { assetsError } : {}),
           },
+          executionResult:
+            strengthText +
+            (assetsError
+              ? ` Elementele opționale (sitelink-uri/callout-uri) nu au putut fi adăugate: ${assetsError}`
+              : ''),
+          verifiedAt: strength?.finalAdStrength ? new Date() : null,
           reasoning:
-            'Generat plan de cuvinte cheie + reclamă (Claude) și activat campania — ' +
-            'prima dată când această subcategorie are reclame reale.',
+            'Generat plan de cuvinte cheie + reclamă (Claude), îmbunătățit pe baza Ad Strength-ului real ' +
+            'raportat de Google, apoi activată campania — prima dată când această subcategorie are reclame reale.',
         },
       }),
     ]);
@@ -338,27 +407,9 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       }
     }
 
-    // Direction 2 (research doc): optional ad assets — callouts + one stock
-    // image (CTR/quality, don't move the Ad Strength meter itself) and
-    // sitelinks (the one asset type that DOES — see `addOptionalAdAssets`'s
-    // doc comment). A SEPARATE, best-effort mutate call, never one that can
-    // block the keywords+ad+enable batch above from going out.
-    await this.addOptionalAdAssets(
-      campaignResourceName,
-      landingUrl,
-      plan.callouts,
-      plan.sitelinkLabels,
-      plan.imageSearchQuery,
-    ).catch((err) =>
-      this.logger.warn(
-        `addOptionalAdAssets failed for '${category.slug}' — its ad is live regardless.`,
-        err instanceof Error ? err.stack : String(err),
-      ),
-    );
-
     return {
       activated: true,
-      costEstimateMinor: plan.costEstimateMinor,
+      costEstimateMinor: plan.costEstimateMinor + (strength?.costEstimateMinor ?? 0),
       inputTokens: plan.inputTokens,
       outputTokens: plan.outputTokens,
       model: plan.model,

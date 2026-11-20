@@ -3,14 +3,17 @@ import { GoogleAdsAgentContentService } from 'src/google-ads/google-ads-agent-co
 /**
  * This service is the only path that flips an agent-created campaign from
  * `pending_creation` to `active` — these tests pin down that it NEVER does
- * so without a real, validated keyword plan, and that the keywords/ad/
- * enable-campaign mutate all go out together.
+ * so without a real, validated keyword plan. Order of Google calls for a
+ * new campaign: keywords + ad (campaign still PAUSED) → optional assets →
+ * Ad Strength read/improve loop → enable. The campaign is only enabled
+ * after the ad exists.
  */
 function fakeClient(
   overrides: { configured?: boolean; mutate?: jest.Mock; search?: jest.Mock } = {},
 ) {
   return {
     configured: overrides.configured ?? true,
+    writesAllowed: true,
     customerId: '1234567890',
     mutate: overrides.mutate ?? jest.fn().mockResolvedValue([]),
     search: overrides.search ?? jest.fn().mockResolvedValue([]),
@@ -20,6 +23,7 @@ function fakeClient(
 function fakeAi(overrides: { configured?: boolean; plan?: jest.Mock } = {}) {
   return {
     configured: overrides.configured ?? true,
+    writesAllowed: true,
     googleAdsKeywordPlan:
       overrides.plan ??
       jest.fn().mockResolvedValue({
@@ -167,10 +171,11 @@ describe('GoogleAdsAgentContentService', () => {
 
     await svc.run();
 
-    expect(mutate).toHaveBeenCalledTimes(1);
+    // Call 1: keywords + ad (campaign stays PAUSED). Call 2: enable.
+    expect(mutate).toHaveBeenCalledTimes(2);
     const ops = mutate.mock.calls[0][0];
-    // 3 keyword ops + 1 ad op + 1 campaign-enable op.
-    expect(ops).toHaveLength(5);
+    expect(ops).toHaveLength(4);
+    expect(ops.some((o: any) => o.campaignOperation)).toBe(false);
     expect(ops.filter((o: any) => o.adGroupCriterionOperation)).toHaveLength(3);
     expect(
       ops.find((o: any) => o.adGroupAdOperation).adGroupAdOperation.create.ad.finalUrls,
@@ -180,7 +185,7 @@ describe('GoogleAdsAgentContentService', () => {
     expect(
       ops.find((o: any) => o.adGroupAdOperation).adGroupAdOperation.create.ad.finalUrlSuffix,
     ).toBe('loc={loc_physical_ms}&gclid={gclid}');
-    const enableOp = ops.find((o: any) => o.campaignOperation);
+    const enableOp = mutate.mock.calls[1][0][0];
     expect(enableOp.campaignOperation.update.status).toBe('ENABLED');
 
     expect((prisma as any).googleAdsSubcategoryCampaign.update).toHaveBeenCalledWith(
@@ -273,10 +278,9 @@ describe('GoogleAdsAgentContentService', () => {
       const svc = makeService({ client: fakeClient({ mutate, search }), prisma });
       await svc.run();
 
-      // One mutate call for the main keyword/ad/enable batch, one for the
-      // sibling negative-keyword push.
-      expect(mutate).toHaveBeenCalledTimes(2);
-      expect(mutate.mock.calls[1][0]).toEqual([
+      // keywords+ad, enable, then the sibling negative-keyword push.
+      expect(mutate).toHaveBeenCalledTimes(3);
+      expect(mutate.mock.calls[2][0]).toEqual([
         {
           sharedCriterionOperation: {
             create: {
@@ -311,7 +315,7 @@ describe('GoogleAdsAgentContentService', () => {
 
       await svc.run();
 
-      expect(mutate).toHaveBeenCalledTimes(1); // only the main keyword/ad/enable batch
+      expect(mutate).toHaveBeenCalledTimes(2); // keywords+ad, then enable
     });
   });
 
@@ -360,7 +364,7 @@ describe('GoogleAdsAgentContentService', () => {
       const svc = makeService({ client: fakeClient({ mutate }), settings, prisma });
       await svc.run();
 
-      expect(mutate).toHaveBeenCalledTimes(1); // only the main batch — no conversionActionOperation
+      expect(mutate).toHaveBeenCalledTimes(2); // keywords+ad, enable — no conversionActionOperation
       expect(mutate.mock.calls[0][0].some((o: any) => o.conversionActionOperation)).toBe(false);
     });
 
@@ -404,9 +408,11 @@ describe('GoogleAdsAgentContentService', () => {
       const svc = makeService({ client: fakeClient({ mutate }), ai: fakeAi({ plan }), prisma });
       await svc.run();
 
-      // Call 1: main keyword/ad/enable batch. Call 2: create the 3 assets.
-      // Call 3: attach each created asset to the campaign.
-      expect(mutate).toHaveBeenCalledTimes(3);
+      // Call 1: keywords + ad. Call 2: create the 3 assets. Call 3: attach
+      // them (BEFORE Ad Strength is read: sitelinks count toward it).
+      // Call 4: enable the campaign.
+      expect(mutate).toHaveBeenCalledTimes(4);
+      expect(mutate.mock.calls[3][0][0].campaignOperation.update.status).toBe('ENABLED');
       const createOps = mutate.mock.calls[1][0];
       expect(createOps).toEqual([
         { assetOperation: { create: { calloutAsset: { calloutText: 'Firme verificate' } } } },
@@ -466,7 +472,114 @@ describe('GoogleAdsAgentContentService', () => {
 
       await svc.run();
 
-      expect(mutate).toHaveBeenCalledTimes(1); // only the main keyword/ad/enable batch
+      expect(mutate).toHaveBeenCalledTimes(2); // keywords+ad, then enable
+    });
+  });
+
+  describe('Ad Strength maximization (real Google feedback)', () => {
+    const AGA = 'customers/1234567890/adGroupAds/777~999';
+    const reading = (strength: string, items: string[] = []) => [
+      {
+        adGroupAd: {
+          adStrength: strength,
+          actionItems: items,
+          ad: {
+            responsiveSearchAd: {
+              headlines: ['Electricieni verificați', 'Programează rapid', 'Firme locale'].map(
+                (text) => ({ text }),
+              ),
+              descriptions: ['Găsește un electrician de încredere.', 'Comparații rapide.'].map(
+                (text) => ({ text }),
+              ),
+            },
+          },
+        },
+      },
+    ];
+    function setup(strengths: string[]) {
+      const queue = [...strengths];
+      const search = jest.fn(async (q: string) => {
+        if (q.includes('FROM ad_group_criterion')) {
+          return [{ adGroupCriterion: { keyword: { text: 'electrician bucuresti' } } }];
+        }
+        if (q.includes('ad_group_ad.action_items')) {
+          const s = queue.length > 1 ? queue.shift()! : queue[0];
+          return reading(
+            s,
+            s === 'EXCELLENT' ? [] : ['Try including more keywords in your headlines.'],
+          );
+        }
+        return [];
+      });
+      const mutate = jest.fn(async (ops: any[], _opts?: any) =>
+        ops.some((o) => o.adGroupAdOperation)
+          ? [{}, {}, {}, { adGroupAdResult: { resourceName: AGA } }]
+          : [],
+      );
+      const improve = jest.fn().mockResolvedValue({
+        headlines: Array.from({ length: 15 }, (_, i) => `Electrician bucuresti ${i + 1}`),
+        descriptions: [
+          'Electrician bucuresti verificat.',
+          'Compară firme locale.',
+          'Cere ofertă rapid.',
+          'Programează simplu.',
+        ],
+        costEstimateMinor: 2,
+      });
+      const ai = { ...(fakeAi() as any), googleAdsImproveAdStrength: improve };
+      const prisma = fakePrisma({ pending: [MAPPING] });
+      const svc = makeService({ client: fakeClient({ mutate, search }), ai: ai as never, prisma });
+      (svc as any).adStrength.sleep = () => Promise.resolve();
+      return { svc, mutate, improve, prisma };
+    }
+
+    it('reads Google, improves from Google action items, re-reads, and records the CONFIRMED result', async () => {
+      const { svc, mutate, improve, prisma } = setup(['AVERAGE', 'EXCELLENT']);
+      await svc.run();
+      expect(improve).toHaveBeenCalledWith(
+        expect.objectContaining({
+          adStrength: 'AVERAGE',
+          googleActionItems: ['Try including more keywords in your headlines.'],
+          keywords: ['electrician bucuresti'],
+        }),
+      );
+      // validateOnly then real update, then enable last.
+      const adUpdates = mutate.mock.calls.filter((c: any[]) => c[0][0]?.adOperation);
+      expect(adUpdates[0][1]).toEqual({ validateOnly: true });
+      expect(adUpdates[1][1]).toBeUndefined();
+      expect(mutate.mock.calls.at(-1)![0][0].campaignOperation.update.status).toBe('ENABLED');
+      expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'keywords.updated',
+            after: expect.objectContaining({ adStrength: 'EXCELLENT' }),
+            executionResult: expect.stringMatching(/confirmat Ad Strength „Excelent”/),
+          }),
+        }),
+      );
+    });
+
+    it("when Excellent is not reached, reports the real rating and Google's remaining suggestions", async () => {
+      const { svc, prisma } = setup(['AVERAGE', 'GOOD', 'GOOD']);
+      await svc.run();
+      const data = (prisma as any).googleAdsAgentAction.create.mock.calls.find(
+        (c: any[]) => c[0].data.action === 'keywords.updated',
+      )[0].data;
+      expect(data.after.adStrength).toBe('GOOD');
+      expect(data.executionResult).toMatch(/confirmat de Google: GOOD/);
+      expect(data.executionResult).toMatch(/Try including more keywords/);
+    });
+
+    it('restores the better-rated version when a rewrite makes Ad Strength worse', async () => {
+      const { svc, mutate } = setup(['GOOD', 'AVERAGE', 'GOOD']);
+      await svc.run();
+      const realUpdates = mutate.mock.calls.filter((c: any[]) => c[0][0]?.adOperation && !c[1]);
+      // the rewrite, then the restore of the GOOD-rated texts
+      expect(realUpdates).toHaveLength(2);
+      const restored = realUpdates[1][0][0].adOperation.update.responsiveSearchAd.headlines.map(
+        (h: any) => h.text,
+      );
+      expect(restored).toEqual(['Electricieni verificați', 'Programează rapid', 'Firme locale']);
     });
   });
 });

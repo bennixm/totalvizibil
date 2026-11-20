@@ -297,6 +297,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminGoogleAdsAgentView.vue'),
       },
       {
+        // One campaign's optimization dashboard (score breakdown, issues,
+        // assets, history, live activity) — opened from the agent page.
+        path: 'google-ads-agent/campaigns/:googleCampaignId',
+        name: 'admin-google-ads-campaign',
+        component: () => import('@/views/admin/AdminGoogleAdsCampaignView.vue'),
+      },
+      {
         path: 'settings',
         name: 'admin-settings',
         // `GET /admin/settings` is `@PlatformRoles('admin','finance')`: a

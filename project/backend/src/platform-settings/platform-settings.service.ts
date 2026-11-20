@@ -42,6 +42,9 @@ export const SETTING_KEYS = {
   googleAdsAgentStructuralIntervalMinutes: 'google_ads_agent_structural_interval_minutes',
   googleAdsAgentContentIntervalMinutes: 'google_ads_agent_content_interval_minutes',
   googleAdsAgentIntelligenceIntervalMinutes: 'google_ads_agent_intelligence_interval_minutes',
+  googleAdsAgentMonitorIntervalMinutes: 'google_ads_agent_monitor_interval_minutes',
+  googleAdsAgentAutoFillGapsEnabled: 'google_ads_agent_auto_fill_gaps_enabled',
+  googleAdsAgentCreativeCooldownDays: 'google_ads_agent_creative_cooldown_days',
   // Machine-written only (never exposed through the admin settings PATCH) —
   // the one account-wide conversion action created once (research doc,
   // Direction 3) and reused by every subcategory campaign's ads.
@@ -182,6 +185,16 @@ const DEFAULT_AUTO_APPLY_RECOMMENDATION_TYPES = '';
 const DEFAULT_STRUCTURAL_INTERVAL_MINUTES = 360; // 6h
 const DEFAULT_CONTENT_INTERVAL_MINUTES = 360; // 6h
 const DEFAULT_INTELLIGENCE_INTERVAL_MINUTES = 1440; // 24h
+/** Monitor/optimizer cycle: 9 account-wide read queries per cycle, so 6h
+ *  is cheap on quota; metrics themselves only settle daily. */
+const DEFAULT_MONITOR_INTERVAL_MINUTES = 360;
+const MIN_MONITOR_INTERVAL_MINUTES = 60;
+/** Minimum days between two automatic creative changes on the same
+ *  campaign, so Google has time to evaluate new assets before the next
+ *  change (asset performance labels need real traffic first). */
+const DEFAULT_CREATIVE_COOLDOWN_DAYS = 14;
+const MIN_CREATIVE_COOLDOWN_DAYS = 7;
+const MAX_CREATIVE_COOLDOWN_DAYS = 90;
 const MIN_AGENT_INTERVAL_MINUTES = 15;
 const MAX_AGENT_INTERVAL_MINUTES = 10_080; // 7 days
 
@@ -985,6 +998,51 @@ export class PlatformSettingsService {
       minutes,
       MIN_AGENT_INTERVAL_MINUTES,
       MAX_AGENT_INTERVAL_MINUTES,
+    );
+  }
+
+  googleAdsAgentMonitorIntervalMinutes(): Promise<number> {
+    return this.intSetting(
+      SETTING_KEYS.googleAdsAgentMonitorIntervalMinutes,
+      DEFAULT_MONITOR_INTERVAL_MINUTES,
+      MIN_MONITOR_INTERVAL_MINUTES,
+      MAX_AGENT_INTERVAL_MINUTES,
+    );
+  }
+  setGoogleAdsAgentMonitorIntervalMinutes(minutes: number): Promise<number> {
+    return this.setIntSetting(
+      SETTING_KEYS.googleAdsAgentMonitorIntervalMinutes,
+      minutes,
+      MIN_MONITOR_INTERVAL_MINUTES,
+      MAX_AGENT_INTERVAL_MINUTES,
+    );
+  }
+
+  /** Whether the optimizer may automatically ADD missing headlines/
+   *  descriptions/sitelinks/callouts to agent-managed campaigns (never
+   *  replace or remove). On by default: the admin's chosen policy. */
+  async googleAdsAgentAutoFillGapsEnabled(): Promise<boolean> {
+    return (await this.get(SETTING_KEYS.googleAdsAgentAutoFillGapsEnabled)) !== 'false';
+  }
+  async setGoogleAdsAgentAutoFillGapsEnabled(on: boolean): Promise<boolean> {
+    await this.set(SETTING_KEYS.googleAdsAgentAutoFillGapsEnabled, on ? 'true' : 'false');
+    return on;
+  }
+
+  googleAdsAgentCreativeCooldownDays(): Promise<number> {
+    return this.intSetting(
+      SETTING_KEYS.googleAdsAgentCreativeCooldownDays,
+      DEFAULT_CREATIVE_COOLDOWN_DAYS,
+      MIN_CREATIVE_COOLDOWN_DAYS,
+      MAX_CREATIVE_COOLDOWN_DAYS,
+    );
+  }
+  setGoogleAdsAgentCreativeCooldownDays(days: number): Promise<number> {
+    return this.setIntSetting(
+      SETTING_KEYS.googleAdsAgentCreativeCooldownDays,
+      days,
+      MIN_CREATIVE_COOLDOWN_DAYS,
+      MAX_CREATIVE_COOLDOWN_DAYS,
     );
   }
 

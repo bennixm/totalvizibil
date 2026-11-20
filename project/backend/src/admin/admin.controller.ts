@@ -163,6 +163,9 @@ export class AdminController {
       googleAdsAgentIntelligenceIntervalMinutes,
       googleAdsAgentAutoApplyRecommendationTypes,
       googleAdsConversionActionResourceName,
+      googleAdsAgentMonitorIntervalMinutes,
+      googleAdsAgentAutoFillGapsEnabled,
+      googleAdsAgentCreativeCooldownDays,
     ] = await Promise.all([
       this.settings.eurRonRate(),
       this.settings.advancedBuilderPriceCredits(),
@@ -192,6 +195,9 @@ export class AdminController {
       this.settings.googleAdsAgentIntelligenceIntervalMinutes(),
       this.settings.googleAdsAgentAutoApplyRecommendationTypes(),
       this.settings.googleAdsConversionActionResourceName(),
+      this.settings.googleAdsAgentMonitorIntervalMinutes(),
+      this.settings.googleAdsAgentAutoFillGapsEnabled(),
+      this.settings.googleAdsAgentCreativeCooldownDays(),
     ]);
     return {
       eurRonRate,
@@ -225,6 +231,9 @@ export class AdminController {
       // Read-only — auto-created lazily by whichever pass needs it first,
       // never accepted back through PATCH, see UpdateSettingsDto.
       googleAdsConversionActionResourceName,
+      googleAdsAgentMonitorIntervalMinutes,
+      googleAdsAgentAutoFillGapsEnabled,
+      googleAdsAgentCreativeCooldownDays,
       invoiceIssuerName: invoiceIssuer.name,
       invoiceIssuerTaxId: invoiceIssuer.taxId,
       invoiceIssuerRegCom: invoiceIssuer.regCom,
@@ -321,6 +330,21 @@ export class AdminController {
     if (dto.googleAdsAgentIntelligenceIntervalMinutes !== undefined) {
       await this.settings.setGoogleAdsAgentIntelligenceIntervalMinutes(
         dto.googleAdsAgentIntelligenceIntervalMinutes,
+      );
+    }
+    if (dto.googleAdsAgentMonitorIntervalMinutes !== undefined) {
+      await this.settings.setGoogleAdsAgentMonitorIntervalMinutes(
+        dto.googleAdsAgentMonitorIntervalMinutes,
+      );
+    }
+    if (dto.googleAdsAgentAutoFillGapsEnabled !== undefined) {
+      await this.settings.setGoogleAdsAgentAutoFillGapsEnabled(
+        dto.googleAdsAgentAutoFillGapsEnabled,
+      );
+    }
+    if (dto.googleAdsAgentCreativeCooldownDays !== undefined) {
+      await this.settings.setGoogleAdsAgentCreativeCooldownDays(
+        dto.googleAdsAgentCreativeCooldownDays,
       );
     }
     if (dto.googleAdsAgentAutoApplyRecommendationTypes !== undefined) {
