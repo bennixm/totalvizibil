@@ -105,6 +105,12 @@ export interface AdminSettings {
   googleAdsAgentContentIntervalMinutes: number
   googleAdsAgentIntelligenceIntervalMinutes: number
   googleAdsAgentAutoApplyRecommendationTypes: string[]
+  /** Continuous monitor/optimizer cycle (GoogleAdsMonitorService). */
+  googleAdsAgentMonitorIntervalMinutes: number
+  /** Optimizer may ADD missing creative assets to agent campaigns. */
+  googleAdsAgentAutoFillGapsEnabled: boolean
+  /** Minimum days between automatic creative changes on one campaign. */
+  googleAdsAgentCreativeCooldownDays: number
   /** Machine-created lazily by whichever Google Ads agent pass needs it
    *  first, never admin-edited — null until then. */
   googleAdsConversionActionResourceName: string | null
@@ -699,13 +705,51 @@ export interface GoogleAdsAgentActionRow {
   categoryId: string
   category?: GoogleAdsAgentCategoryRef
   action: string
-  status: 'applied' | 'pending_approval' | 'rejected'
+  status: 'applied' | 'pending_approval' | 'rejected' | 'failed' | 'approved' | 'superseded'
   before: unknown
   after: unknown
   reasoning: string | null
+  /** Human label for `action` (sent by the campaign detail endpoint). */
+  label?: string
+  /** Hash of the exact content shown (proposals list); sent back on approve. */
+  contentHash?: string
+  /** Where the change will be applied (proposals list). */
+  target?: { campaignName: string | null; googleCampaignId: string | null; level: string } | null
+  /** The version this revision replaced (proposals list). */
+  revisionOf?: { id: string; createdAt: string; preview?: GoogleAdsProposalPreview; manualInstructions: string | null } | null
+  revisionOfId?: string | null
+  /** Admin instructions this revision was prepared from. */
+  manualInstructions?: string | null
+  /** Outcome reported/verified through Google after execution. */
+  executionResult?: string | null
+  /** 30-day campaign metrics at execution, and ~30 days later. */
+  metricsAtApply?: Record<string, number> | null
+  metricsObserved?: Record<string, number | string> | null
+  observedAt?: string | null
+  /** Google campaign concerned (optimizer actions; older rows: null). */
+  googleCampaignId?: string | null
+  /** Waited for an admin decision, whatever the outcome. */
+  requiredApproval?: boolean
+  /** Set once a re-read from Google confirmed the change is live. */
+  verifiedAt?: string | null
+  errorMessage?: string | null
   approvedBy?: { id: string; name: string; email: string } | null
   approvedAt: string | null
   createdAt: string
+  /** Server-built description of the exact change (sitelinks, texts,
+   *  keyword, budget…). Absent only on responses from an older backend. */
+  preview?: GoogleAdsProposalPreview
+}
+
+/** Mirrors backend/src/google-ads/google-ads-proposal-preview.ts. */
+export type GoogleAdsProposalPreviewSection =
+  | { kind: 'diff'; title: string; rows: { label: string; before: string | null; after: string }[] }
+  | { kind: 'items'; title: string; items: { title: string; lines: string[]; url?: string }[] }
+  | { kind: 'texts'; title: string; items: { text: string; status: 'added' | 'existing' }[] }
+  | { kind: 'note'; text: string; tone: 'info' | 'warning' }
+
+export interface GoogleAdsProposalPreview {
+  sections: GoogleAdsProposalPreviewSection[]
 }
 
 export interface GoogleAdsAgentCampaignRow {
@@ -725,7 +769,7 @@ export interface GoogleAdsAgentCampaignRow {
 export interface GoogleAdsAgentActionsFilters {
   categoryId: string
   action: string
-  status: '' | 'applied' | 'pending_approval' | 'rejected'
+  status: '' | 'applied' | 'pending_approval' | 'rejected' | 'failed' | 'approved' | 'superseded'
   dateFrom: string
   dateTo: string
   page: number
@@ -1402,8 +1446,30 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
-    async approveGoogleAdsAgentProposal(id: string): Promise<void> {
-      await apiFetch(`/admin/google-ads-agent/proposals/${id}/approve`, { method: 'POST' })
+    /** `contentHash` = the content the admin saw; the backend refuses the
+     *  approval if the proposal changed since. Returns Google's reported
+     *  outcome of the execution. */
+    async approveGoogleAdsAgentProposal(
+      id: string,
+      contentHash?: string,
+    ): Promise<{ status?: string; executionResult?: string | null; verifiedAt?: string | null }> {
+      try {
+        return await apiFetch(`/admin/google-ads-agent/proposals/${id}/approve`, {
+          method: 'POST',
+          body: contentHash ? { contentHash } : {},
+        })
+      } finally {
+        await this.fetchGoogleAdsAgentProposals()
+      }
+    },
+
+    /** "Recomandă manual": the agent prepares a corrected proposal from the
+     *  admin's instructions and queues it again for approval. */
+    async reviseGoogleAdsAgentProposal(id: string, instructions: string): Promise<void> {
+      await apiFetch(`/admin/google-ads-agent/proposals/${id}/revise`, {
+        method: 'POST',
+        body: { instructions },
+      })
       await this.fetchGoogleAdsAgentProposals()
     },
 
@@ -1460,7 +1526,7 @@ export const useAdminStore = defineStore('admin', {
       void this.fetchGoogleAdsAgentActions()
     },
 
-    async runGoogleAdsAgentNow(kind: 'structural' | 'content' | 'intelligence'): Promise<void> {
+    async runGoogleAdsAgentNow(kind: 'structural' | 'content' | 'intelligence' | 'monitor'): Promise<void> {
       await apiFetch(`/admin/google-ads-agent/run/${kind}`, { method: 'POST' })
       await this.fetchGoogleAdsAgentOverview()
     },

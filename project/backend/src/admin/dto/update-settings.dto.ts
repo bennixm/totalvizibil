@@ -227,6 +227,28 @@ export class UpdateSettingsDto {
   @Max(10_080)
   googleAdsAgentIntelligenceIntervalMinutes?: number;
 
+  // Monitor/optimizer cycle (GoogleAdsMonitorService).
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(60)
+  @Max(10_080)
+  googleAdsAgentMonitorIntervalMinutes?: number;
+
+  // Optimizer may automatically ADD missing creative assets to agent-
+  // managed campaigns (never replace/remove, never budget/bidding).
+  @IsOptional()
+  @IsBoolean()
+  googleAdsAgentAutoFillGapsEnabled?: boolean;
+
+  // Minimum days between two automatic creative changes on one campaign.
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(7)
+  @Max(90)
+  googleAdsAgentCreativeCooldownDays?: number;
+
   // Recommendation `type` strings (Google Ads API enum values, e.g.
   // `RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH`) safe to auto-apply with no
   // review — see GoogleAdsAgentRecommendationsService. Empty = everything

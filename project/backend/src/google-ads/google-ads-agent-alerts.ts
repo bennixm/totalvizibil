@@ -4,10 +4,11 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const logger = new Logger('GoogleAdsAgentAlerts');
 
-const RUN_KIND_LABEL: Record<'structural' | 'content' | 'intelligence', string> = {
+const RUN_KIND_LABEL: Record<'structural' | 'content' | 'intelligence' | 'monitor', string> = {
   structural: 'structural',
   content: 'de conținut',
   intelligence: 'de buget',
+  monitor: 'de monitorizare și optimizare',
 };
 
 /**
@@ -22,7 +23,7 @@ const RUN_KIND_LABEL: Record<'structural' | 'content' | 'intelligence', string> 
 export async function notifyAdminsOfFailedGoogleAdsAgentRun(
   notifications: NotificationsService,
   prisma: PrismaService,
-  kind: 'structural' | 'content' | 'intelligence',
+  kind: 'structural' | 'content' | 'intelligence' | 'monitor',
   errorSummary: string,
 ): Promise<void> {
   try {

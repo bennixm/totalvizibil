@@ -51,6 +51,7 @@ const CAMPAIGN_SCOPE_TYPES = new Set(['SITELINK_ASSET', 'CALLOUT_ASSET']);
 const NO_BUILDABLE_CONTENT_TYPES = new Set(['CALL_ASSET', 'RESPONSIVE_SEARCH_AD']);
 const RSA_MAX_HEADLINES = 15;
 const RSA_MAX_DESCRIPTIONS = 4;
+const REJECTION_MEMORY_MS = 30 * 86_400_000;
 
 type RecommendationPayload = GoogleAdsSearchRow['recommendation'];
 
@@ -66,17 +67,9 @@ export class GoogleAdsAgentRecommendationsService {
 
   /** Returns true iff anything was applied or newly queued this call. */
   async reconcile(categoryId: string, campaignResourceName: string): Promise<boolean> {
-    const rows = await this.client.search(
-      'SELECT recommendation.resource_name, recommendation.type, ' +
-        'recommendation.sitelink_asset_recommendation.recommended_campaign_sitelink_assets, ' +
-        'recommendation.callout_asset_recommendation.recommended_campaign_callout_assets, ' +
-        'recommendation.responsive_search_ad_asset_recommendation.current_ad, ' +
-        'recommendation.responsive_search_ad_asset_recommendation.recommended_assets, ' +
-        'recommendation.responsive_search_ad_improve_ad_strength_recommendation.recommended_ad ' +
-        'FROM recommendation ' +
-        `WHERE recommendation.campaign = '${campaignResourceName}'`,
-    );
+    const rows = await this.fetchRecommendations(campaignResourceName);
     if (!rows.length) return false;
+    const currencyCode = rows.find((r) => r.customer?.currencyCode)?.customer?.currencyCode;
 
     const autoApplyTypes = new Set(
       await this.settings.googleAdsAgentAutoApplyRecommendationTypes(),
@@ -89,10 +82,21 @@ export class GoogleAdsAgentRecommendationsService {
       if (!resourceName || !type) continue;
 
       const action = `recommendation.${type}`;
+      // Already handled, awaiting a human, being executed, revised, or
+      // decided recently — never re-queued every tick. A rejection or a
+      // failure blocks the same recommendation type for 30 days.
+      const recent = new Date(Date.now() - REJECTION_MEMORY_MS);
       const already = await this.prisma.googleAdsAgentAction.findFirst({
-        where: { categoryId, action, status: { in: ['pending_approval', 'applied'] } },
+        where: {
+          categoryId,
+          action,
+          OR: [
+            { status: { in: ['pending_approval', 'approved', 'applied', 'superseded'] } },
+            { status: { in: ['rejected', 'failed'] }, createdAt: { gte: recent } },
+          ],
+        },
       });
-      if (already) continue; // already handled (applied or awaiting a human) — don't re-queue every tick
+      if (already) continue;
 
       // Dropped entirely — never reaches the "Propuneri" queue at all. A
       // small subset of never-auto-apply types (pure reach-expansion
@@ -118,9 +122,10 @@ export class GoogleAdsAgentRecommendationsService {
           await this.prisma.googleAdsAgentAction.create({
             data: {
               categoryId,
+              googleCampaignId: campaignResourceName.split('/').pop(),
               action,
               status: 'applied',
-              after: { resourceName, type, recommendation: recommendationJson },
+              after: { resourceName, type, currencyCode, recommendation: recommendationJson },
               reasoning:
                 `Recomandare Google Ads de tip '${type}' aplicată automat — tip inclus explicit ` +
                 'în lista admin de recomandări sigure de auto-aplicat.',
@@ -141,9 +146,11 @@ export class GoogleAdsAgentRecommendationsService {
       await this.prisma.googleAdsAgentAction.create({
         data: {
           categoryId,
+          googleCampaignId: campaignResourceName.split('/').pop(),
           action,
           status: 'pending_approval',
-          after: { resourceName, type, recommendation: recommendationJson },
+          requiredApproval: true,
+          after: { resourceName, type, currencyCode, recommendation: recommendationJson },
           reasoning:
             `Recomandare Google Ads de tip '${type}' necesită aprobare manuală — fie afectează ` +
             'buget/licitare/targetare, fie nu e (încă) confirmată ca sigură de auto-aplicat.',
@@ -155,12 +162,63 @@ export class GoogleAdsAgentRecommendationsService {
     return changed;
   }
 
+  /**
+   * The recommendation rows for one campaign, with the content of every
+   * type the admin may be asked to approve, so the "Propuneri" tab can show
+   * the exact change (sitelinks, texts, keyword, budget, bid target) and
+   * Google's own impact estimate. `customer.currency_code` labels the micros
+   * amounts. If Google rejects the detailed query (a field renamed in a
+   * future API version), falls back to the minimal query the apply logic
+   * needs, so a display-only field can never stop the agent from working.
+   */
+  private async fetchRecommendations(campaignResourceName: string): Promise<GoogleAdsSearchRow[]> {
+    const where = `FROM recommendation WHERE recommendation.campaign = '${campaignResourceName}'`;
+    const applyFields =
+      'recommendation.resource_name, recommendation.type, ' +
+      'recommendation.sitelink_asset_recommendation.recommended_campaign_sitelink_assets, ' +
+      'recommendation.callout_asset_recommendation.recommended_campaign_callout_assets, ' +
+      'recommendation.responsive_search_ad_asset_recommendation.current_ad, ' +
+      'recommendation.responsive_search_ad_asset_recommendation.recommended_assets, ' +
+      'recommendation.responsive_search_ad_improve_ad_strength_recommendation.recommended_ad';
+    const displayFields = [
+      'customer.currency_code',
+      'recommendation.impact',
+      'recommendation.campaign_budget_recommendation',
+      'recommendation.forecasting_campaign_budget_recommendation',
+      'recommendation.marginal_roi_campaign_budget_recommendation',
+      'recommendation.keyword_recommendation',
+      'recommendation.keyword_match_type_recommendation',
+      'recommendation.maximize_clicks_opt_in_recommendation',
+      'recommendation.maximize_conversions_opt_in_recommendation',
+      'recommendation.target_cpa_opt_in_recommendation',
+      'recommendation.raise_target_cpa_recommendation',
+      'recommendation.raise_target_cpa_bid_too_low_recommendation',
+      'recommendation.set_target_cpa_recommendation',
+      'recommendation.set_target_roas_recommendation',
+      'recommendation.lower_target_roas_recommendation',
+      'recommendation.forecasting_set_target_cpa_recommendation',
+      'recommendation.enhanced_cpc_opt_in_recommendation',
+    ].join(', ');
+    try {
+      return await this.client.search(`SELECT ${applyFields}, ${displayFields} ${where}`);
+    } catch (err) {
+      this.logger.warn(
+        'Detailed recommendation query rejected; falling back to the minimal one (proposals ' +
+          'will show fewer details).',
+        err instanceof Error ? err.message : String(err),
+      );
+      return this.client.search(`SELECT ${applyFields} ${where}`);
+    }
+  }
+
   /** Admin approves a pending recommendation (Faza 4-style endpoint). */
   async approveProposal(actionId: string, approvedByUserId: string): Promise<void> {
     const action = await this.prisma.googleAdsAgentAction.findUnique({ where: { id: actionId } });
+    // `approved` = already claimed for execution by the approval workflow
+    // (GoogleAdsProposalWorkflowService), which is the normal path.
     if (
       !action ||
-      action.status !== 'pending_approval' ||
+      (action.status !== 'pending_approval' && action.status !== 'approved') ||
       !action.action.startsWith('recommendation.')
     ) {
       throw new BadRequestException('No pending recommendation proposal with that id');
@@ -186,10 +244,121 @@ export class GoogleAdsAgentRecommendationsService {
       resourceName,
     };
     await this.client.applyRecommendations([operation]);
+    const verification = await this.verifyApplied(
+      action.categoryId,
+      resourceName,
+      type,
+      after?.recommendation,
+    ).catch((err) => ({
+      verified: false,
+      result: `Google a confirmat aplicarea, dar recitirea a eșuat: ${err instanceof Error ? err.message : String(err)}`,
+    }));
     await this.prisma.googleAdsAgentAction.update({
       where: { id: actionId },
-      data: { status: 'applied', approvedByUserId, approvedAt: new Date() },
+      data: {
+        status: 'applied',
+        approvedByUserId: action.approvedByUserId ?? approvedByUserId,
+        approvedAt: action.approvedAt ?? new Date(),
+        verifiedAt: verification.verified ? new Date() : null,
+        executionResult: verification.result,
+      },
     });
+  }
+
+  /**
+   * Re-reads Google after an approved recommendation was applied: the
+   * exact assets/texts must be live; for parameter-less types, Google must
+   * no longer list the recommendation. Never claims more than it read.
+   */
+  private async verifyApplied(
+    categoryId: string,
+    resourceName: string,
+    type: string,
+    recommendation: RecommendationPayload | null | undefined,
+  ): Promise<{ verified: boolean; result: string }> {
+    const mapping = await this.prisma.googleAdsSubcategoryCampaign.findUnique({
+      where: { categoryId },
+    });
+    const campaignId = mapping?.googleCampaignId;
+    if ((type === 'SITELINK_ASSET' || type === 'CALLOUT_ASSET') && campaignId) {
+      const expected =
+        type === 'SITELINK_ASSET'
+          ? (
+              recommendation?.sitelinkAssetRecommendation?.recommendedCampaignSitelinkAssets ?? []
+            ).map((a) => (a as { sitelinkAsset?: { linkText?: string } }).sitelinkAsset?.linkText)
+          : (
+              recommendation?.calloutAssetRecommendation?.recommendedCampaignCalloutAssets ?? []
+            ).map(
+              (a) => (a as { calloutAsset?: { calloutText?: string } }).calloutAsset?.calloutText,
+            );
+      const rows = await this.client.search(
+        'SELECT campaign.id, campaign_asset.status, asset.sitelink_asset.link_text, asset.callout_asset.callout_text ' +
+          `FROM campaign_asset WHERE campaign.id = ${campaignId} AND campaign_asset.status != 'REMOVED'`,
+      );
+      const live = new Set(
+        rows.map((r) => {
+          const a = r.asset as
+            | { sitelinkAsset?: { linkText?: string }; calloutAsset?: { calloutText?: string } }
+            | undefined;
+          return a?.sitelinkAsset?.linkText ?? a?.calloutAsset?.calloutText;
+        }),
+      );
+      const missing = expected.filter((t): t is string => !!t && !live.has(t));
+      return missing.length
+        ? {
+            verified: false,
+            result: `Google a acceptat aplicarea, dar la recitire lipsesc: ${missing.join(', ')}`,
+          }
+        : {
+            verified: true,
+            result: `Confirmat în Google: ${expected.length} elemente active pe campanie.`,
+          };
+    }
+    if (
+      type === 'RESPONSIVE_SEARCH_AD_ASSET' ||
+      type === 'RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH'
+    ) {
+      const ad =
+        type === 'RESPONSIVE_SEARCH_AD_ASSET'
+          ? recommendation?.responsiveSearchAdAssetRecommendation?.currentAd
+          : recommendation?.responsiveSearchAdImproveAdStrengthRecommendation?.recommendedAd;
+      const adId = ad?.resourceName?.split('/').pop();
+      if (adId) {
+        const rows = await this.client.search(
+          'SELECT ad_group_ad.ad.id, ad_group_ad.ad_strength, ad_group_ad.ad.responsive_search_ad.headlines ' +
+            `FROM ad_group_ad WHERE ad_group_ad.ad.id = ${adId}`,
+        );
+        const live = rows[0]?.adGroupAd as
+          | {
+              adStrength?: string;
+              ad?: { responsiveSearchAd?: { headlines?: { text?: string }[] } };
+            }
+          | undefined;
+        const n = live?.ad?.responsiveSearchAd?.headlines?.length ?? 0;
+        return live
+          ? {
+              verified: true,
+              result: `Confirmat în Google: reclama are acum ${n} titluri; Ad Strength citit: ${live.adStrength ?? 'indisponibil'} (poate fi recalculat de Google în următoarele ore).`,
+            }
+          : {
+              verified: false,
+              result: 'Google a acceptat aplicarea, dar reclama nu a putut fi recitită.',
+            };
+      }
+    }
+    const still = await this.client.search(
+      `SELECT recommendation.resource_name FROM recommendation WHERE recommendation.resource_name = '${resourceName}'`,
+    );
+    return still.length
+      ? {
+          verified: false,
+          result:
+            'Google a acceptat aplicarea (răspuns API), dar recomandarea apare încă în listă; se reverifică la următorul ciclu.',
+        }
+      : {
+          verified: true,
+          result: 'Confirmat în Google: recomandarea a fost aplicată și nu mai este listată.',
+        };
   }
 
   /**

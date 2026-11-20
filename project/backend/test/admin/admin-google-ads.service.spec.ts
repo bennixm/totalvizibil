@@ -25,12 +25,18 @@ function fakeSettings(
 }
 
 function fakeClient(
-  overrides: { configured?: boolean; customerId?: string; email?: string | null } = {},
+  overrides: {
+    configured?: boolean;
+    customerId?: string;
+    email?: string | null;
+    writesAllowed?: boolean;
+  } = {},
 ) {
   return {
     configured: overrides.configured ?? false,
     customerId: overrides.customerId ?? '',
     serviceAccountEmail: overrides.email ?? null,
+    writesAllowed: overrides.writesAllowed ?? true,
   } as never;
 }
 
@@ -70,6 +76,7 @@ function fakePrisma() {
         .mockResolvedValueOnce({ _sum: { amountMinor: 5000 } }), // month
     },
     category: { count: jest.fn().mockResolvedValue(4) },
+    googleAdsCampaignSnapshot: { findMany: jest.fn().mockResolvedValue([]) },
     googleAdsAgentRun: {
       findFirst: jest.fn().mockResolvedValue({ id: 'run-x', status: 'success' }),
     },
@@ -208,7 +215,7 @@ describe('AdminGoogleAdsService', () => {
     const { svc } = makeService();
     const result = await svc.listActions({ page: 1, pageSize: 20 });
     expect(result).toEqual({
-      items: [{ id: 'action-1', status: 'pending_approval' }],
+      items: [{ id: 'action-1', status: 'pending_approval', preview: { sections: [] } }],
       page: 1,
       pageSize: 20,
       total: 1,
@@ -235,7 +242,7 @@ describe('AdminGoogleAdsService', () => {
 
     const result = await svc.listActions({ action: 'putere', page: 1, pageSize: 20 });
 
-    expect(result.items).toEqual([rows[0]]);
+    expect(result.items).toEqual([expect.objectContaining(rows[0])]);
     expect(result.total).toBe(1);
   });
 
@@ -249,7 +256,7 @@ describe('AdminGoogleAdsService', () => {
 
     const result = await svc.listActions({ action: 'lipsei', page: 1, pageSize: 20 });
 
-    expect(result.items).toEqual([rows[1]]);
+    expect(result.items).toEqual([expect.objectContaining(rows[1])]);
   });
 
   it('runNow() dispatches to the right agent service per kind', async () => {
@@ -260,6 +267,16 @@ describe('AdminGoogleAdsService', () => {
     expect(agents.structural.run).toHaveBeenCalledTimes(1);
     expect(agents.content.run).toHaveBeenCalledTimes(1);
     expect(agents.intelligence.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('runNow() refuses the write-based passes where Google Ads writes are disabled', () => {
+    const { svc, agents } = makeService({ client: fakeClient({ writesAllowed: false }) });
+    expect(() => svc.runNow('structural')).toThrow(/blocate/);
+    expect(() => svc.runNow('content')).toThrow(/blocate/);
+    expect(() => svc.runNow('intelligence')).toThrow(/blocate/);
+    expect(agents.structural.run).not.toHaveBeenCalled();
+    expect(agents.content.run).not.toHaveBeenCalled();
+    expect(agents.intelligence.run).not.toHaveBeenCalled();
   });
 
   it("runNow() returns immediately (doesn't await the pass) and doesn't throw or crash on an unhandled rejection", async () => {

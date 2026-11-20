@@ -18,9 +18,13 @@ function fakeConfig(values: {
   googleAdsServiceAccountKeyBase64?: string;
   googleAdsCustomerId?: string;
   googleAdsLoginCustomerId?: string;
+  nodeEnv?: string;
 }) {
+  // Production by default: writes are only allowed there (see
+  // GoogleAdsApiClient.writesAllowed); the write-guard tests below opt out.
+  const all: Record<string, string | undefined> = { nodeEnv: 'production', ...values };
   return {
-    get: (key: string) => (values as Record<string, string | undefined>)[key] ?? '',
+    get: (key: string) => all[key] ?? '',
   } as never;
 }
 
@@ -38,9 +42,9 @@ const VALID_KEY_BASE64 = Buffer.from(
   JSON.stringify({ client_email: 'svc@example.iam.gserviceaccount.com', private_key: 'fake-key' }),
 ).toString('base64');
 
-async function configuredClient(): Promise<GoogleAdsApiClient> {
+async function configuredClient(nodeEnv = 'production'): Promise<GoogleAdsApiClient> {
   const client = new GoogleAdsApiClient(
-    fakeConfig({}),
+    fakeConfig({ nodeEnv }),
     fakeSettings({
       keyBase64: VALID_KEY_BASE64,
       customerId: '1234567890',
@@ -218,5 +222,52 @@ describe('GoogleAdsApiClient', () => {
     jest.spyOn(JWT.prototype, 'getAccessToken').mockResolvedValue({ token: undefined } as never);
     const client = await configuredClient();
     await expect(client.search('SELECT 1')).rejects.toThrow(/no access token/i);
+  });
+
+  describe('write guard (writes only in production)', () => {
+    const okResponse = () =>
+      ({ ok: true, json: async () => ({ mutateOperationResponses: [] }) }) as Response;
+
+    afterEach(() => {
+      delete process.env.GOOGLE_ADS_ALLOW_WRITES;
+    });
+
+    it('blocks mutate and applyRecommendations outside production, without any HTTP call', async () => {
+      jest.spyOn(JWT.prototype, 'getAccessToken').mockResolvedValue({ token: 't' } as never);
+      const fetchSpy = jest.spyOn(global, 'fetch');
+      const client = await configuredClient('development');
+      expect(client.writesAllowed).toBe(false);
+      await expect(client.mutate([{ campaignOperation: { create: {} } }])).rejects.toThrow(
+        /writes are disabled/i,
+      );
+      await expect(client.applyRecommendations(['customers/1/recommendations/2'])).rejects.toThrow(
+        /writes are disabled/i,
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('still allows validateOnly mutates outside production, and sends validateOnly:true', async () => {
+      jest.spyOn(JWT.prototype, 'getAccessToken').mockResolvedValue({ token: 't' } as never);
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(okResponse());
+      const client = await configuredClient('development');
+      await client.mutate([{ campaignOperation: { create: {} } }], { validateOnly: true });
+      const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
+      expect(body.validateOnly).toBe(true);
+    });
+
+    it('GOOGLE_ADS_ALLOW_WRITES=true deliberately re-enables writes outside production', async () => {
+      process.env.GOOGLE_ADS_ALLOW_WRITES = 'true';
+      const client = await configuredClient('development');
+      expect(client.writesAllowed).toBe(true);
+    });
+
+    it('a normal production mutate does not send validateOnly', async () => {
+      jest.spyOn(JWT.prototype, 'getAccessToken').mockResolvedValue({ token: 't' } as never);
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(okResponse());
+      const client = await configuredClient();
+      await client.mutate([{ campaignOperation: { create: {} } }]);
+      const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
+      expect(body.validateOnly).toBeUndefined();
+    });
   });
 });

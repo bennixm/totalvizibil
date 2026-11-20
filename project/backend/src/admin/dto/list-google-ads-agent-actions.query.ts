@@ -13,8 +13,8 @@ export class ListGoogleAdsAgentActionsQuery {
   action?: string;
 
   @IsOptional()
-  @IsIn(['applied', 'pending_approval', 'rejected'])
-  status?: 'applied' | 'pending_approval' | 'rejected';
+  @IsIn(['applied', 'pending_approval', 'rejected', 'failed', 'approved', 'superseded'])
+  status?: 'applied' | 'pending_approval' | 'rejected' | 'failed' | 'approved' | 'superseded';
 
   @IsOptional()
   @IsISO8601()

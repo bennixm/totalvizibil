@@ -7,6 +7,9 @@ import { GoogleAdsAgentStructuralService } from './google-ads-agent-structural.s
 import { GoogleAdsApiClient } from './google-ads-api-client.service';
 import { GoogleAdsCpcSyncService } from './google-ads-cpc-sync.service';
 import { GoogleAdsReferenceDataService } from './google-ads-reference-data.service';
+import { GoogleAdsMonitorService } from './optimization/google-ads-monitor.service';
+import { GoogleAdsOptimizerService } from './optimization/google-ads-optimizer.service';
+import { GoogleAdsProposalWorkflowService } from './optimization/google-ads-proposal-workflow.service';
 
 /** `PlatformSettingsService`, `AiService` and `ConfigService` are all
  *  global — nothing to wire up for those. `AnalyticsModule` is imported for
@@ -28,6 +31,9 @@ import { GoogleAdsReferenceDataService } from './google-ads-reference-data.servi
     GoogleAdsAgentStructuralService,
     GoogleAdsAgentContentService,
     GoogleAdsAgentIntelligenceService,
+    GoogleAdsOptimizerService,
+    GoogleAdsProposalWorkflowService,
+    GoogleAdsMonitorService,
   ],
   exports: [
     GoogleAdsApiClient,
@@ -36,6 +42,9 @@ import { GoogleAdsReferenceDataService } from './google-ads-reference-data.servi
     GoogleAdsAgentStructuralService,
     GoogleAdsAgentContentService,
     GoogleAdsAgentIntelligenceService,
+    GoogleAdsOptimizerService,
+    GoogleAdsProposalWorkflowService,
+    GoogleAdsMonitorService,
   ],
 })
 export class GoogleAdsModule {}

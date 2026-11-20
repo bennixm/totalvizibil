@@ -25,6 +25,7 @@ function fakeClient(
 ) {
   return {
     configured: overrides.configured ?? true,
+    writesAllowed: true,
     customerId: '1234567890',
     mutate: overrides.mutate ?? jest.fn().mockResolvedValue([]),
     search: overrides.search ?? jest.fn().mockResolvedValue([NATIONWIDE_CRITERION_ROW]),

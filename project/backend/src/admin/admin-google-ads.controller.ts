@@ -17,12 +17,17 @@ import { AuditLogService } from './audit-log.service';
 import { AdminGoogleAdsService, GoogleAdsAgentRunKindParam } from './admin-google-ads.service';
 import { ListGoogleAdsAgentActionsQuery } from './dto/list-google-ads-agent-actions.query';
 import { UpdateGoogleAdsCredentialsDto } from './dto/update-google-ads-credentials.dto';
+import {
+  ApproveGoogleAdsProposalDto,
+  ReviseGoogleAdsProposalDto,
+} from './dto/google-ads-proposal.dto';
 import { GOOGLE_ADS_RECOMMENDATION_CATALOG } from '../google-ads/google-ads-recommendation-catalog';
 
 enum RunKind {
   structural = 'structural',
   content = 'content',
   intelligence = 'intelligence',
+  monitor = 'monitor',
 }
 
 /**
@@ -91,9 +96,15 @@ export class AdminGoogleAdsController {
     return this.service.listProposals();
   }
 
+  /** `contentHash` = the hash of the content the admin saw; approval is
+   *  refused if the proposal changed since. */
   @Post('proposals/:id/approve')
-  async approveProposal(@CurrentUser() caller: AuthPrincipal, @Param('id') id: string) {
-    await this.service.approveProposal(id, caller.id);
+  async approveProposal(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: ApproveGoogleAdsProposalDto,
+  ) {
+    const result = await this.service.approveProposalChecked(id, caller.id, body?.contentHash);
     await this.audit.log({
       actorId: caller.id,
       actorRoles: caller.platformRoles,
@@ -101,7 +112,37 @@ export class AdminGoogleAdsController {
       targetType: 'google_ads_agent_action',
       targetId: id,
     });
-    return { ok: true };
+    // The actual outcome as reported/verified through Google Ads.
+    return result
+      ? {
+          ok: true,
+          status: result.status,
+          executionResult: result.executionResult,
+          verifiedAt: result.verifiedAt,
+          errorMessage: result.errorMessage,
+        }
+      : { ok: true };
+  }
+
+  /** "Recomandă manual": the admin's instructions → a corrected proposal,
+   *  queued again for approval. Never executes anything. */
+  @Post('proposals/:id/revise')
+  async reviseProposal(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: ReviseGoogleAdsProposalDto,
+  ) {
+    const created = await this.service.reviseProposal(id, caller.id, body.instructions);
+    await this.audit.log({
+      actorId: caller.id,
+      actorRoles: caller.platformRoles,
+      action: 'google_ads_agent.proposal.revise',
+      targetType: 'google_ads_agent_action',
+      targetId: id,
+      after: { newProposalId: created.id },
+      reason: body.instructions.slice(0, 500),
+    });
+    return created;
   }
 
   @Post('proposals/:id/reject')
@@ -120,6 +161,38 @@ export class AdminGoogleAdsController {
   @Get('campaigns')
   listCampaigns() {
     return this.service.listCampaigns();
+  }
+
+  // --- continuous optimization (GoogleAdsMonitorService) ---------------
+
+  @Get('optimization/summary')
+  optimizationSummary() {
+    return this.service.optimizationSummary();
+  }
+
+  @Get('optimization/campaigns')
+  optimizationCampaigns() {
+    return this.service.optimizationCampaigns();
+  }
+
+  @Get('optimization/campaigns/:googleCampaignId')
+  optimizationCampaign(@Param('googleCampaignId') googleCampaignId: string) {
+    return this.service.optimizationCampaign(googleCampaignId);
+  }
+
+  /** Live activity feed; `after` = ISO timestamp for incremental polling. */
+  @Get('activity')
+  activity(
+    @Query('after') after?: string,
+    @Query('googleCampaignId') googleCampaignId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const afterDate = after ? new Date(after) : undefined;
+    return this.service.activity({
+      after: afterDate && !Number.isNaN(afterDate.getTime()) ? afterDate : undefined,
+      googleCampaignId: googleCampaignId?.slice(0, 40) || undefined,
+      limit: limit ? Number(limit) || undefined : undefined,
+    });
   }
 
   @Get('actions')

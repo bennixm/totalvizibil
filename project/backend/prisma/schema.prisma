@@ -391,6 +391,15 @@ enum GoogleAdsActionStatus {
   applied
   pending_approval
   rejected
+  // Sent to Google but the call failed, or the post-apply verification
+  // re-read did not find the change (see GoogleAdsOptimizerService).
+  failed
+  // Approved by an admin and claimed for execution (atomic transition from
+  // pending_approval) — the guard against executing the same approval twice.
+  approved
+  // Replaced by a corrected revision after an admin's manual instructions
+  // (see `revisionOfId` on the newer row); can no longer be approved.
+  superseded
 }
 
 /**
@@ -417,6 +426,33 @@ model GoogleAdsAgentAction {
   // Claude's explanation for a proposal, shown next to it in the admin panel.
   reasoning String?
 
+  // The Google campaign this action concerns, when known (optimizer
+  // actions; older rows only carry `categoryId`).
+  googleCampaignId String?   @map("google_campaign_id")
+  // True when the action had to wait for an admin decision (queued as
+  // `pending_approval`), whatever the outcome. Kept explicitly so history
+  // can say "required approval" even after approval/rejection.
+  requiredApproval Boolean   @default(false) @map("required_approval")
+  // Set once a re-read from Google confirmed the change is live.
+  verifiedAt       DateTime? @map("verified_at")
+  errorMessage     String?   @map("error_message")
+  // Human-readable outcome of the execution as reported by Google (what
+  // was applied, what the verification re-read found, Ad Strength after).
+  executionResult  String?   @map("execution_result")
+  // Revision chain: this row was prepared from `revisionOfId` following an
+  // admin's `manualInstructions`. Always created as pending_approval —
+  // instructions never authorize execution by themselves.
+  revisionOfId       String? @map("revision_of_id") @db.Uuid
+  manualInstructions String? @map("manual_instructions")
+  // Hash of the exact content shown for approval; approval is refused when
+  // the content changed since it was displayed.
+  contentHash        String? @map("content_hash")
+  // Performance observation: campaign metrics (last 30 days) at execution,
+  // and the same window measured again ~30 days later. Observational only.
+  metricsAtApply     Json?     @map("metrics_at_apply")
+  metricsObserved    Json?     @map("metrics_observed")
+  observedAt         DateTime? @map("observed_at")
+
   approvedByUserId String?   @map("approved_by_user_id") @db.Uuid
   approvedAt       DateTime? @map("approved_at")
 
@@ -434,6 +470,9 @@ enum GoogleAdsAgentRunKind {
   structural
   content
   intelligence
+  // Continuous monitoring + optimization cycle (GoogleAdsMonitorService):
+  // sync, analyze, score, fill creative gaps, verify.
+  monitor
 }
 
 enum GoogleAdsAgentRunStatus {
@@ -2012,4 +2051,78 @@ model FxRate {
   @@id([date, currency])
   @@index([currency, date])
   @@map("fx_rates")
+}
+
+/**
+ * Latest monitoring state of ONE Google Ads campaign (any campaign in the
+ * account, managed by the agent or not), rewritten every monitor cycle by
+ * GoogleAdsMonitorService from real Google Ads API data. `score` is our own
+ * transparent optimization score (0-100, null when nothing applicable could
+ * be evaluated); Google's own Ad Strength is stored separately in
+ * `adStrength` (it is also one listed score component, never hidden inside
+ * it). `scoreBreakdown`/`issues`/`assets` hold the evaluator output the
+ * admin detail page renders.
+ */
+model GoogleAdsCampaignSnapshot {
+  id                   String    @id @default(uuid()) @db.Uuid
+  googleCampaignId     String    @unique @map("google_campaign_id")
+  name                 String
+  channelType          String    @map("channel_type")
+  status               String
+  primaryStatus        String?   @map("primary_status")
+  primaryStatusReasons String[]  @map("primary_status_reasons")
+  biddingStrategyType  String?   @map("bidding_strategy_type")
+  // True = created/managed by the agent (has a GoogleAdsSubcategoryCampaign
+  // mapping). Only managed campaigns are ever modified by the optimizer.
+  managed              Boolean   @default(false)
+  categoryId           String?   @map("category_id") @db.Uuid
+  currencyCode         String?   @map("currency_code")
+  dailyBudgetMicros    String?   @map("daily_budget_micros")
+  // { current: {...}, previous: {...}, periodDays } — see the monitor service.
+  metrics              Json
+  adStrength           String?   @map("ad_strength")
+  score                Int?
+  scoreBreakdown       Json      @map("score_breakdown")
+  issues               Json
+  assets               Json
+  syncedAt             DateTime  @map("synced_at")
+  lastOptimizedAt      DateTime? @map("last_optimized_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@map("google_ads_campaign_snapshots")
+}
+
+enum GoogleAdsAgentEventStatus {
+  running
+  completed
+  failed
+  waiting_approval
+  skipped
+}
+
+/**
+ * The agent's real-time activity feed: one row per actual step the
+ * monitor/optimizer performs (a query, an analysis, a Google validation,
+ * an apply, a verification). Written as `running` when the step starts and
+ * updated when it ends, so the admin panel shows what is happening as it
+ * happens. Never written by anything but real work; pruned after 30 days.
+ */
+model GoogleAdsAgentEvent {
+  id               String                    @id @default(uuid()) @db.Uuid
+  runId            String?                   @map("run_id") @db.Uuid
+  googleCampaignId String?                   @map("google_campaign_id")
+  campaignName     String?                   @map("campaign_name")
+  step             String
+  message          String
+  status           GoogleAdsAgentEventStatus
+  result           String?
+  details          Json?
+  startedAt        DateTime                  @default(now()) @map("started_at")
+  finishedAt       DateTime?                 @map("finished_at")
+
+  @@index([startedAt])
+  @@index([runId])
+  @@index([googleCampaignId, startedAt])
+  @@map("google_ads_agent_events")
 }

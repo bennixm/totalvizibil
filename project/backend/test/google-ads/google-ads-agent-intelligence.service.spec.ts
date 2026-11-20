@@ -11,6 +11,7 @@ import { GoogleAdsAgentIntelligenceService } from 'src/google-ads/google-ads-age
 function fakeClient(overrides: { configured?: boolean; mutate?: jest.Mock } = {}) {
   return {
     configured: overrides.configured ?? true,
+    writesAllowed: true,
     customerId: '1234567890',
     mutate: overrides.mutate ?? jest.fn().mockResolvedValue([]),
   } as never;
@@ -23,6 +24,7 @@ function fakeRefData() {
 function fakeAi(overrides: { configured?: boolean; proposals?: jest.Mock } = {}) {
   return {
     configured: overrides.configured ?? true,
+    writesAllowed: true,
     googleAdsBudgetIntelligence:
       overrides.proposals ?? jest.fn().mockResolvedValue({ proposals: [], costEstimateMinor: 0 }),
   } as never;

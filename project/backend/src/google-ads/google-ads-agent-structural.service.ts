@@ -90,6 +90,10 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
 
   private async tick(): Promise<void> {
     if (!this.client.configured) return;
+    // Write-based pass: skipped entirely where Google Ads writes are
+    // disabled (outside production, see GoogleAdsApiClient.writesAllowed)
+    // instead of failing against the real account every poll.
+    if (!this.client.writesAllowed) return;
     if (!(await this.settings.googleAdsAgentEnabled())) return;
     if (!(await this.isDue())) return;
     try {
@@ -223,7 +227,7 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
 
   private async runDebouncedRecheck(categoryId: string): Promise<void> {
     this.pendingRechecks.delete(categoryId);
-    if (!this.client.configured) return;
+    if (!this.client.configured || !this.client.writesAllowed) return;
     if (!(await this.settings.googleAdsAgentEnabled())) return;
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },

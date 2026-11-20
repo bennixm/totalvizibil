@@ -104,6 +104,10 @@ export interface GoogleAdsMutateOperation {
   campaignAssetOperation?: GoogleAdsOperationBody;
   /** The one account-wide conversion action — Direction 3. */
   conversionActionOperation?: GoogleAdsOperationBody;
+  /** In-place update of an existing ad (e.g. a Responsive Search Ad's
+   *  headlines/descriptions) — the optimizer's gap-fill. Confirmed against
+   *  the live API with a validateOnly request before being used. */
+  adOperation?: GoogleAdsOperationBody;
 }
 
 interface GoogleAdsOperationBody {
@@ -152,6 +156,24 @@ export interface GoogleAdsApplyRecommendationOperation {
   responsiveSearchAdImproveAdStrength?: { updatedAd: GoogleAdsRecommendedAd };
 }
 
+/**
+ * Thrown by every WRITE call (`mutate`, `applyRecommendations`) when writes
+ * are disabled for this process — see `GoogleAdsApiClient.writesAllowed`.
+ * Callers that can run read-only (the monitor/optimizer) check
+ * `writesAllowed` first and skip the write step with an explicit activity
+ * event; anything else that reaches a write gets this loud error instead of
+ * silently changing a real, money-spending account from a dev machine.
+ */
+export class GoogleAdsWritesDisabledError extends Error {
+  constructor() {
+    super(
+      'Google Ads writes are disabled outside production (NODE_ENV != production). ' +
+        'Set GOOGLE_ADS_ALLOW_WRITES=true to allow them deliberately.',
+    );
+    this.name = 'GoogleAdsWritesDisabledError';
+  }
+}
+
 /** One `Invoice` as InvoiceService.ListInvoices returns it (REST/JSON
  *  camelCase; int64 micros arrive as strings). Only the fields read here. */
 export interface GoogleAdsInvoice {
@@ -191,6 +213,7 @@ export interface GoogleAdsMutateResult {
   assetResult?: { resourceName?: string };
   campaignAssetResult?: { resourceName?: string };
   conversionActionResult?: { resourceName?: string };
+  adResult?: { resourceName?: string };
 }
 
 interface GoogleAdsMutateResponse {
@@ -351,6 +374,20 @@ export class GoogleAdsApiClient implements OnModuleInit {
     return !!this.jwtClient;
   }
 
+  /**
+   * Whether this process may WRITE to the Google Ads account (mutate /
+   * apply recommendation). Only in production by default: local and
+   * staging environments share the same real account credentials, and a
+   * dev machine creating or editing live campaigns is exactly what this
+   * guard prevents. `GOOGLE_ADS_ALLOW_WRITES=true` is the deliberate
+   * override (e.g. a dedicated test account). Reads (`search`) and
+   * `validateOnly` mutates are always allowed — they change nothing.
+   */
+  get writesAllowed(): boolean {
+    if (process.env.GOOGLE_ADS_ALLOW_WRITES?.trim().toLowerCase() === 'true') return true;
+    return this.config.get('nodeEnv', { infer: true }) === 'production';
+  }
+
   get customerId(): string {
     return this._customerId;
   }
@@ -399,15 +436,25 @@ export class GoogleAdsApiClient implements OnModuleInit {
    * Ads API's standard temporary-id convention — the caller is responsible
    * for building those references correctly; this method just sends them.
    */
-  async mutate(operations: GoogleAdsMutateOperation[]): Promise<GoogleAdsMutateResult[]> {
+  async mutate(
+    operations: GoogleAdsMutateOperation[],
+    opts: { validateOnly?: boolean } = {},
+  ): Promise<GoogleAdsMutateResult[]> {
     if (!operations.length) return [];
+    if (!opts.validateOnly && !this.writesAllowed) throw new GoogleAdsWritesDisabledError();
     const headers = await this.headers();
     const res = await fetch(
       `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}/googleAds:mutate`,
       {
         method: 'POST',
         headers,
-        body: JSON.stringify({ mutateOperations: operations, partialFailure: false }),
+        body: JSON.stringify({
+          mutateOperations: operations,
+          partialFailure: false,
+          // Google checks the whole request (formats, limits, policy) and
+          // executes nothing — the optimizer's pre-flight before every write.
+          ...(opts.validateOnly ? { validateOnly: true } : {}),
+        }),
       },
     );
     const data = (await res.json()) as GoogleAdsMutateResponse;
@@ -479,6 +526,7 @@ export class GoogleAdsApiClient implements OnModuleInit {
     operations: (string | GoogleAdsApplyRecommendationOperation)[],
   ): Promise<string[]> {
     if (!operations.length) return [];
+    if (!this.writesAllowed) throw new GoogleAdsWritesDisabledError();
     const headers = await this.headers();
     const res = await fetch(
       `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}:applyRecommendation`,
