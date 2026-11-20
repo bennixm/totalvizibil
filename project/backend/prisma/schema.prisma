@@ -390,6 +390,28 @@ model GoogleAdsSubcategoryCampaign {
   @@map("google_ads_subcategory_campaigns")
 }
 
+/**
+ * Mappings set aside because their campaign is not in the Google Ads account
+ * the agent is currently connected to (the admin switched accounts, e.g. to a
+ * test account). The structural pass then creates fresh campaigns for those
+ * subcategories in the new account, and when the old account comes back, any
+ * archived row whose campaign exists there again is restored as-is, so the
+ * agent never duplicates campaigns in the real account. `data` is the whole
+ * original GoogleAdsSubcategoryCampaign row.
+ */
+model GoogleAdsSubcategoryCampaignArchive {
+  id                   String   @id @default(uuid()) @db.Uuid
+  categoryId           String   @map("category_id") @db.Uuid
+  googleCampaignId     String   @unique @map("google_campaign_id")
+  /// The account the agent was on when this was archived (NOT the owner).
+  archivedOnCustomerId String   @map("archived_on_customer_id")
+  data                 Json
+  archivedAt           DateTime @default(now()) @map("archived_at")
+
+  @@index([categoryId])
+  @@map("google_ads_subcategory_campaign_archive")
+}
+
 enum GoogleAdsActionStatus {
   applied
   pending_approval

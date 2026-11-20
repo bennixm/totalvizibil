@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { foldCounty } from '../geo/ro-cities';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -8,6 +8,7 @@ import { notifyAdminsOfFailedGoogleAdsAgentRun } from './google-ads-agent-alerts
 import { GoogleAdsApiClient, GoogleAdsMutateOperation } from './google-ads-api-client.service';
 import { creditsToAmountMicros } from './google-ads-money';
 import { fetchOwnKeywords, pushNegativesOntoSiblings } from './google-ads-negative-keywords';
+import { GoogleAdsAccountScopeService } from './google-ads-account-scope.service';
 import { GoogleAdsAgentRecommendationsService } from './google-ads-agent-recommendations.service';
 import { GoogleAdsReferenceDataService } from './google-ads-reference-data.service';
 
@@ -81,6 +82,7 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly recommendations: GoogleAdsAgentRecommendationsService,
+    @Optional() private readonly scope?: GoogleAdsAccountScopeService,
   ) {}
 
   onModuleInit(): void {
@@ -125,6 +127,10 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
   /** Runs one full structural pass. Exposed (not private) so the admin "Run
    *  now" endpoint can trigger it directly, outside its own cadence. */
   async run(): Promise<void> {
+    // The account may have been switched (e.g. to a test account): set
+    // aside mappings whose campaign isn't in it so they get created here,
+    // and bring back ones whose campaign is here again. Always re-checked.
+    await this.scope?.ensure({ force: true });
     const existing = await this.prisma.googleAdsAgentRun.findFirst({
       where: { kind: 'structural', status: 'in_progress' },
       orderBy: { startedAt: 'desc' },
@@ -234,6 +240,7 @@ export class GoogleAdsAgentStructuralService implements OnModuleInit {
       include: { parent: true, googleAdsCampaign: true },
     });
     if (!category || !category.isActive) return;
+    await this.scope?.ensure();
     try {
       await this.reconcileCategory(category);
     } catch (err) {
