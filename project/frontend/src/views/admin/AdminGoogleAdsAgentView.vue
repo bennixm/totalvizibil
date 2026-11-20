@@ -23,7 +23,12 @@ import type { LocalizedName } from '@/stores/companies'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import { useMoney } from '@/composables/useMoney'
-import { ApiError } from '@/services/api'
+import {
+  AGENT_SETTING_LIMITS,
+  gaErrorText,
+  settingProblem,
+  type LimitedSetting,
+} from '@/components/admin/google-ads/gaErrors'
 import {
   googleAdsOptimizationApi,
   type GoogleAdsOptimizationSummary,
@@ -39,8 +44,9 @@ const { credits, approx } = useMoney()
 function flash(text: string, color: 'success' | 'error' = 'success') {
   toasts.push(color === 'error' ? 'error' : 'success', text)
 }
+/** Readable text for any API failure (validation, timeout, HTTP status). */
 function errText(e: unknown, fb: string) {
-  return e instanceof ApiError ? e.message : fb
+  return gaErrorText(e, t, fb)
 }
 function localName(n: LocalizedName | undefined, fallback: string): string {
   return n?.[locale.value as 'ro' | 'en' | 'de'] ?? n?.en ?? n?.ro ?? fallback
@@ -446,8 +452,37 @@ watch(
   },
   { immediate: true },
 )
+/** Per-field problems, checked before anything is sent (same limits as the
+ *  backend), so a value under/over the limit is explained next to the field. */
+const settingErrors = computed(() => {
+  const out: Partial<Record<LimitedSetting, string>> = {}
+  for (const k of Object.keys(AGENT_SETTING_LIMITS) as LimitedSetting[]) {
+    const p = settingProblem(k, settingsForm[k], t)
+    if (p) out[k] = p
+  }
+  return out
+})
+function fieldErr(k: LimitedSetting): string[] {
+  const p = settingErrors.value[k]
+  return p ? [p] : []
+}
 const savingSettings = ref(false)
 async function saveSettings() {
+  if (Object.keys(settingErrors.value).length) {
+    // Advanced cadences live in a collapsed block: open it if one is wrong.
+    if (
+      (
+        [
+          'googleAdsAgentStructuralIntervalMinutes',
+          'googleAdsAgentContentIntervalMinutes',
+          'googleAdsAgentIntelligenceIntervalMinutes',
+        ] as LimitedSetting[]
+      ).some((k) => settingErrors.value[k])
+    )
+      showAdvancedSettings.value = true
+    flash(t('adminGoogleAdsErr.fixFields'), 'error')
+    return
+  }
   savingSettings.value = true
   try {
     await admin.updateSettings({ ...settingsForm })
@@ -532,8 +567,33 @@ watch(
   },
   { immediate: true },
 )
+const credentialErrors = computed(() => {
+  const id = (v: string) => !v.trim() || /^\d{10}$/.test(v.replace(/[-\s]/g, ''))
+  const out: Partial<Record<keyof typeof credentialsForm, string>> = {}
+  if (!id(credentialsForm.customerId)) out.customerId = t('adminGoogleAdsErr.customerId')
+  if (!id(credentialsForm.loginCustomerId)) out.loginCustomerId = t('adminGoogleAdsErr.customerId')
+  if (credentialsForm.campaignId.trim() && !/^\d+$/.test(credentialsForm.campaignId.trim()))
+    out.campaignId = t('adminGoogleAdsErr.fieldNumber', {
+      field: t('adminGoogleAds.accountCampaignId'),
+    })
+  const key = credentialsForm.serviceAccountKeyBase64.trim()
+  if (key) {
+    try {
+      const json = JSON.parse(atob(key)) as { client_email?: unknown; private_key?: unknown }
+      if (typeof json.client_email !== 'string' || typeof json.private_key !== 'string')
+        throw new Error('missing fields')
+    } catch {
+      out.serviceAccountKeyBase64 = t('adminGoogleAdsErr.serviceKey')
+    }
+  }
+  return out
+})
 const savingCredentials = ref(false)
 async function saveCredentials() {
+  if (Object.keys(credentialErrors.value).length) {
+    flash(t('adminGoogleAdsErr.fixFields'), 'error')
+    return
+  }
   savingCredentials.value = true
   try {
     const input: Record<string, string> = {
@@ -1253,7 +1313,8 @@ function cancelEditCredentials() {
                 suffix="min"
                 variant="outlined"
                 density="compact"
-                hide-details
+                :error-messages="fieldErr('googleAdsAgentMonitorIntervalMinutes')"
+                hide-details="auto"
                 class="sinput"
               />
             </div>
@@ -1272,7 +1333,8 @@ function cancelEditCredentials() {
                 max="90"
                 variant="outlined"
                 density="compact"
-                hide-details
+                :error-messages="fieldErr('googleAdsAgentCreativeCooldownDays')"
+                hide-details="auto"
                 class="sinput"
               />
             </div>
@@ -1296,7 +1358,8 @@ function cancelEditCredentials() {
                   suffix="cr"
                   variant="outlined"
                   density="compact"
-                  hide-details
+                  :error-messages="fieldErr('googleAdsAgentDefaultDailyBudgetCredits')"
+                  hide-details="auto"
                 />
               </label>
               <label class="sfield">
@@ -1317,7 +1380,8 @@ function cancelEditCredentials() {
                   suffix="cr"
                   variant="outlined"
                   density="compact"
-                  hide-details
+                  :error-messages="fieldErr('googleAdsAgentDefaultMaxCpcCredits')"
+                  hide-details="auto"
                 />
               </label>
               <label class="sfield">
@@ -1332,7 +1396,8 @@ function cancelEditCredentials() {
                   suffix="cr"
                   variant="outlined"
                   density="compact"
-                  hide-details
+                  :error-messages="fieldErr('googleAdsAgentMaxDailyBudgetCapCredits')"
+                  hide-details="auto"
                 />
               </label>
               <label class="sfield">
@@ -1347,7 +1412,8 @@ function cancelEditCredentials() {
                   suffix="cr"
                   variant="outlined"
                   density="compact"
-                  hide-details
+                  :error-messages="fieldErr('googleAdsAgentMaxCpcCapCredits')"
+                  hide-details="auto"
                 />
               </label>
             </div>
@@ -1423,7 +1489,8 @@ function cancelEditCredentials() {
                   suffix="min"
                   variant="outlined"
                   density="compact"
-                  hide-details
+                  :error-messages="fieldErr('googleAdsAgentStructuralIntervalMinutes')"
+                  hide-details="auto"
                 />
               </label>
               <label class="sfield">
@@ -1438,7 +1505,8 @@ function cancelEditCredentials() {
                   suffix="min"
                   variant="outlined"
                   density="compact"
-                  hide-details
+                  :error-messages="fieldErr('googleAdsAgentContentIntervalMinutes')"
+                  hide-details="auto"
                 />
               </label>
               <label class="sfield">
@@ -1453,7 +1521,8 @@ function cancelEditCredentials() {
                   suffix="min"
                   variant="outlined"
                   density="compact"
-                  hide-details
+                  :error-messages="fieldErr('googleAdsAgentIntelligenceIntervalMinutes')"
+                  hide-details="auto"
                 />
               </label>
             </div>
@@ -1515,6 +1584,7 @@ function cancelEditCredentials() {
               <div class="sgrid sgrid--3">
                 <v-text-field
                   v-model="credentialsForm.customerId"
+                  :error-messages="credentialErrors.customerId ?? []"
                   :label="t('adminGoogleAds.accountCustomerId')"
                   :hint="t('adminGoogleAds.accountCustomerIdHint')"
                   persistent-hint
@@ -1523,6 +1593,7 @@ function cancelEditCredentials() {
                 />
                 <v-text-field
                   v-model="credentialsForm.loginCustomerId"
+                  :error-messages="credentialErrors.loginCustomerId ?? []"
                   :label="t('adminGoogleAds.accountLoginCustomerId')"
                   :hint="t('adminGoogleAds.accountLoginCustomerIdHint')"
                   persistent-hint
@@ -1531,6 +1602,7 @@ function cancelEditCredentials() {
                 />
                 <v-text-field
                   v-model="credentialsForm.campaignId"
+                  :error-messages="credentialErrors.campaignId ?? []"
                   :label="t('adminGoogleAds.accountCampaignId')"
                   :hint="t('adminGoogleAds.accountCampaignIdHint')"
                   persistent-hint
@@ -1540,6 +1612,7 @@ function cancelEditCredentials() {
               </div>
               <v-textarea
                 v-model="credentialsForm.serviceAccountKeyBase64"
+                :error-messages="credentialErrors.serviceAccountKeyBase64 ?? []"
                 :label="t('adminGoogleAds.accountKeyLabel')"
                 :placeholder="
                   admin.googleAdsCredentials?.serviceAccountKeyConfigured

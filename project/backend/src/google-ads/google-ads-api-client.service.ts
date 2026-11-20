@@ -191,8 +191,8 @@ async function readJson(res: Response): Promise<unknown> {
 export class GoogleAdsWritesDisabledError extends Error {
   constructor() {
     super(
-      'Google Ads writes are disabled outside production (NODE_ENV != production). ' +
-        'Set GOOGLE_ADS_ALLOW_WRITES=true to allow them deliberately.',
+      'Modificările în contul Google Ads sunt blocate în afara producției ' +
+        '(se pot permite explicit cu GOOGLE_ADS_ALLOW_WRITES=true).',
     );
     this.name = 'GoogleAdsWritesDisabledError';
   }
@@ -255,11 +255,41 @@ function formatApiError(
   error: GoogleAdsApiError | undefined,
   logger: Logger,
 ): Error {
-  const message = error?.message ?? 'unknown error';
+  const message = error?.message ?? 'eroare necunoscută';
   if (error?.details?.length) {
     logger.error(`Google Ads API ${status} full error details: ${JSON.stringify(error.details)}`);
   }
-  return new Error(`Google Ads API ${status}: ${message}`);
+  // The specific reasons live in details[].errors[] (message + errorCode +
+  // field path); the top-level message alone says nothing useful.
+  const reasons = (error?.details ?? [])
+    .flatMap((d) => ((d as { errors?: unknown[] })?.errors ?? []) as Record<string, unknown>[])
+    .map((e) => {
+      const code =
+        e.errorCode && typeof e.errorCode === 'object'
+          ? Object.values(e.errorCode as Record<string, unknown>)[0]
+          : undefined;
+      const field = (
+        (e.location as { fieldPathElements?: { fieldName?: string }[] } | undefined)
+          ?.fieldPathElements ?? []
+      )
+        .map((f) => f.fieldName)
+        .filter(Boolean)
+        .join('.');
+      return [e.message, code && `(${String(code)})`, field && `câmp: ${field}`]
+        .filter(Boolean)
+        .join(' ');
+    })
+    .filter(Boolean);
+  const unique = [...new Set(reasons)].slice(0, 3);
+  return new Error(
+    `Google Ads a respins cererea (HTTP ${status}): ` +
+      (unique.length ? unique.join('; ') : message),
+  );
+}
+
+/** Exposed for unit tests only. */
+export function formatApiErrorForTest(status: number, error: GoogleAdsApiError): Error {
+  return formatApiError(status, error, new Logger('test'));
 }
 
 /**

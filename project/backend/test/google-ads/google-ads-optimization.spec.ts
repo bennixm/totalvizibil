@@ -664,15 +664,25 @@ describe('GoogleAdsOptimizerService.fillGaps — images (Pexels)', () => {
   });
 
   function setup(previousIds: number[] = []) {
-    const mutate = jest.fn().mockResolvedValue([]);
-    let names: string[] = [];
+    const mutate = jest.fn();
+    let linked: string[] = [];
     mutate.mockImplementation(async (ops: any[], o?: { validateOnly?: boolean }) => {
-      if (!o?.validateOnly)
-        names = ops.filter((x) => x.assetOperation).map((x) => x.assetOperation.create.name);
-      return [];
+      if (o?.validateOnly) return [];
+      // Google answers each op; attach ops get a campaignAsset resource name.
+      const res = ops.map((x, i) =>
+        x.campaignAssetOperation
+          ? {
+              campaignAssetResult: { resourceName: `customers/1/campaignAssets/111~${i}~AD_IMAGE` },
+            }
+          : { assetResult: { resourceName: `customers/1/assets/${i}` } },
+      );
+      linked = res.map((r: any) => r.campaignAssetResult?.resourceName).filter(Boolean) as string[];
+      return res;
     });
     const search = jest.fn(async (q: string) =>
-      q.includes("field_type = 'AD_IMAGE'") ? names.map((name) => ({ asset: { name } })) : [],
+      q.includes("field_type = 'AD_IMAGE'")
+        ? linked.map((resourceName) => ({ campaignAsset: { resourceName } }))
+        : [],
     );
     const prisma = {
       googleAdsAgentAction: {

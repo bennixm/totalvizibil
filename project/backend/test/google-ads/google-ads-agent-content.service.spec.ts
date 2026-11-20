@@ -209,7 +209,16 @@ describe('GoogleAdsAgentContentService', () => {
 
     expect(mutate).not.toHaveBeenCalled();
     expect((prisma as any).googleAdsSubcategoryCampaign.update).not.toHaveBeenCalled();
-    expect((prisma as any).googleAdsAgentAction.create).not.toHaveBeenCalled();
+    // The failure is recorded (visible in History), nothing is applied.
+    expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'keywords.updated',
+          status: 'failed',
+          errorMessage: expect.stringMatching(/Nu s-a putut genera planul/),
+        }),
+      }),
+    );
     expect((prisma as any).googleAdsAgentRun.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'success', actionsTaken: 0 }),

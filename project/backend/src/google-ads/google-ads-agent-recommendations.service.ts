@@ -223,7 +223,9 @@ export class GoogleAdsAgentRecommendationsService {
       (action.status !== 'pending_approval' && action.status !== 'approved') ||
       !action.action.startsWith('recommendation.')
     ) {
-      throw new BadRequestException('No pending recommendation proposal with that id');
+      throw new BadRequestException(
+        'Recomandarea nu mai este în așteptare (a fost deja procesată sau ștearsă).',
+      );
     }
     const after = action.after as {
       resourceName?: string;

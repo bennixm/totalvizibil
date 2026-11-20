@@ -259,6 +259,23 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       this.logger.warn(
         `No usable Google Ads keyword plan for category '${category.slug}' — leaving it pending_creation.`,
       );
+      // Visible in History: otherwise the campaign silently stays without
+      // keywords and ads on every run.
+      await this.prisma.googleAdsAgentAction
+        .create({
+          data: {
+            categoryId: category.id,
+            googleCampaignId: mapping.googleCampaignId,
+            action: 'keywords.updated',
+            status: 'failed',
+            errorMessage:
+              `Nu s-a putut genera planul de cuvinte cheie și reclamă (${this.ai.lastFailureReason ?? 'răspuns AI inutilizabil'}). ` +
+              'Campania rămâne fără reclamă, oprită; se reîncearcă automat la următoarea rulare a pasului de conținut.',
+            reasoning:
+              'Crearea reclamei (titluri, descrieri, cuvinte cheie) pentru o campanie nou creată.',
+          },
+        })
+        .catch(() => undefined);
       return {
         activated: false,
         costEstimateMinor: 0,

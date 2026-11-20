@@ -3,7 +3,12 @@ import { defineStore } from 'pinia'
 import { apiFetch, ApiError, BASE_URL } from '@/services/api'
 import type { PlatformRole } from '@/stores/auth'
 import type { BillingProfile, BillingProfileInput } from '@/stores/billing'
-import type { CampaignPayload, CampaignSpend, FeedRankEntry, SaveCampaignInput } from '@/stores/campaign'
+import type {
+  CampaignPayload,
+  CampaignSpend,
+  FeedRankEntry,
+  SaveCampaignInput,
+} from '@/stores/campaign'
 import type { DashboardAnalytics, LocalizedName } from '@/stores/companies'
 import type { WebsiteContent, WebsiteTheme } from '@/types/website'
 import type { ConsumptionEntry, SpendCategory } from '@/stores/wallet'
@@ -609,7 +614,11 @@ export interface AdminCompanyCosts {
   report: CampaignSpend
   breakdown: {
     total: { minor: number; credits: number }
-    categories: Array<{ key: SpendCategory; total: { minor: number; credits: number }; count: number }>
+    categories: Array<{
+      key: SpendCategory
+      total: { minor: number; credits: number }
+      count: number
+    }>
   }
   ledger: { items: ConsumptionEntry[]; nextCursor: string | null }
 }
@@ -699,7 +708,6 @@ export interface GoogleAdsAgentCategoryRef {
   parent?: { slug: string; nameI18n: LocalizedName } | null
 }
 
-
 export interface GoogleAdsAgentActionRow {
   id: string
   categoryId: string
@@ -716,7 +724,12 @@ export interface GoogleAdsAgentActionRow {
   /** Where the change will be applied (proposals list). */
   target?: { campaignName: string | null; googleCampaignId: string | null; level: string } | null
   /** The version this revision replaced (proposals list). */
-  revisionOf?: { id: string; createdAt: string; preview?: GoogleAdsProposalPreview; manualInstructions: string | null } | null
+  revisionOf?: {
+    id: string
+    createdAt: string
+    preview?: GoogleAdsProposalPreview
+    manualInstructions: string | null
+  } | null
   revisionOfId?: string | null
   /** Admin instructions this revision was prepared from. */
   manualInstructions?: string | null
@@ -796,11 +809,7 @@ export interface GoogleAdsCredentialsInput {
 }
 
 export type GoogleAdsRecommendationCategory =
-  | 'ad_quality'
-  | 'budget_bidding'
-  | 'targeting_reach'
-  | 'keywords'
-  | 'not_applicable'
+  'ad_quality' | 'budget_bidding' | 'targeting_reach' | 'keywords' | 'not_applicable'
 
 /** Mirrors the backend catalog (`google-ads-recommendation-catalog.ts`) —
  *  the admin UI never shows the raw `type` string to a human, only
@@ -858,7 +867,15 @@ export const useAdminStore = defineStore('admin', {
     loadingReferrals: false,
     auditLog: [],
     auditLogTotal: 0,
-    auditLogFilters: { actor: '', action: '', targetType: '', dateFrom: '', dateTo: '', page: 1, pageSize: 20 },
+    auditLogFilters: {
+      actor: '',
+      action: '',
+      targetType: '',
+      dateFrom: '',
+      dateTo: '',
+      page: 1,
+      pageSize: 20,
+    },
     loadingAuditLog: false,
     auditLogError: null,
     businessActionLog: [],
@@ -979,7 +996,10 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
-    setBusinessFilter<K extends keyof BusinessesFilters>(key: K, value: BusinessesFilters[K]): void {
+    setBusinessFilter<K extends keyof BusinessesFilters>(
+      key: K,
+      value: BusinessesFilters[K],
+    ): void {
       this.businessFilters[key] = value
       if (key !== 'page') this.businessFilters.page = 1
       void this.fetchBusinesses()
@@ -1218,7 +1238,10 @@ export const useAdminStore = defineStore('admin', {
     },
 
     updateCompany(id: string, input: UpdateCompanyInput): Promise<AdminCompanyDetail> {
-      return apiFetch<AdminCompanyDetail>(`/admin/companies/${id}`, { method: 'PATCH', body: input })
+      return apiFetch<AdminCompanyDetail>(`/admin/companies/${id}`, {
+        method: 'PATCH',
+        body: input,
+      })
     },
 
     saveCompanyCampaign(id: string, input: SaveCampaignInput): Promise<AdminCompanyDetail> {
@@ -1248,10 +1271,7 @@ export const useAdminStore = defineStore('admin', {
       })
     },
 
-    setCompanyLocation(
-      id: string,
-      input: AdminCompanyLocationInput,
-    ): Promise<AdminCompanyDetail> {
+    setCompanyLocation(id: string, input: AdminCompanyLocationInput): Promise<AdminCompanyDetail> {
       return apiFetch<AdminCompanyDetail>(`/admin/companies/${id}/location`, {
         method: 'PATCH',
         body: input,
@@ -1284,7 +1304,14 @@ export const useAdminStore = defineStore('admin', {
 
     companyCostsLedger(
       id: string,
-      params: { category?: string; from?: string; to?: string; search?: string; cursor?: string; limit?: number } = {},
+      params: {
+        category?: string
+        from?: string
+        to?: string
+        search?: string
+        cursor?: string
+        limit?: number
+      } = {},
     ): Promise<{ items: ConsumptionEntry[]; nextCursor: string | null }> {
       const p = new URLSearchParams()
       if (params.category) p.set('category', params.category)
@@ -1457,6 +1484,8 @@ export const useAdminStore = defineStore('admin', {
         return await apiFetch(`/admin/google-ads-agent/proposals/${id}/approve`, {
           method: 'POST',
           body: contentHash ? { contentHash } : {},
+          // Execution = Google validate + apply + re-read verification.
+          timeoutMs: 90_000,
         })
       } finally {
         await this.fetchGoogleAdsAgentProposals()
@@ -1469,6 +1498,8 @@ export const useAdminStore = defineStore('admin', {
       await apiFetch(`/admin/google-ads-agent/proposals/${id}/revise`, {
         method: 'POST',
         body: { instructions },
+        // AI rewrite + local and Google validation can take well over 12 s.
+        timeoutMs: 120_000,
       })
       await this.fetchGoogleAdsAgentProposals()
     },
@@ -1526,7 +1557,9 @@ export const useAdminStore = defineStore('admin', {
       void this.fetchGoogleAdsAgentActions()
     },
 
-    async runGoogleAdsAgentNow(kind: 'structural' | 'content' | 'intelligence' | 'monitor'): Promise<void> {
+    async runGoogleAdsAgentNow(
+      kind: 'structural' | 'content' | 'intelligence' | 'monitor',
+    ): Promise<void> {
       await apiFetch(`/admin/google-ads-agent/run/${kind}`, { method: 'POST' })
       await this.fetchGoogleAdsAgentOverview()
     },
@@ -1548,7 +1581,7 @@ export const useAdminStore = defineStore('admin', {
     async updateGoogleAdsCredentials(input: GoogleAdsCredentialsInput): Promise<void> {
       this.googleAdsCredentials = await apiFetch<GoogleAdsCredentials>(
         '/admin/google-ads-agent/credentials',
-        { method: 'PATCH', body: input },
+        { method: 'PATCH', body: input, timeoutMs: 30_000 },
       )
     },
 

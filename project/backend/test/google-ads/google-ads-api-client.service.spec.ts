@@ -238,10 +238,10 @@ describe('GoogleAdsApiClient', () => {
       const client = await configuredClient('development');
       expect(client.writesAllowed).toBe(false);
       await expect(client.mutate([{ campaignOperation: { create: {} } }])).rejects.toThrow(
-        /writes are disabled/i,
+        /sunt blocate în afara producției/i,
       );
       await expect(client.applyRecommendations(['customers/1/recommendations/2'])).rejects.toThrow(
-        /writes are disabled/i,
+        /sunt blocate în afara producției/i,
       );
       expect(fetchSpy).not.toHaveBeenCalled();
     });
@@ -301,5 +301,28 @@ describe('GoogleAdsApiClient', () => {
         /HTTP 404 fără JSON.*Error 404/,
       );
     });
+  });
+});
+
+describe('GoogleAdsApiClient error details', () => {
+  it('surfaces the specific Google reason, error code and field instead of the generic message', async () => {
+    const { formatApiErrorForTest } = await import('src/google-ads/google-ads-api-client.service');
+    const err = formatApiErrorForTest(400, {
+      message: 'Request contains an invalid argument.',
+      details: [
+        {
+          errors: [
+            {
+              message: 'Too long.',
+              errorCode: { stringLengthError: 'TOO_LONG' },
+              location: { fieldPathElements: [{ fieldName: 'operations' }, { fieldName: 'text' }] },
+            },
+          ],
+        },
+      ],
+    });
+    expect(err.message).toBe(
+      'Google Ads a respins cererea (HTTP 400): Too long. (TOO_LONG) câmp: operations.text',
+    );
   });
 });

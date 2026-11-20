@@ -3290,5 +3290,32 @@
     "colLast": "Last",
     "missingShortTag": "missing",
     "daysN": "{n} days"
+  },
+  "adminGoogleAdsErr": {
+    "generic": "The operation failed. Please try again.",
+    "required": "Enter a value.",
+    "integer": "Use a whole number.",
+    "min": "The minimum is {min}.",
+    "max": "The maximum is {max}.",
+    "fieldMin": "{field}: the minimum allowed value is {min}.",
+    "fieldMax": "{field}: the maximum allowed value is {max}.",
+    "fieldInteger": "{field}: use a whole number.",
+    "fieldNumber": "{field}: enter a valid number.",
+    "fieldInvalid": "{field}: invalid value.",
+    "fieldMinLength": "{field}: write at least {n} characters.",
+    "fieldMaxLength": "{field}: at most {n} characters.",
+    "fieldUnknown": "{field}: field not recognised by the server.",
+    "timeout": "The server did not answer in time. The operation may still finish in the background: reload the page in a few seconds.",
+    "network": "No connection to the server. Check your internet connection and try again.",
+    "unauthorized": "Your session has expired. Please sign in again.",
+    "forbidden": "You do not have permission for this action.",
+    "notFound": "This item no longer exists (it may have been changed or deleted).",
+    "conflict": "This item changed in the meantime. Reload the page.",
+    "rateLimited": "Too many requests. Wait a moment and try again.",
+    "server": "Server error. Try again; if it persists, check the agent log.",
+    "fixFields": "Fix the highlighted fields before saving.",
+    "reviseMin": "Write at least 5 characters.",
+    "customerId": "The ID must have 10 digits (e.g. 123-456-7890).",
+    "serviceKey": "The key must be the service account JSON file, base64-encoded."
   }
 }

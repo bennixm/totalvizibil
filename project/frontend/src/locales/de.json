@@ -3290,5 +3290,32 @@
     "colLast": "Zuletzt",
     "missingShortTag": "fehlt",
     "daysN": "{n} Tage"
+  },
+  "adminGoogleAdsErr": {
+    "generic": "Der Vorgang ist fehlgeschlagen. Bitte erneut versuchen.",
+    "required": "Bitte einen Wert eingeben.",
+    "integer": "Bitte eine ganze Zahl verwenden.",
+    "min": "Das Minimum ist {min}.",
+    "max": "Das Maximum ist {max}.",
+    "fieldMin": "{field}: der kleinste zulässige Wert ist {min}.",
+    "fieldMax": "{field}: der größte zulässige Wert ist {max}.",
+    "fieldInteger": "{field}: bitte eine ganze Zahl verwenden.",
+    "fieldNumber": "{field}: bitte eine gültige Zahl eingeben.",
+    "fieldInvalid": "{field}: ungültiger Wert.",
+    "fieldMinLength": "{field}: mindestens {n} Zeichen.",
+    "fieldMaxLength": "{field}: höchstens {n} Zeichen.",
+    "fieldUnknown": "{field}: vom Server nicht erkanntes Feld.",
+    "timeout": "Der Server hat nicht rechtzeitig geantwortet. Der Vorgang kann im Hintergrund weiterlaufen: Seite in einigen Sekunden neu laden.",
+    "network": "Keine Verbindung zum Server. Internetverbindung prüfen und erneut versuchen.",
+    "unauthorized": "Die Sitzung ist abgelaufen. Bitte erneut anmelden.",
+    "forbidden": "Keine Berechtigung für diese Aktion.",
+    "notFound": "Dieses Element existiert nicht mehr (es wurde eventuell geändert oder gelöscht).",
+    "conflict": "Dieses Element wurde inzwischen geändert. Seite neu laden.",
+    "rateLimited": "Zu viele Anfragen. Kurz warten und erneut versuchen.",
+    "server": "Serverfehler. Erneut versuchen; falls es bleibt, das Agent-Protokoll prüfen.",
+    "fixFields": "Bitte die markierten Felder vor dem Speichern korrigieren.",
+    "reviseMin": "Mindestens 5 Zeichen schreiben.",
+    "customerId": "Die ID muss 10 Ziffern haben (z. B. 123-456-7890).",
+    "serviceKey": "Der Schlüssel muss die base64-kodierte JSON-Datei des Dienstkontos sein."
   }
 }

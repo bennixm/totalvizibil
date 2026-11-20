@@ -5,7 +5,11 @@ import { AiService, GoogleAdsCreativeGapFill } from '../../ai/ai.service';
 import { AppConfig } from '../../config/env';
 import { PlatformSettingsService } from '../../platform-settings/platform-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { GoogleAdsApiClient, GoogleAdsMutateOperation } from '../google-ads-api-client.service';
+import {
+  GoogleAdsApiClient,
+  GoogleAdsMutateOperation,
+  GoogleAdsMutateResult,
+} from '../google-ads-api-client.service';
 import { subcategoryLandingUrl } from '../google-ads-landing-url';
 import {
   PexelsPhoto,
@@ -806,14 +810,25 @@ export class GoogleAdsOptimizerService {
       reasoning:
         `Campania are ${valid.length} imagini valide; Google recomandă 4 imagini unice, cel puțin una pătrată și una peisaj. ` +
         'Fotografii reale de pe Pexels (licență gratuită pentru uz comercial), decupate exact la dimensiunile recomandate de Google.',
-      verify: async () => {
+      // By resource name, not asset name: Google deduplicates identical
+      // image content and then keeps the EXISTING asset (and its old name).
+      verify: async (results) => {
+        const linked = results
+          .map((r) => r.campaignAssetResult?.resourceName)
+          .filter((x): x is string => !!x);
+        if (linked.length < names.length)
+          return 'Google nu a confirmat atașarea tuturor imaginilor.';
         const rows = await this.client.search(
-          'SELECT campaign.id, asset.name, campaign_asset.field_type, campaign_asset.status FROM campaign_asset ' +
+          'SELECT campaign.id, campaign_asset.resource_name, campaign_asset.status FROM campaign_asset ' +
             `WHERE campaign.id = ${c.googleCampaignId} AND campaign_asset.field_type = 'AD_IMAGE' AND campaign_asset.status != 'REMOVED'`,
         );
-        const live = new Set(rows.map((r) => (r.asset as { name?: string } | undefined)?.name));
-        const missing = names.filter((n) => !live.has(n));
-        return missing.length ? `Lipsesc după aplicare: ${missing.join(', ')}` : null;
+        const live = new Set(
+          rows.map((r) => (r.campaignAsset as { resourceName?: string } | undefined)?.resourceName),
+        );
+        const missing = linked.filter((n) => !live.has(n));
+        return missing.length
+          ? `${missing.length} imagini nu apar atașate la campanie după aplicare.`
+          : null;
       },
     });
     return ok ? 1 : 0;
@@ -848,7 +863,8 @@ export class GoogleAdsOptimizerService {
     before: Record<string, unknown>;
     after: Record<string, unknown>;
     reasoning: string;
-    verify: () => Promise<string | null>;
+    /** Gets Google's mutate results (resource names of what was created). */
+    verify: (results: GoogleAdsMutateResult[]) => Promise<string | null>;
     /** The ad changed by this batch, for the Ad Strength read-back. */
     adId?: string;
   }): Promise<boolean> {
@@ -886,14 +902,17 @@ export class GoogleAdsOptimizerService {
 
     let error: string | null = null;
     try {
-      await p.activity.step({ ...meta, step: 'apply', message: p.label }, async () => {
-        await this.client.mutate(p.ops);
-        return { value: true, outcome: { result: 'Trimis la Google, răspuns de succes.' } };
-      });
+      const results = await p.activity.step(
+        { ...meta, step: 'apply', message: p.label },
+        async () => ({
+          value: await this.client.mutate(p.ops),
+          outcome: { result: 'Trimis la Google, răspuns de succes.' },
+        }),
+      );
       const problem = await p.activity.step(
         { ...meta, step: 'verify', message: 'Verificare: recitire din Google după aplicare' },
         async () => {
-          const prob = await p.verify();
+          const prob = await p.verify(results ?? []);
           if (prob) throw new Error(prob);
           return {
             value: null,
@@ -1300,7 +1319,9 @@ export class GoogleAdsOptimizerService {
       (action.status !== 'pending_approval' && action.status !== 'approved') ||
       action.action !== 'creative.replace_text'
     ) {
-      throw new BadRequestException('No pending creative proposal with that id');
+      throw new BadRequestException(
+        'Propunerea de text nu mai este în așteptare (a fost deja procesată sau ștearsă).',
+      );
     }
     if (!this.client.writesAllowed) {
       throw new BadRequestException(
