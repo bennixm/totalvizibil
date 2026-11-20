@@ -1,4 +1,6 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
+import { GoogleAdsAccountScopeService } from '../google-ads-account-scope.service';
+
 import { Prisma } from '@prisma/client';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { PlatformSettingsService } from '../../platform-settings/platform-settings.service';
@@ -75,6 +77,7 @@ export class GoogleAdsMonitorService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly optimizer: GoogleAdsOptimizerService,
     private readonly workflow: GoogleAdsProposalWorkflowService,
+    @Optional() private readonly scope?: GoogleAdsAccountScopeService,
   ) {}
 
   onModuleInit(): void {
@@ -124,6 +127,7 @@ export class GoogleAdsMonitorService implements OnModuleInit {
   async run(trigger: MonitorTrigger): Promise<void> {
     if (!this.client.configured)
       throw new Error('Contul Google Ads nu este conectat (lipsesc datele de acces din Setări).');
+    await this.scope?.ensure();
     const existing = await this.prisma.googleAdsAgentRun.findFirst({
       where: { kind: 'monitor', status: 'in_progress' },
       orderBy: { startedAt: 'desc' },

@@ -21,10 +21,13 @@ import { GoogleAdsProposalWorkflowService } from './optimization/google-ads-prop
  *  `GoogleAdsAgentIntelligenceService` are exported so a later Faza (4, see
  *  docs/ai/GOOGLE-ADS-AGENT-PLAN.md — the admin approval endpoints) can
  *  call into them instead of standing up a second instance. */
+import { GoogleAdsAccountScopeService } from './google-ads-account-scope.service';
+
 @Module({
   imports: [AnalyticsModule],
   providers: [
     GoogleAdsApiClient,
+    GoogleAdsAccountScopeService,
     GoogleAdsReferenceDataService,
     GoogleAdsCpcSyncService,
     GoogleAdsAgentRecommendationsService,

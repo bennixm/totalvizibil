@@ -1,4 +1,6 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
+import { GoogleAdsAccountScopeService } from './google-ads-account-scope.service';
+
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
@@ -70,6 +72,7 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     config: ConfigService<AppConfig, true>,
+    @Optional() private readonly scope?: GoogleAdsAccountScopeService,
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
     this.pexels = new PexelsProvider(config.get('pexelsApiKey', { infer: true }) ?? '');
@@ -116,6 +119,7 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
 
   /** Exposed for an admin "Run now" / "Regenerate" trigger (Faza 4). */
   async run(): Promise<void> {
+    await this.scope?.ensure();
     const existing = await this.prisma.googleAdsAgentRun.findFirst({
       where: { kind: 'content', status: 'in_progress' },
       orderBy: { startedAt: 'desc' },

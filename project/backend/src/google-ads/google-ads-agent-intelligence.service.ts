@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
+import { GoogleAdsAccountScopeService } from './google-ads-account-scope.service';
+
 import { AiService } from '../ai/ai.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { feedCpcMinMinor } from '../analytics/feed-pricing';
@@ -47,6 +49,7 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
     private readonly settings: PlatformSettingsService,
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    @Optional() private readonly scope?: GoogleAdsAccountScopeService,
   ) {}
 
   onModuleInit(): void {
@@ -90,6 +93,7 @@ export class GoogleAdsAgentIntelligenceService implements OnModuleInit {
 
   /** Exposed for an admin "Run now" trigger (Faza 4). */
   async run(): Promise<void> {
+    await this.scope?.ensure();
     const existing = await this.prisma.googleAdsAgentRun.findFirst({
       where: { kind: 'intelligence', status: 'in_progress' },
       orderBy: { startedAt: 'desc' },
