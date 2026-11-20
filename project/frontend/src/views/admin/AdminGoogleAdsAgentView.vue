@@ -615,13 +615,22 @@ function cancelEditCredentials() {
         <v-icon icon="mdi-timer-sync-outline" size="15" />
         {{ t('adminGoogleAdsOpt.cycleEvery', { hours: cycleHours }) }}
       </span>
-      <span class="st">
+      <span class="st" :class="{ 'st--warn': !summary.autoFillEnabled }">
         <v-icon icon="mdi-auto-fix" size="15" />
         {{
           summary.autoFillEnabled
             ? t('adminGoogleAdsOpt.autoFillOn')
             : t('adminGoogleAdsOpt.autoFillOff')
         }}
+        <!-- Off = cycles only analyse; make the way back obvious. -->
+        <button
+          v-if="!summary.autoFillEnabled"
+          type="button"
+          class="st__link"
+          @click="tab = 'settings'"
+        >
+          {{ t('adminGoogleAdsOpt.autoFillActivateCta') }}
+        </button>
       </span>
       <span class="st st--muted">
         {{ t('adminGoogleAdsOpt.lastOptimization') }}:

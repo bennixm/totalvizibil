@@ -1567,6 +1567,7 @@
     "readOnlyBanner": "Read-only mode: in this environment the agent analyzes campaigns and validates changes with Google, but does not apply them. Writes are only allowed in production.",
     "autoFillOn": "Automatic gap filling is on",
     "autoFillOff": "Automatic gap filling is off",
+    "autoFillActivateCta": "Turn it on from the Settings tab",
     "accountIssuesTitle": "Account-level issues",
     "priority": {
       "critical": "Critical",

@@ -1567,6 +1567,7 @@
     "readOnlyBanner": "Nur-Lese-Modus: In dieser Umgebung analysiert der Agent die Kampagnen und lässt Änderungen von Google prüfen, wendet sie aber nicht an. Schreibzugriffe sind nur in der Produktion erlaubt.",
     "autoFillOn": "Automatisches Auffüllen ist aktiv",
     "autoFillOff": "Automatisches Auffüllen ist aus",
+    "autoFillActivateCta": "Im Tab „Einstellungen” aktivieren",
     "accountIssuesTitle": "Probleme auf Kontoebene",
     "priority": {
       "critical": "Kritisch",

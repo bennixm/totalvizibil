@@ -1567,6 +1567,7 @@
     "readOnlyBanner": "Mod doar-citire: în acest mediu agentul analizează campaniile și validează modificările la Google, dar nu le aplică. Scrierile sunt permise doar în producție.",
     "autoFillOn": "Completarea automată a lipsurilor este activă",
     "autoFillOff": "Completarea automată a lipsurilor este oprită",
+    "autoFillActivateCta": "Activeaz-o din tab-ul Setări",
     "accountIssuesTitle": "Probleme la nivel de cont",
     "priority": {
       "critical": "Critic",
