@@ -23,6 +23,19 @@ const MAX_ACCOUNTS = 30;
 /** Channel types the agent fully optimizes (the optimizer works on
  *  Responsive Search Ads + extensions). */
 const SUPPORTED_CHANNELS = new Set(['SEARCH']);
+/** Campaigns that can be picked at once. */
+const MAX_SELECTIONS = 20;
+
+export interface SelectionInput {
+  customerId: string;
+  loginCustomerId?: string | null;
+  campaignId: string;
+}
+interface Selection {
+  customerId: string;
+  loginCustomerId: string | null;
+  campaignId: string;
+}
 
 export interface AccountRow {
   customerId: string;
@@ -100,6 +113,7 @@ export class GoogleAdsUserService {
             campaignId: c.selectedCampaignId,
           }
         : null,
+      selections: this.selectionsOf(c),
     };
   }
 
@@ -160,13 +174,10 @@ export class GoogleAdsUserService {
         where: { connectionId: conn.id, status: 'disconnected' },
         data: { status: 'active' },
       });
-      // Reconnect from a dashboard (no builder draft): back to that campaign.
-      if (!conn.draftTokenHash) {
-        const first = await this.prisma.googleAdsUserCampaign.findFirst({
-          where: { connectionId: conn.id },
-          select: { id: true },
-        });
-        if (first) return `${this.frontendOrigin}/google-ads/c/${first.id}?reconnected=1`;
+      // Reconnect from the panel (no builder draft): back to the connected
+      // Google accounts page, where every campaign of this account is listed.
+      if (!conn.draftTokenHash && conn.userId) {
+        return `${this.frontendOrigin}/google-ads/connections?reconnected=1`;
       }
       return back('connected=1');
     } catch (err) {
@@ -212,7 +223,11 @@ export class GoogleAdsUserService {
   /** Every Google Ads account the connected Google user can open, including
    *  client accounts under a manager (MCC) they have access to. */
   async accounts(draftToken: string | undefined): Promise<AccountRow[]> {
-    const conn = await this.draft(draftToken);
+    return this.accountsFor(await this.draft(draftToken));
+  }
+
+  /** Accounts of one connection (builder draft or a signed-in owner's). */
+  private async accountsFor(conn: GoogleAdsConnection): Promise<AccountRow[]> {
     return this.guard(conn, async () => {
       const root = await this.rootClient(conn, '0', null);
       const ids = (await root.listAccessibleCustomers()).slice(0, MAX_ACCOUNTS);
@@ -328,13 +343,119 @@ export class GoogleAdsUserService {
     customerId: string,
     loginCustomerId: string | null,
   ) {
-    const conn = await this.draft(draftToken);
+    return this.campaignsFor(await this.draft(draftToken), customerId, loginCustomerId);
+  }
+
+  private async campaignsFor(
+    conn: GoogleAdsConnection,
+    customerId: string,
+    loginCustomerId: string | null,
+  ) {
     const cid = customerId.replace(/\D/g, '');
     const login = loginCustomerId ? loginCustomerId.replace(/\D/g, '') : null;
     return this.guard(conn, async () => {
       const client = await this.rootClient(conn, cid, login);
       return this.listCampaigns(client);
     });
+  }
+
+  /**
+   * Validates picked campaigns against Google (they exist in that account
+   * and are a supported type) and returns them normalized. Max 20.
+   */
+  private async validateSelections(
+    conn: GoogleAdsConnection,
+    items: SelectionInput[],
+  ): Promise<Selection[]> {
+    if (!items.length) throw new BadRequestException('no_campaign_selected');
+    if (items.length > MAX_SELECTIONS) throw new BadRequestException('too_many_campaigns');
+    const norm = items.map((i) => ({
+      customerId: i.customerId.replace(/\D/g, ''),
+      loginCustomerId: i.loginCustomerId ? i.loginCustomerId.replace(/\D/g, '') : null,
+      campaignId: i.campaignId.replace(/\D/g, ''),
+    }));
+    const unique = [...new Map(norm.map((n) => [`${n.customerId}:${n.campaignId}`, n])).values()];
+    const byAccount = new Map<string, Selection[]>();
+    for (const s of unique) {
+      const k = `${s.customerId}:${s.loginCustomerId ?? ''}`;
+      byAccount.set(k, [...(byAccount.get(k) ?? []), s]);
+    }
+    for (const group of byAccount.values()) {
+      const list = await this.campaignsFor(conn, group[0].customerId, group[0].loginCustomerId);
+      for (const s of group) {
+        const picked = list.find((c) => c.id === s.campaignId);
+        if (!picked) throw new BadRequestException('Campania nu a fost găsită în acest cont.');
+        if (!picked.supported) throw new BadRequestException('unsupported_channel');
+      }
+    }
+    return unique;
+  }
+
+  /**
+   * Creates (or revives) the managed campaigns for `userId` from validated
+   * selections, then runs each one's first free analysis. Shared by the
+   * builder's account step and "add campaigns" on a connected account.
+   */
+  private async attachCampaigns(
+    conn: GoogleAdsConnection,
+    userId: string,
+    selections: Selection[],
+  ): Promise<string[]> {
+    const ids: string[] = [];
+    const byAccount = new Map<string, Selection[]>();
+    for (const s of selections) {
+      const k = `${s.customerId}:${s.loginCustomerId ?? ''}`;
+      byAccount.set(k, [...(byAccount.get(k) ?? []), s]);
+    }
+    for (const group of byAccount.values()) {
+      const { customerId, loginCustomerId } = group[0];
+      const client = await this.rootClient(conn, customerId, loginCustomerId);
+      const list = await this.guard(conn, () => this.listCampaigns(client));
+      const customer = await client
+        .search('SELECT customer.descriptive_name FROM customer LIMIT 1')
+        .catch(() => []);
+      const customerName =
+        (customer[0]?.customer as { descriptiveName?: string } | undefined)?.descriptiveName ??
+        null;
+      for (const s of group) {
+        const picked = list.find((c) => c.id === s.campaignId);
+        if (!picked) continue;
+        const row = await this.prisma.googleAdsUserCampaign.upsert({
+          where: {
+            userId_customerId_googleCampaignId: {
+              userId,
+              customerId,
+              googleCampaignId: picked.id,
+            },
+          },
+          create: {
+            userId,
+            connectionId: conn.id,
+            customerId,
+            loginCustomerId,
+            customerName,
+            googleCampaignId: picked.id,
+            name: picked.name,
+            channelType: picked.channelType,
+            currencyCode: picked.currencyCode,
+            settings: {
+              ...DEFAULT_AGENT_SETTINGS,
+              businessName: (customerName ?? '').slice(0, 25),
+            } as unknown as Prisma.InputJsonValue,
+          },
+          update: { connectionId: conn.id, status: 'active', loginCustomerId },
+        });
+        ids.push(row.id);
+        await this.agent
+          .analyze(row)
+          .catch((err) =>
+            this.logger.warn(
+              `First analysis of ${row.id} failed: ${err instanceof Error ? err.message : err}`,
+            ),
+          );
+      }
+    }
+    return ids;
   }
 
   private async listCampaigns(client: GoogleAdsUserClient) {
@@ -392,99 +513,161 @@ export class GoogleAdsUserService {
       );
   }
 
-  async select(
-    draftToken: string | undefined,
-    input: { customerId: string; loginCustomerId?: string | null; campaignId: string },
-  ) {
+  /** Builder step 2: the campaigns picked (one or several, across the
+   *  accounts of this Google login). */
+  async select(draftToken: string | undefined, items: SelectionInput[]) {
     const conn = await this.draft(draftToken);
-    const cid = input.customerId.replace(/\D/g, '');
-    const login = input.loginCustomerId ? input.loginCustomerId.replace(/\D/g, '') : null;
-    const campaignId = input.campaignId.replace(/\D/g, '');
-    const list = await this.campaigns(draftToken, cid, login);
-    const picked = list.find((c) => c.id === campaignId);
-    if (!picked) throw new BadRequestException('Campania nu a fost găsită în acest cont.');
-    if (!picked.supported) {
-      throw new BadRequestException('unsupported_channel');
-    }
+    const picked = await this.validateSelections(conn, items);
     const updated = await this.prisma.googleAdsConnection.update({
       where: { id: conn.id },
       data: {
-        selectedCustomerId: cid,
-        selectedLoginCustomerId: login,
-        selectedCampaignId: campaignId,
+        selections: picked as unknown as Prisma.InputJsonValue,
+        selectedCustomerId: picked[0].customerId,
+        selectedLoginCustomerId: picked[0].loginCustomerId,
+        selectedCampaignId: picked[0].campaignId,
       },
     });
     return this.connectionView(updated);
   }
 
   /**
-   * Account step: binds the draft (connection + picked campaign) to the
-   * signed-in platform account and creates the managed campaign. Free; runs
-   * the first (free) analysis so the dashboard opens with real data.
+   * Account step: binds the draft (connection + picked campaigns) to the
+   * signed-in platform account and creates the managed campaigns. Free;
+   * each gets its first (free) analysis so the dashboard opens with data.
    */
   async claim(draftToken: string | undefined, userId: string) {
     const conn = await this.draft(draftToken);
     if (conn.userId && conn.userId !== userId) throw new ForbiddenException('draft_owned_by_other');
-    if (conn.status !== 'connected' || !conn.selectedCampaignId || !conn.selectedCustomerId) {
+    const selections = this.selectionsOf(conn);
+    if (conn.status !== 'connected' || !selections.length) {
       throw new BadRequestException('setup_incomplete');
     }
-    const client = await this.rootClient(
-      conn,
-      conn.selectedCustomerId,
-      conn.selectedLoginCustomerId,
-    );
-    const list = await this.guard(conn, () => this.listCampaigns(client));
-    const picked = list.find((c) => c.id === conn.selectedCampaignId);
-    if (!picked) throw new BadRequestException('Campania nu mai există în cont.');
-    const customer = await client
-      .search('SELECT customer.descriptive_name FROM customer LIMIT 1')
-      .catch(() => []);
-    const customerName =
-      (customer[0]?.customer as { descriptiveName?: string } | undefined)?.descriptiveName ?? null;
-
-    const row = await this.prisma.$transaction(async (tx) => {
-      await tx.googleAdsConnection.update({
-        where: { id: conn.id },
-        data: { userId, draftTokenHash: null },
-      });
-      return tx.googleAdsUserCampaign.upsert({
-        where: {
-          userId_customerId_googleCampaignId: {
-            userId,
-            customerId: conn.selectedCustomerId!,
-            googleCampaignId: picked.id,
-          },
-        },
-        create: {
-          userId,
-          connectionId: conn.id,
-          customerId: conn.selectedCustomerId!,
-          loginCustomerId: conn.selectedLoginCustomerId,
-          customerName,
-          googleCampaignId: picked.id,
-          name: picked.name,
-          channelType: picked.channelType,
-          currencyCode: picked.currencyCode,
-          settings: {
-            ...DEFAULT_AGENT_SETTINGS,
-            businessName: (customerName ?? '').slice(0, 25),
-          } as unknown as Prisma.InputJsonValue,
-        },
-        update: {
-          connectionId: conn.id,
-          status: 'active',
-          loginCustomerId: conn.selectedLoginCustomerId,
-        },
-      });
+    await this.prisma.googleAdsConnection.update({
+      where: { id: conn.id },
+      data: { userId, draftTokenHash: null },
     });
-    await this.agent
-      .analyze(row)
-      .catch((err) =>
-        this.logger.warn(
-          `First analysis of ${row.id} failed: ${err instanceof Error ? err.message : err}`,
-        ),
-      );
-    return { campaignId: row.id };
+    const ids = await this.attachCampaigns({ ...conn, userId }, userId, selections);
+    if (!ids.length) throw new BadRequestException('Campaniile nu mai există în cont.');
+    return { campaignId: ids[0], campaignIds: ids };
+  }
+
+  private selectionsOf(conn: GoogleAdsConnection): Selection[] {
+    const raw = Array.isArray(conn.selections) ? (conn.selections as unknown as Selection[]) : [];
+    if (raw.length) return raw;
+    return conn.selectedCampaignId && conn.selectedCustomerId
+      ? [
+          {
+            customerId: conn.selectedCustomerId,
+            loginCustomerId: conn.selectedLoginCustomerId,
+            campaignId: conn.selectedCampaignId,
+          },
+        ]
+      : [];
+  }
+
+  // ------------------------------------------- connected Google accounts
+
+  private async ownedConnection(userId: string, id: string): Promise<GoogleAdsConnection> {
+    const conn = await this.prisma.googleAdsConnection.findUnique({ where: { id } });
+    if (!conn || conn.userId !== userId) throw new NotFoundException('Contul nu a fost găsit.');
+    return conn;
+  }
+
+  /** The owner's connected Google accounts with their managed campaigns. */
+  async connections(userId: string) {
+    const rows = await this.prisma.googleAdsConnection.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        campaigns: {
+          select: { id: true, name: true, status: true, customerName: true, customerId: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    return rows.map((c) => ({
+      id: c.id,
+      googleEmail: c.googleEmail,
+      status: c.status,
+      connectedAt: c.connectedAt,
+      lastError: c.lastError,
+      campaigns: c.campaigns,
+    }));
+  }
+
+  async connectionAccounts(userId: string, id: string) {
+    return this.accountsFor(await this.ownedConnection(userId, id));
+  }
+
+  /** Campaigns of one account of a connection, flagging the ones already
+   *  in the owner's panel. */
+  async connectionCampaigns(
+    userId: string,
+    id: string,
+    customerId: string,
+    loginCustomerId: string | null,
+  ) {
+    const conn = await this.ownedConnection(userId, id);
+    const list = await this.campaignsFor(conn, customerId, loginCustomerId);
+    const cid = customerId.replace(/\D/g, '');
+    const managed = await this.prisma.googleAdsUserCampaign.findMany({
+      where: { userId, customerId: cid },
+      select: { googleCampaignId: true, status: true },
+    });
+    const managedIds = new Set(
+      managed.filter((m) => m.status !== 'disconnected').map((m) => m.googleCampaignId),
+    );
+    return list.map((c) => ({ ...c, managed: managedIds.has(c.id) }));
+  }
+
+  /** "Add campaigns" from an already connected Google account: no new
+   *  Google sign-in. */
+  async addCampaigns(userId: string, id: string, items: SelectionInput[]) {
+    const conn = await this.ownedConnection(userId, id);
+    const picked = await this.validateSelections(conn, items);
+    const ids = await this.attachCampaigns(conn, userId, picked);
+    return { campaignIds: ids };
+  }
+
+  /** Disconnect a whole Google account: revoke at Google, delete the token,
+   *  every campaign on it becomes `disconnected` (history kept). */
+  async disconnectConnection(userId: string, id: string) {
+    const conn = await this.ownedConnection(userId, id);
+    const running = await this.prisma.googleAdsOptimizationCycle.count({
+      where: { userCampaign: { connectionId: conn.id }, status: 'running' },
+    });
+    if (running) throw new BadRequestException('cycle_running');
+    if (conn.refreshTokenEnc) await this.oauth.revoke(conn.refreshTokenEnc);
+    await this.prisma.$transaction([
+      this.prisma.googleAdsConnection.update({
+        where: { id: conn.id },
+        data: { refreshTokenEnc: null, status: 'revoked', lastError: 'Deconectat de utilizator.' },
+      }),
+      this.prisma.googleAdsUserCampaign.updateMany({
+        where: { connectionId: conn.id },
+        data: { status: 'disconnected' },
+      }),
+    ]);
+    return { ok: true };
+  }
+
+  async reconnectConnectionUrl(userId: string, id: string) {
+    const conn = await this.ownedConnection(userId, id);
+    return this.oauthUrlFor(conn.id);
+  }
+
+  private async oauthUrlFor(connectionId: string) {
+    const missing = await this.oauth.missingConfig();
+    if (missing.length) throw new BadRequestException({ message: 'oauth_not_configured', missing });
+    const state = randomToken();
+    await this.prisma.googleAdsConnection.update({
+      where: { id: connectionId },
+      data: {
+        oauthStateHash: sha256(state),
+        oauthStateExpiresAt: new Date(Date.now() + OAUTH_STATE_TTL_MS),
+      },
+    });
+    return { url: await this.oauth.authUrl(state) };
   }
 
   // ------------------------------------------------------------ dashboard
@@ -682,45 +865,13 @@ export class GoogleAdsUserService {
    */
   async disconnectCampaign(userId: string, id: string) {
     const row = await this.agent.ownedCampaign(userId, id);
-    const running = await this.prisma.googleAdsOptimizationCycle.count({
-      where: { userCampaignId: id, status: 'running' },
-    });
-    if (running) throw new BadRequestException('cycle_running');
-    const conn = await this.prisma.googleAdsConnection.findUnique({
-      where: { id: row.connectionId },
-    });
-    if (conn?.refreshTokenEnc) await this.oauth.revoke(conn.refreshTokenEnc);
-    await this.prisma.$transaction([
-      this.prisma.googleAdsConnection.update({
-        where: { id: row.connectionId },
-        data: {
-          refreshTokenEnc: null,
-          status: 'revoked',
-          lastError: 'Deconectat de utilizator.',
-        },
-      }),
-      this.prisma.googleAdsUserCampaign.updateMany({
-        where: { connectionId: row.connectionId },
-        data: { status: 'disconnected' },
-      }),
-    ]);
-    return { ok: true };
+    return this.disconnectConnection(userId, row.connectionId);
   }
 
   /** Reconnect an existing campaign's Google account (after a revoke). */
   async reconnectUrl(userId: string, id: string) {
     const row = await this.agent.ownedCampaign(userId, id);
-    const missing = await this.oauth.missingConfig();
-    if (missing.length) throw new BadRequestException({ message: 'oauth_not_configured', missing });
-    const state = randomToken();
-    await this.prisma.googleAdsConnection.update({
-      where: { id: row.connectionId },
-      data: {
-        oauthStateHash: sha256(state),
-        oauthStateExpiresAt: new Date(Date.now() + OAUTH_STATE_TTL_MS),
-      },
-    });
-    return { url: await this.oauth.authUrl(state) };
+    return this.oauthUrlFor(row.connectionId);
   }
 
   /** Free: the price a given amount of work would have (for the pricing

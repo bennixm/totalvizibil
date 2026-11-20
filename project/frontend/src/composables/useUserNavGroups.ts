@@ -48,6 +48,7 @@ export function useUserNavGroups() {
         item('proposals', t('ads.tab.proposals'), 'mdi-account-check-outline', pending ? { badge: pending } : {}),
         item('settings', t('ads.tab.settings'), 'mdi-tune-variant'),
         item('costs', t('ads.tab.costs'), 'mdi-cash-multiple'),
+        { to: { name: 'ads-connections' }, label: t('nav.adsConnections'), icon: 'mdi-google' },
       ],
     }
   })

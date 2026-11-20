@@ -70,6 +70,18 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/ads/AdsAccountView.vue'),
   },
   {
+    path: '/google-ads/connections',
+    name: 'ads-connections',
+    component: () => import('@/views/ads/AdsConnectionsView.vue'),
+    meta: { requiresAuth: true, panel: true },
+  },
+  {
+    path: '/google-ads/connections/:id/add',
+    name: 'ads-connection-add',
+    component: () => import('@/views/ads/AdsAddCampaignsView.vue'),
+    meta: { requiresAuth: true, panel: true },
+  },
+  {
     path: '/google-ads/c/:id',
     name: 'ads-dashboard',
     component: () => import('@/views/ads/AdsDashboardView.vue'),

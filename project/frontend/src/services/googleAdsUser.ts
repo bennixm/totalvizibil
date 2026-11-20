@@ -49,6 +49,31 @@ export interface ConnectionView {
   googleEmail: string | null
   lastError: string | null
   selected: { customerId: string; loginCustomerId: string | null; campaignId: string } | null
+  /** All campaigns picked in the builder (multi-select). */
+  selections?: SelectionItem[]
+}
+
+/** One picked campaign (account + campaign). */
+export interface SelectionItem {
+  customerId: string
+  loginCustomerId: string | null
+  campaignId: string
+}
+
+/** A Google account connected by the signed-in owner. */
+export interface GoogleConnection {
+  id: string
+  googleEmail: string | null
+  status: 'pending' | 'connected' | 'revoked' | 'error'
+  connectedAt: string | null
+  lastError: string | null
+  campaigns: {
+    id: string
+    name: string
+    status: 'active' | 'paused' | 'disconnected'
+    customerName: string | null
+    customerId: string
+  }[]
 }
 
 export interface AdsAccount {
@@ -73,6 +98,8 @@ export interface AdsCampaignListItem {
   dailyBudgetMicros: string | null
   currencyCode: string | null
   supported: boolean
+  /** Already in the owner's panel (connected-account "add" flow only). */
+  managed?: boolean
   last30: { impressions: number; clicks: number; costMicros: number; conversions: number }
 }
 
@@ -238,19 +265,40 @@ export const googleAdsUserApi = {
         (loginCustomerId ? `&loginCustomerId=${encodeURIComponent(loginCustomerId)}` : ''),
       { headers: draftHeaders(), timeoutMs: 30_000 },
     ),
-  select: (input: { customerId: string; loginCustomerId: string | null; campaignId: string }) =>
+  select: (items: SelectionItem[]) =>
     apiFetch<ConnectionView>(`${BASE}/builder/select`, {
       method: 'POST',
       headers: draftHeaders(),
-      body: input,
-      timeoutMs: 30_000,
+      body: { items },
+      timeoutMs: 45_000,
     }),
   claim: () =>
-    apiFetch<{ campaignId: string }>(`${BASE}/builder/claim`, {
+    apiFetch<{ campaignId: string; campaignIds: string[] }>(`${BASE}/builder/claim`, {
       method: 'POST',
       headers: draftHeaders(),
-      timeoutMs: 90_000,
+      timeoutMs: 180_000,
     }),
+
+  // --- connected Google accounts (signed-in owner) ---
+  connections: () => apiFetch<GoogleConnection[]>(`${BASE}/connections`),
+  connectionAccounts: (id: string) =>
+    apiFetch<AdsAccount[]>(`${BASE}/connections/${id}/accounts`, { timeoutMs: 45_000 }),
+  connectionCampaigns: (id: string, customerId: string, loginCustomerId: string | null) =>
+    apiFetch<AdsCampaignListItem[]>(
+      `${BASE}/connections/${id}/campaigns?customerId=${encodeURIComponent(customerId)}` +
+        (loginCustomerId ? `&loginCustomerId=${encodeURIComponent(loginCustomerId)}` : ''),
+      { timeoutMs: 30_000 },
+    ),
+  addCampaigns: (id: string, items: SelectionItem[]) =>
+    apiFetch<{ campaignIds: string[] }>(`${BASE}/connections/${id}/campaigns`, {
+      method: 'POST',
+      body: { items },
+      timeoutMs: 180_000,
+    }),
+  disconnectConnection: (id: string) =>
+    apiFetch<{ ok: true }>(`${BASE}/connections/${id}/disconnect`, { method: 'POST' }),
+  reconnectConnection: (id: string) =>
+    apiFetch<{ url: string }>(`${BASE}/connections/${id}/reconnect-url`, { method: 'POST' }),
 
   list: () => apiFetch<UserCampaignSummary[]>(`${BASE}/campaigns`),
   detail: (id: string) => apiFetch<UserCampaignDetail>(`${BASE}/campaigns/${id}`),

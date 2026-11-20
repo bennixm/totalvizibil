@@ -57,7 +57,8 @@
     "adsCampaign": "Google-Ads-Kampagne",
     "adsCampaigns": "Google-Ads-Kampagnen",
     "addAdsCampaign": "Kampagne optimieren",
-    "pickCampaign": "Wählen"
+    "pickCampaign": "Wählen",
+    "adsConnections": "Verbundene Google-Konten"
   },
   "notifications": {
     "bell": "Benachrichtigungen",
@@ -3686,7 +3687,11 @@
       "reason": {
         "manager_no_clients": "Verwaltungskonto ohne Kundenkonten. Erstelle darin ein Kundenkonto mit einer Suchkampagne.",
         "not_enabled": "Dieses Konto ist noch nicht aktiv. Schließe die Einrichtung in Google Ads ab (oder es wurde gekündigt/gesperrt)."
-      }
+      },
+      "selectAll": "Alle auswählen",
+      "continueN": "Weiter mit {n} Kampagnen",
+      "multiHint": "Du kannst mehrere Kampagnen auswählen, auch aus verschiedenen Konten. Jede erhält ein eigenes Dashboard.",
+      "alreadyManaged": "bereits im Panel"
     },
     "account": {
       "seoTitle": "Dein Konto",
@@ -3710,7 +3715,8 @@
         "exists": "Es gibt bereits ein Konto mit dieser E-Mail. Bitte melde dich an.",
         "code": "Der Code ist falsch oder abgelaufen.",
         "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
-      }
+      },
+      "doneN": "{n} Kampagnen wurden zu deinem Panel hinzugefügt."
     },
     "tab": {
       "overview": "Übersicht",
@@ -3967,6 +3973,25 @@
       "colReturned": "Zurück",
       "colStatus": "Status",
       "walletNote": "Alle Zahlungen erscheinen auch im Wallet-Verlauf, unter Google-Ads-Optimierung."
+    },
+    "conn": {
+      "title": "Verbundene Google-Konten",
+      "lead": "Die Google-Konten, über die du Google Ads verbunden hast, und die optimierten Kampagnen pro Konto. Füge neue Kampagnen hinzu, ohne dich erneut anzumelden.",
+      "connectNew": "Weiteres Google-Konto verbinden",
+      "empty": "Du hast noch kein Google-Konto verbunden.",
+      "since": "verbunden {when}",
+      "campaigns": "Kampagnen im Panel ({n})",
+      "addCampaigns": "Kampagnen hinzufügen",
+      "disconnectText": "Der Agent stoppt für die {n} Kampagnen dieses Kontos. Deine Kampagnen in Google Ads bleiben unverändert.",
+      "loadError": "Die verbundenen Konten konnten nicht geladen werden.",
+      "addTitle": "Kampagnen hinzufügen",
+      "addLead": "Wähle eine oder mehrere Kampagnen aus diesem Google-Konto. Bereits optimierte sind deaktiviert.",
+      "status": {
+        "connected": "Verbunden",
+        "revoked": "Getrennt",
+        "error": "Fehler",
+        "pending": "Ausstehend"
+      }
     }
   },
   "adminAdsOpt": {
