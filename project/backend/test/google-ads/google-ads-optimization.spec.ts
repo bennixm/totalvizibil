@@ -902,7 +902,11 @@ describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
 
   it('adds keyword headlines when the ad has room, keeping existing ones', async () => {
     const t = setup(10, ['Vulcanizare Bucuresti Rapid', 'Echilibrare Roti pe Loc', 'Sună acum!']);
-    const r = await t.svc.fixHeadlineKeywords(t.c, t.svc.platformTarget(t.mapping as never), t.activity);
+    const r = await t.svc.fixHeadlineKeywords(
+      t.c,
+      t.svc.platformTarget(t.mapping as never),
+      t.activity,
+    );
     expect(r.applied).toBe(1);
     expect(t.live().map((h: any) => h.text)).toEqual([
       ...Array.from({ length: 10 }, (_, i) => `Titlu numărul ${i + 1}`),
@@ -918,7 +922,11 @@ describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
 
   it('in a full ad rewrites only keyword-less, non-BEST headlines', async () => {
     const t = setup(15, ['Vulcanizare Bucuresti Rapid', 'Echilibrare Roti pe Loc']);
-    const r = await t.svc.fixHeadlineKeywords(t.c, t.svc.platformTarget(t.mapping as never), t.activity);
+    const r = await t.svc.fixHeadlineKeywords(
+      t.c,
+      t.svc.platformTarget(t.mapping as never),
+      t.activity,
+    );
     expect(r.applied).toBe(1);
     const texts = t.live().map((h: any) => h.text);
     expect(texts).toHaveLength(15);
@@ -929,7 +937,11 @@ describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
 
   it('rejects AI headlines that do not really contain a missing keyword', async () => {
     const t = setup(10, ['Service auto rapid', 'Cel mai bun preț']);
-    const r = await t.svc.fixHeadlineKeywords(t.c, t.svc.platformTarget(t.mapping as never), t.activity);
+    const r = await t.svc.fixHeadlineKeywords(
+      t.c,
+      t.svc.platformTarget(t.mapping as never),
+      t.activity,
+    );
     expect(r.applied).toBe(0);
     expect(t.mutate).not.toHaveBeenCalled();
   });
@@ -937,7 +949,11 @@ describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
   it('does nothing when every keyword is already in the headlines', async () => {
     const t = setup(10, []);
     t.c.ads[0].keywords = ['titlu numarul 1'];
-    const r = await t.svc.fixHeadlineKeywords(t.c, t.svc.platformTarget(t.mapping as never), t.activity);
+    const r = await t.svc.fixHeadlineKeywords(
+      t.c,
+      t.svc.platformTarget(t.mapping as never),
+      t.activity,
+    );
     expect(r.applied).toBe(0);
     expect(t.ai.googleAdsKeywordHeadlines).not.toHaveBeenCalled();
   });
