@@ -54,6 +54,27 @@ const routes: RouteRecordRaw[] = [
   },
 
   // --- Create your business ---
+  // Navbar entry: build from scratch (/create) or optimize an existing
+  // Google Ads campaign (/google-ads).
+  { path: '/start', name: 'start', component: () => import('@/views/StartView.vue') },
+  // --- Google Ads optimization builder (customers' own accounts) ---
+  { path: '/google-ads', name: 'ads-connect', component: () => import('@/views/ads/AdsConnectView.vue') },
+  {
+    path: '/google-ads/campaigns',
+    name: 'ads-campaigns',
+    component: () => import('@/views/ads/AdsCampaignsView.vue'),
+  },
+  {
+    path: '/google-ads/account',
+    name: 'ads-account',
+    component: () => import('@/views/ads/AdsAccountView.vue'),
+  },
+  {
+    path: '/google-ads/c/:id',
+    name: 'ads-dashboard',
+    component: () => import('@/views/ads/AdsDashboardView.vue'),
+    meta: { requiresAuth: true, panel: true },
+  },
   { path: '/create', name: 'create', component: () => import('@/views/CreateBusinessView.vue') },
   {
     path: '/create/easy',
@@ -302,6 +323,12 @@ const routes: RouteRecordRaw[] = [
         path: 'google-ads-agent/campaigns/:googleCampaignId',
         name: 'admin-google-ads-campaign',
         component: () => import('@/views/admin/AdminGoogleAdsCampaignView.vue'),
+      },
+      {
+        // Customers' Google Ads optimizer: pricing, OAuth client, usage.
+        path: 'google-ads-optimizer',
+        name: 'admin-google-ads-optimizer',
+        component: () => import('@/views/admin/AdminGoogleAdsOptimizerView.vue'),
       },
       {
         path: 'settings',

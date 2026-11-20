@@ -33,7 +33,7 @@ export interface GuideTour {
   /** The flow step this page is, for the "Step X of N" chip. */
   step: FlowStep
   /** Fixed plan for pages that only exist in one plan; otherwise resolved live. */
-  mode?: 'easy' | 'advanced'
+  mode?: 'easy' | 'advanced' | 'ads'
   tips: GuideTip[]
   /** Controls the guide card must never sit on top of on this page. */
   avoid?: string[]
@@ -42,6 +42,59 @@ export interface GuideTour {
 const g = (name: string): string => `[data-guide="${name}"]`
 
 export const TOURS: Record<string, GuideTour> = {
+  // Navbar entry: build from scratch or optimize a Google Ads campaign.
+  start: {
+    page: 'start',
+    step: 'plan',
+    tips: [
+      { id: 'st-scratch', target: g('start-scratch'), key: 'guide.tip.startScratch', icon: 'mdi-rocket-launch-outline' },
+      { id: 'st-optimize', target: g('start-optimize'), key: 'guide.tip.startOptimize', icon: 'mdi-google-ads' },
+    ],
+  },
+  // --- Google Ads optimization builder ---
+  'ads-connect': {
+    page: 'ads-connect',
+    step: 'connect',
+    mode: 'ads',
+    tips: [
+      { id: 'ad-connect', target: g('ads-connect'), key: 'guide.tip.adsConnect', icon: 'mdi-google' },
+      { id: 'ad-free', target: g('ads-free'), key: 'guide.tip.adsFree', icon: 'mdi-gift-outline' },
+    ],
+  },
+  'ads-campaigns': {
+    page: 'ads-campaigns',
+    step: 'campaign',
+    mode: 'ads',
+    tips: [
+      { id: 'ad-accounts', target: g('ads-accounts'), key: 'guide.tip.adsAccounts', icon: 'mdi-briefcase-outline' },
+      { id: 'ad-list', target: g('ads-campaign-list'), key: 'guide.tip.adsCampaignList', icon: 'mdi-format-list-checks' },
+      { id: 'ad-next', target: g('ads-campaign-continue'), key: 'guide.tip.adsCampaignContinue', icon: 'mdi-arrow-right-circle-outline' },
+    ],
+  },
+  'ads-account': {
+    page: 'ads-account',
+    step: 'account',
+    mode: 'ads',
+    tips: [
+      { id: 'ad-signed', target: g('ads-account-signed'), key: 'guide.tip.adsAccountSigned', icon: 'mdi-account-check-outline' },
+      { id: 'ad-new', target: g('ads-account-new'), key: 'guide.tip.adsAccountNew', icon: 'mdi-account-plus-outline' },
+      { id: 'ad-login', target: g('ads-account-login'), key: 'guide.tip.adsAccountLogin', icon: 'mdi-login-variant' },
+      { id: 'ad-verify', target: g('ads-account-verify'), key: 'guide.tip.adsAccountVerify', icon: 'mdi-email-check-outline', contextual: true },
+    ],
+  },
+  'ads-dashboard': {
+    page: 'ads-dashboard',
+    step: 'dashboard',
+    mode: 'ads',
+    tips: [
+      { id: 'ad-tabs', target: g('ads-tabs'), key: 'guide.tip.adsTabs', icon: 'mdi-tab' },
+      { id: 'ad-quote', target: g('ads-quote'), key: 'guide.tip.adsQuote', icon: 'mdi-magnify-scan', contextual: true },
+      { id: 'ad-price', target: g('ads-price'), key: 'guide.tip.adsPrice', icon: 'mdi-cash-check', contextual: true },
+      { id: 'ad-start', target: g('ads-start'), key: 'guide.tip.adsStart', icon: 'mdi-play-circle-outline', contextual: true },
+      { id: 'ad-props', target: g('ads-proposals'), key: 'guide.tip.adsProposals', icon: 'mdi-account-check-outline', contextual: true },
+      { id: 'ad-settings', target: g('ads-settings'), key: 'guide.tip.adsSettings', icon: 'mdi-tune-variant', contextual: true },
+    ],
+  },
   plan: {
     page: 'plan',
     step: 'plan',
@@ -162,6 +215,16 @@ export const TOURS: Record<string, GuideTour> = {
 export function tourForRoute(route: RouteLocationNormalizedLoaded): GuideTour | null {
   const inFlow = route.query.flow === 'onboarding'
   switch (route.name) {
+    case 'start':
+      return TOURS.start
+    case 'ads-connect':
+      return TOURS['ads-connect']
+    case 'ads-campaigns':
+      return TOURS['ads-campaigns']
+    case 'ads-account':
+      return TOURS['ads-account']
+    case 'ads-dashboard':
+      return TOURS['ads-dashboard']
     case 'create':
       return TOURS.plan
     case 'create-easy':

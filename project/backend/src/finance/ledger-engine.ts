@@ -19,7 +19,7 @@
 
 export type EngineTxnType = 'purchase' | 'spend' | 'refund' | 'adjustment';
 export type EngineTxnStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'canceled';
-export type ConsumptionCategory = 'cpc' | 'aiUsage' | 'builderUnlock' | 'other';
+export type ConsumptionCategory = 'cpc' | 'aiUsage' | 'builderUnlock' | 'googleAds' | 'other';
 
 export interface EngineTxn {
   id: string;
@@ -101,6 +101,8 @@ interface Lot {
 /** Mirrors `wallet.service.ts`'s classification of non-CPC spend rows. */
 export const AI_USAGE_PROVIDER = 'ai-usage';
 export const BUILDER_UNLOCK_DESCRIPTION = 'Advanced website builder';
+/** Customers' Google Ads optimization cycles (google-ads-user/). */
+export const GOOGLE_ADS_OPTIMIZER_PROVIDER = 'google-ads-optimizer';
 
 export function consumptionCategory(t: {
   spendDay: Date | null;
@@ -109,6 +111,7 @@ export function consumptionCategory(t: {
 }): ConsumptionCategory {
   if (t.spendDay) return 'cpc';
   if (t.provider === AI_USAGE_PROVIDER) return 'aiUsage';
+  if (t.provider === GOOGLE_ADS_OPTIMIZER_PROVIDER) return 'googleAds';
   if (t.provider === null && t.description === BUILDER_UNLOCK_DESCRIPTION) return 'builderUnlock';
   return 'other';
 }

@@ -22,6 +22,12 @@ const props = withDefaults(
     limit?: number
     compact?: boolean
     hideCampaign?: boolean
+    /** Another event source with the same response shape (a customer's
+     *  campaign in the Google Ads optimization builder). Default: the
+     *  platform agent's admin feed. */
+    loader?: (
+      after?: string,
+    ) => Promise<{ events: GoogleAdsAgentEvent[]; running: boolean; serverTime: string }>
   }>(),
   { limit: 150, compact: false, hideCampaign: false },
 )
@@ -73,6 +79,10 @@ const STEP_ICON: Record<string, string> = {
   validate_google: 'mdi-google',
   apply: 'mdi-upload-outline',
   verify: 'mdi-magnify-scan',
+  analyze: 'mdi-gauge',
+  budget: 'mdi-cash-sync',
+  environment: 'mdi-shield-lock-outline',
+  schedule: 'mdi-calendar-clock',
 }
 
 const shown = computed(() =>
@@ -94,11 +104,14 @@ function merge(incoming: GoogleAdsAgentEvent[]) {
 
 async function poll(initial = false) {
   try {
-    const res = await googleAdsOptimizationApi.activity({
-      googleCampaignId: props.googleCampaignId,
-      limit: props.limit,
-      after: initial ? undefined : serverTime,
-    })
+    const after = initial ? undefined : serverTime
+    const res = props.loader
+      ? await props.loader(after)
+      : await googleAdsOptimizationApi.activity({
+          googleCampaignId: props.googleCampaignId,
+          limit: props.limit,
+          after,
+        })
     if (initial) events.value = res.events
     else merge(res.events)
     serverTime = res.serverTime

@@ -52,7 +52,12 @@
     "staff": "Echipă",
     "manage": "Navigare",
     "bizDeleting": "se șterge",
-    "invoices": "Facturi"
+    "invoices": "Facturi",
+    "adsGroup": "Campanie Google Ads",
+    "adsCampaign": "Campanie Google Ads",
+    "adsCampaigns": "Campanii Google Ads",
+    "addAdsCampaign": "Optimizează o campanie",
+    "pickCampaign": "Alege"
   },
   "notifications": {
     "bell": "Notificări",
@@ -1098,7 +1103,8 @@
     "jurnalDiffAfter": "După",
     "jurnalDiffEmpty": "Fără detalii suplimentare.",
     "jurnalReason": "Motiv",
-    "adminOnlyHint": "Editarea contului, securitatea și administrarea afacerilor sunt rezervate administratorilor. Ai acces de vizualizare plus portofel, facturi și date de facturare."
+    "adminOnlyHint": "Editarea contului, securitatea și administrarea afacerilor sunt rezervate administratorilor. Ai acces de vizualizare plus portofel, facturi și date de facturare.",
+    "navGoogleAdsOptimizer": "Google Ads clienți"
   },
   "errors": {
     "notFoundTitle": "Pagina nu a fost găsită",
@@ -2960,7 +2966,10 @@
       "account": "Cont",
       "unlock": "Plată",
       "budget": "Buget",
-      "launch": "Activare"
+      "launch": "Activare",
+      "connect": "Conectare",
+      "campaign": "Campanie",
+      "dashboard": "Panou"
     }
   },
   "unlock": {
@@ -3522,7 +3531,492 @@
       "walletReady": {
         "title": "Ai destule credite",
         "text": "Gata! Apasă „{backToUnlock}” ca să deblochezi builderul și să continui."
+      },
+      "startScratch": {
+        "title": "Creează de la zero",
+        "text": "Asistentul îți face site-ul și campania, pas cu pas."
+      },
+      "startOptimize": {
+        "title": "Ai deja Google Ads?",
+        "text": "Conectează contul și agentul îți optimizează campania existentă. Configurarea este gratuită."
+      },
+      "adsConnect": {
+        "title": "Conectare la Google",
+        "text": "Te autentifici la Google și bifezi accesul la Google Ads. Revii automat aici."
+      },
+      "adsFree": {
+        "title": "Gratuit până la primul ciclu",
+        "text": "Plătești doar când pornești o optimizare."
+      },
+      "adsAccounts": {
+        "title": "Alege contul",
+        "text": "Dacă ai mai multe conturi Google Ads, alege-l pe cel cu campania dorită."
+      },
+      "adsCampaignList": {
+        "title": "Alege campania",
+        "text": "Vezi rezultatele reale din ultimele 30 de zile ca să o recunoști."
+      },
+      "adsCampaignContinue": {
+        "title": "Continuă",
+        "text": "Mai e un pas: contul tău în platformă."
+      },
+      "adsAccountSigned": {
+        "title": "Ești deja conectat",
+        "text": "Apasă Continuă și campania apare în panoul tău."
+      },
+      "adsAccountNew": {
+        "title": "Cont nou",
+        "text": "Completează datele; primești un cod pe email ca să confirmi."
+      },
+      "adsAccountLogin": {
+        "title": "Ai deja cont?",
+        "text": "Intră în cont și revii automat la acest pas."
+      },
+      "adsAccountVerify": {
+        "title": "Confirmă emailul",
+        "text": "Scrie codul de 6 cifre primit pe email."
+      },
+      "adsTabs": {
+        "title": "Panoul campaniei",
+        "text": "Prezentare, agent, propuneri, setări și costuri, totul pentru campania ta Google Ads."
+      },
+      "adsQuote": {
+        "title": "Vezi estimarea",
+        "text": "Analiza este gratuită: afli ce va face agentul și cât costă înainte să plătești."
+      },
+      "adsPrice": {
+        "title": "Prețul",
+        "text": "Depinde de complexitatea lucrului. La final plătești doar ce s-a făcut."
+      },
+      "adsStart": {
+        "title": "Pornește optimizarea",
+        "text": "Agentul lucrează singur; urmărești activitatea în timp real."
+      },
+      "adsProposals": {
+        "title": "Propuneri",
+        "text": "Modificările de buget și rescrierile așteaptă aici aprobarea ta."
+      },
+      "adsSettings": {
+        "title": "Setările agentului",
+        "text": "Alegi ce poate face agentul singur și dacă rulează automat."
       }
     }
+  },
+  "start": {
+    "seoTitle": "Devino vizibil: creează sau optimizează",
+    "seoDesc": "Construiește-ți afacerea de la zero sau optimizează campania Google Ads pe care o ai deja.",
+    "eyebrow": "Devino vizibil",
+    "title": "Cu ce începem?",
+    "lead": "Construiește-ți prezența de la zero sau lasă agentul nostru să optimizeze campania Google Ads pe care o ai deja.",
+    "scratchTitle": "Creează de la zero",
+    "scratchText": "Asistentul îți face site-ul, te listează în platformă și îți pornește campania.",
+    "scratch": {
+      "site": "Site făcut de asistent, simplu sau avansat",
+      "feed": "Listare în feed-ul de firme locale",
+      "campaign": "Campanie de promovare cu buget controlat"
+    },
+    "scratchCta": "Începe de la zero",
+    "optimizeTitle": "Optimizează o campanie existentă",
+    "optimizeText": "Conectează-ți contul Google Ads, alege campania și agentul o duce cât mai aproape de scorul maxim.",
+    "optimize": {
+      "connect": "Conectare sigură cu contul tău Google",
+      "agent": "Același agent de optimizare pe care îl folosim pentru campaniile noastre",
+      "approve": "Bugetul nu se schimbă niciodată fără aprobarea ta"
+    },
+    "optimizeFree": "Configurarea este gratuită",
+    "optimizeCta": "Optimizează campania"
+  },
+  "ads": {
+    "back": "Înapoi",
+    "credits": "credite",
+    "connect": {
+      "seoTitle": "Conectează Google Ads",
+      "title": "Conectează-ți contul Google Ads",
+      "lead": "Te autentifici direct la Google și alegi tu ce cont folosim. Durează un minut.",
+      "accessTitle": "Ce poate face agentul cu acordul tău:",
+      "access": {
+        "read": "Citește campaniile și rezultatele lor reale din Google Ads",
+        "apply": "Adaugă și îmbunătățește texte, extensii și imagini, după setările tale",
+        "budget": "Propune modificări de buget, pe care le aprobi tu înainte de orice schimbare",
+        "revoke": "Poți retrage accesul oricând, din platformă sau din contul Google"
+      },
+      "cta": "Conectează-te cu Google",
+      "free": "Conectarea, alegerea campaniei și panoul sunt gratuite. Plătești doar când pornești un ciclu de optimizare (de la {credits} credite).",
+      "secure": "Nu vedem parola ta Google. Accesul este păstrat criptat și îl poți revoca oricând.",
+      "unavailable": "Conectarea conturilor Google Ads nu este disponibilă momentan. Revino puțin mai târziu.",
+      "retry": "Conectarea anterioară nu a reușit. Încearcă din nou.",
+      "error": "Nu am putut porni conectarea. Încearcă din nou."
+    },
+    "campaigns": {
+      "seoTitle": "Alege campania",
+      "title": "Alege campania de optimizat",
+      "lead": "Am citit conturile și campaniile tale direct din Google Ads. Alege campania pe care vrei să o optimizăm.",
+      "accounts": "Conturi Google Ads",
+      "campaigns": "Campanii",
+      "pickAccount": "Alege un cont din stânga ca să-i vezi campaniile.",
+      "none": "Contul nu are campanii.",
+      "continue": "Continuă cu această campanie",
+      "last30": "ultimele 30 de zile",
+      "viaManager": "prin cont de manager",
+      "test": "cont de test",
+      "connected": "Contul Google a fost conectat.",
+      "loadError": "Nu am putut citi conturile din Google Ads.",
+      "reconnect": "Accesul la Google Ads a expirat. Conectează-te din nou.",
+      "reconnectCta": "Conectează din nou",
+      "noAccounts": "Contul Google {email} nu are acces la niciun cont Google Ads.",
+      "otherAccount": "Folosește alt cont Google",
+      "selectError": "Nu am putut selecta campania. Încearcă din nou.",
+      "unsupported": "Agentul optimizează momentan campanii de căutare (Search).",
+      "unsupportedShort": "doar campaniile Search sunt optimizate momentan",
+      "oauthError": {
+        "denied": "Ai anulat conectarea la Google.",
+        "access_denied": "Ai anulat conectarea la Google.",
+        "expired": "Conectarea a expirat. Încearcă din nou.",
+        "state": "Conectarea nu a putut fi verificată. Încearcă din nou.",
+        "scope": "Ai bifat accesul la Google Ads? Fără el nu putem citi campaniile.",
+        "refresh": "Google nu a acordat accesul permanent. Încearcă din nou.",
+        "exchange": "Conectarea la Google nu a reușit. Încearcă din nou."
+      }
+    },
+    "account": {
+      "seoTitle": "Contul tău",
+      "title": "Leagă campania de contul tău",
+      "lead": "Campania va apărea în panoul tău, lângă afacerile tale.",
+      "signedInAs": "Ești conectat ca {name}",
+      "continue": "Continuă cu acest cont",
+      "newTitle": "Cont nou",
+      "name": "Nume",
+      "email": "Email",
+      "password": "Parolă",
+      "passwordHint": "Cel puțin 8 caractere",
+      "create": "Creează contul și continuă",
+      "haveAccount": "Ai deja cont?",
+      "loginText": "Intră în cont și revii automat aici.",
+      "login": "Intră în cont",
+      "verify": "Confirmă și continuă",
+      "free": "Și acest pas este gratuit. Ajungi direct în panoul campaniei.",
+      "done": "Campania a fost adăugată în panoul tău.",
+      "err": {
+        "exists": "Există deja un cont cu acest email. Intră în cont.",
+        "code": "Codul nu este corect sau a expirat.",
+        "generic": "Ceva n-a mers. Încearcă din nou."
+      }
+    },
+    "tab": {
+      "overview": "Prezentare",
+      "agent": "Agent",
+      "proposals": "Propuneri",
+      "settings": "Setări agent",
+      "costs": "Costuri"
+    },
+    "dash": {
+      "sync": "Sincronizează",
+      "optimize": "Optimizează",
+      "synced": "Sincronizat {when}",
+      "nextCycle": "Următorul ciclu programat: {when}",
+      "disconnected": "Accesul la contul Google Ads a fost retras sau a expirat. Reconectează-l ca agentul să poată lucra.",
+      "reconnect": "Reconectează",
+      "welcome": "Gata, campania ta este conectată. Tot ce ai făcut până aici a fost gratuit. Când vrei, pornește primul ciclu de optimizare din tab-ul Agent (de la {min} credite).",
+      "notFound": "Campania nu a fost găsită.",
+      "loadError": "Nu am putut încărca campania.",
+      "syncRecent": "Datele au fost sincronizate acum câteva minute.",
+      "syncError": "Sincronizarea nu a reușit.",
+      "reconnectNeeded": "Reconectează contul Google Ads.",
+      "reconnected": "Contul Google Ads a fost reconectat.",
+      "noSnapshot": "Încă nu avem date sincronizate. Apasă Sincronizează.",
+      "score": "Scor de optimizare",
+      "scoreHint": "Cât de aproape e campania de cerințele Google, din date reale.",
+      "adStrength": "Ad Strength",
+      "period": "Ultimele 30 de zile, comparat cu cele 30 de zile dinainte.",
+      "toImprove": "Ce se poate îmbunătăți",
+      "letAgent": "Lasă agentul",
+      "noIssues": "Nicio problemă găsită.",
+      "elements": "Elementele reclamei",
+      "keywords": "{n} din {total} cuvinte cheie apar în titluri",
+      "keywordsMissing": "Lipsesc:",
+      "breakdown": "Detalierea scorului",
+      "missing": "Lipsește"
+    },
+    "metrics": {
+      "impressions": "afișări",
+      "clicks": "Clicuri",
+      "cost": "Cost",
+      "ctr": "CTR",
+      "conversions": "Conversii",
+      "perDay": "pe zi",
+      "inline": {
+        "clicks": "clicuri",
+        "cost": "cost"
+      }
+    },
+    "element": {
+      "headlines": "Titluri",
+      "descriptions": "Descrieri",
+      "sitelinks": "Sitelink-uri",
+      "callouts": "Callout-uri",
+      "images": "Imagini"
+    },
+    "strength": {
+      "EXCELLENT": "Excelent",
+      "GOOD": "Bun",
+      "AVERAGE": "Mediu",
+      "POOR": "Slab",
+      "PENDING": "În evaluare",
+      "UNKNOWN": "Necunoscut",
+      "NO_ADS": "Fără reclame",
+      "UNSPECIFIED": "Necunoscut"
+    },
+    "status": {
+      "ENABLED": "Activă",
+      "PAUSED": "Pe pauză",
+      "REMOVED": "Ștearsă"
+    },
+    "channel": {
+      "SEARCH": "Căutare",
+      "PERFORMANCE_MAX": "Performance Max",
+      "DISPLAY": "Display",
+      "VIDEO": "Video",
+      "SHOPPING": "Shopping",
+      "DEMAND_GEN": "Demand Gen",
+      "MULTI_CHANNEL": "Aplicații",
+      "LOCAL": "Local",
+      "SMART": "Smart"
+    },
+    "campaignStatus": {
+      "active": "Agent activ",
+      "paused": "Agent pe pauză",
+      "disconnected": "Deconectat"
+    },
+    "agent": {
+      "runTitle": "Ciclu de optimizare",
+      "runLead": "Agentul analizează campania, aplică îmbunătățirile permise de tine și îți pregătește propunerile. Folosește aceleași reguli ca agentul nostru intern.",
+      "firstFree": "Până acum totul a fost gratuit. Primul ciclu începe de la {credits} credite.",
+      "quoteCta": "Vezi ce va face agentul și cât costă",
+      "quoteFree": "Analiza și estimarea sunt gratuite. Nu se plătește nimic până nu confirmi.",
+      "planTitle": "Ce va face agentul în acest ciclu",
+      "price": "Preț estimat",
+      "level": "Complexitate",
+      "howPriced": "Cum s-a calculat prețul",
+      "elements": "{n} elemente analizate",
+      "points": "Total înainte de multiplicator",
+      "priceRule": "Prețul depinde de volumul și complexitatea lucrului, minimum {min} credite pe ciclu.",
+      "balance": "Sold în portofel: {credits} credite",
+      "startCta": "Pornește optimizarea ({credits} credite)",
+      "topUp": "Adaugă credite",
+      "settleNote": "Plătești doar munca efectuată: dacă agentul face mai puțin decât estimarea, diferența îți revine în portofel.",
+      "confirmTitle": "Pornești ciclul de optimizare?",
+      "confirmText": "Se rezervă {credits} credite din portofel. La final plătești doar ce a făcut agentul, restul revine în portofel.",
+      "started": "Agentul a pornit. Urmărește activitatea mai jos.",
+      "running": "Agentul lucrează (pornit la {when}). Poți închide pagina, continuă singur.",
+      "paused": "Agentul este pe pauză. Îl poți reporni din Setări agent.",
+      "disconnected": "Contul Google Ads trebuie reconectat.",
+      "activity": "Activitate în timp real",
+      "cycles": "Cicluri anterioare",
+      "noCycles": "Niciun ciclu încă.",
+      "err": {
+        "insufficient_credits": "Nu ai destule credite în portofel.",
+        "cycle_already_running": "Un ciclu rulează deja pentru această campanie.",
+        "quote_changed": "Estimarea s-a schimbat de când ai deschis-o. Verifică noul preț.",
+        "campaign_paused": "Agentul este pe pauză.",
+        "google_ads_reconnect_required": "Reconectează contul Google Ads.",
+        "wallet_blocked": "Portofelul tău este blocat. Contactează suportul.",
+        "generic": "Ceva n-a mers. Încearcă din nou."
+      }
+    },
+    "task": {
+      "analysis": "Analiză și scor",
+      "rsa_text": "Titluri și descrieri noi",
+      "keyword_headlines": "Cuvinte cheie în titluri",
+      "extensions": "Extensii (sitelink-uri, callout-uri, snippet)",
+      "images": "Imagini",
+      "text_rewrite": "Propuneri de rescriere",
+      "budget_proposal": "Propuneri de buget"
+    },
+    "cycle": {
+      "running": "În lucru",
+      "completed": "Finalizat",
+      "failed": "Oprit",
+      "scheduled": "programat",
+      "inProgress": "În lucru…",
+      "failedSum": "Ciclul s-a oprit; ai plătit doar ce s-a efectuat.",
+      "summary": "{applied} modificări aplicate, {proposed} propuneri",
+      "score": "scor {from} → {to}",
+      "refunded": "{credits} credite returnate"
+    },
+    "prop": {
+      "pendingTitle": "Așteaptă decizia ta",
+      "none": "Nicio propunere în așteptare.",
+      "needsYou": "Aprobare necesară",
+      "current": "Acum",
+      "proposed": "Propus",
+      "perDay": "Buget zilnic, în moneda contului Google Ads.",
+      "before": "Înainte",
+      "after": "După",
+      "approve": "Aprobă și aplică",
+      "reject": "Respinge",
+      "confirmTitle": "Aplici modificarea?",
+      "confirmText": "Agentul aplică exact textul afișat și verifică apoi în Google Ads.",
+      "confirmBudget": "Bugetul zilnic se schimbă din {from} în {to}. Agentul verifică apoi în Google Ads că a fost aplicat.",
+      "applied": "Aplicat și verificat în Google Ads.",
+      "rejected": "Propunerea a fost respinsă.",
+      "failed": "Nu am putut aplica modificarea.",
+      "historyTitle": "Ce a făcut agentul",
+      "noHistory": "Agentul nu a făcut încă nicio modificare.",
+      "sumTexts": "{h} titluri și {d} descrieri adăugate",
+      "sumAssets": "{s} sitelink-uri și {c} callout-uri adăugate",
+      "sumImages": "{n} imagini adăugate",
+      "sumKeywords": "{n} cuvinte cheie puse în titluri"
+    },
+    "action": {
+      "creative": {
+        "rsa_gap_fill": "Titluri și descrieri adăugate",
+        "assets_gap_fill": "Extensii adăugate",
+        "images_gap_fill": "Imagini adăugate",
+        "keyword_headlines": "Cuvinte cheie în titluri",
+        "replace_text": "Rescriere text"
+      },
+      "budget": {
+        "change": {
+          "proposed": "Modificare de buget"
+        }
+      }
+    },
+    "actionStatus": {
+      "applied": "Aplicat",
+      "failed": "Eșuat",
+      "rejected": "Respins",
+      "approved": "Aprobat",
+      "superseded": "Înlocuit",
+      "pending_approval": "În așteptare"
+    },
+    "set": {
+      "agentTitle": "Ce face agentul",
+      "autoApply": "Completează automat elementele lipsă",
+      "autoApplyHint": "Titluri, descrieri, sitelink-uri, callout-uri, snippet și numele afacerii, până la nivelul recomandat de Google.",
+      "keywordHeadlines": "Pune cuvintele cheie în titluri",
+      "keywordHeadlinesHint": "Când lipsa lor scade Ad Strength. Dacă Google evaluează mai slab varianta nouă, revine automat la cea veche.",
+      "images": "Adaugă imagini",
+      "imagesHint": "Fotografii reale de pe Pexels (licență gratuită), decupate la dimensiunile Google.",
+      "textRewriteProposals": "Propune rescrieri de texte",
+      "textRewriteProposalsHint": "Pentru textele slabe; le aprobi tu.",
+      "budgetProposals": "Propune modificări de buget",
+      "budgetProposalsHint": "Din recomandările Google pentru campanie; le aprobi tu.",
+      "imageQuery": "Ce imagini să caute",
+      "imageQueryHint": "Câteva cuvinte în engleză, de exemplu „plumber repair”.",
+      "budgetRule": "Bugetul nu se modifică niciodată automat. Orice schimbare de buget îți este propusă și se aplică doar după aprobarea ta.",
+      "businessTitle": "Despre afacerea ta",
+      "businessName": "Numele afacerii",
+      "businessNameHint": "Apare lângă reclame (max 25 de caractere).",
+      "businessDescription": "Ce face afacerea",
+      "businessDescriptionHint": "Context pentru textele scrise de agent.",
+      "scheduleTitle": "Programare",
+      "scheduleLabel": "Cicluri automate",
+      "schedule": {
+        "manual": "Doar când le pornesc eu",
+        "weekly": "Săptămânal",
+        "biweekly": "La două săptămâni",
+        "monthly": "Lunar"
+      },
+      "maxCredits": "Limită pe ciclu (credite)",
+      "maxCreditsHint": "Un ciclu programat mai scump nu pornește (minim {min}).",
+      "cooldown": "Pauză între modificări de text (zile)",
+      "cooldownHint": "Google are nevoie de timp să evalueze textele noi.",
+      "scheduleBilled": "Fiecare ciclu programat se plătește din portofel, la fel ca unul pornit manual.",
+      "manageTitle": "Administrare",
+      "pause": "Pune agentul pe pauză",
+      "resume": "Repornește agentul",
+      "pauseHint": "Pe pauză nu rulează niciun ciclu. Campania din Google Ads nu este afectată.",
+      "remove": "Nu mai gestiona campania",
+      "removeHint": "Campania rămâne neschimbată în Google Ads; doar o scoatem din panou.",
+      "removeTitle": "Scoți campania din panou?",
+      "removeText": "Campania rămâne în Google Ads exact cum este. Istoricul din platformă se șterge.",
+      "removed": "Campania a fost scoasă din panou.",
+      "removeRunning": "Așteaptă să se termine ciclul în curs.",
+      "saved": "Setările au fost salvate.",
+      "error": "Ceva n-a mers. Încearcă din nou."
+    },
+    "cost": {
+      "howTitle": "Cum se calculează costul",
+      "free": "Conectarea, alegerea campaniei și panoul sunt gratuite.",
+      "min": "Un ciclu de optimizare costă minimum {min} credite.",
+      "complexity": "Prețul crește cu volumul și complexitatea lucrului: câte elemente analizează și câte modificări face agentul.",
+      "settle": "La final plătești doar munca efectuată; diferența față de estimare revine în portofel.",
+      "levelFrom": "de la {points} puncte",
+      "total": "Total plătit",
+      "returned": "Returnat în portofel",
+      "cycles": "Cicluri",
+      "colDate": "Data",
+      "colLevel": "Complexitate",
+      "colQuote": "Estimat",
+      "colCharged": "Plătit",
+      "colReturned": "Returnat",
+      "colStatus": "Stare",
+      "walletNote": "Toate plățile apar și în istoricul portofelului, la categoria Optimizare Google Ads."
+    }
+  },
+  "adminAdsOpt": {
+    "title": "Optimizare Google Ads pentru clienți",
+    "notReady": "Clienții nu se pot conecta încă: lipsește configurarea Google.",
+    "configure": "Configurează",
+    "tabUsage": "Consum",
+    "tabPricing": "Prețuri",
+    "tabOauth": "Conectare Google",
+    "cycles": "Cicluri",
+    "campaigns": "{n} campanii, {a} conturi conectate",
+    "charged": "Încasat (credite)",
+    "refunded": "{credits} returnate la decontare",
+    "aiCost": "Cost AI real",
+    "aiCalls": "{n} apeluri AI",
+    "margin": "Marjă",
+    "marginHint": "Credite încasate minus costul AI real (1 credit = 1 EUR).",
+    "byLevel": "Pe niveluri de complexitate",
+    "levelLine": "{n} cicluri · {credits} credite",
+    "history": "Cicluri",
+    "noCycles": "Niciun ciclu încă.",
+    "colDate": "Data",
+    "colUser": "Client",
+    "colCampaign": "Campanie",
+    "colLevel": "Complexitate",
+    "colWork": "Aplicate / propuse · analizate",
+    "colQuoted": "Estimat",
+    "colCharged": "Încasat",
+    "colAi": "Cost AI",
+    "colStatus": "Stare",
+    "colWorkHint": "Lucrul efectuat: modificări aplicate / propuneri create · elemente analizate.",
+    "scheduled": "programat",
+    "limits": "Limite",
+    "limitsHint": "Prețul unui ciclu nu coboară sub minim și nu depășește maximul.",
+    "minCredits": "Minim pe ciclu",
+    "minCreditsHint": "Orice ciclu finalizat costă cel puțin atât.",
+    "maxCredits": "Maxim pe ciclu",
+    "maxCreditsHint": "Plafon de siguranță.",
+    "perElement": "Credite pe element analizat",
+    "perElementHint": "Titluri, descrieri, extensii, imagini, cuvinte cheie.",
+    "tasks": "Prețuri pe tip de sarcină",
+    "tasksHint": "Credite pe unitate de lucru (de exemplu pe fiecare titlu scris sau propunere creată).",
+    "perUnit": "cr / unitate",
+    "levels": "Niveluri de complexitate",
+    "levelsHint": "Totalul de puncte (credite înainte de multiplicator) alege nivelul; multiplicatorul nivelului se aplică prețului.",
+    "levelLabel": "Nume",
+    "levelKey": "Cheie",
+    "levelFrom": "De la (puncte)",
+    "levelMult": "Multiplicator",
+    "addLevel": "Adaugă nivel",
+    "removeLevel": "Șterge nivelul",
+    "example": "Exemplu: un ciclu obișnuit are {points} puncte, nivel {level}, deci costă {credits} credite.",
+    "defaults": "Valorile implicite",
+    "saved": "Salvat.",
+    "oauthStatus": "Stare",
+    "checkClient": "ID client OAuth",
+    "checkSecret": "Secret client OAuth",
+    "checkKey": "Cheia de criptare a token-urilor (GOOGLE_ADS_TOKEN_KEY pe server)",
+    "redirect": "URI de redirecționare autorizat:",
+    "copy": "Copiază",
+    "copied": "Copiat.",
+    "oauthHelp": "În Google Cloud: creează un client OAuth de tip „Web application”, adaugă URI-ul de mai sus, activează Google Ads API și cere aprobarea ecranului de consimțământ pentru scope-ul adwords.",
+    "oauthClient": "Client OAuth",
+    "clientId": "ID client",
+    "clientSecret": "Secret client",
+    "secretKeep": "Lasă gol ca să păstrezi secretul salvat."
   }
 }

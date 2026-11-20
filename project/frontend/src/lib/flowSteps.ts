@@ -16,9 +16,13 @@ export const ADVANCED_STEPS = [
   'launch',
 ] as const
 
-export type FlowMode = 'easy' | 'advanced'
-export type FlowStep = (typeof ADVANCED_STEPS)[number]
+/** "Optimize an existing Google Ads campaign" builder (/google-ads). */
+export const ADS_STEPS = ['connect', 'campaign', 'account', 'dashboard'] as const
+
+export type FlowMode = 'easy' | 'advanced' | 'ads'
+export type FlowStep = (typeof ADVANCED_STEPS)[number] | (typeof ADS_STEPS)[number]
 
 export function stepsFor(mode: FlowMode): readonly FlowStep[] {
+  if (mode === 'ads') return ADS_STEPS
   return mode === 'advanced' ? ADVANCED_STEPS : EASY_STEPS
 }

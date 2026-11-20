@@ -156,7 +156,7 @@ watch(() => auth.isAuthenticated, syncWallet)
       <div class="topbar__actions">
         <v-btn
           v-if="mdAndUp"
-          :to="{ name: 'create' }"
+          :to="{ name: 'start' }"
           color="primary"
           variant="flat"
           rounded="pill"

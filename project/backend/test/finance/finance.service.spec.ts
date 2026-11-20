@@ -9,7 +9,7 @@ import {
 function emptyStatement(): FinancialStatement {
   return new FinanceStatementService(null as any).buildStatement(
     [],
-    { expenses: [], ai: [], agent: [], search: [] },
+    { expenses: [], ai: [], agent: [], search: [], optimizer: [] },
     { from: new Date('2026-01-01'), to: new Date('2026-01-31T23:59:59Z') },
   );
 }
@@ -178,6 +178,11 @@ function fakePrisma() {
     // fake already makes — `aggregate` is called once by `overview()` and
     // 3 more times by `profitForRange()` (today/month/year), all replaying
     // the same canned `state.googleAdsAgentRuns`.
+    googleAdsOptimizationCycle: {
+      findMany: jest.fn(
+        async () => (state as { optimizerCycles?: unknown[] }).optimizerCycles ?? [],
+      ),
+    },
     googleAdsAgentRun: {
       aggregate: jest.fn(async () => ({
         _sum: {
@@ -523,14 +528,20 @@ describe('FinanceService', () => {
         { amountMinor: -5_000, provider: 'ai-usage', description: 'Website Builder usage' },
         { amountMinor: -9_900, provider: null, description: 'Advanced website builder' },
         { amountMinor: -1_000, provider: null, description: 'Additional business' },
+        {
+          amountMinor: -2_500,
+          provider: 'google-ads-optimizer',
+          description: 'Google Ads optimization cycle',
+        },
       ];
 
       const result = await svc.overview({});
 
-      expect(result.otherFeesConsumedMinor).toBe(15_900);
+      expect(result.otherFeesConsumedMinor).toBe(18_400);
       expect(result.otherFeesByCategory).toEqual({
         aiUsage: 5_000,
         builderUnlock: 9_900,
+        googleAds: 2_500,
         other: 1_000,
       });
       // Explicitly labelled recurring-vs-one-time pair.
@@ -997,6 +1008,29 @@ describe('FinanceService', () => {
       expect(result.totalCostMinor).toBe(500 + 250); // $5 builder + 250 agent
       expect(result.totalTokens).toBe(1_500 + 400);
       expect(result.totalCalls).toBe(1 + 2);
+    });
+
+    it('lists the customer Google Ads optimization cycles as their own row: real AI cost next to the credits charged', async () => {
+      const { svc, prisma } = makeService();
+      (prisma.__state as { optimizerCycles?: unknown[] }).optimizerCycles = [
+        { aiModel: 'claude-sonnet-5', aiCostMinor: 3, aiCallCount: 2, chargedMinor: 1_200 },
+        { aiModel: 'claude-sonnet-5', aiCostMinor: 1, aiCallCount: 1, chargedMinor: 1_000 },
+      ];
+
+      const result = await svc.aiUsageReport({});
+
+      const row = result.byModel.find((r) => r.provider === 'google-ads-optimizer');
+      expect(row?.calls).toBe(3);
+      expect(row?.costMinor).toBe(4);
+      // Billed on complexity, so "charged" is the real wallet charge, not a markup of the cost.
+      expect(row?.chargedMinor).toBe(2_200);
+      expect(result.googleAdsOptimizer).toEqual({
+        cycles: 2,
+        aiCostMinor: 4,
+        chargedMinor: 2_200,
+        aiCalls: 3,
+      });
+      expect(result.totalCostMinor).toBe(4);
     });
 
     it('adds the homepage search: its own never-charged row plus how searches were answered', async () => {

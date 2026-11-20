@@ -31,6 +31,9 @@ export class AgentActivity {
   constructor(
     private readonly prisma: PrismaService,
     readonly runId: string | null,
+    /** Set when recording a customer campaign's cycle (GoogleAdsUserCampaign);
+     *  null = the platform's own agent. */
+    readonly userCampaignId: string | null = null,
   ) {}
 
   private async insert(meta: EventMeta, status: GoogleAdsAgentEventStatus): Promise<string | null> {
@@ -42,6 +45,7 @@ export class AgentActivity {
           message: meta.message,
           googleCampaignId: meta.googleCampaignId ?? null,
           campaignName: meta.campaignName ?? null,
+          userCampaignId: this.userCampaignId,
           status,
         },
         select: { id: true },

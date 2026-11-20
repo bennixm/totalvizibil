@@ -139,7 +139,34 @@ export interface ReviewIssue {
  *  + ad copy generation for a brand-new per-subcategory campaign. */
 /** Google Ads optimizer: fill the creative gaps of an EXISTING campaign
  *  (only what is missing, never rewriting what is there). */
+/**
+ * Who the ad is for. Absent = the platform's own campaigns (a marketplace of
+ * local businesses, never one firm). Set for a CUSTOMER's own campaign in
+ * the Google Ads optimization builder: the texts then speak for that one
+ * business, in the language its ad already uses.
+ */
+export interface AdvertiserContext {
+  businessName?: string;
+  description?: string;
+}
+
+function advertiserSystem(a?: AdvertiserContext): string {
+  return a
+    ? 'Ești un specialist Google Ads care optimizează reclama unei afaceri, în contul ei propriu de Google Ads.'
+    : 'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.';
+}
+
+function advertiserLines(a?: AdvertiserContext): string[] {
+  if (!a) return [];
+  return [
+    `Afacerea care face reclama: ${a.businessName || '(nume nespecificat)'}` +
+      (a.description ? `. Ce face: ${a.description}` : ''),
+    'Scrie în ACEEAȘI limbă ca textele existente ale reclamei (dacă nu există texte, în limba paginii de destinație).',
+  ];
+}
+
 export interface GoogleAdsCreativeGapFillInput {
+  advertiser?: AdvertiserContext;
   categoryName: string;
   parentCategoryName?: string;
   landingUrl: string;
@@ -184,6 +211,7 @@ export interface GoogleAdsReviseProposalInput {
 /** Ad Strength maximization at campaign creation: Google's real feedback
  *  (`ad_group_ad.action_items`) + the ad's keywords → a better full set. */
 export interface GoogleAdsImproveAdStrengthInput {
+  advertiser?: AdvertiserContext;
   categoryName: string;
   landingUrl: string;
   keywords: string[];
@@ -195,6 +223,7 @@ export interface GoogleAdsImproveAdStrengthInput {
 
 /** Headlines that carry the ad group keywords missing from the ad. */
 export interface GoogleAdsKeywordHeadlinesInput {
+  advertiser?: AdvertiserContext;
   categoryName: string;
   landingUrl: string;
   missingKeywords: string[];
@@ -204,6 +233,7 @@ export interface GoogleAdsKeywordHeadlinesInput {
 }
 
 export interface GoogleAdsReplacementInput {
+  advertiser?: AdvertiserContext;
   categoryName: string;
   kind: 'headline' | 'description';
   current: string;
@@ -1484,9 +1514,15 @@ export class AiService {
     if (!this.configured) return null;
     const { need } = input;
     const prompt = [
-      `Subcategorie: ${input.categoryName}${input.parentCategoryName ? ` (grup: ${input.parentCategoryName})` : ''}`,
+      input.advertiser
+        ? `Serviciu / domeniu: ${input.categoryName}`
+        : `Subcategorie: ${input.categoryName}${input.parentCategoryName ? ` (grup: ${input.parentCategoryName})` : ''}`,
       `Pagina de destinație a reclamei: ${input.landingUrl}`,
-      'Context: platformă românească de listare a firmelor locale (marketplace), nu o singură firmă.',
+      ...(input.advertiser
+        ? advertiserLines(input.advertiser)
+        : [
+            'Context: platformă românească de listare a firmelor locale (marketplace), nu o singură firmă.',
+          ]),
       '',
       'Reclama există deja. Completează DOAR elementele lipsă, fără să le repeți sau să le reformulezi pe cele existente.',
       `Titluri existente: ${JSON.stringify(input.existingHeadlines)}`,
@@ -1499,7 +1535,7 @@ export class AiService {
       ...(need.snippetValues
         ? [
             `Generează și ${need.snippetValues} valori pentru un structured snippet cu antetul „Servicii”: ` +
-              'tipuri concrete de servicii oferite în această subcategorie (ex. pentru instalații electrice: ' +
+              'tipuri concrete de servicii oferite (ex. pentru instalații electrice: ' +
               '„Tablouri electrice”), max 25 caractere fiecare, fără nume de firme, fără prețuri.',
           ]
         : []),
@@ -1508,7 +1544,9 @@ export class AiService {
       'Reguli (cerințele Google Ads + politica editorială):',
       '- Fiecare titlu nou are alt unghi decât cele existente: cuvânt cheie exact, beneficiu, CTA, încredere, viteză, localizare.',
       '- Fără semne de exclamare în titluri, fără MAJUSCULE excesive, fără emoji, fără numere de telefon sau URL-uri în text.',
-      '- Nu promite prețuri, reduceri sau garanții concrete; nu numi firme.',
+      input.advertiser
+        ? '- Nu inventa prețuri, reduceri sau garanții care nu apar în reclamă sau pe pagina de destinație; nu numi alte firme.'
+        : '- Nu promite prețuri, reduceri sau garanții concrete; nu numi firme.',
       '- Sitelink: linkText max 25 caractere și descrie exact pagina destinației; description1 și description2 max 35 caractere fiecare.',
       '',
       'Răspunde STRICT JSON: {"headlines": string[], "descriptions": string[], "callouts": string[], ' +
@@ -1516,11 +1554,11 @@ export class AiService {
         '"sitelinks": [{"url": string, "linkText": string, "description1": string, "description2": string}]}.',
     ].join('\n');
 
-    const result = await this.anthropicJsonWithUsage(
-      'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
-      prompt,
-      { maxTokens: 3000, effort: 'medium', model: this.anthropicModelFast },
-    );
+    const result = await this.anthropicJsonWithUsage(advertiserSystem(input.advertiser), prompt, {
+      maxTokens: 3000,
+      effort: 'medium',
+      model: this.anthropicModelFast,
+    });
     if (!result) return null;
 
     const strs = (v: unknown, maxLen: number, limit: number): string[] =>
@@ -1607,6 +1645,7 @@ export class AiService {
   ): Promise<{ headlines: string[]; descriptions: string[]; costEstimateMinor: number } | null> {
     if (!this.configured) return null;
     const prompt = [
+      ...advertiserLines(input.advertiser),
       `Subcategorie: ${input.categoryName}. Pagina de destinație: ${input.landingUrl}.`,
       `Ad Strength raportat de Google acum: ${input.adStrength}.`,
       `Sugestiile Google pentru această reclamă: ${JSON.stringify(input.googleActionItems)}`,
@@ -1621,11 +1660,11 @@ export class AiService {
       '- Fără semne de exclamare în titluri, fără MAJUSCULE excesive, fără telefoane/URL-uri, fără promisiuni de preț.',
       'Răspunde STRICT JSON: {"headlines": string[15], "descriptions": string[4]}.',
     ].join('\n');
-    const result = await this.anthropicJsonWithUsage(
-      'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
-      prompt,
-      { maxTokens: 3000, effort: 'medium', model: this.anthropicModelFast },
-    );
+    const result = await this.anthropicJsonWithUsage(advertiserSystem(input.advertiser), prompt, {
+      maxTokens: 3000,
+      effort: 'medium',
+      model: this.anthropicModelFast,
+    });
     if (!result) return null;
     const d = result.data as { headlines?: unknown[]; descriptions?: unknown[] };
     const strs = (v: unknown[] | undefined, max: number, n: number) =>
@@ -1651,6 +1690,7 @@ export class AiService {
     if (!this.configured) return null;
     const maxLen = input.kind === 'headline' ? 30 : 90;
     const prompt = [
+      ...advertiserLines(input.advertiser),
       `Subcategorie: ${input.categoryName}. Pagina de destinație: ${input.landingUrl}.`,
       `Google a evaluat ${input.kind === 'headline' ? 'titlul' : 'descrierea'} „${input.current}” cu performanță scăzută (LOW).`,
       `Celelalte texte ale reclamei (nu le repeta): ${JSON.stringify(input.otherTexts)}`,
@@ -1658,11 +1698,11 @@ export class AiService {
       'Fără semne de exclamare în titluri, fără MAJUSCULE excesive, fără telefoane/URL-uri, fără promisiuni de preț.',
       'Răspunde STRICT JSON: {"text": string}.',
     ].join('\n');
-    const result = await this.anthropicJsonWithUsage(
-      'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
-      prompt,
-      { maxTokens: 300, effort: 'low', model: this.anthropicModelFast },
-    );
+    const result = await this.anthropicJsonWithUsage(advertiserSystem(input.advertiser), prompt, {
+      maxTokens: 300,
+      effort: 'low',
+      model: this.anthropicModelFast,
+    });
     const text = typeof result?.data?.text === 'string' ? result.data.text.trim() : '';
     if (!result || !text || [...text].length > maxLen || text === input.current) return null;
     return { text, costEstimateMinor: estimateClaudeCostMinor(result.usage) };
@@ -1679,6 +1719,7 @@ export class AiService {
   ): Promise<{ headlines: string[]; costEstimateMinor: number } | null> {
     if (!this.configured || !input.missingKeywords.length || input.count < 1) return null;
     const prompt = [
+      ...advertiserLines(input.advertiser),
       `Subcategorie: ${input.categoryName}. Pagina de destinație: ${input.landingUrl}.`,
       `Sugestiile Google pentru reclamă: ${JSON.stringify(input.googleActionItems)}`,
       `Cuvinte cheie ale grupului care NU apar în niciun titlu: ${JSON.stringify(input.missingKeywords)}`,
@@ -1690,11 +1731,11 @@ export class AiService {
       '- Fără semne de exclamare, fără MAJUSCULE excesive, fără telefoane/URL-uri, fără promisiuni de preț.',
       `Răspunde STRICT JSON: {"headlines": string[${input.count}]}.`,
     ].join('\n');
-    const result = await this.anthropicJsonWithUsage(
-      'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.',
-      prompt,
-      { maxTokens: 800, effort: 'low', model: this.anthropicModelFast },
-    );
+    const result = await this.anthropicJsonWithUsage(advertiserSystem(input.advertiser), prompt, {
+      maxTokens: 800,
+      effort: 'low',
+      model: this.anthropicModelFast,
+    });
     if (!result) return null;
     const list = (result.data as { headlines?: unknown[] }).headlines;
     const headlines = (Array.isArray(list) ? list : [])

@@ -7,7 +7,7 @@ import { PlatformSettingsService } from '../platform-settings/platform-settings.
 const GOOGLE_ADS_SCOPE = 'https://www.googleapis.com/auth/adwords';
 // Matches the Google Ads API version this project's dev tooling has been
 // verified against. Bump in lockstep if GAQL/mutate shapes ever change.
-const GOOGLE_ADS_API_VERSION = 'v25';
+export const GOOGLE_ADS_API_VERSION = 'v25';
 /** How often this client re-reads its credentials from `PlatformSettingsService`
  *  (which has its own 30s cache) and rebuilds the JWT client if they changed —
  *  the mechanism that lets an admin paste a new service-account key from
@@ -66,7 +66,7 @@ export interface GoogleAdsSearchRow {
  *  Ads-specific field-level violation actually lives; the top-level
  *  `message` alone (e.g. "Request contains an invalid argument.") is
  *  useless for diagnosing a bad mutate payload. */
-interface GoogleAdsApiError {
+export interface GoogleAdsApiError {
   message?: string;
   details?: unknown[];
 }
@@ -170,7 +170,7 @@ export interface GoogleAdsApplyRecommendationOperation {
  * as a clear error with the HTTP status instead of an opaque
  * "Unexpected token '<'" JSON parse failure.
  */
-async function readJson(res: Response): Promise<unknown> {
+export async function readJson(res: Response): Promise<unknown> {
   // Partial Response stubs (unit tests) may only implement json().
   if (typeof res.text !== 'function') return res.json();
   const text = await res.text();
@@ -250,7 +250,7 @@ interface GoogleAdsMutateResponse {
  *  the actual field path/reason. Logged in full (server-side only) and
  *  summarized into the thrown error so a real API rejection is diagnosable
  *  from this service's own logs, not just "it failed". */
-function formatApiError(
+export function formatApiError(
   status: number,
   error: GoogleAdsApiError | undefined,
   logger: Logger,

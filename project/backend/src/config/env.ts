@@ -73,6 +73,14 @@ export interface AppConfig {
    *  Empty ⇒ averages cost/clicks across the WHOLE account, which is wrong
    *  the moment a second, unrelated campaign exists on the same account. */
   googleAdsCampaignId: string;
+  /** Google OAuth 2.0 web client for customers connecting their OWN Google
+   *  Ads accounts (optimization builder). Admin settings take precedence. */
+  googleAdsOauthClientId: string;
+  googleAdsOauthClientSecret: string;
+  /** 32-byte key (base64 or hex) encrypting customers' refresh tokens at
+   *  rest. Env only, never stored in the database. Empty ⇒ connecting is
+   *  disabled. */
+  googleAdsTokenKey: string;
   /** Gmail SMTP, for testing real outbound mail. Empty user/pass ⇒ MailService
    *  keeps its dev-log-only fallback (nothing is ever faked as sent). */
   smtpHost: string;
@@ -174,6 +182,9 @@ export function loadConfig(): AppConfig {
       '',
     ),
     googleAdsCampaignId: process.env.GOOGLE_ADS_CAMPAIGN_ID?.trim() ?? '',
+    googleAdsOauthClientId: process.env.GOOGLE_ADS_OAUTH_CLIENT_ID?.trim() ?? '',
+    googleAdsOauthClientSecret: process.env.GOOGLE_ADS_OAUTH_CLIENT_SECRET?.trim() ?? '',
+    googleAdsTokenKey: process.env.GOOGLE_ADS_TOKEN_KEY?.trim() ?? '',
     smtpHost: process.env.SMTP_HOST?.trim() || 'smtp.gmail.com',
     smtpPort: Number(process.env.SMTP_PORT ?? 587),
     smtpUser: process.env.SMTP_USER?.trim() ?? '',

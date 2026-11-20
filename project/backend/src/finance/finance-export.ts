@@ -41,6 +41,7 @@ export const CONSUMPTION_RO: Record<string, string> = {
   cpc: 'Clicuri CPC',
   aiUsage: 'Consum AI',
   builderUnlock: 'Deblocare builder',
+  googleAds: 'Optimizare Google Ads',
   other: 'Alte servicii',
 };
 
@@ -122,7 +123,7 @@ export function statementLines(
   row('Reduceri acordate la cumpărare', st.cash.discountMinor);
 
   head('2. VENITURI REALIZATE (servicii prestate, fără TVA)');
-  for (const k of ['cpc', 'aiUsage', 'builderUnlock', 'other'] as const) {
+  for (const k of ['cpc', 'aiUsage', 'builderUnlock', 'googleAds', 'other'] as const) {
     row(CONSUMPTION_RO[k], st.revenue.byCategory[k]);
   }
   row('Comisioane reținute din rambursări', st.revenue.refundFeesMinor);
@@ -133,6 +134,7 @@ export function statementLines(
   for (const [k, v] of Object.entries(st.expenses.byCategory)) row(EXPENSE_CATEGORY_RO[k] ?? k, v);
   row('Cost AI: website builder (estimat)', st.expenses.ai.builderMinor);
   row('Cost AI: agent campanii Google Ads (estimat)', st.expenses.ai.campaignAgentMinor);
+  row('Cost AI: optimizare Google Ads clienți (estimat)', st.expenses.ai.googleAdsOptimizerMinor);
   row('Cost AI: căutare pagina principală (estimat)', st.expenses.ai.searchMinor);
   row('Total cheltuieli', st.expenses.totalMinor, true);
 

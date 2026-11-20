@@ -95,6 +95,8 @@ export interface GoogleAdsAssetSummary {
   businessName: string | null
   finalUrls: string[]
   adsCount: number
+  /** Search only: which ad-group keywords appear in the headlines. */
+  headlineKeywords?: { covered: string[]; missing: string[]; googleFlagged: boolean }
 }
 
 export interface GoogleAdsAgentEvent {

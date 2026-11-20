@@ -25,7 +25,7 @@ function txn(partial: Partial<EngineTxn>): EngineTxn {
     ...partial,
   };
 }
-const noCosts = () => ({ expenses: [], ai: [], agent: [], search: [] });
+const noCosts = () => ({ expenses: [], ai: [], agent: [], search: [], optimizer: [] });
 const svc = new FinanceStatementService(null as any);
 
 describe('FinanceStatementService.buildStatement', () => {
@@ -108,6 +108,7 @@ describe('FinanceStatementService.buildStatement', () => {
         })),
         agent: [{ claudeCostEstimateMinor: 250, startedAt: new Date('2026-01-09') }],
         search: [{ day: new Date('2026-01-09'), aiCostUsd: 0.5 }],
+        optimizer: [],
       },
       JAN,
     );
@@ -120,6 +121,7 @@ describe('FinanceStatementService.buildStatement', () => {
     expect(st.expenses.ai).toEqual({
       builderMinor: 1,
       campaignAgentMinor: 250,
+      googleAdsOptimizerMinor: 0,
       searchMinor: 50,
       totalMinor: 301,
     });

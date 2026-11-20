@@ -2,6 +2,7 @@ import { useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
+import { useGoogleAdsUserStore } from '@/stores/googleAdsUser'
 import { useMoneyStore } from '@/stores/money'
 import { useNotificationsStore } from '@/stores/notifications'
 
@@ -15,12 +16,14 @@ export function useSignOut() {
   const companies = useCompaniesStore()
   const money = useMoneyStore()
   const notifications = useNotificationsStore()
+  const ads = useGoogleAdsUserStore()
 
   function signOut(): void {
     auth.logout()
     companies.reset()
     money.reset()
     notifications.reset()
+    ads.reset()
     void router.push({ name: 'feed' })
   }
 
