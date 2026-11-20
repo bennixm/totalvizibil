@@ -3678,7 +3678,11 @@
         "refresh": "Google did not grant lasting access. Please try again.",
         "exchange": "The Google sign-in did not work. Please try again."
       },
-      "googleSaid": "Google said:"
+      "googleSaid": "Google said:",
+      "switchAccount": "Use another Google account",
+      "connectedAccount": "Connected Google account",
+      "switched": "The Google account was disconnected. Connect another one.",
+      "switchError": "We could not disconnect the Google account. Please try again."
     },
     "account": {
       "seoTitle": "Your account",
@@ -3935,7 +3939,12 @@
       "removed": "The campaign was removed from your dashboard.",
       "removeRunning": "Wait for the current cycle to finish.",
       "saved": "Settings saved.",
-      "error": "Something went wrong. Please try again."
+      "error": "Something went wrong. Please try again.",
+      "disconnect": "Disconnect Google account",
+      "disconnectHint": "Removes the platform's access to the Google account {email}. The campaign stays in your dashboard and you can reconnect at any time.",
+      "disconnectTitle": "Disconnect the Google account?",
+      "disconnectText": "The agent has no access to Google Ads until you reconnect. Nothing changes in Google Ads and your history is kept.",
+      "disconnected": "The Google account was disconnected."
     },
     "cost": {
       "howTitle": "How the cost is calculated",
