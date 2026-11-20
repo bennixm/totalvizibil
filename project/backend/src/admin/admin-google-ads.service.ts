@@ -683,7 +683,8 @@ export class AdminGoogleAdsService {
         include: { category: true, approvedBy: { select: { id: true, name: true, email: true } } },
       }),
       this.prisma.googleAdsAgentEvent.findMany({
-        where: { googleCampaignId },
+        // Platform agent only; customer campaigns have their own feed.
+        where: { googleCampaignId, userCampaignId: null },
         orderBy: { startedAt: 'desc' },
         take: 60,
       }),
@@ -700,6 +701,8 @@ export class AdminGoogleAdsService {
   async activity(params: { after?: Date; googleCampaignId?: string; limit?: number }) {
     const take = Math.min(Math.max(params.limit ?? 80, 1), 300);
     const where: Prisma.GoogleAdsAgentEventWhereInput = {
+      // Platform agent only; customer campaigns have their own feed.
+      userCampaignId: null,
       ...(params.googleCampaignId ? { googleCampaignId: params.googleCampaignId } : {}),
       ...(params.after
         ? { OR: [{ startedAt: { gt: params.after } }, { finishedAt: { gt: params.after } }] }

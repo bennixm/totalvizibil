@@ -52,7 +52,12 @@
     "staff": "Staff",
     "manage": "Navigate",
     "bizDeleting": "deleting",
-    "invoices": "Invoices"
+    "invoices": "Invoices",
+    "adsGroup": "Google Ads campaign",
+    "adsCampaign": "Google Ads campaign",
+    "adsCampaigns": "Google Ads campaigns",
+    "addAdsCampaign": "Optimize a campaign",
+    "pickCampaign": "Choose"
   },
   "notifications": {
     "bell": "Notifications",
@@ -1098,7 +1103,8 @@
     "jurnalDiffAfter": "After",
     "jurnalDiffEmpty": "No additional details.",
     "jurnalReason": "Reason",
-    "adminOnlyHint": "Editing the account, security, and managing businesses are reserved for administrators. You have view access plus wallet, invoices, and billing data."
+    "adminOnlyHint": "Editing the account, security, and managing businesses are reserved for administrators. You have view access plus wallet, invoices, and billing data.",
+    "navGoogleAdsOptimizer": "Google Ads clients"
   },
   "errors": {
     "notFoundTitle": "Page not found",
@@ -2960,7 +2966,10 @@
       "account": "Account",
       "unlock": "Payment",
       "budget": "Budget",
-      "launch": "Launch"
+      "launch": "Launch",
+      "connect": "Connect",
+      "campaign": "Campaign",
+      "dashboard": "Dashboard"
     }
   },
   "unlock": {
@@ -3522,7 +3531,492 @@
       "walletReady": {
         "title": "You have enough credits",
         "text": "Done! Press “{backToUnlock}” to unlock the builder and carry on."
+      },
+      "startScratch": {
+        "title": "Create from scratch",
+        "text": "The assistant builds your site and campaign, step by step."
+      },
+      "startOptimize": {
+        "title": "Already on Google Ads?",
+        "text": "Connect your account and the agent optimizes your existing campaign. Setup is free."
+      },
+      "adsConnect": {
+        "title": "Connect with Google",
+        "text": "Sign in with Google and allow access to Google Ads. You come right back here."
+      },
+      "adsFree": {
+        "title": "Free until the first cycle",
+        "text": "You only pay when you start an optimization."
+      },
+      "adsAccounts": {
+        "title": "Pick the account",
+        "text": "If you have several Google Ads accounts, pick the one with your campaign."
+      },
+      "adsCampaignList": {
+        "title": "Pick the campaign",
+        "text": "Real results from the last 30 days help you recognize it."
+      },
+      "adsCampaignContinue": {
+        "title": "Continue",
+        "text": "One more step: your account on the platform."
+      },
+      "adsAccountSigned": {
+        "title": "You are signed in",
+        "text": "Press Continue and the campaign shows up in your dashboard."
+      },
+      "adsAccountNew": {
+        "title": "New account",
+        "text": "Fill in your details; you get a code by email to confirm."
+      },
+      "adsAccountLogin": {
+        "title": "Already have an account?",
+        "text": "Sign in and you come right back to this step."
+      },
+      "adsAccountVerify": {
+        "title": "Confirm your email",
+        "text": "Type the 6-digit code from your email."
+      },
+      "adsTabs": {
+        "title": "Campaign dashboard",
+        "text": "Overview, agent, proposals, settings and costs, all for your Google Ads campaign."
+      },
+      "adsQuote": {
+        "title": "See the estimate",
+        "text": "The analysis is free: see what the agent will do and what it costs before you pay."
+      },
+      "adsPrice": {
+        "title": "The price",
+        "text": "It depends on the complexity of the work. In the end you only pay for what was done."
+      },
+      "adsStart": {
+        "title": "Start optimizing",
+        "text": "The agent works by itself; follow its activity live."
+      },
+      "adsProposals": {
+        "title": "Proposals",
+        "text": "Budget changes and rewrites wait here for your approval."
+      },
+      "adsSettings": {
+        "title": "Agent settings",
+        "text": "Choose what the agent may do on its own and whether it runs automatically."
       }
     }
+  },
+  "start": {
+    "seoTitle": "Get visible: create or optimize",
+    "seoDesc": "Build your business from scratch or optimize the Google Ads campaign you already run.",
+    "eyebrow": "Get visible",
+    "title": "Where do we start?",
+    "lead": "Build your presence from scratch or let our agent optimize the Google Ads campaign you already have.",
+    "scratchTitle": "Create from scratch",
+    "scratchText": "The assistant builds your site, lists you on the platform and starts your campaign.",
+    "scratch": {
+      "site": "A site built by the assistant, simple or advanced",
+      "feed": "Listed in the local business feed",
+      "campaign": "A promotion campaign with a budget you control"
+    },
+    "scratchCta": "Start from scratch",
+    "optimizeTitle": "Optimize an existing campaign",
+    "optimizeText": "Connect your Google Ads account, pick the campaign and the agent takes it as close as possible to the maximum score.",
+    "optimize": {
+      "connect": "Secure sign-in with your Google account",
+      "agent": "The same optimization agent we use for our own campaigns",
+      "approve": "Your budget never changes without your approval"
+    },
+    "optimizeFree": "Setup is free",
+    "optimizeCta": "Optimize my campaign"
+  },
+  "ads": {
+    "back": "Back",
+    "credits": "credits",
+    "connect": {
+      "seoTitle": "Connect Google Ads",
+      "title": "Connect your Google Ads account",
+      "lead": "You sign in with Google and choose the account we use. It takes a minute.",
+      "accessTitle": "What the agent can do with your consent:",
+      "access": {
+        "read": "Read your campaigns and their real results from Google Ads",
+        "apply": "Add and improve texts, extensions and images, per your settings",
+        "budget": "Propose budget changes, which you approve before anything changes",
+        "revoke": "You can remove access at any time, here or in your Google account"
+      },
+      "cta": "Continue with Google",
+      "free": "Connecting, choosing the campaign and the dashboard are free. You only pay when you start an optimization cycle (from {credits} credits).",
+      "secure": "We never see your Google password. Access is stored encrypted and you can revoke it at any time.",
+      "unavailable": "Connecting Google Ads accounts is not available right now. Please come back a little later.",
+      "retry": "The previous connection did not work. Please try again.",
+      "error": "We could not start the connection. Please try again."
+    },
+    "campaigns": {
+      "seoTitle": "Choose the campaign",
+      "title": "Choose the campaign to optimize",
+      "lead": "We read your accounts and campaigns straight from Google Ads. Pick the campaign you want us to optimize.",
+      "accounts": "Google Ads accounts",
+      "campaigns": "Campaigns",
+      "pickAccount": "Pick an account on the left to see its campaigns.",
+      "none": "This account has no campaigns.",
+      "continue": "Continue with this campaign",
+      "last30": "last 30 days",
+      "viaManager": "via manager account",
+      "test": "test account",
+      "connected": "Your Google account is connected.",
+      "loadError": "We could not read your accounts from Google Ads.",
+      "reconnect": "Your Google Ads access has expired. Please connect again.",
+      "reconnectCta": "Connect again",
+      "noAccounts": "The Google account {email} has no access to any Google Ads account.",
+      "otherAccount": "Use another Google account",
+      "selectError": "We could not select the campaign. Please try again.",
+      "unsupported": "For now the agent optimizes Search campaigns.",
+      "unsupportedShort": "only Search campaigns are optimized for now",
+      "oauthError": {
+        "denied": "You cancelled the Google sign-in.",
+        "access_denied": "You cancelled the Google sign-in.",
+        "expired": "The sign-in expired. Please try again.",
+        "state": "The sign-in could not be verified. Please try again.",
+        "scope": "Did you allow access to Google Ads? Without it we cannot read your campaigns.",
+        "refresh": "Google did not grant lasting access. Please try again.",
+        "exchange": "The Google sign-in did not work. Please try again."
+      }
+    },
+    "account": {
+      "seoTitle": "Your account",
+      "title": "Link the campaign to your account",
+      "lead": "The campaign will show up in your dashboard, next to your businesses.",
+      "signedInAs": "You are signed in as {name}",
+      "continue": "Continue with this account",
+      "newTitle": "New account",
+      "name": "Name",
+      "email": "Email",
+      "password": "Password",
+      "passwordHint": "At least 8 characters",
+      "create": "Create account and continue",
+      "haveAccount": "Already have an account?",
+      "loginText": "Sign in and you come right back here.",
+      "login": "Sign in",
+      "verify": "Confirm and continue",
+      "free": "This step is free too. You land straight on the campaign dashboard.",
+      "done": "The campaign was added to your dashboard.",
+      "err": {
+        "exists": "An account with this email already exists. Please sign in.",
+        "code": "The code is wrong or has expired.",
+        "generic": "Something went wrong. Please try again."
+      }
+    },
+    "tab": {
+      "overview": "Overview",
+      "agent": "Agent",
+      "proposals": "Proposals",
+      "settings": "Agent settings",
+      "costs": "Costs"
+    },
+    "dash": {
+      "sync": "Sync",
+      "optimize": "Optimize",
+      "synced": "Synced {when}",
+      "nextCycle": "Next scheduled cycle: {when}",
+      "disconnected": "Access to your Google Ads account was removed or has expired. Reconnect it so the agent can work.",
+      "reconnect": "Reconnect",
+      "welcome": "Done, your campaign is connected. Everything so far was free. Whenever you are ready, start the first optimization cycle in the Agent tab (from {min} credits).",
+      "notFound": "Campaign not found.",
+      "loadError": "We could not load the campaign.",
+      "syncRecent": "The data was synced a few minutes ago.",
+      "syncError": "The sync did not work.",
+      "reconnectNeeded": "Please reconnect your Google Ads account.",
+      "reconnected": "Your Google Ads account is reconnected.",
+      "noSnapshot": "No synced data yet. Press Sync.",
+      "score": "Optimization score",
+      "scoreHint": "How close the campaign is to Google's requirements, from real data.",
+      "adStrength": "Ad Strength",
+      "period": "Last 30 days, compared with the 30 days before.",
+      "toImprove": "What can be improved",
+      "letAgent": "Let the agent do it",
+      "noIssues": "No issues found.",
+      "elements": "Ad elements",
+      "keywords": "{n} of {total} keywords appear in the headlines",
+      "keywordsMissing": "Missing:",
+      "breakdown": "Score breakdown",
+      "missing": "Missing"
+    },
+    "metrics": {
+      "impressions": "impressions",
+      "clicks": "Clicks",
+      "cost": "Cost",
+      "ctr": "CTR",
+      "conversions": "Conversions",
+      "perDay": "per day",
+      "inline": {
+        "clicks": "clicks",
+        "cost": "spent"
+      }
+    },
+    "element": {
+      "headlines": "Headlines",
+      "descriptions": "Descriptions",
+      "sitelinks": "Sitelinks",
+      "callouts": "Callouts",
+      "images": "Images"
+    },
+    "strength": {
+      "EXCELLENT": "Excellent",
+      "GOOD": "Good",
+      "AVERAGE": "Average",
+      "POOR": "Poor",
+      "PENDING": "Being rated",
+      "UNKNOWN": "Unknown",
+      "NO_ADS": "No ads",
+      "UNSPECIFIED": "Unknown"
+    },
+    "status": {
+      "ENABLED": "Active",
+      "PAUSED": "Paused",
+      "REMOVED": "Removed"
+    },
+    "channel": {
+      "SEARCH": "Search",
+      "PERFORMANCE_MAX": "Performance Max",
+      "DISPLAY": "Display",
+      "VIDEO": "Video",
+      "SHOPPING": "Shopping",
+      "DEMAND_GEN": "Demand Gen",
+      "MULTI_CHANNEL": "App",
+      "LOCAL": "Local",
+      "SMART": "Smart"
+    },
+    "campaignStatus": {
+      "active": "Agent active",
+      "paused": "Agent paused",
+      "disconnected": "Disconnected"
+    },
+    "agent": {
+      "runTitle": "Optimization cycle",
+      "runLead": "The agent analyzes the campaign, applies the improvements you allow and prepares its proposals. It follows the same rules as our in-house agent.",
+      "firstFree": "Everything so far was free. The first cycle starts from {credits} credits.",
+      "quoteCta": "See what the agent will do and what it costs",
+      "quoteFree": "The analysis and the estimate are free. Nothing is charged until you confirm.",
+      "planTitle": "What the agent will do in this cycle",
+      "price": "Estimated price",
+      "level": "Complexity",
+      "howPriced": "How the price was calculated",
+      "elements": "{n} elements analyzed",
+      "points": "Total before the multiplier",
+      "priceRule": "The price depends on the amount and complexity of the work, minimum {min} credits per cycle.",
+      "balance": "Wallet balance: {credits} credits",
+      "startCta": "Start optimizing ({credits} credits)",
+      "topUp": "Add credits",
+      "settleNote": "You only pay for the work done: if the agent does less than estimated, the difference goes back to your wallet.",
+      "confirmTitle": "Start the optimization cycle?",
+      "confirmText": "{credits} credits are reserved from your wallet. In the end you only pay for what the agent did, the rest goes back to your wallet.",
+      "started": "The agent has started. Follow the activity below.",
+      "running": "The agent is working (started {when}). You can close the page, it carries on by itself.",
+      "paused": "The agent is paused. You can resume it in Agent settings.",
+      "disconnected": "Your Google Ads account needs to be reconnected.",
+      "activity": "Live activity",
+      "cycles": "Previous cycles",
+      "noCycles": "No cycles yet.",
+      "err": {
+        "insufficient_credits": "You do not have enough credits in your wallet.",
+        "cycle_already_running": "A cycle is already running for this campaign.",
+        "quote_changed": "The estimate changed since you opened it. Check the new price.",
+        "campaign_paused": "The agent is paused.",
+        "google_ads_reconnect_required": "Please reconnect your Google Ads account.",
+        "wallet_blocked": "Your wallet is blocked. Please contact support.",
+        "generic": "Something went wrong. Please try again."
+      }
+    },
+    "task": {
+      "analysis": "Analysis and score",
+      "rsa_text": "New headlines and descriptions",
+      "keyword_headlines": "Keywords in headlines",
+      "extensions": "Extensions (sitelinks, callouts, snippet)",
+      "images": "Images",
+      "text_rewrite": "Rewrite proposals",
+      "budget_proposal": "Budget proposals"
+    },
+    "cycle": {
+      "running": "Working",
+      "completed": "Completed",
+      "failed": "Stopped",
+      "scheduled": "scheduled",
+      "inProgress": "Working…",
+      "failedSum": "The cycle stopped; you only paid for what was done.",
+      "summary": "{applied} changes applied, {proposed} proposals",
+      "score": "score {from} → {to}",
+      "refunded": "{credits} credits returned"
+    },
+    "prop": {
+      "pendingTitle": "Waiting for your decision",
+      "none": "No proposals waiting.",
+      "needsYou": "Needs your approval",
+      "current": "Now",
+      "proposed": "Proposed",
+      "perDay": "Daily budget, in your Google Ads account currency.",
+      "before": "Before",
+      "after": "After",
+      "approve": "Approve and apply",
+      "reject": "Reject",
+      "confirmTitle": "Apply this change?",
+      "confirmText": "The agent applies exactly the text shown and then checks it in Google Ads.",
+      "confirmBudget": "The daily budget changes from {from} to {to}. The agent then checks in Google Ads that it was applied.",
+      "applied": "Applied and verified in Google Ads.",
+      "rejected": "The proposal was rejected.",
+      "failed": "We could not apply the change.",
+      "historyTitle": "What the agent did",
+      "noHistory": "The agent has not made any changes yet.",
+      "sumTexts": "{h} headlines and {d} descriptions added",
+      "sumAssets": "{s} sitelinks and {c} callouts added",
+      "sumImages": "{n} images added",
+      "sumKeywords": "{n} keywords put into headlines"
+    },
+    "action": {
+      "creative": {
+        "rsa_gap_fill": "Headlines and descriptions added",
+        "assets_gap_fill": "Extensions added",
+        "images_gap_fill": "Images added",
+        "keyword_headlines": "Keywords in headlines",
+        "replace_text": "Text rewrite"
+      },
+      "budget": {
+        "change": {
+          "proposed": "Budget change"
+        }
+      }
+    },
+    "actionStatus": {
+      "applied": "Applied",
+      "failed": "Failed",
+      "rejected": "Rejected",
+      "approved": "Approved",
+      "superseded": "Replaced",
+      "pending_approval": "Waiting"
+    },
+    "set": {
+      "agentTitle": "What the agent does",
+      "autoApply": "Fill in missing elements automatically",
+      "autoApplyHint": "Headlines, descriptions, sitelinks, callouts, snippet and business name, up to the level Google recommends.",
+      "keywordHeadlines": "Put keywords into headlines",
+      "keywordHeadlinesHint": "When missing keywords lower Ad Strength. If Google rates the new version lower, it is restored automatically.",
+      "images": "Add images",
+      "imagesHint": "Real photos from Pexels (free license), cropped to Google's sizes.",
+      "textRewriteProposals": "Propose text rewrites",
+      "textRewriteProposalsHint": "For weak texts; you approve them.",
+      "budgetProposals": "Propose budget changes",
+      "budgetProposalsHint": "From Google's recommendations for the campaign; you approve them.",
+      "imageQuery": "What images to look for",
+      "imageQueryHint": "A few English words, for example \"plumber repair\".",
+      "budgetRule": "The budget never changes automatically. Every budget change is proposed to you and only applied after you approve it.",
+      "businessTitle": "About your business",
+      "businessName": "Business name",
+      "businessNameHint": "Shown next to your ads (max 25 characters).",
+      "businessDescription": "What the business does",
+      "businessDescriptionHint": "Context for the texts the agent writes.",
+      "scheduleTitle": "Schedule",
+      "scheduleLabel": "Automatic cycles",
+      "schedule": {
+        "manual": "Only when I start them",
+        "weekly": "Weekly",
+        "biweekly": "Every two weeks",
+        "monthly": "Monthly"
+      },
+      "maxCredits": "Limit per cycle (credits)",
+      "maxCreditsHint": "A more expensive scheduled cycle does not start (minimum {min}).",
+      "cooldown": "Pause between text changes (days)",
+      "cooldownHint": "Google needs time to rate new texts.",
+      "scheduleBilled": "Every scheduled cycle is paid from your wallet, just like one you start yourself.",
+      "manageTitle": "Management",
+      "pause": "Pause the agent",
+      "resume": "Resume the agent",
+      "pauseHint": "While paused no cycle runs. Your campaign in Google Ads is not affected.",
+      "remove": "Stop managing this campaign",
+      "removeHint": "The campaign stays unchanged in Google Ads; we only remove it from your dashboard.",
+      "removeTitle": "Remove the campaign from your dashboard?",
+      "removeText": "The campaign stays in Google Ads exactly as it is. Its history on the platform is deleted.",
+      "removed": "The campaign was removed from your dashboard.",
+      "removeRunning": "Wait for the current cycle to finish.",
+      "saved": "Settings saved.",
+      "error": "Something went wrong. Please try again."
+    },
+    "cost": {
+      "howTitle": "How the cost is calculated",
+      "free": "Connecting, choosing the campaign and the dashboard are free.",
+      "min": "An optimization cycle costs at least {min} credits.",
+      "complexity": "The price grows with the amount and complexity of the work: how many elements the agent analyzes and how many changes it makes.",
+      "settle": "In the end you only pay for the work done; the difference from the estimate goes back to your wallet.",
+      "levelFrom": "from {points} points",
+      "total": "Total paid",
+      "returned": "Returned to wallet",
+      "cycles": "Cycles",
+      "colDate": "Date",
+      "colLevel": "Complexity",
+      "colQuote": "Estimated",
+      "colCharged": "Paid",
+      "colReturned": "Returned",
+      "colStatus": "Status",
+      "walletNote": "All payments also appear in your wallet history, under Google Ads optimization."
+    }
+  },
+  "adminAdsOpt": {
+    "title": "Google Ads optimization for clients",
+    "notReady": "Clients cannot connect yet: the Google setup is missing.",
+    "configure": "Configure",
+    "tabUsage": "Usage",
+    "tabPricing": "Pricing",
+    "tabOauth": "Google connection",
+    "cycles": "Cycles",
+    "campaigns": "{n} campaigns, {a} connected accounts",
+    "charged": "Charged (credits)",
+    "refunded": "{credits} returned at settlement",
+    "aiCost": "Real AI cost",
+    "aiCalls": "{n} AI calls",
+    "margin": "Margin",
+    "marginHint": "Credits charged minus the real AI cost (1 credit = 1 EUR).",
+    "byLevel": "By complexity level",
+    "levelLine": "{n} cycles · {credits} credits",
+    "history": "Cycles",
+    "noCycles": "No cycles yet.",
+    "colDate": "Date",
+    "colUser": "Client",
+    "colCampaign": "Campaign",
+    "colLevel": "Complexity",
+    "colWork": "Applied / proposed · analyzed",
+    "colQuoted": "Estimated",
+    "colCharged": "Charged",
+    "colAi": "AI cost",
+    "colStatus": "Status",
+    "colWorkHint": "Work done: changes applied / proposals created · elements analyzed.",
+    "scheduled": "scheduled",
+    "limits": "Limits",
+    "limitsHint": "A cycle never costs less than the minimum or more than the maximum.",
+    "minCredits": "Minimum per cycle",
+    "minCreditsHint": "Every finished cycle costs at least this.",
+    "maxCredits": "Maximum per cycle",
+    "maxCreditsHint": "Safety cap.",
+    "perElement": "Credits per analyzed element",
+    "perElementHint": "Headlines, descriptions, extensions, images, keywords.",
+    "tasks": "Prices per task type",
+    "tasksHint": "Credits per unit of work (for example per headline written or proposal created).",
+    "perUnit": "cr / unit",
+    "levels": "Complexity levels",
+    "levelsHint": "The point total (credits before the multiplier) picks the level; the level multiplier is applied to the price.",
+    "levelLabel": "Name",
+    "levelKey": "Key",
+    "levelFrom": "From (points)",
+    "levelMult": "Multiplier",
+    "addLevel": "Add level",
+    "removeLevel": "Remove level",
+    "example": "Example: a typical cycle has {points} points, level {level}, so it costs {credits} credits.",
+    "defaults": "Default values",
+    "saved": "Saved.",
+    "oauthStatus": "Status",
+    "checkClient": "OAuth client ID",
+    "checkSecret": "OAuth client secret",
+    "checkKey": "Token encryption key (GOOGLE_ADS_TOKEN_KEY on the server)",
+    "redirect": "Authorized redirect URI:",
+    "copy": "Copy",
+    "copied": "Copied.",
+    "oauthHelp": "In Google Cloud: create an OAuth client of type \"Web application\", add the URI above, enable the Google Ads API and request consent screen approval for the adwords scope.",
+    "oauthClient": "OAuth client",
+    "clientId": "Client ID",
+    "clientSecret": "Client secret",
+    "secretKeep": "Leave empty to keep the saved secret."
   }
 }

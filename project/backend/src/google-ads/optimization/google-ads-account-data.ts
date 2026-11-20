@@ -210,7 +210,7 @@ export interface AccountData {
 }
 
 export async function fetchAccountData(
-  client: GoogleAdsApiClient,
+  client: Pick<GoogleAdsApiClient, 'search'>,
   now = new Date(),
 ): Promise<AccountData> {
   // Two adjacent, equal-length windows ending yesterday (today is partial).

@@ -237,7 +237,12 @@ export class GoogleAdsMonitorService implements OnModuleInit {
       if (generateAllowed) {
         for (const e of candidates.slice(0, MAX_OPTIMIZED_PER_CYCLE)) {
           try {
-            const r = await this.optimizer.fillGaps(e.c, e.ev, e.mapping!, activity);
+            const r = await this.optimizer.fillGaps(
+              e.c,
+              e.ev,
+              this.optimizer.platformTarget(e.mapping!),
+              activity,
+            );
             if (r.applied) changedIds.add(e.c.googleCampaignId);
             applied += r.applied;
             cost += r.costEstimateMinor;
@@ -260,7 +265,11 @@ export class GoogleAdsMonitorService implements OnModuleInit {
             x.ev.issues.some((i) => i.code === 'headlines_missing_keywords'),
         )) {
           try {
-            const r = await this.optimizer.fixHeadlineKeywords(e.c, e.mapping!, activity);
+            const r = await this.optimizer.fixHeadlineKeywords(
+              e.c,
+              this.optimizer.platformTarget(e.mapping!),
+              activity,
+            );
             if (r.applied) changedIds.add(e.c.googleCampaignId);
             applied += r.applied;
             cost += r.costEstimateMinor;
@@ -274,14 +283,22 @@ export class GoogleAdsMonitorService implements OnModuleInit {
         }
         for (const e of evaluated.filter((x) => x.mapping)) {
           try {
-            const r = await this.optimizer.proposeReplacements(e.c, e.mapping!, activity);
+            const r = await this.optimizer.proposeReplacements(
+              e.c,
+              this.optimizer.platformTarget(e.mapping!),
+              activity,
+            );
             proposed += r.proposed;
             cost += r.costEstimateMinor;
             // Complete ads still rated POOR/AVERAGE by Google: rewrite
             // proposals (approval required). Skipped for campaigns changed
             // in this cycle — Google re-evaluates them first.
             if (!changedIds.has(e.c.googleCampaignId)) {
-              const s = await this.optimizer.proposeAdStrengthRewrite(e.c, e.mapping!, activity);
+              const s = await this.optimizer.proposeAdStrengthRewrite(
+                e.c,
+                this.optimizer.platformTarget(e.mapping!),
+                activity,
+              );
               proposed += s.proposed;
               cost += s.costEstimateMinor;
             }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { RouteLocationRaw } from 'vue-router'
+import { useRoute, type RouteLocationRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 
 import BgEffectQuickToggle from '@/components/BgEffectQuickToggle.vue'
@@ -16,6 +16,10 @@ export interface SidebarNavItem {
   badge?: string | number
   /** Route names (besides the exact match) that should also light this item up. */
   activeMatch?: string[]
+  /** For sections of ONE page selected by `?tab=` (the Google Ads campaign
+   *  dashboard): lit only when that tab is the current one (`default` also
+   *  matches no `?tab`), since `router-link-active` ignores the query. */
+  tab?: { value: string; default?: boolean }
 }
 export interface SidebarNavGroup {
   label?: string
@@ -30,6 +34,12 @@ defineProps<{
 }>()
 
 const { mdAndUp } = useDisplay()
+const route = useRoute()
+function tabActive(item: SidebarNavItem): boolean {
+  if (!item.tab) return false
+  const q = typeof route.query.tab === 'string' ? route.query.tab : null
+  return q === item.tab.value || (!q && !!item.tab.default)
+}
 const ui = useUiStore()
 const auth = useAuthStore()
 
@@ -65,6 +75,9 @@ function onNavigate(): void {
             :key="item.label"
             :to="item.to"
             class="sbar__link"
+            :class="{ 'router-link-active': tabActive(item) }"
+            :active-class="item.tab ? 'sbar__link--path' : undefined"
+            :exact-active-class="item.tab ? 'sbar__link--path' : undefined"
             @click="onNavigate"
           >
             <v-icon :icon="item.icon" size="19" />

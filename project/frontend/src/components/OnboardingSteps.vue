@@ -11,7 +11,7 @@ import { stepsFor, type FlowStep } from '@/lib/flowSteps'
  * driven by) an editor's internal logic.
  */
 const props = defineProps<{
-  mode: 'easy' | 'advanced'
+  mode: 'easy' | 'advanced' | 'ads'
   current: string
 }>()
 

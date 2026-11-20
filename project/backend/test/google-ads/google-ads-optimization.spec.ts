@@ -410,7 +410,7 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
 
   it('in a read-only environment: validates with Google, never writes, records nothing as applied', async () => {
     const { svc, c, ev, mapping, activity, mutate, prisma } = setup({ writesAllowed: false });
-    const r = await svc.fillGaps(c, ev, mapping as never, activity);
+    const r = await svc.fillGaps(c, ev, svc.platformTarget(mapping as never), activity);
     expect(r.applied).toBe(0);
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate.mock.calls[0][1]).toEqual({ validateOnly: true });
@@ -433,7 +433,7 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
         'Compară vulcanizări din zona ta și alege rapid.',
       ],
     });
-    const r = await svc.fillGaps(c, ev, mapping as never, activity);
+    const r = await svc.fillGaps(c, ev, svc.platformTarget(mapping as never), activity);
     expect(r.applied).toBe(1);
     // validateOnly first, then the real call with the same operations.
     expect(mutate.mock.calls[0][1]).toEqual({ validateOnly: true });
@@ -461,7 +461,7 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
       writesAllowed: true,
       verifyHeadlines: [],
     });
-    const r = await svc.fillGaps(c, ev, mapping as never, activity);
+    const r = await svc.fillGaps(c, ev, svc.platformTarget(mapping as never), activity);
     expect(r.applied).toBe(0);
     expect(prisma.googleAdsAgentAction.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -487,7 +487,7 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
     expect(ev.issues.find((i) => i.code === 'brand_missing')?.autoFixable).toBe(true);
     // A recent ad-text change: headlines/descriptions wait, extensions don't.
     prisma.googleAdsAgentAction.findFirst.mockResolvedValue({ createdAt: new Date() });
-    const r = await svc.fillGaps(c, ev, mapping as never, activity);
+    const r = await svc.fillGaps(c, ev, svc.platformTarget(mapping as never), activity);
     expect(r.applied).toBe(1);
     const ops = mutate.mock.calls[1][0];
     expect(ops.some((o: any) => o.adOperation)).toBe(false);
@@ -527,7 +527,7 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
   it('respects the creative cooldown', async () => {
     const { svc, c, ev, mapping, activity, mutate, prisma } = setup({ writesAllowed: true });
     prisma.googleAdsAgentAction.findFirst.mockResolvedValue({ createdAt: new Date() });
-    const r = await svc.fillGaps(c, ev, mapping as never, activity);
+    const r = await svc.fillGaps(c, ev, svc.platformTarget(mapping as never), activity);
     expect(r.applied).toBe(0);
     expect(mutate).not.toHaveBeenCalled();
   });
@@ -612,7 +612,7 @@ describe('GoogleAdsOptimizerService.proposeAdStrengthRewrite', () => {
 
   it('turns Google action items into approval proposals, never applying anything', async () => {
     const { svc, c, mapping, activity, prisma, mutate, ai } = setup();
-    const r = await svc.proposeAdStrengthRewrite(c, mapping as never, activity);
+    const r = await svc.proposeAdStrengthRewrite(c, svc.platformTarget(mapping as never), activity);
     expect(mutate).not.toHaveBeenCalled();
     expect(ai.googleAdsImproveAdStrength).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -635,7 +635,7 @@ describe('GoogleAdsOptimizerService.proposeAdStrengthRewrite', () => {
   it('does nothing when Google already rates the ad GOOD', async () => {
     const { svc, c, mapping, activity, prisma } = setup('GOOD');
     c.ads[0].adStrength = 'GOOD';
-    const r = await svc.proposeAdStrengthRewrite(c, mapping as never, activity);
+    const r = await svc.proposeAdStrengthRewrite(c, svc.platformTarget(mapping as never), activity);
     expect(r.proposed).toBe(0);
     expect(prisma.googleAdsAgentAction.create).not.toHaveBeenCalled();
   });
@@ -643,7 +643,7 @@ describe('GoogleAdsOptimizerService.proposeAdStrengthRewrite', () => {
   it('waits while an ad-text proposal is open or the cooldown runs', async () => {
     const { svc, c, mapping, activity, prisma, ai } = setup();
     prisma.googleAdsAgentAction.count.mockResolvedValue(1);
-    const r = await svc.proposeAdStrengthRewrite(c, mapping as never, activity);
+    const r = await svc.proposeAdStrengthRewrite(c, svc.platformTarget(mapping as never), activity);
     expect(r.proposed).toBe(0);
     expect(ai.googleAdsImproveAdStrength).not.toHaveBeenCalled();
   });
@@ -771,7 +771,7 @@ describe('GoogleAdsOptimizerService.fillGaps — images (Pexels)', () => {
   it('adds 2 landscape + 2 square Pexels photos cropped to Google sizes, skipping reused/small ones', async () => {
     const { svc, c, ev, mapping, activity, mutate, prisma, pexelsSearch } = setup([1]);
     expect(ev.issues.find((i) => i.code === 'images_missing')?.autoFixable).toBe(true);
-    const r = await svc.fillGaps(c, ev, mapping as never, activity);
+    const r = await svc.fillGaps(c, ev, svc.platformTarget(mapping as never), activity);
     expect(r.applied).toBe(1);
     expect(pexelsSearch).toHaveBeenCalledWith('Tire   wheel service', expect.anything());
     const urls = (global.fetch as jest.Mock).mock.calls.map((x) => x[0]);
@@ -799,7 +799,7 @@ describe('GoogleAdsOptimizerService.fillGaps — images (Pexels)', () => {
   it('does nothing when Pexels is not configured', async () => {
     const { svc, c, ev, mapping, activity, mutate } = setup();
     (svc as any).pexels = { configured: false };
-    const r = await svc.fillGaps(c, ev, mapping as never, activity);
+    const r = await svc.fillGaps(c, ev, svc.platformTarget(mapping as never), activity);
     expect(r.applied).toBe(0);
     expect(mutate).not.toHaveBeenCalled();
   });
@@ -902,7 +902,7 @@ describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
 
   it('adds keyword headlines when the ad has room, keeping existing ones', async () => {
     const t = setup(10, ['Vulcanizare Bucuresti Rapid', 'Echilibrare Roti pe Loc', 'Sună acum!']);
-    const r = await t.svc.fixHeadlineKeywords(t.c, t.mapping as never, t.activity);
+    const r = await t.svc.fixHeadlineKeywords(t.c, t.svc.platformTarget(t.mapping as never), t.activity);
     expect(r.applied).toBe(1);
     expect(t.live().map((h: any) => h.text)).toEqual([
       ...Array.from({ length: 10 }, (_, i) => `Titlu numărul ${i + 1}`),
@@ -918,7 +918,7 @@ describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
 
   it('in a full ad rewrites only keyword-less, non-BEST headlines', async () => {
     const t = setup(15, ['Vulcanizare Bucuresti Rapid', 'Echilibrare Roti pe Loc']);
-    const r = await t.svc.fixHeadlineKeywords(t.c, t.mapping as never, t.activity);
+    const r = await t.svc.fixHeadlineKeywords(t.c, t.svc.platformTarget(t.mapping as never), t.activity);
     expect(r.applied).toBe(1);
     const texts = t.live().map((h: any) => h.text);
     expect(texts).toHaveLength(15);
@@ -929,7 +929,7 @@ describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
 
   it('rejects AI headlines that do not really contain a missing keyword', async () => {
     const t = setup(10, ['Service auto rapid', 'Cel mai bun preț']);
-    const r = await t.svc.fixHeadlineKeywords(t.c, t.mapping as never, t.activity);
+    const r = await t.svc.fixHeadlineKeywords(t.c, t.svc.platformTarget(t.mapping as never), t.activity);
     expect(r.applied).toBe(0);
     expect(t.mutate).not.toHaveBeenCalled();
   });
@@ -937,7 +937,7 @@ describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
   it('does nothing when every keyword is already in the headlines', async () => {
     const t = setup(10, []);
     t.c.ads[0].keywords = ['titlu numarul 1'];
-    const r = await t.svc.fixHeadlineKeywords(t.c, t.mapping as never, t.activity);
+    const r = await t.svc.fixHeadlineKeywords(t.c, t.svc.platformTarget(t.mapping as never), t.activity);
     expect(r.applied).toBe(0);
     expect(t.ai.googleAdsKeywordHeadlines).not.toHaveBeenCalled();
   });

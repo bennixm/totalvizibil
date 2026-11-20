@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditActor, AuditLogService } from '../admin/audit-log.service';
 import { AppConfig } from '../config/env';
+import { OptimizerPricing, parseStoredPricing, validatePricing } from '../google-ads-user/pricing';
 
 export const SETTING_KEYS = {
   eurRonRate: 'eur_ron_rate',
@@ -50,6 +51,10 @@ export const SETTING_KEYS = {
   // Direction 3) and reused by every subcategory campaign's ads.
   googleAdsConversionActionResourceName: 'google_ads_conversion_action_resource_name',
   googleAdsAgentAutoApplyRecommendationTypes: 'google_ads_agent_auto_apply_recommendation_types',
+  // Google Ads optimization builder (customers' own accounts).
+  googleAdsOauthClientId: 'google_ads_oauth_client_id',
+  googleAdsOauthClientSecret: 'google_ads_oauth_client_secret',
+  googleAdsOptimizerPricing: 'google_ads_optimizer_pricing',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -920,6 +925,43 @@ export class PlatformSettingsService {
   }
 
   /** Raw base64-encoded service-account JSON key. Empty string when unset. */
+  // --- Google Ads optimization builder (customers' own accounts) -------
+
+  async googleAdsOauthClientId(): Promise<string> {
+    return ((await this.get(SETTING_KEYS.googleAdsOauthClientId)) ?? '').trim();
+  }
+  async googleAdsOauthClientSecret(): Promise<string> {
+    return ((await this.get(SETTING_KEYS.googleAdsOauthClientSecret)) ?? '').trim();
+  }
+  async setGoogleAdsOauthClient(input: {
+    clientId?: string;
+    clientSecret?: string;
+  }): Promise<void> {
+    if (input.clientId !== undefined) {
+      const v = input.clientId.trim();
+      if (v && !/^[\w.-]+\.apps\.googleusercontent\.com$/.test(v)) {
+        throw new BadRequestException(
+          'ID-ul clientului OAuth nu pare valid (…apps.googleusercontent.com).',
+        );
+      }
+      await this.set(SETTING_KEYS.googleAdsOauthClientId, v);
+    }
+    if (input.clientSecret !== undefined) {
+      await this.set(SETTING_KEYS.googleAdsOauthClientSecret, input.clientSecret.trim());
+    }
+  }
+
+  /** Credit pricing of customer optimization cycles (admin-configurable). */
+  async googleAdsOptimizerPricing(): Promise<OptimizerPricing> {
+    return parseStoredPricing(await this.get(SETTING_KEYS.googleAdsOptimizerPricing));
+  }
+  async setGoogleAdsOptimizerPricing(input: unknown): Promise<OptimizerPricing> {
+    const { value, error } = validatePricing(input);
+    if (!value) throw new BadRequestException(error ?? 'Configurație de preț invalidă.');
+    await this.set(SETTING_KEYS.googleAdsOptimizerPricing, JSON.stringify(value));
+    return value;
+  }
+
   async googleAdsServiceAccountKeyBase64(): Promise<string> {
     return (await this.get(SETTING_KEYS.googleAdsServiceAccountKeyBase64)) ?? '';
   }

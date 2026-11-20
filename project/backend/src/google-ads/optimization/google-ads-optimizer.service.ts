@@ -1,7 +1,7 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import { AiService, GoogleAdsCreativeGapFill } from '../../ai/ai.service';
+import { AdvertiserContext, AiService, GoogleAdsCreativeGapFill } from '../../ai/ai.service';
 import { AppConfig } from '../../config/env';
 import { PlatformSettingsService } from '../../platform-settings/platform-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -52,9 +52,66 @@ import {
  * period, so Google has time to evaluate the new assets before the next.
  */
 
-type MappingWithCategory = Prisma.GoogleAdsSubcategoryCampaignGetPayload<{
+export type MappingWithCategory = Prisma.GoogleAdsSubcategoryCampaignGetPayload<{
   include: { category: { include: { parent: true } } };
 }>;
+
+/**
+ * What the optimizer works FOR. The platform's own campaigns (one per
+ * subcategory, see `platformTarget`) and a customer's own campaign
+ * (GoogleAdsUserCampaign, see google-ads-user/) go through exactly the same
+ * optimization logic; only these few facts differ between them.
+ */
+export interface OptimizationTarget {
+  /** Stored on every action row this run writes. */
+  owner: { categoryId: string } | { userCampaignId: string };
+  /** Business/category name for AI prompts. */
+  name: string;
+  /** Set for a customer's own campaign: texts speak for that one business
+   *  (absent = the platform marketplace framing). */
+  advertiser?: AdvertiserContext;
+  parentName?: string;
+  /** English search terms for stock photos (Pexels). */
+  imageQuery: string;
+  /** Landing page used when the ad itself has no final URL. */
+  landingFallback: string;
+  /** BUSINESS_NAME asset text; null = the agent never adds one. */
+  businessName: string | null;
+  /** Real, distinct pages for sitelinks, most relevant first. */
+  sitelinkDestinations(
+    exclude: Set<string>,
+    count: number,
+  ): Promise<{ url: string; pageName: string }[]>;
+  /** Called after at least one change was applied this run. */
+  onOptimized?(googleCampaignId: string): Promise<void>;
+}
+
+/** Owner columns for an action row. Typed as the platform table's shape:
+ *  for customer campaigns `actions` is the `google_ads_user_actions`
+ *  delegate, whose rows carry `userCampaignId` instead (same other columns),
+ *  so the value is correct at runtime for whichever table is in use. */
+function ownerFields(t: OptimizationTarget): { categoryId: string } {
+  return t.owner as { categoryId: string };
+}
+
+/** The slice of the Google Ads REST client the optimizer uses. A customer's
+ *  OAuth client (GoogleAdsUserClient) implements the same surface. */
+export interface AdsClient {
+  readonly customerId: string;
+  readonly writesAllowed: boolean;
+  search: GoogleAdsApiClient['search'];
+  mutate: GoogleAdsApiClient['mutate'];
+}
+
+/** The agent settings the optimizer reads (platform-wide or per customer). */
+export interface OptimizerSettings {
+  googleAdsAgentAutoFillGapsEnabled(): Promise<boolean>;
+  googleAdsAgentCreativeCooldownDays(): Promise<number>;
+}
+
+/** Where action rows live: `google_ads_agent_actions` for the platform,
+ *  `google_ads_user_actions` (same columns) for customers. */
+export type ActionStore = PrismaService['googleAdsAgentAction'];
 
 export interface OptimizeOutcome {
   applied: number;
@@ -165,20 +222,44 @@ export function acceptTexts(
 
 @Injectable()
 export class GoogleAdsOptimizerService {
-  private readonly logger = new Logger(GoogleAdsOptimizerService.name);
-  private readonly frontendOrigin: string;
+  protected readonly logger = new Logger(GoogleAdsOptimizerService.name);
+  protected readonly frontendOrigin: string;
   /** Stock photos for image assets (Pexels license: free commercial use). */
   private readonly pexels: PexelsProvider;
 
   constructor(
-    private readonly client: GoogleAdsApiClient,
-    private readonly ai: AiService,
-    private readonly settings: PlatformSettingsService,
-    private readonly prisma: PrismaService,
+    @Inject(GoogleAdsApiClient) protected readonly client: AdsClient,
+    protected readonly ai: AiService,
+    @Inject(PlatformSettingsService) protected readonly settings: OptimizerSettings,
+    protected readonly prisma: PrismaService,
     config: ConfigService<AppConfig, true>,
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
     this.pexels = new PexelsProvider(config.get('pexelsApiKey', { infer: true }) ?? '');
+  }
+
+  /** Action rows table; overridden for customer campaigns. */
+  protected get actions(): ActionStore {
+    return this.prisma.googleAdsAgentAction;
+  }
+
+  /** The platform's own subcategory campaign as an optimization target. */
+  platformTarget(mapping: MappingWithCategory): OptimizationTarget {
+    return {
+      owner: { categoryId: mapping.categoryId },
+      name: plainName(mapping.category.nameI18n),
+      parentName: mapping.category.parent ? plainName(mapping.category.parent.nameI18n) : undefined,
+      imageQuery: englishName(mapping.category.nameI18n).replace(/&/g, ' ').trim(),
+      landingFallback: subcategoryLandingUrl(mapping.category, this.frontendOrigin),
+      businessName: BUSINESS_NAME,
+      sitelinkDestinations: (exclude, count) =>
+        this.platformSitelinkDestinations(mapping, exclude, count),
+      onOptimized: async (googleCampaignId) => {
+        await this.prisma.googleAdsCampaignSnapshot
+          .update({ where: { googleCampaignId }, data: { lastOptimizedAt: new Date() } })
+          .catch(() => undefined);
+      },
+    };
   }
 
   private pickRsa(c: CampaignData): RsaAd | undefined {
@@ -194,7 +275,7 @@ export class GoogleAdsOptimizerService {
    * callouts, snippets, business name) are filled whenever they are missing.
    */
   async rsaChangeBlocker(c: CampaignData): Promise<string | null> {
-    const pending = await this.prisma.googleAdsAgentAction.count({
+    const pending = await this.actions.count({
       where: {
         googleCampaignId: c.googleCampaignId,
         action: { in: RSA_TEXT_ACTIONS },
@@ -203,7 +284,7 @@ export class GoogleAdsOptimizerService {
     });
     if (pending) return `are ${pending} propuneri creative în așteptarea aprobării`;
     const cooldownDays = await this.settings.googleAdsAgentCreativeCooldownDays();
-    const last = await this.prisma.googleAdsAgentAction.findFirst({
+    const last = await this.actions.findFirst({
       where: {
         googleCampaignId: c.googleCampaignId,
         action: { in: RSA_TEXT_ACTIONS },
@@ -222,7 +303,7 @@ export class GoogleAdsOptimizerService {
   /** Real, distinct pages for sitelinks, most relevant first: parent group
    *  page, sibling subcategories, homepage, the business sign-up page, then
    *  the other service groups. Never the ad's own landing page twice. */
-  private async sitelinkDestinations(
+  private async platformSitelinkDestinations(
     mapping: MappingWithCategory,
     exclude: Set<string>,
     count: number,
@@ -267,7 +348,7 @@ export class GoogleAdsOptimizerService {
   async fillGaps(
     c: CampaignData,
     ev: CampaignEvaluation,
-    mapping: MappingWithCategory,
+    target: OptimizationTarget,
     activity: AgentActivity,
   ): Promise<OptimizeOutcome> {
     if (!(await this.settings.googleAdsAgentAutoFillGapsEnabled())) {
@@ -282,16 +363,9 @@ export class GoogleAdsOptimizerService {
       );
       return { applied: 0, proposed: 0, costEstimateMinor: 0 };
     }
-    const outcome = await this.fillTextGaps(c, ev, mapping, activity);
-    outcome.applied += await this.fillImageGaps(c, ev, mapping, activity);
-    if (outcome.applied) {
-      await this.prisma.googleAdsCampaignSnapshot
-        .update({
-          where: { googleCampaignId: c.googleCampaignId },
-          data: { lastOptimizedAt: new Date() },
-        })
-        .catch(() => undefined);
-    }
+    const outcome = await this.fillTextGaps(c, ev, target, activity);
+    outcome.applied += await this.fillImageGaps(c, ev, target, activity);
+    if (outcome.applied) await target.onOptimized?.(c.googleCampaignId);
     return outcome;
   }
 
@@ -300,7 +374,7 @@ export class GoogleAdsOptimizerService {
   private async fillTextGaps(
     c: CampaignData,
     ev: CampaignEvaluation,
-    mapping: MappingWithCategory,
+    target: OptimizationTarget,
     activity: AgentActivity,
   ): Promise<OptimizeOutcome> {
     const meta = { googleCampaignId: c.googleCampaignId, campaignName: c.name };
@@ -312,7 +386,7 @@ export class GoogleAdsOptimizerService {
       callouts: Math.max(0, CALLOUTS.ourTarget - ev.assets.callouts.length),
       sitelinks: Math.max(0, SITELINKS.recommended - ev.assets.sitelinks.length),
       snippetValues: ev.assets.structuredSnippets ? 0 : STRUCTURED_SNIPPETS.recommendedValues,
-      businessName: !ev.assets.businessName,
+      businessName: !!target.businessName && !ev.assets.businessName,
     };
     const total =
       need.headlines +
@@ -359,11 +433,9 @@ export class GoogleAdsOptimizerService {
       return outcome;
     }
 
-    const landingUrl =
-      rsa?.finalUrls[0] ?? subcategoryLandingUrl(mapping.category, this.frontendOrigin);
+    const landingUrl = rsa?.finalUrls[0] ?? target.landingFallback;
     const destinations = need.sitelinks
-      ? await this.sitelinkDestinations(
-          mapping,
+      ? await target.sitelinkDestinations(
           new Set([landingUrl, ...ev.assets.sitelinks.map((s) => s.finalUrl ?? '')]),
           need.sitelinks,
         )
@@ -392,10 +464,9 @@ export class GoogleAdsOptimizerService {
             { ...meta, step: 'generate', message: 'Generare texte pentru elementele lipsă' },
             async () => {
               const res = await this.ai.googleAdsCreativeGapFill({
-                categoryName: plainName(mapping.category.nameI18n),
-                parentCategoryName: mapping.category.parent
-                  ? plainName(mapping.category.parent.nameI18n)
-                  : undefined,
+                advertiser: target.advertiser,
+                categoryName: target.name,
+                parentCategoryName: target.parentName,
                 landingUrl,
                 existingHeadlines: rsa?.headlines.map((h) => h.text) ?? [],
                 existingDescriptions: rsa?.descriptions.map((d) => d.text) ?? [],
@@ -530,7 +601,7 @@ export class GoogleAdsOptimizerService {
       ];
       const ok = await this.executeChange({
         c,
-        mapping,
+        target,
         activity,
         action: 'creative.rsa_gap_fill',
         adId: rsa.adResourceName.split('/').pop(),
@@ -628,7 +699,9 @@ export class GoogleAdsOptimizerService {
       if (need.businessName) {
         const res = `${customer}/assets/${tempId--}`;
         ops.push({
-          assetOperation: { create: { resourceName: res, textAsset: { text: BUSINESS_NAME } } },
+          assetOperation: {
+            create: { resourceName: res, textAsset: { text: target.businessName! } },
+          },
         });
         links.push({
           campaignAssetOperation: {
@@ -640,11 +713,11 @@ export class GoogleAdsOptimizerService {
         sl.length && `${sl.length} sitelink-uri`,
         co.accepted.length && `${co.accepted.length} callout-uri`,
         snippetValues.length && `un structured snippet (${snippetValues.length} servicii)`,
-        need.businessName && `numele afacerii „${BUSINESS_NAME}”`,
+        need.businessName && `numele afacerii „${target.businessName}”`,
       ].filter(Boolean) as string[];
       const ok = await this.executeChange({
         c,
-        mapping,
+        target,
         activity,
         action: 'creative.assets_gap_fill',
         label: `Adăugare ${parts.join(', ')}`,
@@ -662,7 +735,7 @@ export class GoogleAdsOptimizerService {
             ...(snippetValues.length
               ? { structuredSnippet: { header: SNIPPET_HEADER, values: snippetValues } }
               : {}),
-            ...(need.businessName ? { businessName: BUSINESS_NAME } : {}),
+            ...(need.businessName ? { businessName: target.businessName } : {}),
           },
         },
         reasoning: `Completare automată a lipsurilor (${reasoning}). Fiecare sitelink duce la o pagină reală diferită; extensiile existente rămân neschimbate.`,
@@ -694,7 +767,7 @@ export class GoogleAdsOptimizerService {
             ...sl.map((s) => s.linkText),
             ...co.accepted,
             ...snippetValues,
-            ...(need.businessName ? [BUSINESS_NAME] : []),
+            ...(need.businessName ? [target.businessName!] : []),
           ].filter((t) => !live.has(t));
           return missing.length ? `Lipsesc după aplicare: ${missing.join(', ')}` : null;
         },
@@ -715,7 +788,7 @@ export class GoogleAdsOptimizerService {
   private async fillImageGaps(
     c: CampaignData,
     ev: CampaignEvaluation,
-    mapping: MappingWithCategory,
+    target: OptimizationTarget,
     activity: AgentActivity,
   ): Promise<number> {
     if (c.channelType !== 'SEARCH' || !this.pexels.configured) return 0;
@@ -727,9 +800,9 @@ export class GoogleAdsOptimizerService {
     };
     if (!need.landscape && !need.square) return 0;
     const meta = { googleCampaignId: c.googleCampaignId, campaignName: c.name };
-    const query = englishName(mapping.category.nameI18n).replace(/&/g, ' ').trim();
+    const query = target.imageQuery;
 
-    const previous = await this.prisma.googleAdsAgentAction.findMany({
+    const previous = await this.actions.findMany({
       where: { googleCampaignId: c.googleCampaignId, action: 'creative.images_gap_fill' },
       select: { after: true },
     });
@@ -819,7 +892,7 @@ export class GoogleAdsOptimizerService {
     }));
     const ok = await this.executeChange({
       c,
-      mapping,
+      target,
       activity,
       action: 'creative.images_gap_fill',
       label: `Adăugare ${picked.length} imagini (Pexels)`,
@@ -874,7 +947,7 @@ export class GoogleAdsOptimizerService {
    */
   private async executeChange(p: {
     c: CampaignData;
-    mapping: MappingWithCategory;
+    target: OptimizationTarget;
     activity: AgentActivity;
     action: string;
     label: string;
@@ -946,9 +1019,9 @@ export class GoogleAdsOptimizerService {
       error = err instanceof Error ? err.message : String(err);
     }
 
-    const created = await this.prisma.googleAdsAgentAction.create({
+    const created = await this.actions.create({
       data: {
-        categoryId: p.mapping.categoryId,
+        ...ownerFields(p.target),
         googleCampaignId: p.c.googleCampaignId,
         action: p.action,
         status: error ? 'failed' : 'applied',
@@ -982,7 +1055,7 @@ export class GoogleAdsOptimizerService {
    */
   async fixHeadlineKeywords(
     c: CampaignData,
-    mapping: MappingWithCategory,
+    target: OptimizationTarget,
     activity: AgentActivity,
   ): Promise<OptimizeOutcome> {
     const outcome: OptimizeOutcome = { applied: 0, proposed: 0, costEstimateMinor: 0 };
@@ -1037,7 +1110,8 @@ export class GoogleAdsOptimizerService {
         { ...meta, step: 'generate', message: `${message}: generare titluri cu cuvintele cheie` },
         async () => {
           const r = await this.ai.googleAdsKeywordHeadlines({
-            categoryName: plainName(mapping.category.nameI18n),
+            advertiser: target.advertiser,
+            categoryName: target.name,
             landingUrl: rsa.finalUrls[0] ?? '',
             missingKeywords: targets,
             existingHeadlines: rsa.headlines.map((h) => h.text),
@@ -1109,7 +1183,7 @@ export class GoogleAdsOptimizerService {
     const adId = rsa.adResourceName.split('/').pop()!;
     const ok = await this.executeChange({
       c,
-      mapping,
+      target,
       activity,
       action: 'creative.keyword_headlines',
       adId,
@@ -1227,10 +1301,10 @@ export class GoogleAdsOptimizerService {
             reverted = true;
             note += ` Mai slab decât înainte (${p.strengthBefore}), așa că titlurile anterioare au fost restaurate.`;
           }
-          const row = await this.prisma.googleAdsAgentAction.findUnique({
+          const row = await this.actions.findUnique({
             where: { id: p.actionId },
           });
-          await this.prisma.googleAdsAgentAction.update({
+          await this.actions.update({
             where: { id: p.actionId },
             data: {
               executionResult: `${row?.executionResult ?? ''}${note}`.trim(),
@@ -1257,7 +1331,7 @@ export class GoogleAdsOptimizerService {
    */
   async proposeReplacements(
     c: CampaignData,
-    mapping: MappingWithCategory,
+    target: OptimizationTarget,
     activity: AgentActivity,
   ): Promise<OptimizeOutcome> {
     const outcome: OptimizeOutcome = { applied: 0, proposed: 0, costEstimateMinor: 0 };
@@ -1278,7 +1352,7 @@ export class GoogleAdsOptimizerService {
     for (const low of lows.slice(0, MAX_REPLACEMENTS_PER_CAMPAIGN_PER_CYCLE)) {
       // Never re-propose the same text while a proposal is open, or soon
       // after an admin rejected one.
-      const dup = await this.prisma.googleAdsAgentAction.findFirst({
+      const dup = await this.actions.findFirst({
         where: {
           googleCampaignId: c.googleCampaignId,
           action: 'creative.replace_text',
@@ -1303,7 +1377,8 @@ export class GoogleAdsOptimizerService {
           },
           async () => {
             const r = await this.ai.googleAdsReplacementText({
-              categoryName: plainName(mapping.category.nameI18n),
+              advertiser: target.advertiser,
+              categoryName: target.name,
               kind: low.kind,
               current: low.text,
               otherTexts: others,
@@ -1329,9 +1404,9 @@ export class GoogleAdsOptimizerService {
         .catch(() => null);
       if (!replacement) continue;
       outcome.costEstimateMinor += replacement.costEstimateMinor;
-      await this.prisma.googleAdsAgentAction.create({
+      await this.actions.create({
         data: {
-          categoryId: mapping.categoryId,
+          ...ownerFields(target),
           googleCampaignId: c.googleCampaignId,
           action: 'creative.replace_text',
           status: 'pending_approval',
@@ -1357,7 +1432,7 @@ export class GoogleAdsOptimizerService {
    */
   async proposeAdStrengthRewrite(
     c: CampaignData,
-    mapping: MappingWithCategory,
+    target: OptimizationTarget,
     activity: AgentActivity,
   ): Promise<OptimizeOutcome> {
     const outcome: OptimizeOutcome = { applied: 0, proposed: 0, costEstimateMinor: 0 };
@@ -1418,7 +1493,8 @@ export class GoogleAdsOptimizerService {
             descriptions: rsa.descriptions.map((x) => x.text),
           };
           const r = await this.ai.googleAdsImproveAdStrength({
-            categoryName: plainName(mapping.category.nameI18n),
+            advertiser: target.advertiser,
+            categoryName: target.name,
             landingUrl: rsa.finalUrls[0] ?? '',
             keywords,
             headlines: current.headlines,
@@ -1469,7 +1545,7 @@ export class GoogleAdsOptimizerService {
     if (!generated) return outcome;
 
     for (const p of generated.pairs) {
-      const dup = await this.prisma.googleAdsAgentAction.findFirst({
+      const dup = await this.actions.findFirst({
         where: {
           googleCampaignId: c.googleCampaignId,
           action: 'creative.replace_text',
@@ -1484,9 +1560,9 @@ export class GoogleAdsOptimizerService {
         },
       });
       if (dup) continue;
-      await this.prisma.googleAdsAgentAction.create({
+      await this.actions.create({
         data: {
-          categoryId: mapping.categoryId,
+          ...ownerFields(target),
           googleCampaignId: c.googleCampaignId,
           action: 'creative.replace_text',
           status: 'pending_approval',
@@ -1586,14 +1662,14 @@ export class GoogleAdsOptimizerService {
           const a = rows[0]?.adGroupAd as
             { adStrength?: string; actionItems?: string[] } | undefined;
           if (!a) return;
-          const row = await this.prisma.googleAdsAgentAction.findUnique({
+          const row = await this.actions.findUnique({
             where: { id: actionId },
           });
           const note =
             ` Ad Strength citit din Google după modificare: ${a.adStrength ?? 'indisponibil'}` +
             (a.actionItems?.length ? ` (sugestii Google: ${a.actionItems.join(' | ')})` : '') +
             '.';
-          await this.prisma.googleAdsAgentAction.update({
+          await this.actions.update({
             where: { id: actionId },
             data: {
               executionResult: `${row?.executionResult ?? ''}${note}`.trim(),
@@ -1616,7 +1692,7 @@ export class GoogleAdsOptimizerService {
   /** Applies an approved `creative.replace_text` proposal — exactly the
    *  approved text, nothing else — and verifies it in Google. */
   async approveProposal(actionId: string, approvedByUserId: string): Promise<void> {
-    const action = await this.prisma.googleAdsAgentAction.findUnique({ where: { id: actionId } });
+    const action = await this.actions.findUnique({ where: { id: actionId } });
     // `approved` = claimed for execution by the approval workflow.
     if (
       !action ||
@@ -1671,7 +1747,7 @@ export class GoogleAdsOptimizerService {
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
-    await this.prisma.googleAdsAgentAction.update({
+    await this.actions.update({
       where: { id: actionId },
       data: {
         ...stamp,

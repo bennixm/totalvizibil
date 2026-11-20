@@ -25,8 +25,10 @@ const tabs = computed<Tab[]>(() => {
     label: t('nav.create'),
     icon: 'mdi-plus',
     activeIcon: 'mdi-plus',
-    to: { name: 'create' },
-    match: ['create'],
+    // Same entry as the navbar's button: choose between building from
+    // scratch (/create) and optimizing a Google Ads campaign (/google-ads).
+    to: { name: 'start' },
+    match: ['start', 'create', 'ads-connect', 'ads-campaigns', 'ads-account'],
     center: true,
   }
   const discover: Tab = {

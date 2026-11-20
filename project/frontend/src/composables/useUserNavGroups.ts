@@ -1,8 +1,11 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { SidebarNavGroup } from '@/components/AppSidebar.vue'
+import type { SidebarNavGroup, SidebarNavItem } from '@/components/AppSidebar.vue'
+import { useRoute } from 'vue-router'
+
 import { useCompaniesStore } from '@/stores/companies'
+import { useGoogleAdsUserStore } from '@/stores/googleAdsUser'
 
 /**
  * The signed-in user's panel navigation, grouped for the left sidebar.
@@ -17,7 +20,37 @@ import { useCompaniesStore } from '@/stores/companies'
 export function useUserNavGroups() {
   const { t } = useI18n()
   const companies = useCompaniesStore()
+  const ads = useGoogleAdsUserStore()
+  const route = useRoute()
   const current = computed(() => companies.currentOverview)
+
+  // A Google Ads campaign selected in the panel's switcher: its dedicated
+  // dashboard replaces the business pages in the sidebar.
+  const adsCampaignId = computed(() =>
+    route.name === 'ads-dashboard' ? String(route.params.id) : null,
+  )
+  const adsGroup = computed<SidebarNavGroup | null>(() => {
+    const id = adsCampaignId.value
+    if (!id) return null
+    const pending = ads.campaigns.find((c) => c.id === id)?.pendingApprovals ?? 0
+    const item = (tab: string, label: string, icon: string, extra: Partial<SidebarNavItem> = {}) => ({
+      to: { name: 'ads-dashboard', params: { id }, query: { tab } },
+      label,
+      icon,
+      tab: { value: tab, default: tab === 'overview' },
+      ...extra,
+    })
+    return {
+      label: t('nav.adsGroup'),
+      items: [
+        item('overview', t('ads.tab.overview'), 'mdi-view-dashboard-outline'),
+        item('agent', t('ads.tab.agent'), 'mdi-robot-outline'),
+        item('proposals', t('ads.tab.proposals'), 'mdi-account-check-outline', pending ? { badge: pending } : {}),
+        item('settings', t('ads.tab.settings'), 'mdi-tune-variant'),
+        item('costs', t('ads.tab.costs'), 'mdi-cash-multiple'),
+      ],
+    }
+  })
 
   // No website at all, or an advanced-plan site that was never unlocked —
   // there's no live site for a visitor to submit a form on. Before overview
@@ -106,7 +139,7 @@ export function useUserNavGroups() {
   }))
 
   const groups = computed<SidebarNavGroup[]>(() => [
-    businessGroup.value,
+    adsGroup.value ?? businessGroup.value,
     {
       // General account pages — not tied to any one business, so they stay
       // put regardless of which company is active above.

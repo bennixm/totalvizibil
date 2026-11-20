@@ -109,6 +109,8 @@ export interface FinancialStatement {
     ai: {
       builderMinor: number;
       campaignAgentMinor: number;
+      /** Customers' Google Ads optimization cycles (billed to them). */
+      googleAdsOptimizerMinor: number;
       searchMinor: number;
       totalMinor: number;
     };
@@ -171,6 +173,7 @@ interface CostData {
   }[];
   ai: { estimatedCostUsd: number; createdAt: Date }[];
   agent: { claudeCostEstimateMinor: number | null; startedAt: Date }[];
+  optimizer: { aiCostMinor: number; startedAt: Date }[];
   search: { day: Date; aiCostUsd: number }[];
 }
 
@@ -189,7 +192,7 @@ export function expenseEurMinor(r: {
 const SAMPLE_LIMIT = 15;
 
 function emptyByCategory(): Record<ConsumptionCategory, number> {
-  return { cpc: 0, aiUsage: 0, builderUnlock: 0, other: 0 };
+  return { cpc: 0, aiUsage: 0, builderUnlock: 0, googleAds: 0, other: 0 };
 }
 function emptyExpenseCategories(): Record<ExpenseCategoryKey, number> {
   return Object.fromEntries(EXPENSE_CATEGORIES.map((c) => [c, 0])) as Record<
@@ -258,7 +261,7 @@ export class FinanceStatementService {
     const dayFrom = new Date(
       Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()),
     );
-    const [expenses, ai, agent, search] = await Promise.all([
+    const [expenses, ai, agent, search, optimizer] = await Promise.all([
       this.prisma.platformExpense.findMany({
         where: { incurredOn: { gte: dayFrom, lte: to } },
         select: {
@@ -284,8 +287,12 @@ export class FinanceStatementService {
         where: { day: { gte: dayFrom, lte: to } },
         select: { day: true, aiCostUsd: true },
       }),
+      this.prisma.googleAdsOptimizationCycle.findMany({
+        where: { startedAt: { gte: from, lte: to } },
+        select: { aiCostMinor: true, startedAt: true },
+      }),
     ]);
-    return { expenses, ai, agent, search };
+    return { expenses, ai, agent, search, optimizer };
   }
 
   // -------------------------------------------------------------------------
@@ -430,6 +437,7 @@ export class FinanceStatementService {
       byCategory.cpc +
       byCategory.aiUsage +
       byCategory.builderUnlock +
+      byCategory.googleAds +
       byCategory.other +
       refundFeesNet;
 
@@ -459,10 +467,14 @@ export class FinanceStatementService {
       campaignAgentMinor: costs.agent
         .filter((a) => inRange(a.startedAt, r))
         .reduce((s, a) => s + (a.claudeCostEstimateMinor ?? 0), 0),
+      googleAdsOptimizerMinor: costs.optimizer
+        .filter((a) => inRange(a.startedAt, r))
+        .reduce((s, a) => s + a.aiCostMinor, 0),
       searchMinor: Math.round(searchUsd * 100),
       totalMinor: 0,
     };
-    ai.totalMinor = ai.builderMinor + ai.campaignAgentMinor + ai.searchMinor;
+    ai.totalMinor =
+      ai.builderMinor + ai.campaignAgentMinor + ai.googleAdsOptimizerMinor + ai.searchMinor;
     const recordedExpenses = Object.values(expByCat).reduce((s, v) => s + v, 0);
     const totalExpenses = recordedExpenses + ai.totalMinor;
 
@@ -545,6 +557,9 @@ export class FinanceStatementService {
     for (const a of costs.agent) {
       if (inRange(a.startedAt, r))
         bucket(a.startedAt).expenseMinor += a.claudeCostEstimateMinor ?? 0;
+    }
+    for (const a of costs.optimizer) {
+      if (inRange(a.startedAt, r)) bucket(a.startedAt).expenseMinor += a.aiCostMinor;
     }
     return [...days.entries()]
       .map(([date, b]) => ({

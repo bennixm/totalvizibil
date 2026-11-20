@@ -52,7 +52,12 @@
     "staff": "Team",
     "manage": "Navigation",
     "bizDeleting": "wird gelöscht",
-    "invoices": "Rechnungen"
+    "invoices": "Rechnungen",
+    "adsGroup": "Google-Ads-Kampagne",
+    "adsCampaign": "Google-Ads-Kampagne",
+    "adsCampaigns": "Google-Ads-Kampagnen",
+    "addAdsCampaign": "Kampagne optimieren",
+    "pickCampaign": "Wählen"
   },
   "notifications": {
     "bell": "Benachrichtigungen",
@@ -1098,7 +1103,8 @@
     "jurnalDiffAfter": "Nachher",
     "jurnalDiffEmpty": "Keine weiteren Details.",
     "jurnalReason": "Grund",
-    "adminOnlyHint": "Das Bearbeiten des Kontos, die Sicherheit und die Verwaltung von Unternehmen sind Administratoren vorbehalten. Sie haben Ansichtszugriff plus Wallet, Rechnungen und Rechnungsdaten."
+    "adminOnlyHint": "Das Bearbeiten des Kontos, die Sicherheit und die Verwaltung von Unternehmen sind Administratoren vorbehalten. Sie haben Ansichtszugriff plus Wallet, Rechnungen und Rechnungsdaten.",
+    "navGoogleAdsOptimizer": "Google Ads Kunden"
   },
   "errors": {
     "notFoundTitle": "Seite nicht gefunden",
@@ -2960,7 +2966,10 @@
       "account": "Konto",
       "unlock": "Zahlung",
       "budget": "Budget",
-      "launch": "Start"
+      "launch": "Start",
+      "connect": "Verbinden",
+      "campaign": "Kampagne",
+      "dashboard": "Dashboard"
     }
   },
   "unlock": {
@@ -3522,7 +3531,492 @@
       "walletReady": {
         "title": "Du hast genug Credits",
         "text": "Fertig! Drück auf „{backToUnlock}“, um den Builder freizuschalten und weiterzumachen."
+      },
+      "startScratch": {
+        "title": "Von Grund auf erstellen",
+        "text": "Der Assistent erstellt deine Website und Kampagne, Schritt für Schritt."
+      },
+      "startOptimize": {
+        "title": "Schon bei Google Ads?",
+        "text": "Verbinde dein Konto und der Agent optimiert deine bestehende Kampagne. Die Einrichtung ist kostenlos."
+      },
+      "adsConnect": {
+        "title": "Mit Google verbinden",
+        "text": "Melde dich bei Google an und erlaube den Zugriff auf Google Ads. Du kommst direkt hierher zurück."
+      },
+      "adsFree": {
+        "title": "Kostenlos bis zum ersten Zyklus",
+        "text": "Du zahlst erst, wenn du eine Optimierung startest."
+      },
+      "adsAccounts": {
+        "title": "Konto wählen",
+        "text": "Wenn du mehrere Google-Ads-Konten hast, wähle das mit deiner Kampagne."
+      },
+      "adsCampaignList": {
+        "title": "Kampagne wählen",
+        "text": "Echte Ergebnisse der letzten 30 Tage helfen dir, sie zu erkennen."
+      },
+      "adsCampaignContinue": {
+        "title": "Weiter",
+        "text": "Noch ein Schritt: dein Konto auf der Plattform."
+      },
+      "adsAccountSigned": {
+        "title": "Du bist angemeldet",
+        "text": "Drücke Fortfahren und die Kampagne erscheint in deinem Dashboard."
+      },
+      "adsAccountNew": {
+        "title": "Neues Konto",
+        "text": "Gib deine Daten ein; du bekommst einen Code per E-Mail zur Bestätigung."
+      },
+      "adsAccountLogin": {
+        "title": "Schon ein Konto?",
+        "text": "Melde dich an und du kommst direkt zu diesem Schritt zurück."
+      },
+      "adsAccountVerify": {
+        "title": "E-Mail bestätigen",
+        "text": "Gib den 6-stelligen Code aus deiner E-Mail ein."
+      },
+      "adsTabs": {
+        "title": "Kampagnen-Dashboard",
+        "text": "Übersicht, Agent, Vorschläge, Einstellungen und Kosten, alles für deine Google-Ads-Kampagne."
+      },
+      "adsQuote": {
+        "title": "Schätzung ansehen",
+        "text": "Die Analyse ist kostenlos: Du siehst, was der Agent tun wird und was es kostet, bevor du zahlst."
+      },
+      "adsPrice": {
+        "title": "Der Preis",
+        "text": "Er hängt von der Komplexität der Arbeit ab. Am Ende zahlst du nur, was getan wurde."
+      },
+      "adsStart": {
+        "title": "Optimierung starten",
+        "text": "Der Agent arbeitet allein; verfolge seine Aktivität live."
+      },
+      "adsProposals": {
+        "title": "Vorschläge",
+        "text": "Budgetänderungen und Umformulierungen warten hier auf deine Freigabe."
+      },
+      "adsSettings": {
+        "title": "Agent-Einstellungen",
+        "text": "Wähle, was der Agent selbst tun darf und ob er automatisch läuft."
       }
     }
+  },
+  "start": {
+    "seoTitle": "Werde sichtbar: erstellen oder optimieren",
+    "seoDesc": "Baue dein Unternehmen von Grund auf auf oder optimiere deine bestehende Google-Ads-Kampagne.",
+    "eyebrow": "Werde sichtbar",
+    "title": "Womit fangen wir an?",
+    "lead": "Baue deine Präsenz von Grund auf auf oder lass unseren Agenten deine bestehende Google-Ads-Kampagne optimieren.",
+    "scratchTitle": "Von Grund auf erstellen",
+    "scratchText": "Der Assistent erstellt deine Website, listet dich auf der Plattform und startet deine Kampagne.",
+    "scratch": {
+      "site": "Website vom Assistenten, einfach oder erweitert",
+      "feed": "Eintrag im Feed lokaler Unternehmen",
+      "campaign": "Werbekampagne mit Budget unter deiner Kontrolle"
+    },
+    "scratchCta": "Von Grund auf starten",
+    "optimizeTitle": "Bestehende Kampagne optimieren",
+    "optimizeText": "Verbinde dein Google-Ads-Konto, wähle die Kampagne und der Agent bringt sie so nah wie möglich an die Höchstpunktzahl.",
+    "optimize": {
+      "connect": "Sichere Anmeldung mit deinem Google-Konto",
+      "agent": "Derselbe Optimierungsagent, den wir für unsere eigenen Kampagnen nutzen",
+      "approve": "Dein Budget ändert sich nie ohne deine Zustimmung"
+    },
+    "optimizeFree": "Die Einrichtung ist kostenlos",
+    "optimizeCta": "Kampagne optimieren"
+  },
+  "ads": {
+    "back": "Zurück",
+    "credits": "Credits",
+    "connect": {
+      "seoTitle": "Google Ads verbinden",
+      "title": "Verbinde dein Google-Ads-Konto",
+      "lead": "Du meldest dich direkt bei Google an und wählst das Konto, das wir nutzen. Das dauert eine Minute.",
+      "accessTitle": "Was der Agent mit deiner Zustimmung tun kann:",
+      "access": {
+        "read": "Deine Kampagnen und ihre echten Ergebnisse aus Google Ads lesen",
+        "apply": "Texte, Erweiterungen und Bilder ergänzen und verbessern, nach deinen Einstellungen",
+        "budget": "Budgetänderungen vorschlagen, die du vor jeder Änderung freigibst",
+        "revoke": "Du kannst den Zugriff jederzeit widerrufen, hier oder in deinem Google-Konto"
+      },
+      "cta": "Mit Google fortfahren",
+      "free": "Verbinden, Kampagne auswählen und das Dashboard sind kostenlos. Du zahlst erst, wenn du einen Optimierungszyklus startest (ab {credits} Credits).",
+      "secure": "Wir sehen dein Google-Passwort nie. Der Zugriff wird verschlüsselt gespeichert und kann jederzeit widerrufen werden.",
+      "unavailable": "Das Verbinden von Google-Ads-Konten ist gerade nicht verfügbar. Bitte versuche es etwas später.",
+      "retry": "Die letzte Verbindung hat nicht geklappt. Bitte versuche es erneut.",
+      "error": "Die Verbindung konnte nicht gestartet werden. Bitte versuche es erneut."
+    },
+    "campaigns": {
+      "seoTitle": "Kampagne wählen",
+      "title": "Wähle die Kampagne zum Optimieren",
+      "lead": "Wir haben deine Konten und Kampagnen direkt aus Google Ads gelesen. Wähle die Kampagne, die wir optimieren sollen.",
+      "accounts": "Google-Ads-Konten",
+      "campaigns": "Kampagnen",
+      "pickAccount": "Wähle links ein Konto, um seine Kampagnen zu sehen.",
+      "none": "Dieses Konto hat keine Kampagnen.",
+      "continue": "Mit dieser Kampagne fortfahren",
+      "last30": "letzte 30 Tage",
+      "viaManager": "über Verwaltungskonto",
+      "test": "Testkonto",
+      "connected": "Dein Google-Konto ist verbunden.",
+      "loadError": "Deine Konten konnten nicht aus Google Ads gelesen werden.",
+      "reconnect": "Dein Google-Ads-Zugriff ist abgelaufen. Bitte verbinde dich erneut.",
+      "reconnectCta": "Erneut verbinden",
+      "noAccounts": "Das Google-Konto {email} hat auf kein Google-Ads-Konto Zugriff.",
+      "otherAccount": "Anderes Google-Konto nutzen",
+      "selectError": "Die Kampagne konnte nicht ausgewählt werden. Bitte versuche es erneut.",
+      "unsupported": "Der Agent optimiert derzeit Suchkampagnen.",
+      "unsupportedShort": "derzeit werden nur Suchkampagnen optimiert",
+      "oauthError": {
+        "denied": "Du hast die Google-Anmeldung abgebrochen.",
+        "access_denied": "Du hast die Google-Anmeldung abgebrochen.",
+        "expired": "Die Anmeldung ist abgelaufen. Bitte versuche es erneut.",
+        "state": "Die Anmeldung konnte nicht geprüft werden. Bitte versuche es erneut.",
+        "scope": "Hast du den Zugriff auf Google Ads erlaubt? Ohne ihn können wir deine Kampagnen nicht lesen.",
+        "refresh": "Google hat keinen dauerhaften Zugriff erteilt. Bitte versuche es erneut.",
+        "exchange": "Die Google-Anmeldung hat nicht geklappt. Bitte versuche es erneut."
+      }
+    },
+    "account": {
+      "seoTitle": "Dein Konto",
+      "title": "Verknüpfe die Kampagne mit deinem Konto",
+      "lead": "Die Kampagne erscheint in deinem Dashboard, neben deinen Unternehmen.",
+      "signedInAs": "Du bist angemeldet als {name}",
+      "continue": "Mit diesem Konto fortfahren",
+      "newTitle": "Neues Konto",
+      "name": "Name",
+      "email": "E-Mail",
+      "password": "Passwort",
+      "passwordHint": "Mindestens 8 Zeichen",
+      "create": "Konto erstellen und fortfahren",
+      "haveAccount": "Schon ein Konto?",
+      "loginText": "Melde dich an und du kommst direkt hierher zurück.",
+      "login": "Anmelden",
+      "verify": "Bestätigen und fortfahren",
+      "free": "Auch dieser Schritt ist kostenlos. Du landest direkt im Kampagnen-Dashboard.",
+      "done": "Die Kampagne wurde deinem Dashboard hinzugefügt.",
+      "err": {
+        "exists": "Es gibt bereits ein Konto mit dieser E-Mail. Bitte melde dich an.",
+        "code": "Der Code ist falsch oder abgelaufen.",
+        "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      }
+    },
+    "tab": {
+      "overview": "Übersicht",
+      "agent": "Agent",
+      "proposals": "Vorschläge",
+      "settings": "Agent-Einstellungen",
+      "costs": "Kosten"
+    },
+    "dash": {
+      "sync": "Synchronisieren",
+      "optimize": "Optimieren",
+      "synced": "Synchronisiert {when}",
+      "nextCycle": "Nächster geplanter Zyklus: {when}",
+      "disconnected": "Der Zugriff auf dein Google-Ads-Konto wurde entzogen oder ist abgelaufen. Verbinde es erneut, damit der Agent arbeiten kann.",
+      "reconnect": "Erneut verbinden",
+      "welcome": "Fertig, deine Kampagne ist verbunden. Bisher war alles kostenlos. Wann immer du willst, starte den ersten Optimierungszyklus im Tab Agent (ab {min} Credits).",
+      "notFound": "Kampagne nicht gefunden.",
+      "loadError": "Die Kampagne konnte nicht geladen werden.",
+      "syncRecent": "Die Daten wurden vor wenigen Minuten synchronisiert.",
+      "syncError": "Die Synchronisierung hat nicht geklappt.",
+      "reconnectNeeded": "Bitte verbinde dein Google-Ads-Konto erneut.",
+      "reconnected": "Dein Google-Ads-Konto ist wieder verbunden.",
+      "noSnapshot": "Noch keine synchronisierten Daten. Drücke Synchronisieren.",
+      "score": "Optimierungswert",
+      "scoreHint": "Wie nah die Kampagne an den Google-Anforderungen ist, aus echten Daten.",
+      "adStrength": "Ad Strength",
+      "period": "Letzte 30 Tage, verglichen mit den 30 Tagen davor.",
+      "toImprove": "Was sich verbessern lässt",
+      "letAgent": "Den Agenten machen lassen",
+      "noIssues": "Keine Probleme gefunden.",
+      "elements": "Anzeigenelemente",
+      "keywords": "{n} von {total} Keywords kommen in den Anzeigentiteln vor",
+      "keywordsMissing": "Es fehlen:",
+      "breakdown": "Aufschlüsselung des Werts",
+      "missing": "Fehlt"
+    },
+    "metrics": {
+      "impressions": "Impressionen",
+      "clicks": "Klicks",
+      "cost": "Kosten",
+      "ctr": "CTR",
+      "conversions": "Conversions",
+      "perDay": "pro Tag",
+      "inline": {
+        "clicks": "Klicks",
+        "cost": "Kosten"
+      }
+    },
+    "element": {
+      "headlines": "Anzeigentitel",
+      "descriptions": "Beschreibungen",
+      "sitelinks": "Sitelinks",
+      "callouts": "Callouts",
+      "images": "Bilder"
+    },
+    "strength": {
+      "EXCELLENT": "Sehr gut",
+      "GOOD": "Gut",
+      "AVERAGE": "Durchschnittlich",
+      "POOR": "Schwach",
+      "PENDING": "Wird bewertet",
+      "UNKNOWN": "Unbekannt",
+      "NO_ADS": "Keine Anzeigen",
+      "UNSPECIFIED": "Unbekannt"
+    },
+    "status": {
+      "ENABLED": "Aktiv",
+      "PAUSED": "Pausiert",
+      "REMOVED": "Entfernt"
+    },
+    "channel": {
+      "SEARCH": "Suche",
+      "PERFORMANCE_MAX": "Performance Max",
+      "DISPLAY": "Display",
+      "VIDEO": "Video",
+      "SHOPPING": "Shopping",
+      "DEMAND_GEN": "Demand Gen",
+      "MULTI_CHANNEL": "App",
+      "LOCAL": "Lokal",
+      "SMART": "Smart"
+    },
+    "campaignStatus": {
+      "active": "Agent aktiv",
+      "paused": "Agent pausiert",
+      "disconnected": "Getrennt"
+    },
+    "agent": {
+      "runTitle": "Optimierungszyklus",
+      "runLead": "Der Agent analysiert die Kampagne, setzt die von dir erlaubten Verbesserungen um und bereitet seine Vorschläge vor. Er folgt denselben Regeln wie unser interner Agent.",
+      "firstFree": "Bisher war alles kostenlos. Der erste Zyklus beginnt ab {credits} Credits.",
+      "quoteCta": "Sieh dir an, was der Agent tut und was es kostet",
+      "quoteFree": "Analyse und Schätzung sind kostenlos. Es wird nichts berechnet, bevor du bestätigst.",
+      "planTitle": "Was der Agent in diesem Zyklus tut",
+      "price": "Geschätzter Preis",
+      "level": "Komplexität",
+      "howPriced": "Wie der Preis berechnet wurde",
+      "elements": "{n} analysierte Elemente",
+      "points": "Summe vor dem Multiplikator",
+      "priceRule": "Der Preis hängt von Umfang und Komplexität der Arbeit ab, mindestens {min} Credits pro Zyklus.",
+      "balance": "Guthaben in der Wallet: {credits} Credits",
+      "startCta": "Optimierung starten ({credits} Credits)",
+      "topUp": "Credits aufladen",
+      "settleNote": "Du zahlst nur die geleistete Arbeit: Tut der Agent weniger als geschätzt, geht die Differenz zurück in deine Wallet.",
+      "confirmTitle": "Optimierungszyklus starten?",
+      "confirmText": "{credits} Credits werden in deiner Wallet reserviert. Am Ende zahlst du nur, was der Agent getan hat, der Rest geht zurück in deine Wallet.",
+      "started": "Der Agent hat begonnen. Verfolge die Aktivität unten.",
+      "running": "Der Agent arbeitet (gestartet {when}). Du kannst die Seite schließen, er macht allein weiter.",
+      "paused": "Der Agent ist pausiert. Du kannst ihn in den Agent-Einstellungen fortsetzen.",
+      "disconnected": "Dein Google-Ads-Konto muss erneut verbunden werden.",
+      "activity": "Live-Aktivität",
+      "cycles": "Frühere Zyklen",
+      "noCycles": "Noch keine Zyklen.",
+      "err": {
+        "insufficient_credits": "Du hast nicht genug Credits in deiner Wallet.",
+        "cycle_already_running": "Für diese Kampagne läuft bereits ein Zyklus.",
+        "quote_changed": "Die Schätzung hat sich geändert. Prüfe den neuen Preis.",
+        "campaign_paused": "Der Agent ist pausiert.",
+        "google_ads_reconnect_required": "Bitte verbinde dein Google-Ads-Konto erneut.",
+        "wallet_blocked": "Deine Wallet ist gesperrt. Bitte kontaktiere den Support.",
+        "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      }
+    },
+    "task": {
+      "analysis": "Analyse und Wert",
+      "rsa_text": "Neue Anzeigentitel und Beschreibungen",
+      "keyword_headlines": "Keywords in Anzeigentiteln",
+      "extensions": "Erweiterungen (Sitelinks, Callouts, Snippet)",
+      "images": "Bilder",
+      "text_rewrite": "Umformulierungsvorschläge",
+      "budget_proposal": "Budgetvorschläge"
+    },
+    "cycle": {
+      "running": "In Arbeit",
+      "completed": "Abgeschlossen",
+      "failed": "Gestoppt",
+      "scheduled": "geplant",
+      "inProgress": "In Arbeit…",
+      "failedSum": "Der Zyklus wurde gestoppt; du hast nur das Geleistete bezahlt.",
+      "summary": "{applied} Änderungen umgesetzt, {proposed} Vorschläge",
+      "score": "Wert {from} → {to}",
+      "refunded": "{credits} Credits zurückerstattet"
+    },
+    "prop": {
+      "pendingTitle": "Wartet auf deine Entscheidung",
+      "none": "Keine offenen Vorschläge.",
+      "needsYou": "Freigabe nötig",
+      "current": "Jetzt",
+      "proposed": "Vorgeschlagen",
+      "perDay": "Tagesbudget, in der Währung deines Google-Ads-Kontos.",
+      "before": "Vorher",
+      "after": "Nachher",
+      "approve": "Freigeben und umsetzen",
+      "reject": "Ablehnen",
+      "confirmTitle": "Diese Änderung umsetzen?",
+      "confirmText": "Der Agent setzt genau den angezeigten Text um und prüft ihn danach in Google Ads.",
+      "confirmBudget": "Das Tagesbudget ändert sich von {from} auf {to}. Der Agent prüft danach in Google Ads, dass es umgesetzt wurde.",
+      "applied": "Umgesetzt und in Google Ads geprüft.",
+      "rejected": "Der Vorschlag wurde abgelehnt.",
+      "failed": "Die Änderung konnte nicht umgesetzt werden.",
+      "historyTitle": "Was der Agent getan hat",
+      "noHistory": "Der Agent hat noch nichts geändert.",
+      "sumTexts": "{h} Anzeigentitel und {d} Beschreibungen hinzugefügt",
+      "sumAssets": "{s} Sitelinks und {c} Callouts hinzugefügt",
+      "sumImages": "{n} Bilder hinzugefügt",
+      "sumKeywords": "{n} Keywords in Anzeigentitel eingefügt"
+    },
+    "action": {
+      "creative": {
+        "rsa_gap_fill": "Anzeigentitel und Beschreibungen hinzugefügt",
+        "assets_gap_fill": "Erweiterungen hinzugefügt",
+        "images_gap_fill": "Bilder hinzugefügt",
+        "keyword_headlines": "Keywords in Anzeigentiteln",
+        "replace_text": "Text umformuliert"
+      },
+      "budget": {
+        "change": {
+          "proposed": "Budgetänderung"
+        }
+      }
+    },
+    "actionStatus": {
+      "applied": "Umgesetzt",
+      "failed": "Fehlgeschlagen",
+      "rejected": "Abgelehnt",
+      "approved": "Freigegeben",
+      "superseded": "Ersetzt",
+      "pending_approval": "Offen"
+    },
+    "set": {
+      "agentTitle": "Was der Agent tut",
+      "autoApply": "Fehlende Elemente automatisch ergänzen",
+      "autoApplyHint": "Anzeigentitel, Beschreibungen, Sitelinks, Callouts, Snippet und Unternehmensname, bis zu dem von Google empfohlenen Niveau.",
+      "keywordHeadlines": "Keywords in Anzeigentitel einfügen",
+      "keywordHeadlinesHint": "Wenn fehlende Keywords die Ad Strength senken. Bewertet Google die neue Version schwächer, wird automatisch die alte wiederhergestellt.",
+      "images": "Bilder hinzufügen",
+      "imagesHint": "Echte Fotos von Pexels (kostenlose Lizenz), auf die Google-Größen zugeschnitten.",
+      "textRewriteProposals": "Umformulierungen vorschlagen",
+      "textRewriteProposalsHint": "Für schwache Texte; du gibst sie frei.",
+      "budgetProposals": "Budgetänderungen vorschlagen",
+      "budgetProposalsHint": "Aus den Google-Empfehlungen für die Kampagne; du gibst sie frei.",
+      "imageQuery": "Nach welchen Bildern suchen",
+      "imageQueryHint": "Ein paar englische Wörter, zum Beispiel „plumber repair“.",
+      "budgetRule": "Das Budget ändert sich nie automatisch. Jede Budgetänderung wird dir vorgeschlagen und erst nach deiner Freigabe umgesetzt.",
+      "businessTitle": "Über dein Unternehmen",
+      "businessName": "Unternehmensname",
+      "businessNameHint": "Wird neben deinen Anzeigen angezeigt (max. 25 Zeichen).",
+      "businessDescription": "Was das Unternehmen macht",
+      "businessDescriptionHint": "Kontext für die Texte, die der Agent schreibt.",
+      "scheduleTitle": "Planung",
+      "scheduleLabel": "Automatische Zyklen",
+      "schedule": {
+        "manual": "Nur wenn ich sie starte",
+        "weekly": "Wöchentlich",
+        "biweekly": "Alle zwei Wochen",
+        "monthly": "Monatlich"
+      },
+      "maxCredits": "Limit pro Zyklus (Credits)",
+      "maxCreditsHint": "Ein teurerer geplanter Zyklus startet nicht (mindestens {min}).",
+      "cooldown": "Pause zwischen Textänderungen (Tage)",
+      "cooldownHint": "Google braucht Zeit, um neue Texte zu bewerten.",
+      "scheduleBilled": "Jeder geplante Zyklus wird aus deiner Wallet bezahlt, genau wie ein selbst gestarteter.",
+      "manageTitle": "Verwaltung",
+      "pause": "Agent pausieren",
+      "resume": "Agent fortsetzen",
+      "pauseHint": "Während der Pause läuft kein Zyklus. Deine Kampagne in Google Ads ist nicht betroffen.",
+      "remove": "Kampagne nicht mehr verwalten",
+      "removeHint": "Die Kampagne bleibt in Google Ads unverändert; wir entfernen sie nur aus deinem Dashboard.",
+      "removeTitle": "Kampagne aus dem Dashboard entfernen?",
+      "removeText": "Die Kampagne bleibt in Google Ads genau so, wie sie ist. Ihr Verlauf auf der Plattform wird gelöscht.",
+      "removed": "Die Kampagne wurde aus deinem Dashboard entfernt.",
+      "removeRunning": "Warte, bis der laufende Zyklus fertig ist.",
+      "saved": "Einstellungen gespeichert.",
+      "error": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+    },
+    "cost": {
+      "howTitle": "Wie die Kosten berechnet werden",
+      "free": "Verbinden, Kampagne auswählen und das Dashboard sind kostenlos.",
+      "min": "Ein Optimierungszyklus kostet mindestens {min} Credits.",
+      "complexity": "Der Preis steigt mit Umfang und Komplexität der Arbeit: wie viele Elemente der Agent analysiert und wie viele Änderungen er vornimmt.",
+      "settle": "Am Ende zahlst du nur die geleistete Arbeit; die Differenz zur Schätzung geht zurück in deine Wallet.",
+      "levelFrom": "ab {points} Punkten",
+      "total": "Insgesamt bezahlt",
+      "returned": "Zurück in die Wallet",
+      "cycles": "Zyklen",
+      "colDate": "Datum",
+      "colLevel": "Komplexität",
+      "colQuote": "Geschätzt",
+      "colCharged": "Bezahlt",
+      "colReturned": "Zurück",
+      "colStatus": "Status",
+      "walletNote": "Alle Zahlungen erscheinen auch im Wallet-Verlauf, unter Google-Ads-Optimierung."
+    }
+  },
+  "adminAdsOpt": {
+    "title": "Google-Ads-Optimierung für Kunden",
+    "notReady": "Kunden können sich noch nicht verbinden: Die Google-Einrichtung fehlt.",
+    "configure": "Einrichten",
+    "tabUsage": "Verbrauch",
+    "tabPricing": "Preise",
+    "tabOauth": "Google-Verbindung",
+    "cycles": "Zyklen",
+    "campaigns": "{n} Kampagnen, {a} verbundene Konten",
+    "charged": "Eingenommen (Credits)",
+    "refunded": "{credits} bei der Abrechnung erstattet",
+    "aiCost": "Echte KI-Kosten",
+    "aiCalls": "{n} KI-Aufrufe",
+    "margin": "Marge",
+    "marginHint": "Eingenommene Credits minus echte KI-Kosten (1 Credit = 1 EUR).",
+    "byLevel": "Nach Komplexitätsstufe",
+    "levelLine": "{n} Zyklen · {credits} Credits",
+    "history": "Zyklen",
+    "noCycles": "Noch keine Zyklen.",
+    "colDate": "Datum",
+    "colUser": "Kunde",
+    "colCampaign": "Kampagne",
+    "colLevel": "Komplexität",
+    "colWork": "Umgesetzt / vorgeschlagen · analysiert",
+    "colQuoted": "Geschätzt",
+    "colCharged": "Eingenommen",
+    "colAi": "KI-Kosten",
+    "colStatus": "Status",
+    "colWorkHint": "Geleistete Arbeit: umgesetzte Änderungen / erstellte Vorschläge · analysierte Elemente.",
+    "scheduled": "geplant",
+    "limits": "Grenzen",
+    "limitsHint": "Ein Zyklus kostet nie weniger als das Minimum und nie mehr als das Maximum.",
+    "minCredits": "Minimum pro Zyklus",
+    "minCreditsHint": "Jeder abgeschlossene Zyklus kostet mindestens so viel.",
+    "maxCredits": "Maximum pro Zyklus",
+    "maxCreditsHint": "Sicherheitsobergrenze.",
+    "perElement": "Credits pro analysiertem Element",
+    "perElementHint": "Anzeigentitel, Beschreibungen, Erweiterungen, Bilder, Keywords.",
+    "tasks": "Preise pro Aufgabentyp",
+    "tasksHint": "Credits pro Arbeitseinheit (zum Beispiel pro geschriebenem Titel oder erstelltem Vorschlag).",
+    "perUnit": "Cr / Einheit",
+    "levels": "Komplexitätsstufen",
+    "levelsHint": "Die Punktsumme (Credits vor dem Multiplikator) bestimmt die Stufe; der Multiplikator der Stufe wird auf den Preis angewendet.",
+    "levelLabel": "Name",
+    "levelKey": "Schlüssel",
+    "levelFrom": "Ab (Punkte)",
+    "levelMult": "Multiplikator",
+    "addLevel": "Stufe hinzufügen",
+    "removeLevel": "Stufe entfernen",
+    "example": "Beispiel: Ein typischer Zyklus hat {points} Punkte, Stufe {level}, kostet also {credits} Credits.",
+    "defaults": "Standardwerte",
+    "saved": "Gespeichert.",
+    "oauthStatus": "Status",
+    "checkClient": "OAuth-Client-ID",
+    "checkSecret": "OAuth-Client-Secret",
+    "checkKey": "Schlüssel zur Token-Verschlüsselung (GOOGLE_ADS_TOKEN_KEY auf dem Server)",
+    "redirect": "Autorisierte Weiterleitungs-URI:",
+    "copy": "Kopieren",
+    "copied": "Kopiert.",
+    "oauthHelp": "In Google Cloud: Erstelle einen OAuth-Client vom Typ „Webanwendung“, füge die URI oben hinzu, aktiviere die Google Ads API und beantrage die Freigabe des Zustimmungsbildschirms für den Scope adwords.",
+    "oauthClient": "OAuth-Client",
+    "clientId": "Client-ID",
+    "clientSecret": "Client-Secret",
+    "secretKeep": "Leer lassen, um das gespeicherte Secret zu behalten."
   }
 }

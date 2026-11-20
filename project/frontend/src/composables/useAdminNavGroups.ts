@@ -81,6 +81,11 @@ export function useAdminNavGroups() {
                   label: t('admin.navGoogleAdsAgent'),
                   icon: 'mdi-bullhorn-outline',
                 },
+                {
+                  to: { name: 'admin-google-ads-optimizer' },
+                  label: t('admin.navGoogleAdsOptimizer'),
+                  icon: 'mdi-chart-timeline-variant-shimmer',
+                },
               ]
             : []),
           // Jurnal staff is admin-only (the backend's `GET /admin/audit-log`

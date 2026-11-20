@@ -54,31 +54,34 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  sessions                 Session[]
-  platformRoles            PlatformRoleAssignment[]
-  companyMembers           CompanyUser[]
-  ownedCompanies           Company[]                @relation("CompanyOwner")
-  passwordResets           PasswordResetToken[]
-  emailVerificationCodes   EmailVerificationCode[]
-  wallet                   Wallet?
-  billingProfile           BillingProfile?
-  invoices                 Invoice[]
-  supportTicketsRequested  SupportTicket[]          @relation("SupportRequester")
-  supportTicketsAssigned   SupportTicket[]          @relation("SupportAssignee")
-  supportMessages          SupportMessage[]
-  supportAttachments       SupportAttachment[]
-  referralsMade            Referral[]               @relation("ReferralsMade")
-  referralReceived         Referral?                @relation("ReferralReceived")
-  aiUsageRecords           AiUsageRecord[]
-  notifications            Notification[]
-  platformExpensesCreated  PlatformExpense[]
-  externalInvoicesCreated  ExternalInvoice[]
-  externalInvoiceEvents    ExternalInvoiceEvent[]
-  externalInvoiceAttachments ExternalInvoiceAttachment[]
-  externalVatConfirmations   ExternalVatConfirmation[]
-  adminAuditLogs           AdminAuditLog[]
-  businessActionLogs       BusinessActionLog[]
-  googleAdsActionsApproved GoogleAdsAgentAction[]
+  sessions                    Session[]
+  platformRoles               PlatformRoleAssignment[]
+  companyMembers              CompanyUser[]
+  ownedCompanies              Company[]                    @relation("CompanyOwner")
+  passwordResets              PasswordResetToken[]
+  emailVerificationCodes      EmailVerificationCode[]
+  wallet                      Wallet?
+  billingProfile              BillingProfile?
+  invoices                    Invoice[]
+  supportTicketsRequested     SupportTicket[]              @relation("SupportRequester")
+  supportTicketsAssigned      SupportTicket[]              @relation("SupportAssignee")
+  supportMessages             SupportMessage[]
+  supportAttachments          SupportAttachment[]
+  referralsMade               Referral[]                   @relation("ReferralsMade")
+  referralReceived            Referral?                    @relation("ReferralReceived")
+  aiUsageRecords              AiUsageRecord[]
+  notifications               Notification[]
+  platformExpensesCreated     PlatformExpense[]
+  externalInvoicesCreated     ExternalInvoice[]
+  externalInvoiceEvents       ExternalInvoiceEvent[]
+  externalInvoiceAttachments  ExternalInvoiceAttachment[]
+  externalVatConfirmations    ExternalVatConfirmation[]
+  adminAuditLogs              AdminAuditLog[]
+  businessActionLogs          BusinessActionLog[]
+  googleAdsActionsApproved    GoogleAdsAgentAction[]
+  googleAdsConnections        GoogleAdsConnection[]
+  googleAdsUserCampaigns      GoogleAdsUserCampaign[]
+  googleAdsOptimizationCycles GoogleAdsOptimizationCycle[]
 
   @@map("users")
 }
@@ -218,31 +221,31 @@ enum ExpenseSource {
 }
 
 model PlatformExpense {
-  id          String          @id @default(uuid()) @db.Uuid
-  category    ExpenseCategory
+  id             String          @id @default(uuid()) @db.Uuid
+  category       ExpenseCategory
   // The day this cost belongs to, for period filtering/aggregation — not
   // necessarily the row's createdAt (a manual entry may be backdated).
-  incurredOn  DateTime        @map("incurred_on") @db.Date
-  amountMinor Int             @map("amount_minor")
-  currency    String          @default("EUR")
+  incurredOn     DateTime        @map("incurred_on") @db.Date
+  amountMinor    Int             @map("amount_minor")
+  currency       String          @default("EUR")
   // Non-EUR supplier documents: the exchange rate the accountant booked it
   // at (units of `currency` per 1 EUR, e.g. the BNR rate on the document
   // date) and the resulting EUR cents every report sums. Null on EUR rows,
   // whose `amountMinor` already is EUR cents.
-  fxRate         Decimal?      @map("fx_rate") @db.Decimal(12, 6)
-  eurAmountMinor Int?          @map("eur_amount_minor")
-  source      ExpenseSource   @default(manual)
-  note        String?
+  fxRate         Decimal?        @map("fx_rate") @db.Decimal(12, 6)
+  eurAmountMinor Int?            @map("eur_amount_minor")
+  source         ExpenseSource   @default(manual)
+  note           String?
   // Idempotency key for an automatically-captured cost: the external object
   // this expense was derived from, namespaced by capture path (e.g.
   // `stripe_fee:pi_123`). Unique, so a retry of the enclosing flow (a
   // re-confirmed purchase, a sweep re-processing the same payment intent)
   // can never double-book the same real-world fee. Null for manual entries,
   // which have no external object and may legitimately repeat.
-  externalRef String?         @unique @map("external_ref")
-  createdById String?         @map("created_by_id") @db.Uuid
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
+  externalRef    String?         @unique @map("external_ref")
+  createdById    String?         @map("created_by_id") @db.Uuid
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
 
   createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -428,25 +431,25 @@ model GoogleAdsAgentAction {
 
   // The Google campaign this action concerns, when known (optimizer
   // actions; older rows only carry `categoryId`).
-  googleCampaignId String?   @map("google_campaign_id")
+  googleCampaignId   String?   @map("google_campaign_id")
   // True when the action had to wait for an admin decision (queued as
   // `pending_approval`), whatever the outcome. Kept explicitly so history
   // can say "required approval" even after approval/rejection.
-  requiredApproval Boolean   @default(false) @map("required_approval")
+  requiredApproval   Boolean   @default(false) @map("required_approval")
   // Set once a re-read from Google confirmed the change is live.
-  verifiedAt       DateTime? @map("verified_at")
-  errorMessage     String?   @map("error_message")
+  verifiedAt         DateTime? @map("verified_at")
+  errorMessage       String?   @map("error_message")
   // Human-readable outcome of the execution as reported by Google (what
   // was applied, what the verification re-read found, Ad Strength after).
-  executionResult  String?   @map("execution_result")
+  executionResult    String?   @map("execution_result")
   // Revision chain: this row was prepared from `revisionOfId` following an
   // admin's `manualInstructions`. Always created as pending_approval —
   // instructions never authorize execution by themselves.
-  revisionOfId       String? @map("revision_of_id") @db.Uuid
-  manualInstructions String? @map("manual_instructions")
+  revisionOfId       String?   @map("revision_of_id") @db.Uuid
+  manualInstructions String?   @map("manual_instructions")
   // Hash of the exact content shown for approval; approval is refused when
   // the content changed since it was displayed.
-  contentHash        String? @map("content_hash")
+  contentHash        String?   @map("content_hash")
   // Performance observation: campaign metrics (last 30 days) at execution,
   // and the same window measured again ~30 days later. Observational only.
   metricsAtApply     Json?     @map("metrics_at_apply")
@@ -1794,7 +1797,9 @@ model FeedQueryCache {
   outputTokens     Int    @default(0) @map("output_tokens")
   cacheReadTokens  Int    @default(0) @map("cache_read_tokens")
   cacheWriteTokens Int    @default(0) @map("cache_write_tokens")
-  /** Estimate at list prices, captured at write time. */
+  /**
+   * Estimate at list prices, captured at write time.
+   */
   estimatedCostUsd Float  @default(0) @map("estimated_cost_usd")
 
   @@index([createdAt])
@@ -1806,15 +1811,25 @@ model FeedQueryCache {
 model FeedSearchDaily {
   day     DateTime @id @db.Date
   total   Int      @default(0)
-  /** Reused a stored Claude answer. */
+  /**
+   * Reused a stored Claude answer.
+   */
   stored  Int      @default(0)
-  /** A category name was in the text. */
+  /**
+   * A category name was in the text.
+   */
   keyword Int      @default(0)
-  /** The local embedding model was sure. */
+  /**
+   * The local embedding model was sure.
+   */
   local   Int      @default(0)
-  /** Claude answered (a new paid call). */
+  /**
+   * Claude answered (a new paid call).
+   */
   ai      Int      @default(0)
-  /** Local best guess / nothing (Claude capped, failed or off). */
+  /**
+   * Local best guess / nothing (Claude capped, failed or off).
+   */
   guess   Int      @default(0)
 
   // Claude spend that day (sum over the `ai` calls). Kept here, not only on
@@ -1859,57 +1874,57 @@ enum ExternalInvoiceProcessing {
 }
 
 model ExternalInvoice {
-  id            String                @id @default(uuid()) @db.Uuid
+  id                    String                    @id @default(uuid()) @db.Uuid
   // Registry key (`google_ads`, `anthropic`, `deepseek`, `stripe`, …, or
   // `other` with a free-text `providerName`).
-  provider      String
-  providerName  String?               @map("provider_name")
-  source        ExternalInvoiceSource
+  provider              String
+  providerName          String?                   @map("provider_name")
+  source                ExternalInvoiceSource
   // The provider's own id for this invoice — the dedup key for API imports.
-  externalId    String?               @map("external_id")
-  invoiceNumber String?               @map("invoice_number")
+  externalId            String?                   @map("external_id")
+  invoiceNumber         String?                   @map("invoice_number")
   // INVOICE / CREDIT_MEMO, as the provider labels it.
-  docType       String?               @map("doc_type")
-  issueDate     DateTime              @map("issue_date") @db.Date
-  dueDate       DateTime?             @map("due_date") @db.Date
-  periodStart   DateTime?             @map("period_start") @db.Date
-  periodEnd     DateTime?             @map("period_end") @db.Date
-  currency      String
+  docType               String?                   @map("doc_type")
+  issueDate             DateTime                  @map("issue_date") @db.Date
+  dueDate               DateTime?                 @map("due_date") @db.Date
+  periodStart           DateTime?                 @map("period_start") @db.Date
+  periodEnd             DateTime?                 @map("period_end") @db.Date
+  currency              String
   // Minor units (cents) of `currency`. Subtotal/tax null when the provider
   // doesn't break them out.
-  subtotalMinor Int?                  @map("subtotal_minor")
-  taxMinor      Int?                  @map("tax_minor")
-  totalMinor    Int                   @map("total_minor")
+  subtotalMinor         Int?                      @map("subtotal_minor")
+  taxMinor              Int?                      @map("tax_minor")
+  totalMinor            Int                       @map("total_minor")
   // `paid` / `unpaid` / null = the provider doesn't report it.
-  paymentStatus String?               @map("payment_status")
+  paymentStatus         String?                   @map("payment_status")
   // Last failure fetching the original document from the provider (kept so
   // the page can say WHY a document is missing; cleared on success).
-  documentError String?               @map("document_error")
-  note          String?
-  raw           Json?
+  documentError         String?                   @map("document_error")
+  note                  String?
+  raw                   Json?
   // The supplier's VAT / fiscal code as printed on the invoice.
-  supplierVatId String?               @map("supplier_vat_id")
+  supplierVatId         String?                   @map("supplier_vat_id")
   // VAT per rate: [{ rate: number|null, netMinor, vatMinor }].
-  vatLines      Json?                 @map("vat_lines")
+  vatLines              Json?                     @map("vat_lines")
   // Invoice lines: [{ description, quantity, unitPriceMinor, netMinor, vatRate }].
-  lines         Json?
+  lines                 Json?
   // When it was marked paid (only meaningful with paymentStatus = 'paid').
-  paidAt        DateTime?             @map("paid_at") @db.Date
-  processingStatus ExternalInvoiceProcessing @default(verified) @map("processing_status")
+  paidAt                DateTime?                 @map("paid_at") @db.Date
+  processingStatus      ExternalInvoiceProcessing @default(verified) @map("processing_status")
   // Set when ingestion found a near-identical invoice (same supplier and
   // total within a few days, or the same number written differently).
-  possibleDuplicateOfId String?        @map("possible_duplicate_of_id") @db.Uuid
+  possibleDuplicateOfId String?                   @map("possible_duplicate_of_id") @db.Uuid
   // Automated extraction metadata: { engine, model, confidence,
   // fieldConfidence, estimatedCostUsd, at }. Never accounting truth.
-  extraction    Json?
+  extraction            Json?
   // Ingestion-time signals that need history to compute (so they can't be
   // re-derived per row): amount_anomaly, vat_id_changed, due_from_terms.
-  flags         String[]              @default([])
+  flags                 String[]                  @default([])
   // Supplier registry entry (auto-linked at ingestion by name/VAT id).
-  supplierId    String?               @map("supplier_id") @db.Uuid
-  createdById   String?               @map("created_by_id") @db.Uuid
-  createdAt     DateTime              @default(now()) @map("created_at")
-  updatedAt     DateTime              @updatedAt @map("updated_at")
+  supplierId            String?                   @map("supplier_id") @db.Uuid
+  createdById           String?                   @map("created_by_id") @db.Uuid
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  updatedAt             DateTime                  @updatedAt @map("updated_at")
 
   createdBy   User?                       @relation(fields: [createdById], references: [id], onDelete: SetNull)
   supplier    ExternalSupplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
@@ -2120,9 +2135,196 @@ model GoogleAdsAgentEvent {
   details          Json?
   startedAt        DateTime                  @default(now()) @map("started_at")
   finishedAt       DateTime?                 @map("finished_at")
+  /// Set for a customer campaign's events (GoogleAdsUserCampaign); null =
+  /// the platform's own agent. Platform feeds filter on null.
+  userCampaignId   String?                   @map("user_campaign_id") @db.Uuid
 
   @@index([startedAt])
   @@index([runId])
   @@index([googleCampaignId, startedAt])
+  @@index([userCampaignId, startedAt])
   @@map("google_ads_agent_events")
+}
+
+// ---------------------------------------------------------------------------
+// Google Ads optimization builder (customers' OWN Google Ads accounts).
+// A customer connects their Google account (OAuth, adwords scope), picks one
+// of their existing campaigns, and the same optimizer that runs the
+// platform's own campaigns (google-ads/optimization/) optimizes it, billed
+// per optimization cycle in credits. Setup is free; charging starts with the
+// first cycle. See src/google-ads-user/.
+// ---------------------------------------------------------------------------
+
+enum GoogleAdsConnectionStatus {
+  /// Created, consent not finished yet.
+  pending
+  connected
+  /// Google refused the stored refresh token (revoked / expired).
+  revoked
+  error
+}
+
+/// One Google account connected through OAuth. Created anonymously at the
+/// builder's first step (accessed with a draft token kept in the browser),
+/// then claimed by the platform account at the account step.
+model GoogleAdsConnection {
+  id                      String                    @id @default(uuid()) @db.Uuid
+  userId                  String?                   @map("user_id") @db.Uuid
+  /// sha256 of the builder's draft token (pre-login access). Cleared on claim.
+  draftTokenHash          String?                   @unique @map("draft_token_hash")
+  /// sha256 of the OAuth `state` while consent is in progress (CSRF guard).
+  oauthStateHash          String?                   @unique @map("oauth_state_hash")
+  oauthStateExpiresAt     DateTime?                 @map("oauth_state_expires_at")
+  googleEmail             String?                   @map("google_email")
+  /// AES-256-GCM encrypted refresh token. Never returned by any endpoint.
+  refreshTokenEnc         String?                   @map("refresh_token_enc")
+  status                  GoogleAdsConnectionStatus @default(pending)
+  lastError               String?                   @map("last_error")
+  connectedAt             DateTime?                 @map("connected_at")
+  /// The campaign picked at the builder's campaign step (before an account
+  /// exists). Becomes a GoogleAdsUserCampaign at the account step.
+  selectedCustomerId      String?                   @map("selected_customer_id")
+  selectedLoginCustomerId String?                   @map("selected_login_customer_id")
+  selectedCampaignId      String?                   @map("selected_campaign_id")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+
+  user      User?                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns GoogleAdsUserCampaign[]
+
+  @@index([userId])
+  @@map("google_ads_connections")
+}
+
+enum GoogleAdsUserCampaignStatus {
+  active
+  /// The owner paused the agent (no cycles run).
+  paused
+  /// The Google connection no longer works (revoked); reconnect needed.
+  disconnected
+}
+
+/// A customer's Google Ads campaign managed by the optimization agent.
+model GoogleAdsUserCampaign {
+  id               String                      @id @default(uuid()) @db.Uuid
+  userId           String                      @map("user_id") @db.Uuid
+  connectionId     String                      @map("connection_id") @db.Uuid
+  customerId       String                      @map("customer_id")
+  /// Manager account the customer is reached through, when any.
+  loginCustomerId  String?                     @map("login_customer_id")
+  customerName     String?                     @map("customer_name")
+  googleCampaignId String                      @map("google_campaign_id")
+  name             String
+  channelType      String?                     @map("channel_type")
+  currencyCode     String?                     @map("currency_code")
+  status           GoogleAdsUserCampaignStatus @default(active)
+  /// Agent settings chosen by the owner (see google-ads-user/agent-settings.ts).
+  settings         Json?
+  /// Latest evaluation (score, components, issues, assets, metrics) from the
+  /// last sync, rendered by the campaign dashboard.
+  snapshot         Json?
+  score            Int?
+  adStrength       String?                     @map("ad_strength")
+  syncedAt         DateTime?                   @map("synced_at")
+  lastCycleAt      DateTime?                   @map("last_cycle_at")
+  nextCycleAt      DateTime?                   @map("next_cycle_at")
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  updatedAt        DateTime                    @updatedAt @map("updated_at")
+
+  user       User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection GoogleAdsConnection          @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  cycles     GoogleAdsOptimizationCycle[]
+  actions    GoogleAdsUserAction[]
+
+  @@unique([userId, customerId, googleCampaignId])
+  @@index([status, nextCycleAt])
+  @@map("google_ads_user_campaigns")
+}
+
+enum GoogleAdsCycleStatus {
+  running
+  completed
+  /// Ended with an error; whatever was not performed was refunded.
+  failed
+}
+
+/// One billed optimization cycle on a customer's campaign. The quote is
+/// charged when the cycle starts (prepaid, atomic); at the end the price is
+/// recomputed from the work actually performed and any difference is
+/// credited back, so a customer never pays for work that did not happen.
+model GoogleAdsOptimizationCycle {
+  id               String               @id @default(uuid()) @db.Uuid
+  userCampaignId   String               @map("user_campaign_id") @db.Uuid
+  userId           String               @map("user_id") @db.Uuid
+  /// manual | scheduled
+  trigger          String
+  status           GoogleAdsCycleStatus @default(running)
+  /// Client-supplied key for "start cycle" so a double click / retried
+  /// request can never start (or charge) two cycles.
+  idempotencyKey   String?              @unique @map("idempotency_key")
+  /// Pricing breakdown at start (tasks, weights, level, multiplier, min).
+  quote            Json
+  quotedMinor      Int                  @map("quoted_minor")
+  /// Final price after settlement (quoted - refunded).
+  chargedMinor     Int                  @default(0) @map("charged_minor")
+  refundedMinor    Int                  @default(0) @map("refunded_minor")
+  chargeTxnId      String?              @map("charge_txn_id") @db.Uuid
+  refundTxnId      String?              @map("refund_txn_id") @db.Uuid
+  /// Pricing breakdown of the work actually performed.
+  settlement       Json?
+  complexityLevel  String?              @map("complexity_level")
+  complexityPoints Float?               @map("complexity_points")
+  tasksPlanned     Int                  @default(0) @map("tasks_planned")
+  tasksApplied     Int                  @default(0) @map("tasks_applied")
+  tasksProposed    Int                  @default(0) @map("tasks_proposed")
+  elementsAnalyzed Int                  @default(0) @map("elements_analyzed")
+  /// Real AI cost estimate of this cycle (EUR minor), our cost, not the price.
+  aiCostMinor      Int                  @default(0) @map("ai_cost_minor")
+  aiCallCount      Int                  @default(0) @map("ai_call_count")
+  aiModel          String?              @map("ai_model")
+  scoreBefore      Int?                 @map("score_before")
+  scoreAfter       Int?                 @map("score_after")
+  summary          String?
+  errorMessage     String?              @map("error_message")
+  startedAt        DateTime             @default(now()) @map("started_at")
+  finishedAt       DateTime?            @map("finished_at")
+
+  userCampaign GoogleAdsUserCampaign @relation(fields: [userCampaignId], references: [id], onDelete: Cascade)
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actions      GoogleAdsUserAction[]
+
+  @@index([userCampaignId, startedAt])
+  @@index([userId, startedAt])
+  @@index([startedAt])
+  @@map("google_ads_optimization_cycles")
+}
+
+/// Same columns as GoogleAdsAgentAction (the optimizer writes both through
+/// one code path), owned by a customer campaign instead of a subcategory.
+model GoogleAdsUserAction {
+  id               String                @id @default(uuid()) @db.Uuid
+  userCampaignId   String                @map("user_campaign_id") @db.Uuid
+  cycleId          String?               @map("cycle_id") @db.Uuid
+  action           String
+  status           GoogleAdsActionStatus @default(applied)
+  before           Json?
+  after            Json?
+  reasoning        String?
+  googleCampaignId String?               @map("google_campaign_id")
+  requiredApproval Boolean               @default(false) @map("required_approval")
+  verifiedAt       DateTime?             @map("verified_at")
+  errorMessage     String?               @map("error_message")
+  executionResult  String?               @map("execution_result")
+  contentHash      String?               @map("content_hash")
+  metricsAtApply   Json?                 @map("metrics_at_apply")
+  approvedByUserId String?               @map("approved_by_user_id") @db.Uuid
+  approvedAt       DateTime?             @map("approved_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+
+  userCampaign GoogleAdsUserCampaign       @relation(fields: [userCampaignId], references: [id], onDelete: Cascade)
+  cycle        GoogleAdsOptimizationCycle? @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+
+  @@index([userCampaignId, createdAt])
+  @@index([googleCampaignId, status])
+  @@map("google_ads_user_actions")
 }

@@ -41,13 +41,16 @@ type WalletTxnTypeFilter = (typeof WALLET_TXN_TYPES)[number];
 /** The spend categories an owner actually recognizes — shared between the
  *  lifetime breakdown and the transaction-list `category` filter so the two
  *  can never classify the same row differently. */
-const SPEND_CATEGORIES = ['clicks', 'aiUsage', 'builderUnlock', 'other'] as const;
+const SPEND_CATEGORIES = ['clicks', 'aiUsage', 'builderUnlock', 'googleAds', 'other'] as const;
 type SpendCategory = (typeof SPEND_CATEGORIES)[number];
 const BUILDER_UNLOCK_DESCRIPTION = 'Advanced website builder';
+/** Google Ads optimization cycles (google-ads-user/, OPTIMIZER_PROVIDER). */
+const GOOGLE_ADS_OPTIMIZER_PROVIDER = 'google-ads-optimizer';
 
 function categoryOf(provider: string | null, description: string | null): SpendCategory {
   if (provider === CPC_PROVIDER) return 'clicks';
   if (provider === 'ai-usage') return 'aiUsage';
+  if (provider === GOOGLE_ADS_OPTIMIZER_PROVIDER) return 'googleAds';
   if (provider === null && description === BUILDER_UNLOCK_DESCRIPTION) return 'builderUnlock';
   return 'other';
 }
@@ -62,6 +65,8 @@ function categoryWhere(category: SpendCategory): Prisma.WalletTransactionWhereIn
       return { provider: 'ai-usage' };
     case 'builderUnlock':
       return { provider: null, description: BUILDER_UNLOCK_DESCRIPTION };
+    case 'googleAds':
+      return { provider: GOOGLE_ADS_OPTIMIZER_PROVIDER };
     case 'other':
       // `description` is nullable, so `NOT: { description: X }` compiled to
       // SQL's `NOT (description = X)` — under three-valued logic that's NULL
@@ -691,6 +696,7 @@ export class WalletService implements OnModuleInit {
   }): string {
     if (t.clicks != null) return 'Click-uri anunț';
     if (t.provider === 'ai-usage') return 'Prompt AI';
+    if (t.provider === GOOGLE_ADS_OPTIMIZER_PROVIDER) return 'Optimizare Google Ads';
     if (t.description === 'Advanced website builder') return 'Deblocare builder avansat';
     if (t.description === 'Additional business') return 'Afacere suplimentară';
     const TYPE_RO: Record<string, string> = {
@@ -995,6 +1001,7 @@ export class WalletService implements OnModuleInit {
     if (e.category === 'clicks') return `${e.clicks ?? 0} click-uri facturate`;
     if (e.category === 'aiUsage') return 'AI Website Builder';
     if (e.category === 'builderUnlock') return 'Taxă deblocare builder';
+    if (e.category === 'googleAds') return 'Optimizare Google Ads';
     return e.description ?? 'Consum';
   }
 
@@ -1182,6 +1189,7 @@ export class WalletService implements OnModuleInit {
       clicks: { minor: 0, count: 0 },
       aiUsage: { minor: 0, count: 0 },
       builderUnlock: { minor: 0, count: 0 },
+      googleAds: { minor: 0, count: 0 },
       other: { minor: 0, count: 0 },
     };
     for (const row of rows) {
@@ -1523,6 +1531,78 @@ export class WalletService implements OnModuleInit {
       },
     });
     return { balanceMinor: debited.balanceMinor, transactionId: txn.id };
+  }
+
+  /**
+   * Authorize/capture for work priced only once it is done (a Google Ads
+   * optimization cycle). `holdWithin` debits the quoted amount right away
+   * (so it cannot be spent twice) into a `pending` spend row; nothing reads
+   * a pending spend as revenue (finance and consumption only count
+   * `completed` rows). `captureHold` then turns that SAME row into the final
+   * price: `completed` with the final amount, the difference back to the
+   * balance, or `canceled` with everything back when nothing is owed. One
+   * row per charge, so the ledger only ever sees what was really charged.
+   */
+  async holdWithin(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    amountMinor: number,
+    opts: { description: string; provider: string },
+  ): Promise<{ balanceMinor: number; transactionId: string } | null> {
+    if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+      throw new BadRequestException('hold amount must be a positive integer');
+    }
+    const wallet = await tx.wallet.upsert({ where: { userId }, create: { userId }, update: {} });
+    const debited = await this.debitAtomic(tx, wallet.id, amountMinor, { requireUnblocked: true });
+    if (!debited) return null;
+    const txn = await tx.walletTransaction.create({
+      data: {
+        walletId: wallet.id,
+        type: 'spend',
+        status: 'pending',
+        provider: opts.provider,
+        amountMinor: -amountMinor,
+        balanceAfterMinor: debited.balanceMinor,
+        description: opts.description,
+      },
+    });
+    return { balanceMinor: debited.balanceMinor, transactionId: txn.id };
+  }
+
+  /** See `holdWithin`. Idempotent: a hold that is no longer pending is left
+   *  untouched (returns null). `finalMinor` is capped at the held amount. */
+  async captureHold(
+    tx: Prisma.TransactionClient,
+    transactionId: string,
+    finalMinor: number,
+    opts: { description?: string } = {},
+  ): Promise<{ capturedMinor: number; releasedMinor: number } | null> {
+    const row = await tx.walletTransaction.findUnique({ where: { id: transactionId } });
+    if (!row || row.type !== 'spend' || row.status !== 'pending') return null;
+    const held = -row.amountMinor;
+    const captured = Math.max(0, Math.min(held, Math.round(finalMinor)));
+    const released = held - captured;
+    let balanceAfter = row.balanceAfterMinor;
+    if (released > 0) {
+      const w = await tx.wallet.update({
+        where: { id: row.walletId },
+        data: { balanceMinor: { increment: released }, lowBalanceNotifiedAt: null },
+      });
+      balanceAfter = w.balanceMinor;
+    } else {
+      const w = await tx.wallet.findUniqueOrThrow({ where: { id: row.walletId } });
+      balanceAfter = w.balanceMinor;
+    }
+    await tx.walletTransaction.update({
+      where: { id: row.id },
+      data: {
+        status: captured > 0 ? 'completed' : 'canceled',
+        amountMinor: -captured,
+        balanceAfterMinor: balanceAfter,
+        ...(opts.description ? { description: opts.description } : {}),
+      },
+    });
+    return { capturedMinor: captured, releasedMinor: released };
   }
 
   /**
