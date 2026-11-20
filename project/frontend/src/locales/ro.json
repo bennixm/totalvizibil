@@ -1543,7 +1543,22 @@
     "accountKeyLabel": "Cheie cont de serviciu (JSON, codificat base64)",
     "accountKeyPlaceholderConfigured": "Configurată, lasă gol ca să o păstrezi",
     "accountKeyPlaceholderEmpty": "Lipește aici cheia JSON codificată base64",
-    "accountKeyHint": "Nu e niciodată afișată după salvare, din motive de securitate"
+    "accountKeyHint": "Nu e niciodată afișată după salvare, din motive de securitate",
+    "techCoverageTitle": "Acoperirea campaniilor",
+    "techCoverageLead": "Agentul ține câte o campanie pentru fiecare subcategorie cu firme active.",
+    "techRunsTitle": "Rulări automate",
+    "techRunsLead": "Pașii programați ai agentului. Oricare poate fi pornit manual.",
+    "runDesc": {
+      "structural": "Creează, pune pe pauză sau repornește campaniile după firmele active. Fără AI, nu cheltuie bani.",
+      "content": "Scrie cuvintele cheie și reclama campaniilor noi, apoi le pornește.",
+      "intelligence": "Propune bugetul zilnic și CPC-ul maxim pentru fiecare subcategorie."
+    },
+    "runPendingN": "{n} așteaptă aprobare",
+    "feedCpcLead": "Prețul unui clic din feed venit prin Google Ads.",
+    "techPeekRunsOk": "Rulări fără probleme",
+    "techPeekRunsIssues": "Rulări cu probleme: {n}",
+    "techPeekCpc": "CPC feed {value}",
+    "techPeekWithout": "Subcategorii fără campanie: {n}"
   },
   "adminGoogleAdsOpt": {
     "tabOptimization": "Optimizare",
@@ -1710,7 +1725,7 @@
     "details": "Detalii",
     "hideDetails": "Ascunde detaliile",
     "techDetails": "Detalii tehnice",
-    "techDetailsSub": "Rulări, campanii pe subcategorii, CPC feed",
+    "techDetailsSub": "Acoperirea campaniilor, rulările automate și costul pe clic din feed",
     "viewGoogleAds": "Google Ads",
     "seeAll": "Vezi tot",
     "general": "General",
@@ -2928,6 +2943,12 @@
     "headline": "reducere la achiziția de credite",
     "sub": "Profită acum de prețul redus la credite · plătești mai puțin pentru același număr de credite.",
     "cta": "Cumpără credite"
+  },
+  "feedOffers": {
+    "aria": "Oferte",
+    "folded": "Oferte ({n})",
+    "show": "Arată ofertele",
+    "hide": "Ascunde ofertele"
   },
   "onboarding": {
     "aria": "Progres Devino vizibil",

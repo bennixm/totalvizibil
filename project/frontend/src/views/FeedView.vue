@@ -6,8 +6,7 @@ import { storeToRefs } from 'pinia'
 
 import FeedControls from '@/components/FeedControls.vue'
 import FeedAdCard from '@/components/FeedAdCard.vue'
-import AffiliateBanner from '@/components/AffiliateBanner.vue'
-import DiscountBanner from '@/components/DiscountBanner.vue'
+import FeedOffers from '@/components/FeedOffers.vue'
 import { useFeedStore, isCompleteServicesSlug } from '@/stores/feed'
 import { useSeo } from '@/composables/useSeo'
 import { feedCategoryRoute } from '@/services/routes'
@@ -244,8 +243,8 @@ async function go(n: number): Promise<void> {
       </button>
     </div>
 
-    <DiscountBanner v-if="!routeCategory" class="feed__affiliate" />
-    <AffiliateBanner v-if="!routeCategory" class="feed__affiliate" />
+    <!-- Platform offers: one slim, foldable row (not full-width cards). -->
+    <FeedOffers v-if="!routeCategory" class="feed__offers" />
 
     <div class="feed__body">
       <FeedControls class="feed__controls" />
@@ -352,10 +351,11 @@ async function go(n: number): Promise<void> {
   max-width: 52ch;
 }
 
-.feed__affiliate {
+.feed__offers {
   width: var(--feed-w);
   margin-inline: auto;
-  margin-bottom: 2rem;
+  margin-top: -0.75rem;
+  margin-bottom: 1.25rem;
 }
 .feed__geo-banner {
   width: var(--feed-w);

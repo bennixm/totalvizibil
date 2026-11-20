@@ -1543,7 +1543,22 @@
     "accountKeyLabel": "Service account key (JSON, base64-encoded)",
     "accountKeyPlaceholderConfigured": "Configured, leave blank to keep it",
     "accountKeyPlaceholderEmpty": "Paste the base64-encoded JSON key here",
-    "accountKeyHint": "Never shown again after saving, for security"
+    "accountKeyHint": "Never shown again after saving, for security",
+    "techCoverageTitle": "Campaign coverage",
+    "techCoverageLead": "The agent keeps one campaign for every subcategory with active businesses.",
+    "techRunsTitle": "Scheduled runs",
+    "techRunsLead": "The agent's scheduled passes. Any of them can be started manually.",
+    "runDesc": {
+      "structural": "Creates, pauses or resumes campaigns based on active businesses. No AI, never spends money.",
+      "content": "Writes keywords and the ad for new campaigns, then starts them.",
+      "intelligence": "Proposes the daily budget and max CPC for each subcategory."
+    },
+    "runPendingN": "{n} awaiting approval",
+    "feedCpcLead": "The price of one feed click that came through Google Ads.",
+    "techPeekRunsOk": "Runs without problems",
+    "techPeekRunsIssues": "Runs with problems: {n}",
+    "techPeekCpc": "Feed CPC {value}",
+    "techPeekWithout": "Subcategories without a campaign: {n}"
   },
   "adminGoogleAdsOpt": {
     "tabOptimization": "Optimization",
@@ -1710,7 +1725,7 @@
     "details": "Details",
     "hideDetails": "Hide details",
     "techDetails": "Technical details",
-    "techDetailsSub": "Runs, subcategory campaigns, feed CPC",
+    "techDetailsSub": "Campaign coverage, scheduled runs and the feed cost per click",
     "viewGoogleAds": "Google Ads",
     "seeAll": "See all",
     "general": "General",
@@ -2928,6 +2943,12 @@
     "headline": "off credit purchases",
     "sub": "Take advantage of the discounted credit price now · the same number of credits for less money.",
     "cta": "Buy credits"
+  },
+  "feedOffers": {
+    "aria": "Offers",
+    "folded": "Offers ({n})",
+    "show": "Show offers",
+    "hide": "Hide offers"
   },
   "onboarding": {
     "aria": "Get visible progress",

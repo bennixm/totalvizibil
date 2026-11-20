@@ -1543,7 +1543,22 @@
     "accountKeyLabel": "Dienstkonto-Schlüssel (JSON, base64-codiert)",
     "accountKeyPlaceholderConfigured": "Konfiguriert, leer lassen, um ihn zu behalten",
     "accountKeyPlaceholderEmpty": "Den base64-codierten JSON-Schlüssel hier einfügen",
-    "accountKeyHint": "Wird nach dem Speichern aus Sicherheitsgründen nie wieder angezeigt"
+    "accountKeyHint": "Wird nach dem Speichern aus Sicherheitsgründen nie wieder angezeigt",
+    "techCoverageTitle": "Kampagnenabdeckung",
+    "techCoverageLead": "Der Agent führt eine Kampagne für jede Unterkategorie mit aktiven Unternehmen.",
+    "techRunsTitle": "Geplante Läufe",
+    "techRunsLead": "Die geplanten Durchläufe des Agenten. Jeder kann manuell gestartet werden.",
+    "runDesc": {
+      "structural": "Erstellt, pausiert oder startet Kampagnen je nach aktiven Unternehmen. Ohne KI, gibt kein Geld aus.",
+      "content": "Schreibt Keywords und die Anzeige neuer Kampagnen und startet sie dann.",
+      "intelligence": "Schlägt Tagesbudget und maximalen CPC für jede Unterkategorie vor."
+    },
+    "runPendingN": "{n} warten auf Freigabe",
+    "feedCpcLead": "Der Preis eines Feed-Klicks, der über Google Ads kam.",
+    "techPeekRunsOk": "Läufe ohne Probleme",
+    "techPeekRunsIssues": "Läufe mit Problemen: {n}",
+    "techPeekCpc": "Feed-CPC {value}",
+    "techPeekWithout": "Unterkategorien ohne Kampagne: {n}"
   },
   "adminGoogleAdsOpt": {
     "tabOptimization": "Optimierung",
@@ -1710,7 +1725,7 @@
     "details": "Details",
     "hideDetails": "Details ausblenden",
     "techDetails": "Technische Details",
-    "techDetailsSub": "Läufe, Unterkategorie-Kampagnen, Feed-CPC",
+    "techDetailsSub": "Kampagnenabdeckung, geplante Läufe und Kosten pro Klick im Feed",
     "viewGoogleAds": "Google Ads",
     "seeAll": "Alle anzeigen",
     "general": "Allgemein",
@@ -2928,6 +2943,12 @@
     "headline": "Rabatt beim Guthabenkauf",
     "sub": "Nutze jetzt den reduzierten Guthabenpreis · die gleiche Guthabenmenge für weniger Geld.",
     "cta": "Guthaben kaufen"
+  },
+  "feedOffers": {
+    "aria": "Angebote",
+    "folded": "Angebote ({n})",
+    "show": "Angebote anzeigen",
+    "hide": "Angebote ausblenden"
   },
   "onboarding": {
     "aria": "Fortschritt Werde sichtbar",
