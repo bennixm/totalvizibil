@@ -3881,7 +3881,8 @@
       "sumTexts": "{h} titluri și {d} descrieri adăugate",
       "sumAssets": "{s} sitelink-uri și {c} callout-uri adăugate",
       "sumImages": "{n} imagini adăugate",
-      "sumKeywords": "{n} cuvinte cheie puse în titluri"
+      "sumKeywords": "{n} cuvinte cheie puse în titluri",
+      "sumPolicy": "Rescrise {r}, eliminate {d}"
     },
     "action": {
       "creative": {
@@ -3895,6 +3896,11 @@
         "change": {
           "proposed": "Modificare de buget"
         }
+      },
+      "policy": {
+        "fix_text": "Texte corectate (politici Google)",
+        "remove_asset": "Extensii respinse eliminate",
+        "remove_keyword": "Cuvinte cheie respinse eliminate"
       }
     },
     "actionStatus": {

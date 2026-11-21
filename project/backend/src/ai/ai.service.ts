@@ -241,6 +241,18 @@ export interface GoogleAdsReplacementInput {
   landingUrl: string;
 }
 
+/** Ad texts Google disapproved, to be rewritten so they comply. */
+export interface GoogleAdsPolicyFixInput {
+  advertiser?: AdvertiserContext;
+  categoryName: string;
+  landingUrl: string;
+  items: { kind: 'headline' | 'description'; text: string; topics: string[] }[];
+  /** The ad's other (approved) texts: not to be repeated. */
+  otherTexts: string[];
+  /** Google's rejection of a previous attempt, fed back verbatim. */
+  googleFeedback?: string;
+}
+
 export interface GoogleAdsKeywordPlanInput {
   categoryName: string;
   parentCategoryName?: string;
@@ -1710,6 +1722,56 @@ export class AiService {
     const text = typeof result?.data?.text === 'string' ? result.data.text.trim() : '';
     if (!result || !text || [...text].length > maxLen || text === input.current) return null;
     return { text, costEstimateMinor: estimateClaudeCostMinor(result.usage) };
+  }
+
+  /**
+   * Google Ads policy compliance: rewrites ad texts Google disapproved so
+   * they no longer break the policies Google named (topics), keeping the
+   * meaning where possible. Returns one replacement per item, in order
+   * (`null` where the model gave nothing usable); the caller validates each
+   * locally and again at Google before applying.
+   */
+  async googleAdsPolicyFixTexts(
+    input: GoogleAdsPolicyFixInput,
+  ): Promise<{ texts: (string | null)[]; costEstimateMinor: number } | null> {
+    if (!this.configured || !input.items.length) return null;
+    const prompt = [
+      ...advertiserLines(input.advertiser),
+      `Subcategorie: ${input.categoryName}. Pagina de destinație: ${input.landingUrl}.`,
+      'Google Ads a RESPINS (DISAPPROVED) următoarele texte ale unei reclame responsive de căutare, din cauza politicilor indicate:',
+      ...input.items.map(
+        (it, i) =>
+          `${i + 1}. ${it.kind === 'headline' ? 'Titlu (max 30 caractere)' : 'Descriere (max 90 caractere)'}: „${it.text}” | politici încălcate: ${it.topics.length ? it.topics.join(', ') : 'nespecificat'}`,
+      ),
+      input.googleFeedback
+        ? `ATENȚIE: Google a respins și încercarea anterioară de corectare: ${input.googleFeedback}`
+        : '',
+      `Celelalte texte ale reclamei (aprobate, nu le repeta): ${JSON.stringify(input.otherTexts)}`,
+      '',
+      'Rescrie FIECARE text respins astfel încât să respecte politicile Google Ads, păstrând pe cât posibil ideea. Reguli:',
+      '- Elimină exact cauza: punctuație/simboluri nestandard, MAJUSCULE excesive, superlative neverificabile ("cel mai bun", "nr. 1"), mărci comerciale ale altora, promisiuni de rezultat sau preț, conținut medical/financiar/legal restricționat, limbaj înșelător sau senzațional, telefoane, URL-uri, emoji.',
+      '- Fără semne de exclamare în titluri; corect gramatical, în română, cu diacritice.',
+      '- Respectă limita de caractere (titlu 30, descriere 90, inclusiv spațiile).',
+      '- Fiecare text nou diferit de celelalte texte ale reclamei.',
+      `Răspunde STRICT JSON: {"texts": string[${input.items.length}]} în aceeași ordine.`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    const result = await this.anthropicJsonWithUsage(advertiserSystem(input.advertiser), prompt, {
+      maxTokens: 1200,
+      effort: 'low',
+      model: this.anthropicModelFast,
+      timeoutMs: 45_000,
+    });
+    if (!result) return null;
+    const list = (result.data as { texts?: unknown[] }).texts;
+    const texts = input.items.map((it, i) => {
+      const v = Array.isArray(list) ? list[i] : undefined;
+      const t = typeof v === 'string' ? v.trim() : '';
+      const max = it.kind === 'headline' ? 30 : 90;
+      return t && [...t].length <= max && t !== it.text ? t : null;
+    });
+    return { texts, costEstimateMinor: estimateClaudeCostMinor(result.usage) };
   }
 
   /**

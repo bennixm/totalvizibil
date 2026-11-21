@@ -103,6 +103,8 @@ function summary(a: UserAction): string {
       return t('ads.prop.sumKeywords', { n: count(after.missingKeywords) })
     case 'creative.replace_text':
       return `„${obj(a.before).text ?? ''}” → „${after.text ?? ''}”`
+    case 'policy.fix_text':
+      return t('ads.prop.sumPolicy', { r: count(after.replaced), d: count(after.removed) })
     case 'budget.change.proposed':
       return `${adsMoney(obj(a.before).amountMicros as string, currency.value, locale.value)} → ${adsMoney(after.amountMicros as string, currency.value, locale.value)}`
     default:

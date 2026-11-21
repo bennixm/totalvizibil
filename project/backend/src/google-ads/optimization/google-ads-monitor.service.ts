@@ -217,12 +217,55 @@ export class GoogleAdsMonitorService implements OnModuleInit {
         where: { googleCampaignId: { notIn: data.campaigns.map((c) => c.googleCampaignId) } },
       });
 
+      const generateAllowed = this.client.writesAllowed || trigger === 'manual';
+
+      // Policy compliance first, for EVERY agent campaign: a disapproved
+      // text, asset or keyword blocks serving, so it is fixed before any
+      // other optimization (Google's validation feeds rejected rewrites
+      // back to the AI). Fixed campaigns are re-read so the next steps work
+      // on what is live now.
+      if (generateAllowed) {
+        const policyFixed = new Set<string>();
+        for (const e of evaluated.filter((x) => x.mapping)) {
+          try {
+            const r = await this.optimizer.fixPolicyViolations(
+              e.c,
+              this.optimizer.platformTarget(e.mapping!),
+              activity,
+            );
+            if (r.applied) {
+              policyFixed.add(e.c.googleCampaignId);
+              changedIds.add(e.c.googleCampaignId);
+            }
+            applied += r.applied;
+            cost += r.costEstimateMinor;
+          } catch (err) {
+            hadError = true;
+            this.logger.error(
+              `Policy fix failed for ${e.c.googleCampaignId}.`,
+              err instanceof Error ? err.stack : err,
+            );
+          }
+        }
+        if (policyFixed.size) {
+          const fresh = await fetchAccountData(this.client);
+          for (const c of fresh.campaigns.filter((x) => policyFixed.has(x.googleCampaignId))) {
+            const i = evaluated.findIndex((e) => e.c.googleCampaignId === c.googleCampaignId);
+            if (i >= 0)
+              evaluated[i] = {
+                ...evaluated[i],
+                c,
+                ev: evaluateCampaign(c, { managed: true, urlChecks }),
+              };
+          }
+        }
+      }
+
       // Optimize: managed, not removed, has something the agent may fix;
       // lowest score first.
       const candidates = evaluated
         .filter((e) => e.mapping && e.ev.issues.some((i) => i.autoFixable))
         .sort((a, b) => (a.ev.score ?? 100) - (b.ev.score ?? 100));
-      const generateAllowed = this.client.writesAllowed || trigger === 'manual';
       const autoFillOn = await this.settings.googleAdsAgentAutoFillGapsEnabled();
       await activity.record(
         { step: 'prioritize', message: 'Prioritizare optimizări' },
