@@ -360,7 +360,109 @@
     "retry": "Erneut versuchen",
     "logoTitle": "Logo (optional)",
     "logoAdd": "Logo hinzufügen",
-    "logoChange": "Ändern"
+    "logoChange": "Ändern",
+    "build": {
+      "canvasTitle": "Deine Seite ist noch leer",
+      "canvasText": "Erzähl mir im Chat, was dein Unternehmen macht, und ich baue die Website Abschnitt für Abschnitt.",
+      "canvasBusy": "Der Aufbau beginnt…",
+      "consoleTitle": "KI baut deine Website",
+      "updating": "Aktualisiere {section}",
+      "restyle": "Neuer Stil wird angewendet",
+      "newOnPreview": "Neuer Abschnitt gebaut",
+      "sec": {
+        "generic": "den Abschnitt",
+        "hero": "den Startbereich",
+        "services": "die Leistungen",
+        "gallery": "die Galerie",
+        "contact": "den Kontaktbereich",
+        "about": "Über uns",
+        "features": "Warum wir",
+        "process": "So arbeiten wir",
+        "stats": "die Zahlen",
+        "testimonials": "die Bewertungen",
+        "faq": "die FAQ",
+        "cta": "den Abschlussaufruf"
+      },
+      "lines": {
+        "hero": [
+          "Wähle die Seitenstruktur",
+          "Stimme Farben und Schriften ab",
+          "Schreibe die Hauptüberschrift",
+          "Baue den Startbereich"
+        ],
+        "services": [
+          "Ordne die Leistungen",
+          "Schreibe die Beschreibungen",
+          "Wähle passende Symbole",
+          "Platziere die Karten"
+        ],
+        "gallery": [
+          "Optimiere die Fotos",
+          "Baue die Galerie"
+        ],
+        "contact": [
+          "Bereite das Kontaktformular vor",
+          "Füge deine Kontaktdaten hinzu"
+        ],
+        "about": [
+          "Schreibe die Geschichte des Unternehmens",
+          "Baue den Bereich Über uns"
+        ],
+        "features": [
+          "Formuliere deine Vorteile",
+          "Baue den Bereich Warum wir"
+        ],
+        "process": [
+          "Beschreibe die Arbeitsschritte",
+          "Baue den Bereich So arbeiten wir"
+        ],
+        "stats": [
+          "Baue die Zahlen"
+        ],
+        "testimonials": [
+          "Baue die Bewertungen"
+        ],
+        "faq": [
+          "Schreibe die häufigen Fragen",
+          "Baue den FAQ-Bereich"
+        ],
+        "cta": [
+          "Schreibe den Abschlussaufruf",
+          "Baue den letzten Handlungsaufruf"
+        ],
+        "generic": [
+          "Baue den Abschnitt"
+        ]
+      },
+      "wait": {
+        "intro": [
+          "Lese die Beschreibung deines Unternehmens",
+          "Erkenne Branche und Kunden",
+          "Suche den passenden Stil",
+          "Bereite den ersten Abschnitt vor"
+        ],
+        "services": [
+          "Analysiere die Leistungen",
+          "Schreibe eine Beschreibung pro Leistung",
+          "Wähle die Symbole"
+        ],
+        "photos": [
+          "Bereite die Fotos vor"
+        ],
+        "contact": [
+          "Speichere die Kontaktdaten",
+          "Schreibe den Rest der Website",
+          "Prüfe die Texte",
+          "Optimiere für das Handy"
+        ],
+        "done": [
+          "Wende die Änderung an",
+          "Setze die Abschnitte neu zusammen"
+        ]
+      },
+      "next": "Als Nächstes: {section}",
+      "nextRest": "der Kontakt und der Rest der Seite"
+    }
   },
   "location": {
     "eyebrow": "Schritt 3 · Standort",

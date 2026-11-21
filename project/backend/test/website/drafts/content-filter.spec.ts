@@ -26,6 +26,9 @@ describe('content-filter', () => {
     expect(containsBannedContent('Punem accent pe comunicare și pe calitate.')).toBe(false);
     expect(containsBannedContent('Curățenie generală și întreținere periodică.')).toBe(false);
     expect(containsBannedContent('Echipa noastră pornește de la nevoile tale.')).toBe(false);
+    expect(
+      containsBannedContent('Brutăria Spic de Aur, pâine artizanală și cozonaci din Brașov'),
+    ).toBe(false);
   });
 
   it('empty / whitespace is clean', () => {

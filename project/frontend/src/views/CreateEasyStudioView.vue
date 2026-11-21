@@ -4,13 +4,13 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
 import EasyCreationAgent from '@/components/studio/EasyCreationAgent.vue'
-import WebsiteRenderer from '@/components/WebsiteRenderer.vue'
+import BuildStage from '@/components/studio/BuildStage.vue'
 import OnboardingSteps from '@/components/OnboardingSteps.vue'
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
 
 const { t } = useI18n()
 const store = useWebsiteDraftStore()
-const { draft, loading, error } = storeToRefs(store)
+const { draft, loading, error, sending } = storeToRefs(store)
 
 /**
  * Resume/create an EASY draft. If a stale advanced draft comes back (the
@@ -46,6 +46,15 @@ const errorText = computed(() => {
 // Mobile: toggle between the preview and the chat (the app-like split doesn't
 // fit a phone). Desktop shows both side by side.
 const mobilePane = ref<'chat' | 'preview'>('chat')
+/** Something new was built while the owner was on the chat tab (phone). */
+const previewPing = ref(false)
+function onBuilt(): void {
+  if (mobilePane.value === 'chat') previewPing.value = true
+}
+function showPreview(): void {
+  mobilePane.value = 'preview'
+  previewPing.value = false
+}
 
 onMounted(ensureEasyDraft)
 </script>
@@ -65,9 +74,10 @@ onMounted(ensureEasyDraft)
         <button
           :class="{ 'is-on': mobilePane === 'preview' }"
           type="button"
-          @click="mobilePane = 'preview'"
+          @click="showPreview"
         >
           <v-icon icon="mdi-monitor" size="18" /> {{ t('studio.panePreview') }}
+          <span v-if="previewPing" class="studio__ping" :aria-label="t('studio.build.newOnPreview')" />
         </button>
       </div>
     </header>
@@ -80,11 +90,15 @@ onMounted(ensureEasyDraft)
         :class="{ 'is-hidden-mobile': mobilePane !== 'preview' }"
         :aria-label="t('studio.panePreview')"
       >
-        <WebsiteRenderer
+        <BuildStage
           v-if="draft?.content && draft?.theme"
           :content="draft.content"
           :theme="draft.theme"
-          framed
+          :step="draft.step"
+          :sending="sending"
+          :services-count="draft.easy?.services?.length ?? 0"
+          :photos-count="draft.easy?.portfolio?.length ?? 0"
+          @built="onBuilt"
         />
         <div v-else class="studio__empty">
           <v-progress-circular v-if="loading" indeterminate color="primary" />
@@ -182,6 +196,13 @@ onMounted(ensureEasyDraft)
   font-size: 0.82rem;
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.studio__ping {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgb(var(--v-theme-primary));
+  box-shadow: 0 0 0 3px rgba(var(--v-theme-primary), 0.25);
 }
 .studio__tabs button.is-on {
   background: rgb(var(--v-theme-surface));
