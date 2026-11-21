@@ -1432,10 +1432,14 @@ export class AiService {
       'Ești un specialist Google Ads pentru o platformă românească de listare firme locale.';
     // 15 keywords + 15 headlines + 4 descriptions + callouts + sitelinks in
     // Romanian: 1800 tokens could truncate the JSON and lose the plan.
+    // A full plan (~2-4k output tokens) takes well over the 20s default,
+    // which made every call time out (and the SDK's retries made each
+    // campaign burn ~2 minutes before failing).
     const callOpts: CallOpts = {
       maxTokens: 4000,
       effort: 'medium',
       model: this.anthropicModelFast,
+      timeoutMs: 90_000,
     };
 
     let result = await this.anthropicJsonWithUsage(system, buildPrompt(), callOpts);
