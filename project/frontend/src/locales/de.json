@@ -4166,5 +4166,448 @@
     "clientId": "Client-ID",
     "clientSecret": "Client-Secret",
     "secretKeep": "Leer lassen, um das gespeicherte Secret zu behalten."
+  },
+  "binfo": {
+    "common": {
+      "hubEyebrow": "Ratgeber",
+      "hubTitle": "So funktionieren die Builder",
+      "hubLead": "Drei Wege, sichtbar zu werden. Sieh dir Schritt für Schritt an, was jeder davon macht, bevor du startest.",
+      "learnMore": "So funktioniert es",
+      "howTitle": "So funktioniert es, Schritt für Schritt",
+      "howLead": "Die Demo unten zeigt die echte Oberfläche. Wähle einen Schritt oder lass sie laufen.",
+      "step": "Schritt {n}",
+      "play": "Demo abspielen",
+      "pause": "Pausieren",
+      "youGive": "Du gibst",
+      "aiDoes": "Die KI macht",
+      "createTitle": "Was du erreichen kannst",
+      "resultTitle": "Das Ergebnis",
+      "capsTitle": "Deine Optionen",
+      "notesTitle": "Gut zu wissen",
+      "startNow": "Jetzt starten",
+      "otherBuilders": "Die anderen Builder",
+      "seeGuide": "So funktioniert es",
+      "demoLabel": "Animierte Demo"
+    },
+    "easy": {
+      "seoTitle": "Einfache Website: so funktioniert es",
+      "seoDesc": "Erstelle eine Präsentationswebsite im Chat mit einem KI-Assistenten. Kostenlos für dein erstes Unternehmen.",
+      "eyebrow": "Einfache Website",
+      "title": "Eine Präsentationswebsite, von der KI geschrieben, während ihr chattet",
+      "lead": "Beantworte ein paar kurze Fragen im Chat, und der Assistent baut die Website Abschnitt für Abschnitt direkt vor deinen Augen.",
+      "badges": [
+        "Kostenlos für das erste Unternehmen",
+        "In wenigen Minuten fertig",
+        "Funktioniert auch am Handy"
+      ],
+      "cta": "Website kostenlos erstellen",
+      "steps": [
+        {
+          "t": "Du beschreibst dein Unternehmen",
+          "d": "In einer Nachricht: Name, was du machst und die Stadt. Der Assistent versteht es und baut den Anfang der Seite."
+        },
+        {
+          "t": "Du zählst deine Leistungen auf",
+          "d": "Mit Kommas getrennt. Die KI schreibt für jede eine Beschreibung und platziert sie auf der Seite."
+        },
+        {
+          "t": "Du fügst Fotos hinzu (optional)",
+          "d": "Bis zu 10 Fotos deines Unternehmens. Das erste wird zum Seitenhintergrund, die anderen kommen in die Galerie. Du kannst auch überspringen."
+        },
+        {
+          "t": "Du hinterlässt einen Kontakt",
+          "d": "Eine Telefonnummer und eine E-Mail. Dann schreibt die KI den Rest der Website und prüft die Texte."
+        },
+        {
+          "t": "Anpassen und veröffentlichen",
+          "d": "Ändere Stil und Farbe oder bitte im Chat um Änderungen. Dann wählst du den Standort, erstellst dein Konto und die Website ist online."
+        }
+      ],
+      "you": [
+        "Name, was du machst und die Stadt",
+        "Die Liste deiner Leistungen",
+        "Eigene Fotos, wenn du willst",
+        "Eine Telefonnummer und eine E-Mail"
+      ],
+      "ai": [
+        "Wählt die Überschrift und baut den Anfang der Seite",
+        "Schreibt eine Beschreibung für jede Leistung",
+        "Schreibt Über uns, Warum wir, So arbeiten wir, FAQ und den Abschlussaufruf",
+        "Korrigiert Schreibfehler in deinen Texten automatisch"
+      ],
+      "create": [
+        {
+          "t": "Eine einseitige Präsentationswebsite",
+          "d": "Dein ganzes Unternehmen, klar in Abschnitte gegliedert, mit Navigationsmenü."
+        },
+        {
+          "t": "Texte für dein Unternehmen",
+          "d": "Kein Standardtext: Die KI geht von dem aus, was du ihr gesagt hast."
+        },
+        {
+          "t": "Ein Kontaktformular",
+          "d": "Kunden können dir Anfragen direkt über die Website schicken."
+        }
+      ],
+      "result": "Eine vollständige Website mit diesen Abschnitten: Start, Über uns, Leistungen, So arbeiten wir, Warum wir, Galerie (wenn du Fotos hast), FAQ, Abschlussaufruf und Kontakt. Der Assistent erfindet keine Zahlen oder Bewertungen.",
+      "caps": [
+        {
+          "t": "6 Stile",
+          "d": "Klassisch, Mutig, Minimal, Freundlich, Markant oder Editorial."
+        },
+        {
+          "t": "Deine Farbe",
+          "d": "Wähle aus einer Palette oder nimm deine eigene Farbe."
+        },
+        {
+          "t": "Änderungen per Chat",
+          "d": "Wenn sie fertig ist, bittest du in einfachen Worten um jede Änderung."
+        },
+        {
+          "t": "Jederzeit bearbeiten",
+          "d": "Im Dashboard änderst du Texte, Fotos, Menü und Fußzeile auch nach der Veröffentlichung."
+        }
+      ],
+      "notes": [
+        "Kostenlos für dein erstes Unternehmen.",
+        "Zum Starten brauchst du kein Konto; du erstellst es nur zum Speichern und Veröffentlichen.",
+        "Es ist eine einseitige Website. Für mehr Seiten und eigenen Code gibt es den Erweiterten Builder."
+      ],
+      "demo": {
+        "bizMsg": "Bäckerei Goldähre, Brot und Hefezopf aus Brașov",
+        "askServices": "Zähl deine Leistungen auf, mit Kommas getrennt.",
+        "servicesMsg": "Sauerteigbrot, Hefezopf, Torten",
+        "askPhotos": "Schick ein Foto oder schreib „überspringen“.",
+        "photosMsg": "3 Fotos hinzugefügt",
+        "askContact": "Letzter Schritt: Telefon und E-Mail.",
+        "contactMsg": "0712 345 678, kontakt{'@'}beispiel.de",
+        "done": "Fertig! Ich habe die ganze Website geschrieben.",
+        "empty": "Deine Seite ist noch leer",
+        "console": "KI baut deine Website",
+        "next": "Als Nächstes: die Leistungen",
+        "heroTitle": "Brot und Hefezopf aus Brașov",
+        "services": "Unsere Leistungen",
+        "gallery": "Galerie",
+        "about": "Über uns",
+        "faq": "FAQ",
+        "contact": "Kontakt",
+        "styles": "Stil und Farbe",
+        "build": [
+          "Wähle die Seitenstruktur",
+          "Schreibe die Hauptüberschrift",
+          "Schreibe die Beschreibungen",
+          "Baue die Galerie",
+          "Schreibe den Rest der Website"
+        ]
+      }
+    },
+    "advanced": {
+      "seoTitle": "Erweiterter Builder: so funktioniert es",
+      "seoDesc": "Ein KI-Assistent schreibt echten Code für eine einzigartige, mehrseitige Website und führt sie live im Browser aus.",
+      "eyebrow": "Erweiterter Builder",
+      "title": "Eine einzigartige Website mit echtem Code, im Gespräch gebaut",
+      "lead": "Beschreibe, was du willst, und die KI schreibt die Dateien der Website, führt sie live im Browser aus und ändert sie bei jeder Anfrage.",
+      "badges": [
+        "Echter Code, keine Vorlage",
+        "Live-Vorschau",
+        "Für den Computer"
+      ],
+      "cta": "Mit dem Erweiterten Builder starten",
+      "price": "Einmalige Freischaltung: {credits} Credits",
+      "steps": [
+        {
+          "t": "Name des Unternehmens",
+          "d": "Du startest mit dem Namen, dann wählst du Standort und Kategorie."
+        },
+        {
+          "t": "Konto und Freischaltung",
+          "d": "Du erstellst dein Konto und schaltest den Builder mit einer einmaligen Zahlung aus deinem Guthaben frei. Einen Teil der Credits bekommst du zum Bauen zurück."
+        },
+        {
+          "t": "Website im Chat beschreiben",
+          "d": "Sag, was du willst. Die KI fragt nur nach, wenn etwas Wichtiges fehlt, schreibt dann die Dateien und startet sie live."
+        },
+        {
+          "t": "Änderungen anfragen",
+          "d": "Bitte in einfachen Worten um Änderungen und hänge eigene Fotos an. Tritt ein Fehler auf, bemerkt die KI ihn und versucht, ihn selbst zu beheben."
+        },
+        {
+          "t": "Veröffentlichen und weiter",
+          "d": "Ein Klick auf Veröffentlichen und die Website ist live. Danach geht es zum Kampagnenbudget."
+        }
+      ],
+      "you": [
+        "Name, Standort und Kategorie des Unternehmens",
+        "Eine Beschreibung der gewünschten Website, in deinen Worten",
+        "Eigene Fotos, wenn du willst (bis zu 10 pro Nachricht)",
+        "Guthaben für die Freischaltung und die Arbeit"
+      ],
+      "ai": [
+        "Schreibt die echten Dateien der Website",
+        "Führt sie live direkt im Browser aus",
+        "Bemerkt Fehler und versucht, sie selbst zu beheben",
+        "Zeigt dir bei jeder Antwort Schritt für Schritt, was sie getan hat"
+      ],
+      "create": [
+        {
+          "t": "Einzigartig, keine Vorlage",
+          "d": "Struktur, Design und Funktionen werden für dein Unternehmen geschrieben."
+        },
+        {
+          "t": "Mehr Seiten",
+          "d": "Es gibt keine feste Grenze: Die KI fügt so viele Seiten hinzu, wie du brauchst. Mehr Seiten bedeuten mehr Suchanfragen, in denen du erscheinen kannst."
+        },
+        {
+          "t": "Online-Termine",
+          "d": "Neben dem Kontaktformular können Kunden direkt über die Website Termine buchen."
+        }
+      ],
+      "result": "Eine veröffentlichte Website aus echtem Code, die du jederzeit im selben Gespräch ändern kannst. Die Quelldateien siehst du im Tab Dateien.",
+      "caps": [
+        {
+          "t": "Chat und Dateien",
+          "d": "Wechsle zwischen dem Gespräch und den echten Dateien der Website."
+        },
+        {
+          "t": "Live-Vorschau",
+          "d": "Sieh die Website laufen, nach jeder Änderung aktualisiert."
+        },
+        {
+          "t": "Eigene Fotos",
+          "d": "Hänge sie im Chat an und sag, wo sie hin sollen, etwa „setz dieses Foto nach oben“."
+        },
+        {
+          "t": "Jederzeit neu veröffentlichen",
+          "d": "Ändern und erneut veröffentlichen, so oft du willst."
+        }
+      ],
+      "notes": [
+        "Die Live-Vorschau führt eine echte Entwicklungsumgebung im Browser aus, deshalb funktioniert der Builder nur am Computer, nicht auf Handy oder Tablet.",
+        "Die Freischaltung zahlst du einmal aus deinem Guthaben. Die Arbeit mit der KI verbraucht danach Guthaben, während du baust."
+      ],
+      "demo": {
+        "prompt": "Ich möchte eine Website für meine Zahnarztpraxis, mit Seiten für Leistungen und Termine",
+        "did": "Was ich getan habe (4 Aktionen)",
+        "actions": [
+          "Startseite erstellt",
+          "Leistungsseite hinzugefügt",
+          "Terminformular hinzugefügt",
+          "Vorschau gestartet"
+        ],
+        "reply": "Fertig, die Website läuft. Was ändern wir als Nächstes?",
+        "change": "Setz das angehängte Foto oben auf die Startseite",
+        "image": "praxis-foto.jpg",
+        "heroTitle": "Gesunde Zähne",
+        "pages": [
+          "Start",
+          "Leistungen",
+          "Termine"
+        ],
+        "bonus": "Direkt nach der Freischaltung bekommst du Credits zurück ins Guthaben."
+      }
+    },
+    "ads": {
+      "seoTitle": "Google-Ads-Optimierung: so funktioniert es",
+      "seoDesc": "Verbinde dein Google-Ads-Konto, wähle Kampagnen, und der KI-Agent verbessert sie. Das Budget ändert sich nur mit deiner Zustimmung.",
+      "eyebrow": "Google-Ads-Optimierung",
+      "title": "Ein KI-Agent, der deine bestehenden Google-Ads-Kampagnen verbessert",
+      "lead": "Verbinde dein Konto, wähle Kampagnen, und der Agent analysiert sie, ergänzt Fehlendes und schlägt Verbesserungen vor. Es wird keine neue Website erstellt.",
+      "badges": [
+        "Kostenlos verbinden",
+        "Budget nur mit deiner Zustimmung",
+        "Zahle nur für geleistete Arbeit"
+      ],
+      "cta": "Kampagne optimieren",
+      "price": "Ein Optimierungszyklus kostet ab {credits} Credits",
+      "steps": [
+        {
+          "t": "Google-Konto verbinden",
+          "d": "Du meldest dich direkt bei Google an und wählst das Konto. Dein Passwort sehen wir nie."
+        },
+        {
+          "t": "Kampagnen wählen",
+          "d": "Du siehst deine echten Konten und Kampagnen mit den Ergebnissen der letzten 30 Tage. Du kannst mehrere ankreuzen, auch aus verschiedenen Konten."
+        },
+        {
+          "t": "Dashboard öffnen",
+          "d": "Verknüpfe die Kampagne mit deinem Totalvizibil-Konto und erhalte ein Dashboard mit Kampagnenwert und Verbesserungspotenzial. Bis hier ist alles kostenlos."
+        },
+        {
+          "t": "Zyklus starten",
+          "d": "Der Agent analysiert die Kampagne, behebt, was Google abgelehnt hat, ergänzt fehlende Texte und Erweiterungen und prüft alles im Google-Konto."
+        },
+        {
+          "t": "Vorschläge genehmigen",
+          "d": "Textänderungen und jede Budgetänderung werden dir zuerst vorgeschlagen. Sie gelten erst nach deiner Zustimmung."
+        }
+      ],
+      "you": [
+        "Zugang zu deinem Google-Ads-Konto per Google-Anmeldung",
+        "Die Kampagnen, die optimiert werden sollen",
+        "Deine Zustimmung zu Vorschlägen",
+        "Credits für Optimierungszyklen"
+      ],
+      "ai": [
+        "Berechnet einen Wert aus echten Kampagnendaten",
+        "Ergänzt Überschriften, Beschreibungen, Sitelinks, Callouts und Bilder",
+        "Setzt Keywords in Überschriften und macht es rückgängig, wenn Google schlechter bewertet",
+        "Behebt Elemente, die gegen Google-Richtlinien verstoßen"
+      ],
+      "create": [
+        {
+          "t": "Vollständigere Anzeigen",
+          "d": "Der Agent ergänzt deine Anzeigen bis zu dem von Google empfohlenen Niveau."
+        },
+        {
+          "t": "Ein klarer Wert",
+          "d": "Sieh, wie nah die Kampagne an den Google-Anforderungen ist und was noch fehlt."
+        },
+        {
+          "t": "Mehrere Kampagnen",
+          "d": "Jede gewählte Kampagne bekommt ihr eigenes Dashboard, auch aus verschiedenen Google-Konten."
+        }
+      ],
+      "result": "Kampagnen mit vollständigeren Anzeigen und einem Wert, der den Fortschritt zeigt, dazu ein Verlauf jeder Änderung, die in deinem Google-Ads-Konto vorgenommen und geprüft wurde.",
+      "caps": [
+        {
+          "t": "Du bestimmst, was der Agent tut",
+          "d": "Automatisches Ergänzen, Keywords in Überschriften, Bilder und Vorschläge ein- oder ausschalten."
+        },
+        {
+          "t": "Automatische Zyklen",
+          "d": "Nur auf Anfrage, wöchentlich, alle zwei Wochen oder monatlich."
+        },
+        {
+          "t": "Transparente Kosten",
+          "d": "Du siehst vorher die Schätzung; am Ende zahlst du nur die geleistete Arbeit, die Differenz geht zurück ins Guthaben."
+        },
+        {
+          "t": "Widerrufbarer Zugang",
+          "d": "Trenne dein Google-Konto jederzeit, auf der Plattform oder bei Google."
+        }
+      ],
+      "notes": [
+        "Das Budget ändert sich nie automatisch: Jede Änderung wird dir vorgeschlagen und gilt erst nach deiner Zustimmung.",
+        "Der Agent optimiert derzeit Suchkampagnen (Search).",
+        "Verbinden, Kampagnenwahl und Dashboard sind kostenlos; du zahlst nur Optimierungszyklen."
+      ],
+      "demo": {
+        "connect": "Mit Google anmelden",
+        "secure": "Dein Google-Passwort sehen wir nie",
+        "accounts": "Google-Ads-Konten",
+        "campaigns": "Kampagnen",
+        "camp": [
+          "Sanitärinstallation",
+          "Heizungsanlagen",
+          "Brand Performance Max"
+        ],
+        "continue": "Weiter mit 2 Kampagnen",
+        "score": "Optimierungswert",
+        "tabs": [
+          "Übersicht",
+          "Agent",
+          "Vorschläge"
+        ],
+        "cycle": "Optimierungszyklus",
+        "cycleSteps": [
+          "Analyse und Wert",
+          "Google-Richtlinien",
+          "Überschriften und Erweiterungen ergänzen",
+          "Prüfung im Google-Konto"
+        ],
+        "proposal": "Budgetvorschlag",
+        "proposalText": "80 → 110 lei pro Tag",
+        "approve": "Genehmigen",
+        "reject": "Ablehnen"
+      }
+    }
+  },
+  "hsec": {
+    "find": {
+      "eyebrow": "Für Kunden",
+      "title": "Finde ein lokales Unternehmen in wenigen Schritten",
+      "lead": "Sag, was du suchst, und die Plattform zeigt dir die passenden Unternehmen in deiner Nähe.",
+      "steps": [
+        {
+          "t": "Sag, was du suchst",
+          "d": "Schreib es in deinen Worten, etwa „Ich brauche einen Installateur in Cluj“. Den Kategorienamen musst du nicht kennen."
+        },
+        {
+          "t": "Wir wählen Kategorie und Region",
+          "d": "Aus deiner Frage werden die passende Kategorie und der Kreis. In den Filtern kannst du sie jederzeit ändern."
+        },
+        {
+          "t": "Unternehmen in der Nähe sehen",
+          "d": "Jedes Unternehmen erscheint mit Branche, Stadt und Leistungen."
+        },
+        {
+          "t": "Direkt kontaktieren",
+          "d": "Öffne die Website des Unternehmens und ruf an oder schick eine Anfrage über das Formular."
+        }
+      ],
+      "demo": {
+        "category": "Sanitärinstallation",
+        "county": "Cluj",
+        "city": "Cluj-Napoca",
+        "firms": [
+          "Klarwasser Sanitär",
+          "Thermo Expert",
+          "Sanitär Pro"
+        ],
+        "services": [
+          "Rohre und Anschlüsse",
+          "Heizkessel",
+          "Notdienst"
+        ],
+        "call": "Anrufen",
+        "send": "Anfrage senden",
+        "name": "Name",
+        "msg": "Wie können wir helfen?",
+        "sent": "Anfrage gesendet"
+      }
+    },
+    "grow": {
+      "eyebrow": "Für Unternehmen",
+      "title": "Du hast ein Unternehmen? Werde sichtbar",
+      "lead": "Erstelle deine Website, wähle deine Region und erscheine vor Kunden, die genau das suchen, was du anbietest.",
+      "steps": [
+        {
+          "t": "Website erstellen",
+          "d": "Kostenlos für dein erstes Unternehmen mit der Einfachen Website oder einzigartig, mit echtem Code, mit dem Erweiterten Builder."
+        },
+        {
+          "t": "Region und Kategorie wählen",
+          "d": "Sag, wo du arbeitest und was du machst, damit du in den passenden Suchen erscheinst."
+        },
+        {
+          "t": "Kampagne starten",
+          "d": "Lege ein Tagesbudget und einen maximalen CPC fest oder lass den AUTO-Modus beides steuern. Mit Credits bezahlst du die erhaltenen Klicks."
+        },
+        {
+          "t": "Kunden gewinnen",
+          "d": "Solange die Kampagne aktiv ist, erscheinst du im Feed, in deiner Kategorie und Region, und Kunden schicken dir direkt Anfragen."
+        }
+      ],
+      "demo": {
+        "simple": "Einfache Website",
+        "advanced": "Erweiterter Builder",
+        "yourSite": "Deine Website",
+        "zone": "Deine Region",
+        "cat": "Kategorie",
+        "auto": "AUTO",
+        "yours": "Dein Unternehmen",
+        "lead": "Neue Anfrage von einem Kunden"
+      }
+    },
+    "builders": {
+      "eyebrow": "Unsere Builder",
+      "title": "Wähle, wie du deine Präsenz aufbaust",
+      "lead": "Drei Builder, jeder mit einer eigenen Seite, die Schritt für Schritt zeigt, wie er funktioniert."
+    },
+    "final": {
+      "title": "Finde ein Unternehmen oder mach deins sichtbar",
+      "find": "Unternehmen finden",
+      "grow": "Sichtbar werden"
+    }
   }
 }

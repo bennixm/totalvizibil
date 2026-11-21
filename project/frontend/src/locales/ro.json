@@ -4166,5 +4166,448 @@
     "clientId": "ID client",
     "clientSecret": "Secret client",
     "secretKeep": "Lasă gol ca să păstrezi secretul salvat."
+  },
+  "binfo": {
+    "common": {
+      "hubEyebrow": "Ghid",
+      "hubTitle": "Cum funcționează builderele",
+      "hubLead": "Trei moduri de a deveni vizibil. Vezi ce face fiecare, pas cu pas, înainte să începi.",
+      "learnMore": "Vezi cum funcționează",
+      "howTitle": "Cum funcționează, pas cu pas",
+      "howLead": "Demonstrația de mai jos arată interfața reală. Alege un pas sau las-o să ruleze.",
+      "step": "Pasul {n}",
+      "play": "Pornește demonstrația",
+      "pause": "Pune pe pauză",
+      "youGive": "Tu oferi",
+      "aiDoes": "AI-ul face",
+      "createTitle": "Ce poți obține",
+      "resultTitle": "Rezultatul final",
+      "capsTitle": "Ce opțiuni ai",
+      "notesTitle": "Bine de știut",
+      "startNow": "Începe acum",
+      "otherBuilders": "Celelalte buildere",
+      "seeGuide": "Cum funcționează",
+      "demoLabel": "Demonstrație animată"
+    },
+    "easy": {
+      "seoTitle": "Site Simplu: cum funcționează",
+      "seoDesc": "Construiești un site de prezentare discutând cu un asistent AI. Gratuit pentru prima afacere.",
+      "eyebrow": "Site Simplu",
+      "title": "Un site de prezentare, scris de AI în timp ce discutați",
+      "lead": "Răspunzi la câteva întrebări scurte în chat, iar asistentul construiește site-ul secțiune cu secțiune, chiar sub ochii tăi.",
+      "badges": [
+        "Gratuit pentru prima afacere",
+        "Gata în câteva minute",
+        "Funcționează și pe telefon"
+      ],
+      "cta": "Creează site-ul gratuit",
+      "steps": [
+        {
+          "t": "Descrii afacerea",
+          "d": "Într-un singur mesaj: numele, ce faci și orașul. Asistentul înțelege și construiește începutul paginii."
+        },
+        {
+          "t": "Enumeri serviciile",
+          "d": "Le scrii separate prin virgulă. AI-ul scrie câte o descriere pentru fiecare și le așază în pagină."
+        },
+        {
+          "t": "Adaugi poze (opțional)",
+          "d": "Până la 10 fotografii ale afacerii tale. Prima devine fundalul paginii, restul intră în galerie. Poți și sări peste."
+        },
+        {
+          "t": "Lași un contact",
+          "d": "Un telefon și un email. Apoi AI-ul scrie restul site-ului și verifică textele."
+        },
+        {
+          "t": "Ajustezi și publici",
+          "d": "Schimbi stilul și culoarea sau ceri modificări în chat. Apoi alegi locația, îți faci contul și site-ul e online."
+        }
+      ],
+      "you": [
+        "Numele afacerii, ce faci și orașul",
+        "Lista serviciilor",
+        "Poze proprii, dacă vrei",
+        "Un telefon și un email"
+      ],
+      "ai": [
+        "Alege titlul și construiește începutul paginii",
+        "Scrie descrierea fiecărui serviciu",
+        "Scrie Despre noi, De ce noi, Cum lucrăm, întrebări frecvente și îndemnul final",
+        "Corectează automat greșelile de scriere din textele tale"
+      ],
+      "create": [
+        {
+          "t": "Site de prezentare dintr-o pagină",
+          "d": "Toată afacerea ta, clar organizată pe secțiuni, cu meniu de navigare."
+        },
+        {
+          "t": "Texte scrise pentru afacerea ta",
+          "d": "Nu un text generic: AI-ul pornește de la ce i-ai spus tu."
+        },
+        {
+          "t": "Formular de contact",
+          "d": "Clienții îți pot trimite cereri direct din site."
+        }
+      ],
+      "result": "Un site complet, cu secțiunile: început, Despre noi, servicii, Cum lucrăm, De ce noi, galerie (dacă ai poze), întrebări frecvente, îndemn final și contact. Asistentul nu inventează cifre sau recenzii.",
+      "caps": [
+        {
+          "t": "6 stiluri",
+          "d": "Clasic, Îndrăzneț, Minimal, Prietenos, Tăios sau Editorial."
+        },
+        {
+          "t": "Culoarea ta",
+          "d": "Alegi dintr-o paletă sau o culoare proprie."
+        },
+        {
+          "t": "Modificări prin chat",
+          "d": "După ce e gata, ceri orice schimbare în cuvinte simple."
+        },
+        {
+          "t": "Editare oricând",
+          "d": "Din panou poți modifica textele, pozele, meniul și subsolul și după publicare."
+        }
+      ],
+      "notes": [
+        "Gratuit pentru prima ta afacere.",
+        "Nu ai nevoie de cont ca să începi; îl creezi doar ca să salvezi și să publici.",
+        "Este un site dintr-o singură pagină. Pentru mai multe pagini și cod propriu există Builderul Avansat."
+      ],
+      "demo": {
+        "bizMsg": "Brutăria Spic de Aur, pâine și cozonaci din Brașov",
+        "askServices": "Enumeră serviciile tale, separate prin virgulă.",
+        "servicesMsg": "Pâine cu maia, Cozonaci, Torturi",
+        "askPhotos": "Trimite o poză sau scrie „sar peste”.",
+        "photosMsg": "3 poze adăugate",
+        "askContact": "Ultimul pas: un telefon și un email.",
+        "contactMsg": "0712 345 678, contact{'@'}exemplu.ro",
+        "done": "Gata! Am scris tot site-ul.",
+        "empty": "Pagina ta e goală deocamdată",
+        "console": "AI construiește site-ul",
+        "next": "Urmează: serviciile",
+        "heroTitle": "Pâine și cozonaci din Brașov",
+        "services": "Serviciile noastre",
+        "gallery": "Galerie",
+        "about": "Despre noi",
+        "faq": "Întrebări frecvente",
+        "contact": "Contact",
+        "styles": "Stil și culoare",
+        "build": [
+          "Aleg structura paginii",
+          "Scriu titlul principal",
+          "Scriu descrierile",
+          "Construiesc galeria",
+          "Scriu restul site-ului"
+        ]
+      }
+    },
+    "advanced": {
+      "seoTitle": "Builderul Avansat: cum funcționează",
+      "seoDesc": "Un asistent AI scrie cod real pentru un site unic, cu mai multe pagini, și îl rulează live în browser.",
+      "eyebrow": "Builder Avansat",
+      "title": "Un site unic, cu cod real, construit prin conversație",
+      "lead": "Descrii ce vrei, iar AI-ul scrie fișierele site-ului, le rulează live în browser și le modifică la fiecare cerere a ta.",
+      "badges": [
+        "Cod real, nu șablon",
+        "Previzualizare live",
+        "Pentru calculator"
+      ],
+      "cta": "Începe cu Builderul Avansat",
+      "price": "Deblocare unică: {credits} credite",
+      "steps": [
+        {
+          "t": "Numele afacerii",
+          "d": "Pornești cu numele afacerii, apoi alegi locația și categoria."
+        },
+        {
+          "t": "Contul și deblocarea",
+          "d": "Îți faci contul și deblochezi builderul printr-o plată unică din portofel. Primești o parte din credite înapoi, ca să începi să construiești."
+        },
+        {
+          "t": "Descrii site-ul în chat",
+          "d": "Spui ce vrei. AI-ul pune întrebări doar dacă îi lipsește ceva important, apoi scrie fișierele și le pornește live."
+        },
+        {
+          "t": "Ceri modificări",
+          "d": "Ceri schimbări în cuvinte simple și atașezi poze proprii. Dacă apare o eroare, AI-ul o observă și încearcă să o repare singur."
+        },
+        {
+          "t": "Publici și continui",
+          "d": "Cu un click pe Publică site-ul e live. Apoi treci la bugetul campaniei."
+        }
+      ],
+      "you": [
+        "Numele, locația și categoria afacerii",
+        "Descrierea site-ului dorit, în cuvintele tale",
+        "Poze proprii, dacă vrei (până la 10 într-un mesaj)",
+        "Credite în portofel pentru deblocare și pentru lucru"
+      ],
+      "ai": [
+        "Scrie fișierele reale ale site-ului",
+        "Îl rulează live, direct în browser",
+        "Observă erorile și încearcă să le repare singur",
+        "Îți arată ce a făcut, pas cu pas, la fiecare răspuns"
+      ],
+      "create": [
+        {
+          "t": "Site unic, nu un șablon",
+          "d": "Structura, designul și funcționalitățile sunt scrise pentru afacerea ta."
+        },
+        {
+          "t": "Mai multe pagini",
+          "d": "Nu există o limită fixă: AI-ul adaugă câte pagini ai nevoie. Mai multe pagini înseamnă mai multe căutări în care poți apărea."
+        },
+        {
+          "t": "Programări online",
+          "d": "Pe lângă formularul de contact, clienții pot face programări direct din site."
+        }
+      ],
+      "result": "Un site publicat, construit din cod real, pe care îl poți modifica oricând prin aceeași conversație. Ai acces la fișierele sursă din tab-ul Fișiere.",
+      "caps": [
+        {
+          "t": "Chat și fișiere",
+          "d": "Comuți între conversație și fișierele reale ale site-ului."
+        },
+        {
+          "t": "Previzualizare live",
+          "d": "Vezi site-ul rulând, actualizat după fiecare modificare."
+        },
+        {
+          "t": "Poze proprii",
+          "d": "Le atașezi în chat și ceri unde să apară, de exemplu „pune poza asta sus”."
+        },
+        {
+          "t": "Republicare oricând",
+          "d": "Modifici și publici din nou, cât de des vrei."
+        }
+      ],
+      "notes": [
+        "Previzualizarea live rulează un mediu de dezvoltare real în browser, așa că builderul funcționează doar pe calculator, nu pe telefon sau tabletă.",
+        "Deblocarea se plătește o singură dată, din creditele portofelului. Lucrul cu AI-ul folosește apoi credite din portofel, pe măsură ce construiești."
+      ],
+      "demo": {
+        "prompt": "Vreau un site pentru clinica mea dentară, cu pagini pentru servicii și programări",
+        "did": "Ce am făcut (4 acțiuni)",
+        "actions": [
+          "Am creat pagina principală",
+          "Am adăugat pagina de servicii",
+          "Am adăugat formularul de programări",
+          "Am pornit previzualizarea"
+        ],
+        "reply": "Gata, site-ul rulează. Ce vrei să mai schimbăm?",
+        "change": "Pune poza atașată sus, pe prima pagină",
+        "image": "poza-clinica.jpg",
+        "heroTitle": "Zâmbete sănătoase",
+        "pages": [
+          "Acasă",
+          "Servicii",
+          "Programări"
+        ],
+        "bonus": "Primești credite înapoi în portofel imediat după deblocare."
+      }
+    },
+    "ads": {
+      "seoTitle": "Optimizare Google Ads: cum funcționează",
+      "seoDesc": "Conectezi contul Google Ads, alegi campaniile, iar agentul AI le îmbunătățește. Bugetul se schimbă doar cu aprobarea ta.",
+      "eyebrow": "Optimizare Google Ads",
+      "title": "Un agent AI care îți îmbunătățește campaniile Google Ads existente",
+      "lead": "Conectezi contul, alegi campaniile, iar agentul le analizează, completează ce lipsește și îți propune îmbunătățiri. Nu se creează un site nou.",
+      "badges": [
+        "Conectare gratuită",
+        "Bugetul doar cu aprobarea ta",
+        "Plătești doar munca făcută"
+      ],
+      "cta": "Optimizează o campanie",
+      "price": "Un ciclu de optimizare costă de la {credits} credite",
+      "steps": [
+        {
+          "t": "Conectezi contul Google",
+          "d": "Te autentifici direct la Google și alegi ce cont folosim. Nu vedem parola ta."
+        },
+        {
+          "t": "Alegi campaniile",
+          "d": "Vezi conturile și campaniile tale reale, cu rezultatele din ultimele 30 de zile. Poți bifa mai multe, chiar din conturi diferite."
+        },
+        {
+          "t": "Ajungi în panou",
+          "d": "Legi campania de contul tău Totalvizibil și primești un panou cu scorul campaniei și ce se poate îmbunătăți. Până aici totul e gratuit."
+        },
+        {
+          "t": "Pornești un ciclu",
+          "d": "Agentul analizează campania, corectează ce a respins Google, completează textele și extensiile lipsă și verifică totul în contul Google."
+        },
+        {
+          "t": "Aprobi propunerile",
+          "d": "Rescrierile de texte și orice modificare de buget ți se propun întâi. Se aplică doar după ce le aprobi."
+        }
+      ],
+      "you": [
+        "Acces la contul Google Ads, prin autentificare Google",
+        "Campaniile pe care le vrei optimizate",
+        "Aprobarea pentru propuneri",
+        "Credite pentru ciclurile de optimizare"
+      ],
+      "ai": [
+        "Calculează un scor din datele reale ale campaniei",
+        "Completează titluri, descrieri, sitelink-uri, callout-uri și imagini",
+        "Pune cuvintele cheie în titluri și revine dacă Google evaluează mai slab",
+        "Corectează elementele respinse de politicile Google"
+      ],
+      "create": [
+        {
+          "t": "Reclame mai complete",
+          "d": "Agentul completează reclamele până la nivelul recomandat de Google."
+        },
+        {
+          "t": "Un scor clar",
+          "d": "Vezi cât de aproape e campania de cerințele Google și ce mai lipsește."
+        },
+        {
+          "t": "Mai multe campanii",
+          "d": "Fiecare campanie aleasă are propriul panou, chiar din conturi Google diferite."
+        }
+      ],
+      "result": "Campanii cu reclame mai complete și un scor care arată progresul, plus un istoric cu fiecare modificare făcută și verificată în contul tău Google Ads.",
+      "caps": [
+        {
+          "t": "Tu alegi ce face agentul",
+          "d": "Pornești sau oprești completarea automată, cuvintele cheie în titluri, imaginile și propunerile."
+        },
+        {
+          "t": "Cicluri automate",
+          "d": "Doar la cerere, săptămânal, la două săptămâni sau lunar."
+        },
+        {
+          "t": "Costuri transparente",
+          "d": "Vezi estimarea înainte; la final plătești doar munca efectuată, iar diferența revine în portofel."
+        },
+        {
+          "t": "Acces revocabil",
+          "d": "Deconectezi contul Google oricând, din platformă sau din contul Google."
+        }
+      ],
+      "notes": [
+        "Bugetul nu se modifică niciodată automat: orice schimbare îți este propusă și se aplică doar după aprobarea ta.",
+        "Agentul optimizează momentan campaniile de căutare (Search).",
+        "Conectarea, alegerea campaniei și panoul sunt gratuite; plătești doar ciclurile de optimizare."
+      ],
+      "demo": {
+        "connect": "Conectează-te cu Google",
+        "secure": "Nu vedem parola ta Google",
+        "accounts": "Conturi Google Ads",
+        "campaigns": "Campanii",
+        "camp": [
+          "Instalații sanitare",
+          "Centrale termice",
+          "Brand Performance Max"
+        ],
+        "continue": "Continuă cu 2 campanii",
+        "score": "Scor de optimizare",
+        "tabs": [
+          "Prezentare",
+          "Agent",
+          "Propuneri"
+        ],
+        "cycle": "Ciclu de optimizare",
+        "cycleSteps": [
+          "Analiză și scor",
+          "Conformitate cu politicile Google",
+          "Completare titluri și extensii",
+          "Verificare în contul Google"
+        ],
+        "proposal": "Propunere de buget",
+        "proposalText": "80 → 110 lei pe zi",
+        "approve": "Aprobă",
+        "reject": "Respinge"
+      }
+    }
+  },
+  "hsec": {
+    "find": {
+      "eyebrow": "Pentru clienți",
+      "title": "Găsești o firmă locală în câțiva pași",
+      "lead": "Spui ce cauți, iar platforma îți arată firmele potrivite din zona ta.",
+      "steps": [
+        {
+          "t": "Spui ce cauți",
+          "d": "Scrii în cuvintele tale, de exemplu „Am nevoie de un instalator în Cluj”. Nu trebuie să știi numele categoriei."
+        },
+        {
+          "t": "Alegem categoria și zona",
+          "d": "Întrebarea ta devine categoria și județul potrivite. Le poți schimba oricând din filtre."
+        },
+        {
+          "t": "Vezi firmele din zonă",
+          "d": "Fiecare firmă apare cu domeniul, orașul și serviciile ei."
+        },
+        {
+          "t": "O contactezi direct",
+          "d": "Deschizi site-ul firmei și o suni sau îi trimiți o cerere prin formular."
+        }
+      ],
+      "demo": {
+        "category": "Instalații sanitare",
+        "county": "Cluj",
+        "city": "Cluj-Napoca",
+        "firms": [
+          "Apa Clară Instal",
+          "Termo Expert",
+          "Instal Pro"
+        ],
+        "services": [
+          "Țevi și racorduri",
+          "Centrale",
+          "Urgențe"
+        ],
+        "call": "Sună",
+        "send": "Trimite cererea",
+        "name": "Nume",
+        "msg": "Cu ce te putem ajuta?",
+        "sent": "Cererea a fost trimisă"
+      }
+    },
+    "grow": {
+      "eyebrow": "Pentru firme",
+      "title": "Ai o afacere? Devino vizibil",
+      "lead": "Îți faci site-ul, alegi zona și apari în fața clienților care caută exact ce oferi.",
+      "steps": [
+        {
+          "t": "Îți faci site-ul",
+          "d": "Gratuit pentru prima afacere, cu Site Simplu, sau unic, cu cod real, cu Builderul Avansat."
+        },
+        {
+          "t": "Alegi zona și categoria",
+          "d": "Spui unde lucrezi și ce faci, ca să apari în căutările potrivite."
+        },
+        {
+          "t": "Pornești campania",
+          "d": "Setezi un buget zilnic și un CPC maxim sau lași modul AUTO să le gestioneze. Din credite plătești click-urile primite."
+        },
+        {
+          "t": "Primești clienți",
+          "d": "Cât timp campania e activă, apari în feed, în categoria și zona ta, iar clienții îți trimit cereri direct."
+        }
+      ],
+      "demo": {
+        "simple": "Site Simplu",
+        "advanced": "Builder Avansat",
+        "yourSite": "Site-ul tău",
+        "zone": "Zona ta",
+        "cat": "Categoria",
+        "auto": "AUTO",
+        "yours": "Afacerea ta",
+        "lead": "Cerere nouă de la un client"
+      }
+    },
+    "builders": {
+      "eyebrow": "Builderele noastre",
+      "title": "Alege cum vrei să-ți construiești prezența",
+      "lead": "Trei buildere, fiecare cu propria pagină care îți arată pas cu pas cum funcționează."
+    },
+    "final": {
+      "title": "Găsește o firmă sau fă-ți afacerea vizibilă",
+      "find": "Caută o firmă",
+      "grow": "Devino vizibil"
+    }
   }
 }

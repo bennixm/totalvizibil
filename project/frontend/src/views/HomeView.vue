@@ -7,12 +7,15 @@
  * and the result is applied purely through the Feed's own inputs — the
  * category via its URL, the county via the store.
  */
-import { nextTick, ref } from 'vue'
+import { defineAsyncComponent, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import FeedAskGate from '@/components/feed/FeedAskGate.vue'
 import FeedView from '@/views/FeedView.vue'
+// How the platform works (visitors + businesses), under the feed. Loaded
+// on its own so it never delays the feed itself.
+const HomeSections = defineAsyncComponent(() => import('@/components/builder-info/HomeSections.vue'))
 import {
   askResultCounty,
   askResultLabel,
@@ -70,4 +73,5 @@ async function apply(result: AskResult): Promise<void> {
 <template>
   <FeedAskGate v-if="gateOpen" @resolved="apply" @close="gateOpen = false" />
   <FeedView v-if="feedMounted" v-show="!gateOpen" />
+  <HomeSections v-if="feedMounted" v-show="!gateOpen" />
 </template>
