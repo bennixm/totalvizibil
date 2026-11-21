@@ -4524,8 +4524,6 @@
   },
   "hsec": {
     "find": {
-      "eyebrow": "For customers",
-      "title": "Find a local business in a few steps",
       "lead": "Say what you are looking for and the platform shows you the right businesses in your area.",
       "steps": [
         {
@@ -4564,11 +4562,10 @@
         "name": "Name",
         "msg": "How can we help?",
         "sent": "Request sent"
-      }
+      },
+      "tab": "I need a business"
     },
     "grow": {
-      "eyebrow": "For businesses",
-      "title": "Own a business? Get visible",
       "lead": "Build your site, pick your area and show up in front of customers looking for exactly what you offer.",
       "steps": [
         {
@@ -4597,17 +4594,9 @@
         "auto": "AUTO",
         "yours": "Your business",
         "lead": "New request from a customer"
-      }
+      },
+      "tab": "I own a business"
     },
-    "builders": {
-      "eyebrow": "Our builders",
-      "title": "Choose how you build your presence",
-      "lead": "Three builders, each with its own page showing step by step how it works."
-    },
-    "final": {
-      "title": "Find a business or make yours visible",
-      "find": "Find a business",
-      "grow": "Get visible"
-    }
+    "title": "How Totalvizibil works"
   }
 }
