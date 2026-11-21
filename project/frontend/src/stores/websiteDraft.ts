@@ -278,6 +278,11 @@ function isConfirmedGone(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 404 || err.status === 410)
 }
 
+/** Chat turns and step advances can run the AI (the last setup step writes
+ *  the whole site in one call), which takes far longer than the default
+ *  12s: past it the browser gave up while the server finished the work. */
+const AI_TURN_TIMEOUT_MS = 120_000
+
 /** A transient failure: the request never got a verdict from the backend. */
 function isUnreachable(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 0 || err.status >= 500)
@@ -372,6 +377,32 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
       }
     },
 
+    /**
+     * After a turn that got no verdict (timeout, dropped connection, 5xx),
+     * the server may still have done the work. Re-read the draft: if its
+     * transcript moved on, show that instead of an error. True = recovered.
+     */
+    async recoverTurn(err: unknown): Promise<boolean> {
+      const ref = loadRef()
+      if (!ref || !isUnreachable(err)) return false
+      const before = this.draft?.transcript?.length ?? 0
+      for (const wait of [0, 4000, 10000]) {
+        if (wait) await new Promise((r) => setTimeout(r, wait))
+        try {
+          const fresh = await apiFetch<WebsiteDraftView>(`/website-drafts/${ref.id}`, {
+            headers: { 'X-Draft-Token': ref.token },
+          })
+          if ((fresh.transcript?.length ?? 0) > before) {
+            this.draft = fresh
+            return true
+          }
+        } catch {
+          /* keep trying, then report the original error */
+        }
+      }
+      return false
+    },
+
     async send(text: string): Promise<void> {
       const ref = loadRef()
       const message = text.trim()
@@ -383,9 +414,10 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
           method: 'POST',
           headers: { 'X-Draft-Token': ref.token },
           body: { text: message },
+          timeoutMs: AI_TURN_TIMEOUT_MS,
         })
       } catch (err) {
-        this.error = draftErrorCode(err)
+        if (!(await this.recoverTurn(err))) this.error = draftErrorCode(err)
       } finally {
         this.sending = false
       }
@@ -405,9 +437,10 @@ export const useWebsiteDraftStore = defineStore('websiteDraft', {
           method: 'POST',
           headers: { 'X-Draft-Token': ref.token },
           body: note ? { note } : {},
+          timeoutMs: AI_TURN_TIMEOUT_MS,
         })
       } catch (err) {
-        this.error = draftErrorCode(err)
+        if (!(await this.recoverTurn(err))) this.error = draftErrorCode(err)
       } finally {
         this.sending = false
       }

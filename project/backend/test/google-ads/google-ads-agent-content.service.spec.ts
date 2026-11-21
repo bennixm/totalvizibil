@@ -1,3 +1,4 @@
+import { formatApiErrorForTest } from 'src/google-ads/google-ads-api-client.service';
 import { GoogleAdsAgentContentService } from 'src/google-ads/google-ads-agent-content.service';
 
 /**
@@ -15,9 +16,20 @@ function fakeClient(
     configured: overrides.configured ?? true,
     writesAllowed: true,
     customerId: '1234567890',
-    mutate: overrides.mutate ?? jest.fn().mockResolvedValue([]),
+    // The content pass Google-validates keywords + ad first (validateOnly,
+    // see dropPolicyViolations): accepted here without touching the test's
+    // own mock, so its call counts and queued answers stay about real calls.
+    mutate: wrapValidate(overrides.mutate ?? jest.fn().mockResolvedValue([])),
     search: overrides.search ?? jest.fn().mockResolvedValue([]),
   } as never;
+}
+
+function wrapValidate(mutate: jest.Mock) {
+  return (ops: unknown[], opts?: { validateOnly?: boolean }) =>
+    opts?.validateOnly &&
+    ops.some((o) => (o as { adGroupAdOperation?: unknown }).adGroupAdOperation)
+      ? Promise.resolve([])
+      : mutate(ops, opts);
 }
 
 function fakeAi(overrides: { configured?: boolean; plan?: jest.Mock } = {}) {
@@ -197,6 +209,77 @@ describe('GoogleAdsAgentContentService', () => {
     expect((prisma as any).googleAdsAgentAction.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: 'keywords.updated' }) }),
     );
+  });
+
+  it('drops a keyword Google refuses for policy and still activates the campaign', async () => {
+    let validations = 0;
+    const mutate = jest.fn(async (ops: any[], opts?: { validateOnly?: boolean }) => {
+      if (opts?.validateOnly && ops.some((o) => o.adGroupAdOperation)) {
+        validations++;
+        const flagged = ops.findIndex(
+          (o) => o.adGroupCriterionOperation?.create?.keyword?.text === 'reparatii electrice',
+        );
+        if (flagged >= 0) {
+          throw formatApiErrorForTest(400, {
+            message: 'policy',
+            details: [
+              {
+                errors: [
+                  {
+                    message: 'A policy was violated.',
+                    errorCode: { policyFindingError: 'POLICY_FINDING' },
+                    location: {
+                      fieldPathElements: [{ fieldName: 'mutate_operations', index: flagged }],
+                    },
+                    details: {
+                      policyFindingDetails: {
+                        policyTopicEntries: [{ topic: 'UNVERIFIED_CLAIMS' }],
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          });
+        }
+      }
+      return [];
+    });
+    const client = {
+      configured: true,
+      writesAllowed: true,
+      customerId: '1234567890',
+      mutate,
+      search: jest.fn().mockResolvedValue([]),
+    };
+    const prisma = fakePrisma({ pending: [MAPPING] });
+    const svc = makeService({ client: client as never, prisma });
+
+    await svc.run();
+
+    expect(validations).toBe(2);
+    const real = mutate.mock.calls.filter((c) => !c[1]?.validateOnly);
+    const kws = real[0][0]
+      .filter((o: any) => o.adGroupCriterionOperation)
+      .map((o: any) => o.adGroupCriterionOperation.create.keyword.text);
+    expect(kws).toEqual(['electrician bucuresti', 'instalatii electrice']);
+    expect((prisma as any).googleAdsSubcategoryCampaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'active' }) }),
+    );
+    const row = (prisma as any).googleAdsAgentAction.create.mock.calls.at(-1)[0].data;
+    expect(row.after.droppedForPolicy[0]).toContain('reparatii electrice');
+  });
+
+  it('records a visible failure with the Google reason when activation fails', async () => {
+    const mutate = jest
+      .fn()
+      .mockRejectedValue(new Error('Google Ads a respins cererea (HTTP 400): ceva'));
+    const prisma = fakePrisma({ pending: [MAPPING] });
+    const svc = makeService({ client: fakeClient({ mutate }), prisma });
+    await svc.run();
+    const row = (prisma as any).googleAdsAgentAction.create.mock.calls.at(-1)[0].data;
+    expect(row.status).toBe('failed');
+    expect(row.errorMessage).toContain('Google Ads a respins cererea');
   });
 
   it('leaves the campaign pending_creation when Claude returns no usable plan', async () => {
