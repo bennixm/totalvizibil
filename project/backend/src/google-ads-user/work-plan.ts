@@ -81,6 +81,15 @@ export function planWork(
     tasks.push({ task, units: n, detail });
   };
 
+  // Policy compliance always runs first (not gated by the cooldown): each
+  // disapproved ad text is rewritten. Removing disapproved assets/keywords
+  // is not charged.
+  const disapprovedTexts = c.ads
+    .filter((a) => a.status === 'ENABLED')
+    .flatMap((a) => [...a.headlines, ...a.descriptions])
+    .filter((t) => t.approvalStatus === 'DISAPPROVED').length;
+  add('text_rewrite', disapprovedTexts, 'texte respinse de Google (politici), rescrise conform');
+
   if (s.autoApply && rsa && !flags.rsaBlocked) {
     const h = Math.max(0, RSA.headlines.max - rsa.headlines.length);
     const d = Math.max(0, RSA.descriptions.max - rsa.descriptions.length);
@@ -178,6 +187,9 @@ export function performedWork(
         break;
       case 'creative.replace_text':
         inc('text_rewrite', 1);
+        break;
+      case 'policy.fix_text':
+        if (applied) inc('text_rewrite', arr(after.replaced).length);
         break;
       case 'budget.change.proposed':
         inc('budget_proposal', 1);

@@ -246,6 +246,9 @@ const ACTION_LABELS_RO: Record<string, string> = {
   'creative.assets_gap_fill': 'Extensii adăugate (sitelink-uri, callout-uri, snippet, nume)',
   'creative.images_gap_fill': 'Imagini adăugate (Pexels)',
   'creative.replace_text': 'Înlocuire text (performanță / Ad Strength)',
+  'policy.fix_text': 'Texte respinse de Google corectate (politici)',
+  'policy.remove_asset': 'Extensii respinse de Google eliminate',
+  'policy.remove_keyword': 'Cuvinte cheie respinse de Google eliminate',
 }
 /** A per-row icon for the History list — gives each action type a visual
  *  identity instead of every row reading as identical text, since this is
@@ -264,6 +267,9 @@ const ACTION_ICONS_RO: Record<string, string> = {
   'creative.assets_gap_fill': 'mdi-link-box-variant-outline',
   'creative.images_gap_fill': 'mdi-image-plus-outline',
   'creative.replace_text': 'mdi-swap-horizontal',
+  'policy.fix_text': 'mdi-shield-edit-outline',
+  'policy.remove_asset': 'mdi-shield-remove-outline',
+  'policy.remove_keyword': 'mdi-shield-remove-outline',
 }
 function historyRowIcon(action: string): string {
   if (action.startsWith('recommendation.')) return recoIcon(action.replace('recommendation.', ''))

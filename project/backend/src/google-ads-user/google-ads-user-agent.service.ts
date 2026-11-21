@@ -524,19 +524,34 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
         );
       }
       const changed = new Set<string>();
-      const fill = await optimizer.fillGaps(a.c, a.ev, target, activity);
+      // Policy compliance first: disapproved texts/assets/keywords block
+      // serving, so they are fixed before anything else, then the campaign
+      // is re-read so the next steps work on what is live now.
+      let cur = { c: a.c, ev: a.ev };
+      const policy = await optimizer.fixPolicyViolations(a.c, target, activity);
+      aiCostMinor += policy.costEstimateMinor;
+      if (policy.applied) {
+        changed.add(a.c.googleCampaignId);
+        try {
+          const fresh = await this.analyze(row);
+          cur = { c: fresh.c, ev: fresh.ev };
+        } catch {
+          /* keep the pre-fix data; gap filling re-checks against Google */
+        }
+      }
+      const fill = await optimizer.fillGaps(cur.c, cur.ev, target, activity);
       aiCostMinor += fill.costEstimateMinor;
       if (fill.applied) changed.add(a.c.googleCampaignId);
       if (a.settings.keywordHeadlines && !changed.size) {
-        const k = await optimizer.fixHeadlineKeywords(a.c, target, activity);
+        const k = await optimizer.fixHeadlineKeywords(cur.c, target, activity);
         aiCostMinor += k.costEstimateMinor;
         if (k.applied) changed.add(a.c.googleCampaignId);
       }
       if (a.settings.textRewriteProposals) {
-        const r = await optimizer.proposeReplacements(a.c, target, activity);
+        const r = await optimizer.proposeReplacements(cur.c, target, activity);
         aiCostMinor += r.costEstimateMinor;
         if (!changed.size) {
-          const s = await optimizer.proposeAdStrengthRewrite(a.c, target, activity);
+          const s = await optimizer.proposeAdStrengthRewrite(cur.c, target, activity);
           aiCostMinor += s.costEstimateMinor;
         }
       }

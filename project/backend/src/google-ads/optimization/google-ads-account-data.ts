@@ -25,6 +25,8 @@ export interface TextAsset {
   /** Google's own asset performance label (BEST/GOOD/LOW/LEARNING/PENDING…). */
   performanceLabel?: string;
   approvalStatus?: string;
+  /** Google policy topics on this text (why it is limited/disapproved). */
+  policyTopics?: string[];
   pinnedField?: string;
 }
 
@@ -36,6 +38,8 @@ export interface RsaAd {
   primaryStatus?: string;
   primaryStatusReasons: string[];
   approvalStatus?: string;
+  /** Policy topics on the ad as a whole (e.g. destination problems). */
+  policyTopics?: string[];
   finalUrls: string[];
   headlines: TextAsset[];
   descriptions: TextAsset[];
@@ -57,6 +61,10 @@ export interface LinkedAsset {
   primaryStatus?: string;
   primaryStatusReasons: string[];
   approvalStatus?: string;
+  /** Google policy topics on the asset (why it is limited/disapproved). */
+  policyTopics?: string[];
+  /** The campaign_asset / ad_group_asset link itself (for unlinking). */
+  linkResourceName?: string;
   source?: string;
   text?: string;
   sitelink?: { linkText: string; description1?: string; description2?: string; finalUrl?: string };
@@ -93,6 +101,8 @@ export interface CampaignData {
   assets: LinkedAsset[];
   assetGroups: AssetGroupData[];
   openRecommendations: { type: string; resourceName: string }[];
+  /** Positive keywords Google disapproved (they never serve). */
+  disapprovedKeywords?: { resourceName: string; text: string }[];
 }
 
 export const PERIOD_DAYS = 30;
@@ -139,12 +149,24 @@ function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Topic names from a `policy_topic_entries` list (e.g. ["PUNCTUATION"]). */
+function topicsOf(entries: unknown): string[] {
+  return [
+    ...new Set(
+      arr(entries)
+        .map((e) => s(e.topic) ?? '')
+        .filter(Boolean),
+    ),
+  ];
+}
+
 function textAssets(list: unknown): TextAsset[] {
   return arr(list)
     .map((h) => ({
       text: s(h.text) ?? '',
       performanceLabel: s(h.assetPerformanceLabel),
       approvalStatus: s(obj(h.policySummaryInfo).approvalStatus),
+      policyTopics: topicsOf(obj(h.policySummaryInfo).policyTopicEntries),
       pinnedField: s(h.pinnedField),
     }))
     .filter((h) => h.text);
@@ -167,6 +189,8 @@ function linkedAssetFrom(
     primaryStatus: s(link.primaryStatus),
     primaryStatusReasons: arr<string>(link.primaryStatusReasons),
     approvalStatus: s(obj(asset.policySummary).approvalStatus),
+    policyTopics: topicsOf(obj(asset.policySummary).policyTopicEntries),
+    linkResourceName: s(link.resourceName),
     source: s(link.source),
     text: s(obj(asset.calloutAsset).calloutText) ?? s(obj(asset.textAsset).text),
     ...(s(sl.linkText)
@@ -195,7 +219,8 @@ function linkedAssetFrom(
 }
 
 const ASSET_FIELDS =
-  'asset.resource_name, asset.type, asset.policy_summary.approval_status, asset.final_urls, ' +
+  'asset.resource_name, asset.type, asset.policy_summary.approval_status, ' +
+  'asset.policy_summary.policy_topic_entries, asset.final_urls, ' +
   'asset.sitelink_asset.link_text, asset.sitelink_asset.description1, asset.sitelink_asset.description2, ' +
   'asset.callout_asset.callout_text, asset.text_asset.text, ' +
   'asset.image_asset.full_size.width_pixels, asset.image_asset.full_size.height_pixels, asset.image_asset.file_size, ' +
@@ -248,19 +273,20 @@ export async function fetchAccountData(
     client.search(
       'SELECT campaign.id, ad_group_ad.resource_name, ad_group_ad.ad.resource_name, ad_group_ad.status, ' +
         'ad_group_ad.ad_strength, ad_group_ad.action_items, ad_group_ad.primary_status, ad_group_ad.primary_status_reasons, ' +
-        'ad_group_ad.policy_summary.approval_status, ad_group_ad.ad.final_urls, ad_group_ad.ad.type, ' +
+        'ad_group_ad.policy_summary.approval_status, ad_group_ad.policy_summary.policy_topic_entries, ' +
+        'ad_group_ad.ad.final_urls, ad_group_ad.ad.type, ' +
         'ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions, ' +
         'ad_group_ad.ad.responsive_search_ad.path1, ad_group_ad.ad.responsive_search_ad.path2 ' +
         "FROM ad_group_ad WHERE ad_group_ad.status != 'REMOVED' AND campaign.status != 'REMOVED'",
     ),
     client.search(
-      'SELECT campaign.id, campaign.status, campaign_asset.field_type, campaign_asset.status, ' +
+      'SELECT campaign.id, campaign.status, campaign_asset.resource_name, campaign_asset.field_type, campaign_asset.status, ' +
         'campaign_asset.primary_status, campaign_asset.primary_status_reasons, campaign_asset.source, ' +
         `${ASSET_FIELDS} FROM campaign_asset ` +
         "WHERE campaign.status != 'REMOVED' AND campaign_asset.status != 'REMOVED'",
     ),
     client.search(
-      'SELECT campaign.id, campaign.status, ad_group.status, ad_group_asset.field_type, ad_group_asset.status, ' +
+      'SELECT campaign.id, campaign.status, ad_group.status, ad_group_asset.resource_name, ad_group_asset.field_type, ad_group_asset.status, ' +
         'ad_group_asset.primary_status, ad_group_asset.primary_status_reasons, ad_group_asset.source, ' +
         `${ASSET_FIELDS} FROM ad_group_asset ` +
         "WHERE campaign.status != 'REMOVED' AND ad_group.status != 'REMOVED' AND ad_group_asset.status != 'REMOVED'",
@@ -285,7 +311,8 @@ export async function fetchAccountData(
       'SELECT recommendation.resource_name, recommendation.type, recommendation.campaign FROM recommendation',
     ),
     client.search(
-      'SELECT ad_group.id, ad_group_criterion.keyword.text FROM ad_group_criterion ' +
+      'SELECT campaign.id, ad_group.id, ad_group_criterion.resource_name, ad_group_criterion.approval_status, ' +
+        'ad_group_criterion.keyword.text FROM ad_group_criterion ' +
         "WHERE ad_group_criterion.type = 'KEYWORD' AND ad_group_criterion.negative = FALSE " +
         "AND ad_group_criterion.status != 'REMOVED' AND ad_group.status != 'REMOVED' AND campaign.status != 'REMOVED'",
     ),
@@ -353,6 +380,7 @@ export async function fetchAccountData(
       primaryStatus: s(aga.primaryStatus),
       primaryStatusReasons: arr<string>(aga.primaryStatusReasons),
       approvalStatus: s(obj(aga.policySummary).approvalStatus),
+      policyTopics: topicsOf(obj(aga.policySummary).policyTopicEntries),
       finalUrls: arr<string>(ad.finalUrls),
       headlines: textAssets(rsa.headlines),
       descriptions: textAssets(rsa.descriptions),
@@ -395,6 +423,15 @@ export async function fetchAccountData(
   for (const row of assetGroupAssetRows) {
     const c = campaignOf(row);
     if (c) c.assets.push(linkedAssetFrom('asset_group', obj(row.assetGroupAsset), obj(row.asset)));
+  }
+
+  for (const row of keywordRows) {
+    const crit = obj(row.adGroupCriterion);
+    if (s(crit.approvalStatus) !== 'DISAPPROVED') continue;
+    const c = campaignOf(row);
+    const text = s(obj(crit.keyword).text);
+    const resourceName = s(crit.resourceName);
+    if (c && text && resourceName) (c.disapprovedKeywords ??= []).push({ resourceName, text });
   }
 
   for (const row of recommendationRows) {

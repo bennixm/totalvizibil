@@ -3881,7 +3881,8 @@
       "sumTexts": "{h} Anzeigentitel und {d} Beschreibungen hinzugefügt",
       "sumAssets": "{s} Sitelinks und {c} Callouts hinzugefügt",
       "sumImages": "{n} Bilder hinzugefügt",
-      "sumKeywords": "{n} Keywords in Anzeigentitel eingefügt"
+      "sumKeywords": "{n} Keywords in Anzeigentitel eingefügt",
+      "sumPolicy": "Umgeschrieben {r}, entfernt {d}"
     },
     "action": {
       "creative": {
@@ -3895,6 +3896,11 @@
         "change": {
           "proposed": "Budgetänderung"
         }
+      },
+      "policy": {
+        "fix_text": "Texte korrigiert (Google-Richtlinien)",
+        "remove_asset": "Abgelehnte Erweiterungen entfernt",
+        "remove_keyword": "Abgelehnte Keywords entfernt"
       }
     },
     "actionStatus": {

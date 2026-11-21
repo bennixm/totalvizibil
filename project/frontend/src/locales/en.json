@@ -3881,7 +3881,8 @@
       "sumTexts": "{h} headlines and {d} descriptions added",
       "sumAssets": "{s} sitelinks and {c} callouts added",
       "sumImages": "{n} images added",
-      "sumKeywords": "{n} keywords put into headlines"
+      "sumKeywords": "{n} keywords put into headlines",
+      "sumPolicy": "Rewritten {r}, removed {d}"
     },
     "action": {
       "creative": {
@@ -3895,6 +3896,11 @@
         "change": {
           "proposed": "Budget change"
         }
+      },
+      "policy": {
+        "fix_text": "Texts fixed (Google policies)",
+        "remove_asset": "Disapproved extensions removed",
+        "remove_keyword": "Disapproved keywords removed"
       }
     },
     "actionStatus": {

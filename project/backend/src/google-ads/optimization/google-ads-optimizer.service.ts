@@ -9,6 +9,7 @@ import {
   GoogleAdsApiClient,
   GoogleAdsMutateOperation,
   GoogleAdsMutateResult,
+  policyFindingsOf,
 } from '../google-ads-api-client.service';
 import { subcategoryLandingUrl } from '../google-ads-landing-url';
 import {
@@ -16,7 +17,7 @@ import {
   PexelsProvider,
 } from '../../website/builder/generator/image-provider/pexels.provider';
 import { AgentActivity } from './google-ads-activity';
-import { CampaignData, RsaAd } from './google-ads-account-data';
+import { CampaignData, LinkedAsset, RsaAd } from './google-ads-account-data';
 import { CampaignEvaluation } from './google-ads-campaign-evaluator';
 import { CALLOUTS, RSA, SEARCH_IMAGES, SITELINKS, STRUCTURED_SNIPPETS } from './google-ads-specs';
 import {
@@ -126,6 +127,13 @@ const RSA_TEXT_ACTIONS = [
   'creative.replace_text',
   'creative.keyword_headlines',
 ];
+/** AI rewrites of disapproved texts per ad per run, each checked by Google
+ *  (validateOnly); a policy rejection is fed back into the next attempt. */
+const POLICY_FIX_ATTEMPTS = 3;
+/** Disapproved by Google, as a text, an asset or its link. */
+const isDisapproved = (x: { approvalStatus?: string; primaryStatusReasons?: string[] }) =>
+  x.approvalStatus === 'DISAPPROVED' ||
+  (x.primaryStatusReasons ?? []).includes('ASSET_DISAPPROVED');
 /** Keyword headlines added/rewritten per ad per run. */
 const MAX_KEYWORD_HEADLINES = 4;
 const STRENGTH_RANK: Record<string, number> = { POOR: 1, AVERAGE: 2, GOOD: 3, EXCELLENT: 4 };
@@ -492,38 +500,40 @@ export class GoogleAdsOptimizerService {
     if (!generated) return outcome;
     outcome.costEstimateMinor += generated.costEstimateMinor;
 
-    // Local validation against Google's published limits.
+    // Local validation against Google's published limits. Texts Google
+    // disapproved here before count as taken, so they are never re-added.
+    const policyBlocked = await this.policyBlockedTexts(c.googleCampaignId);
     const h = acceptTexts(
       generated.headlines,
-      rsa?.headlines.map((x) => x.text) ?? [],
+      [...(rsa?.headlines.map((x) => x.text) ?? []), ...policyBlocked],
       RSA.headlines.maxChars,
       'headline',
       need.headlines,
     );
     const d = acceptTexts(
       generated.descriptions,
-      rsa?.descriptions.map((x) => x.text) ?? [],
+      [...(rsa?.descriptions.map((x) => x.text) ?? []), ...policyBlocked],
       RSA.descriptions.maxChars,
       'other',
       need.descriptions,
     );
     const co = acceptTexts(
       generated.callouts,
-      ev.assets.callouts.map((x) => x.text),
+      [...ev.assets.callouts.map((x) => x.text), ...policyBlocked],
       CALLOUTS.maxChars,
       'other',
       need.callouts,
     );
     const sn = acceptTexts(
       generated.snippetValues ?? [],
-      [],
+      policyBlocked,
       STRUCTURED_SNIPPETS.valueMaxChars,
       'other',
       need.snippetValues,
     );
     // Google requires at least 3 values; fewer means no snippet this time.
     const snippetValues = sn.accepted.length >= STRUCTURED_SNIPPETS.minValues ? sn.accepted : [];
-    const existingLinkTexts = ev.assets.sitelinks.map((s) => s.linkText);
+    const existingLinkTexts = [...ev.assets.sitelinks.map((s) => s.linkText), ...policyBlocked];
     const sl = generated.sitelinks.filter((s) => {
       if (textProblem(s.linkText, SITELINKS.linkTextMaxChars, 'other')) return false;
       if (
@@ -1040,6 +1050,420 @@ export class GoogleAdsOptimizerService {
     }
     if (!error && created?.id) p.onApplied?.(created.id);
     return !error;
+  }
+
+  /**
+   * Policy compliance, run BEFORE any other optimization of a campaign and
+   * not subject to the creative cooldown (a disapproved element blocks
+   * serving, so it is fixed right away):
+   *  - ad texts (RSA headlines/descriptions) Google disapproved are rewritten
+   *    by AI from the policy topics Google gave; Google's validation is the
+   *    feedback loop: if it rejects the rewrite for policy too, the rejection
+   *    is fed back and the texts are rewritten again (bounded); as a last
+   *    resort a disapproved text is removed when the ad keeps Google's
+   *    minimum (3 headlines, 2 descriptions);
+   *  - disapproved campaign/ad-group assets (sitelinks, callouts, snippets,
+   *    images…) are unlinked; gap filling, which already counts them as
+   *    missing, adds compliant replacements and never reuses a text Google
+   *    rejected;
+   *  - disapproved keywords (they never serve) are removed;
+   *  - what text cannot fix (a disapproved ad with approved texts, e.g. a
+   *    destination problem; shared account-level assets) is reported.
+   */
+  async fixPolicyViolations(
+    c: CampaignData,
+    target: OptimizationTarget,
+    activity: AgentActivity,
+  ): Promise<OptimizeOutcome> {
+    const outcome: OptimizeOutcome = { applied: 0, proposed: 0, costEstimateMinor: 0 };
+    const meta = { googleCampaignId: c.googleCampaignId, campaignName: c.name };
+    const ads = c.ads.filter((a) => a.status === 'ENABLED');
+    const adFixes = ads
+      .map((ad) => ({
+        ad,
+        items: [
+          ...ad.headlines.filter(isDisapproved).map((t) => ({
+            kind: 'headline' as const,
+            text: t.text,
+            topics: t.policyTopics ?? [],
+          })),
+          ...ad.descriptions.filter(isDisapproved).map((t) => ({
+            kind: 'description' as const,
+            text: t.text,
+            topics: t.policyTopics ?? [],
+          })),
+        ],
+      }))
+      .filter((f) => f.items.length);
+    const badAssets = c.assets.filter(
+      (a) =>
+        (a.level === 'campaign' || a.level === 'ad_group') &&
+        !!a.linkResourceName &&
+        isDisapproved(a),
+    );
+    const accountBad = c.assets.filter((a) => a.level === 'account' && isDisapproved(a));
+    const badKeywords = c.disapprovedKeywords ?? [];
+    const adOnly = ads.filter(
+      (a) => a.approvalStatus === 'DISAPPROVED' && !adFixes.some((f) => f.ad === a),
+    );
+
+    if (
+      !adFixes.length &&
+      !badAssets.length &&
+      !badKeywords.length &&
+      !adOnly.length &&
+      !accountBad.length
+    ) {
+      await activity.record(
+        { ...meta, step: 'policy_fix', message: 'Conformitate cu politicile Google' },
+        { result: 'Niciun element respins de Google în această campanie.' },
+      );
+      return outcome;
+    }
+
+    for (const f of adFixes) {
+      const r = await this.fixDisapprovedAdTexts(c, target, activity, f.ad, f.items);
+      outcome.applied += r.applied;
+      outcome.costEstimateMinor += r.costEstimateMinor;
+    }
+
+    if (badAssets.length) {
+      const describe = (a: LinkedAsset) =>
+        `${a.fieldType}${a.text ? ` „${a.text}”` : a.sitelink ? ` „${a.sitelink.linkText}”` : ''}` +
+        (a.policyTopics?.length ? ` (${a.policyTopics.join(', ')})` : '');
+      const removed = new Set(badAssets.map((a) => a.linkResourceName!));
+      const ok = await this.executeChange({
+        c,
+        target,
+        activity,
+        action: 'policy.remove_asset',
+        label: `Eliminare ${badAssets.length} extensii respinse de Google`,
+        ops: badAssets.map((a) =>
+          a.level === 'campaign'
+            ? { campaignAssetOperation: { remove: a.linkResourceName } }
+            : { adGroupAssetOperation: { remove: a.linkResourceName } },
+        ),
+        before: {
+          assets: badAssets.map((a) => ({
+            fieldType: a.fieldType,
+            text: a.text ?? a.sitelink?.linkText ?? null,
+            topics: a.policyTopics ?? [],
+          })),
+          // Only texts that were the problem are never reused: a rejection
+          // for the destination alone (e.g. DESTINATION_NOT_WORKING while
+          // the site was down) says nothing about the text.
+          texts: badAssets
+            .filter(
+              (a) =>
+                !a.policyTopics?.length || a.policyTopics.some((t) => !t.startsWith('DESTINATION')),
+            )
+            .map((a) => a.text ?? a.sitelink?.linkText)
+            .filter((t): t is string => !!t),
+        },
+        after: { removed: badAssets.length },
+        reasoning:
+          `Google a respins (politici): ${badAssets.map(describe).join('; ')}. ` +
+          'Extensiile respinse nu se afișează și pot limita campania; sunt înlocuite cu variante conforme la completarea lipsurilor.',
+        verify: async () => {
+          const still: string[] = [];
+          for (const level of ['campaign_asset', 'ad_group_asset'] as const) {
+            const rows = await this.client.search(
+              `SELECT ${level}.resource_name FROM ${level} ` +
+                `WHERE campaign.id = ${c.googleCampaignId} AND ${level}.status != 'REMOVED'`,
+            );
+            for (const r of rows) {
+              const link = (level === 'campaign_asset' ? r.campaignAsset : r.adGroupAsset) as
+                { resourceName?: string } | undefined;
+              if (link?.resourceName && removed.has(link.resourceName))
+                still.push(link.resourceName);
+            }
+          }
+          return still.length ? `${still.length} extensii încă legate de campanie` : null;
+        },
+      });
+      if (ok) outcome.applied++;
+    }
+
+    if (badKeywords.length) {
+      const removed = new Set(badKeywords.map((k) => k.resourceName));
+      const ok = await this.executeChange({
+        c,
+        target,
+        activity,
+        action: 'policy.remove_keyword',
+        label: `Eliminare ${badKeywords.length} cuvinte cheie respinse de Google`,
+        ops: badKeywords.map((k) => ({ adGroupCriterionOperation: { remove: k.resourceName } })),
+        before: { keywords: badKeywords.map((k) => k.text), texts: [] },
+        after: { removed: badKeywords.length },
+        reasoning:
+          `Google a respins cuvintele cheie: ${badKeywords.map((k) => `„${k.text}”`).join(', ')}. ` +
+          'Un cuvânt cheie respins nu declanșează reclame; eliminarea lui nu reduce acoperirea.',
+        verify: async () => {
+          const rows = await this.client.search(
+            'SELECT ad_group_criterion.resource_name FROM ad_group_criterion ' +
+              `WHERE campaign.id = ${c.googleCampaignId} AND ad_group_criterion.status != 'REMOVED' ` +
+              "AND ad_group_criterion.type = 'KEYWORD'",
+          );
+          const still = rows
+            .map((r) => (r.adGroupCriterion as { resourceName?: string } | undefined)?.resourceName)
+            .filter((n): n is string => !!n && removed.has(n));
+          return still.length ? `${still.length} cuvinte cheie încă active` : null;
+        },
+      });
+      if (ok) outcome.applied++;
+    }
+
+    if (adOnly.length || accountBad.length) {
+      const topics = [
+        ...new Set([
+          ...adOnly.flatMap((a) => a.policyTopics ?? []),
+          ...accountBad.flatMap((a) => a.policyTopics ?? []),
+        ]),
+      ];
+      await activity.record(
+        { ...meta, step: 'policy_fix', message: 'Probleme de politică ce nu țin de text' },
+        {
+          status: 'skipped',
+          result:
+            (adOnly.length
+              ? `${adOnly.length} reclame respinse fără texte respinse (cauza e de obicei pagina de destinație sau contul). `
+              : '') +
+            (accountBad.length
+              ? `${accountBad.length} extensii de cont respinse (comune tuturor campaniilor, nu sunt modificate automat). `
+              : '') +
+            (topics.length ? `Politici indicate de Google: ${topics.join(', ')}. ` : '') +
+            'Necesită verificare manuală în Google Ads.',
+        },
+      );
+    }
+    return outcome;
+  }
+
+  /** Texts Google disapproved on this campaign in the last 90 days (from the
+   *  agent's own policy fixes), so they are never written again. */
+  async policyBlockedTexts(googleCampaignId: string): Promise<string[]> {
+    // Best-effort: a history read failure must never stop the fix itself.
+    const rows = await Promise.resolve()
+      .then(() =>
+        this.actions.findMany({
+          where: {
+            googleCampaignId,
+            action: { in: ['policy.fix_text', 'policy.remove_asset'] },
+            createdAt: { gte: new Date(Date.now() - 90 * 86_400_000) },
+          },
+          select: { before: true },
+          take: 100,
+        }),
+      )
+      .catch(() => [] as { before: Prisma.JsonValue }[]);
+    return rows.flatMap((r) => {
+      const texts = (r.before as { texts?: unknown } | null)?.texts;
+      return Array.isArray(texts) ? texts.filter((t): t is string => typeof t === 'string') : [];
+    });
+  }
+
+  /** Rewrites (or, as a last resort, removes) the disapproved texts of one
+   *  RSA, with Google's validation fed back to the AI on policy rejection. */
+  private async fixDisapprovedAdTexts(
+    c: CampaignData,
+    target: OptimizationTarget,
+    activity: AgentActivity,
+    ad: RsaAd,
+    items: { kind: 'headline' | 'description'; text: string; topics: string[] }[],
+  ): Promise<OptimizeOutcome> {
+    const outcome: OptimizeOutcome = { applied: 0, proposed: 0, costEstimateMinor: 0 };
+    const meta = { googleCampaignId: c.googleCampaignId, campaignName: c.name };
+    const badSet = new Set(items.map((i) => i.text));
+    const others = [...ad.headlines, ...ad.descriptions]
+      .map((t) => t.text)
+      .filter((t) => !badSet.has(t));
+    const blocked = new Set(
+      [...(await this.policyBlockedTexts(c.googleCampaignId)), ...badSet].map(fold),
+    );
+    const topics = [...new Set(items.flatMap((i) => i.topics))];
+
+    /** The ad update replacing each bad text with `rep.get(text)`; a bad
+     *  text with no replacement is dropped while the field stays at
+     *  Google's minimum, otherwise kept. */
+    const build = (rep: Map<string, string>) => {
+      const removed: string[] = [];
+      const field = (list: RsaAd['headlines'], min: number) => {
+        let size = list.length;
+        const out: { text: string; pinnedField?: string }[] = [];
+        for (const x of list) {
+          const pin = x.pinnedField ? { pinnedField: x.pinnedField } : {};
+          if (!badSet.has(x.text)) out.push({ text: x.text, ...pin });
+          else if (rep.has(x.text)) out.push({ text: rep.get(x.text)!, ...pin });
+          else if (size > min) {
+            size--;
+            removed.push(x.text);
+          } else out.push({ text: x.text, ...pin });
+        }
+        const changed = out.length !== list.length || out.some((o, i) => o.text !== list[i]?.text);
+        return { out, changed };
+      };
+      const h = field(ad.headlines, RSA.headlines.min);
+      const d = field(ad.descriptions, RSA.descriptions.min);
+      const mask = [
+        ...(h.changed ? ['responsive_search_ad.headlines'] : []),
+        ...(d.changed ? ['responsive_search_ad.descriptions'] : []),
+      ].join(',');
+      const ops: GoogleAdsMutateOperation[] = mask
+        ? [
+            {
+              adOperation: {
+                update: {
+                  resourceName: ad.adResourceName,
+                  responsiveSearchAd: {
+                    ...(h.changed ? { headlines: h.out } : {}),
+                    ...(d.changed ? { descriptions: d.out } : {}),
+                  },
+                },
+                updateMask: mask,
+              },
+            },
+          ]
+        : [];
+      return { ops, removed };
+    };
+
+    let rep = new Map<string, string>();
+    let feedback: string | undefined;
+    let plan: { ops: GoogleAdsMutateOperation[]; removed: string[] } | null = null;
+    for (let attempt = 1; attempt <= POLICY_FIX_ATTEMPTS && this.ai.configured; attempt++) {
+      const gen = await activity
+        .step(
+          {
+            ...meta,
+            step: 'generate',
+            message:
+              attempt === 1
+                ? `Rescriere ${items.length} texte respinse de Google (${topics.join(', ') || 'politici'})`
+                : `Rescriere din nou după feedback-ul Google (încercarea ${attempt})`,
+          },
+          async () => {
+            const r = await this.ai.googleAdsPolicyFixTexts({
+              advertiser: target.advertiser,
+              categoryName: target.name,
+              landingUrl: ad.finalUrls[0] ?? target.landingFallback,
+              items,
+              otherTexts: others,
+              googleFeedback: feedback,
+            });
+            if (!r) throw new Error('AI nu a returnat un răspuns utilizabil.');
+            return {
+              value: r,
+              outcome: {
+                result: items
+                  .map(
+                    (it, i) =>
+                      `„${it.text}” → ${r.texts[i] ? `„${r.texts[i]}”` : '(fără variantă)'}`,
+                  )
+                  .join('; '),
+              },
+            };
+          },
+        )
+        .catch(() => null);
+      if (!gen) break;
+      outcome.costEstimateMinor += gen.costEstimateMinor;
+      rep = new Map();
+      const used = new Set(others.map(fold));
+      items.forEach((it, i) => {
+        const t = gen.texts[i];
+        if (!t) return;
+        const max = it.kind === 'headline' ? RSA.headlines.maxChars : RSA.descriptions.maxChars;
+        if (textProblem(t, max, it.kind === 'headline' ? 'headline' : 'other')) return;
+        if (used.has(fold(t)) || blocked.has(fold(t))) return;
+        used.add(fold(t));
+        rep.set(it.text, t);
+      });
+      const candidate = build(rep);
+      if (!candidate.ops.length) break;
+      try {
+        await this.client.mutate(candidate.ops, { validateOnly: true });
+        plan = candidate;
+        break;
+      } catch (err) {
+        const findings = policyFindingsOf(err);
+        await activity.record(
+          { ...meta, step: 'validate_google', message: 'Validare la Google a textelor rescrise' },
+          { status: 'failed', result: err instanceof Error ? err.message : String(err) },
+        );
+        if (!findings.length) break;
+        // The rewrite broke a policy too: never reuse it, tell the AI why.
+        for (const t of rep.values()) blocked.add(fold(t));
+        feedback = findings
+          .map((f) => `${f.message}${f.topics.length ? ` (${f.topics.join(', ')})` : ''}`)
+          .join('; ');
+      }
+    }
+    // Last resort: drop what could not be rewritten, if the ad stays valid.
+    if (!plan) {
+      rep = new Map();
+      const fallback = build(rep);
+      if (fallback.ops.length) plan = fallback;
+    }
+    if (!plan) {
+      await activity.record(
+        { ...meta, step: 'policy_fix', message: 'Texte respinse de Google' },
+        {
+          status: 'failed',
+          result:
+            `Nu s-a găsit o variantă conformă pentru: ${items.map((i) => `„${i.text}”`).join(', ')}, ` +
+            'iar eliminarea lor ar coborî reclama sub minimul Google. Necesită intervenție manuală.',
+        },
+      );
+      return outcome;
+    }
+    const finalPlan = plan;
+    const replaced = [...rep.entries()].map(([from, to]) => ({ from, to }));
+    const expected = replaced.map((r) => r.to);
+    const gone = [...replaced.map((r) => r.from), ...finalPlan.removed];
+    const adId = ad.adResourceName.split('/').pop();
+    const ok = await this.executeChange({
+      c,
+      target,
+      activity,
+      action: 'policy.fix_text',
+      adId,
+      label:
+        `Corectare texte respinse de Google: ${replaced.length} rescrise` +
+        (finalPlan.removed.length ? `, ${finalPlan.removed.length} eliminate` : ''),
+      ops: finalPlan.ops,
+      before: { adResourceName: ad.adResourceName, texts: items.map((i) => i.text), topics },
+      after: { replaced, removed: finalPlan.removed },
+      reasoning:
+        `Google a respins (DISAPPROVED) ${items.length} texte ale reclamei pentru politicile: ${topics.join(', ') || 'nespecificate'}. ` +
+        'Un text respins nu se afișează și poate bloca reclama, așa că este corectat imediat, fără așteptarea perioadei dintre modificări.',
+      verify: async () => {
+        const rows = await this.client.search(
+          'SELECT ad_group_ad.ad.id, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions ' +
+            `FROM ad_group_ad WHERE ad_group_ad.ad.id = ${adId}`,
+        );
+        const live = rows[0]?.adGroupAd as
+          | {
+              ad?: {
+                responsiveSearchAd?: {
+                  headlines?: { text?: string }[];
+                  descriptions?: { text?: string }[];
+                };
+              };
+            }
+          | undefined;
+        const texts = new Set([
+          ...(live?.ad?.responsiveSearchAd?.headlines ?? []).map((x) => x.text),
+          ...(live?.ad?.responsiveSearchAd?.descriptions ?? []).map((x) => x.text),
+        ]);
+        const missing = expected.filter((t) => !texts.has(t));
+        const stuck = gone.filter((t) => texts.has(t));
+        if (missing.length) return `Lipsesc după aplicare: ${missing.join(', ')}`;
+        if (stuck.length) return `Încă prezente: ${stuck.join(', ')}`;
+        return null;
+      },
+    });
+    if (ok) outcome.applied++;
+    return outcome;
   }
 
   /**

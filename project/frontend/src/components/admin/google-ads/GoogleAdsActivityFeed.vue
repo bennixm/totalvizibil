@@ -70,6 +70,7 @@ const STEP_ICON: Record<string, string> = {
   videos: 'mdi-video-outline',
   logos: 'mdi-shield-star-outline',
   policy: 'mdi-shield-check-outline',
+  policy_fix: 'mdi-shield-edit-outline',
   score: 'mdi-gauge',
   rescore: 'mdi-gauge',
   prioritize: 'mdi-sort-descending',

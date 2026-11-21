@@ -250,6 +250,59 @@ interface GoogleAdsMutateResponse {
  *  the actual field path/reason. Logged in full (server-side only) and
  *  summarized into the thrown error so a real API rejection is diagnosable
  *  from this service's own logs, not just "it failed". */
+/** One Google Ads policy finding in a rejected mutate: which operation
+ *  (index in the request) broke which policy. */
+export interface GoogleAdsPolicyFinding {
+  /** Index of the operation in `mutateOperations`, when Google says. */
+  operationIndex?: number;
+  /** Policy topics, e.g. PUNCTUATION, TRADEMARKS_IN_AD_TEXT. */
+  topics: string[];
+  message: string;
+}
+
+/** Policy findings attached to an error thrown by `formatApiError`, or []. */
+export function policyFindingsOf(err: unknown): GoogleAdsPolicyFinding[] {
+  const f = (err as { policyFindings?: GoogleAdsPolicyFinding[] } | null)?.policyFindings;
+  return Array.isArray(f) ? f : [];
+}
+
+/** Policy-related findings in a Google Ads error payload (POLICY_FINDING,
+ *  policy violations): the agent uses them as feedback to fix its texts. */
+function extractPolicyFindings(error: GoogleAdsApiError | undefined): GoogleAdsPolicyFinding[] {
+  const out: GoogleAdsPolicyFinding[] = [];
+  for (const d of error?.details ?? []) {
+    for (const e of ((d as { errors?: unknown[] })?.errors ?? []) as Record<string, unknown>[]) {
+      const codeObj = (e.errorCode ?? {}) as Record<string, unknown>;
+      const isPolicy =
+        'policyFindingError' in codeObj ||
+        'policyViolationError' in codeObj ||
+        Object.values(codeObj).some((v) => /POLICY/.test(String(v)));
+      if (!isPolicy) continue;
+      const det = (e.details ?? {}) as {
+        policyFindingDetails?: { policyTopicEntries?: { topic?: string }[] };
+        policyViolationDetails?: { externalPolicyName?: string; key?: { policyName?: string } };
+      };
+      const topics = [
+        ...(det.policyFindingDetails?.policyTopicEntries ?? []).map((t) => t.topic ?? ''),
+        det.policyViolationDetails?.key?.policyName ?? '',
+        det.policyViolationDetails?.externalPolicyName ?? '',
+      ].filter(Boolean);
+      const path =
+        (e.location as { fieldPathElements?: { fieldName?: string; index?: number }[] } | undefined)
+          ?.fieldPathElements ?? [];
+      const op = path.find(
+        (p) => p.fieldName === 'mutate_operations' || p.fieldName === 'operations',
+      );
+      out.push({
+        operationIndex: typeof op?.index === 'number' ? op.index : undefined,
+        topics: [...new Set(topics)],
+        message: typeof e.message === 'string' ? e.message : 'încălcare de politică',
+      });
+    }
+  }
+  return out;
+}
+
 export function formatApiError(
   status: number,
   error: GoogleAdsApiError | undefined,
@@ -281,10 +334,13 @@ export function formatApiError(
     })
     .filter(Boolean);
   const unique = [...new Set(reasons)].slice(0, 3);
-  return new Error(
+  const err = new Error(
     `Google Ads a respins cererea (HTTP ${status}): ` +
       (unique.length ? unique.join('; ') : message),
   );
+  const policyFindings = extractPolicyFindings(error);
+  if (policyFindings.length) Object.assign(err, { policyFindings });
+  return err;
 }
 
 /** Exposed for unit tests only. */
