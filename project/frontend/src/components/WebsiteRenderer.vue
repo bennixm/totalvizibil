@@ -2184,6 +2184,11 @@ watch(
   justify-content: center;
   flex-wrap: wrap;
 }
+/* No subheadline: the subtitle's margins were the only gap, so the CTA
+   sat glued to the headline. */
+.s--hero h1 + .s--hero__cta {
+  margin-top: 1.9rem;
+}
 .s--hero__cue {
   position: absolute;
   left: 50%;

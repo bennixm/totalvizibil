@@ -10,7 +10,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { notifyAdminsOfFailedGoogleAdsAgentRun } from './google-ads-agent-alerts';
-import { GoogleAdsApiClient } from './google-ads-api-client.service';
+import { GoogleAdsApiClient, policyFindingsOf } from './google-ads-api-client.service';
 import { subcategoryLandingUrl } from './google-ads-landing-url';
 import { pushNegativesOntoSiblings } from './google-ads-negative-keywords';
 import { AdStrengthMaximizer, StrengthResult } from './optimization/google-ads-ad-strength';
@@ -184,6 +184,26 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
             `Content generation failed for category '${mapping.category.slug}' (${mapping.categoryId}).`,
             err instanceof Error ? err.stack : err,
           );
+          // Visible in History with Google's own reason; it used to live
+          // only in the server log, so a campaign stayed without ads with
+          // nothing on screen saying why.
+          await this.prisma.googleAdsAgentAction
+            .create({
+              data: {
+                categoryId: mapping.categoryId,
+                googleCampaignId: mapping.googleCampaignId,
+                action: 'keywords.updated',
+                status: 'failed',
+                errorMessage:
+                  `Activarea campaniei a eșuat: ${err instanceof Error ? err.message : String(err)}`.slice(
+                    0,
+                    1000,
+                  ) + ' Campania rămâne oprită, fără reclamă; se reîncearcă la următoarea rulare.',
+                reasoning:
+                  'Crearea reclamei (titluri, descrieri, cuvinte cheie) pentru o campanie nou creată.',
+              },
+            })
+            .catch(() => undefined);
         }
       }
 
@@ -332,9 +352,22 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       },
     };
 
-    // 1. Keywords + ad, campaign still PAUSED (nothing can spend yet).
-    const created = await this.client.mutate([...keywordOps, adOp]);
-    const adGroupAdResourceName = created[keywordOps.length]?.adGroupAdResult?.resourceName;
+    // 1. Keywords + ad, campaign still PAUSED (nothing can spend yet). The
+    //    batch is atomic, so one keyword or headline Google refuses for
+    //    policy would sink the whole campaign: validate first and, on a
+    //    policy finding, drop exactly what Google flagged and try again.
+    const {
+      keywordOps: okKeywords,
+      adOp: okAd,
+      dropped,
+    } = await this.dropPolicyViolations(keywordOps, adOp);
+    const created = await this.client.mutate([...okKeywords, okAd]);
+    const adGroupAdResourceName = created[okKeywords.length]?.adGroupAdResult?.resourceName;
+    if (dropped.length) {
+      this.logger.warn(
+        `Dropped ${dropped.length} element(s) Google refused for policy in '${category.slug}': ${dropped.join('; ')}`,
+      );
+    }
 
     // 2. Optional assets BEFORE Ad Strength is evaluated: sitelinks are an
     //    Ad Strength factor. Best-effort, as before; a failure is reported
@@ -396,6 +429,7 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
             adStrengthRounds: (strength?.rounds ?? []) as unknown as Prisma.InputJsonValue,
             adStrengthRemainingActionItems: strength?.remainingActionItems ?? [],
             ...(assetsError ? { assetsError } : {}),
+            ...(dropped.length ? { droppedForPolicy: dropped } : {}),
           },
           executionResult:
             strengthText +
@@ -545,6 +579,90 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
       throw new Error('Conversion action creation returned no resource name.');
     }
     await this.settings.setGoogleAdsConversionActionResourceName(resourceName);
+  }
+
+  /**
+   * Google-validates the new keywords + ad (validateOnly, nothing created)
+   * and, while Google reports POLICY findings, removes exactly the flagged
+   * keywords and headlines/descriptions (keeping at least 1 keyword and
+   * Google's minimum 3 headlines / 2 descriptions) and validates again.
+   * Anything that is not a fixable policy finding is thrown as is.
+   */
+  private async dropPolicyViolations<
+    K extends { adGroupCriterionOperation: { create: { keyword: { text: string } } } },
+    A extends {
+      adGroupAdOperation: {
+        create: {
+          ad: {
+            responsiveSearchAd: { headlines: { text: string }[]; descriptions: { text: string }[] };
+          };
+        };
+      };
+    },
+  >(keywordOps: K[], adOp: A): Promise<{ keywordOps: K[]; adOp: A; dropped: string[] }> {
+    let kws = [...keywordOps];
+    let rsa = adOp.adGroupAdOperation.create.ad.responsiveSearchAd;
+    const dropped: string[] = [];
+    const build = (): A =>
+      ({
+        ...adOp,
+        adGroupAdOperation: {
+          ...adOp.adGroupAdOperation,
+          create: {
+            ...adOp.adGroupAdOperation.create,
+            ad: { ...adOp.adGroupAdOperation.create.ad, responsiveSearchAd: rsa },
+          },
+        },
+      }) as A;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await this.client.mutate([...kws, build()], { validateOnly: true });
+        return { keywordOps: kws, adOp: build(), dropped };
+      } catch (err) {
+        const findings = policyFindingsOf(err);
+        if (!findings.length) throw err;
+        const adIndex = kws.length;
+        const badKw = new Set(
+          findings
+            .map((f) => f.operationIndex)
+            .filter((i): i is number => i !== undefined && i < adIndex),
+        );
+        const badText = { headlines: new Set<number>(), descriptions: new Set<number>() };
+        for (const f of findings.filter((x) => x.operationIndex === adIndex)) {
+          const el = f.path?.find((p) => p.field === 'headlines' || p.field === 'descriptions');
+          if (el && typeof el.index === 'number')
+            badText[el.field as 'headlines' | 'descriptions'].add(el.index);
+        }
+        const nextKws = kws.filter((_, i) => !badKw.has(i));
+        const keep = (list: { text: string }[], bad: Set<number>, min: number) => {
+          const out = list.filter((_, i) => !bad.has(i));
+          return out.length >= min ? out : list;
+        };
+        const nextRsa = {
+          headlines: keep(rsa.headlines, badText.headlines, 3),
+          descriptions: keep(rsa.descriptions, badText.descriptions, 2),
+        };
+        const removed = [
+          ...kws
+            .filter((_, i) => badKw.has(i))
+            .map((k) => `cuvânt cheie „${k.adGroupCriterionOperation.create.keyword.text}”`),
+          ...rsa.headlines
+            .filter((h) => !nextRsa.headlines.includes(h))
+            .map((h) => `titlu „${h.text}”`),
+          ...rsa.descriptions
+            .filter((d) => !nextRsa.descriptions.includes(d))
+            .map((d) => `descriere „${d.text}”`),
+        ];
+        // Nothing we can drop (or no keyword would be left): report it.
+        if (!removed.length || !nextKws.length) throw err;
+        const topics = [...new Set(findings.flatMap((f) => f.topics))].join(', ');
+        dropped.push(...removed.map((r) => (topics ? `${r} (${topics})` : r)));
+        kws = nextKws;
+        rsa = { ...rsa, ...nextRsa };
+      }
+    }
+    // Still refused after 3 rounds: let the real mutate surface the error.
+    return { keywordOps: kws, adOp: build(), dropped };
   }
 
   private plainName(nameI18n: Prisma.JsonValue): string {

@@ -152,7 +152,12 @@ describe('Google Ads policy findings', () => {
   it('extracts the operation index and topics from a POLICY_FINDING error', () => {
     const f = policyFindingsOf(policyError());
     expect(f).toEqual([
-      { operationIndex: 0, topics: ['SUPERLATIVES'], message: 'A policy was violated.' },
+      {
+        operationIndex: 0,
+        topics: ['SUPERLATIVES'],
+        message: 'A policy was violated.',
+        path: [{ field: 'mutate_operations', index: 0 }, { field: 'ad_operation' }],
+      },
     ]);
     expect(policyFindingsOf(new Error('x'))).toEqual([]);
   });

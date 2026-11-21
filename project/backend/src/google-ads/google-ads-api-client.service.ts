@@ -258,6 +258,8 @@ export interface GoogleAdsPolicyFinding {
   /** Policy topics, e.g. PUNCTUATION, TRADEMARKS_IN_AD_TEXT. */
   topics: string[];
   message: string;
+  /** Where in the operation, e.g. [{field:'headlines', index: 3}]. */
+  path?: { field: string; index?: number }[];
 }
 
 /** Policy findings attached to an error thrown by `formatApiError`, or []. */
@@ -297,6 +299,12 @@ function extractPolicyFindings(error: GoogleAdsApiError | undefined): GoogleAdsP
         operationIndex: typeof op?.index === 'number' ? op.index : undefined,
         topics: [...new Set(topics)],
         message: typeof e.message === 'string' ? e.message : 'încălcare de politică',
+        path: path
+          .filter((p) => p.fieldName)
+          .map((p) => ({
+            field: p.fieldName!,
+            ...(typeof p.index === 'number' ? { index: p.index } : {}),
+          })),
       });
     }
   }
