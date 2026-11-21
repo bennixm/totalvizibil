@@ -7,6 +7,7 @@ import { PlatformSettingsService } from '../../platform-settings/platform-settin
 import { PrismaService } from '../../prisma/prisma.service';
 import { notifyAdminsOfFailedGoogleAdsAgentRun } from '../google-ads-agent-alerts';
 import { GoogleAdsApiClient } from '../google-ads-api-client.service';
+import { networkErrorText } from '../google-ads-network-error';
 import { AgentActivity } from './google-ads-activity';
 import { CampaignData, fetchAccountData } from './google-ads-account-data';
 import { CampaignEvaluation, UrlCheck, evaluateCampaign } from './google-ads-campaign-evaluator';
@@ -526,12 +527,7 @@ export class GoogleAdsMonitorService implements OnModuleInit {
         res = await attempt('GET');
       return { url, ok: res.status < 400, status: res.status };
     } catch (err) {
-      return {
-        url,
-        ok: false,
-        status: null,
-        error: err instanceof Error ? err.message : String(err),
-      };
+      return { url, ok: false, status: null, error: networkErrorText(err) };
     }
   }
 

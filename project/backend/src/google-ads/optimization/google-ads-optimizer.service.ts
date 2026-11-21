@@ -134,6 +134,10 @@ const POLICY_FIX_ATTEMPTS = 3;
 const isDisapproved = (x: { approvalStatus?: string; primaryStatusReasons?: string[] }) =>
   x.approvalStatus === 'DISAPPROVED' ||
   (x.primaryStatusReasons ?? []).includes('ASSET_DISAPPROVED');
+/** Accounts where Google refused the business name asset for missing
+ *  advertiser verification, with when; re-checked after a day. */
+const UNVERIFIED_ACCOUNTS = new Map<string, number>();
+const UNVERIFIED_RECHECK_MS = 24 * 3_600_000;
 /** Keyword headlines added/rewritten per ad per run. */
 const MAX_KEYWORD_HEADLINES = 4;
 const STRENGTH_RANK: Record<string, number> = { POOR: 1, AVERAGE: 2, GOOD: 3, EXCELLENT: 4 };
@@ -650,6 +654,13 @@ export class GoogleAdsOptimizerService {
       if (ok) outcome.applied++;
     }
 
+    // The business name asset needs Google's advertiser verification
+    // (CUSTOMER_NOT_VERIFIED otherwise) and the batch below is atomic: one
+    // refused asset would block every sitelink/callout/snippet with it.
+    if (need.businessName && !(await this.businessNameAllowed(c, target.businessName!, activity))) {
+      need.businessName = false;
+    }
+
     // Batch 2: extensions (sitelinks, callouts, structured snippet, business
     // name), created and attached in one atomic call.
     if (sl.length || co.accepted.length || snippetValues.length || need.businessName) {
@@ -786,6 +797,64 @@ export class GoogleAdsOptimizerService {
     }
 
     return outcome;
+  }
+
+  /**
+   * Whether Google accepts a BUSINESS_NAME asset on this account, checked
+   * with a validateOnly call (nothing is created). Google refuses it with
+   * CUSTOMER_NOT_VERIFIED until the advertiser verification is completed;
+   * that answer is remembered per account for a day, so every campaign in
+   * every cycle doesn't ask again. Any other error answers true, so the
+   * normal path reports it.
+   */
+  private async businessNameAllowed(
+    c: CampaignData,
+    businessName: string,
+    activity: AgentActivity,
+  ): Promise<boolean> {
+    const account = this.client.customerId;
+    const refusedAt = UNVERIFIED_ACCOUNTS.get(account);
+    let refused = refusedAt !== undefined && Date.now() - refusedAt < UNVERIFIED_RECHECK_MS;
+    if (!refused) {
+      const res = `customers/${account}/assets/-1`;
+      try {
+        await this.client.mutate(
+          [
+            {
+              assetOperation: { create: { resourceName: res, textAsset: { text: businessName } } },
+            },
+            {
+              campaignAssetOperation: {
+                create: { campaign: c.resourceName, asset: res, fieldType: 'BUSINESS_NAME' },
+              },
+            },
+          ],
+          { validateOnly: true },
+        );
+        UNVERIFIED_ACCOUNTS.delete(account);
+        return true;
+      } catch (err) {
+        if (!/CUSTOMER_NOT_VERIFIED/.test(err instanceof Error ? err.message : String(err)))
+          return true;
+        UNVERIFIED_ACCOUNTS.set(account, Date.now());
+        refused = true;
+      }
+    }
+    await activity.record(
+      {
+        googleCampaignId: c.googleCampaignId,
+        campaignName: c.name,
+        step: 'optimize',
+        message: 'Extensia „nume afacere”',
+      },
+      {
+        status: 'skipped',
+        result:
+          'Google cere verificarea advertiserului pentru numele afacerii (CUSTOMER_NOT_VERIFIED). ' +
+          'Sitelink-urile, callout-urile și snippet-urile se adaugă normal; numele afacerii se adaugă automat după ce contul e verificat în Google Ads.',
+      },
+    );
+    return false;
   }
 
   /**
