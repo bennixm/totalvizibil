@@ -360,7 +360,109 @@
     "retry": "Try again",
     "logoTitle": "Logo (optional)",
     "logoAdd": "Add a logo",
-    "logoChange": "Change"
+    "logoChange": "Change",
+    "build": {
+      "canvasTitle": "Your page is empty for now",
+      "canvasText": "Tell me in the chat what your business does and I will start building the site, section by section.",
+      "canvasBusy": "Starting the build…",
+      "consoleTitle": "AI is building your site",
+      "updating": "Updating {section}",
+      "restyle": "Applying the new style",
+      "newOnPreview": "New section built",
+      "sec": {
+        "generic": "the section",
+        "hero": "the opening section",
+        "services": "the services",
+        "gallery": "the gallery",
+        "contact": "the contact section",
+        "about": "About us",
+        "features": "Why us",
+        "process": "How we work",
+        "stats": "the numbers",
+        "testimonials": "the reviews",
+        "faq": "the FAQ",
+        "cta": "the final call to action"
+      },
+      "lines": {
+        "hero": [
+          "Choosing the page structure",
+          "Matching colors and fonts",
+          "Writing the main headline",
+          "Building the opening section"
+        ],
+        "services": [
+          "Organizing the services",
+          "Writing the descriptions",
+          "Picking fitting icons",
+          "Placing the cards on the page"
+        ],
+        "gallery": [
+          "Optimizing the photos",
+          "Building the gallery"
+        ],
+        "contact": [
+          "Preparing the contact form",
+          "Adding your contact details"
+        ],
+        "about": [
+          "Writing the business story",
+          "Building the About us section"
+        ],
+        "features": [
+          "Wording your advantages",
+          "Building the Why us section"
+        ],
+        "process": [
+          "Describing the work steps",
+          "Building the How we work section"
+        ],
+        "stats": [
+          "Building the numbers"
+        ],
+        "testimonials": [
+          "Building the reviews"
+        ],
+        "faq": [
+          "Writing the frequent questions",
+          "Building the FAQ section"
+        ],
+        "cta": [
+          "Writing the final call",
+          "Building the last call to action"
+        ],
+        "generic": [
+          "Building the section"
+        ]
+      },
+      "wait": {
+        "intro": [
+          "Reading your business description",
+          "Identifying the field and customers",
+          "Finding the right style",
+          "Preparing the first section"
+        ],
+        "services": [
+          "Analyzing the services",
+          "Writing a description for each service",
+          "Matching the icons"
+        ],
+        "photos": [
+          "Preparing the photos"
+        ],
+        "contact": [
+          "Saving the contact details",
+          "Writing the rest of the site",
+          "Checking the texts",
+          "Tuning for phones"
+        ],
+        "done": [
+          "Applying the change",
+          "Recomposing the sections"
+        ]
+      },
+      "next": "Next: {section}",
+      "nextRest": "the contact and the rest of the page"
+    }
   },
   "location": {
     "eyebrow": "Step 3 · Location",

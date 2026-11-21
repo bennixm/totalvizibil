@@ -18,6 +18,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
 import { useWebsiteDraftStore } from '@/stores/websiteDraft'
+import { useBuildNarration } from '@/composables/useBuildNarration'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import type { DraftIssue, DraftTurn } from '@/stores/websiteDraft'
@@ -44,6 +45,8 @@ const progressPct = computed(() =>
 )
 const transcript = computed(() => draft.value?.transcript ?? [])
 const stepLabel = computed(() => t(`studio.step.${step.value}`))
+/** What the AI is "doing" right now, same line as the preview's console. */
+const narration = useBuildNarration(step, sending)
 
 const errorText = computed(() => {
   if (error.value === 'banned_content') return t('studio.bannedContent')
@@ -221,7 +224,7 @@ function askRestart(): void {
       </span>
       <div class="ag__bar"><span :style="{ width: progressPct }" /></div>
       <span v-if="sending" class="ag__status">
-        <v-icon icon="mdi-pencil-outline" size="13" /> {{ t('studio.thinking') }}
+        <v-icon icon="mdi-pencil-outline" size="13" /> {{ narration.current.value || t('studio.thinking') }}
       </span>
     </header>
 
@@ -239,7 +242,10 @@ function askRestart(): void {
         </div>
         <div v-if="sending" class="msg msg--a msg--typing" aria-hidden="true">
           <span class="msg__av">{{ t('studio.agentPersona').charAt(0) }}</span>
-          <p class="dots"><span /><span /><span /></p>
+          <p class="dots">
+            <span /><span /><span />
+            <em v-if="narration.current.value" class="dots__say">{{ narration.current.value }}</em>
+          </p>
         </div>
       </div>
 
@@ -502,7 +508,14 @@ function askRestart(): void {
 }
 .msg--typing .dots {
   display: flex;
+  align-items: center;
   gap: 4px;
+}
+.dots__say {
+  margin-left: 0.45rem;
+  font-style: normal;
+  font-size: 0.82rem;
+  color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .msg--typing .dots span {
   width: 6px;

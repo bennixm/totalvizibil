@@ -185,9 +185,9 @@ const LABELS: Record<StudioLocale, Labels> = {
     contactTitle: 'Contact',
     fallbackDesc: (name, i) =>
       [
-        `${cap(name)} executat de o echipă cu experiență, cu materiale de calitate și termene respectate.`,
+        `Pentru ${name.toLowerCase()} lucrăm cu o echipă cu experiență, materiale de calitate și termene respectate.`,
         `Ne ocupăm de ${name.toLowerCase()} de la evaluare până la finalizare, cu o ofertă clară de la început.`,
-        `${cap(name)} la standard profesional — lucrări curate, comunicare simplă și garanție pentru ce facem.`,
+        `${cap(name)} la standard profesional: lucru curat, comunicare simplă și garanție pentru ce facem.`,
       ][i % 3],
     seoDesc: (name, trade) => `${name}${trade ? `, ${trade}` : ''}. Cere o ofertă.`,
   },
@@ -231,7 +231,7 @@ const LABELS: Record<StudioLocale, Labels> = {
       [
         `${cap(name)} handled by an experienced team, with quality materials and deadlines you can count on.`,
         `We take ${name.toLowerCase()} from first assessment to sign-off, with a clear quote up front.`,
-        `${cap(name)} done to a professional standard — tidy work, straightforward communication, and a guarantee.`,
+        `${cap(name)} done to a professional standard: tidy work, straightforward communication, and a guarantee.`,
       ][i % 3],
     seoDesc: (name, trade) => `${name}${trade ? `, ${trade}` : ''}. Ask for a quote.`,
   },
@@ -277,8 +277,8 @@ const LABELS: Record<StudioLocale, Labels> = {
     fallbackDesc: (name, i) =>
       [
         `${cap(name)} von einem erfahrenen Team, mit hochwertigen Materialien und verlässlichen Terminen.`,
-        `Wir übernehmen ${name} von der ersten Einschätzung bis zur Abnahme — mit klarem Angebot vorab.`,
-        `${cap(name)} auf professionellem Niveau — sauber ausgeführt, klar kommuniziert und mit Garantie.`,
+        `Wir übernehmen ${name} von der ersten Einschätzung bis zur Abnahme, mit klarem Angebot vorab.`,
+        `${cap(name)} auf professionellem Niveau: sauber ausgeführt, klar kommuniziert und mit Garantie.`,
       ][i % 3],
     seoDesc: (name, trade) => `${name}${trade ? `, ${trade}` : ''}. Angebot anfragen.`,
   },

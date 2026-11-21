@@ -1,3 +1,4 @@
+import { networkErrorText } from '../google-ads/google-ads-network-error';
 /**
  * Real pages of a customer's own website, for sitelinks. The platform's own
  * campaigns link to platform pages; a customer's sitelinks must point at
@@ -135,7 +136,7 @@ export async function checkUrls(
         url,
         ok: false,
         status: null,
-        error: err instanceof Error ? err.message : String(err),
+        error: networkErrorText(err),
       });
     }
   }

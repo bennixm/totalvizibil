@@ -77,7 +77,8 @@ const BANNED_WORDS: string[] = [
   'retard',
   'retarded',
   'kike',
-  'spic',
+  // NOT 'spic': in Romanian it means an ear of wheat ("Spic de Aur" is a
+  // common bakery/farm name), a false positive far likelier than the slur.
   'chink',
   'tranny',
   // threats / harassment

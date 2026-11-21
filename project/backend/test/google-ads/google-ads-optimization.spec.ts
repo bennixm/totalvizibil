@@ -417,6 +417,45 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
     expect(prisma.googleAdsAgentAction.create).not.toHaveBeenCalled();
   });
 
+  it('keeps the business name out of the extensions batch when Google requires advertiser verification', async () => {
+    const values = ['Montaj anvelope', 'Echilibrare roți', 'Reparații jante', 'Depozitare'];
+    const { svc, c, ev, mapping, activity, mutate } = setup({
+      writesAllowed: true,
+      extensions: false,
+      assetRows: [{ asset: { structuredSnippetAsset: { values } } }],
+    });
+    (svc as any).client.customerId = 'unverified-account';
+    mutate.mockImplementation(async (ops: any[], o?: { validateOnly?: boolean }) => {
+      const hasName = ops.some(
+        (x) => x.campaignAssetOperation?.create?.fieldType === 'BUSINESS_NAME',
+      );
+      if (hasName)
+        throw new Error(
+          'Google Ads a respins cererea (HTTP 400): Customer is not verified. (CUSTOMER_NOT_VERIFIED)',
+        );
+      return o?.validateOnly ? [] : ops.map(() => ({}));
+    });
+    const r = await svc.fillGaps(c, ev, svc.platformTarget(mapping as never), activity);
+    expect(r.applied).toBeGreaterThanOrEqual(1);
+    const real = mutate.mock.calls
+      .filter((x) => !x[1]?.validateOnly)
+      .map((x) => x[0])
+      .filter((ops: any[]) => ops.some((op) => op.campaignAssetOperation));
+    expect(real).toHaveLength(1);
+    const fields = real[0]
+      .map((o: any) => o.campaignAssetOperation?.create?.fieldType)
+      .filter(Boolean);
+    expect(fields).toContain('STRUCTURED_SNIPPET');
+    expect(fields).not.toContain('BUSINESS_NAME');
+    // The refusal is remembered: a second campaign doesn't ask Google again.
+    mutate.mockClear();
+    await svc.fillGaps(c, ev, svc.platformTarget(mapping as never), activity);
+    const probes = mutate.mock.calls.filter((x) =>
+      x[0].some((o: any) => o.campaignAssetOperation?.create?.fieldType === 'BUSINESS_NAME'),
+    );
+    expect(probes).toHaveLength(0);
+  });
+
   it('adds only the missing headlines (dropping a duplicate), keeps existing ones, then verifies and records', async () => {
     const added = [
       'Vulcanizare non-stop',

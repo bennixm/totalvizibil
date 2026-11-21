@@ -360,7 +360,109 @@
     "retry": "Încearcă din nou",
     "logoTitle": "Logo (opțional)",
     "logoAdd": "Adaugă logo",
-    "logoChange": "Schimbă"
+    "logoChange": "Schimbă",
+    "build": {
+      "canvasTitle": "Pagina ta e goală deocamdată",
+      "canvasText": "Spune-mi în chat ce face afacerea ta și încep construcția site-ului, secțiune cu secțiune.",
+      "canvasBusy": "Încep construcția…",
+      "consoleTitle": "AI construiește site-ul",
+      "updating": "Actualizez {section}",
+      "restyle": "Aplic noul stil",
+      "newOnPreview": "Secțiune nouă construită",
+      "sec": {
+        "generic": "secțiunea",
+        "hero": "secțiunea de început",
+        "services": "serviciile",
+        "gallery": "galeria",
+        "contact": "contactul",
+        "about": "Despre noi",
+        "features": "De ce noi",
+        "process": "Cum lucrăm",
+        "stats": "cifrele",
+        "testimonials": "recenziile",
+        "faq": "întrebările frecvente",
+        "cta": "îndemnul final"
+      },
+      "lines": {
+        "hero": [
+          "Aleg structura paginii",
+          "Potrivesc culorile și fonturile",
+          "Scriu titlul principal",
+          "Construiesc secțiunea de început"
+        ],
+        "services": [
+          "Organizez serviciile",
+          "Scriu descrierile",
+          "Aleg iconițele potrivite",
+          "Așez cardurile în pagină"
+        ],
+        "gallery": [
+          "Optimizez fotografiile",
+          "Construiesc galeria"
+        ],
+        "contact": [
+          "Pregătesc formularul de contact",
+          "Adaug datele tale de contact"
+        ],
+        "about": [
+          "Scriu povestea afacerii",
+          "Construiesc secțiunea Despre noi"
+        ],
+        "features": [
+          "Formulez avantajele tale",
+          "Construiesc secțiunea De ce noi"
+        ],
+        "process": [
+          "Descriu pașii de lucru",
+          "Construiesc secțiunea Cum lucrăm"
+        ],
+        "stats": [
+          "Construiesc cifrele"
+        ],
+        "testimonials": [
+          "Construiesc recenziile"
+        ],
+        "faq": [
+          "Scriu întrebările frecvente",
+          "Construiesc secțiunea de întrebări"
+        ],
+        "cta": [
+          "Scriu îndemnul final",
+          "Construiesc ultimul apel la acțiune"
+        ],
+        "generic": [
+          "Construiesc secțiunea"
+        ]
+      },
+      "wait": {
+        "intro": [
+          "Citesc descrierea afacerii",
+          "Identific domeniul și clienții",
+          "Caut stilul potrivit",
+          "Pregătesc prima secțiune"
+        ],
+        "services": [
+          "Analizez serviciile",
+          "Scriu descrieri pentru fiecare serviciu",
+          "Potrivesc iconițele"
+        ],
+        "photos": [
+          "Pregătesc fotografiile"
+        ],
+        "contact": [
+          "Salvez datele de contact",
+          "Scriu restul site-ului",
+          "Verific textele",
+          "Ajustez pentru telefon"
+        ],
+        "done": [
+          "Aplic modificarea",
+          "Recompun secțiunile"
+        ]
+      },
+      "next": "Urmează: {section}",
+      "nextRest": "contactul și restul paginii"
+    }
   },
   "location": {
     "eyebrow": "Pasul 3 · Locație",
