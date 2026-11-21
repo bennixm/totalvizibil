@@ -4166,5 +4166,448 @@
     "clientId": "Client ID",
     "clientSecret": "Client secret",
     "secretKeep": "Leave empty to keep the saved secret."
+  },
+  "binfo": {
+    "common": {
+      "hubEyebrow": "Guide",
+      "hubTitle": "How the builders work",
+      "hubLead": "Three ways to get visible. See what each one does, step by step, before you start.",
+      "learnMore": "See how it works",
+      "howTitle": "How it works, step by step",
+      "howLead": "The demo below shows the real interface. Pick a step or let it play.",
+      "step": "Step {n}",
+      "play": "Play the demo",
+      "pause": "Pause",
+      "youGive": "You provide",
+      "aiDoes": "The AI does",
+      "createTitle": "What you can achieve",
+      "resultTitle": "The final result",
+      "capsTitle": "Your options",
+      "notesTitle": "Good to know",
+      "startNow": "Start now",
+      "otherBuilders": "The other builders",
+      "seeGuide": "How it works",
+      "demoLabel": "Animated demo"
+    },
+    "easy": {
+      "seoTitle": "Simple Site: how it works",
+      "seoDesc": "Build a presentation website by chatting with an AI assistant. Free for your first business.",
+      "eyebrow": "Simple Site",
+      "title": "A presentation website, written by AI while you chat",
+      "lead": "Answer a few short questions in the chat and the assistant builds the site section by section, right in front of you.",
+      "badges": [
+        "Free for your first business",
+        "Ready in minutes",
+        "Works on phones too"
+      ],
+      "cta": "Create the site for free",
+      "steps": [
+        {
+          "t": "Describe your business",
+          "d": "In one message: the name, what you do and the city. The assistant understands it and builds the top of the page."
+        },
+        {
+          "t": "List your services",
+          "d": "Separated by commas. The AI writes a description for each one and places them on the page."
+        },
+        {
+          "t": "Add photos (optional)",
+          "d": "Up to 10 photos of your business. The first becomes the page background, the rest go into the gallery. You can also skip it."
+        },
+        {
+          "t": "Leave a contact",
+          "d": "A phone number and an email. Then the AI writes the rest of the site and checks the texts."
+        },
+        {
+          "t": "Adjust and publish",
+          "d": "Change the style and color or ask for changes in the chat. Then pick the location, create your account and the site is online."
+        }
+      ],
+      "you": [
+        "Business name, what you do and the city",
+        "The list of services",
+        "Your own photos, if you want",
+        "A phone number and an email"
+      ],
+      "ai": [
+        "Picks the headline and builds the top of the page",
+        "Writes a description for every service",
+        "Writes About us, Why us, How we work, the FAQ and the final call to action",
+        "Automatically fixes spelling mistakes in your texts"
+      ],
+      "create": [
+        {
+          "t": "A one-page presentation site",
+          "d": "Your whole business, clearly organized in sections, with a navigation menu."
+        },
+        {
+          "t": "Texts written for your business",
+          "d": "Not generic copy: the AI starts from what you told it."
+        },
+        {
+          "t": "A contact form",
+          "d": "Customers can send you requests straight from the site."
+        }
+      ],
+      "result": "A complete site with these sections: the opening, About us, services, How we work, Why us, a gallery (if you have photos), FAQ, a final call to action and contact. The assistant never makes up numbers or reviews.",
+      "caps": [
+        {
+          "t": "6 styles",
+          "d": "Classic, Bold, Minimal, Friendly, Sharp or Editorial."
+        },
+        {
+          "t": "Your color",
+          "d": "Pick from a palette or use your own color."
+        },
+        {
+          "t": "Changes through chat",
+          "d": "Once it is ready, ask for any change in plain words."
+        },
+        {
+          "t": "Edit any time",
+          "d": "From the dashboard you can change texts, photos, the menu and the footer, even after publishing."
+        }
+      ],
+      "notes": [
+        "Free for your first business.",
+        "You do not need an account to start; you create one only to save and publish.",
+        "It is a one-page site. For more pages and your own code there is the Advanced Builder."
+      ],
+      "demo": {
+        "bizMsg": "Golden Wheat Bakery, bread and sweet bread from Brașov",
+        "askServices": "List your services, separated by commas.",
+        "servicesMsg": "Sourdough bread, Sweet bread, Cakes",
+        "askPhotos": "Send a photo or write \"skip\".",
+        "photosMsg": "3 photos added",
+        "askContact": "Last step: a phone number and an email.",
+        "contactMsg": "0712 345 678, contact{'@'}example.com",
+        "done": "Done! I wrote the whole site.",
+        "empty": "Your page is empty for now",
+        "console": "AI is building your site",
+        "next": "Next: the services",
+        "heroTitle": "Bread and sweet bread from Brașov",
+        "services": "Our services",
+        "gallery": "Gallery",
+        "about": "About us",
+        "faq": "FAQ",
+        "contact": "Contact",
+        "styles": "Style and color",
+        "build": [
+          "Choosing the page structure",
+          "Writing the main headline",
+          "Writing the descriptions",
+          "Building the gallery",
+          "Writing the rest of the site"
+        ]
+      }
+    },
+    "advanced": {
+      "seoTitle": "Advanced Builder: how it works",
+      "seoDesc": "An AI assistant writes real code for a unique, multi-page website and runs it live in your browser.",
+      "eyebrow": "Advanced Builder",
+      "title": "A unique site, with real code, built through conversation",
+      "lead": "Describe what you want and the AI writes the site files, runs them live in your browser and changes them with every request.",
+      "badges": [
+        "Real code, not a template",
+        "Live preview",
+        "For computers"
+      ],
+      "cta": "Start with the Advanced Builder",
+      "price": "One-time unlock: {credits} credits",
+      "steps": [
+        {
+          "t": "Business name",
+          "d": "You start with the business name, then pick the location and category."
+        },
+        {
+          "t": "Account and unlock",
+          "d": "You create your account and unlock the builder with a one-time payment from your wallet. You get part of the credits back to start building."
+        },
+        {
+          "t": "Describe the site in chat",
+          "d": "Say what you want. The AI only asks questions when something important is missing, then writes the files and starts them live."
+        },
+        {
+          "t": "Ask for changes",
+          "d": "Ask for changes in plain words and attach your own photos. If an error appears, the AI notices it and tries to fix it on its own."
+        },
+        {
+          "t": "Publish and continue",
+          "d": "One click on Publish and the site is live. Then you move on to the campaign budget."
+        }
+      ],
+      "you": [
+        "The business name, location and category",
+        "A description of the site you want, in your own words",
+        "Your own photos, if you want (up to 10 per message)",
+        "Wallet credits for the unlock and for the work"
+      ],
+      "ai": [
+        "Writes the real files of the site",
+        "Runs it live, right in the browser",
+        "Notices errors and tries to fix them on its own",
+        "Shows you what it did, step by step, with every answer"
+      ],
+      "create": [
+        {
+          "t": "A unique site, not a template",
+          "d": "Structure, design and features are written for your business."
+        },
+        {
+          "t": "More pages",
+          "d": "There is no fixed limit: the AI adds as many pages as you need. More pages mean more searches you can show up in."
+        },
+        {
+          "t": "Online bookings",
+          "d": "Besides the contact form, customers can book appointments straight from the site."
+        }
+      ],
+      "result": "A published site built from real code, which you can change any time through the same conversation. You can see the source files in the Files tab.",
+      "caps": [
+        {
+          "t": "Chat and files",
+          "d": "Switch between the conversation and the real files of the site."
+        },
+        {
+          "t": "Live preview",
+          "d": "See the site running, updated after every change."
+        },
+        {
+          "t": "Your own photos",
+          "d": "Attach them in the chat and say where they go, for example \"put this photo at the top\"."
+        },
+        {
+          "t": "Republish any time",
+          "d": "Change and publish again, as often as you like."
+        }
+      ],
+      "notes": [
+        "The live preview runs a real development environment in the browser, so the builder only works on a computer, not on a phone or tablet.",
+        "The unlock is paid once, from your wallet credits. Working with the AI then uses wallet credits as you build."
+      ],
+      "demo": {
+        "prompt": "I want a site for my dental clinic, with pages for services and bookings",
+        "did": "What I did (4 actions)",
+        "actions": [
+          "Created the home page",
+          "Added the services page",
+          "Added the booking form",
+          "Started the preview"
+        ],
+        "reply": "Done, the site is running. What should we change next?",
+        "change": "Put the attached photo at the top of the home page",
+        "image": "clinic-photo.jpg",
+        "heroTitle": "Healthy smiles",
+        "pages": [
+          "Home",
+          "Services",
+          "Bookings"
+        ],
+        "bonus": "You get credits back in your wallet right after unlocking."
+      }
+    },
+    "ads": {
+      "seoTitle": "Google Ads optimization: how it works",
+      "seoDesc": "Connect your Google Ads account, pick your campaigns, and the AI agent improves them. The budget only changes with your approval.",
+      "eyebrow": "Google Ads optimization",
+      "title": "An AI agent that improves your existing Google Ads campaigns",
+      "lead": "Connect your account, pick your campaigns, and the agent analyzes them, fills in what is missing and proposes improvements. No new site is created.",
+      "badges": [
+        "Free to connect",
+        "Budget only with your approval",
+        "Pay only for the work done"
+      ],
+      "cta": "Optimize a campaign",
+      "price": "An optimization cycle starts at {credits} credits",
+      "steps": [
+        {
+          "t": "Connect your Google account",
+          "d": "You sign in directly with Google and choose which account we use. We never see your password."
+        },
+        {
+          "t": "Pick your campaigns",
+          "d": "See your real accounts and campaigns, with results from the last 30 days. You can tick several, even from different accounts."
+        },
+        {
+          "t": "Open your dashboard",
+          "d": "Link the campaign to your Totalvizibil account and get a dashboard with the campaign score and what can be improved. Everything so far is free."
+        },
+        {
+          "t": "Start a cycle",
+          "d": "The agent analyzes the campaign, fixes what Google disapproved, fills in missing texts and extensions and verifies everything in your Google account."
+        },
+        {
+          "t": "Approve the proposals",
+          "d": "Text rewrites and any budget change are proposed to you first. They apply only after you approve them."
+        }
+      ],
+      "you": [
+        "Access to your Google Ads account, through Google sign-in",
+        "The campaigns you want optimized",
+        "Your approval for proposals",
+        "Credits for optimization cycles"
+      ],
+      "ai": [
+        "Computes a score from the real campaign data",
+        "Fills in headlines, descriptions, sitelinks, callouts and images",
+        "Puts keywords into headlines and reverts if Google rates it lower",
+        "Fixes elements that break Google policies"
+      ],
+      "create": [
+        {
+          "t": "More complete ads",
+          "d": "The agent fills your ads up to the level Google recommends."
+        },
+        {
+          "t": "A clear score",
+          "d": "See how close the campaign is to Google requirements and what is still missing."
+        },
+        {
+          "t": "Several campaigns",
+          "d": "Each campaign you pick gets its own dashboard, even from different Google accounts."
+        }
+      ],
+      "result": "Campaigns with more complete ads and a score that shows progress, plus a history of every change made and verified in your Google Ads account.",
+      "caps": [
+        {
+          "t": "You choose what the agent does",
+          "d": "Turn auto-completion, keywords in headlines, images and proposals on or off."
+        },
+        {
+          "t": "Automatic cycles",
+          "d": "Only on demand, weekly, every two weeks or monthly."
+        },
+        {
+          "t": "Transparent costs",
+          "d": "See the estimate first; in the end you pay only for the work done and the difference goes back to your wallet."
+        },
+        {
+          "t": "Revocable access",
+          "d": "Disconnect your Google account any time, from the platform or from Google."
+        }
+      ],
+      "notes": [
+        "The budget never changes automatically: every change is proposed to you and applies only after your approval.",
+        "The agent currently optimizes Search campaigns.",
+        "Connecting, picking the campaign and the dashboard are free; you pay only for optimization cycles."
+      ],
+      "demo": {
+        "connect": "Sign in with Google",
+        "secure": "We never see your Google password",
+        "accounts": "Google Ads accounts",
+        "campaigns": "Campaigns",
+        "camp": [
+          "Plumbing services",
+          "Heating systems",
+          "Brand Performance Max"
+        ],
+        "continue": "Continue with 2 campaigns",
+        "score": "Optimization score",
+        "tabs": [
+          "Overview",
+          "Agent",
+          "Proposals"
+        ],
+        "cycle": "Optimization cycle",
+        "cycleSteps": [
+          "Analysis and score",
+          "Google policy compliance",
+          "Filling headlines and extensions",
+          "Verification in your Google account"
+        ],
+        "proposal": "Budget proposal",
+        "proposalText": "80 → 110 lei per day",
+        "approve": "Approve",
+        "reject": "Reject"
+      }
+    }
+  },
+  "hsec": {
+    "find": {
+      "eyebrow": "For customers",
+      "title": "Find a local business in a few steps",
+      "lead": "Say what you are looking for and the platform shows you the right businesses in your area.",
+      "steps": [
+        {
+          "t": "Say what you need",
+          "d": "Write it in your own words, for example \"I need a plumber in Cluj\". You do not need to know the category name."
+        },
+        {
+          "t": "We pick the category and area",
+          "d": "Your question becomes the right category and county. You can change them any time in the filters."
+        },
+        {
+          "t": "See the businesses nearby",
+          "d": "Each business shows its field, city and services."
+        },
+        {
+          "t": "Contact it directly",
+          "d": "Open the business site and call it or send a request through the form."
+        }
+      ],
+      "demo": {
+        "category": "Plumbing",
+        "county": "Cluj",
+        "city": "Cluj-Napoca",
+        "firms": [
+          "Clear Water Plumbing",
+          "Thermo Expert",
+          "Plumb Pro"
+        ],
+        "services": [
+          "Pipes and fittings",
+          "Boilers",
+          "Emergencies"
+        ],
+        "call": "Call",
+        "send": "Send the request",
+        "name": "Name",
+        "msg": "How can we help?",
+        "sent": "Request sent"
+      }
+    },
+    "grow": {
+      "eyebrow": "For businesses",
+      "title": "Own a business? Get visible",
+      "lead": "Build your site, pick your area and show up in front of customers looking for exactly what you offer.",
+      "steps": [
+        {
+          "t": "Build your site",
+          "d": "Free for your first business with the Simple Site, or unique, with real code, with the Advanced Builder."
+        },
+        {
+          "t": "Pick your area and category",
+          "d": "Say where you work and what you do, so you show up in the right searches."
+        },
+        {
+          "t": "Start your campaign",
+          "d": "Set a daily budget and a maximum CPC or let AUTO mode manage them. Your credits pay for the clicks you get."
+        },
+        {
+          "t": "Get customers",
+          "d": "While the campaign is active you show up in the feed, in your category and area, and customers send you requests directly."
+        }
+      ],
+      "demo": {
+        "simple": "Simple Site",
+        "advanced": "Advanced Builder",
+        "yourSite": "Your site",
+        "zone": "Your area",
+        "cat": "Category",
+        "auto": "AUTO",
+        "yours": "Your business",
+        "lead": "New request from a customer"
+      }
+    },
+    "builders": {
+      "eyebrow": "Our builders",
+      "title": "Choose how you build your presence",
+      "lead": "Three builders, each with its own page showing step by step how it works."
+    },
+    "final": {
+      "title": "Find a business or make yours visible",
+      "find": "Find a business",
+      "grow": "Get visible"
+    }
   }
 }

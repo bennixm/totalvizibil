@@ -75,6 +75,11 @@ const OPTIMIZE_TAGS = ['existing', 'improve', 'noSite'] as const
         <span class="card__cta">{{ t('start.optimizeCta') }} <v-icon icon="mdi-arrow-right" size="18" /></span>
       </RouterLink>
     </div>
+    <p class="st__guide">
+      <RouterLink :to="{ name: 'builders' }">
+        <v-icon icon="mdi-play-circle-outline" size="17" /> {{ t('binfo.common.hubTitle') }}
+      </RouterLink>
+    </p>
   </v-container>
 </template>
 
@@ -113,6 +118,21 @@ const OPTIMIZE_TAGS = ['existing', 'improve', 'noSite'] as const
   letter-spacing: -0.03em;
   line-height: 1.05;
   text-wrap: balance;
+}
+.st__guide {
+  margin: 1.6rem 0 0;
+  text-align: center;
+}
+.st__guide a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
+}
+.st__guide a:hover {
+  text-decoration: underline;
 }
 .st__lead {
   margin: 1rem auto 0;

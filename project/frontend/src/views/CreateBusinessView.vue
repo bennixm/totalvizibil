@@ -113,6 +113,9 @@ function pick(key: 'easy' | 'advanced'): void {
         >
           {{ t('create.choose', { name: t('create.easyTitle') }) }}
         </v-btn>
+        <RouterLink :to="{ name: 'builder-info-easy' }" class="plan__guide">
+          <v-icon icon="mdi-play-circle-outline" size="16" /> {{ t('binfo.common.seeGuide') }}
+        </RouterLink>
       </div>
 
       <!-- Avansat -->
@@ -170,6 +173,9 @@ function pick(key: 'easy' | 'advanced'): void {
         >
           {{ t('create.choose', { name: t('create.advancedTitle') }) }}
         </v-btn>
+        <RouterLink :to="{ name: 'builder-info-advanced' }" class="plan__guide">
+          <v-icon icon="mdi-play-circle-outline" size="16" /> {{ t('binfo.common.seeGuide') }}
+        </RouterLink>
       </div>
     </div>
 
@@ -474,6 +480,20 @@ function pick(key: 'easy' | 'advanced'): void {
   flex: none;
 }
 
+.plan__guide {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
+}
+.plan__guide:hover {
+  text-decoration: underline;
+}
 .plan__cta {
   margin-top: auto;
   box-sizing: border-box;

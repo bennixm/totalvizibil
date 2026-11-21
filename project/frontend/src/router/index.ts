@@ -57,6 +57,26 @@ const routes: RouteRecordRaw[] = [
   // Navbar entry: build from scratch (/create) or optimize an existing
   // Google Ads campaign (/google-ads).
   { path: '/start', name: 'start', component: () => import('@/views/StartView.vue') },
+  // --- Builder information pages (what each builder does, how it works) ---
+  { path: '/ghid', name: 'builders', component: () => import('@/views/BuildersHubView.vue') },
+  {
+    path: '/ghid/site-simplu',
+    name: 'builder-info-easy',
+    component: () => import('@/views/BuilderInfoView.vue'),
+    meta: { builder: 'easy' },
+  },
+  {
+    path: '/ghid/builder-avansat',
+    name: 'builder-info-advanced',
+    component: () => import('@/views/BuilderInfoView.vue'),
+    meta: { builder: 'advanced' },
+  },
+  {
+    path: '/ghid/optimizare-google-ads',
+    name: 'builder-info-ads',
+    component: () => import('@/views/BuilderInfoView.vue'),
+    meta: { builder: 'ads' },
+  },
   // --- Google Ads optimization builder (customers' own accounts) ---
   { path: '/google-ads', name: 'ads-connect', component: () => import('@/views/ads/AdsConnectView.vue') },
   {
