@@ -4524,8 +4524,6 @@
   },
   "hsec": {
     "find": {
-      "eyebrow": "Für Kunden",
-      "title": "Finde ein lokales Unternehmen in wenigen Schritten",
       "lead": "Sag, was du suchst, und die Plattform zeigt dir die passenden Unternehmen in deiner Nähe.",
       "steps": [
         {
@@ -4564,11 +4562,10 @@
         "name": "Name",
         "msg": "Wie können wir helfen?",
         "sent": "Anfrage gesendet"
-      }
+      },
+      "tab": "Ich suche ein Unternehmen"
     },
     "grow": {
-      "eyebrow": "Für Unternehmen",
-      "title": "Du hast ein Unternehmen? Werde sichtbar",
       "lead": "Erstelle deine Website, wähle deine Region und erscheine vor Kunden, die genau das suchen, was du anbietest.",
       "steps": [
         {
@@ -4597,17 +4594,9 @@
         "auto": "AUTO",
         "yours": "Dein Unternehmen",
         "lead": "Neue Anfrage von einem Kunden"
-      }
+      },
+      "tab": "Ich habe ein Unternehmen"
     },
-    "builders": {
-      "eyebrow": "Unsere Builder",
-      "title": "Wähle, wie du deine Präsenz aufbaust",
-      "lead": "Drei Builder, jeder mit einer eigenen Seite, die Schritt für Schritt zeigt, wie er funktioniert."
-    },
-    "final": {
-      "title": "Finde ein Unternehmen oder mach deins sichtbar",
-      "find": "Unternehmen finden",
-      "grow": "Sichtbar werden"
-    }
+    "title": "So funktioniert Totalvizibil"
   }
 }

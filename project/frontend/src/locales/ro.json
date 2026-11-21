@@ -4524,8 +4524,6 @@
   },
   "hsec": {
     "find": {
-      "eyebrow": "Pentru clienți",
-      "title": "Găsești o firmă locală în câțiva pași",
       "lead": "Spui ce cauți, iar platforma îți arată firmele potrivite din zona ta.",
       "steps": [
         {
@@ -4564,11 +4562,10 @@
         "name": "Nume",
         "msg": "Cu ce te putem ajuta?",
         "sent": "Cererea a fost trimisă"
-      }
+      },
+      "tab": "Caut o firmă"
     },
     "grow": {
-      "eyebrow": "Pentru firme",
-      "title": "Ai o afacere? Devino vizibil",
       "lead": "Îți faci site-ul, alegi zona și apari în fața clienților care caută exact ce oferi.",
       "steps": [
         {
@@ -4597,17 +4594,9 @@
         "auto": "AUTO",
         "yours": "Afacerea ta",
         "lead": "Cerere nouă de la un client"
-      }
+      },
+      "tab": "Am o firmă"
     },
-    "builders": {
-      "eyebrow": "Builderele noastre",
-      "title": "Alege cum vrei să-ți construiești prezența",
-      "lead": "Trei buildere, fiecare cu propria pagină care îți arată pas cu pas cum funcționează."
-    },
-    "final": {
-      "title": "Găsește o firmă sau fă-ți afacerea vizibilă",
-      "find": "Caută o firmă",
-      "grow": "Devino vizibil"
-    }
+    "title": "Cum funcționează Totalvizibil"
   }
 }
