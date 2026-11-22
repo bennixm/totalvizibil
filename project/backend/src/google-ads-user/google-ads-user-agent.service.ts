@@ -539,14 +539,16 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
           /* keep the pre-fix data; gap filling re-checks against Google */
         }
       }
-      const fill = await optimizer.fillGaps(cur.c, cur.ev, target, activity);
-      aiCostMinor += fill.costEstimateMinor;
-      if (fill.applied) changed.add(a.c.googleCampaignId);
-      if (a.settings.keywordHeadlines && !changed.size) {
+      // Popular keywords in headlines first (direct Ad Strength factor);
+      // gap filling then leaves the just-changed ad text alone.
+      if (a.settings.keywordHeadlines) {
         const k = await optimizer.fixHeadlineKeywords(cur.c, target, activity);
         aiCostMinor += k.costEstimateMinor;
         if (k.applied) changed.add(a.c.googleCampaignId);
       }
+      const fill = await optimizer.fillGaps(cur.c, cur.ev, target, activity);
+      aiCostMinor += fill.costEstimateMinor;
+      if (fill.applied) changed.add(a.c.googleCampaignId);
       if (a.settings.textRewriteProposals) {
         const r = await optimizer.proposeReplacements(cur.c, target, activity);
         aiCostMinor += r.costEstimateMinor;

@@ -857,11 +857,23 @@ describe('headline keyword coverage', () => {
     expect(cov.googleFlagged).toBe(true);
   });
 
-  it('flags Ad Strength impact only below EXCELLENT', () => {
+  it('flags Ad Strength impact below EXCELLENT, including new ads Google has not rated yet', () => {
     const cov = kw.keywordCoverage(['Titlu'], ['vulcanizare'], []);
     expect(kw.keywordsHurtAdStrength('AVERAGE', cov)).toBe(true);
     expect(kw.keywordsHurtAdStrength('EXCELLENT', cov)).toBe(false);
-    expect(kw.keywordsHurtAdStrength('PENDING', cov)).toBe(false);
+    expect(kw.keywordsHurtAdStrength('PENDING', cov)).toBe(true);
+    expect(kw.keywordsHurtAdStrength(undefined, cov)).toBe(true);
+  });
+
+  it('flags a missing top-popular keyword even when most keywords are covered', () => {
+    // Ranked: the most popular first. 4 of 5 covered, but #1 is missing.
+    const cov = kw.keywordCoverage(
+      ['Montaj acoperis rapid', 'Acoperis case noi', 'Tigla metalica', 'Jgheaburi la comanda'],
+      ['reparatii acoperis', 'montaj acoperis', 'acoperis case', 'tigla metalica', 'jgheaburi'],
+      [],
+    );
+    expect(kw.popularMissing(cov)).toEqual(['reparatii acoperis']);
+    expect(kw.keywordsHurtAdStrength('GOOD', cov)).toBe(true);
   });
 
   it('evaluator reports the missing keywords as an auto-fixable headline issue', () => {
@@ -983,6 +995,53 @@ describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
     );
     expect(r.applied).toBe(0);
     expect(t.mutate).not.toHaveBeenCalled();
+  });
+
+  it('targets the most popular keywords first, ranked by real Google searches', async () => {
+    const t = setup(10, ['Echilibrare Roti pe Loc', 'Vulcanizare Bucuresti Rapid']);
+    t.c.ads[0].keywords = ['vulcanizare bucuresti', 'echilibrare roti'];
+    (t.svc as any).client.search = jest.fn(async (q: string) => {
+      if (q.includes('FROM keyword_view'))
+        return [
+          {
+            adGroupCriterion: { keyword: { text: 'vulcanizare bucuresti' } },
+            metrics: { impressions: '3' },
+          },
+          {
+            adGroupCriterion: { keyword: { text: 'echilibrare roti' } },
+            metrics: { impressions: '40' },
+          },
+        ];
+      if (q.includes('FROM search_term_view'))
+        return [
+          {
+            searchTermView: { searchTerm: 'echilibrare roti pret' },
+            metrics: { impressions: '12' },
+          },
+        ];
+      return [{ adGroupAd: { ad: { responsiveSearchAd: { headlines: t.live() } } } }];
+    });
+    await t.svc.fixHeadlineKeywords(t.c, t.svc.platformTarget(t.mapping as never), t.activity);
+    const asked = t.ai.googleAdsKeywordHeadlines.mock.calls[0][0].missingKeywords;
+    expect(asked[0]).toBe('echilibrare roti');
+    const ev = t.prisma.googleAdsAgentEvent.create.mock.calls.find(
+      (c: any) => c[0].data.step === 'keywords',
+    );
+    expect(ev).toBeDefined();
+  });
+
+  it('waits a few days after its own keyword change, but not after other ad-text changes', async () => {
+    const t = setup(10, ['Vulcanizare Bucuresti Rapid']);
+    t.prisma.googleAdsAgentAction.findFirst.mockImplementation(async ({ where }: any) =>
+      where.action === 'creative.keyword_headlines' ? { createdAt: new Date() } : null,
+    );
+    const r = await t.svc.fixHeadlineKeywords(
+      t.c,
+      t.svc.platformTarget(t.mapping as never),
+      t.activity,
+    );
+    expect(r.applied).toBe(0);
+    expect(t.ai.googleAdsKeywordHeadlines).not.toHaveBeenCalled();
   });
 
   it('does nothing when every keyword is already in the headlines', async () => {

@@ -11,6 +11,10 @@ import {
   readJson,
 } from '../google-ads/google-ads-api-client.service';
 import type { AdsClient } from '../google-ads/optimization/google-ads-optimizer.service';
+import {
+  parsePlannerMetrics,
+  plannerBody,
+} from '../google-ads/optimization/google-ads-keyword-popularity';
 
 const BASE = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}`;
 /** Safety bound on paged searches (Google returns up to 10,000 rows/page). */
@@ -109,6 +113,23 @@ export class GoogleAdsUserClient implements AdsClient {
     };
     if (!res.ok) throw formatApiError(res.status, data.error, this.logger);
     return data.mutateOperationResponses ?? [];
+  }
+
+  /** Google Keyword Planner: folded keyword → average monthly searches. */
+  async keywordHistoricalMetrics(keywords: string[]): Promise<Record<string, number>> {
+    if (!keywords.length) return {};
+    const headers = await this.headers();
+    const res = await fetch(
+      `${BASE}/customers/${this.customerId}:generateKeywordHistoricalMetrics`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(plannerBody(keywords)),
+      },
+    );
+    const data = (await readJson(res)) as { error?: GoogleAdsApiError };
+    if (!res.ok) throw formatApiError(res.status, data.error, this.logger);
+    return parsePlannerMetrics(data);
   }
 
   /** Customer ids this Google user can reach directly (CustomerService). */
