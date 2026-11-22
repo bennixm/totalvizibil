@@ -77,19 +77,34 @@ export function keywordCoverage(
   };
 }
 
+/** How many of the most popular keywords must each appear in a headline. */
+export const TOP_POPULAR_KEYWORDS = 4;
+
+/** The most popular keywords (the first ones of `cov.keywords`, which the
+ *  caller orders by popularity) that no headline carries yet. */
+export function popularMissing(cov: KeywordCoverage, top = TOP_POPULAR_KEYWORDS): string[] {
+  return cov.keywords.slice(0, top).filter((k) => cov.missing.includes(k));
+}
+
 /**
- * Whether missing keywords are holding back Ad Strength: the ad is not yet
- * EXCELLENT (and Google has finished rating it), keywords are missing from
- * the headlines, and either Google itself says so or most keywords are
- * absent from the headlines.
+ * Whether missing keywords are holding back Ad Strength ("Include popular
+ * keywords in your headlines"): the ad is not EXCELLENT yet (a new ad that
+ * Google has not rated, PENDING, counts too: it gets popular keywords from
+ * the start), keywords are missing from the headlines, and either Google
+ * itself says so, one of the most popular keywords is missing, or most
+ * keywords are absent.
  */
 export function keywordsHurtAdStrength(
   adStrength: string | undefined,
   cov: KeywordCoverage,
 ): boolean {
   if (!cov.missing.length) return false;
-  if (!adStrength || !['POOR', 'AVERAGE', 'GOOD'].includes(adStrength)) return false;
-  return cov.googleFlagged || cov.covered.length < Math.ceil(cov.keywords.length / 2);
+  if (adStrength === 'EXCELLENT') return false;
+  return (
+    cov.googleFlagged ||
+    popularMissing(cov).length > 0 ||
+    cov.covered.length < Math.ceil(cov.keywords.length / 2)
+  );
 }
 
 const LABEL_RANK: Record<string, number> = { LOW: 0, UNRATED: 1, PENDING: 1, LEARNING: 2 };

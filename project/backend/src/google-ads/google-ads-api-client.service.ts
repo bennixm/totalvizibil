@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JWT } from 'google-auth-library';
 import { AppConfig } from '../config/env';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { parsePlannerMetrics, plannerBody } from './optimization/google-ads-keyword-popularity';
 
 const GOOGLE_ADS_SCOPE = 'https://www.googleapis.com/auth/adwords';
 // Matches the Google Ads API version this project's dev tooling has been
@@ -589,6 +590,22 @@ export class GoogleAdsApiClient implements OnModuleInit {
    * API error, which is surfaced as-is so the finance page can say why.
    * `issueMonth` is the `MonthOfYear` enum (`JANUARY` … `DECEMBER`).
    */
+  /**
+   * Google Keyword Planner: average monthly searches (Romania, Romanian,
+   * Google Search) per keyword, as folded keyword → searches. Read-only.
+   */
+  async keywordHistoricalMetrics(keywords: string[]): Promise<Record<string, number>> {
+    if (!keywords.length) return {};
+    const headers = await this.headers();
+    const res = await fetch(
+      `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${this.customerId}:generateKeywordHistoricalMetrics`,
+      { method: 'POST', headers, body: JSON.stringify(plannerBody(keywords)) },
+    );
+    const data = (await readJson(res)) as { error?: GoogleAdsApiError };
+    if (!res.ok) throw formatApiError(res.status, data.error, this.logger);
+    return parsePlannerMetrics(data);
+  }
+
   async listInvoices(
     billingSetup: string,
     issueYear: number,

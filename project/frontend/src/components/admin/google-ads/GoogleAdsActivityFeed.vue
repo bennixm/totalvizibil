@@ -65,6 +65,7 @@ const STEP_ICON: Record<string, string> = {
   urls: 'mdi-link-variant',
   performance: 'mdi-chart-line',
   headlines: 'mdi-format-title',
+  keywords: 'mdi-key-variant',
   assets: 'mdi-link-box-variant-outline',
   images: 'mdi-image-outline',
   videos: 'mdi-video-outline',

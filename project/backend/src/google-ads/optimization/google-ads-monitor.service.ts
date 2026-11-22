@@ -283,6 +283,28 @@ export class GoogleAdsMonitorService implements OnModuleInit {
         },
       );
       if (generateAllowed) {
+        // Popular keywords in headlines, before gap filling: a direct Ad
+        // Strength factor ("Include popular keywords in your headlines"),
+        // ranked by Google's real search data. Gap filling then sees this
+        // change and leaves the ad text alone this cycle.
+        for (const e of evaluated.filter((x) => x.mapping)) {
+          try {
+            const r = await this.optimizer.fixHeadlineKeywords(
+              e.c,
+              this.optimizer.platformTarget(e.mapping!),
+              activity,
+            );
+            if (r.applied) changedIds.add(e.c.googleCampaignId);
+            applied += r.applied;
+            cost += r.costEstimateMinor;
+          } catch (err) {
+            hadError = true;
+            this.logger.error(
+              `Headline keyword fix failed for ${e.c.googleCampaignId}.`,
+              err instanceof Error ? err.stack : err,
+            );
+          }
+        }
         for (const e of candidates.slice(0, MAX_OPTIMIZED_PER_CYCLE)) {
           try {
             const r = await this.optimizer.fillGaps(
@@ -298,33 +320,6 @@ export class GoogleAdsMonitorService implements OnModuleInit {
             hadError = true;
             this.logger.error(
               `Optimization failed for ${e.c.googleCampaignId}.`,
-              err instanceof Error ? err.stack : err,
-            );
-          }
-        }
-        // Headline keyword monitoring: missing ad-group keywords that hold
-        // Ad Strength back are written into the headlines (automatic, same
-        // policy as gap filling; Ad Strength read back, restored if worse).
-        // Campaigns whose ad text changed this cycle wait for Google first.
-        for (const e of evaluated.filter(
-          (x) =>
-            x.mapping &&
-            !changedIds.has(x.c.googleCampaignId) &&
-            x.ev.issues.some((i) => i.code === 'headlines_missing_keywords'),
-        )) {
-          try {
-            const r = await this.optimizer.fixHeadlineKeywords(
-              e.c,
-              this.optimizer.platformTarget(e.mapping!),
-              activity,
-            );
-            if (r.applied) changedIds.add(e.c.googleCampaignId);
-            applied += r.applied;
-            cost += r.costEstimateMinor;
-          } catch (err) {
-            hadError = true;
-            this.logger.error(
-              `Headline keyword fix failed for ${e.c.googleCampaignId}.`,
               err instanceof Error ? err.stack : err,
             );
           }

@@ -21,11 +21,14 @@ import { CampaignData, LinkedAsset, RsaAd } from './google-ads-account-data';
 import { CampaignEvaluation } from './google-ads-campaign-evaluator';
 import { CALLOUTS, RSA, SEARCH_IMAGES, SITELINKS, STRUCTURED_SNIPPETS } from './google-ads-specs';
 import {
+  TOP_POPULAR_KEYWORDS,
   headlineHasKeyword,
   keywordCoverage,
   keywordsHurtAdStrength,
+  popularMissing,
   replaceableHeadlines,
 } from './google-ads-headline-keywords';
+import { KeywordPopularity, rankKeywordsByPopularity } from './google-ads-keyword-popularity';
 
 /**
  * Executes optimizations on AGENT-MANAGED campaigns only (the ones with a
@@ -102,6 +105,8 @@ export interface AdsClient {
   readonly writesAllowed: boolean;
   search: GoogleAdsApiClient['search'];
   mutate: GoogleAdsApiClient['mutate'];
+  /** Keyword Planner volumes (optional: absent = no planner access). */
+  keywordHistoricalMetrics?(keywords: string[]): Promise<Record<string, number>>;
 }
 
 /** The agent settings the optimizer reads (platform-wide or per customer). */
@@ -138,6 +143,15 @@ const isDisapproved = (x: { approvalStatus?: string; primaryStatusReasons?: stri
  *  advertiser verification, with when; re-checked after a day. */
 const UNVERIFIED_ACCOUNTS = new Map<string, number>();
 const UNVERIFIED_RECHECK_MS = 24 * 3_600_000;
+/** Days a keyword-headline change is left for Google to rate before the
+ *  next one on the same campaign. */
+const KEYWORD_RECHECK_DAYS = 3;
+/** How the activity feed names the popularity signal. */
+const POPULARITY_SOURCE: Record<KeywordPopularity['source'], string> = {
+  planner: 'Cele mai căutate (Google Keyword Planner)',
+  impressions: 'Cele mai căutate (căutări reale din ultimele 30 de zile)',
+  none: 'Fără date de căutare încă (campanie nouă), în ordinea grupului de anunțuri',
+};
 /** Keyword headlines added/rewritten per ad per run. */
 const MAX_KEYWORD_HEADLINES = 4;
 const STRENGTH_RANK: Record<string, number> = { POOR: 1, AVERAGE: 2, GOOD: 3, EXCELLENT: 4 };
@@ -1555,15 +1569,46 @@ export class GoogleAdsOptimizerService {
     if (c.channelType !== 'SEARCH') return outcome;
     const rsa = this.pickRsa(c);
     if (!rsa || !rsa.keywords?.length) return outcome;
+    const meta = { googleCampaignId: c.googleCampaignId, campaignName: c.name };
+
+    // Which keywords are popular: real Google searches (see the module).
+    const pop = await rankKeywordsByPopularity(this.client, c.googleCampaignId, rsa.keywords);
     const cov = keywordCoverage(
       rsa.headlines.map((h) => h.text),
-      rsa.keywords,
+      pop.ranked.map((r) => r.keyword),
       rsa.actionItems ?? [],
+    );
+    const topMissing = popularMissing(cov);
+    const strengthText =
+      rsa.adStrength && !STRENGTH_PENDING.has(rsa.adStrength)
+        ? rsa.adStrength
+        : 'încă neevaluat de Google';
+    const volume = (k: string) => {
+      const r = pop.ranked.find((x) => x.keyword === k);
+      const n = r?.searches ?? r?.impressions;
+      return n ? ` (${n})` : '';
+    };
+    const top = cov.keywords.slice(0, TOP_POPULAR_KEYWORDS);
+    await activity.record(
+      { ...meta, step: 'keywords', message: 'Cuvinte cheie populare în titluri' },
+      {
+        result:
+          `${POPULARITY_SOURCE[pop.source]}: ${top.map((k) => `„${k}”${volume(k)}`).join(', ')}. ` +
+          (topMissing.length
+            ? `Lipsesc din titluri: ${topMissing.map((k) => `„${k}”`).join(', ')}.`
+            : 'Toate apar deja în titluri.') +
+          ` Ad Strength: ${strengthText}.`,
+        details: {
+          source: pop.source,
+          ranked: pop.ranked,
+          covered: cov.covered,
+          missing: cov.missing,
+        } as unknown as Prisma.InputJsonValue,
+      },
     );
     if (!keywordsHurtAdStrength(rsa.adStrength, cov)) return outcome;
 
-    const meta = { googleCampaignId: c.googleCampaignId, campaignName: c.name };
-    const message = `Cuvinte cheie lipsă din titluri (${cov.missing.length} din ${cov.keywords.length}, Ad Strength ${rsa.adStrength})`;
+    const message = `Cuvinte cheie populare lipsă din titluri (${cov.missing.length} din ${cov.keywords.length}, Ad Strength ${strengthText})`;
     const skip = (result: string) =>
       activity.record(
         { ...meta, step: 'optimize', message },
@@ -1581,9 +1626,9 @@ export class GoogleAdsOptimizerService {
       await skip('Serviciul AI nu este configurat; nu se pot genera titluri noi.');
       return outcome;
     }
-    const blocker = await this.rsaChangeBlocker(c);
+    const blocker = await this.keywordChangeBlocker(c);
     if (blocker) {
-      await skip(`Amânat pentru textul reclamei: ${blocker}.`);
+      await skip(`Amânat: ${blocker}.`);
       return outcome;
     }
 
@@ -1596,7 +1641,11 @@ export class GoogleAdsOptimizerService {
       );
       return outcome;
     }
-    const targets = cov.missing.slice(0, slots + 2);
+    // Most popular first, then the rest of the missing keywords.
+    const targets = [...topMissing, ...cov.missing.filter((k) => !topMissing.includes(k))].slice(
+      0,
+      slots + 2,
+    );
 
     const generated = await activity
       .step(
@@ -1700,8 +1749,9 @@ export class GoogleAdsOptimizerService {
         adStrengthBefore: rsa.adStrength ?? null,
       },
       reasoning:
-        `Titlurile nu conțin ${cov.missing.length} din ${cov.keywords.length} cuvinte cheie ale grupului (${cov.missing.slice(0, 6).join(', ')}), ` +
-        `iar Google evaluează reclama cu Ad Strength ${rsa.adStrength}` +
+        `Google cere cuvinte cheie populare în titluri. ${POPULARITY_SOURCE[pop.source]}: ${top.join(', ')}. ` +
+        `Titlurile nu conțin ${cov.missing.length} din ${cov.keywords.length} cuvinte cheie ale grupului (${targets.slice(0, 6).join(', ')}), ` +
+        `iar Ad Strength este ${strengthText}` +
         (cov.googleFlagged ? ` și indică explicit: ${(rsa.actionItems ?? []).join(' | ')}` : '') +
         '. ' +
         (room
@@ -1737,6 +1787,36 @@ export class GoogleAdsOptimizerService {
     });
     if (ok) outcome.applied++;
     return outcome;
+  }
+
+  /**
+   * Keyword headlines wait only for what matters to them: open creative
+   * proposals (they would collide on the same ad) and a keyword-headline
+   * change in the last few days (Google is still rating it; the read-back
+   * may restore it). Other ad-text changes, like filled gaps, don't block:
+   * popular keywords in headlines are a direct Ad Strength factor.
+   */
+  private async keywordChangeBlocker(c: CampaignData): Promise<string | null> {
+    const pending = await this.actions.count({
+      where: {
+        googleCampaignId: c.googleCampaignId,
+        action: { in: RSA_TEXT_ACTIONS },
+        status: 'pending_approval',
+      },
+    });
+    if (pending) return `reclama are ${pending} propuneri creative în așteptarea aprobării`;
+    const recent = await this.actions.findFirst({
+      where: {
+        googleCampaignId: c.googleCampaignId,
+        action: 'creative.keyword_headlines',
+        status: 'applied',
+        createdAt: { gte: new Date(Date.now() - KEYWORD_RECHECK_DAYS * 86_400_000) },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (recent)
+      return `titlurile cu cuvinte cheie au fost schimbate pe ${recent.createdAt.toLocaleDateString('ro-RO')}; Google le evaluează înainte de o nouă schimbare`;
+    return null;
   }
 
   /**
