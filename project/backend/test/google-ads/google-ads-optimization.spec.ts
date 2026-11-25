@@ -524,6 +524,14 @@ describe('GoogleAdsOptimizerService.fillGaps', () => {
     });
     expect(ev.issues.find((i) => i.code === 'snippets_missing')?.autoFixable).toBe(true);
     expect(ev.issues.find((i) => i.code === 'brand_missing')?.autoFixable).toBe(true);
+    for (const businessNameBlocker of ['unverified', 'unset'] as const) {
+      const blocked = evaluateCampaign(c, {
+        managed: true,
+        urlChecks: new Map(),
+        businessNameBlocker,
+      });
+      expect(blocked.issues.find((i) => i.code === 'brand_missing')?.autoFixable).toBe(false);
+    }
     // A recent ad-text change: headlines/descriptions wait, extensions don't.
     prisma.googleAdsAgentAction.findFirst.mockResolvedValue({ createdAt: new Date() });
     const r = await svc.fillGaps(c, ev, svc.platformTarget(mapping as never), activity);

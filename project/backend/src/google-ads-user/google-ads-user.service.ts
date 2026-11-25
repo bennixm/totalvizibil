@@ -12,7 +12,7 @@ import { PlatformSettingsService } from '../platform-settings/platform-settings.
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { DEFAULT_AGENT_SETTINGS, readSettings, SCHEDULE_DAYS } from './agent-settings';
-import { readBrief } from './campaign-brief';
+import { readBrief, readinessNow, Readiness } from './campaign-brief';
 import { GoogleAdsOAuthService } from './google-ads-oauth.service';
 import { GoogleAdsConnectionRevokedError, GoogleAdsUserClient } from './google-ads-user-client';
 import { GoogleAdsUserAgentService } from './google-ads-user-agent.service';
@@ -451,10 +451,9 @@ export class GoogleAdsUserService {
             name: picked.name,
             channelType: picked.channelType,
             currencyCode: picked.currencyCode,
-            settings: {
-              ...DEFAULT_AGENT_SETTINGS,
-              businessName: (customerName ?? '').slice(0, 25),
-            } as unknown as Prisma.InputJsonValue,
+            // No business name: the Google account label is often not it, and
+            // the agent would publish it next to the ads. The owner writes it.
+            settings: { ...DEFAULT_AGENT_SETTINGS } as unknown as Prisma.InputJsonValue,
           },
           update: { connectionId: conn.id, status: 'active', loginCustomerId },
         });
@@ -744,6 +743,10 @@ export class GoogleAdsUserService {
       snapshot: row.snapshot,
       settings: readSettings(row.settings),
       brief: readBrief(row.brief),
+      readiness: readinessNow(
+        (row.snapshot as { readiness?: Readiness } | null)?.readiness,
+        readBrief(row.brief),
+      ),
       pending,
       cycles,
       runningCycle: running,

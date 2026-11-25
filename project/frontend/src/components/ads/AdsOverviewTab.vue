@@ -50,6 +50,14 @@ const sortedIssues = computed(() => {
   const order = { critical: 0, high: 1, medium: 2, low: 3 } as const
   return [...(ev.value?.issues ?? [])].sort((a, b) => order[a.priority] - order[b.priority])
 })
+/** What the agent can do is kept apart from what only the owner can. */
+const agentIssues = computed(() => sortedIssues.value.filter((i) => i.autoFixable))
+const ownIssues = computed(() => sortedIssues.value.filter((i) => !i.autoFixable))
+/** Same rule as the agent: it only acts below half, or when Google asks. */
+const keywordsOk = computed(() => {
+  const k = assets.value?.headlineKeywords
+  return !!k && !k.googleFlagged && k.covered.length >= Math.ceil((k.covered.length + k.missing.length) / 2)
+})
 const components = computed(() => (ev.value?.components ?? []).filter((c) => c.status !== 'na'))
 function change(v: number | null | undefined): string {
   if (v == null) return ''
@@ -105,11 +113,20 @@ function change(v: number | null | undefined): string {
       <section class="ov__block">
         <div class="ov__hrow">
           <h3 class="ov__h"><v-icon icon="mdi-lightbulb-on-outline" size="18" /> {{ t('ads.dash.toImprove') }}</h3>
-          <v-btn size="small" variant="text" append-icon="mdi-arrow-right" @click="emit('goto', 'agent')">
+          <v-btn v-if="agentIssues.length" size="small" variant="text" append-icon="mdi-arrow-right" @click="emit('goto', 'home')">
             {{ t('ads.dash.letAgent') }}
           </v-btn>
         </div>
-        <GoogleAdsIssueList v-if="sortedIssues.length" :issues="sortedIssues" />
+        <template v-if="sortedIssues.length">
+          <template v-if="agentIssues.length">
+            <p class="ov__own">{{ t('ads.dash.agentCan') }}</p>
+            <GoogleAdsIssueList :issues="agentIssues" />
+          </template>
+          <template v-if="ownIssues.length">
+            <p class="ov__own">{{ t('ads.dash.needsYou') }}</p>
+            <GoogleAdsIssueList :issues="ownIssues" />
+          </template>
+        </template>
         <p v-else class="ov__ok"><v-icon icon="mdi-check-decagram" size="18" /> {{ t('ads.dash.noIssues') }}</p>
       </section>
 
@@ -129,7 +146,7 @@ function change(v: number | null | undefined): string {
             {{ t('ads.dash.keywords', { n: assets.headlineKeywords.covered.length, total: assets.headlineKeywords.covered.length + assets.headlineKeywords.missing.length }) }}
           </p>
           <p v-if="assets.headlineKeywords.missing.length" class="kw__missing">
-            {{ t('ads.dash.keywordsMissing') }}
+            {{ t(keywordsOk ? 'ads.dash.keywordsOptional' : 'ads.dash.keywordsMissing') }}
             <span v-for="k in assets.headlineKeywords.missing.slice(0, 8)" :key="k" class="kw__tag">{{ k }}</span>
           </p>
         </div>
@@ -260,6 +277,11 @@ function change(v: number | null | undefined): string {
 }
 .ov__h .v-icon {
   color: rgb(var(--v-theme-primary));
+}
+.ov__own {
+  margin: 0.75rem 0 0.35rem;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .ov__ok {
   display: flex;

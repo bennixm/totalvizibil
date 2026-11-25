@@ -170,6 +170,7 @@ describe('cycle settlement (billing)', () => {
       settings as never,
       {} as never,
       { get: () => 'claude-sonnet-5' } as never,
+      { notify: jest.fn() } as never,
     );
     return { svc, updates, captured };
   }

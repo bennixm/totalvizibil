@@ -23,9 +23,6 @@
     "discover": "Discover",
     "account": "Account",
     "openMenu": "Open menu",
-    "modeSwitch": "Switch area",
-    "modeUser": "Dashboard",
-    "modeAdmin": "Admin",
     "dashboard": "Dashboard",
     "wallet": "Wallet",
     "payments": "Payments",
@@ -53,12 +50,24 @@
     "manage": "Navigate",
     "bizDeleting": "deleting",
     "invoices": "Invoices",
-    "adsGroup": "Google Ads campaign",
-    "adsCampaign": "Google Ads campaign",
-    "adsCampaigns": "Google Ads campaigns",
-    "addAdsCampaign": "Optimize a campaign",
+    "adsCampaigns": "Your Google Ads campaigns",
+    "addAdsCampaign": "Add a campaign",
     "pickCampaign": "Choose",
-    "adsConnections": "Google accounts"
+    "adsConnections": "Google accounts",
+    "selectedBusiness": "Selected business",
+    "adsSelected": "Selected campaign",
+    "adsAll": "All campaigns",
+    "adsPick": "Pick a campaign",
+    "workspace": {
+      "eyebrow": "You are in",
+      "pick": "Where do you want to go?",
+      "site": "Sites and businesses",
+      "siteHint": "Your site, requests and promotion on Totalvizibil",
+      "ads": "Google Ads",
+      "adsHint": "Your Google campaigns, helped by the agent",
+      "admin": "Administration",
+      "adminHint": "Team only"
+    }
   },
   "notifications": {
     "bell": "Notifications",
@@ -3683,7 +3692,7 @@
       },
       "adsTabs": {
         "title": "Campaign dashboard",
-        "text": "Overview, agent, proposals, settings and costs, all for your Google Ads campaign."
+        "text": "Home, chat, approvals, history and settings, all for your campaign."
       },
       "adsQuote": {
         "title": "See the estimate",
@@ -3704,6 +3713,10 @@
       "adsSettings": {
         "title": "Agent settings",
         "text": "Choose what the agent may do on its own and whether it runs automatically."
+      },
+      "adsNext": {
+        "title": "Next step",
+        "text": "Here you always see one thing: the next step. Press the button and follow along."
       }
     }
   },
@@ -3811,6 +3824,12 @@
         "google_error": "We could not read the campaign from Google Ads. Try again.",
         "interrupted": "The message was interrupted. Send it again.",
         "generic": "Something went wrong. Try again."
+      },
+      "starter": {
+        "explain": "Explain simply how my campaign is doing",
+        "calls": "I want more calls from customers",
+        "texts": "Make the ad texts better",
+        "keywords": "What do my customers search for that the campaign is missing?"
       }
     },
     "back": "Back",
@@ -3903,33 +3922,36 @@
       "doneN": "{n} campaigns were added to your panel."
     },
     "tab": {
-      "chat": "Chat",
-      "overview": "Overview",
-      "agent": "Agent",
-      "proposals": "Proposals",
-      "settings": "Agent settings",
-      "costs": "Costs"
+      "home": "Home",
+      "chat": "Talk to the agent",
+      "proposals": "To approve",
+      "history": "History and costs",
+      "settings": "Settings",
+      "overview": "Technical details"
     },
     "dash": {
-      "sync": "Sync",
+      "sync": "Refresh data",
       "optimize": "Optimize",
-      "synced": "Synced {when}",
-      "nextCycle": "Next scheduled cycle: {when}",
+      "synced": "Data updated {when}",
+      "nextCycle": "The agent starts by itself: {when}",
       "disconnected": "Access to your Google Ads account was removed or has expired. Reconnect it so the agent can work.",
       "reconnect": "Reconnect",
-      "welcome": "Done, your campaign is connected. Everything so far was free. Whenever you are ready, start the first optimization cycle in the Agent tab (from {min} credits).",
+      "welcome": "Done, your campaign is connected and you have paid nothing so far. Follow the step below.",
       "notFound": "Campaign not found.",
       "loadError": "We could not load the campaign.",
       "syncRecent": "The data was synced a few minutes ago.",
       "syncError": "The sync did not work.",
       "reconnectNeeded": "Please reconnect your Google Ads account.",
       "reconnected": "Your Google Ads account is reconnected.",
-      "noSnapshot": "No synced data yet. Press Sync.",
-      "score": "Optimization score",
+      "noSnapshot": "No data yet. Press Refresh data.",
+      "score": "How complete the campaign is",
       "scoreHint": "How close the campaign is to Google's requirements, from real data.",
-      "adStrength": "Ad Strength",
+      "adStrength": "Ad quality (Ad Strength)",
       "period": "Last 30 days, compared with the 30 days before.",
       "toImprove": "What can be improved",
+      "agentCan": "The agent can fix:",
+      "needsYou": "This needs you (tap for the steps):",
+      "keywordsOptional": "That is enough. Optionally, ask the agent in the chat to add:",
       "letAgent": "Let the agent do it",
       "noIssues": "No issues found.",
       "elements": "Ad elements",
@@ -3942,8 +3964,8 @@
       "impressions": "impressions",
       "clicks": "Clicks",
       "cost": "Cost",
-      "ctr": "CTR",
-      "conversions": "Conversions",
+      "ctr": "Share of people who click (CTR)",
+      "conversions": "Results (conversions)",
       "perDay": "per day",
       "inline": {
         "clicks": "clicks",
@@ -3989,54 +4011,59 @@
       "disconnected": "Disconnected"
     },
     "agent": {
-      "needsInfo": "The agent does not have enough information to optimize well",
-      "couldKnowMore": "The result would be better if the agent knew",
+      "needsInfo": "The agent needs a few answers from you",
+      "couldKnowMore": "The agent would do better if it knew:",
       "answerInChat": "Answer in chat",
       "needsInfoConfirm": "The agent is missing important information, so the texts may be too generic.",
       "runTitle": "Optimization cycle",
       "runLead": "The agent analyzes the campaign, applies the improvements you allow and prepares its proposals. It follows the same rules as our in-house agent.",
       "firstFree": "Everything so far was free. The first cycle starts from {credits} credits.",
-      "quoteCta": "See what the agent will do and what it costs",
-      "quoteFree": "The analysis and the estimate are free. Nothing is charged until you confirm.",
-      "planTitle": "What the agent will do in this cycle",
-      "price": "Estimated price",
+      "quoteCta": "See the plan and price",
+      "quoteFree": "You pay nothing now. See the price, then decide.",
+      "nothingToDo": "All good: the agent has nothing to change right now, so you pay nothing. If you want something else, tell it in the chat.",
+      "openChat": "Message the agent",
+      "planTitle": "The agent will do this:",
+      "price": "Maximum cost",
       "level": "Complexity",
       "howPriced": "How the price was calculated",
       "elements": "{n} elements analyzed",
       "points": "Total before the multiplier",
-      "priceRule": "The price depends on the amount and complexity of the work, minimum {min} credits per cycle.",
+      "priceRule": "The price depends on how much there is to do, at least {min} credits.",
       "balance": "Wallet balance: {credits} credits",
-      "startCta": "Start optimizing ({credits} credits)",
+      "startCta": "Start the agent ({credits} credits)",
       "topUp": "Add credits",
-      "settleNote": "You only pay for the work done: if the agent does less than estimated, the difference goes back to your wallet.",
-      "confirmTitle": "Start the optimization cycle?",
-      "confirmText": "{credits} credits are reserved from your wallet. In the end you only pay for what the agent did, the rest goes back to your wallet.",
-      "started": "The agent has started. Follow the activity below.",
+      "settleNote": "If it does less, the difference returns to your wallet. If it changes nothing, you get everything back.",
+      "confirmTitle": "Start the agent?",
+      "confirmText": "We reserve at most {credits} credits. You only pay for what the agent does, and if it changes nothing you get it all back.",
+      "started": "The agent has started. We will let you know when it is done.",
       "running": "The agent is working (started {when}). You can close the page, it carries on by itself.",
       "paused": "The agent is paused. You can resume it in Agent settings.",
       "disconnected": "Your Google Ads account needs to be reconnected.",
       "activity": "Live activity",
-      "cycles": "Previous cycles",
+      "cycles": "What the agent worked on",
       "noCycles": "No cycles yet.",
       "err": {
         "needs_information": "The agent needs more information.",
         "insufficient_credits": "You do not have enough credits in your wallet.",
         "cycle_already_running": "A cycle is already running for this campaign.",
+        "nothing_to_do": "The agent has nothing to change right now. You were not charged.",
         "quote_changed": "The estimate changed since you opened it. Check the new price.",
         "campaign_paused": "The agent is paused.",
         "google_ads_reconnect_required": "Please reconnect your Google Ads account.",
         "wallet_blocked": "Your wallet is blocked. Please contact support.",
         "generic": "Something went wrong. Please try again."
-      }
+      },
+      "steps": "See step by step what the agent checked",
+      "costs": "See all costs and how they are calculated"
     },
     "task": {
-      "analysis": "Analysis and score",
-      "rsa_text": "New headlines and descriptions",
-      "keyword_headlines": "Keywords in headlines",
-      "extensions": "Extensions",
-      "images": "Images",
-      "text_rewrite": "Rewrite proposals",
-      "budget_proposal": "Budget proposals"
+      "analysis": "Checks the whole campaign",
+      "rsa_text": "Writes new headlines and descriptions for the ad",
+      "keyword_headlines": "Puts the words customers search for into headlines",
+      "extensions": "Adds links and information under the ad",
+      "images": "Adds images",
+      "text_rewrite": "Suggests better texts",
+      "budget_proposal": "Suggests a better budget"
     },
     "cycle": {
       "running": "Working",
@@ -4044,14 +4071,15 @@
       "failed": "Stopped",
       "scheduled": "scheduled",
       "inProgress": "Working…",
-      "failedSum": "The cycle stopped; you only paid for what was done.",
+      "failedSum": "The agent stopped before finishing; you only paid for what it changed.",
       "summary": "{applied} changes applied, {proposed} proposals",
       "score": "score {from} → {to}",
-      "refunded": "{credits} credits returned"
+      "refunded": "{credits} credits returned",
+      "noChange": "There was nothing to change"
     },
     "prop": {
-      "pendingTitle": "Waiting for your decision",
-      "none": "No proposals waiting.",
+      "pendingTitle": "Waiting for your approval",
+      "none": "Nothing to approve right now.",
       "needsYou": "Needs your approval",
       "current": "Now",
       "proposed": "Proposed",
@@ -4061,7 +4089,7 @@
       "approve": "Approve and apply",
       "reject": "Reject",
       "confirmTitle": "Apply this change?",
-      "confirmText": "The agent applies exactly the text shown and then checks it in Google Ads.",
+      "confirmText": "The agent applies exactly what you see, then checks it in Google Ads.",
       "confirmBudget": "The daily budget changes from {from} to {to}. The agent then checks in Google Ads that it was applied.",
       "applied": "Applied and verified in Google Ads.",
       "rejected": "The proposal was rejected.",
@@ -4112,14 +4140,14 @@
       "chatLimit": "Daily chat limit (credits)",
       "chatLimitHint": "0 means no limit.",
       "agentTitle": "What the agent does",
-      "autoApply": "Fill in missing elements automatically",
-      "autoApplyHint": "Headlines, descriptions, sitelinks, callouts, snippet and business name, up to the level Google recommends.",
+      "autoApply": "Fills in what the ad is missing by itself",
+      "autoApplyHint": "Headlines, descriptions, links and other information, up to the level Google recommends.",
       "keywordHeadlines": "Put keywords into headlines",
-      "keywordHeadlinesHint": "When missing keywords lower Ad Strength. If Google rates the new version lower, it is restored automatically.",
+      "keywordHeadlinesHint": "The words customers search for appear in the headlines. If Google rates the new version lower, the old one returns.",
       "images": "Add images",
       "imagesHint": "Real photos from Pexels (free license), cropped to Google's sizes.",
-      "textRewriteProposals": "Propose text rewrites",
-      "textRewriteProposalsHint": "For weak texts; you approve them.",
+      "textRewriteProposals": "Suggest better texts",
+      "textRewriteProposalsHint": "You see and approve them first.",
       "budgetProposals": "Propose budget changes",
       "budgetProposalsHint": "From Google's recommendations for the campaign; you approve them.",
       "imageQuery": "What images to look for",
@@ -4130,8 +4158,8 @@
       "businessNameHint": "Shown next to your ads (max 25 characters).",
       "businessDescription": "What the business does",
       "businessDescriptionHint": "Context for the texts the agent writes.",
-      "scheduleTitle": "Schedule",
-      "scheduleLabel": "Automatic cycles",
+      "scheduleTitle": "When the agent works",
+      "scheduleLabel": "Start",
       "schedule": {
         "manual": "Only when I start them",
         "weekly": "Weekly",
@@ -4159,13 +4187,14 @@
       "disconnectHint": "Removes the platform's access to the Google account {email}. The campaign stays in your dashboard and you can reconnect at any time.",
       "disconnectTitle": "Disconnect the Google account?",
       "disconnectText": "The agent has no access to Google Ads until you reconnect. Nothing changes in Google Ads and your history is kept.",
-      "disconnected": "The Google account was disconnected."
+      "disconnected": "The Google account was disconnected.",
+      "advanced": "Advanced settings (optional)"
     },
     "cost": {
       "chat": "The chat with the agent is charged separately, per message, by how much it worked.",
       "howTitle": "How the cost is calculated",
       "free": "Connecting, choosing the campaign and the dashboard are free.",
-      "min": "An optimization cycle costs at least {min} credits.",
+      "min": "The agent costs at least {min} credits when it changes something. If it changes nothing, you get all credits back.",
       "complexity": "The price grows with the amount and complexity of the work: how many elements the agent analyzes and how many changes it makes.",
       "settle": "In the end you only pay for the work done; the difference from the estimate goes back to your wallet.",
       "levelFrom": "from {points} points",
@@ -4198,6 +4227,99 @@
         "error": "Error",
         "pending": "Pending"
       }
+    },
+    "home": {
+      "now": "What to do now",
+      "details": "See the technical details",
+      "period": "last 30 days",
+      "resultsTitle": "How the campaign is doing",
+      "points": "{n} out of 100 points",
+      "noViews": "The ad has not been shown yet in this period. This is normal for a new campaign or a test account.",
+      "lastTitle": "Last time ({when}):",
+      "lastDone": "the agent made {applied} changes and prepared {proposed} for your approval.",
+      "lastNothing": "the agent found nothing to change.",
+      "lastReturned": "the agent could not change anything, so we returned your credits.",
+      "paid": "You paid {credits} credits.",
+      "yoursTitle": "Only you can do this",
+      "yoursText": "It is not urgent and does not block the campaign. Tap each one to see the steps.",
+      "howTitle": "How it works",
+      "how1": "The agent shows you for free what it can improve and the price.",
+      "how2": "You decide whether it starts. The budget never changes without your approval.",
+      "how3": "At the end you see exactly what changed. If nothing changes, you get your money back.",
+      "health": {
+        "good": "The campaign looks good",
+        "fair": "The campaign could be better",
+        "weak": "The campaign needs help"
+      },
+      "result": {
+        "seen": "Saw your ad",
+        "clicked": "Clicked",
+        "spent": "Spent on Google",
+        "actions": "Contacted you or bought"
+      },
+      "step": {
+        "reconnect": {
+          "title": "Connect your Google account again",
+          "text": "Access to your Google Ads account expired or was withdrawn. Connect it so the agent can work.",
+          "cta": "Connect account"
+        },
+        "running": {
+          "title": "The agent is working",
+          "text": "You can close the page, it continues by itself. We will let you know when it is done.",
+          "cta": "See what it is doing"
+        },
+        "approve": {
+          "title": "You have {n} changes to approve",
+          "text": "The agent prepared changes. See before and after, then choose whether to apply them. Approving is free.",
+          "cta": "Review and approve"
+        },
+        "paused": {
+          "title": "The agent is paused",
+          "text": "While paused it does nothing. Your Google campaign keeps running.",
+          "cta": "Resume in Settings"
+        },
+        "answer": {
+          "title": "Answer a few questions",
+          "text": "The agent does not know enough about your business yet. Tell it in the chat what you sell and where, in your own words.",
+          "cta": "Answer in the chat"
+        },
+        "sync": {
+          "title": "Read the data from Google",
+          "text": "We do not have your campaign data yet.",
+          "cta": "Refresh data"
+        },
+        "optimize": {
+          "title": "The agent can improve your campaign",
+          "text": "It found things it can fix by itself. See for free what it would do and the price."
+        },
+        "done": {
+          "title": "Everything is fine",
+          "text": "The agent has nothing to fix right now. If you want to change something, tell it in your own words.",
+          "cta": "Talk to the agent"
+        },
+        "yours": {
+          "title": "Something needs you in Google Ads",
+          "text": "A problem holds the campaign back and the agent cannot solve it for you. We show you the steps.",
+          "cta": "Show me the steps"
+        }
+      },
+      "yoursUrgent": "Some of these hold the campaign back. Tap each one to see the steps."
+    },
+    "list": {
+      "title": "Your Google Ads campaigns",
+      "add": "Add a campaign",
+      "open": "Open",
+      "account": "Account: {name}",
+      "reconnect": "Connect the account again",
+      "approve": "{n} to approve",
+      "paused": "Paused",
+      "new": "New",
+      "emptyTitle": "Let the agent look after your Google campaigns",
+      "emptyText": "Already have a Google Ads campaign? Connect it and the agent tells you in plain words what can be improved.",
+      "step1": "Connect your Google account",
+      "step2": "Pick the campaign",
+      "step3": "The agent shows you what it can do",
+      "emptyCta": "Connect Google account"
     }
   },
   "adminAdsOpt": {

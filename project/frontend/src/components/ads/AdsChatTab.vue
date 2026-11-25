@@ -187,6 +187,8 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'neutral' | 'primar
   failed: 'error',
   approved: 'primary',
 }
+/** Ready-made requests: a tap fills the box, nothing is sent or billed. */
+const STARTERS = ['explain', 'calls', 'texts', 'keywords'] as const
 const LEVEL_TONE = { ready: 'success', partial: 'warning', insufficient: 'error' } as const
 
 watch(id, () => {
@@ -283,6 +285,11 @@ onBeforeUnmount(() => {
         <v-icon icon="mdi-wallet-outline" size="18" /> {{ t('ads.chat.err.insufficient_credits') }}
         <v-btn size="small" color="primary" class="ml-auto" :to="{ name: 'wallet', query: { topup: '1' } }">{{ t('ads.agent.topUp') }}</v-btn>
       </p>
+      <div v-if="!conv.turns.length && !draft" class="ch__starters">
+        <button v-for="k in STARTERS" :key="k" type="button" class="msg__opt" @click="draft = t(`ads.chat.starter.${k}`)">
+          {{ t(`ads.chat.starter.${k}`) }}
+        </button>
+      </div>
       <form class="ch__form" @submit.prevent="send">
         <v-textarea
           v-model="draft"
@@ -495,6 +502,11 @@ onBeforeUnmount(() => {
 .chg__err {
   overflow-wrap: anywhere;
   color: rgb(var(--v-theme-error));
+}
+.ch__starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 .ch__form {
   display: flex;

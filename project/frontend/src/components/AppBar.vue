@@ -16,6 +16,9 @@ import { useSignOut } from '@/composables/useSignOut'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
 import { useNotificationsStore } from '@/stores/notifications'
+import { WORKSPACES } from '@/lib/workspaces'
+import { useGoogleAdsUserStore } from '@/stores/googleAdsUser'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { useWalletStore } from '@/stores/wallet'
 
 const props = defineProps<{ showMenuToggle?: boolean }>()
@@ -28,6 +31,9 @@ const auth = useAuthStore()
 const companies = useCompaniesStore()
 const notifications = useNotificationsStore()
 const wallet = useWalletStore()
+const workspace = useWorkspaceStore()
+const ads = useGoogleAdsUserStore()
+const inAds = computed(() => workspace.id === 'ads')
 const { overview, currentId } = storeToRefs(companies)
 const { summary: walletSummary } = storeToRefs(wallet)
 const { signOut: doSignOut } = useSignOut()
@@ -40,7 +46,7 @@ const menuOpen = ref(false)
 const navLinks = computed(() => {
   const items = [{ to: { name: 'feed' }, key: 'nav.discover', icon: 'mdi-compass-outline' }]
   if (auth.isAuthenticated) {
-    items.push({ to: { name: 'dashboard' }, key: 'nav.dashboard', icon: 'mdi-view-dashboard-outline' })
+    items.push({ to: workspace.current.home, key: 'nav.dashboard', icon: 'mdi-view-dashboard-outline' })
   }
   return items
 })
@@ -231,8 +237,14 @@ watch(() => auth.isAuthenticated, syncWallet)
 
             <!-- Active campaign — which business Requests/Appointments/Campaign/etc.
                  below currently act on, so switching it is never a guess. -->
-            <div v-if="currentCompany" class="menu__active">
-              <span class="menu__activeLabel">{{ t('nav.activeCampaign') }}</span>
+            <div v-if="inAds" class="menu__active">
+              <span class="menu__activeLabel">{{ t('nav.workspace.ads') }}</span>
+              <div class="menu__activeRow">
+                <span class="menu__activeName">{{ ads.selected?.name ?? t('nav.adsAll') }}</span>
+              </div>
+            </div>
+            <div v-else-if="currentCompany" class="menu__active">
+              <span class="menu__activeLabel">{{ t('nav.selectedBusiness') }}</span>
               <div class="menu__activeRow">
                 <span class="menu__bizDot" :class="`t-${STATUS_TONE[currentCompany.status] || 'idle'}`" />
                 <span class="menu__activeName">{{ currentCompany.displayName }}</span>
@@ -249,8 +261,8 @@ watch(() => auth.isAuthenticated, syncWallet)
             </div>
 
             <div class="menu__scroll">
-              <!-- Businesses -->
-              <section class="menu__sec">
+              <!-- Businesses (the Google Ads area has its own list) -->
+              <section v-if="!inAds" class="menu__sec">
                 <p class="menu__label">{{ t('nav.myBusinesses') }}</p>
                 <button
                   v-for="c in overview"
@@ -282,9 +294,9 @@ watch(() => auth.isAuthenticated, syncWallet)
             </div>
 
             <footer class="menu__foot">
-              <button type="button" class="menu__row" @click="go({ name: 'dashboard' })">
-                <span class="menu__ic"><v-icon icon="mdi-view-dashboard-outline" size="17" /></span>
-                <span>{{ t('nav.dashboard') }}</span>
+              <button v-for="w in WORKSPACES" :key="w.id" type="button" class="menu__row" @click="go(w.home)">
+                <span class="menu__ic"><v-icon :icon="w.icon" size="17" /></span>
+                <span>{{ t(w.label) }}</span>
               </button>
               <button type="button" class="menu__row" @click="go({ name: 'account' })">
                 <span class="menu__ic"><v-icon icon="mdi-account-cog-outline" size="17" /></span>

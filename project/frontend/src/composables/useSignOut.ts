@@ -5,6 +5,7 @@ import { useCompaniesStore } from '@/stores/companies'
 import { useGoogleAdsUserStore } from '@/stores/googleAdsUser'
 import { useMoneyStore } from '@/stores/money'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useWorkspaceStore } from '@/stores/workspace'
 
 /**
  * Signs out and clears every per-session store — the one place this sequence
@@ -17,6 +18,7 @@ export function useSignOut() {
   const money = useMoneyStore()
   const notifications = useNotificationsStore()
   const ads = useGoogleAdsUserStore()
+  const workspace = useWorkspaceStore()
 
   function signOut(): void {
     auth.logout()
@@ -24,6 +26,7 @@ export function useSignOut() {
     money.reset()
     notifications.reset()
     ads.reset()
+    workspace.reset()
     void router.push({ name: 'feed' })
   }
 

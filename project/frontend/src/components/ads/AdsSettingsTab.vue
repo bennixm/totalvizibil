@@ -34,7 +34,8 @@ const dirty = computed(() =>
 )
 const id = computed(() => props.detail.campaign.id)
 
-const SWITCHES = ['autoApply', 'keywordHeadlines', 'images', 'textRewriteProposals', 'budgetProposals'] as const
+const SWITCHES = ['autoApply', 'images', 'textRewriteProposals', 'budgetProposals'] as const
+const ADVANCED_SWITCHES = ['keywordHeadlines'] as const
 const SCHEDULES: Schedule[] = ['manual', 'weekly', 'biweekly', 'monthly']
 const scheduleItems = computed(() => SCHEDULES.map((v) => ({ value: v, title: t(`ads.set.schedule.${v}`) })))
 
@@ -89,6 +90,24 @@ function remove(): void {
 
 <template>
   <form class="se" @submit.prevent="save">
+    <section class="se__group">
+      <h3 class="se__h"><v-icon icon="mdi-storefront-outline" size="18" /> {{ t('ads.set.businessTitle') }}</h3>
+      <v-text-field v-model="form.businessName" :label="t('ads.set.businessName')" :hint="t('ads.set.businessNameHint')" persistent-hint maxlength="25" counter />
+      <v-textarea
+        v-model="form.businessDescription"
+        :label="t('ads.set.businessDescription')"
+        :hint="t('ads.set.businessDescriptionHint')"
+        persistent-hint
+        variant="outlined"
+        rounded="lg"
+        density="comfortable"
+        rows="2"
+        auto-grow
+        maxlength="300"
+        counter
+      />
+    </section>
+
     <section class="se__group" data-guide="ads-settings">
       <h3 class="se__h"><v-icon icon="mdi-robot-outline" size="18" /> {{ t('ads.set.agentTitle') }}</h3>
       <div v-for="k in SWITCHES" :key="k" class="se__switch">
@@ -110,36 +129,34 @@ function remove(): void {
     </section>
 
     <section class="se__group">
-      <h3 class="se__h"><v-icon icon="mdi-storefront-outline" size="18" /> {{ t('ads.set.businessTitle') }}</h3>
-      <v-text-field v-model="form.businessName" :label="t('ads.set.businessName')" :hint="t('ads.set.businessNameHint')" persistent-hint maxlength="25" counter />
-      <v-textarea
-        v-model="form.businessDescription"
-        :label="t('ads.set.businessDescription')"
-        :hint="t('ads.set.businessDescriptionHint')"
-        persistent-hint
-        variant="outlined"
-        rounded="lg"
-        density="comfortable"
-        rows="2"
-        auto-grow
-        maxlength="300"
-        counter
-      />
-    </section>
-
-    <section class="se__group">
       <h3 class="se__h"><v-icon icon="mdi-calendar-clock" size="18" /> {{ t('ads.set.scheduleTitle') }}</h3>
       <div class="se__grid">
         <v-select v-model="form.schedule" :items="scheduleItems" :label="t('ads.set.scheduleLabel')" />
         <v-text-field
+          v-if="form.schedule !== 'manual'"
           v-model.number="form.maxCreditsPerCycle"
           type="number"
           :min="detail.pricing.minCredits"
           :label="t('ads.set.maxCredits')"
           :hint="t('ads.set.maxCreditsHint', { min: detail.pricing.minCredits })"
           persistent-hint
-          :disabled="form.schedule === 'manual'"
         />
+      </div>
+      <p v-if="form.schedule !== 'manual'" class="ab-note ab-note--warn">
+        <v-icon icon="mdi-credit-card-clock-outline" size="18" /> {{ t('ads.set.scheduleBilled') }}
+      </p>
+    </section>
+
+    <details class="se__group se__adv">
+      <summary>{{ t('ads.set.advanced') }}</summary>
+      <div v-for="k in ADVANCED_SWITCHES" :key="k" class="se__switch">
+        <div>
+          <p class="se__label">{{ t(`ads.set.${k}`) }}</p>
+          <p class="se__hint">{{ t(`ads.set.${k}Hint`) }}</p>
+        </div>
+        <v-switch v-model="form[k]" color="primary" hide-details inset density="compact" :aria-label="t(`ads.set.${k}`)" />
+      </div>
+      <div class="se__grid">
         <v-text-field
           v-model.number="form.chatDailyLimitCredits"
           type="number"
@@ -159,10 +176,7 @@ function remove(): void {
           persistent-hint
         />
       </div>
-      <p v-if="form.schedule !== 'manual'" class="ab-note ab-note--warn">
-        <v-icon icon="mdi-credit-card-clock-outline" size="18" /> {{ t('ads.set.scheduleBilled') }}
-      </p>
-    </section>
+    </details>
 
     <div class="se__save">
       <v-btn type="submit" color="primary" :loading="saving" :disabled="!dirty" prepend-icon="mdi-content-save-outline">
@@ -218,6 +232,20 @@ function remove(): void {
   border: 1px solid var(--tvz-hairline);
   border-radius: var(--tvz-radius-lg);
   background: rgb(var(--v-theme-surface));
+}
+.se__adv {
+  display: block;
+}
+.se__adv summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--tvz-fs-small);
+}
+.se__adv[open] summary {
+  margin-bottom: 0.85rem;
+}
+.se__adv .se__grid {
+  margin-top: 0.85rem;
 }
 .se__h {
   display: flex;

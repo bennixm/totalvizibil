@@ -2,10 +2,9 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { SidebarNavGroup, SidebarNavItem } from '@/components/AppSidebar.vue'
-import { useRoute } from 'vue-router'
-
 import { useCompaniesStore } from '@/stores/companies'
 import { useGoogleAdsUserStore } from '@/stores/googleAdsUser'
+import { useWorkspaceStore } from '@/stores/workspace'
 
 /**
  * The signed-in user's panel navigation, grouped for the left sidebar.
@@ -21,37 +20,46 @@ export function useUserNavGroups() {
   const { t } = useI18n()
   const companies = useCompaniesStore()
   const ads = useGoogleAdsUserStore()
-  const route = useRoute()
+  const workspace = useWorkspaceStore()
   const current = computed(() => companies.currentOverview)
 
-  // A Google Ads campaign selected in the panel's switcher: its dedicated
-  // dashboard replaces the business pages in the sidebar.
-  const adsCampaignId = computed(() =>
-    route.name === 'ads-dashboard' ? String(route.params.id) : null,
-  )
-  const adsGroup = computed<SidebarNavGroup | null>(() => {
-    const id = adsCampaignId.value
-    if (!id) return null
-    const pending = ads.campaigns.find((c) => c.id === id)?.pendingApprovals ?? 0
-    const item = (tab: string, label: string, icon: string, extra: Partial<SidebarNavItem> = {}) => ({
-      to: { name: 'ads-dashboard', params: { id }, query: { tab } },
-      label,
+  // Google Ads area: its own pages plus, once a campaign is selected, the
+  // pages of that campaign. Nothing of the business panel shows here.
+  const adsGroups = computed<SidebarNavGroup[]>(() => {
+    const groups: SidebarNavGroup[] = [
+      {
+        items: [
+          { to: { name: 'ads-home' }, label: t('nav.adsAll'), icon: 'mdi-view-list-outline' },
+          {
+            to: { name: 'ads-connections' },
+            label: t('nav.adsConnections'),
+            icon: 'mdi-google',
+            activeMatch: ['ads-connection-add'],
+          },
+        ],
+      },
+    ]
+    const c = ads.selected
+    if (!c) return groups
+    const item = (tab: string, icon: string, extra: Partial<SidebarNavItem> = {}): SidebarNavItem => ({
+      to: { name: 'ads-dashboard', params: { id: c.id }, query: { tab } },
+      label: t(`ads.tab.${tab}`),
       icon,
-      tab: { value: tab, default: tab === 'overview' },
+      tab: { value: tab, default: tab === 'home', route: 'ads-dashboard' },
       ...extra,
     })
-    return {
-      label: t('nav.adsGroup'),
+    groups.push({
+      label: t('nav.adsSelected'),
       items: [
-        item('overview', t('ads.tab.overview'), 'mdi-view-dashboard-outline'),
-        item('agent', t('ads.tab.agent'), 'mdi-robot-outline'),
-        item('chat', t('ads.tab.chat'), 'mdi-chat-outline'),
-        item('proposals', t('ads.tab.proposals'), 'mdi-account-check-outline', pending ? { badge: pending } : {}),
-        item('settings', t('ads.tab.settings'), 'mdi-tune-variant'),
-        item('costs', t('ads.tab.costs'), 'mdi-cash-multiple'),
-        { to: { name: 'ads-connections' }, label: t('nav.adsConnections'), icon: 'mdi-google' },
+        item('home', 'mdi-home-outline'),
+        item('chat', 'mdi-chat-outline'),
+        item('proposals', 'mdi-account-check-outline', c.pendingApprovals ? { badge: c.pendingApprovals } : {}),
+        item('history', 'mdi-history'),
+        item('settings', 'mdi-tune-variant'),
+        item('overview', 'mdi-chart-box-outline'),
       ],
-    }
+    })
+    return groups
   })
 
   // No website at all, or an advanced-plan site that was never unlocked —
@@ -141,7 +149,7 @@ export function useUserNavGroups() {
   }))
 
   const groups = computed<SidebarNavGroup[]>(() => [
-    adsGroup.value ?? businessGroup.value,
+    ...(workspace.id === 'ads' ? adsGroups.value : [businessGroup.value]),
     {
       // General account pages — not tied to any one business, so they stay
       // put regardless of which company is active above.

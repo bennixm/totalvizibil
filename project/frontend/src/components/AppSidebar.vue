@@ -19,7 +19,7 @@ export interface SidebarNavItem {
   /** For sections of ONE page selected by `?tab=` (the Google Ads campaign
    *  dashboard): lit only when that tab is the current one (`default` also
    *  matches no `?tab`), since `router-link-active` ignores the query. */
-  tab?: { value: string; default?: boolean }
+  tab?: { value: string; default?: boolean; route?: string }
 }
 export interface SidebarNavGroup {
   label?: string
@@ -36,7 +36,8 @@ defineProps<{
 const { mdAndUp } = useDisplay()
 const route = useRoute()
 function tabActive(item: SidebarNavItem): boolean {
-  if (!item.tab) return false
+  if (!item.tab) return item.activeMatch?.includes(String(route.name)) ?? false
+  if (item.tab.route && route.name !== item.tab.route) return false
   const q = typeof route.query.tab === 'string' ? route.query.tab : null
   return q === item.tab.value || (!q && !!item.tab.default)
 }
@@ -67,7 +68,7 @@ function onNavigate(): void {
         <slot name="top" />
       </div>
 
-      <nav class="sbar__nav">
+      <nav class="sbar__nav" :class="{ 'sbar__nav--dense': groups.reduce((s, g) => s + g.items.length, 0) > 10 }">
         <div v-for="(g, gi) in groups" :key="g.label ?? gi" class="sbar__group">
           <span v-if="g.label" class="sbar__group-label">{{ g.label }}</span>
           <RouterLink
@@ -202,6 +203,16 @@ function onNavigate(): void {
   display: flex;
   flex-direction: column;
   gap: 1.15rem;
+}
+/* Long menus: everything stays visible on a laptop screen. */
+.sbar__nav--dense {
+  gap: 0.6rem;
+}
+.sbar__nav--dense .sbar__group + .sbar__group {
+  padding-top: 0.6rem;
+}
+.sbar__nav--dense .sbar__link {
+  padding-block: 0.36rem;
 }
 .sbar__group {
   display: flex;

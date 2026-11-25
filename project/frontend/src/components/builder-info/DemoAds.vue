@@ -83,7 +83,7 @@ const dash = computed(() => `${(score.value / 100) * 163} 163`)
     <!-- 3-5. Dashboard -->
     <div v-else key="sd" class="dd__dash">
       <div class="dd__tabs">
-        <span v-for="(tb, i) in ['overview', 'agent', 'proposals']" :key="tb" :class="{ on: (step === 2 && i === 0) || (step === 3 && i === 1) || (step === 4 && i === 2) }">
+        <span v-for="(tb, i) in ['home', 'history', 'proposals']" :key="tb" :class="{ on: (step === 2 && i === 0) || (step === 3 && i === 1) || (step === 4 && i === 2) }">
           {{ t(`ads.tab.${tb}`) }}
         </span>
       </div>

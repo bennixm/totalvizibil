@@ -816,22 +816,18 @@ export class GoogleAdsOptimizerService {
   }
 
   /**
-   * Whether Google accepts a BUSINESS_NAME asset on this account, checked
+   * Whether Google refuses a BUSINESS_NAME asset on this account, checked
    * with a validateOnly call (nothing is created). Google refuses it with
    * CUSTOMER_NOT_VERIFIED until the advertiser verification is completed;
    * that answer is remembered per account for a day, so every campaign in
-   * every cycle doesn't ask again. Any other error answers true, so the
-   * normal path reports it.
+   * every cycle doesn't ask again. Any other error answers false, so
+   * the normal path reports it.
    */
-  private async businessNameAllowed(
-    c: CampaignData,
-    businessName: string,
-    activity: AgentActivity,
-  ): Promise<boolean> {
+  async businessNameRefused(c: CampaignData, businessName: string): Promise<boolean> {
     const account = this.client.customerId;
     const refusedAt = UNVERIFIED_ACCOUNTS.get(account);
-    let refused = refusedAt !== undefined && Date.now() - refusedAt < UNVERIFIED_RECHECK_MS;
-    if (!refused) {
+    const known = refusedAt !== undefined && Date.now() - refusedAt < UNVERIFIED_RECHECK_MS;
+    if (!known) {
       const res = `customers/${account}/assets/-1`;
       try {
         await this.client.mutate(
@@ -848,14 +844,22 @@ export class GoogleAdsOptimizerService {
           { validateOnly: true },
         );
         UNVERIFIED_ACCOUNTS.delete(account);
-        return true;
+        return false;
       } catch (err) {
         if (!/CUSTOMER_NOT_VERIFIED/.test(err instanceof Error ? err.message : String(err)))
-          return true;
+          return false;
         UNVERIFIED_ACCOUNTS.set(account, Date.now());
-        refused = true;
       }
     }
+    return true;
+  }
+
+  private async businessNameAllowed(
+    c: CampaignData,
+    businessName: string,
+    activity: AgentActivity,
+  ): Promise<boolean> {
+    if (!(await this.businessNameRefused(c, businessName))) return true;
     await activity.record(
       {
         googleCampaignId: c.googleCampaignId,
@@ -866,8 +870,8 @@ export class GoogleAdsOptimizerService {
       {
         status: 'skipped',
         result:
-          'Google cere verificarea advertiserului pentru numele afacerii (CUSTOMER_NOT_VERIFIED). ' +
-          'Sitelink-urile, callout-urile și snippet-urile se adaugă normal; numele afacerii se adaugă automat după ce contul e verificat în Google Ads.',
+          'Google permite numele afacerii doar după verificarea identității advertiserului. ' +
+          'Celelalte elemente se adaugă normal; numele se adaugă automat după ce contul e verificat în Google Ads.',
       },
     );
     return false;
@@ -1798,7 +1802,7 @@ export class GoogleAdsOptimizerService {
    * may restore it). Other ad-text changes, like filled gaps, don't block:
    * popular keywords in headlines are a direct Ad Strength factor.
    */
-  private async keywordChangeBlocker(c: CampaignData): Promise<string | null> {
+  async keywordChangeBlocker(c: CampaignData): Promise<string | null> {
     const pending = await this.actions.count({
       where: {
         googleCampaignId: c.googleCampaignId,

@@ -6,6 +6,8 @@ import {
 } from 'vue-router'
 
 import { i18n } from '@/plugins/i18n'
+import { workspaceOfRoute } from '@/lib/workspaces'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { useAuthStore } from '@/stores/auth'
 import { useCompaniesStore } from '@/stores/companies'
 import { useConfirmStore } from '@/stores/confirm'
@@ -78,34 +80,48 @@ const routes: RouteRecordRaw[] = [
     meta: { builder: 'ads' },
   },
   // --- Google Ads optimization builder (customers' own accounts) ---
-  { path: '/google-ads', name: 'ads-connect', component: () => import('@/views/ads/AdsConnectView.vue') },
+  {
+    path: '/google-ads',
+    name: 'ads-connect',
+    component: () => import('@/views/ads/AdsConnectView.vue'),
+    meta: { workspace: 'ads' },
+  },
   {
     path: '/google-ads/campaigns',
     name: 'ads-campaigns',
     component: () => import('@/views/ads/AdsCampaignsView.vue'),
+    meta: { workspace: 'ads' },
   },
   {
     path: '/google-ads/account',
     name: 'ads-account',
     component: () => import('@/views/ads/AdsAccountView.vue'),
+    meta: { workspace: 'ads' },
+  },
+  {
+    // Home of the Google Ads area: every campaign of the signed-in owner.
+    path: '/google-ads/panel',
+    name: 'ads-home',
+    component: () => import('@/views/ads/AdsHomeView.vue'),
+    meta: { requiresAuth: true, panel: true, workspace: 'ads' },
   },
   {
     path: '/google-ads/connections',
     name: 'ads-connections',
     component: () => import('@/views/ads/AdsConnectionsView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, panel: true, workspace: 'ads' },
   },
   {
     path: '/google-ads/connections/:id/add',
     name: 'ads-connection-add',
     component: () => import('@/views/ads/AdsAddCampaignsView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, panel: true, workspace: 'ads' },
   },
   {
     path: '/google-ads/c/:id',
     name: 'ads-dashboard',
     component: () => import('@/views/ads/AdsDashboardView.vue'),
-    meta: { requiresAuth: true, panel: true },
+    meta: { requiresAuth: true, panel: true, workspace: 'ads' },
   },
   { path: '/create', name: 'create', component: () => import('@/views/CreateBusinessView.vue') },
   {
@@ -541,6 +557,13 @@ function guardFeedExit(to: RouteLocationNormalized, from: RouteLocationNormalize
   )
   return false
 }
+
+// The sidebar's area follows the page; shared pages (wallet, support...) keep
+// the area the user came from.
+router.afterEach((to) => {
+  const id = workspaceOfRoute(to)
+  if (id && useAuthStore().isAuthenticated) useWorkspaceStore().enter(id)
+})
 
 router.beforeEach(async (to, from) => {
   if (!guardFeedExit(to, from)) return false
