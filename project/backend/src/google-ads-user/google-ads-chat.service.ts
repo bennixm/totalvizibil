@@ -113,7 +113,8 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
     const row = await this.agent.ownedCampaign(userId, campaignId);
     const [turns, pricing, wallet, spentToday] = await Promise.all([
       this.prisma.googleAdsChatTurn.findMany({
-        where: { userCampaignId: row.id },
+        // Erased messages (campaign removed, then added again) are not shown.
+        where: { userCampaignId: row.id, userText: { not: '' } },
         orderBy: { createdAt: 'desc' },
         take: PAGE,
         include: { actions: { orderBy: { createdAt: 'asc' } } },
@@ -389,7 +390,12 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
   /** Earlier messages as plain text, with what happened to each proposal. */
   private async history(campaignId: string, currentId: string): Promise<Anthropic.MessageParam[]> {
     const turns = await this.prisma.googleAdsChatTurn.findMany({
-      where: { userCampaignId: campaignId, status: 'completed', id: { not: currentId } },
+      where: {
+        userCampaignId: campaignId,
+        status: 'completed',
+        id: { not: currentId },
+        userText: { not: '' },
+      },
       orderBy: { createdAt: 'desc' },
       take: HISTORY_TURNS,
       include: { actions: { select: { action: true, status: true, errorMessage: true } } },

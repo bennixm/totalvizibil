@@ -3968,7 +3968,11 @@
       "selectError": "We could not select the campaign. Please try again.",
       "unsupported": "For now the agent optimizes Search campaigns.",
       "unsupportedShort": "only Search campaigns are optimized for now",
+      "managedElsewhere": "This campaign is already managed from another Totalvizibil account. If it is yours, write to support.",
+      "taken": "Could not add: {names}. They are already managed from another Totalvizibil account.",
+      "takenReconnect": "{n} campaigns stay stopped: they are now managed from another Totalvizibil account.",
       "oauthError": {
+        "account": "You chose a different Google account. Reconnect the one you added the campaigns with.",
         "denied": "You cancelled the Google sign-in.",
         "access_denied": "You cancelled the Google sign-in.",
         "expired": "The sign-in expired. Please try again.",
@@ -4228,6 +4232,7 @@
       }
     },
     "actionStatus": {
+      "expired": "Expired",
       "applied": "Applied",
       "failed": "Failed",
       "rejected": "Rejected",
@@ -4277,9 +4282,9 @@
       "remove": "Stop managing this campaign",
       "removeHint": "The campaign stays unchanged in Google Ads; we only remove it from your dashboard.",
       "removeTitle": "Remove the campaign from your dashboard?",
-      "removeText": "The campaign stays in Google Ads exactly as it is. Its history on the platform is deleted.",
+      "removeText": "The campaign stays in Google Ads exactly as it is. It leaves your panel, and its conversations and business details are deleted. Payments stay in your transactions.",
       "removed": "The campaign was removed from your dashboard.",
-      "removeRunning": "Wait for the current cycle to finish.",
+      "removeRunning": "Wait for the current cycle or message to finish.",
       "saved": "Settings saved.",
       "error": "Something went wrong. Please try again.",
       "disconnect": "Disconnect Google account",

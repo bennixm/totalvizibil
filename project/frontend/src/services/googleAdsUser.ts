@@ -316,7 +316,7 @@ export const googleAdsUserApi = {
       timeoutMs: 45_000,
     }),
   claim: () =>
-    apiFetch<{ campaignId: string; campaignIds: string[] }>(`${BASE}/builder/claim`, {
+    apiFetch<{ campaignId: string; campaignIds: string[]; taken?: string[] }>(`${BASE}/builder/claim`, {
       method: 'POST',
       headers: draftHeaders(),
       timeoutMs: 180_000,
@@ -333,7 +333,7 @@ export const googleAdsUserApi = {
       { timeoutMs: 30_000 },
     ),
   addCampaigns: (id: string, items: SelectionItem[]) =>
-    apiFetch<{ campaignIds: string[] }>(`${BASE}/connections/${id}/campaigns`, {
+    apiFetch<{ campaignIds: string[]; taken?: string[] }>(`${BASE}/connections/${id}/campaigns`, {
       method: 'POST',
       body: { items },
       timeoutMs: 180_000,

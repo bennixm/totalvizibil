@@ -37,17 +37,19 @@ const canRegister = computed(
 
 function errText(e: unknown): string {
   const m = e instanceof ApiError ? e.message : ''
+  if (m === 'campaign_managed_elsewhere') return t('ads.campaigns.managedElsewhere')
   if (/already|exist/i.test(m)) return t('ads.account.err.exists')
   if (/code/i.test(m)) return t('ads.account.err.code')
   return t('ads.account.err.generic')
 }
 
 async function claim(): Promise<void> {
-  const { campaignId, campaignIds } = await googleAdsUserApi.claim()
+  const { campaignId, campaignIds, taken } = await googleAdsUserApi.claim()
   clearDraftToken()
   await adsStore.fetch(true)
   const n = campaignIds?.length ?? 1
   toasts.success(n > 1 ? t('ads.account.doneN', { n }) : t('ads.account.done'))
+  if (taken?.length) toasts.warning(t('ads.campaigns.taken', { names: taken.join(', ') }))
   void router.replace({ name: 'ads-dashboard', params: { id: campaignId }, query: { welcome: '1' } })
 }
 

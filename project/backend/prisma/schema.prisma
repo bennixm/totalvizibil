@@ -426,6 +426,8 @@ enum GoogleAdsActionStatus {
   // Replaced by a corrected revision after an admin's manual instructions
   // (see `revisionOfId` on the newer row); can no longer be approved.
   superseded
+  // Nobody decided in time, or the campaign left the platform.
+  expired
 }
 
 /**
@@ -2199,6 +2201,8 @@ model GoogleAdsConnection {
   oauthStateHash          String?                   @unique @map("oauth_state_hash")
   oauthStateExpiresAt     DateTime?                 @map("oauth_state_expires_at")
   googleEmail             String?                   @map("google_email")
+  /// Google's stable id of that account (an email can change).
+  googleSub               String?                   @map("google_sub")
   /// AES-256-GCM encrypted refresh token. Never returned by any endpoint.
   refreshTokenEnc         String?                   @map("refresh_token_enc")
   status                  GoogleAdsConnectionStatus @default(pending)
@@ -2229,6 +2233,9 @@ enum GoogleAdsUserCampaignStatus {
   paused
   /// The Google connection no longer works (revoked); reconnect needed.
   disconnected
+  /// The owner removed it. Never shown or run again, kept because its cycles
+  /// and chat messages carry what was charged and what the AI cost.
+  removed
 }
 
 /// A customer's Google Ads campaign managed by the optimization agent.

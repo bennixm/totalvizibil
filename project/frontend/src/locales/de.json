@@ -3968,7 +3968,11 @@
       "selectError": "Die Kampagne konnte nicht ausgewählt werden. Bitte versuche es erneut.",
       "unsupported": "Der Agent optimiert derzeit Suchkampagnen.",
       "unsupportedShort": "derzeit werden nur Suchkampagnen optimiert",
+      "managedElsewhere": "Diese Kampagne wird bereits über ein anderes Totalvizibil-Konto verwaltet. Wenn sie dir gehört, schreib dem Support.",
+      "taken": "Nicht hinzugefügt: {names}. Sie werden bereits über ein anderes Totalvizibil-Konto verwaltet.",
+      "takenReconnect": "{n} Kampagnen bleiben gestoppt: Sie werden jetzt über ein anderes Totalvizibil-Konto verwaltet.",
       "oauthError": {
+        "account": "Du hast ein anderes Google-Konto gewählt. Verbinde das Konto, mit dem du die Kampagnen hinzugefügt hast.",
         "denied": "Du hast die Google-Anmeldung abgebrochen.",
         "access_denied": "Du hast die Google-Anmeldung abgebrochen.",
         "expired": "Die Anmeldung ist abgelaufen. Bitte versuche es erneut.",
@@ -4228,6 +4232,7 @@
       }
     },
     "actionStatus": {
+      "expired": "Abgelaufen",
       "applied": "Umgesetzt",
       "failed": "Fehlgeschlagen",
       "rejected": "Abgelehnt",
@@ -4277,9 +4282,9 @@
       "remove": "Kampagne nicht mehr verwalten",
       "removeHint": "Die Kampagne bleibt in Google Ads unverändert; wir entfernen sie nur aus deinem Dashboard.",
       "removeTitle": "Kampagne aus dem Dashboard entfernen?",
-      "removeText": "Die Kampagne bleibt in Google Ads genau so, wie sie ist. Ihr Verlauf auf der Plattform wird gelöscht.",
+      "removeText": "Die Kampagne bleibt in Google Ads genau so, wie sie ist. Sie verschwindet aus deinem Bereich, Gespräche und Angaben zum Unternehmen werden gelöscht. Zahlungen bleiben in den Transaktionen.",
       "removed": "Die Kampagne wurde aus deinem Dashboard entfernt.",
-      "removeRunning": "Warte, bis der laufende Zyklus fertig ist.",
+      "removeRunning": "Warte, bis der laufende Zyklus oder die Nachricht fertig ist.",
       "saved": "Einstellungen gespeichert.",
       "error": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
       "disconnect": "Google-Konto trennen",

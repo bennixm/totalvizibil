@@ -27,7 +27,7 @@ import { OptimizationTarget } from '../google-ads/optimization/google-ads-optimi
 import { GoogleAdsWritesDisabledError } from '../google-ads/google-ads-api-client.service';
 import { readSettings, SCHEDULE_DAYS, UserAgentSettings } from './agent-settings';
 import { assessReadiness, businessContext, readBrief, Readiness } from './campaign-brief';
-import { applyChatChange, isChatChange } from './chat-changes';
+import { applyChatChange, isChatChange, verifyChatChange } from './chat-changes';
 import { GoogleAdsOAuthService } from './google-ads-oauth.service';
 import { GoogleAdsConnectionRevokedError, GoogleAdsUserClient } from './google-ads-user-client';
 import { PriceBreakdown, priceWork } from './pricing';
@@ -43,6 +43,9 @@ const CHARGE_DESCRIPTION = 'Google Ads optimization cycle';
 /** A cycle still `running` after this long is treated as interrupted. */
 const STALE_CYCLE_MS = 60 * 60 * 1000;
 const SCHEDULER_INTERVAL_MS = 10 * 60 * 1000;
+const PROPOSAL_TTL_MS = 30 * 86_400_000;
+/** Longer than any approval takes. */
+const STUCK_APPROVAL_MS = 10 * 60 * 1000;
 /** Free re-sync at most this often per campaign (Google API quota). */
 const MIN_SYNC_INTERVAL_MS = 2 * 60 * 1000;
 
@@ -150,7 +153,8 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
 
   async ownedCampaign(userId: string, id: string): Promise<GoogleAdsUserCampaign> {
     const row = await this.prisma.googleAdsUserCampaign.findUnique({ where: { id } });
-    if (!row || row.userId !== userId) throw new NotFoundException('Campania nu a fost găsită.');
+    if (!row || row.userId !== userId || row.status === 'removed')
+      throw new NotFoundException('Campania nu a fost găsită.');
     return row;
   }
 
@@ -887,6 +891,8 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
   private async tick(): Promise<void> {
     try {
       await this.settleStaleCycles();
+      await this.expireProposals();
+      await this.settleStuckApprovals();
       const due = await this.prisma.googleAdsUserCampaign.findMany({
         where: {
           status: 'active',
@@ -969,6 +975,14 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     const client = await this.clientFor(row);
     if (action.action === 'creative.replace_text') {
       const optimizer = this.optimizerFor(row, client, readSettings(row.settings), null);
+      if (client.writesAllowed) {
+        // Claim first: one approval executes at most once.
+        const claimed = await this.prisma.googleAdsUserAction.updateMany({
+          where: { id: actionId, status: 'pending_approval' },
+          data: { status: 'approved', approvedByUserId: actorId, approvedAt: new Date() },
+        });
+        if (!claimed.count) throw new BadRequestException('Propunerea a fost deja procesată.');
+      }
       await optimizer.approveProposal(actionId, actorId);
       return this.prisma.googleAdsUserAction.findUnique({ where: { id: actionId } });
     }
@@ -1077,6 +1091,72 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
             executionResult: `Confirmat în Google: bugetul zilnic este acum ${(Number(after.amountMicros) / 1e6).toFixed(2)}.`,
           },
     });
+  }
+
+  /** Proposals nobody decided on: they describe an ad as it was, and an open
+   *  one keeps the agent from touching the same ad. */
+  async expireProposals(): Promise<void> {
+    await this.prisma.googleAdsUserAction.updateMany({
+      where: {
+        status: 'pending_approval',
+        createdAt: { lt: new Date(Date.now() - PROPOSAL_TTL_MS) },
+      },
+      data: {
+        status: 'expired',
+        errorMessage: 'A expirat: nu a fost aprobată în 30 de zile.',
+      },
+    });
+  }
+
+  /** Approvals a restart interrupted half way: Google says how they ended. */
+  async settleStuckApprovals(): Promise<void> {
+    const stuck = await this.prisma.googleAdsUserAction.findMany({
+      where: { status: 'approved', approvedAt: { lt: new Date(Date.now() - STUCK_APPROVAL_MS) } },
+      include: { userCampaign: true },
+      take: 50,
+    });
+    for (const a of stuck) {
+      const row = a.userCampaign;
+      let error: string | null;
+      try {
+        const client = await this.clientFor(row);
+        if (isChatChange(a.action)) error = await verifyChatChange(client, row.googleCampaignId, a);
+        else if (a.action === 'budget.change.proposed') {
+          const live = await this.liveBudget(client, row.googleCampaignId);
+          const want = (a.after as { amountMicros?: string } | null)?.amountMicros;
+          error = live && String(live.amountMicros) === want ? null : 'not_applied';
+        } else {
+          const texts = new Set(
+            (await fetchAccountData(client)).campaigns
+              .filter((c) => c.googleCampaignId === row.googleCampaignId)
+              .flatMap((c) => c.ads)
+              .flatMap((ad) => [...ad.headlines, ...ad.descriptions])
+              .map((t) => t.text),
+          );
+          const before = (a.before as { text?: string } | null)?.text ?? '';
+          const after = (a.after as { text?: string } | null)?.text ?? '';
+          error = texts.has(after) && !texts.has(before) ? null : 'not_applied';
+        }
+      } catch (err) {
+        // Google can't be read now: try again later, but not forever.
+        if (a.approvedAt && Date.now() - a.approvedAt.getTime() < 86_400_000) continue;
+        error = err instanceof Error ? err.message : String(err);
+      }
+      await this.prisma.googleAdsUserAction.updateMany({
+        where: { id: a.id, status: 'approved' },
+        data: error
+          ? {
+              status: 'failed',
+              errorMessage:
+                'Aplicarea a fost întreruptă, iar Google nu arată modificarea. Verifică în Google Ads.',
+            }
+          : {
+              status: 'applied',
+              verifiedAt: new Date(),
+              executionResult: 'Confirmat în Google după o întrerupere.',
+            },
+      });
+    }
   }
 
   async rejectAction(userId: string, campaignId: string, actionId: string, actorId = userId) {

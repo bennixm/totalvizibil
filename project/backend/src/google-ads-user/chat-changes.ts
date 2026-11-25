@@ -621,3 +621,16 @@ export async function applyChatChange(
   const problem = await verifyChange(client, googleCampaignId, ch);
   if (problem) throw new Error(problem);
 }
+
+/** Whether an approved change is live in Google (null) or what is missing. */
+export function verifyChatChange(
+  client: ChatAdsClient,
+  googleCampaignId: string,
+  row: { action: string; before: unknown; after: unknown },
+): Promise<string | null> {
+  return verifyChange(client, googleCampaignId, {
+    action: row.action,
+    before: row.before,
+    after: row.after,
+  } as ChatChange);
+}

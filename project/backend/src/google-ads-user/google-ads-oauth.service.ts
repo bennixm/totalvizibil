@@ -78,18 +78,24 @@ export class GoogleAdsOAuthService {
 
   /** Exchanges the consent code. Returns the encrypted refresh token and the
    *  Google account email (from the verified ID token). */
-  async exchange(code: string): Promise<{ refreshTokenEnc: string; email: string | null }> {
+  async exchange(code: string): Promise<{
+    refreshTokenEnc: string;
+    email: string | null;
+    sub: string | null;
+  }> {
     const client = await this.client();
     const { tokens } = await client.getToken(code);
     if (!tokens.refresh_token) throw new Error('no_refresh_token');
     if (!tokens.scope?.includes('adwords')) throw new Error('adwords_scope_missing');
     let email: string | null = null;
+    let sub: string | null = null;
     if (tokens.id_token) {
       const { clientId } = await this.credentials();
       const ticket = await client.verifyIdToken({ idToken: tokens.id_token, audience: clientId });
       email = ticket.getPayload()?.email ?? null;
+      sub = ticket.getPayload()?.sub ?? null;
     }
-    return { refreshTokenEnc: this.crypto.encrypt(tokens.refresh_token), email };
+    return { refreshTokenEnc: this.crypto.encrypt(tokens.refresh_token), email, sub };
   }
 
   /** Best-effort revoke at Google when a customer disconnects. */

@@ -3968,7 +3968,11 @@
       "selectError": "Nu am putut selecta campania. Încearcă din nou.",
       "unsupported": "Agentul optimizează momentan campanii de căutare (Search).",
       "unsupportedShort": "doar campaniile Search sunt optimizate momentan",
+      "managedElsewhere": "Campania e deja administrată din alt cont Totalvizibil. Dacă e a ta, scrie-ne la suport.",
+      "taken": "Nu am putut adăuga: {names}. Sunt deja administrate din alt cont Totalvizibil.",
+      "takenReconnect": "{n} campanii rămân oprite: sunt administrate acum din alt cont Totalvizibil.",
       "oauthError": {
+        "account": "Ai ales alt cont Google. Reconectează contul cu care ai adăugat campaniile.",
         "denied": "Ai anulat conectarea la Google.",
         "access_denied": "Ai anulat conectarea la Google.",
         "expired": "Conectarea a expirat. Încearcă din nou.",
@@ -4228,6 +4232,7 @@
       }
     },
     "actionStatus": {
+      "expired": "Expirat",
       "applied": "Aplicat",
       "failed": "Eșuat",
       "rejected": "Respins",
@@ -4277,9 +4282,9 @@
       "remove": "Nu mai gestiona campania",
       "removeHint": "Campania rămâne neschimbată în Google Ads; doar o scoatem din panou.",
       "removeTitle": "Scoți campania din panou?",
-      "removeText": "Campania rămâne în Google Ads exact cum este. Istoricul din platformă se șterge.",
+      "removeText": "Campania rămâne în Google Ads exact cum este. Dispare din panou, iar conversațiile și informațiile despre afacere se șterg. Plățile rămân în tranzacții.",
       "removed": "Campania a fost scoasă din panou.",
-      "removeRunning": "Așteaptă să se termine ciclul în curs.",
+      "removeRunning": "Așteaptă să se termine ciclul sau mesajul în curs.",
       "saved": "Setările au fost salvate.",
       "error": "Ceva n-a mers. Încearcă din nou.",
       "disconnect": "Deconectează contul Google",

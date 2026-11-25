@@ -59,7 +59,7 @@ export class AdminUserAdsService {
 
   async list(userId: string) {
     const rows = await this.prisma.googleAdsUserCampaign.findMany({
-      where: { userId },
+      where: { userId, status: { not: 'removed' } },
       orderBy: { createdAt: 'asc' },
       include: {
         connection: { select: { googleEmail: true, status: true } },

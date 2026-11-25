@@ -149,7 +149,7 @@ export class AdminGoogleAdsUserController {
           userCampaign: { select: { name: true, customerName: true } },
         },
       }),
-      this.prisma.googleAdsUserCampaign.count(),
+      this.prisma.googleAdsUserCampaign.count({ where: { status: { not: 'removed' } } }),
       this.prisma.googleAdsConnection.count({ where: { status: 'connected' } }),
       this.prisma.googleAdsChatTurn.aggregate({
         where: chatWhere,
