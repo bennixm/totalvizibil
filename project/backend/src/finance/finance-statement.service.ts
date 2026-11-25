@@ -623,53 +623,62 @@ export class FinanceStatementService {
 
   async checks(): Promise<{ generatedAt: string; items: CheckItem[] }> {
     const now = new Date();
-    const [ledger, wallets, purchases, invoices, refunds, fees, expenses] = await Promise.all([
-      this.loadLedger(now),
-      this.prisma.wallet.findMany({
-        select: { id: true, balanceMinor: true, user: { select: { email: true } } },
-      }),
-      this.prisma.walletTransaction.findMany({
-        where: { type: 'purchase', status: 'completed' },
-        select: {
-          id: true,
-          providerRef: true,
-          amountMinor: true,
-          eurCents: true,
-          createdAt: true,
-          invoice: { select: { id: true } },
-          wallet: { select: { user: { select: { email: true } } } },
-        },
-      }),
-      this.prisma.invoice.findMany({
-        where: { voidedAt: null, kind: 'topup' },
-        select: {
-          number: true,
-          totalMinor: true,
-          eurCents: true,
-          walletTransaction: { select: { ronBani: true, eurCents: true, amountMinor: true } },
-        },
-      }),
-      this.prisma.walletTransaction.findMany({
-        where: { type: 'refund', status: { in: ['pending', 'processing', 'completed'] } },
-        select: { id: true, amountMinor: true, refundSources: true, createdAt: true },
-      }),
-      this.prisma.platformExpense.findMany({
-        where: { externalRef: { startsWith: 'stripe_fee:' } },
-        select: { externalRef: true },
-      }),
-      this.prisma.platformExpense.findMany({
-        select: {
-          id: true,
-          category: true,
-          incurredOn: true,
-          amountMinor: true,
-          currency: true,
-          eurAmountMinor: true,
-          source: true,
-          note: true,
-        },
-      }),
-    ]);
+    const [ledger, wallets, purchases, invoices, refunds, fees, expenses, holds] =
+      await Promise.all([
+        this.loadLedger(now),
+        this.prisma.wallet.findMany({
+          select: { id: true, balanceMinor: true, user: { select: { email: true } } },
+        }),
+        this.prisma.walletTransaction.findMany({
+          where: { type: 'purchase', status: 'completed' },
+          select: {
+            id: true,
+            providerRef: true,
+            amountMinor: true,
+            eurCents: true,
+            createdAt: true,
+            invoice: { select: { id: true } },
+            wallet: { select: { user: { select: { email: true } } } },
+          },
+        }),
+        this.prisma.invoice.findMany({
+          where: { voidedAt: null, kind: 'topup' },
+          select: {
+            number: true,
+            totalMinor: true,
+            eurCents: true,
+            walletTransaction: { select: { ronBani: true, eurCents: true, amountMinor: true } },
+          },
+        }),
+        this.prisma.walletTransaction.findMany({
+          where: { type: 'refund', status: { in: ['pending', 'processing', 'completed'] } },
+          select: { id: true, amountMinor: true, refundSources: true, createdAt: true },
+        }),
+        this.prisma.platformExpense.findMany({
+          where: { externalRef: { startsWith: 'stripe_fee:' } },
+          select: { externalRef: true },
+        }),
+        this.prisma.platformExpense.findMany({
+          select: {
+            id: true,
+            category: true,
+            incurredOn: true,
+            amountMinor: true,
+            currency: true,
+            eurAmountMinor: true,
+            source: true,
+            note: true,
+          },
+        }),
+        // Open holds (a running Google Ads cycle or chat message): already out
+        // of the balance, not consumption yet, so not in the ledger.
+        this.prisma.walletTransaction.groupBy({
+          by: ['walletId'],
+          where: { type: 'spend', status: 'pending' },
+          _sum: { amountMinor: true },
+        }),
+      ]);
+    const held = new Map(holds.map((h) => [h.walletId, h._sum.amountMinor ?? 0]));
     const engine = runLedger(ledger);
     const items: CheckItem[] = [];
     const sev = (n: number, bad: CheckSeverity): CheckSeverity => (n > 0 ? bad : 'ok');
@@ -699,7 +708,10 @@ export class FinanceStatementService {
 
     // 2. Stored wallet balance vs the balance rebuilt from the ledger.
     const mismatched = wallets
-      .map((w) => ({ w, expected: engine.balanceByWallet.get(w.id) ?? 0 }))
+      .map((w) => ({
+        w,
+        expected: (engine.balanceByWallet.get(w.id) ?? 0) + (held.get(w.id) ?? 0),
+      }))
       .filter(({ w, expected }) => w.balanceMinor !== expected);
     items.push({
       key: 'walletBalance',

@@ -200,7 +200,7 @@ export interface UserAction {
 
 export interface OptimizationCycle {
   id: string
-  trigger: 'manual' | 'scheduled'
+  trigger: 'manual' | 'scheduled' | 'staff'
   status: 'running' | 'completed' | 'failed'
   quote: PriceBreakdown & { tasks?: PlannedTask[] }
   quotedMinor: number

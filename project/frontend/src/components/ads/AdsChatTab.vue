@@ -88,6 +88,7 @@ const ERRORS = [
   'chat_daily_limit',
   'chat_busy',
   'ai_unavailable',
+  'restarting',
   'google_ads_reconnect_required',
   'wallet_blocked',
 ]

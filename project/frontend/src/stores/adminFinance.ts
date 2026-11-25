@@ -325,6 +325,14 @@ export interface AiUsageReport {
   totalTokens: number
   totalCalls: number
   byModel: AiUsageModelRow[]
+  /** Customers' Google Ads agent (cycles and chat): charged vs AI cost. */
+  googleAdsOptimizer?: {
+    cycles: number
+    chatMessages: number
+    aiCostMinor: number
+    chargedMinor: number
+    aiCalls: number
+  }
   /** Homepage "ask" search: how searches were answered + Claude's cost. */
   search?: AiSearchUsage
 }

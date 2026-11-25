@@ -227,7 +227,7 @@ onMounted(() => {
               </thead>
               <tbody>
                 <tr v-for="c in usage.cycles" :key="c.id">
-                  <td>{{ dateTime(c.startedAt, locale) }}<span v-if="c.trigger === 'scheduled'" class="gao__muted"> · {{ t('adminAdsOpt.scheduled') }}</span></td>
+                  <td>{{ dateTime(c.startedAt, locale) }}<span v-if="c.trigger === 'scheduled'" class="gao__muted"> · {{ t('adminAdsOpt.scheduled') }}</span><span v-else-if="c.trigger === 'staff'" class="gao__muted"> · {{ t('adminAdsOpt.staff') }}</span></td>
                   <td>
                     <RouterLink :to="{ name: 'admin-user', params: { id: c.user.id } }">{{ c.user.email }}</RouterLink>
                   </td>

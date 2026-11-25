@@ -370,6 +370,61 @@ describe('agent chat: billing', () => {
     });
   });
 
+  it('after a restart, interrupted work is settled at once and keeps its AI cost', async () => {
+    // One answer arrived (and was paid for) before the process died.
+    script = [
+      { tools: [['save_business_facts', { services: 'x' }]] },
+      new Promise<Reply>(() => undefined),
+    ];
+    const res = await say().expect(201);
+    await waitFor(async () => {
+      const t = await prisma.googleAdsChatTurn.findUnique({ where: { id: res.body.turnId } });
+      return t && t.aiCallCount > 0;
+    });
+    const cycle = await prisma.googleAdsOptimizationCycle.create({
+      data: {
+        userCampaignId: campaignId,
+        userId: user.id,
+        trigger: 'manual',
+        quote: {},
+        quotedMinor: 1000,
+        aiCostMinor: 7,
+        inputTokens: 900,
+      },
+    });
+    const restarted = new Date(Date.now() + 1000);
+    for (const svc of [
+      app.get(GoogleAdsChatService),
+      app.get(GoogleAdsUserAgentService),
+    ] as any[]) {
+      const before = svc.bootedAt;
+      svc.running.clear();
+      svc.bootedAt = restarted;
+      await (svc.settleStale ? svc.settleStale() : svc.settleStaleCycles());
+      svc.bootedAt = before;
+    }
+    const t = await settled(res.body.turnId);
+    expect(t).toMatchObject({ status: 'failed', chargedMinor: 0, aiCallCount: 1 });
+    expect(t.aiCostUsd).toBeGreaterThan(0);
+    expect(await balance()).toBe(5000);
+    expect(
+      await prisma.googleAdsOptimizationCycle.findUniqueOrThrow({ where: { id: cycle.id } }),
+    ).toMatchObject({ status: 'failed', aiCostMinor: 7, inputTokens: 900 });
+  });
+
+  it('starts nothing while shutting down', async () => {
+    const svc = app.get(GoogleAdsChatService) as any;
+    const agent = app.get(GoogleAdsUserAgentService) as any;
+    svc.stopping = agent.stopping = true;
+    try {
+      expect((await say().expect(503)).body.message).toBe('restarting');
+      expect((await post('/cycles').expect(503)).body.message).toBe('restarting');
+    } finally {
+      svc.stopping = agent.stopping = false;
+    }
+    expect(await balance()).toBe(5000);
+  });
+
   it('a running message blocks removing the campaign', async () => {
     let answer!: (r: Reply) => void;
     script = [new Promise<Reply>((r) => (answer = r))];

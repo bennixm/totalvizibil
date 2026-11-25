@@ -2323,6 +2323,8 @@ model GoogleAdsOptimizationCycle {
   aiCostMinor      Int                  @default(0) @map("ai_cost_minor")
   aiCallCount      Int                  @default(0) @map("ai_call_count")
   aiModel          String?              @map("ai_model")
+  inputTokens      Int                  @default(0) @map("input_tokens")
+  outputTokens     Int                  @default(0) @map("output_tokens")
   scoreBefore      Int?                 @map("score_before")
   scoreAfter       Int?                 @map("score_after")
   summary          String?

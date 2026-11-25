@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import {
   BadRequestException,
   ConflictException,
@@ -7,6 +8,7 @@ import {
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAdsUserCampaign, Prisma } from '@prisma/client';
@@ -30,6 +32,7 @@ import { assessReadiness, businessContext, readBrief, Readiness } from './campai
 import { applyChatChange, isChatChange, verifyChatChange } from './chat-changes';
 import { GoogleAdsOAuthService } from './google-ads-oauth.service';
 import { GoogleAdsConnectionRevokedError, GoogleAdsUserClient } from './google-ads-user-client';
+import { aiCostUsd, TokenUsage } from './chat-pricing';
 import { PriceBreakdown, priceWork } from './pricing';
 import { checkUrls, discoverSitePages, landingText } from './site-pages';
 import { UserGoogleAdsOptimizer } from './user-optimizer';
@@ -97,6 +100,10 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
   private timer?: NodeJS.Timeout;
   /** Campaign ids with a cycle executing in THIS process. */
   private readonly running = new Set<string>();
+  /** Work still `running` from before this process started is interrupted:
+   *  the API runs as ONE process (pm2, see deploy/README.md). */
+  private readonly bootedAt = new Date();
+  private stopping = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -113,11 +120,12 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     this.timer = setInterval(() => void this.tick(), SCHEDULER_INTERVAL_MS);
     this.timer.unref?.();
     // Interrupted cycles from a previous process: settle them right away.
-    setTimeout(() => void this.settleStaleCycles(), 15_000).unref?.();
+    setTimeout(() => void this.settleStaleCycles(), 3_000).unref?.();
     setTimeout(() => void this.resumeReadbacks(), 30_000).unref?.();
   }
 
   onModuleDestroy(): void {
+    this.stopping = true;
     clearInterval(this.timer);
   }
 
@@ -534,6 +542,8 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
         };
       }
     }
+    // Shutting down (deploy): the work would be cut off at once.
+    if (this.stopping) throw new ServiceUnavailableException('restarting');
     const row = await this.ownedCampaign(userId, id);
     if (row.status !== 'active') {
       throw new BadRequestException(
@@ -678,7 +688,34 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     const target = this.targetFor(row, a.settings);
     let aiCostMinor = 0;
     let error: string | null = null;
-    try {
+    // Saved after every AI call, so an interrupted cycle keeps its cost.
+    const used = { calls: 0, usd: 0, input: 0, output: 0, model: '' };
+    const onUsage = (model: string, u: Anthropic.Usage) => {
+      const t: TokenUsage = {
+        input: u.input_tokens,
+        output: u.output_tokens,
+        cacheRead: u.cache_read_input_tokens ?? 0,
+        cacheWrite: u.cache_creation_input_tokens ?? 0,
+      };
+      used.calls++;
+      used.usd += aiCostUsd(model, t);
+      used.input += t.input + t.cacheRead + t.cacheWrite;
+      used.output += t.output;
+      used.model = model;
+      void this.prisma.googleAdsOptimizationCycle
+        .updateMany({
+          where: { id: cycleId, status: 'running' },
+          data: {
+            aiCostMinor: Math.round(used.usd * 100),
+            aiCallCount: used.calls,
+            aiModel: model,
+            inputTokens: used.input,
+            outputTokens: used.output,
+          },
+        })
+        .catch(() => undefined);
+    };
+    const work = async (): Promise<void> => {
       await activity.record(
         { ...meta, step: 'analyze', message: 'Analiză și scor față de cerințele Google' },
         {
@@ -736,6 +773,9 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
         }
       }
       if (a.settings.budgetProposals) await this.proposeBudgets(row, a, cycleId, activity);
+    };
+    try {
+      await this.ai.meter(onUsage, work);
     } catch (err) {
       if (err instanceof GoogleAdsConnectionRevokedError) await this.markRevoked(row);
       error =
@@ -755,7 +795,13 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     } catch {
       /* keep scoreBefore as the latest known */
     }
-    await this.settle(cycleId, { error, aiCostMinor, scoreAfter });
+    await this.settle(cycleId, {
+      error,
+      ai: used.calls
+        ? { ...used, costMinor: Math.round(used.usd * 100) }
+        : { costMinor: aiCostMinor },
+      scoreAfter,
+    });
   }
 
   /**
@@ -767,7 +813,18 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
    */
   async settle(
     cycleId: string,
-    opts: { error: string | null; aiCostMinor: number; scoreAfter: number | null },
+    opts: {
+      error: string | null;
+      /** Absent = keep what was saved while the cycle ran. */
+      ai?: {
+        costMinor: number;
+        calls?: number;
+        input?: number;
+        output?: number;
+        model?: string;
+      };
+      scoreAfter: number | null;
+    },
   ): Promise<void> {
     const cycle = await this.prisma.googleAdsOptimizationCycle.findUnique({
       where: { id: cycleId },
@@ -815,9 +872,16 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
           settlement: performed as unknown as Prisma.InputJsonValue,
           tasksApplied: applied,
           tasksProposed: proposed,
-          aiCostMinor: opts.aiCostMinor,
-          aiCallCount: aiCalls,
-          aiModel: this.config.get('anthropicModelFast', { infer: true }) || null,
+          ...(opts.ai
+            ? {
+                aiCostMinor: opts.ai.costMinor,
+                aiCallCount: opts.ai.calls ?? aiCalls,
+                inputTokens: opts.ai.input ?? 0,
+                outputTokens: opts.ai.output ?? 0,
+                aiModel:
+                  opts.ai.model ?? (this.config.get('anthropicModelFast', { infer: true }) || null),
+              }
+            : {}),
           scoreAfter: opts.scoreAfter,
           summary,
           errorMessage: opts.error,
@@ -874,14 +938,19 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
   /** Cycles left `running` by a crashed/restarted process. */
   async settleStaleCycles(): Promise<void> {
     const stale = await this.prisma.googleAdsOptimizationCycle.findMany({
-      where: { status: 'running', startedAt: { lt: new Date(Date.now() - STALE_CYCLE_MS) } },
+      where: {
+        status: 'running',
+        OR: [
+          { startedAt: { lt: this.bootedAt } },
+          { startedAt: { lt: new Date(Date.now() - STALE_CYCLE_MS) } },
+        ],
+      },
       select: { id: true, userCampaignId: true },
     });
     for (const c of stale) {
       if (this.running.has(c.userCampaignId)) continue;
       await this.settle(c.id, {
         error: 'Ciclul a fost întrerupt (repornire server); ai plătit doar pentru ce s-a efectuat.',
-        aiCostMinor: 0,
         scoreAfter: null,
       }).catch((err) => this.logger.error(`Settling stale cycle ${c.id} failed`, err));
     }

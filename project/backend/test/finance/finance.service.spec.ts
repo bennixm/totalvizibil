@@ -1016,13 +1016,41 @@ describe('FinanceService', () => {
     it('lists the customer Google Ads optimization cycles as their own row: real AI cost next to the credits charged', async () => {
       const { svc, prisma } = makeService();
       (prisma.__state as { optimizerCycles?: unknown[] }).optimizerCycles = [
-        { aiModel: 'claude-sonnet-5', aiCostMinor: 3, aiCallCount: 2, chargedMinor: 1_200 },
-        { aiModel: 'claude-sonnet-5', aiCostMinor: 1, aiCallCount: 1, chargedMinor: 1_000 },
+        {
+          aiModel: 'claude-sonnet-5',
+          aiCostMinor: 3,
+          aiCallCount: 2,
+          chargedMinor: 1_200,
+          inputTokens: 100,
+          outputTokens: 10,
+        },
+        {
+          aiModel: 'claude-sonnet-5',
+          aiCostMinor: 1,
+          aiCallCount: 1,
+          chargedMinor: 1_000,
+          inputTokens: 100,
+          outputTokens: 10,
+        },
       ];
       // The agent chat: another model, its own row, not counted as cycles.
       (prisma.__state as { chatTurns?: unknown[] }).chatTurns = [
-        { aiModel: 'claude-opus-5-5', aiCostUsd: 0.004, aiCallCount: 1, chargedMinor: 20 },
-        { aiModel: 'claude-opus-5-5', aiCostUsd: 0.006, aiCallCount: 1, chargedMinor: 30 },
+        {
+          aiModel: 'claude-opus-5-5',
+          aiCostUsd: 0.004,
+          aiCallCount: 1,
+          chargedMinor: 20,
+          inputTokens: 100,
+          outputTokens: 10,
+        },
+        {
+          aiModel: 'claude-opus-5-5',
+          aiCostUsd: 0.006,
+          aiCallCount: 1,
+          chargedMinor: 30,
+          inputTokens: 100,
+          outputTokens: 10,
+        },
       ];
 
       const result = await svc.aiUsageReport({});

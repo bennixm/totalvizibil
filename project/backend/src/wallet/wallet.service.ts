@@ -696,6 +696,7 @@ export class WalletService implements OnModuleInit {
   }): string {
     if (t.clicks != null) return 'Click-uri anunț';
     if (t.provider === 'ai-usage') return 'Prompt AI';
+    if (t.description === 'Google Ads agent chat') return 'Chat agent Google Ads';
     if (t.provider === GOOGLE_ADS_OPTIMIZER_PROVIDER) return 'Optimizare Google Ads';
     if (t.description === 'Advanced website builder') return 'Deblocare builder avansat';
     if (t.description === 'Additional business') return 'Afacere suplimentară';

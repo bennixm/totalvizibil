@@ -70,6 +70,7 @@ function errText(e: unknown): string {
     'campaign_paused',
     'google_ads_reconnect_required',
     'wallet_blocked',
+    'restarting',
   ]
   return known.includes(m) ? t(`ads.agent.err.${m}`) : m || t('ads.agent.err.generic')
 }
