@@ -8,6 +8,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import { useMoneyStore } from '@/stores/money'
 
 import { useConfirmStore } from '@/stores/confirm'
@@ -125,9 +126,8 @@ async function save(): Promise<void> {
         clearable
         class="reg__search"
       />
-      <span class="reg__count">{{ t('supplierInvoices.regCount', { n: rows.length }) }}</span>
+      <span class="reg__count">{{ t('supplierInvoices.regCount', { n: rows.length }) }} <AdminHint :text="t('supplierInvoices.regHint')" /></span>
     </div>
-    <p class="reg__hint">{{ t('supplierInvoices.regHint') }}</p>
 
     <v-skeleton-loader v-if="loading && !rows.length" type="table-row-divider@4" />
     <p v-else-if="error" class="reg__error">{{ error }}</p>

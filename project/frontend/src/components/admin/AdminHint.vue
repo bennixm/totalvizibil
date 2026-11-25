@@ -28,6 +28,7 @@ withDefaults(defineProps<{ text: string; size?: 'sm' | 'md' }>(), { size: 'md' }
 
 <style scoped>
 .ahint {
+  position: relative;
   display: inline-grid;
   place-items: center;
   flex: none;
@@ -40,6 +41,12 @@ withDefaults(defineProps<{ text: string; size?: 'sm' | 'md' }>(), { size: 'md' }
   transition:
     background var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease),
     color var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
+}
+/* Small icon, comfortable tap area. */
+.ahint::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
 }
 .ahint--md {
   width: 18px;

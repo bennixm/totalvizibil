@@ -9,6 +9,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import { useConfirmStore } from '@/stores/confirm'
 import {
   useExternalInvoicesStore,
@@ -611,7 +612,7 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
 
         <!-- DETAILS (edit) -->
         <form v-else-if="tab === 'details' && editing" class="edit" @submit.prevent="saveEdit">
-          <p class="edit__hint">{{ t('supplierInvoices.editHint') }}</p>
+          <p class="edit__hint"><AdminHint :text="t('supplierInvoices.editHint')" /></p>
           <div class="edit__grid">
             <v-text-field
               v-if="inv.provider === 'other'"
@@ -766,7 +767,7 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
           >
             {{ t('supplierInvoices.addFile') }}
           </v-btn>
-          <p class="files__hint">{{ t('supplierInvoices.filesHint') }}</p>
+          <AdminHint :text="t('supplierInvoices.filesHint')" />
         </template>
       </div>
     </template>

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import AdsChangePreview from '@/components/ads/AdsChangePreview.vue'
 import GaChip from '@/components/admin/google-ads/GaChip.vue'
 import { ApiError } from '@/services/api'
@@ -260,7 +261,7 @@ onBeforeUnmount(() => {
                 <v-btn variant="text" size="small" :disabled="!!busyAction" @click="reject(a)">{{ t('ads.prop.reject') }}</v-btn>
               </div>
             </article>
-            <details class="msg__cost">
+            <details class="msg__cost" :open="x.id === lastTurn?.id">
               <summary>{{ t('ads.chat.cost', { credits: creditsOf(x.chargedMinor, locale) }) }}</summary>
               <ul v-if="x.pricing">
                 <li>{{ t('ads.chat.costBase', { credits: creditsOf(x.pricing.baseCredits * 100, locale) }) }}</li>
@@ -340,8 +341,7 @@ onBeforeUnmount(() => {
         </template>
       </section>
       <section class="box">
-        <h3>{{ t('ads.chat.pricingTitle') }}</h3>
-        <p class="box__text">{{ t('ads.chat.pricingText') }}</p>
+        <h3>{{ t('ads.chat.pricingTitle') }} <AdminHint :text="t('ads.chat.pricingText')" /></h3>
         <ul class="box__list">
           <li v-for="(v, k) in conv.pricing.changeCredits" :key="k">
             <span>{{ t(`ads.chat.unit.${k}`) }}</span><b>{{ creditsOf(v * 100, locale) }}</b>
@@ -592,5 +592,37 @@ onBeforeUnmount(() => {
     flex-direction: column;
     align-items: stretch;
   }
+}
+.msg__cost summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 28px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.msg__cost summary::-webkit-details-marker {
+  display: none;
+}
+.msg__cost summary::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 4px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+.msg__cost[open] summary::after {
+  margin-top: 3px;
+  transform: rotate(225deg);
+}
+.msg__cost summary:hover {
+  border-color: rgba(var(--v-theme-primary), 0.5);
+  color: rgb(var(--v-theme-primary));
 }
 </style>

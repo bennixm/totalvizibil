@@ -78,14 +78,13 @@ onMounted(() => {
 
 <template>
   <v-container class="cn" fluid>
-    <AdminPageHeader eyebrow="Google Ads" :title="t('ads.conn.title')">
+    <AdminPageHeader eyebrow="Google Ads" :title="t('ads.conn.title')" :hint="t('ads.conn.lead')">
       <template #actions>
         <v-btn color="primary" prepend-icon="mdi-google" :to="{ name: 'ads-connect' }">
           {{ t('ads.conn.connectNew') }}
         </v-btn>
       </template>
     </AdminPageHeader>
-    <p class="cn__lead">{{ t('ads.conn.lead') }}</p>
 
     <div v-if="!rows" class="ab-center"><v-progress-circular indeterminate color="primary" /></div>
     <div v-else-if="!rows.length" class="ab-card cn__empty">
@@ -150,12 +149,6 @@ onMounted(() => {
 <style scoped>
 .cn {
   max-width: 1000px;
-}
-.cn__lead {
-  margin: -0.75rem 0 1.25rem;
-  max-width: 70ch;
-  font-size: var(--tvz-fs-small);
-  color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .cn__empty {
   max-width: 560px;

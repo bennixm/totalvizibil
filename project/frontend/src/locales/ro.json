@@ -2421,7 +2421,9 @@
           "desc": "Ajustări negative din credite plătite (bani păstrați, serviciu neprestat)."
         }
       }
-    }
+    },
+    "showTypes": "Ce tranzacții vezi în tabel",
+    "typeHidden": "Ascuns"
   },
   "adminSettings": {
     "pricingTitle": "Prețuri și curs valutar",
@@ -4038,7 +4040,7 @@
       "period": "Ultimele 30 de zile, comparat cu cele 30 de zile dinainte.",
       "toImprove": "Ce se poate îmbunătăți",
       "agentCan": "Agentul poate rezolva:",
-      "needsYou": "Aici e nevoie de tine (apasă pentru pași):",
+      "needsYou": "Aici e nevoie de tine:",
       "keywordsOptional": "Sunt suficiente. Opțional, îi poți cere agentului în chat să adauge și:",
       "letAgent": "Lasă agentul",
       "noIssues": "Nicio problemă găsită.",
@@ -4046,7 +4048,10 @@
       "keywords": "{n} din {total} cuvinte cheie apar în titluri",
       "keywordsMissing": "Lipsesc:",
       "breakdown": "Detalierea scorului",
-      "missing": "Lipsește"
+      "missing": "Lipsește",
+      "results": "Rezultate",
+      "keywordsTitle": "Cuvinte cheie în titluri",
+      "keywordsHint": "Cuvintele după care te caută clienții și care apar în titlurile reclamei."
     },
     "metrics": {
       "impressions": "afișări",
@@ -4141,8 +4146,9 @@
         "wallet_blocked": "Portofelul tău este blocat. Contactează suportul.",
         "generic": "Ceva n-a mers. Încearcă din nou."
       },
-      "steps": "Vezi pas cu pas ce a verificat agentul",
-      "costs": "Vezi toate costurile și cum se calculează"
+      "steps": "Ce a verificat agentul",
+      "costs": "Costuri",
+      "stepsHint": "Fiecare pas făcut de agent, în ordinea în care l-a făcut."
     },
     "task": {
       "analysis": "Verifică toată campania",
@@ -4276,7 +4282,7 @@
       "disconnectTitle": "Deconectezi contul Google?",
       "disconnectText": "Agentul nu mai are acces la Google Ads până te reconectezi. Nimic nu se schimbă în Google Ads, iar istoricul rămâne.",
       "disconnected": "Contul Google a fost deconectat.",
-      "advanced": "Setări avansate (opțional)"
+      "advanced": "Setări avansate"
     },
     "cost": {
       "chat": "Chatul cu agentul se plătește separat, pe mesaj, după cât a lucrat.",
@@ -4329,7 +4335,7 @@
       "lastReturned": "agentul nu a putut schimba nimic, așa că ți-am returnat creditele.",
       "paid": "Ai plătit {credits} credite.",
       "yoursTitle": "Doar tu poți face asta",
-      "yoursText": "Nu este urgent și nu blochează campania. Apasă pe fiecare ca să vezi pașii.",
+      "yoursText": "Nu este urgent și nu blochează campania. Pașii sunt scriși la fiecare.",
       "howTitle": "Cum funcționează",
       "how1": "Agentul îți arată gratuit ce poate îmbunătăți și cât costă.",
       "how2": "Tu decizi dacă pornește. Bugetul nu se schimbă niciodată fără acordul tău.",
@@ -4391,7 +4397,12 @@
           "cta": "Arată-mi pașii"
         }
       },
-      "yoursUrgent": "Unele dintre ele țin campania pe loc. Apasă pe fiecare ca să vezi pașii."
+      "yoursUrgent": "Unele dintre ele țin campania pe loc. Pașii sunt scriși la fiecare.",
+      "scoreTitle": "Scor de optimizare",
+      "scoreHint": "Cât de completă e campania față de cerințele Google, din 100 de puncte, calculat din datele ei reale.",
+      "scoreNone": "Scorul apare după prima citire a datelor din Google.",
+      "adQuality": "Calitatea reclamei:",
+      "adQualityHint": "Evaluarea Google pentru textele reclamei (Ad Strength)."
     },
     "list": {
       "title": "Campaniile tale Google Ads",
@@ -4408,6 +4419,10 @@
       "step2": "Alegi campania",
       "step3": "Agentul îți arată ce poate face",
       "emptyCta": "Conectează contul Google"
+    },
+    "section": {
+      "close": "Restrânge",
+      "open": "Deschide"
     }
   },
   "adminAdsOpt": {

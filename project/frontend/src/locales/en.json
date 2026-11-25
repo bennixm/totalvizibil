@@ -2421,7 +2421,9 @@
           "desc": "Negative adjustments of paid credits (money kept, no service delivered)."
         }
       }
-    }
+    },
+    "showTypes": "Which transactions the table shows",
+    "typeHidden": "Hidden"
   },
   "adminSettings": {
     "pricingTitle": "Pricing & exchange rate",
@@ -4038,7 +4040,7 @@
       "period": "Last 30 days, compared with the 30 days before.",
       "toImprove": "What can be improved",
       "agentCan": "The agent can fix:",
-      "needsYou": "This needs you (tap for the steps):",
+      "needsYou": "This needs you:",
       "keywordsOptional": "That is enough. Optionally, ask the agent in the chat to add:",
       "letAgent": "Let the agent do it",
       "noIssues": "No issues found.",
@@ -4046,7 +4048,10 @@
       "keywords": "{n} of {total} keywords appear in the headlines",
       "keywordsMissing": "Missing:",
       "breakdown": "Score breakdown",
-      "missing": "Missing"
+      "missing": "Missing",
+      "results": "Results",
+      "keywordsTitle": "Keywords in headlines",
+      "keywordsHint": "The words customers search for that appear in the ad headlines."
     },
     "metrics": {
       "impressions": "impressions",
@@ -4141,8 +4146,9 @@
         "wallet_blocked": "Your wallet is blocked. Please contact support.",
         "generic": "Something went wrong. Please try again."
       },
-      "steps": "See step by step what the agent checked",
-      "costs": "See all costs and how they are calculated"
+      "steps": "What the agent checked",
+      "costs": "Costs",
+      "stepsHint": "Every step the agent took, in order."
     },
     "task": {
       "analysis": "Checks the whole campaign",
@@ -4276,7 +4282,7 @@
       "disconnectTitle": "Disconnect the Google account?",
       "disconnectText": "The agent has no access to Google Ads until you reconnect. Nothing changes in Google Ads and your history is kept.",
       "disconnected": "The Google account was disconnected.",
-      "advanced": "Advanced settings (optional)"
+      "advanced": "Advanced settings"
     },
     "cost": {
       "chat": "The chat with the agent is charged separately, per message, by how much it worked.",
@@ -4329,7 +4335,7 @@
       "lastReturned": "the agent could not change anything, so we returned your credits.",
       "paid": "You paid {credits} credits.",
       "yoursTitle": "Only you can do this",
-      "yoursText": "It is not urgent and does not block the campaign. Tap each one to see the steps.",
+      "yoursText": "It is not urgent and does not block the campaign. Each one lists its steps.",
       "howTitle": "How it works",
       "how1": "The agent shows you for free what it can improve and the price.",
       "how2": "You decide whether it starts. The budget never changes without your approval.",
@@ -4391,7 +4397,12 @@
           "cta": "Show me the steps"
         }
       },
-      "yoursUrgent": "Some of these hold the campaign back. Tap each one to see the steps."
+      "yoursUrgent": "Some of these hold the campaign back. Each one lists its steps.",
+      "scoreTitle": "Optimization score",
+      "scoreHint": "How complete the campaign is against Google requirements, out of 100 points, from its real data.",
+      "scoreNone": "The score appears after the first read of the data from Google.",
+      "adQuality": "Ad quality:",
+      "adQualityHint": "Google rating of the ad texts (Ad Strength)."
     },
     "list": {
       "title": "Your Google Ads campaigns",
@@ -4408,6 +4419,10 @@
       "step2": "Pick the campaign",
       "step3": "The agent shows you what it can do",
       "emptyCta": "Connect Google account"
+    },
+    "section": {
+      "close": "Collapse",
+      "open": "Open"
     }
   },
   "adminAdsOpt": {

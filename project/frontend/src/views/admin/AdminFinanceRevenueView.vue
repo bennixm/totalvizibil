@@ -66,6 +66,18 @@ const types = computed({
   get: () => f.types,
   set: (v: RevenueTxnType[]) => finance.setRevenueFilter('types', v.length ? v : ['purchase', 'refund']),
 })
+const TYPE_ICON: Record<RevenueTxnType, string> = {
+  purchase: 'mdi-cash-plus',
+  refund: 'mdi-cash-refund',
+  adjustment: 'mdi-tune-variant',
+  spend: 'mdi-cash-minus',
+}
+/** The last type on cannot be turned off: an empty register helps nobody. */
+function toggleType(ty: RevenueTxnType): void {
+  const on = types.value.includes(ty)
+  if (on && types.value.length === 1) return
+  types.value = on ? types.value.filter((x) => x !== ty) : TYPES.filter((x) => x === ty || types.value.includes(x))
+}
 const STATUSES = computed<{ value: TxnStatusFilter; title: string }[]>(() =>
   (['completed', 'pending', 'processing', 'failed', 'canceled', 'all'] as TxnStatusFilter[]).map((v) => ({
     value: v,
@@ -170,15 +182,33 @@ onMounted(() => setQuickRange('month'))
       />
     </div>
 
-    <div v-if="finance.revenueByType" class="afr__subtotals">
-      <template v-for="ty in TYPES" :key="ty">
-        <span v-if="finance.revenueByType[ty].count" class="afr__subtotal">
-          <span class="chip" :class="typeClass(ty)">{{ t(`adminFinance.txnTypePlural.${ty}`) }}</span>
-          <b>{{ finance.revenueByType[ty].count }}</b>
-          <span>{{ eur(ty === 'purchase' || ty === 'refund' ? finance.revenueByType[ty].moneyMinor : finance.revenueByType[ty].amountMinor) }}</span>
+    <!-- What the list shows: one clear switch per type, with its own subtotal. -->
+    <fieldset class="afr__types">
+      <legend>{{ t('adminFinance.showTypes') }}</legend>
+      <button
+        v-for="ty in TYPES"
+        :key="ty"
+        type="button"
+        class="tsw"
+        :class="[`tsw--${ty}`, { 'is-on': types.includes(ty) }]"
+        role="switch"
+        :aria-checked="types.includes(ty)"
+        @click="toggleType(ty)"
+      >
+        <span class="tsw__top">
+          <v-icon :icon="TYPE_ICON[ty]" size="18" class="tsw__icon" />
+          <span class="tsw__name">{{ t(`adminFinance.txnTypePlural.${ty}`) }}</span>
+          <v-icon :icon="types.includes(ty) ? 'mdi-checkbox-marked' : 'mdi-checkbox-blank-outline'" size="20" class="tsw__check" />
         </span>
-      </template>
-    </div>
+        <span class="tsw__sum">
+          <template v-if="types.includes(ty) && finance.revenueByType">
+            <b>{{ eur(ty === 'purchase' || ty === 'refund' ? finance.revenueByType[ty].moneyMinor : finance.revenueByType[ty].amountMinor) }}</b>
+            <small>{{ t('adminFinance.periodTotalTxnCount', { n: finance.revenueByType[ty].count }) }}</small>
+          </template>
+          <small v-else>{{ t('adminFinance.typeHidden') }}</small>
+        </span>
+      </button>
+    </fieldset>
 
     <div class="afr__filters">
       <v-text-field
@@ -192,11 +222,6 @@ onMounted(() => setQuickRange('month'))
         class="afr__search"
         @click:clear="search = ''"
       />
-      <v-chip-group v-model="types" multiple selected-class="text-primary" column>
-        <v-chip v-for="ty in TYPES" :key="ty" :value="ty" filter size="small" variant="outlined">
-          {{ t(`adminFinance.txnTypePlural.${ty}`) }}
-        </v-chip>
-      </v-chip-group>
       <div class="afr__row">
         <v-select
           :model-value="f.status"
@@ -285,9 +310,9 @@ onMounted(() => setQuickRange('month'))
             <span v-else class="rrow__name">—</span>
             <span class="rrow__email">{{ r.userEmail }}</span>
           </span>
-          <span class="rrow__cell rrow__trunc" :data-label="t('adminFinance.colBusiness')">
+          <span class="rrow__cell rrow__trunc" :title="r.companyName ?? undefined" :data-label="t('adminFinance.colBusiness')">
             {{ r.companyName ?? '—' }}
-            <small v-if="r.clickCount" class="rrow__muted">· {{ t('adminFinance.clicks', { n: r.clickCount }) }}</small>
+            <small v-if="r.clickCount" class="rrow__muted rrow__clicks">{{ t('adminFinance.clicks', { n: r.clickCount }) }}</small>
           </span>
           <span class="rrow__cell rrow__ref" :data-label="t('adminFinance.colReference')">
             <b v-if="r.invoiceNumber">{{ r.invoiceNumber }}</b>
@@ -350,18 +375,90 @@ onMounted(() => setQuickRange('month'))
   grid-template-columns: repeat(2, 1fr);
   gap: 0.7rem;
 }
-.afr__subtotals {
+.afr__types {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 0.6rem;
+  margin: 1.1rem 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.afr__types legend {
+  margin-bottom: 0.5rem;
+  padding: 0;
+  font-size: var(--tvz-fs-small);
+  font-weight: 600;
+}
+.tsw {
+  --tc: var(--v-theme-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1.5px solid rgba(var(--v-theme-on-surface), 0.16);
+  border-radius: var(--tvz-radius-md);
+  background: rgb(var(--v-theme-surface));
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.tsw--purchase {
+  --tc: var(--v-theme-success);
+}
+.tsw--refund {
+  --tc: var(--v-theme-warning);
+}
+.tsw--adjustment {
+  --tc: var(--v-theme-info);
+}
+.tsw:hover,
+.tsw:focus-visible {
+  border-color: rgba(var(--tc), 0.7);
+}
+.tsw.is-on {
+  border-color: rgb(var(--tc));
+  background: rgba(var(--tc), 0.1);
+}
+.tsw:not(.is-on) .tsw__name,
+.tsw:not(.is-on) .tsw__sum {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.tsw__top {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.tsw__icon,
+.tsw__check {
+  flex: none;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.is-on .tsw__icon,
+.is-on .tsw__check {
+  color: rgb(var(--tc));
+}
+.tsw__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--tvz-fs-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.tsw__sum {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.2rem;
-  margin: 0.9rem 0 0;
-  font-size: var(--tvz-fs-small);
-}
-.afr__subtotal {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
+  align-items: baseline;
+  gap: 0 0.5rem;
+  min-height: 1.5rem;
   font-variant-numeric: tabular-nums;
+}
+.tsw__sum small {
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .afr__filters {
   display: flex;
@@ -373,20 +470,14 @@ onMounted(() => setQuickRange('month'))
   border-radius: var(--tvz-radius-md);
   container-type: inline-size;
 }
-.afr__search {
-  max-width: 520px;
-}
 .afr__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.6rem;
 }
-.afr__sel {
-  flex: 0 1 190px;
-}
-.afr__amt {
-  flex: 0 1 130px;
+.afr__reset {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 .afr__center {
   display: grid;
@@ -400,6 +491,7 @@ onMounted(() => setQuickRange('month'))
 }
 
 .rtable {
+  container-type: inline-size;
   border: 1px solid var(--tvz-glass-border);
   border-radius: var(--tvz-radius-md);
   overflow: hidden;
@@ -411,17 +503,20 @@ onMounted(() => setQuickRange('month'))
 .rtable__head,
 .rrow {
   display: grid;
+  /* Dates, types and sums keep the room their text needs; the names share
+     the rest and are cut with an ellipsis, so cells can never overlap. */
   grid-template-columns:
-    minmax(0, 0.75fr) minmax(0, 0.95fr) minmax(0, 1.2fr) minmax(0, 0.9fr)
-    minmax(0, 1fr) minmax(0, 0.65fr) minmax(0, 0.7fr) minmax(0, 0.55fr);
+    5.2rem 6.6rem minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 1fr)
+    6rem 5.8rem 4.6rem;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.6rem;
 }
 .num {
   text-align: right;
+  overflow-wrap: anywhere;
 }
 .rtable__head {
-  padding: 0.65rem 1.1rem;
+  padding: 0.65rem 0.9rem;
   font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
@@ -431,7 +526,7 @@ onMounted(() => setQuickRange('month'))
   border-bottom: 1px solid var(--tvz-hairline);
 }
 .rrow {
-  padding: 0.75rem 1.1rem;
+  padding: 0.75rem 0.9rem;
   border-bottom: 1px solid var(--tvz-hairline);
   background: rgb(var(--v-theme-surface));
 }
@@ -439,6 +534,7 @@ onMounted(() => setQuickRange('month'))
   border-bottom: none;
 }
 .rrow__cell {
+  overflow: hidden;
   font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.8);
   min-width: 0;
@@ -448,10 +544,18 @@ onMounted(() => setQuickRange('month'))
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+.rrow__date small {
+  display: block;
+}
 .rrow__date small,
 .rrow__muted {
   color: rgba(var(--v-theme-on-surface), 0.45);
   font-size: var(--tvz-fs-caption);
+}
+.rrow__clicks {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .rrow__trunc {
   overflow: hidden;
@@ -498,6 +602,9 @@ a.rrow__name:hover {
 }
 .chip {
   display: inline-block;
+  max-width: 100%;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
   font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
@@ -585,7 +692,7 @@ a.rrow__name:hover {
   font-size: var(--tvz-fs-body);
 }
 
-@media (max-width: 960px) {
+@container (max-width: 800px) {
   .rtable__head {
     display: none;
   }
@@ -602,9 +709,21 @@ a.rrow__name:hover {
     color: rgba(var(--v-theme-on-surface), 0.45);
     font-size: var(--tvz-fs-caption);
   }
+  .rrow__cell {
+    overflow-wrap: anywhere;
+  }
+  .rrow__trunc {
+    white-space: normal;
+  }
+  .rrow__date small {
+    display: inline;
+  }
   .rrow__person,
   .rrow__ref {
     grid-column: span 2;
+  }
+  .rrow__ref:empty {
+    display: none;
   }
   .rtable__footvals {
     gap: 1rem;
@@ -619,9 +738,6 @@ a.rrow__name:hover {
    pairs, the two dropdowns together (status | sort) and the two amounts
    together (min | max), instead of whatever the wrap happened to pair. */
 @container (max-width: 560px) {
-  .afr__search {
-    max-width: none;
-  }
   .afr__row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -635,8 +751,6 @@ a.rrow__name:hover {
   }
   .afr__reset {
     order: 3;
-    grid-column: 1 / -1;
-    justify-self: start;
   }
 }
 </style>

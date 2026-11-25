@@ -84,14 +84,13 @@ onMounted(async () => {
 
 <template>
   <v-container class="ad" fluid>
-    <AdminPageHeader eyebrow="Google Ads" :title="t('ads.conn.addTitle')">
+    <AdminPageHeader eyebrow="Google Ads" :title="t('ads.conn.addTitle')" :hint="t('ads.conn.addLead')">
       <template #actions>
         <v-btn variant="text" prepend-icon="mdi-arrow-left" :to="{ name: 'ads-connections' }">
           {{ t('ads.conn.title') }}
         </v-btn>
       </template>
     </AdminPageHeader>
-    <p class="ad__lead">{{ t('ads.conn.addLead') }}</p>
 
     <div v-if="loading" class="ab-center"><v-progress-circular indeterminate color="primary" /></div>
     <div v-else-if="loadError" class="ab-card ad__narrow">
@@ -119,11 +118,6 @@ onMounted(async () => {
 <style scoped>
 .ad {
   max-width: 1100px;
-}
-.ad__lead {
-  margin: -0.75rem 0 1.25rem;
-  font-size: var(--tvz-fs-small);
-  color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .ad__narrow {
   max-width: 560px;

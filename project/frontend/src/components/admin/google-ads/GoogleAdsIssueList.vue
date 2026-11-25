@@ -4,15 +4,26 @@
  * explanation (why it matters, what to do, Google source) opens on click,
  * so a long list stays scannable. Text comes from the backend evaluator.
  */
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GaChip from './GaChip.vue'
 import type { GoogleAdsIssue, IssuePriority } from '@/services/google-ads-optimization'
 
-defineProps<{ issues: GoogleAdsIssue[] }>()
+const props = defineProps<{
+  issues: GoogleAdsIssue[]
+  /** Start with every explanation open. */
+  expanded?: boolean
+}>()
 const { t } = useI18n()
 
 const open = ref<Set<number>>(new Set())
+watch(
+  () => props.issues.length,
+  (n) => {
+    if (props.expanded) open.value = new Set(Array.from({ length: n }, (_, i) => i))
+  },
+  { immediate: true },
+)
 function toggle(i: number) {
   if (open.value.has(i)) open.value.delete(i)
   else open.value.add(i)

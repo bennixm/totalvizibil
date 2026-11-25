@@ -9,6 +9,7 @@
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useAdminFinanceStore, type CheckItem, type CheckSeverity } from '@/stores/adminFinance'
@@ -50,6 +51,7 @@ onMounted(() => {
         <v-icon :icon="problems ? 'mdi-alert-outline' : 'mdi-shield-check-outline'" size="18" />
         {{ problems ? t('adminFinance.checks.problems', { n: problems }) : t('adminFinance.checks.allGood') }}
       </span>
+      <AdminHint :text="t('adminFinance.checks.lead')" />
       <v-spacer />
       <small v-if="finance.checksGeneratedAt" class="fcp__time">
         {{ new Date(finance.checksGeneratedAt).toLocaleString('ro-RO') }}
@@ -64,7 +66,6 @@ onMounted(() => {
         {{ t('adminFinance.checks.rerun') }}
       </v-btn>
     </div>
-    <p class="fcp__lead">{{ t('adminFinance.checks.lead') }}</p>
 
     <div v-if="finance.loadingChecks && !finance.checks" class="fcp__center">
       <v-progress-circular indeterminate color="primary" />

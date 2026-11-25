@@ -68,7 +68,9 @@ function hasCurrent(g: SidebarNavGroup): boolean {
 }
 function isOpen(g: SidebarNavGroup): boolean {
   if (!g.id || hasCurrent(g)) return true
-  return folds.value[g.id] ?? (!g.startFolded || total.value <= 10)
+  // Inside the one long group, the others fold too, so every heading fits.
+  const longOpen = props.groups.some((x) => x.startFolded && hasCurrent(x))
+  return folds.value[g.id] ?? (total.value <= 10 || (!g.startFolded && !longOpen))
 }
 function toggleGroup(g: SidebarNavGroup): void {
   if (!g.id) return
