@@ -58,7 +58,7 @@
     "adsCampaigns": "Google-Ads-Kampagnen",
     "addAdsCampaign": "Kampagne optimieren",
     "pickCampaign": "Wählen",
-    "adsConnections": "Verbundene Google-Konten"
+    "adsConnections": "Google-Konten"
   },
   "notifications": {
     "bell": "Benachrichtigungen",
@@ -824,6 +824,8 @@
       "adjustment": "Anpassung"
     },
     "txnLabel": {
+      "adsCycle": "Google-Ads-Optimierung",
+      "adsChat": "Google-Ads-Agent-Chat",
       "aiPrompt": "KI-Prompt",
       "unlock": "Freischaltung erweiterter Builder",
       "additionalBusiness": "Zusätzliches Unternehmen"
@@ -3731,6 +3733,86 @@
     "optimizeCta": "Kampagne optimieren"
   },
   "ads": {
+    "chat": {
+      "openGaps": "Um diese Kampagne gut zu optimieren, fehlen mir einige Informationen. Schreib sie mir hier kurz:",
+      "openReady": "Ich habe die wichtigsten Informationen zur Kampagne. Frag mich alles dazu oder sag mir, was wir ändern sollen.",
+      "freeMessage": "Kostenlose Nachricht",
+      "working": "Der Agent liest die Kampagne und bereitet die Antwort vor…",
+      "notCharged": "Es wurde nichts berechnet.",
+      "prepared": "Vorbereitete Änderungen: {n}",
+      "cost": "Kosten: {credits} Credits",
+      "costBase": "Grundpreis: {credits}",
+      "costAi": "KI-Analyse und Antwort: {credits}",
+      "placeholder": "Schreib dem Agenten",
+      "send": "Senden",
+      "priceRange": "Eine Nachricht kostet zwischen {min} und {max} Credits, je nach Arbeit des Agenten.",
+      "knows": "Was der Agent weiß",
+      "unknown": "Unbekannt",
+      "editBrief": "Kostenlos ausfüllen",
+      "briefSaved": "Informationen gespeichert.",
+      "pricingTitle": "So wird der Chat berechnet",
+      "pricingText": "Getrennt von den Optimierungszyklen: ein Grundpreis, die KI-Arbeit dieser Nachricht und die vorbereiteten Änderungen. Beim Senden reservieren wir das Maximum und behalten dann nur die echten Kosten. Das Freigeben einer Änderung ist kostenlos.",
+      "today": "Heute: {credits} Credits",
+      "ofLimit": "vom Limit {credits}",
+      "confirmApply": "Der Agent wendet genau die angezeigten Änderungen an und prüft sie dann in Google Ads.",
+      "level": {
+        "ready": "Ausreichend",
+        "partial": "Teilweise",
+        "insufficient": "Unzureichend"
+      },
+      "gap": {
+        "business": "Was macht dein Unternehmen und welche Leistungen oder Produkte verkaufst du?",
+        "landing": "Die Zielseite kann nicht gelesen werden. Auf welcher Seite landen die Kunden?",
+        "ads": "Die Kampagne hat keine aktive Anzeige. Was möchtest du bewerben und auf welcher Seite?",
+        "keywords": "Die Kampagne hat zu wenige Keywords. Wonach würden deine Kunden bei Google suchen?",
+        "services": "Was sind deine wichtigsten Leistungen oder Produkte?",
+        "areas": "In welchen Gebieten arbeitest du?",
+        "goal": "Was möchtest du erreichen: Anrufe, Formulare, Verkäufe?",
+        "audience": "Wer sind deine Kunden?",
+        "differentiators": "Warum entscheiden sich Kunden für dich?"
+      },
+      "brief": {
+        "services": "Leistungen oder Produkte",
+        "areas": "Gebiete",
+        "audience": "Kunden",
+        "goal": "Ziel",
+        "differentiators": "Vorteile",
+        "offer": "Aktuelles Angebot",
+        "avoid": "Nicht in Anzeigen"
+      },
+      "unit": {
+        "text": "Anzeigentext",
+        "keyword": "Keyword",
+        "extension": "Erweiterung",
+        "budget": "Budgetänderung",
+        "status": "Starten oder pausieren"
+      },
+      "match": {
+        "EXACT": "genau passend",
+        "PHRASE": "passende Wortgruppe",
+        "BROAD": "weitgehend passend"
+      },
+      "change": {
+        "page": "Seite",
+        "keyword": "Keyword",
+        "negative": "Negativ",
+        "paused": "Wird pausiert",
+        "daily": "Pro Tag"
+      },
+      "err": {
+        "insufficient_credits": "Du hast nicht genug Credits für eine Nachricht.",
+        "chat_daily_limit": "Du hast das tägliche Chat-Limit erreicht. Du kannst es in den Agent-Einstellungen ändern.",
+        "chat_busy": "Der Agent arbeitet noch an deiner vorherigen Nachricht.",
+        "ai_unavailable": "Der Agent ist derzeit nicht verfügbar.",
+        "google_ads_reconnect_required": "Verbinde dein Google-Ads-Konto erneut.",
+        "wallet_blocked": "Dein Wallet ist gesperrt. Kontaktiere den Support.",
+        "ai_error": "Der Agent konnte nicht antworten. Versuche es erneut.",
+        "ai_refused": "Der Agent kann auf diese Nachricht nicht antworten. Bitte formuliere sie um.",
+        "google_error": "Die Kampagne konnte nicht aus Google Ads gelesen werden. Versuche es erneut.",
+        "interrupted": "Die Nachricht wurde unterbrochen. Sende sie erneut.",
+        "generic": "Etwas ist schiefgelaufen. Versuche es erneut."
+      }
+    },
     "back": "Zurück",
     "credits": "Credits",
     "connect": {
@@ -3821,6 +3903,7 @@
       "doneN": "{n} Kampagnen wurden zu deinem Panel hinzugefügt."
     },
     "tab": {
+      "chat": "Chat",
       "overview": "Übersicht",
       "agent": "Agent",
       "proposals": "Vorschläge",
@@ -3906,6 +3989,10 @@
       "disconnected": "Getrennt"
     },
     "agent": {
+      "needsInfo": "Der Agent hat nicht genug Informationen für eine gute Optimierung",
+      "couldKnowMore": "Das Ergebnis wäre besser, wenn der Agent wüsste",
+      "answerInChat": "Im Chat antworten",
+      "needsInfoConfirm": "Dem Agenten fehlen wichtige Informationen, die Texte können zu allgemein werden.",
       "runTitle": "Optimierungszyklus",
       "runLead": "Der Agent analysiert die Kampagne, setzt die von dir erlaubten Verbesserungen um und bereitet seine Vorschläge vor. Er folgt denselben Regeln wie unser interner Agent.",
       "firstFree": "Bisher war alles kostenlos. Der erste Zyklus beginnt ab {credits} Credits.",
@@ -3932,6 +4019,7 @@
       "cycles": "Frühere Zyklen",
       "noCycles": "Noch keine Zyklen.",
       "err": {
+        "needs_information": "Der Agent braucht mehr Informationen.",
         "insufficient_credits": "Du hast nicht genug Credits in deiner Wallet.",
         "cycle_already_running": "Für diese Kampagne läuft bereits ein Zyklus.",
         "quote_changed": "Die Schätzung hat sich geändert. Prüfe den neuen Preis.",
@@ -3945,7 +4033,7 @@
       "analysis": "Analyse und Wert",
       "rsa_text": "Neue Anzeigentitel und Beschreibungen",
       "keyword_headlines": "Keywords in Anzeigentiteln",
-      "extensions": "Erweiterungen (Sitelinks, Callouts, Snippet)",
+      "extensions": "Erweiterungen",
       "images": "Bilder",
       "text_rewrite": "Umformulierungsvorschläge",
       "budget_proposal": "Budgetvorschläge"
@@ -3987,6 +4075,13 @@
       "sumPolicy": "Umgeschrieben {r}, entfernt {d}"
     },
     "action": {
+      "chat": {
+        "ad_texts": "Anzeigentexte",
+        "ad_create": "Neue Anzeige",
+        "keywords": "Keywords",
+        "extensions": "Erweiterungen",
+        "status": "Kampagnenstatus"
+      },
       "creative": {
         "rsa_gap_fill": "Anzeigentitel und Beschreibungen hinzugefügt",
         "assets_gap_fill": "Erweiterungen hinzugefügt",
@@ -4014,6 +4109,8 @@
       "pending_approval": "Offen"
     },
     "set": {
+      "chatLimit": "Chat-Limit pro Tag (Credits)",
+      "chatLimitHint": "0 bedeutet kein Limit.",
       "agentTitle": "Was der Agent tut",
       "autoApply": "Fehlende Elemente automatisch ergänzen",
       "autoApplyHint": "Anzeigentitel, Beschreibungen, Sitelinks, Callouts, Snippet und Unternehmensname, bis zu dem von Google empfohlenen Niveau.",
@@ -4043,7 +4140,7 @@
       },
       "maxCredits": "Limit pro Zyklus (Credits)",
       "maxCreditsHint": "Ein teurerer geplanter Zyklus startet nicht (mindestens {min}).",
-      "cooldown": "Pause zwischen Textänderungen (Tage)",
+      "cooldown": "Textpause (Tage)",
       "cooldownHint": "Google braucht Zeit, um neue Texte zu bewerten.",
       "scheduleBilled": "Jeder geplante Zyklus wird aus deiner Wallet bezahlt, genau wie ein selbst gestarteter.",
       "manageTitle": "Verwaltung",
@@ -4065,6 +4162,7 @@
       "disconnected": "Das Google-Konto wurde getrennt."
     },
     "cost": {
+      "chat": "Der Chat mit dem Agenten wird separat berechnet, pro Nachricht, nach geleisteter Arbeit.",
       "howTitle": "Wie die Kosten berechnet werden",
       "free": "Verbinden, Kampagne auswählen und das Dashboard sind kostenlos.",
       "min": "Ein Optimierungszyklus kostet mindestens {min} Credits.",
@@ -4103,6 +4201,18 @@
     }
   },
   "adminAdsOpt": {
+    "chatTitle": "Agent-Chat",
+    "chatLine": "{n} Nachrichten ({failed} unbeantwortet, nicht berechnet) · {credits} Credits berechnet · KI-Kosten €{cost} · {calls} KI-Aufrufe",
+    "chatPricing": "Chat-Preis pro Nachricht",
+    "chatPricingHint": "Preis = Grundpreis + echte KI-Kosten × Multiplikator + vorbereitete Änderungen, zwischen Minimum und Maximum. Eine unbeantwortete Nachricht kostet nichts.",
+    "chatMin": "Minimum pro Nachricht",
+    "chatMax": "Maximum pro Nachricht",
+    "chatMaxHint": "Wird beim Senden reserviert, die Differenz kommt zurück.",
+    "chatBase": "Grundpreis",
+    "chatMarkup": "KI-Kosten-Multiplikator",
+    "chatMarkupHint": "4 bedeutet das 4-Fache der echten Kosten.",
+    "chatCalls": "Maximale KI-Aufrufe pro Nachricht",
+    "chatExample": "Beispiel: eine übliche Antwort mit 3 vorbereiteten Texten kostet {credits} Credits.",
     "title": "Google-Ads-Optimierung für Kunden",
     "notReady": "Kunden können sich noch nicht verbinden: Die Google-Einrichtung fehlt.",
     "configure": "Einrichten",

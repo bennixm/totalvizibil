@@ -4,6 +4,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditActor, AuditLogService } from '../admin/audit-log.service';
 import { AppConfig } from '../config/env';
+import {
+  ChatPricing,
+  parseStoredChatPricing,
+  validateChatPricing,
+} from '../google-ads-user/chat-pricing';
 import { OptimizerPricing, parseStoredPricing, validatePricing } from '../google-ads-user/pricing';
 
 export const SETTING_KEYS = {
@@ -55,6 +60,7 @@ export const SETTING_KEYS = {
   googleAdsOauthClientId: 'google_ads_oauth_client_id',
   googleAdsOauthClientSecret: 'google_ads_oauth_client_secret',
   googleAdsOptimizerPricing: 'google_ads_optimizer_pricing',
+  googleAdsChatPricing: 'google_ads_chat_pricing',
 } as const;
 
 /** Fallback EUR->RON rate when the setting row is absent. Kept sane, not exact. */
@@ -959,6 +965,17 @@ export class PlatformSettingsService {
     const { value, error } = validatePricing(input);
     if (!value) throw new BadRequestException(error ?? 'Configurație de preț invalidă.');
     await this.set(SETTING_KEYS.googleAdsOptimizerPricing, JSON.stringify(value));
+    return value;
+  }
+
+  /** Credit pricing of the Google Ads agent chat, per message. */
+  async googleAdsChatPricing(): Promise<ChatPricing> {
+    return parseStoredChatPricing(await this.get(SETTING_KEYS.googleAdsChatPricing));
+  }
+  async setGoogleAdsChatPricing(input: unknown): Promise<ChatPricing> {
+    const { value, error } = validateChatPricing(input);
+    if (!value) throw new BadRequestException(error ?? 'Configurație de preț invalidă.');
+    await this.set(SETTING_KEYS.googleAdsChatPricing, JSON.stringify(value));
     return value;
   }
 

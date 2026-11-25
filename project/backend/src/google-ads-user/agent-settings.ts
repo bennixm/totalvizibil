@@ -30,6 +30,8 @@ export interface UserAgentSettings {
   schedule: Schedule;
   /** A scheduled cycle whose price would exceed this is skipped. */
   maxCreditsPerCycle: number;
+  /** Most the chat may cost per day on this campaign (0 = no limit). */
+  chatDailyLimitCredits: number;
   /** Shown next to the ads as the BUSINESS_NAME asset (max 25 characters). */
   businessName: string;
   /** What the business does; context for every text the AI writes. */
@@ -46,6 +48,7 @@ export const DEFAULT_AGENT_SETTINGS: UserAgentSettings = {
   creativeCooldownDays: 7,
   schedule: 'manual',
   maxCreditsPerCycle: 30,
+  chatDailyLimitCredits: 20,
   businessName: '',
   businessDescription: '',
 };
@@ -70,6 +73,7 @@ export function readSettings(raw: unknown): UserAgentSettings {
     creativeCooldownDays: clampInt(s.creativeCooldownDays, 1, 60, 7),
     schedule: SCHEDULES.includes(s.schedule as Schedule) ? (s.schedule as Schedule) : 'manual',
     maxCreditsPerCycle: clampNum(s.maxCreditsPerCycle, 1, 100_000, 30),
+    chatDailyLimitCredits: clampNum(s.chatDailyLimitCredits, 0, 100_000, 20),
     businessName: String(s.businessName ?? '')
       .trim()
       .slice(0, 25),

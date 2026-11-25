@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
@@ -13,6 +13,7 @@ import {
   adminGoogleAdsUserApi,
   type AdminOauthConfig,
   type AdminOptimizerUsage,
+  type ChatPricing,
   type OptimizerPricing,
 } from '@/services/googleAdsUser'
 
@@ -27,6 +28,9 @@ const toasts = useToastStore()
 const tab = ref<'usage' | 'pricing' | 'oauth'>('usage')
 const usage = ref<AdminOptimizerUsage | null>(null)
 const pricing = ref<OptimizerPricing | null>(null)
+const chatPricing = ref<ChatPricing | null>(null)
+const chatDefaults = ref<ChatPricing | null>(null)
+const savingChat = ref(false)
 const defaults = ref<OptimizerPricing | null>(null)
 const oauth = ref<AdminOauthConfig | null>(null)
 const savingPricing = ref(false)
@@ -36,7 +40,7 @@ const oauthForm = reactive({ clientId: '', clientSecret: '' })
 const TASKS = ['analysis', 'rsa_text', 'keyword_headlines', 'extensions', 'images', 'text_rewrite', 'budget_proposal']
 
 const marginMinor = computed(() =>
-  usage.value ? usage.value.totals.chargedMinor - usage.value.totals.aiCostMinor : 0,
+  usage.value ? usage.value.totals.chargedMinor + usage.value.chat.chargedMinor - usage.value.totals.aiCostMinor - usage.value.chat.aiCostMinor : 0,
 )
 
 /** Live example with the edited values: what a typical cycle would cost. */
@@ -66,6 +70,34 @@ async function loadPricing(): Promise<void> {
   pricing.value = structuredClone(r.pricing)
   defaults.value = r.defaults
 }
+async function loadChatPricing(): Promise<void> {
+  const r = await adminGoogleAdsUserApi.chatPricing()
+  chatPricing.value = structuredClone(r.pricing)
+  chatDefaults.value = r.defaults
+}
+function resetChatDefaults(): void {
+  if (chatDefaults.value) chatPricing.value = structuredClone(toRaw(chatDefaults.value))
+}
+async function saveChatPricing(): Promise<void> {
+  if (!chatPricing.value || savingChat.value) return
+  savingChat.value = true
+  try {
+    const r = await adminGoogleAdsUserApi.saveChatPricing(chatPricing.value)
+    chatPricing.value = structuredClone(r.pricing)
+    toasts.success(t('adminAdsOpt.saved'))
+  } catch (e) {
+    toasts.error(e instanceof ApiError ? e.message : t('admin.genericError'))
+  } finally {
+    savingChat.value = false
+  }
+}
+/** A typical answer: 2 AI calls (about $0.04), 3 texts prepared. */
+const chatExample = computed(() => {
+  const p = chatPricing.value
+  if (!p) return 0
+  const raw = p.baseCredits + 0.04 * p.aiMarkup + 3 * (p.changeCredits.text ?? 0)
+  return Math.round(Math.min(p.maxCredits, Math.max(p.minCredits, raw)) * 100) / 100
+})
 async function loadOauth(): Promise<void> {
   oauth.value = await adminGoogleAdsUserApi.oauth()
   oauthForm.clientId = oauth.value.clientId
@@ -86,7 +118,8 @@ async function savePricing(): Promise<void> {
   }
 }
 function resetDefaults(): void {
-  if (defaults.value) pricing.value = structuredClone(defaults.value)
+  // toRaw: structuredClone throws on a reactive proxy.
+  if (defaults.value) pricing.value = structuredClone(toRaw(defaults.value))
 }
 function addLevel(): void {
   const p = pricing.value
@@ -126,6 +159,7 @@ async function copy(text: string): Promise<void> {
 onMounted(() => {
   void loadUsage()
   void loadPricing().catch(() => toasts.error(t('admin.genericError')))
+  void loadChatPricing().catch(() => toasts.error(t('admin.genericError')))
   void loadOauth().catch(() => undefined)
 })
 </script>
@@ -136,7 +170,7 @@ onMounted(() => {
 
     <p v-if="oauth && oauth.missing.length" class="gao__warn">
       <v-icon icon="mdi-alert-circle-outline" size="18" />
-      {{ t('adminAdsOpt.notReady') }}
+      <span class="gao__warnText">{{ t('adminAdsOpt.notReady') }}</span>
       <button type="button" class="gao__link" @click="tab = 'oauth'">{{ t('adminAdsOpt.configure') }}</button>
     </p>
 
@@ -156,6 +190,12 @@ onMounted(() => {
           <AdminStatCard :label="t('adminAdsOpt.aiCost')" :value="`€${creditsOf(usage.totals.aiCostMinor, locale)}`" icon="mdi-chip" :sub="t('adminAdsOpt.aiCalls', { n: usage.totals.aiCalls })" />
           <AdminStatCard :label="t('adminAdsOpt.margin')" :value="creditsOf(marginMinor, locale)" value-is-credits icon="mdi-trending-up" tone="primary" :hint="t('adminAdsOpt.marginHint')" />
         </div>
+
+        <AdminSection :title="t('adminAdsOpt.chatTitle')" icon="mdi-chat-outline" class="mb-4">
+          <p class="gao__muted">
+            {{ t('adminAdsOpt.chatLine', { n: usage.chat.messages, failed: usage.chat.failed, credits: creditsOf(usage.chat.chargedMinor, locale), cost: creditsOf(usage.chat.aiCostMinor, locale), calls: usage.chat.aiCalls }) }}
+          </p>
+        </AdminSection>
 
         <AdminSection :title="t('adminAdsOpt.byLevel')" icon="mdi-chart-bell-curve-cumulative">
           <p v-if="!usage.byLevel.length" class="gao__muted">{{ t('adminAdsOpt.noCycles') }}</p>
@@ -230,7 +270,6 @@ onMounted(() => {
               min="0"
               step="0.05"
               :label="t(`ads.task.${k}`)"
-              :suffix="t('adminAdsOpt.perUnit')"
             />
           </div>
         </AdminSection>
@@ -253,6 +292,35 @@ onMounted(() => {
         <div class="gao__actions">
           <v-btn variant="text" @click="resetDefaults">{{ t('adminAdsOpt.defaults') }}</v-btn>
           <v-btn type="submit" color="primary" :loading="savingPricing" prepend-icon="mdi-content-save-outline">{{ t('common.save') }}</v-btn>
+        </div>
+      </form>
+
+      <form v-if="chatPricing" class="gao__form mt-6" @submit.prevent="saveChatPricing">
+        <AdminSection :title="t('adminAdsOpt.chatPricing')" icon="mdi-chat-outline" :hint="t('adminAdsOpt.chatPricingHint')">
+          <div class="gao__grid">
+            <v-text-field v-model.number="chatPricing.minCredits" type="number" min="0.01" step="0.05" :label="t('adminAdsOpt.chatMin')" />
+            <v-text-field v-model.number="chatPricing.maxCredits" type="number" min="0.01" step="0.5" :label="t('adminAdsOpt.chatMax')" :hint="t('adminAdsOpt.chatMaxHint')" persistent-hint />
+            <v-text-field v-model.number="chatPricing.baseCredits" type="number" min="0" step="0.05" :label="t('adminAdsOpt.chatBase')" />
+            <v-text-field v-model.number="chatPricing.aiMarkup" type="number" min="1" step="0.5" :label="t('adminAdsOpt.chatMarkup')" :hint="t('adminAdsOpt.chatMarkupHint')" persistent-hint />
+            <v-text-field v-model.number="chatPricing.maxAiCalls" type="number" min="1" max="12" step="1" :label="t('adminAdsOpt.chatCalls')" />
+            <v-text-field
+              v-for="(_, k) in chatPricing.changeCredits"
+              :key="k"
+              v-model.number="chatPricing.changeCredits[k]"
+              type="number"
+              min="0"
+              step="0.05"
+              :label="t(`ads.chat.unit.${k}`)"
+            />
+          </div>
+        </AdminSection>
+        <p class="gao__example">
+          <v-icon icon="mdi-calculator-variant-outline" size="18" />
+          {{ t('adminAdsOpt.chatExample', { credits: chatExample }) }}
+        </p>
+        <div class="gao__actions">
+          <v-btn variant="text" @click="resetChatDefaults">{{ t('adminAdsOpt.defaults') }}</v-btn>
+          <v-btn type="submit" color="primary" :loading="savingChat" prepend-icon="mdi-content-save-outline">{{ t('common.save') }}</v-btn>
         </div>
       </form>
     </div>
@@ -291,7 +359,7 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.3rem 0.5rem;
   margin: -0.5rem 0 1rem;
   padding: 0.7rem 0.9rem;
   border-radius: var(--tvz-radius-md);
@@ -301,7 +369,12 @@ onMounted(() => {
 .gao__warn .v-icon {
   color: rgb(var(--v-theme-warning));
 }
+.gao__warnText {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
 .gao__link {
+  min-height: 28px;
   border: 0;
   background: none;
   padding: 0;
@@ -345,6 +418,7 @@ onMounted(() => {
 }
 .gao__tb {
   width: 100%;
+  min-width: 1080px;
   border-collapse: collapse;
   font-size: var(--tvz-fs-small);
 }
@@ -361,6 +435,9 @@ onMounted(() => {
   padding: 0.55rem 0.7rem;
   border-bottom: 1px solid var(--tvz-hairline);
   vertical-align: top;
+  max-width: 220px;
+  min-width: 92px;
+  overflow-wrap: anywhere;
 }
 .gao__tb .num {
   text-align: right;
@@ -375,8 +452,11 @@ onMounted(() => {
 }
 .gao__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
   gap: 0.75rem 1rem;
+}
+.gao :deep(.v-messages__message) {
+  line-height: 1.35;
 }
 .gao__lvrow {
   display: grid;
@@ -411,7 +491,7 @@ onMounted(() => {
 }
 .gao__checks li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
 }
 .gao__redirect {
@@ -428,9 +508,15 @@ onMounted(() => {
   background: rgba(var(--v-theme-on-surface), 0.07);
   overflow-wrap: anywhere;
 }
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .gao__lvrow {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--tvz-hairline);
+  }
+  .gao__lvrow .v-btn {
+    grid-column: 2;
+    justify-self: end;
   }
 }
 </style>

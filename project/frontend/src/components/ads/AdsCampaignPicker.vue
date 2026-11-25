@@ -205,7 +205,7 @@ onMounted(async () => {
               <v-icon v-if="picked.has(key(account.customerId, c.id))" icon="mdi-check" size="14" />
             </span>
             <span class="cmp__dot" :class="`t-${statusTone(c)}`" />
-            <span class="cmp__name">{{ c.name }}</span>
+            <span class="cmp__name" :title="c.name">{{ c.name }}</span>
             <span class="cmp__chip">{{ t(`ads.channel.${c.channelType}`, c.channelType) }}</span>
           </span>
           <span class="cmp__stats">
@@ -281,7 +281,7 @@ onMounted(async () => {
 .ag__switch {
   border: 0;
   background: none;
-  padding: 0;
+  padding: 0.3rem 0;
   font: inherit;
   font-size: 0.8rem;
   font-weight: 600;
@@ -292,6 +292,9 @@ onMounted(async () => {
   opacity: 0.5;
 }
 .ag__email {
+  min-width: 0;
+  flex: 1 1 10rem;
+  overflow-wrap: anywhere;
   font-weight: 500;
 }
 .ag__hint {
@@ -336,9 +339,11 @@ onMounted(async () => {
 }
 .acc__name {
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+.acc__meta,
+.acc__reason {
+  overflow-wrap: anywhere;
 }
 .acc__meta {
   font-size: 0.78rem;
@@ -454,6 +459,15 @@ onMounted(async () => {
   color: rgb(var(--v-theme-success));
 }
 @media (max-width: 760px) {
+  /* Campaign names often differ only at the end: show them whole. */
+  .cmp__top {
+    flex-wrap: wrap;
+  }
+  .cmp__name {
+    flex: 1 1 calc(100% - 60px);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .ag {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -261,7 +261,7 @@ export class FinanceStatementService {
     const dayFrom = new Date(
       Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()),
     );
-    const [expenses, ai, agent, search, optimizer] = await Promise.all([
+    const [expenses, ai, agent, search, cycles, chat] = await Promise.all([
       this.prisma.platformExpense.findMany({
         where: { incurredOn: { gte: dayFrom, lte: to } },
         select: {
@@ -291,7 +291,16 @@ export class FinanceStatementService {
         where: { startedAt: { gte: from, lte: to } },
         select: { aiCostMinor: true, startedAt: true },
       }),
+      this.prisma.googleAdsChatTurn.findMany({
+        where: { createdAt: { gte: from, lte: to } },
+        select: { aiCostUsd: true, createdAt: true },
+      }),
     ]);
+    // Chat messages cost fractions of a cent: kept unrounded, rounded in sums.
+    const optimizer = [
+      ...cycles,
+      ...chat.map((t) => ({ aiCostMinor: t.aiCostUsd * 100, startedAt: t.createdAt })),
+    ];
     return { expenses, ai, agent, search, optimizer };
   }
 
@@ -467,9 +476,11 @@ export class FinanceStatementService {
       campaignAgentMinor: costs.agent
         .filter((a) => inRange(a.startedAt, r))
         .reduce((s, a) => s + (a.claudeCostEstimateMinor ?? 0), 0),
-      googleAdsOptimizerMinor: costs.optimizer
-        .filter((a) => inRange(a.startedAt, r))
-        .reduce((s, a) => s + a.aiCostMinor, 0),
+      googleAdsOptimizerMinor: Math.round(
+        costs.optimizer
+          .filter((a) => inRange(a.startedAt, r))
+          .reduce((s, a) => s + a.aiCostMinor, 0),
+      ),
       searchMinor: Math.round(searchUsd * 100),
       totalMinor: 0,
     };
@@ -559,7 +570,7 @@ export class FinanceStatementService {
         bucket(a.startedAt).expenseMinor += a.claudeCostEstimateMinor ?? 0;
     }
     for (const a of costs.optimizer) {
-      if (inRange(a.startedAt, r)) bucket(a.startedAt).expenseMinor += a.aiCostMinor;
+      if (inRange(a.startedAt, r)) bucket(a.startedAt).aiUsd += a.aiCostMinor / 100;
     }
     return [...days.entries()]
       .map(([date, b]) => ({

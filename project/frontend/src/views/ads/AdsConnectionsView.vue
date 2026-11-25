@@ -98,7 +98,7 @@ onMounted(() => {
         <header class="cc__head">
           <span class="cc__icon"><v-icon icon="mdi-google" size="20" /></span>
           <div class="cc__who">
-            <b>{{ c.googleEmail ?? t('ads.campaigns.connectedAccount') }}</b>
+            <b :title="c.googleEmail ?? undefined">{{ c.googleEmail ?? t('ads.campaigns.connectedAccount') }}</b>
             <span>{{ t('ads.conn.since', { when: dateTime(c.connectedAt, locale) }) }}</span>
           </div>
           <GaChip :tone="TONE[c.status]">{{ t(`ads.conn.status.${c.status}`) }}</GaChip>
@@ -113,7 +113,7 @@ onMounted(() => {
             class="cc__camp"
           >
             <span class="cc__dot" :class="`t-${k.status}`" />
-            <span class="cc__name">{{ k.name }}</span>
+            <span class="cc__name" :title="k.name">{{ k.name }}</span>
             <span v-if="k.customerName" class="cc__acc">{{ k.customerName }}</span>
             <v-icon icon="mdi-chevron-right" size="16" />
           </RouterLink>
@@ -162,7 +162,7 @@ onMounted(() => {
 }
 .cn__list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
   gap: 1rem;
 }
 .cc {
@@ -176,7 +176,7 @@ onMounted(() => {
 }
 .cc__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.7rem;
 }
 .cc__icon {
@@ -196,9 +196,7 @@ onMounted(() => {
   flex: 1;
 }
 .cc__who b {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .cc__who span {
   font-size: var(--tvz-fs-caption);
@@ -242,6 +240,9 @@ onMounted(() => {
 .cc__acc {
   font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 @media (max-width: 600px) {

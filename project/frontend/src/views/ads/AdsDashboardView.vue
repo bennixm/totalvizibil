@@ -7,6 +7,7 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import GaChip from '@/components/admin/google-ads/GaChip.vue'
 import AdsOverviewTab from '@/components/ads/AdsOverviewTab.vue'
 import AdsAgentTab from '@/components/ads/AdsAgentTab.vue'
+import AdsChatTab from '@/components/ads/AdsChatTab.vue'
 import AdsProposalsTab from '@/components/ads/AdsProposalsTab.vue'
 import AdsSettingsTab from '@/components/ads/AdsSettingsTab.vue'
 import AdsCostsTab from '@/components/ads/AdsCostsTab.vue'
@@ -29,7 +30,7 @@ const router = useRouter()
 const toasts = useToastStore()
 const adsStore = useGoogleAdsUserStore()
 
-const TABS = ['overview', 'agent', 'proposals', 'settings', 'costs'] as const
+const TABS = ['overview', 'agent', 'chat', 'proposals', 'settings', 'costs'] as const
 type Tab = (typeof TABS)[number]
 
 const detail = ref<UserCampaignDetail | null>(null)
@@ -142,6 +143,7 @@ onBeforeUnmount(() => clearTimeout(poll))
       <v-tabs v-model="tab" color="primary" show-arrows density="comfortable" class="ad__tabs" data-guide="ads-tabs">
         <v-tab value="overview">{{ t('ads.tab.overview') }}</v-tab>
         <v-tab value="agent">{{ t('ads.tab.agent') }}</v-tab>
+        <v-tab value="chat">{{ t('ads.tab.chat') }}</v-tab>
         <v-tab value="proposals">
           {{ t('ads.tab.proposals') }}
           <span v-if="detail.pending.length" class="ad__count">{{ detail.pending.length }}</span>
@@ -152,7 +154,8 @@ onBeforeUnmount(() => clearTimeout(poll))
 
       <div class="ad__body">
         <AdsOverviewTab v-if="tab === 'overview'" :detail="detail" @goto="(v) => (tab = v as Tab)" />
-        <AdsAgentTab v-else-if="tab === 'agent'" :detail="detail" @changed="load" />
+        <AdsAgentTab v-else-if="tab === 'agent'" :detail="detail" @changed="load" @goto="(v) => (tab = v as Tab)" />
+        <AdsChatTab v-else-if="tab === 'chat'" :detail="detail" @changed="load" />
         <AdsProposalsTab v-else-if="tab === 'proposals'" :detail="detail" @changed="load" />
         <AdsSettingsTab v-else-if="tab === 'settings'" :detail="detail" @changed="load" @removed="onRemoved" />
         <AdsCostsTab v-else :detail="detail" />
@@ -174,14 +177,21 @@ onBeforeUnmount(() => clearTimeout(poll))
 }
 .ad__meta {
   display: inline-flex;
+  min-width: 0;
+  overflow-wrap: anywhere;
   align-items: center;
   gap: 0.25rem;
   font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .ad__banner {
+  flex-wrap: wrap;
   align-items: center;
   margin-bottom: 1rem;
+}
+.ad__banner > span {
+  flex: 1 1 12rem;
+  min-width: 0;
 }
 .ad__tabs {
   border-bottom: 1px solid var(--tvz-hairline);

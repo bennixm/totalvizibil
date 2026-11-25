@@ -946,6 +946,7 @@ export class AiService {
     maxTokens: number;
     model?: string;
     timeoutMs?: number;
+    effort?: CallOpts['effort'];
   }): Promise<Anthropic.Message | null> {
     if (!this.anthropic) return null;
     try {
@@ -956,6 +957,7 @@ export class AiService {
           system: [{ type: 'text', text: params.system, cache_control: { type: 'ephemeral' } }],
           messages: params.messages,
           tools: params.tools,
+          ...(params.effort ? { output_config: { effort: params.effort } } : {}),
         },
         { timeout: params.timeoutMs ?? PLAN_TIMEOUT_MS },
       );

@@ -8,6 +8,7 @@ import { AuditLogService } from '../admin/audit-log.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleAdsOAuthService } from './google-ads-oauth.service';
+import { DEFAULT_CHAT_PRICING } from './chat-pricing';
 import { DEFAULT_PRICING } from './pricing';
 
 class OauthDto {
@@ -58,6 +59,27 @@ export class AdminGoogleAdsUserController {
     return { pricing: after, defaults: DEFAULT_PRICING };
   }
 
+  @Get('chat-pricing')
+  async chatPricing() {
+    return { pricing: await this.settings.googleAdsChatPricing(), defaults: DEFAULT_CHAT_PRICING };
+  }
+
+  @Patch('chat-pricing')
+  async setChatPricing(@CurrentUser() caller: AuthPrincipal, @Body() body: unknown) {
+    const before = await this.settings.googleAdsChatPricing();
+    const after = await this.settings.setGoogleAdsChatPricing(body);
+    await this.audit.log({
+      actorId: caller.id,
+      actorRoles: caller.platformRoles,
+      action: 'google_ads_optimizer.chat_pricing.update',
+      targetType: 'platform_setting',
+      targetId: null,
+      before: before as unknown as Record<string, unknown>,
+      after: after as unknown as Record<string, unknown>,
+    });
+    return { pricing: after, defaults: DEFAULT_CHAT_PRICING };
+  }
+
   /** Never returns the secret, only whether one is set. */
   @Get('oauth')
   async oauthConfig() {
@@ -97,7 +119,8 @@ export class AdminGoogleAdsUserController {
       ...(to && !isNaN(Date.parse(to)) ? { lte: new Date(to) } : {}),
     };
     const where = Object.keys(range).length ? { startedAt: range } : {};
-    const [agg, byLevel, cycles, campaigns, connected] = await Promise.all([
+    const chatWhere = Object.keys(range).length ? { createdAt: range } : {};
+    const [agg, byLevel, cycles, campaigns, connected, chat, chatFailed] = await Promise.all([
       this.prisma.googleAdsOptimizationCycle.aggregate({
         where,
         _count: true,
@@ -128,6 +151,12 @@ export class AdminGoogleAdsUserController {
       }),
       this.prisma.googleAdsUserCampaign.count(),
       this.prisma.googleAdsConnection.count({ where: { status: 'connected' } }),
+      this.prisma.googleAdsChatTurn.aggregate({
+        where: chatWhere,
+        _count: true,
+        _sum: { chargedMinor: true, aiCostUsd: true, aiCallCount: true },
+      }),
+      this.prisma.googleAdsChatTurn.count({ where: { ...chatWhere, status: 'failed' } }),
     ]);
     return {
       totals: {
@@ -141,6 +170,13 @@ export class AdminGoogleAdsUserController {
         tasksProposed: agg._sum.tasksProposed ?? 0,
         campaigns,
         connectedAccounts: connected,
+      },
+      chat: {
+        messages: chat._count,
+        failed: chatFailed,
+        chargedMinor: chat._sum.chargedMinor ?? 0,
+        aiCostMinor: Math.round((chat._sum.aiCostUsd ?? 0) * 100),
+        aiCalls: chat._sum.aiCallCount ?? 0,
       },
       byLevel: byLevel.map((l) => ({
         level: l.complexityLevel,

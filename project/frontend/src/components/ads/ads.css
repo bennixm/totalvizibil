@@ -43,7 +43,7 @@
   line-height: 1.45;
   color: rgba(var(--v-theme-on-surface), 0.78);
 }
-.ab-note .v-icon {
+.ab-note > .v-icon {
   flex: none;
   margin-top: 0.1rem;
   color: rgb(var(--v-theme-primary));
@@ -51,7 +51,7 @@
 .ab-note--warn {
   background: rgba(var(--v-theme-warning), 0.1);
 }
-.ab-note--warn .v-icon {
+.ab-note--warn > .v-icon {
   color: rgb(var(--v-theme-warning));
 }
 .ab-center {

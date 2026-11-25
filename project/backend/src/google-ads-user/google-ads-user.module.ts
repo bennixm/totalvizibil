@@ -3,6 +3,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AuditLogModule } from '../admin/audit-log.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { AdminGoogleAdsUserController } from './admin-google-ads-user.controller';
+import { GoogleAdsChatService } from './google-ads-chat.service';
 import { GoogleAdsOAuthService } from './google-ads-oauth.service';
 import { GoogleAdsUserAgentService } from './google-ads-user-agent.service';
 import { GoogleAdsUserController } from './google-ads-user.controller';
@@ -17,7 +18,12 @@ import { GoogleAdsUserService } from './google-ads-user.service';
 @Module({
   imports: [AuthModule, AuditLogModule, WalletModule],
   controllers: [GoogleAdsUserController, AdminGoogleAdsUserController],
-  providers: [GoogleAdsOAuthService, GoogleAdsUserService, GoogleAdsUserAgentService],
+  providers: [
+    GoogleAdsOAuthService,
+    GoogleAdsUserService,
+    GoogleAdsUserAgentService,
+    GoogleAdsChatService,
+  ],
   exports: [GoogleAdsUserAgentService],
 })
 export class GoogleAdsUserModule {}

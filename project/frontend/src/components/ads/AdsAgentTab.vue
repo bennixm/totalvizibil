@@ -11,6 +11,7 @@ import {
   googleAdsUserApi,
   type PlannedTask,
   type PriceBreakdown,
+  type Readiness,
   type UserCampaignDetail,
 } from '@/services/googleAdsUser'
 import { creditsOf, dateTime } from './format'
@@ -21,7 +22,7 @@ import { creditsOf, dateTime } from './format'
  * activity of the running cycle, and the history of past cycles.
  */
 const props = defineProps<{ detail: UserCampaignDetail }>()
-const emit = defineEmits<{ (e: 'changed'): void }>()
+const emit = defineEmits<{ (e: 'changed'): void; (e: 'goto', tab: string): void }>()
 const { t, locale } = useI18n()
 const toasts = useToastStore()
 const confirm = useConfirmStore()
@@ -30,12 +31,15 @@ const quoting = ref(false)
 const starting = ref(false)
 const quote = ref<PriceBreakdown | null>(null)
 const tasks = ref<PlannedTask[]>([])
+const readiness = ref<Readiness | null>(null)
 const balanceMinor = ref(props.detail.balance.minor)
 const feed = ref<InstanceType<typeof GoogleAdsActivityFeed> | null>(null)
 
 const id = computed(() => props.detail.campaign.id)
 const running = computed(() => !!props.detail.runningCycle)
 const blocked = computed(() => props.detail.campaign.status !== 'active')
+const needsInfo = computed(() => readiness.value?.level === 'insufficient')
+const gaps = computed(() => readiness.value?.gaps.filter((g) => g.askable) ?? [])
 const canAfford = computed(() => !quote.value || balanceMinor.value >= quote.value.minor)
 const loader = (after?: string) => googleAdsUserApi.activity(id.value, after)
 
@@ -46,6 +50,7 @@ async function getQuote(): Promise<void> {
     const res = await googleAdsUserApi.quote(id.value)
     quote.value = res.quote
     tasks.value = res.tasks
+    readiness.value = res.readiness
     balanceMinor.value = res.balanceMinor
   } catch (e) {
     toasts.error(errText(e))
@@ -60,6 +65,7 @@ function errText(e: unknown): string {
     'insufficient_credits',
     'cycle_already_running',
     'quote_changed',
+    'needs_information',
     'campaign_paused',
     'google_ads_reconnect_required',
     'wallet_blocked',
@@ -72,19 +78,19 @@ function start(): void {
   if (!q || starting.value) return
   confirm.ask(
     t('ads.agent.confirmTitle'),
-    t('ads.agent.confirmText', { credits: creditsOf(q.minor, locale.value) }),
+    (needsInfo.value ? `${t('ads.agent.needsInfoConfirm')} ` : '') + t('ads.agent.confirmText', { credits: creditsOf(q.minor, locale.value) }),
     async () => {
       starting.value = true
       try {
         const key = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
-        await googleAdsUserApi.startCycle(id.value, key, q.minor)
+        await googleAdsUserApi.startCycle(id.value, key, q.minor, needsInfo.value)
         toasts.success(t('ads.agent.started'))
         quote.value = null
         emit('changed')
         setTimeout(() => feed.value?.refresh(), 500)
       } catch (e) {
         toasts.error(errText(e))
-        if (e instanceof ApiError && e.message === 'quote_changed') void getQuote()
+        if (e instanceof ApiError && ['quote_changed', 'needs_information'].includes(e.message)) void getQuote()
       } finally {
         starting.value = false
       }
@@ -137,6 +143,18 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
       </template>
 
       <template v-else>
+        <div v-if="gaps.length && readiness?.level !== 'ready'" class="ab-note" :class="{ 'ab-note--warn': needsInfo }">
+          <v-icon icon="mdi-chat-question-outline" size="18" />
+          <div>
+            <b>{{ needsInfo ? t('ads.agent.needsInfo') : t('ads.agent.couldKnowMore') }}</b>
+            <ul class="run__gaps">
+              <li v-for="g in gaps" :key="g.key">{{ t(`ads.chat.gap.${g.key}`) }}</li>
+            </ul>
+            <v-btn size="small" color="primary" :variant="needsInfo ? 'flat' : 'tonal'" prepend-icon="mdi-chat-outline" @click="emit('goto', 'chat')">
+              {{ t('ads.agent.answerInChat') }}
+            </v-btn>
+          </div>
+        </div>
         <div class="plan">
           <p class="plan__h">{{ t('ads.agent.planTitle') }}</p>
           <ul class="plan__list">
@@ -178,7 +196,7 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
           </p>
         </div>
         <div class="run__actions">
-          <v-btn v-if="canAfford" color="primary" size="large" :loading="starting" prepend-icon="mdi-play" data-guide="ads-start" @click="start">
+          <v-btn v-if="canAfford" color="primary" :variant="needsInfo ? 'tonal' : 'flat'" size="large" :loading="starting" prepend-icon="mdi-play" data-guide="ads-start" @click="start">
             {{ t('ads.agent.startCta', { credits: creditsOf(quote.minor, locale) }) }}
           </v-btn>
           <v-btn v-else color="primary" size="large" prepend-icon="mdi-wallet-plus-outline" :to="{ name: 'wallet', query: { topup: '1' } }">
@@ -273,6 +291,10 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
   margin: 0;
   font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.run__gaps {
+  margin: 0.3rem 0 0.6rem;
+  padding-left: 1.1rem;
 }
 .run__actions {
   display: flex;

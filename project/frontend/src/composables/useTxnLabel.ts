@@ -7,6 +7,8 @@ import type { WalletTxn } from '@/stores/wallet'
 const DESCRIPTION_LABELS: Record<string, string> = {
   'Advanced website builder': 'wallet.txnLabel.unlock',
   'Additional business': 'wallet.txnLabel.additionalBusiness',
+  'Google Ads optimization cycle': 'wallet.txnLabel.adsCycle',
+  'Google Ads agent chat': 'wallet.txnLabel.adsChat',
 }
 
 const TYPE_ICON: Record<WalletTxn['type'], string> = {

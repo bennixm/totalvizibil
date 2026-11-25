@@ -82,6 +82,7 @@ model User {
   googleAdsConnections        GoogleAdsConnection[]
   googleAdsUserCampaigns      GoogleAdsUserCampaign[]
   googleAdsOptimizationCycles GoogleAdsOptimizationCycle[]
+  googleAdsChatTurns          GoogleAdsChatTurn[]
 
   @@map("users")
 }
@@ -2246,6 +2247,9 @@ model GoogleAdsUserCampaign {
   status           GoogleAdsUserCampaignStatus @default(active)
   /// Agent settings chosen by the owner (see google-ads-user/agent-settings.ts).
   settings         Json?
+  /// What the agent knows about the business (services, areas, goal), told by
+  /// the owner in the chat or edited by hand (google-ads-user/campaign-brief.ts).
+  brief            Json?
   /// Latest evaluation (score, components, issues, assets, metrics) from the
   /// last sync, rendered by the campaign dashboard.
   snapshot         Json?
@@ -2261,6 +2265,7 @@ model GoogleAdsUserCampaign {
   connection GoogleAdsConnection          @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   cycles     GoogleAdsOptimizationCycle[]
   actions    GoogleAdsUserAction[]
+  chatTurns  GoogleAdsChatTurn[]
 
   @@unique([userId, customerId, googleCampaignId])
   @@index([status, nextCycleAt])
@@ -2331,6 +2336,8 @@ model GoogleAdsUserAction {
   id               String                @id @default(uuid()) @db.Uuid
   userCampaignId   String                @map("user_campaign_id") @db.Uuid
   cycleId          String?               @map("cycle_id") @db.Uuid
+  /// Set when the change was prepared in the chat.
+  chatTurnId       String?               @map("chat_turn_id") @db.Uuid
   action           String
   status           GoogleAdsActionStatus @default(applied)
   before           Json?
@@ -2349,8 +2356,59 @@ model GoogleAdsUserAction {
 
   userCampaign GoogleAdsUserCampaign       @relation(fields: [userCampaignId], references: [id], onDelete: Cascade)
   cycle        GoogleAdsOptimizationCycle? @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+  chatTurn     GoogleAdsChatTurn?          @relation(fields: [chatTurnId], references: [id], onDelete: SetNull)
 
   @@index([userCampaignId, createdAt])
   @@index([googleCampaignId, status])
+  @@index([chatTurnId])
   @@map("google_ads_user_actions")
+}
+
+enum GoogleAdsChatTurnStatus {
+  running
+  completed
+  /// Nothing was delivered; the hold was returned in full.
+  failed
+}
+
+/// One message of the owner to the agent and the agent's answer: the unit the
+/// chat is billed by, separately from optimization cycles. A ceiling is held
+/// when the message is sent; the final price (real AI cost x markup, plus a
+/// fee per change prepared) is captured on the same wallet row.
+model GoogleAdsChatTurn {
+  id               String                  @id @default(uuid()) @db.Uuid
+  userCampaignId   String                  @map("user_campaign_id") @db.Uuid
+  userId           String                  @map("user_id") @db.Uuid
+  status           GoogleAdsChatTurnStatus @default(running)
+  idempotencyKey   String                  @unique @map("idempotency_key")
+  userText         String                  @map("user_text")
+  assistantText    String?                 @map("assistant_text")
+  /// Questions the agent asked: [{question, options[]}].
+  questions        Json?
+  /// Wallet minor units reserved (the most this message can cost).
+  heldMinor        Int                     @map("held_minor")
+  chargedMinor     Int                     @default(0) @map("charged_minor")
+  chargeTxnId      String?                 @map("charge_txn_id") @db.Uuid
+  /// Price breakdown shown to the owner.
+  pricing          Json?
+  /// Our real AI cost of this turn (never shown to the owner).
+  aiCostUsd        Float                   @default(0) @map("ai_cost_usd")
+  aiCallCount      Int                     @default(0) @map("ai_call_count")
+  inputTokens      Int                     @default(0) @map("input_tokens")
+  outputTokens     Int                     @default(0) @map("output_tokens")
+  cacheReadTokens  Int                     @default(0) @map("cache_read_tokens")
+  cacheWriteTokens Int                     @default(0) @map("cache_write_tokens")
+  aiModel          String?                 @map("ai_model")
+  /// Error code for the owner (ads.chat.err.*).
+  errorCode        String?                 @map("error_code")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  finishedAt       DateTime?               @map("finished_at")
+
+  userCampaign GoogleAdsUserCampaign @relation(fields: [userCampaignId], references: [id], onDelete: Cascade)
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actions      GoogleAdsUserAction[]
+
+  @@index([userCampaignId, createdAt])
+  @@index([createdAt])
+  @@map("google_ads_chat_turns")
 }

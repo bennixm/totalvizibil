@@ -35,6 +35,17 @@ const elements = computed(() => {
     { key: 'images', have: a.images.filter((i) => i.valid).length, target: TARGETS.images, icon: 'mdi-image-outline' },
   ]
 })
+/** Large account figures (e.g. 1.2 mil. RON) must still fit their cell. */
+function compact(v: number): string {
+  return new Intl.NumberFormat(locale.value, {
+    notation: v >= 100_000 ? 'compact' : 'standard',
+    maximumFractionDigits: 1,
+  }).format(v)
+}
+function compactMoney(micros: number): string {
+  const v = micros / 1e6
+  return v >= 100_000 ? `${compact(v)} ${currency.value ?? ''}`.trim() : adsMoney(micros, currency.value, locale.value)
+}
 const sortedIssues = computed(() => {
   const order = { critical: 0, high: 1, medium: 2, low: 3 } as const
   return [...(ev.value?.issues ?? [])].sort((a, b) => order[a.priority] - order[b.priority])
@@ -69,7 +80,7 @@ function change(v: number | null | undefined): string {
         </div>
         <div>
           <dt>{{ t('ads.metrics.clicks') }}</dt>
-          <dd>{{ n(cur?.clicks ?? 0) }}</dd>
+          <dd :title="n(cur?.clicks ?? 0)">{{ compact(cur?.clicks ?? 0) }}</dd>
           <span v-if="ev.performance.comparable" class="ov__chg">{{ change(ev.performance.clicksChange) }}</span>
         </div>
         <div>
@@ -79,11 +90,11 @@ function change(v: number | null | undefined): string {
         </div>
         <div>
           <dt>{{ t('ads.metrics.cost') }}</dt>
-          <dd>{{ adsMoney(cur?.costMicros, currency, locale) }}</dd>
+          <dd :title="adsMoney(cur?.costMicros, currency, locale)">{{ compactMoney(cur?.costMicros ?? 0) }}</dd>
         </div>
         <div>
           <dt>{{ t('ads.metrics.conversions') }}</dt>
-          <dd>{{ n(cur?.conversions ?? 0, { maximumFractionDigits: 1 }) }}</dd>
+          <dd>{{ compact(cur?.conversions ?? 0) }}</dd>
         </div>
       </dl>
     </section>
@@ -206,9 +217,10 @@ function change(v: number | null | undefined): string {
 }
 .ov__kpis dd {
   margin: 0;
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 .ov__chg {
   font-size: var(--tvz-fs-caption);
@@ -233,6 +245,7 @@ function change(v: number | null | undefined): string {
 }
 .ov__hrow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
@@ -319,6 +332,8 @@ function change(v: number | null | undefined): string {
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
 .kw__tag {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 0.05rem 0.45rem;
   border-radius: 999px;
   background: rgba(var(--v-theme-on-surface), 0.08);
@@ -329,7 +344,7 @@ function change(v: number | null | undefined): string {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 0.9rem 1.5rem;
 }
 .cmp__row {
@@ -369,6 +384,12 @@ function change(v: number | null | undefined): string {
   }
 }
 @media (max-width: 700px) {
+  .ov__score {
+    padding: 1rem;
+  }
+  .ov__kpis > div {
+    padding: 0.8rem;
+  }
   .ov__kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
