@@ -175,13 +175,14 @@ export class GoogleAdsAgentRecommendationsService {
    */
   private async fetchRecommendations(campaignResourceName: string): Promise<GoogleAdsSearchRow[]> {
     const where = `FROM recommendation WHERE recommendation.campaign = '${campaignResourceName}'`;
+    // Whole detail objects: v25 rejects their sub-fields (UNRECOGNIZED_FIELD,
+    // confirmed live), which made even the minimal fallback query fail.
     const applyFields =
       'recommendation.resource_name, recommendation.type, ' +
-      'recommendation.sitelink_asset_recommendation.recommended_campaign_sitelink_assets, ' +
-      'recommendation.callout_asset_recommendation.recommended_campaign_callout_assets, ' +
-      'recommendation.responsive_search_ad_asset_recommendation.current_ad, ' +
-      'recommendation.responsive_search_ad_asset_recommendation.recommended_assets, ' +
-      'recommendation.responsive_search_ad_improve_ad_strength_recommendation.recommended_ad';
+      'recommendation.sitelink_asset_recommendation, ' +
+      'recommendation.callout_asset_recommendation, ' +
+      'recommendation.responsive_search_ad_asset_recommendation, ' +
+      'recommendation.responsive_search_ad_improve_ad_strength_recommendation';
     const displayFields = [
       'customer.currency_code',
       'recommendation.impact',

@@ -83,7 +83,13 @@ export class GoogleAdsUserClient implements AdsClient {
         nextPageToken?: string;
         error?: GoogleAdsApiError;
       };
-      if (!res.ok) throw formatApiError(res.status, data.error, this.logger);
+      if (!res.ok)
+        throw formatApiError(
+          res.status,
+          data.error,
+          this.logger,
+          `search ${this.customerId}: ${query}`,
+        );
       out.push(...(data.results ?? []));
       pageToken = data.nextPageToken;
       if (!pageToken) break;
@@ -111,7 +117,8 @@ export class GoogleAdsUserClient implements AdsClient {
       mutateOperationResponses?: GoogleAdsMutateResult[];
       error?: GoogleAdsApiError;
     };
-    if (!res.ok) throw formatApiError(res.status, data.error, this.logger);
+    if (!res.ok)
+      throw formatApiError(res.status, data.error, this.logger, `mutate ${this.customerId}`);
     return data.mutateOperationResponses ?? [];
   }
 
@@ -128,7 +135,13 @@ export class GoogleAdsUserClient implements AdsClient {
       },
     );
     const data = (await readJson(res)) as { error?: GoogleAdsApiError };
-    if (!res.ok) throw formatApiError(res.status, data.error, this.logger);
+    if (!res.ok)
+      throw formatApiError(
+        res.status,
+        data.error,
+        this.logger,
+        `keywordHistoricalMetrics ${this.customerId}`,
+      );
     return parsePlannerMetrics(data);
   }
 
@@ -137,7 +150,8 @@ export class GoogleAdsUserClient implements AdsClient {
     const headers = await this.headers(false);
     const res = await fetch(`${BASE}/customers:listAccessibleCustomers`, { headers });
     const data = (await readJson(res)) as { resourceNames?: string[]; error?: GoogleAdsApiError };
-    if (!res.ok) throw formatApiError(res.status, data.error, this.logger);
+    if (!res.ok)
+      throw formatApiError(res.status, data.error, this.logger, `listAccessibleCustomers`);
     return (data.resourceNames ?? []).map((r) => r.split('/').pop()!).filter(Boolean);
   }
 }

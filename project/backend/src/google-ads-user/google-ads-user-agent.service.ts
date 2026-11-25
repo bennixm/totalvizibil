@@ -490,9 +490,10 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     c: CampaignData,
   ): Promise<BudgetRecommendation[]> {
     const rows = await client.search(
+      // v25 rejects the sub-fields of a recommendation's details
+      // (UNRECOGNIZED_FIELD, confirmed live); the whole object is accepted.
       'SELECT recommendation.resource_name, recommendation.type, ' +
-        'recommendation.campaign_budget_recommendation.current_budget_amount_micros, ' +
-        'recommendation.campaign_budget_recommendation.recommended_budget_amount_micros ' +
+        'recommendation.campaign_budget_recommendation ' +
         `FROM recommendation WHERE recommendation.type = 'CAMPAIGN_BUDGET' AND recommendation.campaign = '${c.resourceName}'`,
     );
     return rows
