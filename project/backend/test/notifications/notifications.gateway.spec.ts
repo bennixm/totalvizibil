@@ -418,4 +418,30 @@ describe('NotificationsGateway', () => {
       expect(server.emit).toHaveBeenCalledWith('notification:sync', { kind: 'read', id: 'n1' });
     });
   });
+
+  describe('pushWalletChanges', () => {
+    it('tells a connected user about their balance once per change', async () => {
+      const findMany = jest.fn(async () => [{ userId: 'u1', balanceMinor: 100 }]);
+      const gw: any = new NotificationsGateway(
+        fakeSessions() as any,
+        { wallet: { findMany } } as any,
+        fakeConfig() as any,
+      );
+      const emit = jest.fn();
+      const to = jest.fn(() => ({ emit }));
+      gw.server = { to, sockets: { sockets: new Map([['c1', { data: { userId: 'u1' } }]]) } };
+      await gw.pushWalletChanges();
+      expect(findMany).not.toHaveBeenCalled();
+      gw.tokenByClientId.set('c1', 't');
+      await gw.pushWalletChanges();
+      await gw.pushWalletChanges();
+      expect(emit).toHaveBeenCalledTimes(1);
+      findMany.mockResolvedValue([{ userId: 'u1', balanceMinor: 90 }]);
+      await gw.pushWalletChanges();
+      expect(to).toHaveBeenLastCalledWith('u1');
+      expect(emit).toHaveBeenLastCalledWith('wallet:balance', { balanceMinor: 90 });
+      findMany.mockRejectedValue(new Error('db down'));
+      await expect(gw.pushWalletChanges()).resolves.toBeUndefined();
+    });
+  });
 });

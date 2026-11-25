@@ -4,6 +4,7 @@ import type { RouteLocationRaw } from 'vue-router'
 
 import { apiFetch, BASE_URL } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { useWalletStore } from '@/stores/wallet'
 import { useToastStore, type ToastKind } from '@/stores/toast'
 import { i18n } from '@/plugins/i18n'
 
@@ -101,8 +102,16 @@ export function routeForNotification(
   if (n.type === 'campaign_paused_website_not_ready' && typeof companyId === 'string') {
     return { name: 'campaign', query: { c: companyId } }
   }
-  if (n.type === 'google_ads_no_change' && typeof n.data?.adsCampaignId === 'string') {
-    return { name: 'ads-dashboard', params: { id: n.data.adsCampaignId } }
+  if (
+    (n.type === 'google_ads_no_change' || n.type === 'google_ads_staff_change') &&
+    typeof n.data?.adsCampaignId === 'string'
+  ) {
+    const tab = n.data.tab
+    return {
+      name: 'ads-dashboard',
+      params: { id: n.data.adsCampaignId },
+      ...(typeof tab === 'string' ? { query: { tab } } : {}),
+    }
   }
   if (n.type === 'google_ads_agent_run_failed') {
     return { name: 'admin-google-ads-agent' }
@@ -173,6 +182,7 @@ const VISUALS: Record<string, NotificationVisual> = {
   wallet_low_balance: { icon: 'mdi-wallet-outline', tone: 'warning' },
   payment_succeeded: { icon: 'mdi-check-decagram-outline', tone: 'success' },
   referral_rewarded: { icon: 'mdi-account-cash-outline', tone: 'success' },
+  google_ads_staff_change: { icon: 'mdi-google-ads', tone: 'primary' },
   google_ads_no_change: { icon: 'mdi-cash-refund', tone: 'primary' },
   refund_requested: { icon: 'mdi-cash-refund', tone: 'warning' },
   refund_completed: { icon: 'mdi-cash-check', tone: 'success' },
@@ -428,6 +438,10 @@ export const useNotificationsStore = defineStore('notifications', {
                 }
               : undefined,
         })
+      })
+
+      socket.on('wallet:balance', (msg: { balanceMinor?: unknown }) => {
+        if (typeof msg?.balanceMinor === 'number') useWalletStore().applyLiveBalance(msg.balanceMinor)
       })
 
       socket.on('notification:sync', (msg: SocketSync) => {

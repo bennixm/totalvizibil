@@ -20,6 +20,7 @@ import { PlatformSettingsService } from '../platform-settings/platform-settings.
 import { BillingService } from '../billing/billing.service';
 import { AffiliateService } from '../affiliate/affiliate.service';
 import { AdminStatsService } from './admin-stats.service';
+import { AdminUserActivityService } from './admin-user-activity.service';
 import { AdminUsersService } from './admin-users.service';
 import { AdminCompaniesService } from './admin-companies.service';
 import { AdminCategoriesService } from './admin-categories.service';
@@ -91,6 +92,7 @@ export class AdminController {
     private readonly notifications: NotificationsService,
     private readonly audit: AuditLogService,
     private readonly businessActionLog: BusinessActionLogService,
+    private readonly userActivity: AdminUserActivityService,
   ) {}
 
   @Get('stats')
@@ -434,6 +436,13 @@ export class AdminController {
     @Body() dto: SetUserPasswordDto,
   ) {
     return this.users.setPassword(id, dto.newPassword, actorOf(caller));
+  }
+
+  // Reads the staff audit log, so admin-only like it.
+  @Get('users/:id/activity')
+  listUserActivity(@Param('id', ParseUUIDPipe) id: string, @Query('before') before?: string) {
+    const d = before ? new Date(before) : undefined;
+    return this.userActivity.list(id, d && !isNaN(d.getTime()) ? d : undefined);
   }
 
   // C2: the per-user ledger and its PDF export — read-only.

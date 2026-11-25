@@ -742,3 +742,155 @@ describe('optimization cycles', () => {
     expect(c.selections).toBeNull();
   });
 });
+
+describe('admin: one customer’s campaigns', () => {
+  let admin: TestUser;
+  const base = () => `/api/v1/admin/users/${user.id}/google-ads/campaigns/${campaignId}`;
+  const aGet = (p = '') =>
+    http()
+      .get(base() + p)
+      .set('Cookie', admin.cookie);
+  const aPost = (p: string, body: object = {}) =>
+    http()
+      .post(base() + p)
+      .set('Cookie', admin.cookie)
+      .send(body);
+  const change = (kind: string, input: object, reason = 'Cerut de client') =>
+    aPost('/changes', { kind, input, reason });
+  const audits = () => prisma.adminAuditLog.findMany({ where: { targetId: campaignId } });
+  const notices = () =>
+    prisma.notification.count({ where: { userId: user.id, type: 'google_ads_staff_change' } });
+
+  beforeEach(async () => {
+    admin = await createAndLoginUser(app, prisma, {
+      email: 'staff@example.com',
+      password: 'password123',
+      name: 'Staff',
+    });
+    await prisma.platformRoleAssignment.create({ data: { userId: admin.id, role: 'admin' } });
+  });
+
+  it('is for admins, and only for the campaigns of that user', async () => {
+    await http().get(base()).set('Cookie', user.cookie).expect(403);
+    await http().get(base()).expect(401);
+    await aGet().expect(200);
+    await http()
+      .get(`/api/v1/admin/users/${admin.id}/google-ads/campaigns/${campaignId}`)
+      .set('Cookie', admin.cookie)
+      .expect(404);
+    const list = await http()
+      .get(`/api/v1/admin/users/${user.id}/google-ads/campaigns`)
+      .set('Cookie', admin.cookie)
+      .expect(200);
+    expect(list.body[0].id).toBe(campaignId);
+    expect(JSON.stringify(list.body)).not.toContain('refreshToken');
+  });
+
+  it('edits texts, keywords and status in Google, audited and announced, free', async () => {
+    const ed = (await aGet('/editor').expect(200)).body;
+    expect(ed.ad.headlines[0].text).toBe('Instalator Cluj');
+    const r = await change('ad_texts', {
+      headlines: { replace: [{ old: 'Suna acum', new: 'Cere o ofertă' }] },
+    }).expect(201);
+    expect(r.body.status).toBe('applied');
+    expect(r.body.approvedByUserId).toBe(admin.id);
+    expect(google.headlines).toContain('Cere o ofertă');
+    await change('keywords', {
+      add: [{ text: 'instalator non stop', match_type: 'PHRASE' }],
+    }).expect(201);
+    expect(google.keywords).toContain('instalator non stop');
+    await change('status', { status: 'PAUSED' }).expect(201);
+    expect(google.status).toBe('PAUSED');
+    expect((await audits()).map((x) => x.action).sort()).toEqual([
+      'google_ads.ad_texts',
+      'google_ads.keywords',
+      'google_ads.status',
+    ]);
+    expect(await notices()).toBe(3);
+    expect(await balance()).toBe(5000);
+  });
+
+  it('refuses invalid edits and blocked environments without leaving anything behind', async () => {
+    await change('ad_texts', { headlines: { add: ['x'.repeat(31)] } }).expect(400);
+    await change('status', { status: 'PAUSED' }, 'x').expect(400);
+    google.validateError = new Error('Google refuses');
+    await change('status', { status: 'PAUSED' }).expect(400);
+    google.validateError = null;
+    google.writesAllowed = false;
+    await change('status', { status: 'PAUSED' }).expect(400);
+    expect(await prisma.googleAdsUserAction.count()).toBe(0);
+    expect(await notices()).toBe(0);
+  });
+
+  it('only proposes the budget; the owner decides', async () => {
+    const r = await change('budget', { dailyAmount: 30 }).expect(201);
+    expect(r.body.status).toBe('pending_approval');
+    expect(google.budget).toBe(20_000_000);
+    await aPost(`/actions/${r.body.id}/approve`).expect(400);
+    expect(google.budget).toBe(20_000_000);
+    await post(`/actions/${r.body.id}/approve`).expect(201);
+    expect(google.budget).toBe(30_000_000);
+  });
+
+  it('saves settings but can never raise what the owner pays', async () => {
+    const patch = (body: object) =>
+      http()
+        .patch(base() + '/settings')
+        .set('Cookie', admin.cookie)
+        .send(body);
+    await patch({ businessName: 'Instal SRL', images: true }).expect(200);
+    expect((await get().expect(200)).body.settings.businessName).toBe('Instal SRL');
+    await patch({ schedule: 'weekly' }).expect(400);
+    await patch({ maxCreditsPerCycle: 1000 }).expect(400);
+    await patch({ chatDailyLimitCredits: 0 }).expect(400);
+    await patch({ chatDailyLimitCredits: 5 }).expect(200);
+    expect(await audits()).toHaveLength(2);
+  });
+
+  it('runs the agent for the owner without charging', async () => {
+    const r = await aPost('/cycles', { idempotencyKey: randomUUID() }).expect(201);
+    expect(r.body.chargedMinor).toBe(0);
+    const c = await waitFor(async () => {
+      const x = await prisma.googleAdsOptimizationCycle.findUnique({
+        where: { id: r.body.cycleId },
+      });
+      return x && x.status !== 'running' ? x : null;
+    });
+    expect(c.trigger).toBe('staff');
+    expect(c.chargedMinor).toBe(0);
+    expect(c.refundedMinor).toBe(0);
+    expect(await balance()).toBe(5000);
+    expect(await prisma.notification.count({ where: { type: 'google_ads_no_change' } })).toBe(0);
+  });
+
+  it('pauses, resumes, and shows it all in the user’s activity', async () => {
+    await aPost('/pause').expect(201);
+    expect((await get().expect(200)).body.campaign.status).toBe('paused');
+    await aPost('/resume').expect(201);
+    const r = await http()
+      .get(`/api/v1/admin/users/${user.id}/activity`)
+      .set('Cookie', admin.cookie)
+      .expect(200);
+    const actions = r.body.items.map((x: { action: string }) => x.action);
+    expect(actions).toEqual(
+      expect.arrayContaining([
+        'google_ads.agent.pause',
+        'google_ads.agent.resume',
+        'session.create',
+      ]),
+    );
+    await http()
+      .get(`/api/v1/admin/users/${user.id}/activity`)
+      .set('Cookie', user.cookie)
+      .expect(403);
+  });
+
+  it('lists only that user’s invoices', async () => {
+    const r = await http()
+      .get(`/api/v1/admin/invoices?userId=${user.id}`)
+      .set('Cookie', admin.cookie)
+      .expect(200);
+    expect(r.body).toMatchObject({ items: [], total: 0 });
+    await http().get('/api/v1/admin/invoices?userId=x').set('Cookie', admin.cookie).expect(400);
+  });
+});

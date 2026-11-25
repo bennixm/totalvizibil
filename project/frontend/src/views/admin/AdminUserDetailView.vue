@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
+import AdminUserActivity from '@/components/admin/user/AdminUserActivity.vue'
+import AdminUserAds from '@/components/admin/user/AdminUserAds.vue'
+import AdminUserInvoices from '@/components/admin/user/AdminUserInvoices.vue'
 import CreditsValue from '@/components/CreditsValue.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useAuthStore, type PlatformRole } from '@/stores/auth'
@@ -22,6 +25,7 @@ import { ApiError } from '@/services/api'
 
 const { t, n } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const admin = useAdminStore()
 const money = useMoney()
@@ -31,7 +35,14 @@ const id = computed(() => String(route.params.id))
 const user = ref<AdminUserDetail | null>(null)
 const loading = ref(true)
 
-const tab = ref<'overview' | 'wallet' | 'businesses' | 'activity'>('overview')
+const TABS = ['overview', 'wallet', 'invoices', 'businesses', 'activity', 'google-ads'] as const
+type UserTab = (typeof TABS)[number]
+/** In the URL (`?tab=`), so a reload or a shared link opens the same tab. */
+const tab = computed<UserTab>({
+  get: () => (TABS.includes(route.query.tab as UserTab) ? (route.query.tab as UserTab) : 'overview'),
+  set: (v) => void router.replace({ query: { ...route.query, tab: v } }),
+})
+const adsCount = ref<number | null>(null)
 
 const toasts = useToastStore()
 function flash(text: string, color: 'success' | 'error' = 'success') {
@@ -447,7 +458,7 @@ watch(activitySearch, () => {
 // to the real paginated endpoint so "load more" has a cursor to work with.
 watch(tab, (v) => {
   if (v === 'activity' && activityOverride.value === null) void loadActivity(false)
-})
+}, { immediate: true })
 
 function companyStatus(c: AdminUserCompany, status: 'active' | 'suspended') {
   const go = async () => {
@@ -602,11 +613,16 @@ const txnColor: Record<string, string> = {
       <v-tabs v-model="tab" color="primary" class="ud__tabs" show-arrows>
         <v-tab value="overview" prepend-icon="mdi-account-outline">{{ t('admin.tabOverview') }}</v-tab>
         <v-tab value="wallet" prepend-icon="mdi-wallet-outline">{{ t('admin.tabWallet') }}</v-tab>
+        <v-tab value="invoices" prepend-icon="mdi-receipt-text-outline">{{ t('admin.navInvoices') }}</v-tab>
         <v-tab value="businesses" prepend-icon="mdi-domain">
           {{ t('admin.tabBusinesses') }}
           <span class="ud__tabCount">{{ user.companies.length }}</span>
         </v-tab>
         <v-tab value="activity" prepend-icon="mdi-history">{{ t('admin.tabActivity') }}</v-tab>
+        <v-tab v-if="isAdmin" value="google-ads" prepend-icon="mdi-google-ads">
+          {{ t('admin.ads.tab') }}
+          <span v-if="adsCount !== null" class="ud__tabCount">{{ adsCount }}</span>
+        </v-tab>
       </v-tabs>
 
       <v-window v-model="tab" class="ud__window">
@@ -1178,9 +1194,21 @@ const txnColor: Record<string, string> = {
           </AdminSection>
         </v-window-item>
 
+        <!-- ============ INVOICES ============ -->
+        <v-window-item value="invoices">
+          <AdminUserInvoices :user-id="user.id" />
+        </v-window-item>
+
+        <!-- ============ GOOGLE ADS ============ -->
+        <v-window-item v-if="isAdmin" value="google-ads">
+          <AdminUserAds :user-id="user.id" @count="adsCount = $event" />
+        </v-window-item>
+
         <!-- ============ ACTIVITY ============ -->
         <v-window-item value="activity">
           <div class="ud__stack">
+            <!-- Reads the staff log, admin-only on the backend. -->
+            <AdminUserActivity v-if="isAdmin" :user-id="user.id" />
             <AdminSection :title="t('admin.txnsTitle')" icon="mdi-swap-vertical">
               <template #actions>
                 <v-btn
@@ -1306,68 +1334,7 @@ const txnColor: Record<string, string> = {
               </p>
             </AdminSection>
 
-            <div class="ud__pair">
-              <AdminSection :title="t('admin.navInvoices')" icon="mdi-receipt-text-outline">
-                <template #actions>
-                  <v-btn
-                    variant="tonal"
-                    size="small"
-                    rounded="pill"
-                    append-icon="mdi-arrow-right"
-                    :to="{ name: 'admin-invoices' }"
-                  >
-                    {{ t('admin.invSeeAll') }}
-                  </v-btn>
-                </template>
-                <AdminEmptyState
-                  v-if="!user.invoices.length"
-                  :text="t('admin.invoicesNone')"
-                  icon="mdi-receipt-text-outline"
-                />
-                <div v-else class="ud__tableWrap">
-                  <table class="ud__table">
-                    <thead>
-                      <tr>
-                        <th>{{ t('invoices.colNumber') }}</th>
-                        <th class="num">{{ t('admin.colTotal') }}</th>
-                        <th class="num">{{ t('admin.colDate') }}</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="inv in user.invoices" :key="inv.id">
-                        <td>
-                          {{ inv.number }}
-                          <v-chip
-                            v-if="inv.voided"
-                            size="x-small"
-                            color="error"
-                            variant="tonal"
-                            class="ms-1"
-                          >
-                            {{ t('admin.invStatusVoid') }}
-                          </v-chip>
-                        </td>
-                        <td class="num" :data-label="t('admin.colTotal')">
-                          {{ fmtCr(inv.totalMinor / 100) }} {{ inv.currency }}
-                        </td>
-                        <td class="num ud__date" :data-label="t('admin.colDate')">{{ d(inv.issuedAt) }}</td>
-                        <td class="num ud__txnAction">
-                          <a
-                            :href="`/account/invoices/${inv.id}`"
-                            target="_blank"
-                            rel="noopener"
-                            class="ud__link"
-                          >
-                            {{ t('invoices.view') }}
-                          </a>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </AdminSection>
-
+            <div class="ud__pair ud__pair--single">
               <AdminSection :title="t('account.sessionsTitle')" icon="mdi-devices">
                 <AdminEmptyState
                   v-if="!user.sessions.length"

@@ -26,6 +26,12 @@ const SESSION_REVALIDATE_INTERVAL_MS = 60_000;
  *  once enough sockets are connected. */
 const SESSION_REVALIDATE_CHUNK = 1_000;
 
+/** How often the wallet balance of every CONNECTED user is compared with the
+ *  last one they were shown. Reading the balance itself (one batched query)
+ *  catches every spend, refund and deposit, whichever code or process did it,
+ *  and only after it committed. */
+const WALLET_POLL_MS = 1_500;
+
 /** Reads one cookie's value out of a raw `Cookie` header — socket.io's
  *  handshake isn't run through Express's cookie-parser middleware, so the
  *  session cookie has to be pulled out manually here. */
@@ -82,6 +88,10 @@ export class NotificationsGateway
   /** Re-entrancy guard for `revalidateSessions` — same pattern as
    *  NotificationsSweepService's `sweeping`. */
   private revalidating = false;
+  private pollingWallets = false;
+  /** Last balance pushed per connected user; forgotten when one of their
+   *  sockets (re)connects, so a change missed while offline is sent again. */
+  private readonly shownBalance = new Map<string, number>();
 
   @WebSocketServer()
   server!: Server;
@@ -98,6 +108,7 @@ export class NotificationsGateway
   onModuleInit(): void {
     if (process.env.NODE_ENV === 'test') return;
     setInterval(() => void this.revalidateSessions(), SESSION_REVALIDATE_INTERVAL_MS);
+    setInterval(() => void this.pushWalletChanges(), WALLET_POLL_MS);
   }
 
   /**
@@ -133,6 +144,7 @@ export class NotificationsGateway
     }
     client.data.userId = session.user.id;
     this.tokenByClientId.set(client.id, token);
+    this.shownBalance.delete(session.user.id);
     void client.join(session.user.id);
   }
 
@@ -242,6 +254,42 @@ export class NotificationsGateway
       this.logger.error('Session revalidation pass failed', err instanceof Error ? err.stack : err);
     } finally {
       this.revalidating = false;
+    }
+  }
+
+  /** Tells each connected user when their wallet balance changed. */
+  async pushWalletChanges(): Promise<void> {
+    if (this.pollingWallets || !this.tokenByClientId.size) {
+      if (!this.tokenByClientId.size) this.shownBalance.clear();
+      return;
+    }
+    this.pollingWallets = true;
+    try {
+      const online = new Set<string>();
+      for (const clientId of this.tokenByClientId.keys()) {
+        const userId = this.server?.sockets.sockets.get(clientId)?.data.userId as
+          string | undefined;
+        if (userId) online.add(userId);
+      }
+      for (const id of this.shownBalance.keys()) if (!online.has(id)) this.shownBalance.delete(id);
+      const ids = [...online];
+      for (let i = 0; i < ids.length; i += SESSION_REVALIDATE_CHUNK) {
+        const rows = await this.prisma.wallet.findMany({
+          where: { userId: { in: ids.slice(i, i + SESSION_REVALIDATE_CHUNK) } },
+          select: { userId: true, balanceMinor: true },
+        });
+        for (const w of rows) {
+          const before = this.shownBalance.get(w.userId);
+          this.shownBalance.set(w.userId, w.balanceMinor);
+          if (before !== w.balanceMinor) {
+            this.server.to(w.userId).emit('wallet:balance', { balanceMinor: w.balanceMinor });
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.error('Wallet push pass failed', err instanceof Error ? err.stack : err);
+    } finally {
+      this.pollingWallets = false;
     }
   }
 

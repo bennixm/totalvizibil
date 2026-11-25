@@ -30,7 +30,7 @@ const confirm = useConfirmStore()
 const isPlatformAdmin = computed(() => auth.user?.platformRoles.includes('admin') ?? false)
 const readOnly = computed(() => !isPlatformAdmin.value)
 
-const tab = ref<'pricing' | 'billing' | 'affiliate' | 'discount' | 'maintenance'>('pricing')
+const tab = ref<'pricing' | 'google-ads' | 'billing' | 'affiliate' | 'discount' | 'maintenance'>('pricing')
 const loading = ref(true)
 const saving = ref(false)
 const toasts = useToastStore()
@@ -404,6 +404,7 @@ async function save() {
 
       <v-tabs v-model="tab" color="primary" class="as__tabs" show-arrows>
         <v-tab value="pricing" prepend-icon="mdi-cash-multiple">{{ t('adminSettings.tabPricing') }}</v-tab>
+        <v-tab value="google-ads" prepend-icon="mdi-google-ads">{{ t('admin.navGroupGoogleAds') }}</v-tab>
         <v-tab value="billing" prepend-icon="mdi-file-document-edit-outline">{{ t('adminSettings.tabBilling') }}</v-tab>
         <v-tab value="affiliate" prepend-icon="mdi-account-multiple-plus-outline">{{ t('adminSettings.tabAffiliate') }}</v-tab>
         <v-tab value="discount" prepend-icon="mdi-sale-outline">{{ t('adminSettings.tabDiscount') }}</v-tab>
@@ -475,11 +476,13 @@ async function save() {
               </div>
             </div>
           </AdminSection>
+        </v-window-item>
 
+        <!-- Google Ads -->
+        <v-window-item value="google-ads">
           <AdminSection
             :title="t('adminSettings.googleAdsTitle')"
             icon="mdi-google"
-            class="mt-4"
             :hint="t('adminSettings.googleAdsNote')"
           >
 

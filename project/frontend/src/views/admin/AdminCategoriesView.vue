@@ -245,7 +245,7 @@ function groupCompanyTotal(g: AdminCategoryGroup) {
   <div class="ac">
     <AdminPageHeader
       :title="t('admin.navCategories')"
-      :eyebrow="t('admin.navGroupManage')"
+      :eyebrow="t('admin.navGroupConfig')"
     >
       <template #actions>
         <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate()">

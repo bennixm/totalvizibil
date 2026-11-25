@@ -6,12 +6,12 @@ import { ApiError } from '@/services/api'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import {
-  googleAdsUserApi,
   type PlannedTask,
   type PriceBreakdown,
   type Readiness,
   type UserCampaignDetail,
 } from '@/services/googleAdsUser'
+import { useAdsApi } from './adsApi'
 import { creditsOf, dateTime } from './format'
 
 /**
@@ -21,6 +21,7 @@ import { creditsOf, dateTime } from './format'
 const props = defineProps<{ detail: UserCampaignDetail }>()
 const emit = defineEmits<{ (e: 'changed'): void; (e: 'goto', tab: string): void }>()
 const { t, locale } = useI18n()
+const { api, staff } = useAdsApi()
 const toasts = useToastStore()
 const confirm = useConfirmStore()
 
@@ -37,13 +38,13 @@ const running = computed(() => !!props.detail.runningCycle)
 const blocked = computed(() => props.detail.campaign.status !== 'active')
 const needsInfo = computed(() => readiness.value?.level === 'insufficient')
 const gaps = computed(() => readiness.value?.gaps.filter((g) => g.askable) ?? [])
-const canAfford = computed(() => !quote.value || balanceMinor.value >= quote.value.minor)
+const canAfford = computed(() => staff || !quote.value || balanceMinor.value >= quote.value.minor)
 
 async function getQuote(): Promise<void> {
   if (quoting.value) return
   quoting.value = true
   try {
-    const res = await googleAdsUserApi.quote(id.value)
+    const res = await api.quote(id.value)
     quote.value = res.quote
     tasks.value = res.tasks
     readiness.value = res.readiness
@@ -76,12 +77,13 @@ function start(): void {
   if (!q || starting.value) return
   confirm.ask(
     t('ads.agent.confirmTitle'),
-    (needsInfo.value ? `${t('ads.agent.needsInfoConfirm')} ` : '') + t('ads.agent.confirmText', { credits: creditsOf(q.minor, locale.value) }),
+    (needsInfo.value ? `${t('ads.agent.needsInfoConfirm')} ` : '') +
+      (staff ? t('admin.ads.runConfirm') : t('ads.agent.confirmText', { credits: creditsOf(q.minor, locale.value) })),
     async () => {
       starting.value = true
       try {
         const key = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
-        await googleAdsUserApi.startCycle(id.value, key, q.minor, needsInfo.value)
+        await api.startCycle(id.value, key, q.minor, needsInfo.value)
         toasts.success(t('ads.agent.started'))
         quote.value = null
         emit('changed')
@@ -111,14 +113,17 @@ watch(id, () => (quote.value = null))
       </p>
 
       <template v-else-if="!quote">
-        <p v-if="!detail.firstCycleDone" class="ab-note">
+        <p v-if="staff" class="ab-note">
+          <v-icon icon="mdi-gift-outline" size="18" /> <span>{{ t('admin.ads.runFree') }}</span>
+        </p>
+        <p v-else-if="!detail.firstCycleDone" class="ab-note">
           <v-icon icon="mdi-gift-outline" size="18" />
           {{ t('ads.agent.firstFree', { credits: detail.pricing.minCredits }) }}
         </p>
         <v-btn color="primary" size="large" :loading="quoting" prepend-icon="mdi-magnify-scan" data-guide="ads-quote" @click="getQuote">
           {{ t('ads.agent.quoteCta') }}
         </v-btn>
-        <p class="run__free">{{ t('ads.agent.quoteFree') }}</p>
+        <p v-if="!staff" class="run__free">{{ t('ads.agent.quoteFree') }}</p>
       </template>
 
       <template v-else-if="nothingToDo">
@@ -127,7 +132,7 @@ watch(id, () => (quote.value = null))
           <span>{{ t('ads.agent.nothingToDo') }}</span>
         </p>
         <div class="run__actions">
-          <v-btn color="primary" variant="tonal" prepend-icon="mdi-chat-outline" @click="emit('goto', 'chat')">
+          <v-btn v-if="!staff" color="primary" variant="tonal" prepend-icon="mdi-chat-outline" @click="emit('goto', 'chat')">
             {{ t('ads.agent.openChat') }}
           </v-btn>
           <v-btn variant="text" @click="quote = null">{{ t('common.close') }}</v-btn>
@@ -142,7 +147,7 @@ watch(id, () => (quote.value = null))
             <ul class="run__gaps">
               <li v-for="g in gaps" :key="g.key">{{ t(`ads.chat.gap.${g.key}`) }}</li>
             </ul>
-            <v-btn size="small" color="primary" :variant="needsInfo ? 'flat' : 'tonal'" prepend-icon="mdi-chat-outline" @click="emit('goto', 'chat')">
+            <v-btn v-if="!staff" size="small" color="primary" :variant="needsInfo ? 'flat' : 'tonal'" prepend-icon="mdi-chat-outline" @click="emit('goto', 'chat')">
               {{ t('ads.agent.answerInChat') }}
             </v-btn>
           </div>
@@ -156,7 +161,7 @@ watch(id, () => (quote.value = null))
             </li>
           </ul>
         </div>
-        <div class="price" data-guide="ads-price">
+        <div v-if="!staff" class="price" data-guide="ads-price">
           <div class="price__row price__row--total">
             <span>{{ t('ads.agent.price') }}</span>
             <b>{{ creditsOf(quote.minor, locale) }} {{ t('ads.credits') }}</b>
@@ -189,14 +194,14 @@ watch(id, () => (quote.value = null))
         </div>
         <div class="run__actions">
           <v-btn v-if="canAfford" color="primary" :variant="needsInfo ? 'tonal' : 'flat'" size="large" :loading="starting" prepend-icon="mdi-play" data-guide="ads-start" @click="start">
-            {{ t('ads.agent.startCta', { credits: creditsOf(quote.minor, locale) }) }}
+            {{ staff ? t('admin.ads.runStart') : t('ads.agent.startCta', { credits: creditsOf(quote.minor, locale) }) }}
           </v-btn>
           <v-btn v-else color="primary" size="large" prepend-icon="mdi-wallet-plus-outline" :to="{ name: 'wallet', query: { topup: '1' } }">
             {{ t('ads.agent.topUp') }}
           </v-btn>
           <v-btn variant="text" @click="quote = null">{{ t('common.cancel') }}</v-btn>
         </div>
-        <p class="run__free">{{ t('ads.agent.settleNote') }}</p>
+        <p v-if="!staff" class="run__free">{{ t('ads.agent.settleNote') }}</p>
       </template>
   </div>
 </template>

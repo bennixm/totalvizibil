@@ -52,5 +52,7 @@ export async function resetDb(prisma: PrismaService, app?: INestApplication): Pr
 /** Clear the in-memory throttler counters so per-IP limits don't accumulate across tests. */
 export function resetThrottler(app: INestApplication): void {
   const storage = app.get<any>(ThrottlerStorage);
+  // Their decrement timers would look up the entries cleared below.
+  storage.onApplicationShutdown();
   storage.storage.clear();
 }

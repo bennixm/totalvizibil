@@ -634,7 +634,7 @@ function cancelEditCredentials() {
 
 <template>
   <div class="gaa">
-    <AdminPageHeader :title="t('admin.navGoogleAdsAgent')" :eyebrow="t('adminGoogleAds.eyebrow')">
+    <AdminPageHeader :title="t('admin.navGoogleAdsAgent')" :eyebrow="t('admin.navGroupGoogleAds')">
       <template #actions>
         <v-btn
           color="primary"

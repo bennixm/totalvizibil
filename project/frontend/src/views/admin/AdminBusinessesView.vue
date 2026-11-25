@@ -74,7 +74,7 @@ function open(id: string): void {
   <div class="ab">
     <AdminPageHeader
       :title="t('admin.navBusinesses')"
-      :eyebrow="t('admin.navGroupManage')"
+      :eyebrow="t('admin.navGroupClients')"
       :count="admin.businessesTotal"
     >
       <template #actions>

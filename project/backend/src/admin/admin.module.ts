@@ -11,6 +11,7 @@ import { GoogleAdsModule } from '../google-ads/google-ads.module';
 import { AdminController } from './admin.controller';
 import { AdminGoogleAdsController } from './admin-google-ads.controller';
 import { AdminStatsService } from './admin-stats.service';
+import { AdminUserActivityService } from './admin-user-activity.service';
 import { AdminUsersService } from './admin-users.service';
 import { AdminCompaniesService } from './admin-companies.service';
 import { AdminCategoriesService } from './admin-categories.service';
@@ -32,6 +33,7 @@ import { AdminGoogleAdsService } from './admin-google-ads.service';
   providers: [
     AdminStatsService,
     AdminUsersService,
+    AdminUserActivityService,
     AdminCompaniesService,
     AdminCategoriesService,
     AdminGoogleAdsService,

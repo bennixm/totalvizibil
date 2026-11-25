@@ -6,7 +6,7 @@ import { useDisplay } from 'vuetify'
 import { storeToRefs } from 'pinia'
 
 import BgEffectQuickToggle from '@/components/BgEffectQuickToggle.vue'
-import CreditsValue from '@/components/CreditsValue.vue'
+import WalletChip from '@/components/WalletChip.vue'
 import CurrencyQuickToggle from '@/components/CurrencyQuickToggle.vue'
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
@@ -35,11 +35,8 @@ const workspace = useWorkspaceStore()
 const ads = useGoogleAdsUserStore()
 const inAds = computed(() => workspace.id === 'ads')
 const { overview, currentId } = storeToRefs(companies)
-const { summary: walletSummary } = storeToRefs(wallet)
 const { signOut: doSignOut } = useSignOut()
 const { pickCompany: switchCompany } = useCompanySwitch()
-
-const walletCredits = computed(() => walletSummary.value?.balance.credits ?? 0)
 
 const menuOpen = ref(false)
 
@@ -174,15 +171,7 @@ watch(() => auth.isAuthenticated, syncWallet)
 
         <NotificationBell v-if="auth.isAuthenticated" />
 
-        <router-link
-          v-if="auth.isAuthenticated"
-          :to="{ name: 'wallet' }"
-          class="wallet-chip"
-          :aria-label="t('wallet.title')"
-        >
-          <v-icon icon="mdi-wallet-outline" size="18" class="wallet-chip__ic" />
-          <CreditsValue :credits="walletCredits" :approx="false" />
-        </router-link>
+        <WalletChip v-if="auth.isAuthenticated" />
         <!-- Mobile drops this shortcut: the wallet chip right next to it
              already opens /wallet, where top-up is one tap away, and on a
              narrow phone this circle was exactly the width that pushed the
@@ -598,7 +587,7 @@ watch(() => auth.isAuthenticated, syncWallet)
 .wallet-chip:hover {
   background: rgba(var(--v-theme-on-surface), 0.06);
 }
-.wallet-chip__ic {
+.wallet-chip :deep(.wallet-chip__ic) {
   flex: none;
   color: var(--tvz-accept-green-darker);
 }
@@ -648,7 +637,7 @@ watch(() => auth.isAuthenticated, syncWallet)
      any margin left — the chip's own leading icon is redundant next to the
      credits-unit icon CreditsValue already renders, so it's the one to
      drop first (the chip's green color still reads as "this is money"). */
-  .wallet-chip__ic {
+  .wallet-chip :deep(.wallet-chip__ic) {
     display: none;
   }
   .topbar__actions {
