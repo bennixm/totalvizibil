@@ -6,17 +6,24 @@ Disallow: /dashboard
 Disallow: /account
 Disallow: /wallet
 Disallow: /campaign
+Disallow: /consumption
+Disallow: /location
+Disallow: /category
 Disallow: /leads
+Disallow: /appointments
 Disallow: /invoices
 Disallow: /support
+Disallow: /website/
 Disallow: /website-builder
 Disallow: /admin
 Disallow: /login
 Disallow: /forgot-password
 Disallow: /reset-password
+Disallow: /create/
+Disallow: /google-ads/
 
-# Everything else (home, /create, category feeds, company pages) is crawlable.
+# Everything else (home, /start, /create, /google-ads, the guides, category
+# feeds, company pages) is crawlable.
 Allow: /
 
-# Add the absolute sitemap URL here once the production domain is known, e.g.
-# Sitemap: https://<your-domain>/sitemap.xml
+Sitemap: https://totalvizibil.ro/sitemap.xml

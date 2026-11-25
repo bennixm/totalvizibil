@@ -59,6 +59,19 @@ const routes: RouteRecordRaw[] = [
   // Navbar entry: build from scratch (/create) or optimize an existing
   // Google Ads campaign (/google-ads).
   { path: '/start', name: 'start', component: () => import('@/views/StartView.vue') },
+  // --- Legal documents (text in src/content/legal.ts) ---
+  {
+    path: '/confidentialitate',
+    name: 'privacy',
+    component: () => import('@/views/LegalView.vue'),
+    meta: { legal: 'privacy' },
+  },
+  {
+    path: '/termeni',
+    name: 'terms',
+    component: () => import('@/views/LegalView.vue'),
+    meta: { legal: 'terms' },
+  },
   // --- Builder information pages (what each builder does, how it works) ---
   { path: '/ghid', name: 'builders', component: () => import('@/views/BuildersHubView.vue') },
   {

@@ -78,7 +78,15 @@
     "dismiss": "Șterge",
     "open": "Deschide",
     "loadError": "Nu am putut încărca notificările",
-    "retry": "Încearcă din nou"
+    "retry": "Încearcă din nou",
+    "typeTitle": {
+      "google_ads_cycle_done": "Agentul a optimizat campania",
+      "google_ads_cycle_failed": "Optimizarea Google Ads s-a oprit",
+      "google_ads_cycle_skipped": "Un ciclu programat nu a pornit",
+      "google_ads_connection_lost": "Am pierdut accesul la contul Google Ads",
+      "google_ads_no_change": "Agentul nu a schimbat nimic",
+      "google_ads_staff_change": "Campania Google Ads a fost actualizată"
+    }
   },
   "theme": {
     "label": "Temă",
@@ -5007,5 +5015,43 @@
       "tab": "Am o firmă"
     },
     "title": "Cum funcționează Totalvizibil"
+  },
+  "gaStep": {
+    "cycle": "Ciclu",
+    "sync": "Sincronizare",
+    "urls": "Verificare linkuri",
+    "performance": "Performanță",
+    "headlines": "Titluri",
+    "keywords": "Cuvinte cheie",
+    "assets": "Extensii",
+    "images": "Imagini",
+    "videos": "Videoclipuri",
+    "logos": "Logo",
+    "policy": "Politici Google",
+    "policy_fix": "Corectare politici",
+    "score": "Scor",
+    "rescore": "Scor nou",
+    "prioritize": "Priorități",
+    "optimize": "Optimizare",
+    "generate": "Generare texte cu AI",
+    "validate_local": "Verificare reguli",
+    "validate_google": "Verificare la Google",
+    "apply": "Aplicare",
+    "verify": "Confirmare în Google",
+    "analyze": "Analiză",
+    "budget": "Buget",
+    "environment": "Mediu de test",
+    "schedule": "Programare",
+    "done": "Gata"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Politica de confidențialitate"
+    },
+    "terms": {
+      "title": "Termeni și condiții"
+    },
+    "preparing": "Documentul este în pregătire.",
+    "updated": "Ultima actualizare: {date}"
   }
 }

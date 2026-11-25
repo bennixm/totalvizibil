@@ -33,7 +33,11 @@ const props = withDefaults(
   { limit: 150, compact: false, hideCampaign: false },
 )
 const emit = defineEmits<{ (e: 'running', value: boolean): void }>()
-const { t } = useI18n()
+const { t, te, locale } = useI18n()
+/** Messages are written by the agent in Romanian: elsewhere the step gets a
+ *  label in the reader's language, the original stays below it. */
+const stepLabel = (step: string) =>
+  locale.value !== 'ro' && te(`gaStep.${step}`) ? t(`gaStep.${step}`) : ''
 
 const events = ref<GoogleAdsAgentEvent[]>([])
 const running = ref(false)
@@ -218,7 +222,12 @@ function duration(e: GoogleAdsAgentEvent) {
         </span>
         <div class="gaf__main">
           <div class="gaf__head">
-            <span class="gaf__msg">{{ e.message }}</span>
+            <span class="gaf__msg">
+              <template v-if="stepLabel(e.step)">
+                {{ stepLabel(e.step) }} <small class="gaf__orig" lang="ro">{{ e.message }}</small>
+              </template>
+              <template v-else>{{ e.message }}</template>
+            </span>
             <RouterLink
               v-if="e.googleCampaignId && e.campaignName && !hideCampaign"
               :to="{
@@ -254,6 +263,11 @@ function duration(e: GoogleAdsAgentEvent) {
 </template>
 
 <style scoped>
+.gaf__orig {
+  display: block;
+  font-weight: 400;
+  opacity: 0.7;
+}
 .gaf__bar {
   display: flex;
   align-items: center;

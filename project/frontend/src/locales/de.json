@@ -78,7 +78,15 @@
     "dismiss": "Entfernen",
     "open": "Öffnen",
     "loadError": "Benachrichtigungen konnten nicht geladen werden",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "typeTitle": {
+      "google_ads_cycle_done": "Der Agent hat die Kampagne optimiert",
+      "google_ads_cycle_failed": "Die Google-Ads-Optimierung wurde gestoppt",
+      "google_ads_cycle_skipped": "Ein geplanter Zyklus ist nicht gestartet",
+      "google_ads_connection_lost": "Zugriff auf dein Google-Ads-Konto verloren",
+      "google_ads_no_change": "Der Agent hat nichts geändert",
+      "google_ads_staff_change": "Deine Google-Ads-Kampagne wurde aktualisiert"
+    }
   },
   "theme": {
     "label": "Design",
@@ -5007,5 +5015,43 @@
       "tab": "Ich habe ein Unternehmen"
     },
     "title": "So funktioniert Totalvizibil"
+  },
+  "gaStep": {
+    "cycle": "Zyklus",
+    "sync": "Synchronisierung",
+    "urls": "Link-Prüfung",
+    "performance": "Leistung",
+    "headlines": "Anzeigentitel",
+    "keywords": "Keywords",
+    "assets": "Assets",
+    "images": "Bilder",
+    "videos": "Videos",
+    "logos": "Logo",
+    "policy": "Google-Richtlinien",
+    "policy_fix": "Richtlinienkorrektur",
+    "score": "Score",
+    "rescore": "Neuer Score",
+    "prioritize": "Prioritäten",
+    "optimize": "Optimierung",
+    "generate": "KI-Texterstellung",
+    "validate_local": "Regelprüfung",
+    "validate_google": "Prüfung bei Google",
+    "apply": "Anwenden",
+    "verify": "Bestätigung in Google",
+    "analyze": "Analyse",
+    "budget": "Budget",
+    "environment": "Testumgebung",
+    "schedule": "Zeitplan",
+    "done": "Fertig"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Datenschutzerklärung"
+    },
+    "terms": {
+      "title": "Allgemeine Geschäftsbedingungen"
+    },
+    "preparing": "Dieses Dokument wird vorbereitet.",
+    "updated": "Zuletzt aktualisiert: {date}"
   }
 }

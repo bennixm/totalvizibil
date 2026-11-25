@@ -78,7 +78,15 @@
     "dismiss": "Dismiss",
     "open": "Open",
     "loadError": "Couldn't load notifications",
-    "retry": "Try again"
+    "retry": "Try again",
+    "typeTitle": {
+      "google_ads_cycle_done": "The agent optimized the campaign",
+      "google_ads_cycle_failed": "The Google Ads optimization stopped",
+      "google_ads_cycle_skipped": "A scheduled cycle did not start",
+      "google_ads_connection_lost": "Access to your Google Ads account was lost",
+      "google_ads_no_change": "The agent changed nothing",
+      "google_ads_staff_change": "Your Google Ads campaign was updated"
+    }
   },
   "theme": {
     "label": "Theme",
@@ -5007,5 +5015,43 @@
       "tab": "I own a business"
     },
     "title": "How Totalvizibil works"
+  },
+  "gaStep": {
+    "cycle": "Cycle",
+    "sync": "Sync",
+    "urls": "Link check",
+    "performance": "Performance",
+    "headlines": "Headlines",
+    "keywords": "Keywords",
+    "assets": "Assets",
+    "images": "Images",
+    "videos": "Videos",
+    "logos": "Logo",
+    "policy": "Google policies",
+    "policy_fix": "Policy fix",
+    "score": "Score",
+    "rescore": "New score",
+    "prioritize": "Priorities",
+    "optimize": "Optimization",
+    "generate": "AI text generation",
+    "validate_local": "Rule check",
+    "validate_google": "Checked by Google",
+    "apply": "Applying",
+    "verify": "Confirmed in Google",
+    "analyze": "Analysis",
+    "budget": "Budget",
+    "environment": "Test environment",
+    "schedule": "Schedule",
+    "done": "Done"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Privacy policy"
+    },
+    "terms": {
+      "title": "Terms and conditions"
+    },
+    "preparing": "This document is being prepared.",
+    "updated": "Last updated: {date}"
   }
 }

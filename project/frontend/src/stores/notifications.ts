@@ -249,6 +249,14 @@ const VISUALS: Record<string, NotificationVisual> = {
 }
 const DEFAULT_VISUAL: NotificationVisual = { icon: 'mdi-bell-outline', tone: 'primary' }
 
+/** Server texts are Romanian. The title of the Google Ads agent's notices is
+ *  shown in the reader's language; the body stays as sent. */
+export function notificationTitle(n: Pick<NotificationItem, 'type' | 'title'>): string {
+  const g = i18n.global
+  const key = `notifications.typeTitle.${n.type}`
+  return g.locale.value !== 'ro' && n.type.startsWith('google_ads_') && g.te(key) ? g.t(key) : n.title
+}
+
 export function visualForNotification(type: string): NotificationVisual {
   return VISUALS[type] ?? DEFAULT_VISUAL
 }
@@ -443,7 +451,7 @@ export const useNotificationsStore = defineStore('notifications', {
 
         const visual = visualForNotification(payload.type ?? '')
         const to = payload.id ? routeForNotification(payload as NotificationItem) : null
-        useToastStore().push(TONE_TO_TOAST[visual.tone], `${payload.title}\n${payload.body}`, {
+        useToastStore().push(TONE_TO_TOAST[visual.tone], `${notificationTitle({ type: payload.type ?? '', title: payload.title })}\n${payload.body}`, {
           timeout: 7000,
           action:
             to && payload.id
