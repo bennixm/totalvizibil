@@ -9,11 +9,12 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import {
   ArrayMaxSize,
   IsArray,
@@ -32,7 +33,7 @@ import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
 import { GoogleAdsChatService } from './google-ads-chat.service';
-import { GoogleAdsUserService } from './google-ads-user.service';
+import { GoogleAdsUserService, OAUTH_COOKIE, OAUTH_STATE_TTL_MS } from './google-ads-user.service';
 import { GoogleAdsUserAgentService } from './google-ads-user-agent.service';
 
 /** Header carrying the builder's draft token (before an account exists). */
@@ -146,8 +147,20 @@ export class GoogleAdsUserController {
 
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('builder/connect-url')
-  connectUrl(@Headers(DRAFT_HEADER) draft?: string) {
-    return this.service.connectUrl(draft);
+  async connectUrl(
+    @Headers(DRAFT_HEADER) draft: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.beginConsent(res, await this.service.connectUrl(draft));
+  }
+
+  /** Ties the consent to THIS browser (see GoogleAdsUserService.oauthCallback). */
+  private beginConsent(res: Response, start: { url: string; state: string }) {
+    res.cookie(OAUTH_COOKIE, start.state, {
+      ...this.service.oauthCookie,
+      maxAge: OAUTH_STATE_TTL_MS,
+    });
+    return { url: start.url };
   }
 
   /** Google's redirect target after consent (registered in Google Cloud). */
@@ -156,9 +169,12 @@ export class GoogleAdsUserController {
     @Query('code') code: string | undefined,
     @Query('state') state: string | undefined,
     @Query('error') error: string | undefined,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
-    res.redirect(302, await this.service.oauthCallback({ code, state, error }));
+    const browserState = (req.cookies as Record<string, string> | undefined)?.[OAUTH_COOKIE];
+    res.clearCookie(OAUTH_COOKIE, this.service.oauthCookie);
+    res.redirect(302, await this.service.oauthCallback({ code, state, error, browserState }));
   }
 
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
@@ -240,8 +256,12 @@ export class GoogleAdsUserController {
 
   @UseGuards(AuthGuard)
   @Post('connections/:id/reconnect-url')
-  reconnectConnection(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
-    return this.service.reconnectConnectionUrl(user.id, id);
+  async reconnectConnection(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.beginConsent(res, await this.service.reconnectConnectionUrl(user.id, id));
   }
 
   // ------------------------------------------------------------ campaigns
@@ -375,8 +395,12 @@ export class GoogleAdsUserController {
 
   @UseGuards(AuthGuard)
   @Post('campaigns/:id/reconnect-url')
-  reconnect(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
-    return this.service.reconnectUrl(user.id, id);
+  async reconnect(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.beginConsent(res, await this.service.reconnectUrl(user.id, id));
   }
 
   @UseGuards(AuthGuard)

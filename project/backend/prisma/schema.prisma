@@ -2233,18 +2233,21 @@ enum GoogleAdsUserCampaignStatus {
 
 /// A customer's Google Ads campaign managed by the optimization agent.
 model GoogleAdsUserCampaign {
-  id               String                      @id @default(uuid()) @db.Uuid
-  userId           String                      @map("user_id") @db.Uuid
-  connectionId     String                      @map("connection_id") @db.Uuid
-  customerId       String                      @map("customer_id")
+  id               String                       @id @default(uuid()) @db.Uuid
+  userId           String                       @map("user_id") @db.Uuid
+  connectionId     String                       @map("connection_id") @db.Uuid
+  customerId       String                       @map("customer_id")
   /// Manager account the customer is reached through, when any.
-  loginCustomerId  String?                     @map("login_customer_id")
-  customerName     String?                     @map("customer_name")
-  googleCampaignId String                      @map("google_campaign_id")
+  loginCustomerId  String?                      @map("login_customer_id")
+  customerName     String?                      @map("customer_name")
+  googleCampaignId String                       @map("google_campaign_id")
   name             String
-  channelType      String?                     @map("channel_type")
-  currencyCode     String?                     @map("currency_code")
-  status           GoogleAdsUserCampaignStatus @default(active)
+  channelType      String?                      @map("channel_type")
+  currencyCode     String?                      @map("currency_code")
+  status           GoogleAdsUserCampaignStatus  @default(active)
+  /// Status before the Google connection was lost; what a reconnect restores
+  /// (a campaign the owner had paused stays paused).
+  resumeStatus     GoogleAdsUserCampaignStatus? @map("resume_status")
   /// Agent settings chosen by the owner (see google-ads-user/agent-settings.ts).
   settings         Json?
   /// What the agent knows about the business (services, areas, goal), told by
@@ -2254,12 +2257,12 @@ model GoogleAdsUserCampaign {
   /// last sync, rendered by the campaign dashboard.
   snapshot         Json?
   score            Int?
-  adStrength       String?                     @map("ad_strength")
-  syncedAt         DateTime?                   @map("synced_at")
-  lastCycleAt      DateTime?                   @map("last_cycle_at")
-  nextCycleAt      DateTime?                   @map("next_cycle_at")
-  createdAt        DateTime                    @default(now()) @map("created_at")
-  updatedAt        DateTime                    @updatedAt @map("updated_at")
+  adStrength       String?                      @map("ad_strength")
+  syncedAt         DateTime?                    @map("synced_at")
+  lastCycleAt      DateTime?                    @map("last_cycle_at")
+  nextCycleAt      DateTime?                    @map("next_cycle_at")
+  createdAt        DateTime                     @default(now()) @map("created_at")
+  updatedAt        DateTime                     @updatedAt @map("updated_at")
 
   user       User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
   connection GoogleAdsConnection          @relation(fields: [connectionId], references: [id], onDelete: Cascade)

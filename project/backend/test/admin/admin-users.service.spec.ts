@@ -77,6 +77,7 @@ function fakePrisma() {
       findMany: jest.fn(async () => [] as { id: string }[]),
       updateMany: jest.fn(async () => ({ count: 0 })),
     },
+    googleAdsUserCampaign: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
     campaign: {
       updateMany: jest.fn(async () => ({ count: 0 })),
     },

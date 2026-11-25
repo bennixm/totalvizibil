@@ -6,7 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GoogleAdsConnection, Prisma } from '@prisma/client';
+import type { CookieOptions } from 'express';
+import { isIP } from 'node:net';
+import { GoogleAdsConnection, GoogleAdsUserCampaign, Prisma } from '@prisma/client';
 import { AppConfig } from '../config/env';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,7 +21,9 @@ import { GoogleAdsUserAgentService } from './google-ads-user-agent.service';
 import { priceWork } from './pricing';
 import { randomToken, sha256 } from './token-crypto';
 
-const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
+export const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
+/** Holds the consent's `state` in the browser that started it. */
+export const OAUTH_COOKIE = 'tvz_ads_oauth';
 const MAX_ACCOUNTS = 30;
 /** Channel types the agent fully optimizes (the optimizer works on
  *  Responsive Search Ads + extensions). */
@@ -74,6 +78,7 @@ export function isUsableCustomer(status: string | undefined, testAccount: boolea
 export class GoogleAdsUserService {
   private readonly logger = new Logger(GoogleAdsUserService.name);
   private readonly frontendOrigin: string;
+  private readonly cookieSecure: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -84,6 +89,7 @@ export class GoogleAdsUserService {
     config: ConfigService<AppConfig, true>,
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
+    this.cookieSecure = config.get('sessionCookieSecure', { infer: true });
   }
 
   // -------------------------------------------------------------- builder
@@ -148,13 +154,38 @@ export class GoogleAdsUserService {
         oauthStateExpiresAt: new Date(Date.now() + OAUTH_STATE_TTL_MS),
       },
     });
-    return { url: await this.oauth.authUrl(state) };
+    return { url: await this.oauth.authUrl(state), state };
   }
 
-  /** Google redirects here after consent. Returns where to send the browser. */
-  async oauthCallback(q: { code?: string; state?: string; error?: string }): Promise<string> {
+  /** `lax`: Google's redirect back is a top-level GET and must carry it. The
+   *  domain covers www too, since the callback is always on the main origin. */
+  get oauthCookie(): CookieOptions {
+    const host = new URL(this.frontendOrigin).hostname.replace(/^www\./, '');
+    return {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: this.cookieSecure,
+      path: '/api/v1/google-ads-user/oauth',
+      ...(host.includes('.') && !isIP(host) ? { domain: host } : {}),
+    };
+  }
+
+  /**
+   * Google redirects here after consent. Returns where to send the browser.
+   * `state` must match the cookie of the browser that asked for the consent:
+   * otherwise anyone could send their own consent link to somebody else and
+   * receive that person's Google Ads access in their own draft.
+   */
+  async oauthCallback(q: {
+    code?: string;
+    state?: string;
+    error?: string;
+    browserState?: string;
+  }): Promise<string> {
     const back = (params: string) => `${this.frontendOrigin}/google-ads/campaigns?${params}`;
-    if (!q.state) return back('error=state');
+    if (!q.state || !q.browserState || sha256(q.state) !== sha256(q.browserState)) {
+      return back('error=state');
+    }
     const conn = await this.prisma.googleAdsConnection.findUnique({
       where: { oauthStateHash: sha256(q.state) },
     });
@@ -180,10 +211,15 @@ export class GoogleAdsUserService {
         },
       });
       // A reconnect revives this connection's campaigns.
-      await this.prisma.googleAdsUserCampaign.updateMany({
+      const lost = await this.prisma.googleAdsUserCampaign.findMany({
         where: { connectionId: conn.id, status: 'disconnected' },
-        data: { status: 'active' },
       });
+      for (const row of lost) {
+        await this.prisma.googleAdsUserCampaign.update({
+          where: { id: row.id },
+          data: this.revived(row),
+        });
+      }
       // Reconnect from the panel (no builder draft): back to the connected
       // Google accounts page, where every campaign of this account is listed.
       if (!conn.draftTokenHash && conn.userId) {
@@ -433,6 +469,15 @@ export class GoogleAdsUserService {
       for (const s of group) {
         const picked = list.find((c) => c.id === s.campaignId);
         if (!picked) continue;
+        const known = await this.prisma.googleAdsUserCampaign.findUnique({
+          where: {
+            userId_customerId_googleCampaignId: {
+              userId,
+              customerId,
+              googleCampaignId: picked.id,
+            },
+          },
+        });
         const row = await this.prisma.googleAdsUserCampaign.upsert({
           where: {
             userId_customerId_googleCampaignId: {
@@ -455,7 +500,11 @@ export class GoogleAdsUserService {
             // the agent would publish it next to the ads. The owner writes it.
             settings: { ...DEFAULT_AGENT_SETTINGS } as unknown as Prisma.InputJsonValue,
           },
-          update: { connectionId: conn.id, status: 'active', loginCustomerId },
+          update: {
+            connectionId: conn.id,
+            loginCustomerId,
+            ...(known?.status === 'disconnected' ? this.revived(known) : {}),
+          },
         });
         ids.push(row.id);
         await this.agent
@@ -655,10 +704,7 @@ export class GoogleAdsUserService {
         where: { id: conn.id },
         data: { refreshTokenEnc: null, status: 'revoked', lastError: 'Deconectat de utilizator.' },
       }),
-      this.prisma.googleAdsUserCampaign.updateMany({
-        where: { connectionId: conn.id },
-        data: { status: 'disconnected' },
-      }),
+      ...this.agent.loseConnection(conn.id),
     ]);
     return { ok: true };
   }
@@ -679,7 +725,20 @@ export class GoogleAdsUserService {
         oauthStateExpiresAt: new Date(Date.now() + OAUTH_STATE_TTL_MS),
       },
     });
-    return { url: await this.oauth.authUrl(state) };
+    return { url: await this.oauth.authUrl(state), state };
+  }
+
+  /** A campaign whose Google access is back: the status it had, and a
+   *  schedule that never starts an overdue (billed) cycle on the spot. */
+  private revived(row: GoogleAdsUserCampaign) {
+    const days = SCHEDULE_DAYS[readSettings(row.settings).schedule];
+    return {
+      status: row.resumeStatus ?? ('active' as const),
+      resumeStatus: null,
+      ...(days && (!row.nextCycleAt || row.nextCycleAt.getTime() <= Date.now())
+        ? { nextCycleAt: this.nextRun(days, null) }
+        : {}),
+    };
   }
 
   // ------------------------------------------------------------ dashboard

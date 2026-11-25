@@ -9,7 +9,10 @@ import App from './App.vue'
 import { i18n } from '@/plugins/i18n'
 import { pinia } from '@/plugins/pinia'
 import { vuetify } from '@/plugins/vuetify'
+import { clearSessionData } from '@/lib/session'
 import { router } from '@/router'
+import { setUnauthorizedHandler } from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 import { initGoogleAdsConversionTracking } from '@/services/google-ads-conversion'
 import '@/styles/main.scss'
 import '@/styles/panel-typography.scss'
@@ -40,6 +43,23 @@ window.addEventListener('vite:preloadError', (event) => {
 })
 router.onError((err) => {
   if (isChunkLoadError(err)) reloadForStaleChunk()
+})
+
+// The session ended on the server (expired, revoked, account suspended):
+// forget the user's data and ask them to sign in, keeping where they were.
+let rechecking = false
+setUnauthorizedHandler(() => {
+  if (rechecking) return
+  rechecking = true
+  void useAuthStore(pinia)
+    .recheck()
+    .then((ended) => {
+      if (!ended) return
+      clearSessionData()
+      const at = router.currentRoute.value
+      if (at.meta.requiresAuth) void router.push({ name: 'login', query: { redirect: at.fullPath } })
+    })
+    .finally(() => (rechecking = false))
 })
 
 const app = createApp(App)

@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AiService } from 'src/ai/ai.service';
 import { GoogleAdsChatService } from 'src/google-ads-user/google-ads-chat.service';
+import { GoogleAdsUserAgentService } from '../../src/google-ads-user/google-ads-user-agent.service';
 import { GoogleAdsOAuthService } from 'src/google-ads-user/google-ads-oauth.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { createTestApp } from './helpers/app';
@@ -740,6 +741,99 @@ describe('optimization cycles', () => {
       where: { id: start.body.connection.id },
     });
     expect(c.selections).toBeNull();
+  });
+});
+
+describe('connection safety', () => {
+  const BASE = '/api/v1/google-ads-user';
+  const row = () => prisma.googleAdsUserCampaign.findUniqueOrThrow({ where: { id: campaignId } });
+  const connId = async () => (await row()).connectionId;
+  const set = (data: object) =>
+    prisma.googleAdsUserCampaign.update({ where: { id: campaignId }, data });
+  const consent = async (id: string) => {
+    const r = await http()
+      .post(`${BASE}/connections/${id}/reconnect-url`)
+      .set('Cookie', user.cookie)
+      .expect(201);
+    expect(Object.keys(r.body)).toEqual(['url']);
+    const cookie = (r.headers['set-cookie'] as unknown as string[])[0];
+    expect(cookie).toMatch(/HttpOnly/);
+    return { state: r.body.url as string, cookie: cookie.split(';')[0] };
+  };
+  beforeEach(() => {
+    const oauth = app.get(GoogleAdsOAuthService);
+    jest.spyOn(oauth, 'missingConfig').mockResolvedValue([]);
+    jest.spyOn(oauth, 'authUrl').mockImplementation(async (s) => s);
+    jest.spyOn(oauth, 'revoke').mockResolvedValue(undefined);
+    jest
+      .spyOn(oauth, 'exchange')
+      .mockResolvedValue({ refreshTokenEnc: 'new', email: 'ion@example.com' });
+  });
+
+  it('a consent finished in another browser is refused and gives no access', async () => {
+    const id = await connId();
+    const { state, cookie } = await consent(id);
+    for (const c of ['', 'tvz_ads_oauth=other']) {
+      const r = await http()
+        .get(`${BASE}/oauth/callback`)
+        .query({ code: 'x', state })
+        .set('Cookie', c)
+        .expect(302);
+      expect(r.headers.location).toContain('error=state');
+    }
+    const token = async () =>
+      (await prisma.googleAdsConnection.findUniqueOrThrow({ where: { id } })).refreshTokenEnc;
+    expect(await token()).toBe('x');
+    const ok = await http()
+      .get(`${BASE}/oauth/callback`)
+      .query({ code: 'x', state })
+      .set('Cookie', cookie)
+      .expect(302);
+    expect(ok.headers.location).toContain('reconnected=1');
+    expect(await token()).toBe('new');
+  });
+
+  it('reconnecting keeps a paused agent paused and starts no overdue cycle', async () => {
+    const old = new Date(Date.now() - 30 * 86_400_000);
+    for (const status of ['paused', 'active'] as const) {
+      await set({ status, settings: { schedule: 'weekly' }, nextCycleAt: old });
+      const id = await connId();
+      await http()
+        .post(`${BASE}/connections/${id}/disconnect`)
+        .set('Cookie', user.cookie)
+        .expect(201);
+      expect((await row()).status).toBe('disconnected');
+      const { state, cookie } = await consent(id);
+      await http()
+        .get(`${BASE}/oauth/callback`)
+        .query({ code: 'x', state })
+        .set('Cookie', cookie)
+        .expect(302);
+      const r = await row();
+      expect([r.status, r.resumeStatus]).toEqual([status, null]);
+      expect(r.nextCycleAt!.getTime()).toBeGreaterThan(Date.now());
+    }
+  });
+
+  it('suspending the account stops its agent and its scheduled cycles', async () => {
+    const staff = await createAndLoginUser(app, prisma, {
+      email: 'boss@example.com',
+      password: 'password123',
+      name: 'Boss',
+    });
+    await prisma.platformRoleAssignment.create({ data: { userId: staff.id, role: 'admin' } });
+    await http()
+      .patch(`/api/v1/admin/users/${user.id}`)
+      .set('Cookie', staff.cookie)
+      .send({ status: 'suspended' })
+      .expect(200);
+    expect((await row()).status).toBe('paused');
+    // Even if something left it active, the scheduler skips the account.
+    const due = new Date(Date.now() - 1000);
+    await set({ status: 'active', settings: { schedule: 'weekly' }, nextCycleAt: due });
+    await (app.get(GoogleAdsUserAgentService) as any).tick();
+    expect((await row()).nextCycleAt!.getTime()).toBe(due.getTime());
+    expect(await prisma.googleAdsOptimizationCycle.count()).toBe(0);
   });
 });
 

@@ -436,7 +436,7 @@ export class AdminUsersService {
           type: suspended ? 'account_suspended' : 'account_reactivated',
           title: suspended ? 'Contul tău a fost suspendat' : 'Contul tău a fost reactivat',
           body: suspended
-            ? 'Contul tău a fost suspendat de un administrator, iar afacerile tale au fost oprite din feed.'
+            ? 'Contul tău a fost suspendat de un administrator, iar afacerile tale au fost oprite din feed. Agentul Google Ads a fost pus pe pauză.'
             : 'Contul tău a fost reactivat. Te poți conecta din nou ca de obicei.',
           channels: { email: true },
           email: suspended
@@ -481,12 +481,25 @@ export class AdminUsersService {
     return this.detail(id);
   }
 
-  /** Pause every campaign and unpublish every website owned by a banned user. */
+  /** Pause every campaign (feed and Google Ads) and unpublish every website
+   *  owned by a banned user. */
   private async suspendOwnedListings(ownerUserId: string) {
     const companies = await this.prisma.company.findMany({
       where: { ownerUserId },
       select: { id: true },
     });
+    // Their Google Ads agent stops too: no billed cycle, no change in Google.
+    // Like the feed campaigns, it stays paused until the owner resumes it.
+    await this.prisma.$transaction([
+      this.prisma.googleAdsUserCampaign.updateMany({
+        where: { userId: ownerUserId, status: 'active' },
+        data: { status: 'paused' },
+      }),
+      this.prisma.googleAdsUserCampaign.updateMany({
+        where: { userId: ownerUserId, status: 'disconnected' },
+        data: { resumeStatus: 'paused' },
+      }),
+    ]);
     if (!companies.length) return;
     const ids = companies.map((c) => c.id);
     await this.prisma.$transaction([

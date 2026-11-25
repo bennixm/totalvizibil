@@ -23,7 +23,7 @@ export class UserGoogleAdsOptimizer extends GoogleAdsOptimizerService {
     client: GoogleAdsUserClient,
     ai: AiService,
     agent: UserAgentSettings,
-    prisma: PrismaService,
+    private readonly db: PrismaService,
     config: ConfigService<AppConfig, true>,
     cycleId: string | null,
   ) {
@@ -31,8 +31,8 @@ export class UserGoogleAdsOptimizer extends GoogleAdsOptimizerService {
       googleAdsAgentAutoFillGapsEnabled: async () => agent.autoApply,
       googleAdsAgentCreativeCooldownDays: async () => agent.creativeCooldownDays,
     };
-    super(client, ai, settings, prisma, config);
-    const table = prisma.googleAdsUserAction;
+    super(client, ai, settings, db, config);
+    const table = db.googleAdsUserAction;
     // Same delegate, plus the cycle id on every row this optimizer creates.
     this.store = new Proxy(table, {
       get(target, prop, receiver) {
@@ -44,6 +44,18 @@ export class UserGoogleAdsOptimizer extends GoogleAdsOptimizerService {
         return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(target) : v;
       },
     }) as unknown as ActionStore;
+  }
+
+  /** Not a Nest singleton; the agent service resumes its read-backs. */
+  override onModuleInit(): void {}
+
+  /** Nothing is written while the owner's agent or account is stopped. */
+  protected override async mayRestore(actionId: string): Promise<boolean> {
+    const a = await this.db.googleAdsUserAction.findUnique({
+      where: { id: actionId },
+      select: { userCampaign: { select: { status: true, user: { select: { status: true } } } } },
+    });
+    return a?.userCampaign.status === 'active' && a.userCampaign.user.status === 'active';
   }
 
   protected override get actions(): ActionStore {

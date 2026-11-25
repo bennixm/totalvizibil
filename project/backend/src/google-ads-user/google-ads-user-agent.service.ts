@@ -111,10 +111,39 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     this.timer.unref?.();
     // Interrupted cycles from a previous process: settle them right away.
     setTimeout(() => void this.settleStaleCycles(), 15_000).unref?.();
+    setTimeout(() => void this.resumeReadbacks(), 30_000).unref?.();
   }
 
   onModuleDestroy(): void {
     clearInterval(this.timer);
+  }
+
+  /** Keyword-headline checks a restart interrupted (last day). */
+  async resumeReadbacks(): Promise<void> {
+    try {
+      const actions = await this.prisma.googleAdsUserAction.findMany({
+        where: {
+          action: 'creative.keyword_headlines',
+          status: 'applied',
+          createdAt: { gte: new Date(Date.now() - 86_400_000) },
+          userCampaign: { status: 'active', user: { status: 'active' } },
+        },
+        include: { userCampaign: true },
+      });
+      for (const a of actions) {
+        const row = a.userCampaign;
+        try {
+          const client = await this.clientFor(row);
+          this.optimizerFor(row, client, readSettings(row.settings), null).resumeKeywordReadback(a);
+        } catch (err) {
+          this.logger.warn(
+            `Read-back of ${a.id} not resumed: ${err instanceof Error ? err.message : err}`,
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.error('Resuming read-backs failed', err instanceof Error ? err.stack : err);
+    }
   }
 
   // ---------------------------------------------------------------- access
@@ -145,11 +174,19 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
           lastError: 'Google a refuzat accesul (consimțământ revocat sau expirat).',
         },
       }),
-      this.prisma.googleAdsUserCampaign.updateMany({
-        where: { connectionId: row.connectionId },
-        data: { status: 'disconnected' },
-      }),
+      ...this.loseConnection(row.connectionId),
     ]);
+  }
+
+  /** Every campaign of a lost connection, remembering what a reconnect
+   *  restores. Run inside a transaction. */
+  loseConnection(connectionId: string) {
+    return (['active', 'paused'] as const).map((status) =>
+      this.prisma.googleAdsUserCampaign.updateMany({
+        where: { connectionId, status },
+        data: { status: 'disconnected', resumeStatus: status },
+      }),
+    );
   }
 
   // -------------------------------------------------------------- analysis
@@ -851,7 +888,12 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     try {
       await this.settleStaleCycles();
       const due = await this.prisma.googleAdsUserCampaign.findMany({
-        where: { status: 'active', nextCycleAt: { lte: new Date() } },
+        where: {
+          status: 'active',
+          nextCycleAt: { lte: new Date() },
+          // A suspended account is never charged and its ads never touched.
+          user: { status: 'active' },
+        },
         take: 20,
       });
       for (const row of due) {
