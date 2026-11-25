@@ -118,6 +118,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, panel: true, workspace: 'ads' },
   },
   {
+    path: '/google-ads/costs',
+    name: 'ads-costs',
+    component: () => import('@/views/ads/AdsCostsView.vue'),
+    meta: { requiresAuth: true, panel: true, workspace: 'ads' },
+  },
+  {
     path: '/google-ads/c/:id',
     name: 'ads-dashboard',
     component: () => import('@/views/ads/AdsDashboardView.vue'),
@@ -469,8 +475,8 @@ const routes: RouteRecordRaw[] = [
   },
 
   // --- Redirects from the old IA ---
-  { path: '/register', redirect: { name: 'create' } },
-  { path: '/for-business', redirect: { name: 'create' } },
+  { path: '/register', redirect: { name: 'start' } },
+  { path: '/for-business', redirect: { name: 'start' } },
   { path: '/search', redirect: { name: 'feed' } },
   { path: '/companies/new', redirect: { name: 'create' } },
   { path: '/create/:rest(.*)', redirect: { name: 'create' } },
@@ -602,7 +608,7 @@ router.beforeEach(async (to, from) => {
   // the homepage via `?ref=` goes straight into the create flow (the code is
   // already stashed above and gets claimed after they register).
   if (ref && !auth.isAuthenticated && to.name === 'feed') {
-    return { name: 'create', query: { ...to.query } }
+    return { name: 'start', query: { ...to.query } }
   }
 
   // Warm the FX context (display currency + EUR/RON rate) once signed in, so

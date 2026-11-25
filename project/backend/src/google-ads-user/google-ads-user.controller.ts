@@ -305,6 +305,20 @@ export class GoogleAdsUserController {
   }
 
   @UseGuards(AuthGuard)
+  @Get('costs')
+  costs(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const day = (v: string | undefined, end: boolean) =>
+      v && /^\d{4}-\d{2}-\d{2}$/.test(v)
+        ? new Date(`${v}T${end ? '23:59:59.999' : '00:00:00.000'}Z`)
+        : undefined;
+    return this.service.costs(user.id, day(from, false), day(to, true));
+  }
+
+  @UseGuards(AuthGuard)
   @Get('campaigns/:id')
   detail(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
     return this.service.detail(user.id, id);

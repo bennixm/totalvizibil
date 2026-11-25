@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { walletForAds } from '@/lib/adsReturn'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -285,7 +286,7 @@ onBeforeUnmount(() => {
       </p>
       <p v-else-if="short" class="ab-note ab-note--warn">
         <v-icon icon="mdi-wallet-outline" size="18" /> {{ t('ads.chat.err.insufficient_credits') }}
-        <v-btn size="small" color="primary" class="ml-auto" :to="{ name: 'wallet', query: { topup: '1' } }">{{ t('ads.agent.topUp') }}</v-btn>
+        <v-btn size="small" color="primary" class="ml-auto" :to="walletForAds({ id: detail.campaign.id, tab: 'chat' })">{{ t('ads.agent.topUp') }}</v-btn>
       </p>
       <div v-if="!conv.turns.length && !draft" class="ch__starters">
         <button v-for="k in STARTERS" :key="k" type="button" class="msg__opt" @click="draft = t(`ads.chat.starter.${k}`)">

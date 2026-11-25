@@ -36,6 +36,7 @@ export function useUserNavGroups() {
             icon: 'mdi-google',
             activeMatch: ['ads-connection-add'],
           },
+          { to: { name: 'ads-costs' }, label: t('nav.adsCosts'), icon: 'mdi-cash-multiple' },
         ],
       },
     ]

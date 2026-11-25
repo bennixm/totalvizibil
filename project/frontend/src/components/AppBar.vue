@@ -88,7 +88,10 @@ function signOut(): void {
 }
 
 async function loadCompanies(): Promise<void> {
-  if (auth.isAuthenticated) await companies.fetchOverview().catch(() => {})
+  if (!auth.isAuthenticated) return
+  await Promise.all([companies.fetchOverview().catch(() => {}), ads.fetch()])
+  if (companies.overviewLoaded && ads.loaded && !ads.failed)
+    useWorkspaceStore().pickFor(companies.overview.length, ads.campaigns.length)
 }
 function syncNotifications(): void {
   if (auth.isAuthenticated) {

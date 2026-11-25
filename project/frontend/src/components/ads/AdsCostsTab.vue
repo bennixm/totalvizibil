@@ -14,6 +14,7 @@ const props = defineProps<{ detail: UserCampaignDetail }>()
 const { t, locale } = useI18n()
 
 const totalMinor = computed(() => props.detail.cycles.reduce((s, c) => s + c.chargedMinor, 0))
+const chat = computed(() => props.detail.chatCosts ?? { messages: 0, chargedMinor: 0 })
 const returnedMinor = computed(() => props.detail.cycles.reduce((s, c) => s + c.refundedMinor, 0))
 </script>
 
@@ -41,6 +42,10 @@ const returnedMinor = computed(() => props.detail.cycles.reduce((s, c) => s + c.
         <div>
           <span>{{ t('ads.cost.cycles') }}</span>
           <b>{{ detail.cycles.length }}</b>
+        </div>
+        <div>
+          <span>{{ t('ads.cost.chatPaid', { n: chat.messages }) }}</span>
+          <b>{{ creditsOf(chat.chargedMinor, locale) }} {{ t('ads.credits') }}</b>
         </div>
       </div>
       <div class="tw">

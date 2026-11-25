@@ -229,7 +229,7 @@ onUnmounted(() => {
           </v-card-text>
           <v-card-actions>
             <span class="text-body-2 text-medium-emphasis ms-2">{{ t('auth.noAccount') }}</span>
-            <v-btn :to="{ name: 'create' }" variant="text" size="small">
+            <v-btn :to="{ name: 'start' }" variant="text" size="small">
               {{ t('nav.createBusiness') }}
             </v-btn>
           </v-card-actions>

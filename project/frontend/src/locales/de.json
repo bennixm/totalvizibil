@@ -67,7 +67,8 @@
       "adsHint": "Deine Google-Kampagnen, betreut vom Agenten",
       "admin": "Verwaltung",
       "adminHint": "Nur für das Team"
-    }
+    },
+    "adsCosts": "Kosten"
   },
   "notifications": {
     "bell": "Benachrichtigungen",
@@ -898,6 +899,11 @@
       "ready": "Du hast genug Credits zum Freischalten ({price} Credits). Geh zurück und mach weiter.",
       "short": "Dir fehlen noch {short} Credits zum Freischalten (es kostet {price} Credits).",
       "back": "Zurück zum Freischalten"
+    },
+    "adsReturn": {
+      "title": "Zurück zu deiner Google-Ads-Kampagne",
+      "text": "Nachdem du Credits hinzugefügt hast, machst du genau dort weiter.",
+      "back": "Zurück zur Kampagne"
     }
   },
   "auth": {
@@ -996,7 +1002,9 @@
     "billingSaved": "Rechnungsdaten gespeichert.",
     "billingSavedBackfilled": "Gespeichert · {n} Rechnungen rückwirkend ausgestellt.",
     "billingSeeInvoices": "Deine Rechnungen ansehen",
-    "tabAffiliate": "Partner"
+    "tabAffiliate": "Partner",
+    "totpEnabled": "Die Zwei-Faktor-Anmeldung ist aktiv.",
+    "totpDisabled": "Die Zwei-Faktor-Anmeldung wurde deaktiviert."
   },
   "admin": {
     "title": "Admin-Panel",
@@ -2477,7 +2485,7 @@
     "issuerIban": "IBAN",
     "issuerBank": "Bank",
     "affiliateTitle": "Partnerprogramm",
-    "affiliateNote": "Belohne Nutzer, die neue Kunden bringen. Die Belohnung wird einmal pro Kunde gezahlt, wenn der geworbene Kunde seine erste Kampagne startet und die unten festgelegte Mindesteinzahlung erreicht.",
+    "affiliateNote": "Belohnt Nutzer, die neue Kunden bringen. Einmal pro Kunde, wenn der geworbene Kunde seine erste Kampagne startet oder den Google-Ads-Agenten zum ersten Mal bezahlt und die unten festgelegte Mindesteinzahlung erreicht.",
     "affiliateEnabled": "Programm aktiv",
     "affiliateEnabledHint": "Wenn deaktiviert, werden keine Belohnungen gezahlt und der Abschnitt wird auf der Startseite ausgeblendet.",
     "affiliateReward": "Belohnung pro Kunde",
@@ -3162,7 +3170,7 @@
     "adCta": "So funktioniert's",
     "pausedNotice": "Das Partnerprogramm ist derzeit deaktiviert. Neue Belohnungen pausieren, dein Verlauf bleibt hier.",
     "panelTitle": "Dein Partnerlink",
-    "panelIntro": "Teile diesen Link. Wenn jemand Neues eine Website erstellt, eine Kampagne startet und insgesamt mindestens {d} Guthaben einzahlt, erhältst du {n} Guthaben.",
+    "panelIntro": "Teile diesen Link. Wenn jemand Neues eine Kampagne startet oder den Google-Ads-Agenten nutzt und insgesamt mindestens {d} Credits einzahlt, erhältst du {n} Credits.",
     "copy": "Link kopieren",
     "copied": "Kopiert",
     "statReferred": "Geworbene Kunden",
@@ -3179,7 +3187,7 @@
     "viewInvoice": "Rechnung",
     "adHeadline": "Wirb einen Kunden, erhalte",
     "adHeadlineTail": "Guthaben",
-    "adSub": "Teile deinen Link · wenn dein Freund eine Website erstellt und eine Kampagne startet, gehört das Guthaben dir."
+    "adSub": "Teile deinen Link · wenn dein Freund eine Kampagne startet oder den Google-Ads-Agenten nutzt, gehören die Credits dir."
   },
   "discountBanner": {
     "badge": "Zeitlich begrenztes Angebot",
@@ -4341,7 +4349,8 @@
       "colCharged": "Bezahlt",
       "colReturned": "Zurück",
       "colStatus": "Status",
-      "walletNote": "Alle Zahlungen erscheinen auch im Wallet-Verlauf, unter Google-Ads-Optimierung."
+      "walletNote": "Alle Zahlungen erscheinen auch im Wallet-Verlauf, unter Google-Ads-Optimierung.",
+      "chatPaid": "Chat ({n} Nachrichten)"
     },
     "conn": {
       "title": "Verbundene Google-Konten",
@@ -4463,6 +4472,23 @@
     "section": {
       "close": "Einklappen",
       "open": "Öffnen"
+    },
+    "costs": {
+      "title": "Google-Ads-Kosten",
+      "lead": "Was du dem Agenten pro Kampagne bezahlt hast: Optimierungen und Chat.",
+      "period": {
+        "month": "Dieser Monat",
+        "last": "Letzter Monat",
+        "all": "Gesamter Zeitraum"
+      },
+      "total": "Insgesamt bezahlt",
+      "cycles": "Optimierungen",
+      "chat": "Chat",
+      "none": "Keine Zahlungen in diesem Zeitraum.",
+      "removed": "von der Plattform entfernt",
+      "cyclesN": "{n} Optimierungen",
+      "chatN": "{n} Nachrichten",
+      "allTransactions": "Alle Transaktionen"
     }
   },
   "adminAdsOpt": {

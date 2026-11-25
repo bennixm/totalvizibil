@@ -67,7 +67,8 @@
       "adsHint": "Campaniile tale din Google, ajutate de agent",
       "admin": "Administrare",
       "adminHint": "Doar pentru echipă"
-    }
+    },
+    "adsCosts": "Costuri"
   },
   "notifications": {
     "bell": "Notificări",
@@ -898,6 +899,11 @@
       "ready": "Ai destule credite pentru deblocare ({price} credite). Revino și continuă.",
       "short": "Îți mai lipsesc {short} credite pentru deblocare (costă {price} credite).",
       "back": "Înapoi la deblocare"
+    },
+    "adsReturn": {
+      "title": "Revino la campania Google Ads",
+      "text": "După ce adaugi credite, continui exact de unde ai rămas.",
+      "back": "Înapoi la campanie"
     }
   },
   "auth": {
@@ -996,7 +1002,9 @@
     "billingSaved": "Datele de facturare au fost salvate.",
     "billingSavedBackfilled": "Datele au fost salvate · {n} facturi emise retroactiv.",
     "billingSeeInvoices": "Vezi facturile tale",
-    "tabAffiliate": "Afiliere"
+    "tabAffiliate": "Afiliere",
+    "totpEnabled": "Autentificarea în doi pași este activă.",
+    "totpDisabled": "Autentificarea în doi pași a fost oprită."
   },
   "admin": {
     "title": "Panou admin",
@@ -2477,7 +2485,7 @@
     "issuerIban": "IBAN",
     "issuerBank": "Bancă",
     "affiliateTitle": "Program de afiliere",
-    "affiliateNote": "Recompensează utilizatorii care aduc clienți noi. Recompensa se acordă o singură dată per client, când clientul adus își pornește prima campanie și atinge pragul minim de depunere setat mai jos.",
+    "affiliateNote": "Recompensează utilizatorii care aduc clienți noi. Recompensa se acordă o singură dată per client, când clientul adus pornește prima campanie sau plătește prima dată agentul Google Ads și atinge pragul minim de depunere setat mai jos.",
     "affiliateEnabled": "Program activ",
     "affiliateEnabledHint": "Când e oprit, nu se mai acordă recompense și secțiunea dispare de pe pagina principală.",
     "affiliateReward": "Recompensă per client",
@@ -3162,7 +3170,7 @@
     "adCta": "Vezi cum funcționează",
     "pausedNotice": "Programul de afiliere este momentan oprit. Recompensele noi sunt în pauză, dar istoricul tău rămâne aici.",
     "panelTitle": "Linkul tău de afiliere",
-    "panelIntro": "Trimite acest link. Când cineva nou își face un site, pornește o campanie și depune în total cel puțin {d} credite, primești {n} credite.",
+    "panelIntro": "Trimite acest link. Când cineva nou pornește o campanie sau folosește agentul Google Ads și depune în total cel puțin {d} credite, primești {n} credite.",
     "copy": "Copiază link",
     "copied": "Copiat",
     "statReferred": "Clienți aduși",
@@ -3179,7 +3187,7 @@
     "viewInvoice": "Factură",
     "adHeadline": "Adu un client, primești",
     "adHeadlineTail": "credite",
-    "adSub": "Trimite linkul tău · când prietenul își face un site și pornește o campanie, creditele sunt ale tale."
+    "adSub": "Trimite linkul tău · când prietenul pornește o campanie sau folosește agentul Google Ads, creditele sunt ale tale."
   },
   "discountBanner": {
     "badge": "Ofertă limitată",
@@ -4341,7 +4349,8 @@
       "colCharged": "Plătit",
       "colReturned": "Returnat",
       "colStatus": "Stare",
-      "walletNote": "Toate plățile apar și în istoricul portofelului, la categoria Optimizare Google Ads."
+      "walletNote": "Toate plățile apar și în istoricul portofelului, la categoria Optimizare Google Ads.",
+      "chatPaid": "Chat ({n} mesaje)"
     },
     "conn": {
       "title": "Conturi Google conectate",
@@ -4463,6 +4472,23 @@
     "section": {
       "close": "Restrânge",
       "open": "Deschide"
+    },
+    "costs": {
+      "title": "Costuri Google Ads",
+      "lead": "Cât ai plătit agentul pentru fiecare campanie: optimizări și chat.",
+      "period": {
+        "month": "Luna aceasta",
+        "last": "Luna trecută",
+        "all": "Tot timpul"
+      },
+      "total": "Total plătit",
+      "cycles": "Optimizări",
+      "chat": "Chat",
+      "none": "Nicio plată în această perioadă.",
+      "removed": "scoasă din platformă",
+      "cyclesN": "{n} optimizări",
+      "chatN": "{n} mesaje",
+      "allTransactions": "Toate tranzacțiile"
     }
   },
   "adminAdsOpt": {

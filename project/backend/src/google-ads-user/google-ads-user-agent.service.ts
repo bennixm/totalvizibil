@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAdsUserCampaign, Prisma } from '@prisma/client';
+import { AffiliateService } from '../affiliate/affiliate.service';
 import { AiService } from '../ai/ai.service';
 import { AppConfig } from '../config/env';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
@@ -170,6 +171,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     private readonly ai: AiService,
     private readonly config: ConfigService<AppConfig, true>,
     private readonly notifications: NotificationsService,
+    private readonly affiliate: AffiliateService,
   ) {}
 
   onModuleInit(): void {
@@ -1008,6 +1010,9 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       });
       return true;
     });
+    // Paid agent work counts as "started using the platform" for referrals.
+    if (settled && charged - refundMinor > 0)
+      void this.affiliate.maybeReward(cycle.userId).catch(() => undefined);
     if (settled)
       await this.announce(cycle, { applied, proposed, refundMinor, failed: !!opts.error });
   }

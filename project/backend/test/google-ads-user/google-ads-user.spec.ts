@@ -171,6 +171,7 @@ describe('cycle settlement (billing)', () => {
       {} as never,
       { get: () => 'claude-sonnet-5' } as never,
       { notify: jest.fn() } as never,
+      { maybeReward: jest.fn().mockResolvedValue(undefined) } as never,
     );
     return { svc, updates, captured };
   }

@@ -254,6 +254,8 @@ export interface UserCampaignSummary {
 }
 
 export interface UserCampaignDetail {
+  /** Agent chat paid on this campaign (cycles are in `cycles`). */
+  chatCosts?: { messages: number; chargedMinor: number }
   campaign: {
     id: string
     name: string
@@ -283,6 +285,8 @@ export interface UserCampaignDetail {
 }
 
 export const googleAdsUserApi = {
+  costs: (from?: string, to?: string) =>
+    apiFetch<AdsCosts>(`${BASE}/costs?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) })}`),
   status: () => apiFetch<{ available: boolean; minCredits: number }>(`${BASE}/status`),
   start: () =>
     apiFetch<{ draftToken: string; connection: ConnectionView }>(`${BASE}/builder/start`, {
@@ -447,6 +451,20 @@ export interface AdminOptimizerUsage {
     scoreAfter: number | null
     errorMessage: string | null
   }[]
+}
+
+export interface AdsCosts {
+  items: {
+    id: string
+    name: string
+    removed: boolean
+    cycles: number
+    cyclesMinor: number
+    returnedMinor: number
+    messages: number
+    chatMinor: number
+  }[]
+  totals: { cyclesMinor: number; chatMinor: number; returnedMinor: number; totalMinor: number }
 }
 
 export interface AdminAllCampaigns {

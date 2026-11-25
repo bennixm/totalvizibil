@@ -1167,6 +1167,35 @@ describe('connection safety', () => {
     expect(stats.body.googleAds.disconnected).toBe(1);
   });
 
+  it('lists what the agent cost, per campaign and period', async () => {
+    script = [{ text: 'Salut!' }];
+    const turn = await chat();
+    await prisma.googleAdsOptimizationCycle.create({
+      data: {
+        userCampaignId: campaignId,
+        userId: user.id,
+        trigger: 'manual',
+        status: 'completed',
+        quote: {},
+        quotedMinor: 1500,
+        chargedMinor: 1000,
+        refundedMinor: 500,
+      },
+    });
+    const r = await http().get(`${BASE}/costs`).set('Cookie', user.cookie).expect(200);
+    expect(r.body.items).toMatchObject([
+      { id: campaignId, cycles: 1, cyclesMinor: 1000, messages: 1, chatMinor: turn.chargedMinor },
+    ]);
+    expect(r.body.totals.totalMinor).toBe(1000 + turn.chargedMinor);
+    const old = await http()
+      .get(`${BASE}/costs?from=2020-01-01&to=2020-01-31`)
+      .set('Cookie', user.cookie)
+      .expect(200);
+    expect(old.body.totals.totalMinor).toBe(0);
+    const d = await get().expect(200);
+    expect(d.body.chatCosts).toEqual({ messages: 1, chargedMinor: turn.chargedMinor });
+  });
+
   it('suspending the account stops its agent and its scheduled cycles', async () => {
     const staff = await createAndLoginUser(app, prisma, {
       email: 'boss@example.com',

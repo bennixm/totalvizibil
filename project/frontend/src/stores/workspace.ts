@@ -34,6 +34,17 @@ export const useWorkspaceStore = defineStore('workspace', {
         /* storage unavailable: kept for this page view */
       }
     },
+    /** First sign-in on this browser: a Google Ads-only owner starts in the
+     *  Google Ads area, everyone else in the site area. A choice the user
+     *  already made here is never overridden. */
+    pickFor(businesses: number, adsCampaigns: number): void {
+      try {
+        if (localStorage.getItem(KEY)) return
+      } catch {
+        /* storage unavailable: decide anyway */
+      }
+      if (!businesses && adsCampaigns) this.enter('ads')
+    },
     reset(): void {
       this.id = 'site'
       try {

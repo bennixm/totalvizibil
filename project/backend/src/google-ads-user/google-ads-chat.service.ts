@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAdsUserCampaign, Prisma } from '@prisma/client';
+import { AffiliateService } from '../affiliate/affiliate.service';
 import { AiService } from '../ai/ai.service';
 import { AppConfig } from '../config/env';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
@@ -93,6 +94,7 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
     private readonly settings: PlatformSettingsService,
     private readonly ai: AiService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly affiliate: AffiliateService,
   ) {}
 
   onModuleInit(): void {
@@ -679,6 +681,7 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const delivered = errorCode === null || state.proposals > 0;
     const costUsd = billAi ? aiCostUsd(this.model, state.usage) : 0;
+    let paid = false;
     await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.googleAdsChatTurn.updateMany({
         where: { id: turnId, status: 'running' },
@@ -694,6 +697,7 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
         const cap = await this.wallet.captureHold(tx, turn.chargeTxnId, price?.minor ?? 0);
         charged = cap?.capturedMinor ?? 0;
       }
+      paid = charged > 0;
       await tx.googleAdsChatTurn.update({
         where: { id: turnId },
         data: {
@@ -706,6 +710,13 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
         },
       });
     });
+    if (paid) {
+      const t = await this.prisma.googleAdsChatTurn.findUnique({
+        where: { id: turnId },
+        select: { userId: true },
+      });
+      if (t) void this.affiliate.maybeReward(t.userId).catch(() => undefined);
+    }
   }
 
   /** Messages left `running` by a crashed or restarted process. */

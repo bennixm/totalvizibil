@@ -978,7 +978,7 @@ export class GoogleAdsUserService implements OnModuleInit, OnModuleDestroy {
 
   async detail(userId: string, id: string) {
     const row = await this.agent.ownedCampaign(userId, id);
-    const [conn, pending, cycles, pricing, wallet, running] = await Promise.all([
+    const [conn, pending, cycles, pricing, wallet, running, chat] = await Promise.all([
       this.prisma.googleAdsConnection.findUnique({ where: { id: row.connectionId } }),
       this.prisma.googleAdsUserAction.findMany({
         where: { userCampaignId: id, status: 'pending_approval' },
@@ -994,6 +994,11 @@ export class GoogleAdsUserService implements OnModuleInit, OnModuleDestroy {
       this.prisma.googleAdsOptimizationCycle.findFirst({
         where: { userCampaignId: id, status: 'running' },
         select: { id: true, startedAt: true },
+      }),
+      this.prisma.googleAdsChatTurn.aggregate({
+        where: { userCampaignId: id, status: { not: 'running' } },
+        _count: true,
+        _sum: { chargedMinor: true },
       }),
     ]);
     return {
@@ -1031,6 +1036,59 @@ export class GoogleAdsUserService implements OnModuleInit, OnModuleDestroy {
         levels: pricing.levels,
       },
       balance: wallet.balance,
+      chatCosts: { messages: chat._count, chargedMinor: chat._sum.chargedMinor ?? 0 },
+    };
+  }
+
+  /** What the owner paid the agent, per campaign, in a period. */
+  async costs(userId: string, from?: Date, to?: Date) {
+    const range = from || to ? { gte: from, lte: to } : undefined;
+    const [rows, cycles, chat] = await Promise.all([
+      this.prisma.googleAdsUserCampaign.findMany({
+        where: { userId },
+        select: { id: true, name: true, status: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.googleAdsOptimizationCycle.groupBy({
+        by: ['userCampaignId'],
+        where: { userId, startedAt: range, status: { not: 'running' } },
+        _count: true,
+        _sum: { chargedMinor: true, refundedMinor: true },
+      }),
+      this.prisma.googleAdsChatTurn.groupBy({
+        by: ['userCampaignId'],
+        where: { userId, createdAt: range, status: { not: 'running' } },
+        _count: true,
+        _sum: { chargedMinor: true },
+      }),
+    ]);
+    const items = rows
+      .map((r) => {
+        const c = cycles.find((x) => x.userCampaignId === r.id);
+        const m = chat.find((x) => x.userCampaignId === r.id);
+        return {
+          id: r.id,
+          // A campaign removed since is still listed: its costs happened.
+          name: r.name,
+          removed: r.status === 'removed',
+          cycles: c?._count ?? 0,
+          cyclesMinor: c?._sum.chargedMinor ?? 0,
+          returnedMinor: c?._sum.refundedMinor ?? 0,
+          messages: m?._count ?? 0,
+          chatMinor: m?._sum.chargedMinor ?? 0,
+        };
+      })
+      .filter((x) => !x.removed || x.cycles || x.messages);
+    const sum = (k: 'cyclesMinor' | 'chatMinor' | 'returnedMinor') =>
+      items.reduce((n, x) => n + x[k], 0);
+    return {
+      items,
+      totals: {
+        cyclesMinor: sum('cyclesMinor'),
+        chatMinor: sum('chatMinor'),
+        returnedMinor: sum('returnedMinor'),
+        totalMinor: sum('cyclesMinor') + sum('chatMinor'),
+      },
     };
   }
 

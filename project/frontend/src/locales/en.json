@@ -67,7 +67,8 @@
       "adsHint": "Your Google campaigns, helped by the agent",
       "admin": "Administration",
       "adminHint": "Team only"
-    }
+    },
+    "adsCosts": "Costs"
   },
   "notifications": {
     "bell": "Notifications",
@@ -898,6 +899,11 @@
       "ready": "You have enough credits to unlock ({price} credits). Go back and continue.",
       "short": "You still need {short} credits to unlock (it costs {price} credits).",
       "back": "Back to unlock"
+    },
+    "adsReturn": {
+      "title": "Back to your Google Ads campaign",
+      "text": "Once you add credits, you continue right where you left off.",
+      "back": "Back to the campaign"
     }
   },
   "auth": {
@@ -996,7 +1002,9 @@
     "billingSaved": "Billing details saved.",
     "billingSavedBackfilled": "Saved · {n} invoices issued retroactively.",
     "billingSeeInvoices": "See your invoices",
-    "tabAffiliate": "Affiliate"
+    "tabAffiliate": "Affiliate",
+    "totpEnabled": "Two-step sign-in is on.",
+    "totpDisabled": "Two-step sign-in is off."
   },
   "admin": {
     "title": "Admin panel",
@@ -2477,7 +2485,7 @@
     "issuerIban": "IBAN",
     "issuerBank": "Bank",
     "affiliateTitle": "Affiliate program",
-    "affiliateNote": "Reward users who bring in new clients. The reward is paid once per client, when the referred client starts their first campaign and reaches the minimum deposit set below.",
+    "affiliateNote": "Rewards users who bring new customers. Paid once per customer, when the referred customer starts their first campaign or first pays the Google Ads agent, and reaches the minimum deposit set below.",
     "affiliateEnabled": "Program active",
     "affiliateEnabledHint": "When off, no rewards are paid and the section is hidden from the homepage.",
     "affiliateReward": "Reward per client",
@@ -3162,7 +3170,7 @@
     "adCta": "See how it works",
     "pausedNotice": "The affiliate program is currently off. New rewards are paused, but your history stays here.",
     "panelTitle": "Your affiliate link",
-    "panelIntro": "Share this link. When someone new builds a site, starts a campaign and deposits at least {d} credits in total, you get {n} credits.",
+    "panelIntro": "Share this link. When someone new starts a campaign or uses the Google Ads agent and deposits at least {d} credits in total, you get {n} credits.",
     "copy": "Copy link",
     "copied": "Copied",
     "statReferred": "Clients referred",
@@ -3179,7 +3187,7 @@
     "viewInvoice": "Invoice",
     "adHeadline": "Refer a client, get",
     "adHeadlineTail": "credits",
-    "adSub": "Share your link · when your friend builds a site and starts a campaign, the credits are yours."
+    "adSub": "Share your link · when your friend starts a campaign or uses the Google Ads agent, the credits are yours."
   },
   "discountBanner": {
     "badge": "Limited offer",
@@ -4341,7 +4349,8 @@
       "colCharged": "Paid",
       "colReturned": "Returned",
       "colStatus": "Status",
-      "walletNote": "All payments also appear in your wallet history, under Google Ads optimization."
+      "walletNote": "All payments also appear in your wallet history, under Google Ads optimization.",
+      "chatPaid": "Chat ({n} messages)"
     },
     "conn": {
       "title": "Connected Google accounts",
@@ -4463,6 +4472,23 @@
     "section": {
       "close": "Collapse",
       "open": "Open"
+    },
+    "costs": {
+      "title": "Google Ads costs",
+      "lead": "What you paid the agent per campaign: optimizations and chat.",
+      "period": {
+        "month": "This month",
+        "last": "Last month",
+        "all": "All time"
+      },
+      "total": "Total paid",
+      "cycles": "Optimizations",
+      "chat": "Chat",
+      "none": "No payments in this period.",
+      "removed": "removed from the platform",
+      "cyclesN": "{n} optimizations",
+      "chatN": "{n} messages",
+      "allTransactions": "All transactions"
     }
   },
   "adminAdsOpt": {

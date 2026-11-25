@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AffiliateModule } from '../affiliate/affiliate.module';
 import { AuthModule } from '../auth/auth.module';
 import { AuditLogModule } from '../admin/audit-log.module';
 import { WalletModule } from '../wallet/wallet.module';
@@ -18,7 +19,7 @@ import { GoogleAdsUserService } from './google-ads-user.service';
  * PlatformSettings, AI and Prisma are global modules.
  */
 @Module({
-  imports: [AuthModule, AuditLogModule, WalletModule],
+  imports: [AuthModule, AuditLogModule, WalletModule, AffiliateModule],
   controllers: [GoogleAdsUserController, AdminGoogleAdsUserController, AdminUserAdsController],
   providers: [
     GoogleAdsOAuthService,

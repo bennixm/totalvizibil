@@ -1,6 +1,7 @@
 import { getActivePinia, type Store } from 'pinia'
 
 import { clearDraftToken } from '@/services/googleAdsUser'
+import { clearAdsReturn } from '@/lib/adsReturn'
 import { clearUnlockReturn } from '@/lib/unlockReturn'
 
 /** Stores that hold nothing of the signed-in user, or a guest's own work. */
@@ -21,4 +22,5 @@ export function clearSessionData(): void {
   }
   clearDraftToken()
   clearUnlockReturn()
+  clearAdsReturn()
 }
