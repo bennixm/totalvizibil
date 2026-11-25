@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -62,10 +63,10 @@ function ownerEq(v: number): string {
   return money.approx(v)
 }
 function dt(s: string | null) {
-  return s ? new Date(s).toLocaleString() : 'N/A'
+  return s ? new Date(s).toLocaleString(uiLocale()) : 'N/A'
 }
 function d(s: string | null) {
-  return s ? new Date(s).toLocaleDateString() : t('admin.never')
+  return s ? new Date(s).toLocaleDateString(uiLocale()) : t('admin.never')
 }
 function initials(name: string) {
   return name
@@ -1518,6 +1519,19 @@ const txnColor: Record<string, string> = {
   column-gap: 0.65rem;
   align-items: center;
   padding: 0.9rem 1.5rem;
+}
+@container (max-width: 420px) {
+  .hstat {
+    column-gap: 0.45rem;
+    padding: 0.8rem 0.7rem;
+  }
+  .hstat dt {
+    letter-spacing: 0;
+    overflow-wrap: anywhere;
+  }
+  .hstat dd {
+    font-size: var(--tvz-fs-body);
+  }
 }
 /* Hairlines between the cells, whatever the column count. */
 .hstat:nth-child(even) {

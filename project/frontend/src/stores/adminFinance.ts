@@ -44,6 +44,7 @@ export type ExpenseCurrency = 'EUR' | 'RON' | 'USD'
 export interface OneOffFeeBreakdown {
   aiUsage: number
   builderUnlock: number
+  googleAds: number
   other: number
 }
 
@@ -86,7 +87,7 @@ export interface AiBuilderFigures {
   campaignAgentAvailable: boolean
 }
 
-export type ConsumptionCategory = 'cpc' | 'aiUsage' | 'builderUnlock' | 'other'
+export type ConsumptionCategory = 'cpc' | 'aiUsage' | 'builderUnlock' | 'googleAds' | 'other'
 export type ExportFormat = 'pdf' | 'csv' | 'xlsx'
 
 /** What the statement could not compute exactly (mirrors the backend). */
@@ -131,7 +132,7 @@ export interface FinancialStatement {
   }
   expenses: {
     byCategory: Record<ExpenseCategory, number>
-    ai: { builderMinor: number; campaignAgentMinor: number; searchMinor: number; totalMinor: number }
+    ai: { builderMinor: number; campaignAgentMinor: number; googleAdsOptimizerMinor: number; searchMinor: number; totalMinor: number }
     totalMinor: number
     missingFx: { count: number; byCurrency: Record<string, number> }
   }

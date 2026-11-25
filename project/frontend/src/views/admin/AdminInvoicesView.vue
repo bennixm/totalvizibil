@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -228,7 +229,7 @@ onMounted(() => admin.fetchInvoices())
           </span>
           <span class="irow__cell">
             <span class="irow__cellLbl">{{ t('admin.colDate') }}</span>
-            {{ new Date(inv.issuedAt).toLocaleDateString() }}
+            {{ new Date(inv.issuedAt).toLocaleDateString(uiLocale()) }}
           </span>
           <span class="irow__cell">
             <span class="irow__cellLbl">{{ t('admin.colStatus') }}</span>
@@ -316,7 +317,7 @@ onMounted(() => admin.fetchInvoices())
             <div v-if="detail.voidedAt" class="ai__dVoidNote">
               <v-icon icon="mdi-cancel" size="16" />
               <div>
-                <strong>{{ t('admin.invVoidedOn', { date: new Date(detail.voidedAt).toLocaleDateString() }) }}</strong>
+                <strong>{{ t('admin.invVoidedOn', { date: new Date(detail.voidedAt).toLocaleDateString(uiLocale()) }) }}</strong>
                 <p v-if="detail.voidReason">{{ t('admin.invVoidReasonLabel') }}: {{ detail.voidReason }}</p>
               </div>
             </div>

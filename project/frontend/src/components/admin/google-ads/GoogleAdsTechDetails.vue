@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 /**
  * Overview → "Technical details", organized into three labelled cards:
  * campaign coverage, the scheduled passes (with "Run now"), and the feed's
@@ -56,7 +57,7 @@ function runTone(status?: string): 'success' | 'error' | 'warning' | 'primary' |
 }
 function fmtDate(iso?: string | null): string {
   if (!iso) return ''
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString(uiLocale(), {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',

@@ -2298,7 +2298,8 @@
       "cpc": "Consumption: clicks",
       "aiUsage": "Consumption: AI",
       "builderUnlock": "Consumption: unlock",
-      "other": "Consumption: other"
+      "other": "Consumption: other",
+      "googleAds": "Usage: Google Ads"
     },
     "expensesTotalEur": "Total in EUR",
     "missingFxAlert": "{n} foreign-currency expenses have no exchange rate and are left out of the totals and the profit. Edit them and add the rate.",
@@ -2358,7 +2359,9 @@
       "advances": "Customer advances (money, incl. VAT)",
       "advancesVat": "of which VAT",
       "unconsumedPaid": "Unconsumed paid credits (face value)",
-      "unconsumedFree": "Unconsumed free credits (face value)"
+      "unconsumedFree": "Unconsumed free credits (face value)",
+      "revGoogleAds": "Customer Google Ads optimization",
+      "aiGoogleAds": "AI cost: customer Google Ads optimization"
     },
     "annual": {
       "colMonth": "Month",
@@ -2423,7 +2426,8 @@
       }
     },
     "showTypes": "Which transactions the table shows",
-    "typeHidden": "Hidden"
+    "typeHidden": "Hidden",
+    "oneOffGoogleAds": "Customer Google Ads optimization"
   },
   "adminSettings": {
     "pricingTitle": "Pricing & exchange rate",
@@ -2551,7 +2555,8 @@
     "filterFrom": "From",
     "filterTo": "To",
     "filterClear": "Clear filters",
-    "emptyFiltered": "No transactions match these filters."
+    "emptyFiltered": "No transactions match these filters.",
+    "googleAds": "Google Ads"
   },
   "websiteSettings": {
     "loadError": "Couldn't load the website details. Try again.",
@@ -4166,7 +4171,7 @@
       "scheduled": "scheduled",
       "inProgress": "Working…",
       "failedSum": "The agent stopped before finishing; you only paid for what it changed.",
-      "summary": "{applied} changes applied, {proposed} proposals",
+      "summary": "Changes applied: {applied} · proposals: {proposed}",
       "score": "score {from} → {to}",
       "refunded": "{credits} credits returned",
       "noChange": "There was nothing to change"
@@ -4231,7 +4236,7 @@
       "pending_approval": "Waiting"
     },
     "set": {
-      "chatLimit": "Daily chat limit (credits)",
+      "chatLimit": "Chat limit / day (credits)",
       "chatLimitHint": "0 means no limit.",
       "agentTitle": "What the agent does",
       "autoApply": "Fills in what the ad is missing by itself",
@@ -4330,7 +4335,7 @@
       "points": "{n} out of 100 points",
       "noViews": "The ad has not been shown yet in this period. This is normal for a new campaign or a test account.",
       "lastTitle": "Last time ({when}):",
-      "lastDone": "the agent made {applied} changes and prepared {proposed} for your approval.",
+      "lastDone": "changes made: {applied}, to approve: {proposed}.",
       "lastNothing": "the agent found nothing to change.",
       "lastReturned": "the agent could not change anything, so we returned your credits.",
       "paid": "You paid {credits} credits.",
@@ -4363,7 +4368,7 @@
           "cta": "See what it is doing"
         },
         "approve": {
-          "title": "You have {n} changes to approve",
+          "title": "Changes to approve: {n}",
           "text": "The agent prepared changes. See before and after, then choose whether to apply them. Approving is free.",
           "cta": "Review and approve"
         },
@@ -4473,7 +4478,7 @@
     "minCreditsHint": "Every finished cycle costs at least this.",
     "maxCredits": "Maximum per cycle",
     "maxCreditsHint": "Safety cap.",
-    "perElement": "Credits per analyzed element",
+    "perElement": "Credits / element",
     "perElementHint": "Headlines, descriptions, extensions, images, keywords.",
     "tasks": "Prices per task type",
     "tasksHint": "Credits per unit of work (for example per headline written or proposal created).",

@@ -248,6 +248,8 @@ function onNavigate(): void {
   flex: 0 1 auto;
   min-height: 200px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--v-theme-on-surface), 0.25) transparent;
   display: flex;
   flex-direction: column;
   gap: 1.15rem;

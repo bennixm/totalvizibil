@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 /**
  * What happened to one agent action, from real data only: the admin's
  * manual instructions it was revised from, the outcome Google reported /
@@ -23,19 +24,19 @@ const rows = computed(() => {
   return [
     {
       label: t('adminGoogleAdsOpt.colImpressions'),
-      before: n(a.impressions).toLocaleString(),
-      after: n(b.impressions).toLocaleString(),
+      before: n(a.impressions).toLocaleString(uiLocale()),
+      after: n(b.impressions).toLocaleString(uiLocale()),
     },
     {
       label: t('adminGoogleAdsOpt.colClicks'),
-      before: n(a.clicks).toLocaleString(),
-      after: n(b.clicks).toLocaleString(),
+      before: n(a.clicks).toLocaleString(uiLocale()),
+      after: n(b.clicks).toLocaleString(uiLocale()),
     },
     { label: t('adminGoogleAdsOpt.colCtr'), before: pct(ctr(a)), after: pct(ctr(b)) },
     {
       label: t('adminGoogleAdsOpt.colConversions'),
-      before: n(a.conversions).toLocaleString(),
-      after: n(b.conversions).toLocaleString(),
+      before: n(a.conversions).toLocaleString(uiLocale()),
+      after: n(b.conversions).toLocaleString(uiLocale()),
     },
   ]
 })

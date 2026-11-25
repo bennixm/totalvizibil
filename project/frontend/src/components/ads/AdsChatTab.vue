@@ -394,6 +394,8 @@ onBeforeUnmount(() => {
   min-height: 260px;
   max-height: min(62vh, 640px);
   overflow: hidden auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--v-theme-on-surface), 0.25) transparent;
   overscroll-behavior: contain;
   padding: 1rem;
 }

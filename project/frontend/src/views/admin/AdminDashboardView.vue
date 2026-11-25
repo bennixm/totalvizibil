@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -174,7 +175,7 @@ const economyChart = computed(() => {
     <AdminPageHeader
       :title="t('admin.navDashboard')"
       :eyebrow="t('admin.navGroupOverview')"
-      :sub="s ? t('admin.updated') + ' ' + new Date(s.generatedAt).toLocaleTimeString() : undefined"
+      :sub="s ? t('admin.updated') + ' ' + new Date(s.generatedAt).toLocaleTimeString(uiLocale()) : undefined"
     />
 
     <div v-if="loading" class="d-flex justify-center py-16">

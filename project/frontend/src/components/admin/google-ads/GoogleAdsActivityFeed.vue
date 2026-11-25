@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 /**
  * The agent's live activity feed. Every row is a real step the backend
  * recorded (GoogleAdsAgentEvent); nothing here is simulated. Polls
@@ -156,14 +157,14 @@ watch(
 )
 
 function time(iso: string) {
-  return new Date(iso).toLocaleTimeString(undefined, {
+  return new Date(iso).toLocaleTimeString(uiLocale(), {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
   })
 }
 function day(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })
+  return new Date(iso).toLocaleDateString(uiLocale(), { day: '2-digit', month: '2-digit' })
 }
 function duration(e: GoogleAdsAgentEvent) {
   if (!e.finishedAt) return ''

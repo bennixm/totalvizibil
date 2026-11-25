@@ -2298,7 +2298,8 @@
       "cpc": "Consum: clicuri",
       "aiUsage": "Consum: AI",
       "builderUnlock": "Consum: deblocare",
-      "other": "Consum: altele"
+      "other": "Consum: altele",
+      "googleAds": "Consum: Google Ads"
     },
     "expensesTotalEur": "Total în EUR",
     "missingFxAlert": "{n} cheltuieli în altă monedă nu au curs de schimb și nu sunt incluse în totaluri și în profit. Editați-le și completați cursul.",
@@ -2358,7 +2359,9 @@
       "advances": "Avansuri clienți (bani, cu TVA)",
       "advancesVat": "din care TVA",
       "unconsumedPaid": "Credite plătite neconsumate (valoare nominală)",
-      "unconsumedFree": "Credite gratuite neconsumate (valoare nominală)"
+      "unconsumedFree": "Credite gratuite neconsumate (valoare nominală)",
+      "revGoogleAds": "Optimizare Google Ads clienți",
+      "aiGoogleAds": "Cost AI: optimizare Google Ads clienți"
     },
     "annual": {
       "colMonth": "Luna",
@@ -2423,7 +2426,8 @@
       }
     },
     "showTypes": "Ce tranzacții vezi în tabel",
-    "typeHidden": "Ascuns"
+    "typeHidden": "Ascuns",
+    "oneOffGoogleAds": "Optimizare Google Ads clienți"
   },
   "adminSettings": {
     "pricingTitle": "Prețuri și curs valutar",
@@ -2551,7 +2555,8 @@
     "filterFrom": "De la",
     "filterTo": "Până la",
     "filterClear": "Șterge filtrele",
-    "emptyFiltered": "Nicio tranzacție nu corespunde acestor filtre."
+    "emptyFiltered": "Nicio tranzacție nu corespunde acestor filtre.",
+    "googleAds": "Google Ads"
   },
   "websiteSettings": {
     "loadError": "Nu am putut încărca datele site-ului. Încearcă din nou.",
@@ -4166,7 +4171,7 @@
       "scheduled": "programat",
       "inProgress": "În lucru…",
       "failedSum": "Agentul s-a oprit înainte să termine; ai plătit doar ce a schimbat.",
-      "summary": "{applied} modificări aplicate, {proposed} propuneri",
+      "summary": "Modificări aplicate: {applied} · propuneri: {proposed}",
       "score": "scor {from} → {to}",
       "refunded": "{credits} credite returnate",
       "noChange": "Nu a fost nimic de schimbat"
@@ -4231,7 +4236,7 @@
       "pending_approval": "În așteptare"
     },
     "set": {
-      "chatLimit": "Limită chat pe zi (credite)",
+      "chatLimit": "Limită chat / zi (credite)",
       "chatLimitHint": "0 înseamnă fără limită.",
       "agentTitle": "Ce face agentul",
       "autoApply": "Completează singur ce lipsește din reclamă",
@@ -4330,7 +4335,7 @@
       "points": "{n} din 100 de puncte",
       "noViews": "Reclama nu a fost afișată încă în această perioadă. La o campanie nouă sau un cont de test este normal.",
       "lastTitle": "Ultima dată ({when}):",
-      "lastDone": "agentul a făcut {applied} modificări și ți-a pregătit {proposed} de aprobat.",
+      "lastDone": "modificări făcute: {applied}, de aprobat: {proposed}.",
       "lastNothing": "agentul nu a găsit nimic de schimbat.",
       "lastReturned": "agentul nu a putut schimba nimic, așa că ți-am returnat creditele.",
       "paid": "Ai plătit {credits} credite.",
@@ -4363,7 +4368,7 @@
           "cta": "Vezi ce face"
         },
         "approve": {
-          "title": "Ai {n} modificări de aprobat",
+          "title": "Modificări de aprobat: {n}",
           "text": "Agentul a pregătit modificări. Le vezi înainte și după, apoi alegi dacă le aplici. Aprobarea e gratuită.",
           "cta": "Vezi și aprobă"
         },
@@ -4473,7 +4478,7 @@
     "minCreditsHint": "Orice ciclu finalizat costă cel puțin atât.",
     "maxCredits": "Maxim pe ciclu",
     "maxCreditsHint": "Plafon de siguranță.",
-    "perElement": "Credite pe element analizat",
+    "perElement": "Credite / element",
     "perElementHint": "Titluri, descrieri, extensii, imagini, cuvinte cheie.",
     "tasks": "Prețuri pe tip de sarcină",
     "tasksHint": "Credite pe unitate de lucru (de exemplu pe fiecare titlu scris sau propunere creată).",

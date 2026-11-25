@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { onMounted, reactive, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -508,7 +509,7 @@ async function save() {
                     googleAdsStatus.state === 'fresh'
                       ? 'adminSettings.googleAdsFresh'
                       : 'adminSettings.googleAdsStale',
-                    { t: new Date(googleAdsStatus.updatedAt!).toLocaleTimeString() },
+                    { t: new Date(googleAdsStatus.updatedAt!).toLocaleTimeString(uiLocale()) },
                   )
                 }}
               </span>

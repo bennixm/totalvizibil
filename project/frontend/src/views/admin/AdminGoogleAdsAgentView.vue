@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import GoogleAdsProposalPreview from '@/components/admin/GoogleAdsProposalPreview.vue'
 import GoogleAdsOptimizationPanel from '@/components/admin/google-ads/GoogleAdsOptimizationPanel.vue'
@@ -180,7 +181,7 @@ watch(
 type RunKind = 'structural' | 'content' | 'intelligence'
 function fmtDate(iso?: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString(uiLocale(), {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',

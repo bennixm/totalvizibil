@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -269,7 +270,7 @@ async function copyRefLink() {
   }
 }
 function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString()
+  return new Date(iso).toLocaleDateString(uiLocale())
 }
 </script>
 
@@ -524,7 +525,7 @@ function shortDate(iso: string): string {
                   </v-chip>
                 </v-list-item-title>
                 <v-list-item-subtitle>
-                  {{ s.ip || 'N/A' }} · {{ new Date(s.createdAt).toLocaleString() }}
+                  {{ s.ip || 'N/A' }} · {{ new Date(s.createdAt).toLocaleString(uiLocale()) }}
                 </v-list-item-subtitle>
               </v-list-item>
             </v-list>

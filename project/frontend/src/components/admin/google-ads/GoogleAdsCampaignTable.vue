@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 /**
  * Every campaign in the Google Ads account (managed by the agent or only
  * monitored), with its optimization score, Google's own Ad Strength (shown
@@ -37,9 +38,9 @@ async function load() {
 onMounted(load)
 defineExpose({ load })
 
-const num = (n: number) => n.toLocaleString()
+const num = (n: number) => n.toLocaleString(uiLocale())
 function money(micros: number, currency: string | null) {
-  return `${(micros / 1e6).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency ?? ''}`.trim()
+  return `${(micros / 1e6).toLocaleString(uiLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency ?? ''}`.trim()
 }
 function pct(v: number | null) {
   return v === null ? '–' : `${(v * 100).toFixed(2)}%`
@@ -57,7 +58,7 @@ function label(prefix: string, v: string | null | undefined) {
 }
 function fmtDate(iso: string | null) {
   return iso
-    ? new Date(iso).toLocaleDateString(undefined, {
+    ? new Date(iso).toLocaleDateString(uiLocale(), {
         day: '2-digit',
         month: '2-digit',
         year: '2-digit',
@@ -144,7 +145,7 @@ function open(r: GoogleAdsOptimizationCampaignRow) {
               {{ num(r.metrics.current.clicks) }}
               <span class="gct__sub">{{ pct(r.metrics.current.ctr) }}</span>
             </td>
-            <td class="num">{{ r.metrics.current.conversions.toLocaleString() }}</td>
+            <td class="num">{{ r.metrics.current.conversions.toLocaleString(uiLocale()) }}</td>
             <td class="num">
               {{ money(r.metrics.current.costMicros, r.currencyCode) }}
               <span class="gct__sub">{{ cpaRoas(r) }}</span>

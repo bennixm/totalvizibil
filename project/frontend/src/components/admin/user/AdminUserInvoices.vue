@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -65,7 +66,7 @@ onMounted(load)
 /** Fiscal amounts are shown in the invoice's own currency, never converted. */
 const money = (minor: number, currency: string) =>
   `${n(minor / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
-const date = (s: string) => new Date(s).toLocaleDateString()
+const date = (s: string) => new Date(s).toLocaleDateString(uiLocale())
 const pdf = (id: string) => `${BASE_URL}/admin/invoices/${id}/pdf`
 
 const open = ref(false)

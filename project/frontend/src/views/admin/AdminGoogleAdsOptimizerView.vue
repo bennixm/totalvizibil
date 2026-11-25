@@ -463,7 +463,7 @@ onMounted(() => {
 }
 .gao__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
   gap: 0.75rem 1rem;
 }
 .gao :deep(.v-messages__message) {

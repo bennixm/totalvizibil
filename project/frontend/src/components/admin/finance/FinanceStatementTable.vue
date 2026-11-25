@@ -75,6 +75,7 @@ const lines = computed<Line[]>(() => {
   L.push({ key: 'cpc', label: p('revCpc'), amount: s.revenue.byCategory.cpc })
   L.push({ key: 'ai', label: p('revAi'), amount: s.revenue.byCategory.aiUsage })
   L.push({ key: 'unlock', label: p('revUnlock'), amount: s.revenue.byCategory.builderUnlock })
+  L.push({ key: 'ads', label: p('revGoogleAds'), amount: s.revenue.byCategory.googleAds })
   L.push({ key: 'other', label: p('revOther'), amount: s.revenue.byCategory.other })
   L.push({ key: 'fees', label: p('revRefundFees'), amount: s.revenue.refundFeesMinor })
   L.push({ key: 'revTotal', label: p('revTotal'), amount: s.revenue.totalNetMinor, kind: 'total' })
@@ -84,6 +85,7 @@ const lines = computed<Line[]>(() => {
   for (const k of EXPENSE_KEYS) L.push({ key: `e-${k}`, label: t(CAT_LABEL[k]), amount: s.expenses.byCategory[k] })
   L.push({ key: 'aiB', label: p('aiBuilder'), amount: s.expenses.ai.builderMinor })
   L.push({ key: 'aiA', label: p('aiAgent'), amount: s.expenses.ai.campaignAgentMinor })
+  L.push({ key: 'aiG', label: p('aiGoogleAds'), amount: s.expenses.ai.googleAdsOptimizerMinor })
   L.push({ key: 'aiS', label: p('aiSearch'), amount: s.expenses.ai.searchMinor })
   L.push({ key: 'expTotal', label: p('expensesTotal'), amount: s.expenses.totalMinor, kind: 'total' })
 

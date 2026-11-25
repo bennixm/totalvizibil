@@ -2298,7 +2298,8 @@
       "cpc": "Verbrauch: Klicks",
       "aiUsage": "Verbrauch: KI",
       "builderUnlock": "Verbrauch: Freischaltung",
-      "other": "Verbrauch: Sonstiges"
+      "other": "Verbrauch: Sonstiges",
+      "googleAds": "Verbrauch: Google Ads"
     },
     "expensesTotalEur": "Summe in EUR",
     "missingFxAlert": "{n} Ausgaben in Fremdwährung haben keinen Wechselkurs und fehlen in den Summen und im Gewinn. Bearbeiten Sie sie und tragen Sie den Kurs ein.",
@@ -2358,7 +2359,9 @@
       "advances": "Kundenanzahlungen (Geld, inkl. MwSt.)",
       "advancesVat": "davon MwSt.",
       "unconsumedPaid": "Unverbrauchtes bezahltes Guthaben (Nennwert)",
-      "unconsumedFree": "Unverbrauchtes Gratisguthaben (Nennwert)"
+      "unconsumedFree": "Unverbrauchtes Gratisguthaben (Nennwert)",
+      "revGoogleAds": "Google Ads Optimierung für Kunden",
+      "aiGoogleAds": "KI-Kosten: Google Ads Optimierung für Kunden"
     },
     "annual": {
       "colMonth": "Monat",
@@ -2423,7 +2426,8 @@
       }
     },
     "showTypes": "Welche Transaktionen die Tabelle zeigt",
-    "typeHidden": "Ausgeblendet"
+    "typeHidden": "Ausgeblendet",
+    "oneOffGoogleAds": "Google Ads Optimierung für Kunden"
   },
   "adminSettings": {
     "pricingTitle": "Preise & Wechselkurs",
@@ -2551,7 +2555,8 @@
     "filterFrom": "Von",
     "filterTo": "Bis",
     "filterClear": "Filter zurücksetzen",
-    "emptyFiltered": "Keine Transaktionen entsprechen diesen Filtern."
+    "emptyFiltered": "Keine Transaktionen entsprechen diesen Filtern.",
+    "googleAds": "Google Ads"
   },
   "websiteSettings": {
     "loadError": "Die Website-Daten konnten nicht geladen werden. Versuche es erneut.",
@@ -4166,7 +4171,7 @@
       "scheduled": "geplant",
       "inProgress": "In Arbeit…",
       "failedSum": "Der Agent wurde vorher gestoppt; du hast nur gezahlt, was er geändert hat.",
-      "summary": "{applied} Änderungen umgesetzt, {proposed} Vorschläge",
+      "summary": "Änderungen: {applied} · Vorschläge: {proposed}",
       "score": "Wert {from} → {to}",
       "refunded": "{credits} Credits zurückerstattet",
       "noChange": "Es gab nichts zu ändern"
@@ -4231,7 +4236,7 @@
       "pending_approval": "Offen"
     },
     "set": {
-      "chatLimit": "Chat-Limit pro Tag (Credits)",
+      "chatLimit": "Chat-Limit / Tag (Credits)",
       "chatLimitHint": "0 bedeutet kein Limit.",
       "agentTitle": "Was der Agent tut",
       "autoApply": "Ergänzt selbst, was der Anzeige fehlt",
@@ -4330,7 +4335,7 @@
       "points": "{n} von 100 Punkten",
       "noViews": "Die Anzeige wurde in diesem Zeitraum noch nicht gezeigt. Bei einer neuen Kampagne oder einem Testkonto ist das normal.",
       "lastTitle": "Letztes Mal ({when}):",
-      "lastDone": "der Agent hat {applied} Änderungen gemacht und {proposed} zur Bestätigung vorbereitet.",
+      "lastDone": "Änderungen: {applied}, zu bestätigen: {proposed}.",
       "lastNothing": "der Agent fand nichts zu ändern.",
       "lastReturned": "der Agent konnte nichts ändern, daher haben wir deine Credits zurückgegeben.",
       "paid": "Du hast {credits} Credits gezahlt.",
@@ -4363,7 +4368,7 @@
           "cta": "Ansehen, was er macht"
         },
         "approve": {
-          "title": "Du hast {n} Änderungen zu bestätigen",
+          "title": "Zu bestätigende Änderungen: {n}",
           "text": "Der Agent hat Änderungen vorbereitet. Sieh dir Vorher und Nachher an und entscheide dann. Bestätigen ist gratis.",
           "cta": "Ansehen und bestätigen"
         },
@@ -4473,7 +4478,7 @@
     "minCreditsHint": "Jeder abgeschlossene Zyklus kostet mindestens so viel.",
     "maxCredits": "Maximum pro Zyklus",
     "maxCreditsHint": "Sicherheitsobergrenze.",
-    "perElement": "Credits pro analysiertem Element",
+    "perElement": "Credits / Element",
     "perElementHint": "Anzeigentitel, Beschreibungen, Erweiterungen, Bilder, Keywords.",
     "tasks": "Preise pro Aufgabentyp",
     "tasksHint": "Credits pro Arbeitseinheit (zum Beispiel pro geschriebenem Titel oder erstelltem Vorschlag).",

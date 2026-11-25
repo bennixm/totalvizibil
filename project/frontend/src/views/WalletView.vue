@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -431,7 +432,7 @@ watch(
                     </span>
                   </td>
                   <td class="end payrow__date" :data-label="t('wallet.colDate')">
-                    {{ new Date(p.createdAt).toLocaleDateString() }}
+                    {{ new Date(p.createdAt).toLocaleDateString(uiLocale()) }}
                   </td>
                   <td class="end" :data-label="t('wallet.colStatus')">
                     <span class="payrow__badge" :class="'payrow__badge--' + p.status">

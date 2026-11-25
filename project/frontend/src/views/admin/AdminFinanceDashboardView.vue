@@ -73,6 +73,7 @@ const mainTab = ref<'summary' | 'pnl' | 'annual' | 'checks'>('summary')
 const ONE_OFF_LABEL_KEYS = {
   aiUsage: 'adminFinance.oneOffAiUsage',
   builderUnlock: 'adminFinance.oneOffBuilderUnlock',
+  googleAds: 'adminFinance.oneOffGoogleAds',
   other: 'adminFinance.oneOffOther',
 } as const
 
