@@ -472,7 +472,9 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     opts: {
       idempotencyKey?: string;
       expectedQuoteMinor?: number;
-      trigger: 'manual' | 'scheduled';
+      trigger: 'manual' | 'scheduled' | 'staff';
+      /** Started by staff: nothing is held or charged. */
+      free?: boolean;
       maxMinor?: number;
       /** The owner chose to run although the agent lacks information. */
       ignoreMissingInfo?: boolean;
@@ -498,7 +500,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       );
     }
     if (this.running.has(row.id)) throw new ConflictException('cycle_already_running');
-    await this.wallet.assertSpendable(userId);
+    if (!opts.free) await this.wallet.assertSpendable(userId);
 
     const a = await this.analyze(row);
     // Nothing it could change: a cycle would only cost credits.
@@ -555,6 +557,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
         });
         // Hold the quote now (prepaid, cannot be spent twice); the final
         // price is captured on this same row when the cycle settles.
+        if (opts.free) return cycle.id;
         const charge = await this.wallet.holdWithin(tx, userId, a.quote.minor, {
           description: CHARGE_DESCRIPTION,
           provider: OPTIMIZER_PROVIDER,
@@ -584,7 +587,11 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
         ),
       )
       .finally(() => this.running.delete(row.id));
-    return { cycleId, status: 'running' as const, chargedMinor: a.quote.minor };
+    return {
+      cycleId,
+      status: 'running' as const,
+      chargedMinor: opts.free ? 0 : a.quote.minor,
+    };
   }
 
   /**
@@ -789,7 +796,8 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       });
       return true;
     });
-    if (settled && noChange) await this.notifyNoChange(cycle, refundMinor, !!opts.error);
+    if (settled && noChange && cycle.chargeTxnId)
+      await this.notifyNoChange(cycle, refundMinor, !!opts.error);
   }
 
   private async notifyNoChange(
@@ -889,8 +897,9 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
 
   // ------------------------------------------------------------ approvals
 
-  async approveAction(userId: string, campaignId: string, actionId: string) {
-    const result = await this.executeApproval(userId, campaignId, actionId);
+  /** `actorId`: who decided, when it is staff and not the owner. */
+  async approveAction(userId: string, campaignId: string, actionId: string, actorId = userId) {
+    const result = await this.executeApproval(userId, campaignId, actionId, actorId);
     // The dashboard shows the stored snapshot: re-read the campaign so what
     // was just applied no longer appears as missing.
     if (result?.status === 'applied') {
@@ -903,7 +912,12 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     return result;
   }
 
-  private async executeApproval(userId: string, campaignId: string, actionId: string) {
+  private async executeApproval(
+    userId: string,
+    campaignId: string,
+    actionId: string,
+    actorId: string,
+  ) {
     const row = await this.ownedCampaign(userId, campaignId);
     const action = await this.prisma.googleAdsUserAction.findUnique({ where: { id: actionId } });
     if (!action || action.userCampaignId !== row.id) throw new NotFoundException();
@@ -913,12 +927,12 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     const client = await this.clientFor(row);
     if (action.action === 'creative.replace_text') {
       const optimizer = this.optimizerFor(row, client, readSettings(row.settings), null);
-      await optimizer.approveProposal(actionId, userId);
+      await optimizer.approveProposal(actionId, actorId);
       return this.prisma.googleAdsUserAction.findUnique({ where: { id: actionId } });
     }
-    if (isChatChange(action.action)) return this.applyChat(client, action.id, userId, row);
+    if (isChatChange(action.action)) return this.applyChat(client, action.id, actorId, row);
     if (action.action === 'budget.change.proposed')
-      return this.applyBudget(row, client, action.id, userId);
+      return this.applyBudget(row, client, action.id, actorId);
     throw new BadRequestException('Tip de propunere necunoscut.');
   }
 
@@ -1023,11 +1037,11 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     });
   }
 
-  async rejectAction(userId: string, campaignId: string, actionId: string) {
+  async rejectAction(userId: string, campaignId: string, actionId: string, actorId = userId) {
     const row = await this.ownedCampaign(userId, campaignId);
     const res = await this.prisma.googleAdsUserAction.updateMany({
       where: { id: actionId, userCampaignId: row.id, status: 'pending_approval' },
-      data: { status: 'rejected', approvedByUserId: userId, approvedAt: new Date() },
+      data: { status: 'rejected', approvedByUserId: actorId, approvedAt: new Date() },
     });
     if (!res.count) throw new BadRequestException('Propunerea nu mai așteaptă o decizie.');
     return { ok: true };

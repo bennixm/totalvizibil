@@ -69,7 +69,7 @@ function open(id: string): void {
   <div class="au">
     <AdminPageHeader
       :title="t('admin.navUsers')"
-      :eyebrow="t('admin.navGroupManage')"
+      :eyebrow="t('admin.navGroupClients')"
       :count="admin.usersTotal"
     />
 

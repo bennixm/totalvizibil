@@ -213,6 +213,13 @@ export const useWalletStore = defineStore('wallet', {
       useMoneyStore().applyFx(this.summary)
     },
 
+    /** The server pushed a new balance (any spend, refund or deposit, from
+     *  any tab or background work). */
+    applyLiveBalance(minor: number): void {
+      if (this.summary && this.summary.balance.minor !== minor)
+        this.summary.balance = { minor, credits: minor / 100 }
+    },
+
     /** Switch the wallet's display currency (EUR or RON). */
     async setCurrency(currency: 'EUR' | 'RON'): Promise<void> {
       const prev = this.summary?.currency

@@ -7,7 +7,8 @@ import AdsChangePreview from './AdsChangePreview.vue'
 import { ApiError } from '@/services/api'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
-import { googleAdsUserApi, type UserAction, type UserCampaignDetail } from '@/services/googleAdsUser'
+import { type UserAction, type UserCampaignDetail } from '@/services/googleAdsUser'
+import { useAdsApi } from './adsApi'
 import { adsMoney, dateTime } from './format'
 
 /**
@@ -18,6 +19,7 @@ import { adsMoney, dateTime } from './format'
 const props = defineProps<{ detail: UserCampaignDetail }>()
 const emit = defineEmits<{ (e: 'changed'): void }>()
 const { t, locale } = useI18n()
+const { api, staff } = useAdsApi()
 const toasts = useToastStore()
 const confirm = useConfirmStore()
 
@@ -43,7 +45,7 @@ function approve(a: UserAction): void {
   confirm.ask(t('ads.prop.confirmTitle'), text, async () => {
     busy.value = a.id
     try {
-      const res = await googleAdsUserApi.approve(id.value, a.id)
+      const res = await api.approve(id.value, a.id)
       if (res?.status === 'failed') toasts.error(res.errorMessage ?? t('ads.prop.failed'))
       else toasts.success(t('ads.prop.applied'))
       emit('changed')
@@ -59,7 +61,7 @@ function approve(a: UserAction): void {
 async function reject(a: UserAction): Promise<void> {
   busy.value = a.id
   try {
-    await googleAdsUserApi.reject(id.value, a.id)
+    await api.reject(id.value, a.id)
     toasts.success(t('ads.prop.rejected'))
     emit('changed')
     await loadHistory()
@@ -72,7 +74,7 @@ async function reject(a: UserAction): Promise<void> {
 
 async function loadHistory(): Promise<void> {
   try {
-    history.value = (await googleAdsUserApi.actions(id.value)).filter((a) => a.status !== 'pending_approval')
+    history.value = (await api.actions(id.value)).filter((a) => a.status !== 'pending_approval')
   } catch {
     /* the pending list still works */
   }
@@ -147,7 +149,8 @@ function summary(a: UserAction): string {
 
         <p v-if="a.reasoning" class="prop__why">{{ a.reasoning }}</p>
         <div class="prop__actions">
-          <v-btn color="primary" :loading="busy === a.id" prepend-icon="mdi-check" @click="approve(a)">
+          <span v-if="staff && isBudget(a)" class="prop__why">{{ t('admin.ads.budgetOwner') }}</span>
+          <v-btn v-else color="primary" :loading="busy === a.id" prepend-icon="mdi-check" @click="approve(a)">
             {{ t('ads.prop.approve') }}
           </v-btn>
           <v-btn variant="text" :disabled="busy === a.id" @click="reject(a)">{{ t('ads.prop.reject') }}</v-btn>

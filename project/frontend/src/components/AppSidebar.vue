@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { useRoute, type RouteLocationRaw } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 
 import BgEffectQuickToggle from '@/components/BgEffectQuickToggle.vue'
@@ -23,10 +24,14 @@ export interface SidebarNavItem {
 }
 export interface SidebarNavGroup {
   label?: string
+  /** Set to make the group foldable (its state is remembered per browser). */
+  id?: string
+  /** Folded until opened, unless the current page is in it. */
+  startFolded?: boolean
   items: SidebarNavItem[]
 }
 
-defineProps<{
+const props = defineProps<{
   groups: SidebarNavGroup[]
   brandIcon?: string
   brandLabel?: string
@@ -43,6 +48,37 @@ function tabActive(item: SidebarNavItem): boolean {
 }
 const ui = useUiStore()
 const auth = useAuthStore()
+
+const router = useRouter()
+const FOLD_KEY = 'tvz.navFold.v1'
+function readFolds(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(FOLD_KEY) ?? '{}') as Record<string, boolean>
+  } catch {
+    return {}
+  }
+}
+/** Group id -> open, only for the groups the user toggled. */
+const folds = ref(readFolds())
+const total = computed(() => props.groups.reduce((s, g) => s + g.items.length, 0))
+function hasCurrent(g: SidebarNavGroup): boolean {
+  return g.items.some(
+    (i) => router.resolve(i.to).name === route.name || i.activeMatch?.includes(String(route.name)),
+  )
+}
+function isOpen(g: SidebarNavGroup): boolean {
+  if (!g.id || hasCurrent(g)) return true
+  return folds.value[g.id] ?? (!g.startFolded || total.value <= 10)
+}
+function toggleGroup(g: SidebarNavGroup): void {
+  if (!g.id) return
+  folds.value = { ...folds.value, [g.id]: !isOpen(g) }
+  try {
+    localStorage.setItem(FOLD_KEY, JSON.stringify(folds.value))
+  } catch {
+    /* storage unavailable: kept for this page view */
+  }
+}
 
 function onNavigate(): void {
   if (!mdAndUp.value) ui.closeSidebar()
@@ -68,11 +104,21 @@ function onNavigate(): void {
         <slot name="top" />
       </div>
 
-      <nav class="sbar__nav" :class="{ 'sbar__nav--dense': groups.reduce((s, g) => s + g.items.length, 0) > 10 }">
+      <nav class="sbar__nav" :class="{ 'sbar__nav--dense': total > 10 }">
         <div v-for="(g, gi) in groups" :key="g.label ?? gi" class="sbar__group">
-          <span v-if="g.label" class="sbar__group-label">{{ g.label }}</span>
+          <button
+            v-if="g.label && g.id"
+            type="button"
+            class="sbar__group-label sbar__group-label--btn"
+            :aria-expanded="isOpen(g)"
+            @click="toggleGroup(g)"
+          >
+            {{ g.label }}
+            <v-icon v-if="!hasCurrent(g)" :icon="isOpen(g) ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="15" />
+          </button>
+          <span v-else-if="g.label" class="sbar__group-label">{{ g.label }}</span>
           <RouterLink
-            v-for="item in g.items"
+            v-for="item in isOpen(g) ? g.items : []"
             :key="item.label"
             :to="item.to"
             class="sbar__link"
@@ -233,6 +279,14 @@ function onNavigate(): void {
   letter-spacing: 0.12em;
   color: rgba(var(--v-theme-on-surface), 0.42);
   padding: 0 0.7rem 0.35rem;
+}
+.sbar__group-label--btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 26px;
+  text-align: left;
 }
 .sbar__link {
   position: relative;

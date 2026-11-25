@@ -36,7 +36,9 @@ export function useAdminNavGroups() {
           : [],
       },
       {
-        label: t('admin.navGroupManage'),
+        // People: accounts, their businesses, who brought whom, their tickets.
+        label: t('admin.navGroupClients'),
+        id: 'admin-clients',
         items: [
           ...(isAdmin.value
             ? [
@@ -53,50 +55,14 @@ export function useAdminNavGroups() {
               ]
             : []),
           // Recomandări is `admin`+`finance` on the backend (`GET
-          // /admin/referrals` and `/referrals/export`), but this link used to
-          // sit inside the admin-only block above — a Contabil had no way
-          // into a page the API had deliberately opened to them.
+          // /admin/referrals` and `/referrals/export`), so it follows the
+          // finance condition, not the admin-only one above.
           ...(isFinanceStaff.value
             ? [
                 {
                   to: { name: 'admin-referrals' },
                   label: t('admin.navReferrals'),
                   icon: 'mdi-account-multiple-plus-outline',
-                },
-              ]
-            : []),
-          ...(isAdmin.value
-            ? [
-                {
-                  to: { name: 'admin-categories' },
-                  label: t('admin.navCategories'),
-                  icon: 'mdi-shape-outline',
-                },
-              ]
-            : []),
-          ...(isAdmin.value
-            ? [
-                {
-                  to: { name: 'admin-google-ads-agent' },
-                  label: t('admin.navGoogleAdsAgent'),
-                  icon: 'mdi-bullhorn-outline',
-                },
-                {
-                  to: { name: 'admin-google-ads-optimizer' },
-                  label: t('admin.navGoogleAdsOptimizer'),
-                  icon: 'mdi-chart-timeline-variant-shimmer',
-                },
-              ]
-            : []),
-          // Jurnal staff is admin-only (the backend's `GET /admin/audit-log`
-          // is too); Jurnal acțiuni owner is open to support as well — the
-          // view itself hides whichever tab the signed-in role can't read.
-          ...(isAdmin.value || isSupportStaff.value
-            ? [
-                {
-                  to: { name: 'admin-jurnal' },
-                  label: t('admin.navJurnal'),
-                  icon: 'mdi-clipboard-text-clock-outline',
                 },
               ]
             : []),
@@ -112,7 +78,29 @@ export function useAdminNavGroups() {
         ],
       },
       {
+        // Everything Google Ads: the platform's own agent and the customers'.
+        label: t('admin.navGroupGoogleAds'),
+        id: 'admin-google-ads',
+        items: isAdmin.value
+          ? [
+              {
+                to: { name: 'admin-google-ads-agent' },
+                label: t('admin.navGoogleAdsAgent'),
+                icon: 'mdi-bullhorn-outline',
+                activeMatch: ['admin-google-ads-campaign'],
+              },
+              {
+                to: { name: 'admin-google-ads-optimizer' },
+                label: t('admin.navGoogleAdsOptimizer'),
+                icon: 'mdi-chart-timeline-variant-shimmer',
+              },
+            ]
+          : [],
+      },
+      {
         label: t('admin.navGroupFinance'),
+        id: 'admin-finance',
+        startFolded: true,
         items: isFinanceStaff.value
           ? [
               {
@@ -150,19 +138,43 @@ export function useAdminNavGroups() {
       },
       {
         label: t('admin.navGroupConfig'),
-        // `GET /admin/settings` is `admin`+`finance`: the VAT rate, refund
-        // fee, FX rate and invoice-issuer identity are what a Contabil
-        // reconciles against. The view itself hides every write control for
-        // a finance-only viewer, so the link is safe to show them.
-        items: isFinanceStaff.value
-          ? [
-              {
-                to: { name: 'admin-settings' },
-                label: t('admin.navSettings'),
-                icon: 'mdi-tune-variant',
-              },
-            ]
-          : [],
+        id: 'admin-config',
+        items: [
+          ...(isAdmin.value
+            ? [
+                {
+                  to: { name: 'admin-categories' },
+                  label: t('admin.navCategories'),
+                  icon: 'mdi-shape-outline',
+                },
+              ]
+            : []),
+          // Jurnal staff is admin-only (the backend's `GET /admin/audit-log`
+          // is too); Jurnal acțiuni owner is open to support as well — the
+          // view itself hides whichever tab the signed-in role can't read.
+          ...(isAdmin.value || isSupportStaff.value
+            ? [
+                {
+                  to: { name: 'admin-jurnal' },
+                  label: t('admin.navJurnal'),
+                  icon: 'mdi-clipboard-text-clock-outline',
+                },
+              ]
+            : []),
+          // `GET /admin/settings` is `admin`+`finance`: the VAT rate, refund
+          // fee, FX rate and invoice-issuer identity are what a Contabil
+          // reconciles against. The view itself hides every write control for
+          // a finance-only viewer, so the link is safe to show them.
+          ...(isFinanceStaff.value
+            ? [
+                {
+                  to: { name: 'admin-settings' },
+                  label: t('admin.navSettings'),
+                  icon: 'mdi-tune-variant',
+                },
+              ]
+            : []),
+        ],
       },
     ]
     return all.filter((g) => g.items.length > 0)

@@ -53,6 +53,17 @@ const STAFF_ACTIONS = [
   'category.delete',
   'user.update',
   'user.password.reset',
+  'google_ads.ad_texts',
+  'google_ads.keywords',
+  'google_ads.extensions',
+  'google_ads.status',
+  'google_ads.budget.propose',
+  'google_ads.settings',
+  'google_ads.agent.pause',
+  'google_ads.agent.resume',
+  'google_ads.cycle.start',
+  'google_ads.proposal.approve',
+  'google_ads.proposal.reject',
 ]
 const STAFF_TARGET_TYPES = [
   'wallet',
@@ -67,6 +78,7 @@ const STAFF_TARGET_TYPES = [
   'lead',
   'category',
   'user',
+  'google_ads_user_campaign',
 ]
 const OWNER_ACTIONS = [
   'campaign.activate',
@@ -164,7 +176,7 @@ watch(tab, (v) => {
   <div class="jrn">
     <AdminPageHeader
       :title="t('admin.navJurnal')"
-      :eyebrow="t('admin.navGroupManage')"
+      :eyebrow="t('admin.navGroupConfig')"
     />
 
     <v-tabs v-model="tab" color="primary" class="jrn__tabs" show-arrows>

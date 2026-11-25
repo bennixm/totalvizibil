@@ -1,7 +1,12 @@
 import { Transform, Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export class ListInvoicesQuery {
+  /** Only this user's invoices (the user page in the admin panel). */
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+
   /** Matches invoice number, buyer name/email, or the owning user's email. */
   @IsOptional()
   @IsString()

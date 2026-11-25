@@ -5,19 +5,21 @@ import { useI18n } from 'vue-i18n'
 import GaChip from '@/components/admin/google-ads/GaChip.vue'
 import GoogleAdsActivityFeed from '@/components/admin/google-ads/GoogleAdsActivityFeed.vue'
 import AdsCostsTab from './AdsCostsTab.vue'
-import { googleAdsUserApi, type UserCampaignDetail } from '@/services/googleAdsUser'
+import { type UserCampaignDetail } from '@/services/googleAdsUser'
+import { useAdsApi } from './adsApi'
 import { creditsOf, dateTime } from './format'
 
 /** What the agent did and what it cost; the step-by-step log is optional. */
 const props = defineProps<{ detail: UserCampaignDetail }>()
 const emit = defineEmits<{ (e: 'changed'): void }>()
 const { t, locale } = useI18n()
+const { api } = useAdsApi()
 
 const id = computed(() => props.detail.campaign.id)
 const running = computed(() => !!props.detail.runningCycle)
 const showSteps = ref(running.value)
 const showCosts = ref(false)
-const loader = (after?: string) => googleAdsUserApi.activity(id.value, after)
+const loader = (after?: string) => api.activity(id.value, after)
 
 function onRunning(v: boolean): void {
   if (!v && running.value) emit('changed')

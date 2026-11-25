@@ -11,6 +11,7 @@ import {
   type Schedule,
   type UserCampaignDetail,
 } from '@/services/googleAdsUser'
+import { useAdsApi } from './adsApi'
 
 /**
  * The owner's control over the agent. Every switch maps onto an existing
@@ -20,6 +21,7 @@ import {
 const props = defineProps<{ detail: UserCampaignDetail }>()
 const emit = defineEmits<{ (e: 'changed'): void; (e: 'removed'): void }>()
 const { t } = useI18n()
+const { api, staff } = useAdsApi()
 const toasts = useToastStore()
 const confirm = useConfirmStore()
 
@@ -43,7 +45,7 @@ async function save(): Promise<void> {
   if (saving.value) return
   saving.value = true
   try {
-    await googleAdsUserApi.saveSettings(id.value, { ...form })
+    await api.saveSettings(id.value, { ...form })
     toasts.success(t('ads.set.saved'))
     emit('changed')
   } catch (e) {
@@ -55,8 +57,8 @@ async function save(): Promise<void> {
 
 async function togglePause(): Promise<void> {
   try {
-    if (props.detail.campaign.status === 'paused') await googleAdsUserApi.resume(id.value)
-    else await googleAdsUserApi.pause(id.value)
+    if (props.detail.campaign.status === 'paused') await api.resume(id.value)
+    else await api.pause(id.value)
     emit('changed')
   } catch {
     toasts.error(t('ads.set.error'))
@@ -90,6 +92,9 @@ function remove(): void {
 
 <template>
   <form class="se" @submit.prevent="save">
+    <p v-if="staff" class="ab-note">
+      <v-icon icon="mdi-information-outline" size="18" /> <span>{{ t('admin.ads.settingsNote') }}</span>
+    </p>
     <section class="se__group">
       <h3 class="se__h"><v-icon icon="mdi-storefront-outline" size="18" /> {{ t('ads.set.businessTitle') }}</h3>
       <v-text-field v-model="form.businessName" :label="t('ads.set.businessName')" :hint="t('ads.set.businessNameHint')" persistent-hint maxlength="25" counter />
@@ -195,7 +200,7 @@ function remove(): void {
           {{ detail.campaign.status === 'paused' ? t('ads.set.resume') : t('ads.set.pause') }}
         </v-btn>
       </div>
-      <div v-if="detail.campaign.status !== 'disconnected'" class="se__row">
+      <div v-if="!staff && detail.campaign.status !== 'disconnected'" class="se__row">
         <div>
           <p class="se__label">{{ t('ads.set.disconnect') }}</p>
           <p class="se__hint">
@@ -206,7 +211,7 @@ function remove(): void {
           {{ t('ads.set.disconnect') }}
         </v-btn>
       </div>
-      <div class="se__row">
+      <div v-if="!staff" class="se__row">
         <div>
           <p class="se__label">{{ t('ads.set.remove') }}</p>
           <p class="se__hint">{{ t('ads.set.removeHint') }}</p>

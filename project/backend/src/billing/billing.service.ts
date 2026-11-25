@@ -316,6 +316,7 @@ export class BillingService {
 
   /** All invoices platform-wide, paginated — the admin `/admin/invoices` page. */
   async adminList(query: {
+    userId?: string;
     search?: string;
     status?: 'issued' | 'void';
     kind?: 'topup' | 'affiliate_reward';
@@ -327,6 +328,7 @@ export class BillingService {
     const search = query.search?.trim();
 
     const where: Prisma.InvoiceWhereInput = {
+      ...(query.userId ? { userId: query.userId } : {}),
       ...(query.status === 'void' ? { voidedAt: { not: null } } : {}),
       ...(query.status === 'issued' ? { voidedAt: null } : {}),
       ...(query.kind ? { kind: query.kind } : {}),

@@ -166,7 +166,7 @@ onMounted(() => {
 
 <template>
   <div class="gao">
-    <AdminPageHeader :eyebrow="t('adminGoogleAds.eyebrow')" :title="t('adminAdsOpt.title')" />
+    <AdminPageHeader :eyebrow="t('admin.navGroupGoogleAds')" :title="t('adminAdsOpt.title')" />
 
     <p v-if="oauth && oauth.missing.length" class="gao__warn">
       <v-icon icon="mdi-alert-circle-outline" size="18" />

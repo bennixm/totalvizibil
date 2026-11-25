@@ -30,7 +30,7 @@ onMounted(() => admin.fetchReferralsList())
   <div class="ar">
     <AdminPageHeader
       :title="t('admin.navReferrals')"
-      :eyebrow="t('admin.navGroupManage')"
+      :eyebrow="t('admin.navGroupClients')"
       :count="admin.referralsTotal"
     >
       <template #actions>

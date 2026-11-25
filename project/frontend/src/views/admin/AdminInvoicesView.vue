@@ -144,7 +144,7 @@ onMounted(() => admin.fetchInvoices())
   <div class="ai">
     <AdminPageHeader
       :title="t('admin.navInvoices')"
-      :eyebrow="t('admin.navGroupManage')"
+      :eyebrow="t('admin.navGroupFinance')"
       :count="admin.invoicesTotal"
     />
 
