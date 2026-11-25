@@ -175,6 +175,13 @@ interface OptimizerCycleUsage {
   aiCallCount: number;
   chargedMinor: number;
 }
+/** What customers paid for the work done with one model (each model is its
+ *  own row, so the total must not repeat on every row). */
+function optimizerCharged(usage: OptimizerCycleUsage[], model: string): number {
+  return usage
+    .filter((r) => (r.aiModel ?? 'necunoscut') === model)
+    .reduce((s, r) => s + r.chargedMinor, 0);
+}
 /** Platform-side AI spend no customer is ever billed for. */
 const NEVER_CHARGED = new Set(['google-ads-agent', SEARCH_PROVIDER]);
 interface SearchUsage {
@@ -1568,7 +1575,7 @@ export class FinanceService {
 
   private async aiRows(q: FinancePeriodQuery) {
     const { from, to } = this.resolveRange(q);
-    const [rows, googleAdsAgentRuns, optimizerCycles] = await Promise.all([
+    const [rows, googleAdsAgentRuns, cycles, chatTurns] = await Promise.all([
       this.prisma.aiUsageRecord.findMany({
         where: { createdAt: { gte: from, lte: to } },
         select: {
@@ -1601,7 +1608,17 @@ export class FinanceService {
         where: { startedAt: { gte: from, lte: to } },
         select: { aiModel: true, aiCostMinor: true, aiCallCount: true, chargedMinor: true },
       }),
+      // The agent chat, billed per message (same customers, same category).
+      this.prisma.googleAdsChatTurn.findMany({
+        where: { createdAt: { gte: from, lte: to }, status: { not: 'running' } },
+        select: { aiModel: true, aiCostUsd: true, aiCallCount: true, chargedMinor: true },
+      }),
     ]);
+    // Unrounded cost per message: sub-cent calls are rounded once, in totals.
+    const optimizerCycles: OptimizerCycleUsage[] = [
+      ...cycles,
+      ...chatTurns.map(({ aiCostUsd, ...t }) => ({ ...t, aiCostMinor: aiCostUsd * 100 })),
+    ];
     // Homepage "ask" search: per-day tallies (its Claude spend is summed
     // there at write time). Day rows are matched by the calendar days the
     // range touches.
@@ -1620,7 +1637,16 @@ export class FinanceService {
       days: searchDays,
       model: latestSearchCall?.model ?? 'claude',
     };
-    return { rows, googleAdsAgentRuns, optimizerCycles, search, from, to };
+    return {
+      rows,
+      googleAdsAgentRuns,
+      optimizerCycles,
+      optimizerCycleCount: cycles.length,
+      optimizerChatCount: chatTurns.length,
+      search,
+      from,
+      to,
+    };
   }
 
   /** Builds the same "accumulate raw USD, round once" per-(provider,model)
@@ -1713,9 +1739,18 @@ export class FinanceService {
   }
 
   async aiUsageReport(q: FinancePeriodQuery) {
-    const { rows, googleAdsAgentRuns, optimizerCycles, search, from, to } = await this.aiRows(q);
+    const {
+      rows,
+      googleAdsAgentRuns,
+      optimizerCycles,
+      optimizerCycleCount,
+      optimizerChatCount,
+      search,
+      from,
+      to,
+    } = await this.aiRows(q);
     const byModel = this.buildAiByModelMap(rows, googleAdsAgentRuns, search, optimizerCycles);
-    const optimizerCostMinor = optimizerCycles.reduce((s, r) => s + r.aiCostMinor, 0);
+    const optimizerCostMinor = Math.round(optimizerCycles.reduce((s, r) => s + r.aiCostMinor, 0));
     const optimizerChargedMinor = optimizerCycles.reduce((s, r) => s + r.chargedMinor, 0);
     const sum = (k: 'total' | 'stored' | 'keyword' | 'local' | 'ai' | 'guess') =>
       search.days.reduce((n, d) => n + d[k], 0);
@@ -1755,7 +1790,7 @@ export class FinanceService {
         // "charged" is what was really taken from customers' wallets.
         chargedMinor:
           provider === OPTIMIZER_PROVIDER
-            ? optimizerChargedMinor
+            ? optimizerCharged(optimizerCycles, rest.model)
             : NEVER_CHARGED.has(provider)
               ? 0
               : usdToChargedMinor(costUsd),
@@ -1771,7 +1806,8 @@ export class FinanceService {
       byModel: byModelMinor,
       // Customers' Google Ads optimization cycles: real AI cost vs charged.
       googleAdsOptimizer: {
-        cycles: optimizerCycles.length,
+        cycles: optimizerCycleCount,
+        chatMessages: optimizerChatCount,
         aiCostMinor: optimizerCostMinor,
         chargedMinor: optimizerChargedMinor,
         aiCalls: optimizerCycles.reduce((s, r) => s + r.aiCallCount, 0),
@@ -1795,7 +1831,6 @@ export class FinanceService {
   async exportAiUsagePdf(q: FinancePeriodQuery): Promise<Buffer> {
     const { rows, googleAdsAgentRuns, optimizerCycles, search } = await this.aiRows(q);
     const byModel = this.buildAiByModelMap(rows, googleAdsAgentRuns, search, optimizerCycles);
-    const optimizerChargedMinor = optimizerCycles.reduce((s, r) => s + r.chargedMinor, 0);
 
     return generateTablePdf({
       title: 'Consum AI',
@@ -1820,7 +1855,7 @@ export class FinanceService {
           costMinor: usdToEurMinor(costUsd),
           chargedMinor:
             provider === OPTIMIZER_PROVIDER
-              ? optimizerChargedMinor
+              ? optimizerCharged(optimizerCycles, rest.model)
               : NEVER_CHARGED.has(provider)
                 ? 0
                 : usdToChargedMinor(costUsd),

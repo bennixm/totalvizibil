@@ -81,7 +81,7 @@ function remove(): void {
       toasts.success(t('ads.set.removed'))
       emit('removed')
     } catch (e) {
-      toasts.error(e instanceof ApiError && e.message === 'cycle_running' ? t('ads.set.removeRunning') : t('ads.set.error'))
+      toasts.error(e instanceof ApiError && ['cycle_running', 'chat_running'].includes(e.message) ? t('ads.set.removeRunning') : t('ads.set.error'))
     }
   })
 }
@@ -117,6 +117,9 @@ function remove(): void {
         :label="t('ads.set.businessDescription')"
         :hint="t('ads.set.businessDescriptionHint')"
         persistent-hint
+        variant="outlined"
+        rounded="lg"
+        density="comfortable"
         rows="2"
         auto-grow
         maxlength="300"
@@ -136,6 +139,15 @@ function remove(): void {
           :hint="t('ads.set.maxCreditsHint', { min: detail.pricing.minCredits })"
           persistent-hint
           :disabled="form.schedule === 'manual'"
+        />
+        <v-text-field
+          v-model.number="form.chatDailyLimitCredits"
+          type="number"
+          min="0"
+          step="1"
+          :label="t('ads.set.chatLimit')"
+          :hint="t('ads.set.chatLimitHint')"
+          persistent-hint
         />
         <v-text-field
           v-model.number="form.creativeCooldownDays"
@@ -227,6 +239,14 @@ function remove(): void {
   padding-top: 0.75rem;
   border-top: 1px solid var(--tvz-hairline);
 }
+.se__switch > div:first-child,
+.se__row > div:first-child {
+  min-width: 0;
+}
+.se__row .v-btn {
+  flex: none;
+  max-width: 100%;
+}
 .se__switch:first-of-type {
   border-top: 0;
   padding-top: 0;
@@ -240,20 +260,27 @@ function remove(): void {
   margin: 0.15rem 0 0;
   font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.6);
+  overflow-wrap: anywhere;
 }
 .se__switch .v-switch {
   flex: none;
 }
 .se__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 0.75rem 1rem;
+}
+.se :deep(.v-messages__message) {
+  line-height: 1.35;
 }
 .se__save {
   display: flex;
   justify-content: flex-end;
 }
-@media (max-width: 600px) {
+@media (max-width: 720px) {
+  .se__row > div:first-child {
+    width: 100%;
+  }
   .se__row {
     flex-direction: column;
     align-items: flex-start;

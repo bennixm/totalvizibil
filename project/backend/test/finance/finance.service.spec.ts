@@ -178,6 +178,9 @@ function fakePrisma() {
     // fake already makes — `aggregate` is called once by `overview()` and
     // 3 more times by `profitForRange()` (today/month/year), all replaying
     // the same canned `state.googleAdsAgentRuns`.
+    googleAdsChatTurn: {
+      findMany: jest.fn(async () => (state as { chatTurns?: unknown[] }).chatTurns ?? []),
+    },
     googleAdsOptimizationCycle: {
       findMany: jest.fn(
         async () => (state as { optimizerCycles?: unknown[] }).optimizerCycles ?? [],
@@ -1016,8 +1019,17 @@ describe('FinanceService', () => {
         { aiModel: 'claude-sonnet-5', aiCostMinor: 3, aiCallCount: 2, chargedMinor: 1_200 },
         { aiModel: 'claude-sonnet-5', aiCostMinor: 1, aiCallCount: 1, chargedMinor: 1_000 },
       ];
+      // The agent chat: another model, its own row, not counted as cycles.
+      (prisma.__state as { chatTurns?: unknown[] }).chatTurns = [
+        { aiModel: 'claude-opus-5-5', aiCostUsd: 0.004, aiCallCount: 1, chargedMinor: 20 },
+        { aiModel: 'claude-opus-5-5', aiCostUsd: 0.006, aiCallCount: 1, chargedMinor: 30 },
+      ];
 
       const result = await svc.aiUsageReport({});
+      expect(result.byModel.find((r) => r.model === 'claude-opus-5-5')).toMatchObject({
+        costMinor: 1,
+        chargedMinor: 50,
+      });
 
       const row = result.byModel.find((r) => r.provider === 'google-ads-optimizer');
       expect(row?.calls).toBe(3);
@@ -1026,11 +1038,12 @@ describe('FinanceService', () => {
       expect(row?.chargedMinor).toBe(2_200);
       expect(result.googleAdsOptimizer).toEqual({
         cycles: 2,
-        aiCostMinor: 4,
-        chargedMinor: 2_200,
-        aiCalls: 3,
+        chatMessages: 2,
+        aiCostMinor: 5,
+        chargedMinor: 2_250,
+        aiCalls: 5,
       });
-      expect(result.totalCostMinor).toBe(4);
+      expect(result.totalCostMinor).toBe(5);
     });
 
     it('adds the homepage search: its own never-charged row plus how searches were answered', async () => {

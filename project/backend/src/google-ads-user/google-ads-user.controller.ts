@@ -17,6 +17,8 @@ import type { Response } from 'express';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -29,6 +31,7 @@ import { Type } from 'class-transformer';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
+import { GoogleAdsChatService } from './google-ads-chat.service';
 import { GoogleAdsUserService } from './google-ads-user.service';
 import { GoogleAdsUserAgentService } from './google-ads-user-agent.service';
 
@@ -93,6 +96,21 @@ class StartCycleDto {
   @IsInt()
   @Min(0)
   expectedQuoteMinor?: number;
+  /** The owner was told information is missing and chose to run anyway. */
+  @IsOptional()
+  @IsBoolean()
+  ignoreMissingInfo?: boolean;
+}
+
+class ChatMessageDto {
+  @IsString()
+  @MaxLength(2000)
+  text!: string;
+  @Matches(/^[\w.-]{8,100}$/)
+  idempotencyKey!: string;
+  @IsOptional()
+  @IsIn(['ro', 'en', 'de'])
+  locale?: string;
 }
 
 /**
@@ -105,6 +123,7 @@ export class GoogleAdsUserController {
   constructor(
     private readonly service: GoogleAdsUserService,
     private readonly agent: GoogleAdsUserAgentService,
+    private readonly chat: GoogleAdsChatService,
   ) {}
 
   @Get('status')
@@ -265,7 +284,42 @@ export class GoogleAdsUserController {
       trigger: 'manual',
       idempotencyKey: dto.idempotencyKey ? `${user.id}:${dto.idempotencyKey}` : undefined,
       expectedQuoteMinor: dto.expectedQuoteMinor,
+      ignoreMissingInfo: dto.ignoreMissingInfo,
     });
+  }
+
+  // ----------------------------------------------------------- agent chat
+
+  @UseGuards(AuthGuard)
+  @Get('campaigns/:id/chat')
+  conversation(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.chat.conversation(user.id, id);
+  }
+
+  /** One billed message; the answer is prepared in the background. */
+  @UseGuards(AuthGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 15 } })
+  @Post('campaigns/:id/chat')
+  sendMessage(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ChatMessageDto,
+  ) {
+    return this.chat.send(user.id, id, {
+      text: dto.text,
+      idempotencyKey: dto.idempotencyKey,
+      locale: dto.locale ?? 'ro',
+    });
+  }
+
+  @UseGuards(AuthGuard)
+  @Patch('campaigns/:id/brief')
+  updateBrief(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.chat.updateBrief(user.id, id, body ?? {});
   }
 
   @UseGuards(AuthGuard)

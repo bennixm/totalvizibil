@@ -138,8 +138,50 @@ export interface AgentSettings {
   creativeCooldownDays: number
   schedule: Schedule
   maxCreditsPerCycle: number
+  chatDailyLimitCredits: number
   businessName: string
   businessDescription: string
+}
+
+export const BRIEF_FIELDS = ['services', 'areas', 'audience', 'goal', 'differentiators', 'offer', 'avoid'] as const
+export type CampaignBrief = Partial<Record<(typeof BRIEF_FIELDS)[number], string>>
+
+/** Whether the agent knows enough to optimize the campaign. */
+export interface Readiness {
+  level: 'ready' | 'partial' | 'insufficient'
+  score: number
+  gaps: { key: string; severity: 'required' | 'useful'; askable: boolean }[]
+}
+
+export interface ChatPrice {
+  baseCredits: number
+  aiCredits: number
+  lines: { type: string; units: number; creditsPerUnit: number; credits: number }[]
+  credits: number
+  minor: number
+}
+export interface ChatTurn {
+  id: string
+  status: 'running' | 'completed' | 'failed'
+  userText: string
+  assistantText: string | null
+  questions: { question: string; options: string[] }[]
+  chargedMinor: number
+  heldMinor: number
+  pricing: ChatPrice | null
+  errorCode: string | null
+  createdAt: string
+  actions: UserAction[]
+}
+export interface AdsConversation {
+  turns: ChatTurn[]
+  brief: CampaignBrief
+  readiness: Readiness | null
+  available: boolean
+  pricing: { minCredits: number; maxCredits: number; baseCredits: number; changeCredits: Record<string, number> }
+  spentTodayMinor: number
+  dailyLimitMinor: number | null
+  balanceMinor: number
 }
 
 export interface UserAction {
@@ -305,15 +347,24 @@ export const googleAdsUserApi = {
   sync: (id: string) =>
     apiFetch<{ synced: boolean }>(`${BASE}/campaigns/${id}/sync`, { method: 'POST', timeoutMs: 90_000 }),
   quote: (id: string) =>
-    apiFetch<{ quote: PriceBreakdown; tasks: PlannedTask[]; score: number | null; balanceMinor: number }>(
+    apiFetch<{ quote: PriceBreakdown; tasks: PlannedTask[]; score: number | null; readiness: Readiness; balanceMinor: number }>(
       `${BASE}/campaigns/${id}/quote`,
       { timeoutMs: 90_000 },
     ),
-  startCycle: (id: string, idempotencyKey: string, expectedQuoteMinor: number) =>
+  startCycle: (id: string, idempotencyKey: string, expectedQuoteMinor: number, ignoreMissingInfo = false) =>
     apiFetch<{ cycleId: string; status: string; chargedMinor: number }>(
       `${BASE}/campaigns/${id}/cycles`,
-      { method: 'POST', body: { idempotencyKey, expectedQuoteMinor }, timeoutMs: 90_000 },
+      { method: 'POST', body: { idempotencyKey, expectedQuoteMinor, ignoreMissingInfo }, timeoutMs: 90_000 },
     ),
+  chat: (id: string) => apiFetch<AdsConversation>(`${BASE}/campaigns/${id}/chat`),
+  sendChat: (id: string, text: string, idempotencyKey: string, locale: string) =>
+    apiFetch<{ turnId: string; status: string }>(`${BASE}/campaigns/${id}/chat`, {
+      method: 'POST',
+      body: { text, idempotencyKey, locale },
+      timeoutMs: 30_000,
+    }),
+  saveBrief: (id: string, patch: CampaignBrief) =>
+    apiFetch<CampaignBrief>(`${BASE}/campaigns/${id}/brief`, { method: 'PATCH', body: patch }),
   actions: (id: string) => apiFetch<UserAction[]>(`${BASE}/campaigns/${id}/actions`),
   activity: (id: string, after?: string) =>
     apiFetch<{ events: GoogleAdsAgentEvent[]; running: boolean; serverTime: string }>(
@@ -347,7 +398,17 @@ export interface OptimizerPricing {
   levels: { key: string; label: string; minPoints: number; multiplier: number }[]
 }
 
+export interface ChatPricing {
+  minCredits: number
+  maxCredits: number
+  baseCredits: number
+  aiMarkup: number
+  changeCredits: Record<string, number>
+  maxAiCalls: number
+}
+
 export interface AdminOptimizerUsage {
+  chat: { messages: number; failed: number; chargedMinor: number; aiCostMinor: number; aiCalls: number }
   totals: {
     cycles: number
     chargedMinor: number
@@ -402,6 +463,9 @@ export const adminGoogleAdsUserApi = {
       method: 'PATCH',
       body: p,
     }),
+  chatPricing: () => apiFetch<{ pricing: ChatPricing; defaults: ChatPricing }>(`${ADMIN}/chat-pricing`),
+  saveChatPricing: (p: ChatPricing) =>
+    apiFetch<{ pricing: ChatPricing; defaults: ChatPricing }>(`${ADMIN}/chat-pricing`, { method: 'PATCH', body: p }),
   oauth: () => apiFetch<AdminOauthConfig>(`${ADMIN}/oauth`),
   saveOauth: (input: { clientId?: string; clientSecret?: string }) =>
     apiFetch<AdminOauthConfig>(`${ADMIN}/oauth`, { method: 'PATCH', body: input }),

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import GaChip from '@/components/admin/google-ads/GaChip.vue'
+import AdsChangePreview from './AdsChangePreview.vue'
 import { ApiError } from '@/services/api'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
@@ -38,7 +39,7 @@ function approve(a: UserAction): void {
         from: adsMoney(obj(a.before).amountMicros as string, currency.value, locale.value),
         to: adsMoney(obj(a.after).amountMicros as string, currency.value, locale.value),
       })
-    : t('ads.prop.confirmText')
+    : t(a.action.startsWith('chat.') ? 'ads.chat.confirmApply' : 'ads.prop.confirmText')
   confirm.ask(t('ads.prop.confirmTitle'), text, async () => {
     busy.value = a.id
     try {
@@ -138,8 +139,9 @@ function summary(a: UserAction): string {
           </div>
           <small>{{ t('ads.prop.perDay') }}</small>
         </div>
+        <AdsChangePreview v-else-if="a.action.startsWith('chat.')" :action="a" :currency="currency" />
         <div v-else class="diff diff--text">
-          <p><span>{{ t('ads.prop.before') }}</span> {{ obj(a.before).text }}</p>
+          <p><span>{{ t('ads.prop.before') }}</span> <span class="diff__val">{{ obj(a.before).text }}</span></p>
           <p><span>{{ t('ads.prop.after') }}</span> <b>{{ obj(a.after).text }}</b></p>
         </div>
 
@@ -163,7 +165,8 @@ function summary(a: UserAction): string {
             <span class="hist__label">{{ label(a) }}</span>
             <span class="hist__date">{{ dateTime(a.createdAt, locale) }}</span>
           </div>
-          <p v-if="summary(a)" class="hist__sum">{{ summary(a) }}</p>
+          <AdsChangePreview v-if="a.action.startsWith('chat.')" class="mt-2" :action="a" :currency="currency" />
+          <p v-else-if="summary(a)" class="hist__sum">{{ summary(a) }}</p>
           <p v-if="a.errorMessage" class="hist__err">{{ a.errorMessage }}</p>
         </li>
       </ul>
@@ -197,6 +200,7 @@ function summary(a: UserAction): string {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  min-width: 0;
   padding: 1rem 1.15rem;
   border: 1px solid var(--tvz-hairline);
   border-radius: var(--tvz-radius-md);
@@ -252,12 +256,19 @@ function summary(a: UserAction): string {
   align-items: stretch;
 }
 .diff--text p {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+  overflow-wrap: anywhere;
   margin: 0;
   font-size: var(--tvz-fs-small);
 }
-.diff--text span {
-  display: inline-block;
-  min-width: 4.5rem;
+.diff--text b {
+  font-size: inherit;
+}
+.diff .diff__val {
+  font-size: inherit;
+  color: inherit;
 }
 .prop__why {
   margin: 0;

@@ -26,6 +26,7 @@ const returnedMinor = computed(() => props.detail.cycles.reduce((s, c) => s + c.
         <li><v-icon icon="mdi-cash-check" size="18" /> {{ t('ads.cost.min', { min: detail.pricing.minCredits }) }}</li>
         <li><v-icon icon="mdi-chart-bell-curve-cumulative" size="18" /> {{ t('ads.cost.complexity') }}</li>
         <li><v-icon icon="mdi-cash-refund" size="18" /> {{ t('ads.cost.settle') }}</li>
+        <li><v-icon icon="mdi-chat-outline" size="18" /> {{ t('ads.cost.chat') }}</li>
       </ul>
       <div class="lv">
         <div v-for="l in detail.pricing.levels" :key="l.key" class="lv__item">

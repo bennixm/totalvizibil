@@ -32,6 +32,10 @@ defineProps<{
   flex-wrap: wrap;
   margin-bottom: 1.5rem;
 }
+.aph__main {
+  min-width: 0;
+  max-width: 100%;
+}
 .aph__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -49,6 +53,8 @@ defineProps<{
   font-size: var(--tvz-fs-title);
   letter-spacing: -0.02em;
   margin: 0;
+  /* Names without spaces (campaigns, domains) wrap instead of leaving the page. */
+  overflow-wrap: anywhere;
 }
 .aph__count {
   font-size: var(--tvz-fs-section);

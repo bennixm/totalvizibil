@@ -12,6 +12,7 @@ import { PlatformSettingsService } from '../platform-settings/platform-settings.
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { DEFAULT_AGENT_SETTINGS, readSettings, SCHEDULE_DAYS } from './agent-settings';
+import { readBrief } from './campaign-brief';
 import { GoogleAdsOAuthService } from './google-ads-oauth.service';
 import { GoogleAdsConnectionRevokedError, GoogleAdsUserClient } from './google-ads-user-client';
 import { GoogleAdsUserAgentService } from './google-ads-user-agent.service';
@@ -51,6 +52,15 @@ export interface AccountRow {
   reason?: string;
   /** Google's customer status, when known. */
   status?: string;
+}
+
+/**
+ * Whether an account under a manager can be managed. Google reports EVERY
+ * test account as CLOSED although it works normally through the API, so for
+ * those the status says nothing.
+ */
+export function isUsableCustomer(status: string | undefined, testAccount: boolean): boolean {
+  return !status || status === 'ENABLED' || (testAccount && status === 'CLOSED');
 }
 
 /**
@@ -259,6 +269,9 @@ export class GoogleAdsUserService {
           | undefined;
         if (!c) continue;
         if (!c.manager) {
+          // Already listed through a manager: keep one row, the direct one.
+          const dup = out.findIndex((o) => o.customerId === id);
+          if (dup >= 0) out.splice(dup, 1);
           out.push({
             customerId: id,
             loginCustomerId: null,
@@ -298,7 +311,7 @@ export class GoogleAdsUserService {
               }
             | undefined;
           if (!cc?.id || out.some((o) => o.customerId === cc.id)) continue;
-          const enabled = !cc.status || cc.status === 'ENABLED';
+          const enabled = isUsableCustomer(cc.status, !!cc.testAccount);
           out.push({
             customerId: String(cc.id),
             loginCustomerId: id,
@@ -730,6 +743,7 @@ export class GoogleAdsUserService {
       connection: conn ? { status: conn.status, googleEmail: conn.googleEmail } : null,
       snapshot: row.snapshot,
       settings: readSettings(row.settings),
+      brief: readBrief(row.brief),
       pending,
       cycles,
       runningCycle: running,
@@ -787,9 +801,7 @@ export class GoogleAdsUserService {
         // from the last cycle), never immediately.
         ...(days !== prevDays
           ? {
-              nextCycleAt: days
-                ? new Date((row.lastCycleAt?.getTime() ?? Date.now()) + days * 86_400_000)
-                : null,
+              nextCycleAt: days ? this.nextRun(days, row.lastCycleAt) : null,
             }
           : {}),
       },
@@ -797,13 +809,28 @@ export class GoogleAdsUserService {
     return next;
   }
 
+  /** One period after the last cycle; a moment already past would start a
+   *  billed cycle right away, so then it is one period from now. */
+  private nextRun(days: number, lastCycleAt: Date | null): Date {
+    const period = days * 86_400_000;
+    const next = (lastCycleAt?.getTime() ?? Date.now()) + period;
+    return new Date(next > Date.now() ? next : Date.now() + period);
+  }
+
   async setPaused(userId: string, id: string, paused: boolean) {
     const row = await this.agent.ownedCampaign(userId, id);
     if (row.status === 'disconnected')
       throw new BadRequestException('google_ads_reconnect_required');
+    const days = SCHEDULE_DAYS[readSettings(row.settings).schedule];
     await this.prisma.googleAdsUserCampaign.update({
       where: { id },
-      data: { status: paused ? 'paused' : 'active' },
+      data: {
+        status: paused ? 'paused' : 'active',
+        // Resuming never triggers an overdue (billed) cycle on the spot.
+        ...(!paused && days && row.nextCycleAt && row.nextCycleAt.getTime() <= Date.now()
+          ? { nextCycleAt: this.nextRun(days, null) }
+          : {}),
+      },
     });
     return { status: paused ? 'paused' : 'active' };
   }
@@ -816,6 +843,11 @@ export class GoogleAdsUserService {
       where: { userCampaignId: id, status: 'running' },
     });
     if (running) throw new BadRequestException('cycle_running');
+    // A running chat message holds credits that its own row must settle.
+    const chatting = await this.prisma.googleAdsChatTurn.count({
+      where: { userCampaignId: id, status: 'running' },
+    });
+    if (chatting) throw new BadRequestException('chat_running');
     await this.prisma.googleAdsUserCampaign.delete({ where: { id } });
     const others = await this.prisma.googleAdsUserCampaign.count({
       where: { connectionId: row.connectionId },
@@ -849,6 +881,9 @@ export class GoogleAdsUserService {
         googleEmail: null,
         connectedAt: null,
         lastError: null,
+        // Otherwise the next account connected on this draft would inherit the
+        // previous account's picks at the claim step.
+        selections: Prisma.DbNull,
         selectedCustomerId: null,
         selectedLoginCustomerId: null,
         selectedCampaignId: null,

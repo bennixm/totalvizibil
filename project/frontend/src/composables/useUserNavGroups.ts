@@ -45,6 +45,7 @@ export function useUserNavGroups() {
       items: [
         item('overview', t('ads.tab.overview'), 'mdi-view-dashboard-outline'),
         item('agent', t('ads.tab.agent'), 'mdi-robot-outline'),
+        item('chat', t('ads.tab.chat'), 'mdi-chat-outline'),
         item('proposals', t('ads.tab.proposals'), 'mdi-account-check-outline', pending ? { badge: pending } : {}),
         item('settings', t('ads.tab.settings'), 'mdi-tune-variant'),
         item('costs', t('ads.tab.costs'), 'mdi-cash-multiple'),

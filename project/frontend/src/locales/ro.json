@@ -58,7 +58,7 @@
     "adsCampaigns": "Campanii Google Ads",
     "addAdsCampaign": "Optimizează o campanie",
     "pickCampaign": "Alege",
-    "adsConnections": "Conturi Google conectate"
+    "adsConnections": "Conturi Google"
   },
   "notifications": {
     "bell": "Notificări",
@@ -824,6 +824,8 @@
       "adjustment": "Ajustare"
     },
     "txnLabel": {
+      "adsCycle": "Optimizare Google Ads",
+      "adsChat": "Chat agent Google Ads",
       "aiPrompt": "Prompt AI",
       "unlock": "Deblocare builder avansat",
       "additionalBusiness": "Afacere suplimentară"
@@ -3731,6 +3733,86 @@
     "optimizeCta": "Optimizează campania"
   },
   "ads": {
+    "chat": {
+      "openGaps": "Ca să optimizez bine campania, îmi lipsesc câteva informații. Spune-mi aici, pe scurt:",
+      "openReady": "Am informațiile de bază despre campanie. Întreabă-mă orice despre ea sau spune-mi ce vrei să schimbăm.",
+      "freeMessage": "Mesaj gratuit",
+      "working": "Agentul citește campania și pregătește răspunsul…",
+      "notCharged": "Nu s-a plătit nimic.",
+      "prepared": "Modificări pregătite: {n}",
+      "cost": "Cost: {credits} credite",
+      "costBase": "Preț de bază: {credits}",
+      "costAi": "Analiză și răspuns AI: {credits}",
+      "placeholder": "Scrie-i agentului",
+      "send": "Trimite",
+      "priceRange": "Un mesaj costă între {min} și {max} credite, în funcție de cât lucrează agentul.",
+      "knows": "Ce știe agentul",
+      "unknown": "Necunoscut",
+      "editBrief": "Completează gratuit",
+      "briefSaved": "Am salvat informațiile.",
+      "pricingTitle": "Cum se plătește chatul",
+      "pricingText": "Separat de ciclurile de optimizare: un preț de bază, munca AI din acel mesaj și modificările pregătite. La trimitere rezervăm maximul, apoi păstrăm doar costul real. Aprobarea unei modificări este gratuită.",
+      "today": "Astăzi: {credits} credite",
+      "ofLimit": "din limita de {credits}",
+      "confirmApply": "Agentul aplică exact modificările afișate și verifică apoi în Google Ads.",
+      "level": {
+        "ready": "Suficient",
+        "partial": "Parțial",
+        "insufficient": "Insuficient"
+      },
+      "gap": {
+        "business": "Ce face afacerea ta și ce servicii sau produse vinzi?",
+        "landing": "Pagina de destinație nu poate fi citită. Pe ce pagină ajung clienții?",
+        "ads": "Campania nu are nicio reclamă activă. Ce vrei să promovezi și pe ce pagină?",
+        "keywords": "Campania are prea puține cuvinte cheie. Ce ar căuta clienții tăi pe Google?",
+        "services": "Care sunt serviciile sau produsele principale?",
+        "areas": "În ce zone lucrezi?",
+        "goal": "Ce vrei să obții: apeluri, formulare, vânzări?",
+        "audience": "Cine sunt clienții tăi?",
+        "differentiators": "De ce te aleg pe tine clienții?"
+      },
+      "brief": {
+        "services": "Servicii sau produse",
+        "areas": "Zone",
+        "audience": "Clienți",
+        "goal": "Scop",
+        "differentiators": "Avantaje",
+        "offer": "Ofertă actuală",
+        "avoid": "De evitat în reclame"
+      },
+      "unit": {
+        "text": "Text de reclamă",
+        "keyword": "Cuvânt cheie",
+        "extension": "Extensie",
+        "budget": "Schimbare de buget",
+        "status": "Pornire sau oprire"
+      },
+      "match": {
+        "EXACT": "potrivire exactă",
+        "PHRASE": "potrivire expresie",
+        "BROAD": "potrivire amplă"
+      },
+      "change": {
+        "page": "Pagina",
+        "keyword": "Cuvânt cheie",
+        "negative": "Negativ",
+        "paused": "Se oprește",
+        "daily": "Pe zi"
+      },
+      "err": {
+        "insufficient_credits": "Nu ai destule credite pentru un mesaj.",
+        "chat_daily_limit": "Ai atins limita zilnică a chatului. O poți schimba din Setări agent.",
+        "chat_busy": "Agentul lucrează încă la mesajul anterior.",
+        "ai_unavailable": "Agentul nu este disponibil momentan.",
+        "google_ads_reconnect_required": "Reconectează contul Google Ads.",
+        "wallet_blocked": "Portofelul tău este blocat. Contactează suportul.",
+        "ai_error": "Agentul nu a putut răspunde. Încearcă din nou.",
+        "ai_refused": "Agentul nu poate răspunde la acest mesaj. Reformulează.",
+        "google_error": "Nu am putut citi campania din Google Ads. Încearcă din nou.",
+        "interrupted": "Mesajul a fost întrerupt. Trimite-l din nou.",
+        "generic": "Ceva n-a mers. Încearcă din nou."
+      }
+    },
     "back": "Înapoi",
     "credits": "credite",
     "connect": {
@@ -3821,6 +3903,7 @@
       "doneN": "{n} campanii au fost adăugate în panoul tău."
     },
     "tab": {
+      "chat": "Chat",
       "overview": "Prezentare",
       "agent": "Agent",
       "proposals": "Propuneri",
@@ -3906,6 +3989,10 @@
       "disconnected": "Deconectat"
     },
     "agent": {
+      "needsInfo": "Agentul nu are destule informații ca să optimizeze bine",
+      "couldKnowMore": "Rezultatul ar fi mai bun dacă agentul ar ști",
+      "answerInChat": "Răspunde în chat",
+      "needsInfoConfirm": "Agentului îi lipsesc informații importante, iar textele pot fi prea generale.",
       "runTitle": "Ciclu de optimizare",
       "runLead": "Agentul analizează campania, aplică îmbunătățirile permise de tine și îți pregătește propunerile. Folosește aceleași reguli ca agentul nostru intern.",
       "firstFree": "Până acum totul a fost gratuit. Primul ciclu începe de la {credits} credite.",
@@ -3932,6 +4019,7 @@
       "cycles": "Cicluri anterioare",
       "noCycles": "Niciun ciclu încă.",
       "err": {
+        "needs_information": "Agentul are nevoie de mai multe informații.",
         "insufficient_credits": "Nu ai destule credite în portofel.",
         "cycle_already_running": "Un ciclu rulează deja pentru această campanie.",
         "quote_changed": "Estimarea s-a schimbat de când ai deschis-o. Verifică noul preț.",
@@ -3945,7 +4033,7 @@
       "analysis": "Analiză și scor",
       "rsa_text": "Titluri și descrieri noi",
       "keyword_headlines": "Cuvinte cheie în titluri",
-      "extensions": "Extensii (sitelink-uri, callout-uri, snippet)",
+      "extensions": "Extensii",
       "images": "Imagini",
       "text_rewrite": "Propuneri de rescriere",
       "budget_proposal": "Propuneri de buget"
@@ -3987,6 +4075,13 @@
       "sumPolicy": "Rescrise {r}, eliminate {d}"
     },
     "action": {
+      "chat": {
+        "ad_texts": "Texte de reclamă",
+        "ad_create": "Reclamă nouă",
+        "keywords": "Cuvinte cheie",
+        "extensions": "Extensii",
+        "status": "Starea campaniei"
+      },
       "creative": {
         "rsa_gap_fill": "Titluri și descrieri adăugate",
         "assets_gap_fill": "Extensii adăugate",
@@ -4014,6 +4109,8 @@
       "pending_approval": "În așteptare"
     },
     "set": {
+      "chatLimit": "Limită chat pe zi (credite)",
+      "chatLimitHint": "0 înseamnă fără limită.",
       "agentTitle": "Ce face agentul",
       "autoApply": "Completează automat elementele lipsă",
       "autoApplyHint": "Titluri, descrieri, sitelink-uri, callout-uri, snippet și numele afacerii, până la nivelul recomandat de Google.",
@@ -4043,7 +4140,7 @@
       },
       "maxCredits": "Limită pe ciclu (credite)",
       "maxCreditsHint": "Un ciclu programat mai scump nu pornește (minim {min}).",
-      "cooldown": "Pauză între modificări de text (zile)",
+      "cooldown": "Pauză între texte (zile)",
       "cooldownHint": "Google are nevoie de timp să evalueze textele noi.",
       "scheduleBilled": "Fiecare ciclu programat se plătește din portofel, la fel ca unul pornit manual.",
       "manageTitle": "Administrare",
@@ -4065,6 +4162,7 @@
       "disconnected": "Contul Google a fost deconectat."
     },
     "cost": {
+      "chat": "Chatul cu agentul se plătește separat, pe mesaj, după cât a lucrat.",
       "howTitle": "Cum se calculează costul",
       "free": "Conectarea, alegerea campaniei și panoul sunt gratuite.",
       "min": "Un ciclu de optimizare costă minimum {min} credite.",
@@ -4103,6 +4201,18 @@
     }
   },
   "adminAdsOpt": {
+    "chatTitle": "Chat cu agentul",
+    "chatLine": "{n} mesaje ({failed} fără răspuns, neplătite) · {credits} credite încasate · cost AI €{cost} · {calls} apeluri AI",
+    "chatPricing": "Prețul chatului, pe mesaj",
+    "chatPricingHint": "Preț = bază + cost AI real × multiplicator + modificări pregătite, între minim și maxim. Un mesaj fără răspuns nu costă.",
+    "chatMin": "Minim pe mesaj",
+    "chatMax": "Maxim pe mesaj",
+    "chatMaxHint": "Se rezervă la trimitere, diferența revine.",
+    "chatBase": "Preț de bază",
+    "chatMarkup": "Multiplicator cost AI",
+    "chatMarkupHint": "4 înseamnă de 4 ori costul real.",
+    "chatCalls": "Apeluri AI maxime pe mesaj",
+    "chatExample": "Exemplu: un răspuns obișnuit cu 3 texte pregătite costă {credits} credite.",
     "title": "Optimizare Google Ads pentru clienți",
     "notReady": "Clienții nu se pot conecta încă: lipsește configurarea Google.",
     "configure": "Configurează",

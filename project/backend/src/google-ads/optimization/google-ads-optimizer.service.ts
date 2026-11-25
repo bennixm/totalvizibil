@@ -131,6 +131,8 @@ const RSA_TEXT_ACTIONS = [
   'creative.rsa_gap_fill',
   'creative.replace_text',
   'creative.keyword_headlines',
+  // Texts the owner just changed in the chat are left alone too.
+  'chat.ad_texts',
 ];
 /** AI rewrites of disapproved texts per ad per run, each checked by Google
  *  (validateOnly); a policy rejection is fed back into the next attempt. */

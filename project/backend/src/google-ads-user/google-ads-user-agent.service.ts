@@ -24,10 +24,12 @@ import {
 import { OptimizationTarget } from '../google-ads/optimization/google-ads-optimizer.service';
 import { GoogleAdsWritesDisabledError } from '../google-ads/google-ads-api-client.service';
 import { readSettings, SCHEDULE_DAYS, UserAgentSettings } from './agent-settings';
+import { assessReadiness, businessContext, readBrief, Readiness } from './campaign-brief';
+import { applyChatChange, isChatChange } from './chat-changes';
 import { GoogleAdsOAuthService } from './google-ads-oauth.service';
 import { GoogleAdsConnectionRevokedError, GoogleAdsUserClient } from './google-ads-user-client';
 import { PriceBreakdown, priceWork } from './pricing';
-import { checkUrls, discoverSitePages } from './site-pages';
+import { checkUrls, discoverSitePages, landingText } from './site-pages';
 import { UserGoogleAdsOptimizer } from './user-optimizer';
 import { performedWork, planWork, WorkPlan } from './work-plan';
 
@@ -54,6 +56,7 @@ export interface CampaignSnapshot {
     currencyCode: string | null;
     keywords: number;
   };
+  readiness: Readiness;
   syncedAt: string;
 }
 
@@ -65,6 +68,8 @@ export interface Analysis {
   plan: WorkPlan;
   quote: PriceBreakdown;
   budgetRecommendations: BudgetRecommendation[];
+  readiness: Readiness;
+  landing: { url: string; text: string };
 }
 
 interface BudgetRecommendation {
@@ -174,11 +179,32 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     });
     const pricing = await this.settings.googleAdsOptimizerPricing();
     const quote = priceWork(pricing, plan.units, plan.elementsAnalyzed);
-    await this.saveSnapshot(row, c, ev);
-    return { c, ev, client, settings, plan, quote, budgetRecommendations };
+    const landingUrl =
+      [...c.ads]
+        .sort((a, b) => Number(b.status === 'ENABLED') - Number(a.status === 'ENABLED'))
+        .flatMap((a) => a.finalUrls)[0] ?? '';
+    const landing = { url: landingUrl, text: await landingText(landingUrl) };
+    const readiness = assessReadiness(c, settings, readBrief(row.brief), landing.text);
+    await this.saveSnapshot(row, c, ev, readiness);
+    return {
+      c,
+      ev,
+      client,
+      settings,
+      plan,
+      quote,
+      budgetRecommendations,
+      readiness,
+      landing,
+    };
   }
 
-  private async saveSnapshot(row: GoogleAdsUserCampaign, c: CampaignData, ev: CampaignEvaluation) {
+  private async saveSnapshot(
+    row: GoogleAdsUserCampaign,
+    c: CampaignData,
+    ev: CampaignEvaluation,
+    readiness: Readiness,
+  ) {
     const rsa = c.ads.find((a) => a.status === 'ENABLED') ?? c.ads[0];
     const snapshot: CampaignSnapshot = {
       evaluation: ev,
@@ -192,6 +218,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
         currencyCode: c.currencyCode ?? null,
         keywords: rsa?.keywords.length ?? 0,
       },
+      readiness,
       syncedAt: new Date().toISOString(),
     };
     await this.prisma.googleAdsUserCampaign.update({
@@ -226,6 +253,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       quote: a.quote,
       tasks: a.plan.tasks,
       score: a.ev.score,
+      readiness: a.readiness,
       balanceMinor: (await this.wallet.getSummary(userId)).balance.minor,
     };
   }
@@ -240,6 +268,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
   }
 
   private targetFor(row: GoogleAdsUserCampaign, settings: UserAgentSettings): OptimizationTarget {
+    const context = businessContext(settings, readBrief(row.brief));
     const name = settings.businessDescription || settings.businessName || row.name;
     return {
       owner: { userCampaignId: row.id },
@@ -249,7 +278,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       businessName: settings.businessName || null,
       advertiser: {
         businessName: settings.businessName || row.customerName || undefined,
-        description: settings.businessDescription || undefined,
+        description: context || undefined,
       },
       sitelinkDestinations: async (exclude, count) => {
         const landing = [...exclude].find((u) => /^https?:\/\//.test(u)) ?? '';
@@ -373,7 +402,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     return 1;
   }
 
-  private async liveBudget(
+  async liveBudget(
     client: GoogleAdsUserClient,
     googleCampaignId: string,
   ): Promise<{ resourceName: string; amountMicros: number; shared: boolean } | null> {
@@ -406,6 +435,8 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       expectedQuoteMinor?: number;
       trigger: 'manual' | 'scheduled';
       maxMinor?: number;
+      /** The owner chose to run although the agent lacks information. */
+      ignoreMissingInfo?: boolean;
     },
   ) {
     if (opts.idempotencyKey) {
@@ -431,6 +462,14 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     await this.wallet.assertSpendable(userId);
 
     const a = await this.analyze(row);
+    // Not enough to work from: the agent asks (chat) instead of guessing.
+    if (a.readiness.level === 'insufficient' && !opts.ignoreMissingInfo) {
+      throw new ConflictException({
+        statusCode: 409,
+        message: 'needs_information',
+        readiness: a.readiness,
+      });
+    }
     if (opts.expectedQuoteMinor != null && a.quote.minor > opts.expectedQuoteMinor) {
       throw new ConflictException({
         statusCode: 409,
@@ -488,7 +527,16 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     }
 
     this.running.add(row.id);
-    void this.execute(row, cycleId, a).finally(() => this.running.delete(row.id));
+    // A failed settlement must not crash the process (unhandled rejection);
+    // the cycle stays `running` and the stale sweep settles it.
+    void this.execute(row, cycleId, a)
+      .catch((err) =>
+        this.logger.error(
+          `Cycle ${cycleId} could not be settled`,
+          err instanceof Error ? err.stack : err,
+        ),
+      )
+      .finally(() => this.running.delete(row.id));
     return { cycleId, status: 'running' as const, chargedMinor: a.quote.minor };
   }
 
@@ -738,9 +786,48 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       await optimizer.approveProposal(actionId, userId);
       return this.prisma.googleAdsUserAction.findUnique({ where: { id: actionId } });
     }
+    if (isChatChange(action.action)) return this.applyChat(client, action.id, userId, row);
     if (action.action === 'budget.change.proposed')
       return this.applyBudget(row, client, action.id, userId);
     throw new BadRequestException('Tip de propunere necunoscut.');
+  }
+
+  /** Applies a change prepared in the chat, exactly as approved. */
+  private async applyChat(
+    client: GoogleAdsUserClient,
+    actionId: string,
+    userId: string,
+    row: GoogleAdsUserCampaign,
+  ) {
+    if (!client.writesAllowed) {
+      throw new BadRequestException(
+        'Scrierile în conturile Google Ads sunt blocate în acest mediu (doar producția aplică modificări).',
+      );
+    }
+    const claimed = await this.prisma.googleAdsUserAction.updateMany({
+      where: { id: actionId, status: 'pending_approval' },
+      data: { status: 'approved', approvedByUserId: userId, approvedAt: new Date() },
+    });
+    if (!claimed.count) throw new BadRequestException('Propunerea a fost deja procesată.');
+    const action = await this.prisma.googleAdsUserAction.findUniqueOrThrow({
+      where: { id: actionId },
+    });
+    let error: string | null = null;
+    try {
+      await applyChatChange(client, row.googleCampaignId, action);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+    return this.prisma.googleAdsUserAction.update({
+      where: { id: actionId },
+      data: error
+        ? { status: 'failed', errorMessage: error }
+        : {
+            status: 'applied',
+            verifiedAt: new Date(),
+            executionResult: 'Confirmat în Google după aplicare.',
+          },
+    });
   }
 
   private async applyBudget(
