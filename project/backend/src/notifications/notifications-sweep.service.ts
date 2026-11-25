@@ -1,12 +1,16 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { CampaignStatus, LeadStatus, SupportTicketStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { readSettings } from '../google-ads-user/agent-settings';
 import { utcDay } from '../campaigns/ad-click';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { minorToCredits } from '../wallet/money';
 import { NotificationsService } from './notifications.service';
 
 const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+/** Scheduled Google Ads cycles this close count towards the low-balance alert. */
+const ADS_CYCLE_HORIZON_MS = 3 * 24 * 60 * 60 * 1000;
 /** Don't re-notify the same low balance more than once a day. */
 const LOW_BALANCE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 /** Don't re-notify the same "you could reach #1" condition more than once a day. */
@@ -76,6 +80,7 @@ export class NotificationsSweepService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly analytics: AnalyticsService,
+    private readonly settings: PlatformSettingsService,
   ) {}
 
   /**
@@ -332,13 +337,47 @@ export class NotificationsSweepService implements OnModuleInit {
       where: { status: CampaignStatus.active },
       select: { dailyBudgetMinor: true, company: { select: { ownerUserId: true } } },
     });
-    if (!activeCampaigns.length) return;
 
     const neededByOwner = new Map<string, number>();
     for (const c of activeCampaigns) {
       const owner = c.company.ownerUserId;
       neededByOwner.set(owner, (neededByOwner.get(owner) ?? 0) + c.dailyBudgetMinor);
     }
+
+    // Google Ads cycles about to start on their own: the last price paid on
+    // that campaign (else the platform minimum), never above the owner's cap.
+    const soon = await this.prisma.googleAdsUserCampaign.findMany({
+      where: {
+        status: 'active',
+        nextCycleAt: { lte: new Date(Date.now() + ADS_CYCLE_HORIZON_MS) },
+        user: { status: 'active' },
+      },
+      select: {
+        userId: true,
+        settings: true,
+        cycles: {
+          where: { chargedMinor: { gt: 0 }, status: 'completed' },
+          orderBy: { startedAt: 'desc' },
+          take: 1,
+          select: { chargedMinor: true },
+        },
+      },
+    });
+    const adsOwners = new Set<string>();
+    if (soon.length) {
+      const min = Math.round((await this.settings.googleAdsOptimizerPricing()).minCredits * 100);
+      for (const c of soon) {
+        const s = readSettings(c.settings);
+        if (s.schedule === 'manual') continue;
+        const price = Math.min(
+          Math.round(s.maxCreditsPerCycle * 100),
+          c.cycles[0]?.chargedMinor ?? min,
+        );
+        adsOwners.add(c.userId);
+        neededByOwner.set(c.userId, (neededByOwner.get(c.userId) ?? 0) + price);
+      }
+    }
+    if (!neededByOwner.size) return;
 
     // Chunked `in` list + an explicit `select`. Unchunked, this was a hard
     // failure cliff rather than a slowdown: one bind parameter per owner id
@@ -393,7 +432,9 @@ export class NotificationsSweepService implements OnModuleInit {
           userId: w.userId,
           type: 'wallet_low_balance',
           title: 'Soldul din portofel este aproape epuizat',
-          body: 'Soldul nu mai acoperă bugetul zilnic al campaniilor tale active. Adaugă credite ca acestea să nu se oprească.',
+          body: adsOwners.has(w.userId)
+            ? 'Soldul nu mai acoperă campaniile tale active și ciclurile Google Ads programate în următoarele zile. Adaugă credite ca acestea să nu se oprească.'
+            : 'Soldul nu mai acoperă bugetul zilnic al campaniilor tale active. Adaugă credite ca acestea să nu se oprească.',
           channels: { panel: true, email: true },
           email: {
             greet: true,

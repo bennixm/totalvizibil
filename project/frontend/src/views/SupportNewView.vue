@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 import { useCompaniesStore } from '@/stores/companies'
+import { useGoogleAdsUserStore } from '@/stores/googleAdsUser'
 import {
   useSupportStore,
   TICKET_CATEGORIES,
@@ -17,6 +18,7 @@ const { t } = useI18n()
 const router = useRouter()
 const support = useSupportStore()
 const companies = useCompaniesStore()
+const ads = useGoogleAdsUserStore()
 const { overview } = storeToRefs(companies)
 const { working, error } = storeToRefs(support)
 
@@ -33,12 +35,18 @@ const subject = ref('')
 const category = ref<TicketCategory>('bug')
 const priority = ref<TicketPriority>('normal')
 const companyId = ref<string | null>(null)
+const adsCampaignId = ref<string | null>(null)
 const body = ref('')
 const submitted = ref(false)
 
 const companyOptions = computed(() => [
   { title: t('support.noBusiness'), value: null },
   ...overview.value.map((c) => ({ title: c.displayName, value: c.id })),
+])
+
+const adsOptions = computed(() => [
+  { title: t('support.noAds'), value: null },
+  ...ads.campaigns.map((c) => ({ title: c.name, value: c.id })),
 ])
 
 const subjectValid = computed(() => subject.value.trim().length >= 4)
@@ -48,7 +56,7 @@ const canSubmit = computed(() => subjectValid.value && bodyValid.value && !worki
 const errText = computed(() => {
   const c = error.value
   if (!c) return ''
-  return ['not_a_member'].includes(c) ? t('support.err.' + c) : c
+  return ['not_a_member', 'not_your_campaign'].includes(c) ? t('support.err.' + c) : c
 })
 
 async function submit(): Promise<void> {
@@ -60,12 +68,14 @@ async function submit(): Promise<void> {
     category: category.value,
     priority: priority.value,
     companyId: companyId.value ?? undefined,
+    adsCampaignId: adsCampaignId.value ?? undefined,
   })
   if (ticket) void router.replace({ name: 'support-ticket', params: { id: ticket.id } })
 }
 
 onMounted(() => {
   void companies.fetchOverview().catch(() => {})
+  void ads.fetch(true)
 })
 </script>
 
@@ -135,6 +145,17 @@ onMounted(() => {
         <v-select
           v-model="companyId"
           :items="companyOptions"
+          variant="outlined"
+          density="comfortable"
+          hide-details
+        />
+      </div>
+
+      <div v-if="adsOptions.length > 1" class="fld">
+        <label class="fld__label">{{ t('support.fieldAds') }}</label>
+        <v-select
+          v-model="adsCampaignId"
+          :items="adsOptions"
           variant="outlined"
           density="comfortable"
           hide-details

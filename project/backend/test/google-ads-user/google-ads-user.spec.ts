@@ -270,6 +270,7 @@ describe('connected Google accounts', () => {
       {} as never,
       {} as never,
       {} as never,
+      { log: jest.fn() } as never,
       { get: () => 'https://x.ro' } as never,
     );
     return { svc };

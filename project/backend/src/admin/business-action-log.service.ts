@@ -16,9 +16,10 @@ export interface BusinessActor {
  *  shallow snapshots of ONLY the fields the action touched — same contract
  *  as `AuditLogEntry`, just scoped to a company instead of the platform. */
 export interface BusinessActionLogEntry {
-  companyId: string;
+  /** Absent for actions outside any business (Google Ads agent). */
+  companyId?: string;
   actorId: string;
-  actorRole: CompanyRole;
+  actorRole?: CompanyRole;
   /** Short machine code: `campaign.activate`, `company.publish`, … */
   action: string;
   targetType: string;
@@ -61,9 +62,9 @@ export class BusinessActionLogService {
     try {
       await this.prisma.businessActionLog.create({
         data: {
-          companyId: entry.companyId,
+          companyId: entry.companyId ?? null,
           actorId: entry.actorId,
-          actorRole: entry.actorRole,
+          actorRole: entry.actorRole ?? null,
           action: entry.action,
           targetType: entry.targetType,
           targetId: entry.targetId ?? null,
@@ -73,7 +74,7 @@ export class BusinessActionLogService {
       });
     } catch (err) {
       this.logger.error(
-        `Business action log write failed (action=${entry.action} company=${entry.companyId} target=${entry.targetType}:${entry.targetId ?? '-'} actor=${entry.actorId})`,
+        `Business action log write failed (action=${entry.action} company=${entry.companyId ?? '-'} target=${entry.targetType}:${entry.targetId ?? '-'} actor=${entry.actorId})`,
         err instanceof Error ? err.stack : err,
       );
     }

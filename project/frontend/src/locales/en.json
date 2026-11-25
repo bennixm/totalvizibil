@@ -1032,7 +1032,15 @@
       "soldAll": "Credits sold",
       "revenueAll": "Revenue",
       "blockedWallets": "Blocked wallets",
-      "allTimeShort": "all-time"
+      "allTimeShort": "all-time",
+      "adsActive": "Active campaigns",
+      "adsPaused": "Agent paused",
+      "adsDisconnected": "Disconnected",
+      "adsConnections": "Connected Google accounts",
+      "adsPending": "Pending proposals",
+      "adsCycles": "Cycles, 30 days",
+      "adsFailed": "Failed cycles, 7 days",
+      "adsCharged": "Credits charged, 30 days"
     },
     "signups14": "Sign-ups · last 14 days",
     "legendUsers": "Users",
@@ -1254,7 +1262,18 @@
         "google_ads_agent_resume": "Google Ads: agent resumed",
         "google_ads_cycle_start": "Google Ads: agent started by the team",
         "google_ads_proposal_approve": "Google Ads: proposal approved",
-        "google_ads_proposal_reject": "Google Ads: proposal rejected"
+        "google_ads_proposal_reject": "Google Ads: proposal rejected",
+        "ads_add": "Added the campaign",
+        "ads_remove": "Removed the campaign",
+        "ads_pause": "Paused the agent",
+        "ads_resume": "Resumed the agent",
+        "ads_settings": "Changed the agent settings",
+        "ads_brief": "Edited the business details",
+        "ads_disconnect": "Disconnected the Google account",
+        "ads_reconnect": "Reconnected the Google account",
+        "ads_cycle_start": "Started an optimization",
+        "ads_proposal_approve": "Approved a proposal",
+        "ads_proposal_reject": "Rejected a proposal"
       }
     },
     "ads": {
@@ -1306,7 +1325,9 @@
       "runStart": "Start, free for the customer",
       "runConfirm": "The agent runs on the customer campaign at no cost to them. The customer is notified.",
       "budgetTitle": "Daily budget"
-    }
+    },
+    "colAdsCampaigns": "Google Ads",
+    "groupGoogleAds": "Customer Google Ads"
   },
   "errors": {
     "notFoundTitle": "Page not found",
@@ -2794,7 +2815,8 @@
       "invalid_attachments": "One of the attached files is no longer valid. Attach them again.",
       "too_many_attachments": "Too many files on one message. Send them across several messages.",
       "attachment_too_large": "That file is too large. Try a smaller version.",
-      "unsupported_attachment_type": "We only accept PDFs and images (PNG, JPG, WEBP, GIF)."
+      "unsupported_attachment_type": "We only accept PDFs and images (PNG, JPG, WEBP, GIF).",
+      "not_your_campaign": "The chosen campaign is not yours."
     },
     "investigate": "Investigate",
     "openUserAdmin": "Open user in admin",
@@ -2859,7 +2881,13 @@
     "firstResponse": "First response",
     "today": "Today",
     "yesterday": "Yesterday",
-    "assignedToYou": "Assigned to you"
+    "assignedToYou": "Assigned to you",
+    "fieldAds": "Google Ads campaign",
+    "noAds": "No specific campaign",
+    "adsTitle": "Google Ads (read only)",
+    "adsNone": "The customer has no Google Ads campaigns.",
+    "adsAbout": "The ticket is about it",
+    "adsCycle": "{applied} applied, {proposed} proposed, {credits} credits"
   },
   "catalog": {
     "variant": {
@@ -4513,7 +4541,14 @@
     "oauthClient": "OAuth client",
     "clientId": "Client ID",
     "clientSecret": "Client secret",
-    "secretKeep": "Leave empty to keep the saved secret."
+    "secretKeep": "Leave empty to keep the saved secret.",
+    "tabCampaigns": "Campaigns",
+    "searchCampaigns": "Search campaign, account or customer",
+    "anyStatus": "Any status",
+    "onlyProblems": "Only with problems",
+    "noCampaigns": "No campaigns found.",
+    "lastCycle": "Last cycle: {when}",
+    "noCycle": "No cycle yet"
   },
   "binfo": {
     "common": {

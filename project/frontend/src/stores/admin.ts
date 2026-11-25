@@ -71,6 +71,16 @@ export interface AdminStats {
     clicks30d: number
     leads30d: number
   }
+  googleAds: {
+    active: number
+    paused: number
+    disconnected: number
+    connections: number
+    pendingApprovals: number
+    cycles30d: number
+    failed7d: number
+    charged30d: Money
+  }
   staffByRole: { role: PlatformRole; count: number }[]
   activeSessions: number
   signups: { date: string; users: number; companies: number }[]
@@ -143,6 +153,7 @@ export interface AdminUserRow {
   platformRoles: PlatformRole[]
   twoFactorEnabled: boolean
   companyCount: number
+  adsCampaignCount: number
   walletCredits: number
   walletBlocked: boolean
   lastLoginAt: string | null
@@ -386,9 +397,9 @@ export interface AdminAuditLogRow {
 /** One owner/manager/editor/billing write on their own business — the Nivel-2 log. */
 export interface AdminBusinessActionLogRow {
   id: string
-  companyId: string
+  companyId: string | null
   actorId: string
-  actorRole: string
+  actorRole: string | null
   action: string
   targetType: string
   targetId: string | null
@@ -396,7 +407,8 @@ export interface AdminBusinessActionLogRow {
   after: unknown
   createdAt: string
   actor: AuditLogActor
-  company: { id: string; displayName: string; slug: string }
+  /** Null for what an owner did with their Google Ads agent. */
+  company: { id: string; displayName: string; slug: string } | null
 }
 
 export interface AuditLogFilters {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 
 import AdminHint from '@/components/admin/AdminHint.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
@@ -100,6 +101,8 @@ async function sync(): Promise<void> {
     syncing.value = false
   }
 }
+const route = useRoute()
+const adsQuery = () => (typeof route.query.ads === 'string' ? route.query.ads : '')
 const tone = (s: string) => (s === 'active' ? 'success' : s === 'paused' ? 'neutral' : 'error')
 
 watch(
@@ -111,7 +114,12 @@ watch(
     void load()
   },
 )
-onMounted(load)
+onMounted(async () => {
+  await load()
+  // Deep link from the list of all campaigns.
+  const id = adsQuery()
+  if (id && campaigns.value?.some((c) => c.id === id)) open(id)
+})
 onBeforeUnmount(() => clearTimeout(poll))
 </script>
 

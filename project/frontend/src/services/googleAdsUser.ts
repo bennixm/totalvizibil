@@ -423,6 +423,8 @@ export interface AdminOptimizerUsage {
     connectedAccounts: number
   }
   byLevel: { level: string | null; cycles: number; chargedMinor: number }[]
+  page: number
+  pageSize: number
   cycles: {
     id: string
     startedAt: string
@@ -444,6 +446,27 @@ export interface AdminOptimizerUsage {
     scoreBefore: number | null
     scoreAfter: number | null
     errorMessage: string | null
+  }[]
+}
+
+export interface AdminAllCampaigns {
+  page: number
+  pageSize: number
+  total: number
+  items: {
+    id: string
+    name: string
+    customerName: string | null
+    customerId: string
+    status: 'active' | 'paused' | 'disconnected'
+    score: number | null
+    syncedAt: string | null
+    nextCycleAt: string | null
+    user: { id: string; name: string; email: string }
+    googleEmail: string | null
+    lastError: string | null
+    lastCycle: { status: string; startedAt: string; errorMessage: string | null } | null
+    pendingApprovals: number
   }[]
 }
 
@@ -470,8 +493,17 @@ export const adminGoogleAdsUserApi = {
   oauth: () => apiFetch<AdminOauthConfig>(`${ADMIN}/oauth`),
   saveOauth: (input: { clientId?: string; clientSecret?: string }) =>
     apiFetch<AdminOauthConfig>(`${ADMIN}/oauth`, { method: 'PATCH', body: input }),
-  usage: (from?: string, to?: string) =>
+  usage: (from?: string, to?: string, page = 1) =>
     apiFetch<AdminOptimizerUsage>(
-      `${ADMIN}/usage${from || to ? `?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) })}` : ''}`,
+      `${ADMIN}/usage?${new URLSearchParams({ page: String(page), ...(from ? { from } : {}), ...(to ? { to } : {}) })}`,
+    ),
+  campaigns: (f: { search: string; status: string; problem: boolean; page: number }) =>
+    apiFetch<AdminAllCampaigns>(
+      `${ADMIN}/campaigns?${new URLSearchParams({
+        page: String(f.page),
+        ...(f.search ? { search: f.search } : {}),
+        ...(f.status ? { status: f.status } : {}),
+        ...(f.problem ? { problem: '1' } : {}),
+      })}`,
     ),
 }

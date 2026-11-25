@@ -86,6 +86,63 @@ interface BudgetRecommendation {
   recommendedMicros: number;
 }
 
+interface CycleNotice {
+  campaignId: string;
+  name: string;
+  applied: number;
+  proposed: number;
+  refundMinor: number;
+  failed: boolean;
+  charged: boolean;
+  scheduled: boolean;
+}
+
+/** What a cycle did, in one or two plain sentences. */
+function cycleText(n: CycleNotice): string {
+  const name = `„${n.name}”`;
+  if (n.applied + n.proposed === 0) {
+    const what = n.failed
+      ? `Agentul nu a putut termina optimizarea campaniei ${name} și nu a schimbat nimic.`
+      : `Agentul a verificat campania ${name}, dar nu a putut schimba nimic acum.`;
+    if (!n.charged) return what;
+    return `${what} Nu ai plătit: ${(n.refundMinor / 100).toLocaleString('ro-RO')} credite s-au întors în portofel.`;
+  }
+  const parts = [
+    ...(n.applied
+      ? [n.applied === 1 ? 'o modificare aplicată' : `${n.applied} modificări aplicate`]
+      : []),
+    ...(n.proposed
+      ? [
+          n.proposed === 1
+            ? 'o propunere așteaptă aprobarea ta'
+            : `${n.proposed} propuneri așteaptă aprobarea ta`,
+        ]
+      : []),
+  ];
+  return (
+    `Campania ${name}: ${parts.join(', ')}.` +
+    (n.failed
+      ? ` Optimizarea s-a oprit înainte de final${n.charged ? '; ai plătit doar ce s-a făcut' : ''}.`
+      : '')
+  );
+}
+
+const QUIET_SKIPS = new Set([
+  'nothing_to_do',
+  'google_ads_reconnect_required',
+  'cycle_already_running',
+  'cycle_already_started',
+  'campaign_paused',
+  'restarting',
+]);
+const CREDIT_REASONS = new Set(['insufficient_credits', 'wallet_blocked']);
+const SKIP_REASONS: Record<string, string> = {
+  insufficient_credits: 'nu ai destule credite.',
+  wallet_blocked: 'portofelul este blocat.',
+  quote_above_limit: 'prețul depășește limita ta pe ciclu.',
+  needs_information: 'agentul are nevoie de informații despre afacere; răspunde-i în chat.',
+};
+
 /** How long an unchanged campaign is not offered the same cycle again. */
 const NO_CHANGE_RETRY_MS = 24 * 3_600_000;
 
@@ -176,18 +233,67 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     return this.oauth.adsClient(conn.refreshTokenEnc, row.customerId, row.loginCustomerId);
   }
 
-  /** Google refused the token: mark connection + its campaigns. */
-  private async markRevoked(row: GoogleAdsUserCampaign): Promise<void> {
-    await this.prisma.$transaction([
-      this.prisma.googleAdsConnection.update({
-        where: { id: row.connectionId },
+  /** Google refused the token: the connection and its campaigns stop, and
+   *  the owner (if it has one yet) is told once. */
+  async connectionLost(connectionId: string): Promise<void> {
+    const [changed] = await this.prisma.$transaction([
+      this.prisma.googleAdsConnection.updateMany({
+        where: { id: connectionId, status: { not: 'revoked' } },
         data: {
           status: 'revoked',
           lastError: 'Google a refuzat accesul (consimțământ revocat sau expirat).',
         },
       }),
-      ...this.loseConnection(row.connectionId),
+      ...this.loseConnection(connectionId),
     ]);
+    if (!changed.count) return;
+    const conn = await this.prisma.googleAdsConnection.findUnique({
+      where: { id: connectionId },
+      select: { userId: true, googleEmail: true, draftTokenHash: true },
+    });
+    if (!conn?.userId || conn.draftTokenHash) return;
+    await this.tell(conn.userId, {
+      type: 'google_ads_connection_lost',
+      title: 'Am pierdut accesul la contul tău Google Ads',
+      body: `Google nu mai permite accesul${conn.googleEmail ? ` la contul ${conn.googleEmail}` : ''}. Agentul s-a oprit până reconectezi contul. Nimic nu s-a schimbat în Google Ads.`,
+      path: '/google-ads/connections',
+      cta: 'Reconectează contul',
+      email: true,
+    });
+  }
+
+  /** One notice to an owner. Never breaks the work it describes. */
+  private async tell(
+    userId: string,
+    n: {
+      type: string;
+      title: string;
+      body: string;
+      path: string;
+      cta: string;
+      campaignId?: string;
+      tab?: string;
+      email?: boolean;
+    },
+  ): Promise<void> {
+    try {
+      await this.notifications.notify({
+        userId,
+        type: n.type,
+        title: n.title,
+        body: n.body,
+        data: {
+          ...(n.campaignId ? { adsCampaignId: n.campaignId } : {}),
+          ...(n.tab ? { tab: n.tab } : {}),
+        },
+        channels: { panel: true, email: !!n.email },
+        ...(n.email ? { email: { greet: true, cta: { label: n.cta, url: n.path } } } : {}),
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Notice ${n.type} for ${userId} failed: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   /** Every campaign of a lost connection, remembering what a reconnect
@@ -212,7 +318,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       data = await fetchAccountData(client);
     } catch (err) {
       if (err instanceof GoogleAdsConnectionRevokedError) {
-        await this.markRevoked(row);
+        await this.connectionLost(row.connectionId);
         throw new BadRequestException('google_ads_reconnect_required');
       }
       throw err;
@@ -777,7 +883,8 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     try {
       await this.ai.meter(onUsage, work);
     } catch (err) {
-      if (err instanceof GoogleAdsConnectionRevokedError) await this.markRevoked(row);
+      if (err instanceof GoogleAdsConnectionRevokedError)
+        await this.connectionLost(row.connectionId);
       error =
         err instanceof GoogleAdsWritesDisabledError
           ? null
@@ -901,38 +1008,108 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       });
       return true;
     });
-    if (settled && noChange && cycle.chargeTxnId)
-      await this.notifyNoChange(cycle, refundMinor, !!opts.error);
+    if (settled)
+      await this.announce(cycle, { applied, proposed, refundMinor, failed: !!opts.error });
   }
 
-  private async notifyNoChange(
-    cycle: { userId: string; userCampaignId: string },
-    refundMinor: number,
-    failed: boolean,
+  /** Results of scheduled cycles waiting for the owner's other scheduled
+   *  cycles, so several campaigns make one message. */
+  private readonly notices = new Map<string, CycleNotice[]>();
+
+  private async announce(
+    cycle: { userId: string; userCampaignId: string; trigger: string; chargeTxnId: string | null },
+    r: { applied: number; proposed: number; refundMinor: number; failed: boolean },
   ): Promise<void> {
-    try {
-      const row = await this.prisma.googleAdsUserCampaign.findUnique({
-        where: { id: cycle.userCampaignId },
-        select: { name: true },
-      });
-      const credits = (refundMinor / 100).toLocaleString('ro-RO');
-      await this.notifications.notify({
-        userId: cycle.userId,
-        type: 'google_ads_no_change',
-        title: 'Ți-am returnat creditele',
-        body:
-          (failed
-            ? `Agentul nu a putut termina optimizarea campaniei „${row?.name ?? ''}” și nu a schimbat nimic.`
-            : `Agentul a verificat campania „${row?.name ?? ''}”, dar nu a putut schimba nimic acum.`) +
-          ` Nu ai plătit: ${credits} credite s-au întors în portofel.`,
-        data: { adsCampaignId: cycle.userCampaignId },
-        channels: { panel: true },
-      });
-    } catch (err) {
-      this.logger.warn(
-        `No-change notice for ${cycle.userCampaignId} failed: ${err instanceof Error ? err.message : err}`,
-      );
+    const row = await Promise.resolve()
+      .then(() =>
+        this.prisma.googleAdsUserCampaign.findUnique({
+          where: { id: cycle.userCampaignId },
+          select: { name: true },
+        }),
+      )
+      .catch(() => null);
+    const notice: CycleNotice = {
+      ...r,
+      campaignId: cycle.userCampaignId,
+      name: row?.name ?? '',
+      charged: !!cycle.chargeTxnId,
+      scheduled: cycle.trigger === 'scheduled',
+    };
+    if (!notice.scheduled) return this.tellCycle(cycle.userId, notice);
+    const list = [...(this.notices.get(cycle.userId) ?? []), notice];
+    const more = await Promise.resolve()
+      .then(() =>
+        this.prisma.googleAdsOptimizationCycle.count({
+          where: { userId: cycle.userId, trigger: 'scheduled', status: 'running' },
+        }),
+      )
+      .catch(() => 0);
+    if (more) {
+      this.notices.set(cycle.userId, list);
+      return;
     }
+    this.notices.delete(cycle.userId);
+    if (list.length === 1) return this.tellCycle(cycle.userId, list[0]);
+    const proposed = list.reduce((n, x) => n + x.proposed, 0);
+    await this.tell(cycle.userId, {
+      type: 'google_ads_cycle_done',
+      title: `Agentul a verificat ${list.length} campanii Google Ads`,
+      body: list.map((x) => cycleText(x)).join(' '),
+      path: '/google-ads/panel',
+      cta: 'Vezi campaniile',
+      email: proposed > 0 || list.some((x) => x.failed),
+    });
+  }
+
+  private async tellCycle(userId: string, n: CycleNotice): Promise<void> {
+    const none = n.applied + n.proposed === 0;
+    // A free staff run that found nothing: the owner was told it started.
+    if (none && !n.charged && !n.failed) return;
+    const tab = n.proposed ? 'proposals' : 'history';
+    return this.tell(userId, {
+      type:
+        none && !n.failed
+          ? 'google_ads_no_change'
+          : n.failed
+            ? 'google_ads_cycle_failed'
+            : 'google_ads_cycle_done',
+      title:
+        none && n.charged
+          ? 'Ți-am returnat creditele'
+          : n.failed
+            ? 'Optimizarea Google Ads s-a oprit'
+            : none
+              ? 'Agentul a verificat campania'
+              : 'Agentul a optimizat campania',
+      body: cycleText(n),
+      campaignId: n.campaignId,
+      tab,
+      path: `/google-ads/c/${n.campaignId}?tab=${tab}`,
+      cta: n.proposed ? 'Vezi propunerile' : 'Vezi campania',
+      // Nobody is watching a scheduled cycle; what needs a decision is mailed.
+      email: n.scheduled && (n.failed || n.proposed > 0),
+    });
+  }
+
+  /** Scheduled cycles that could not start, one message per owner. */
+  private async tellSkipped(userId: string, list: { id: string; name: string; reason: string }[]) {
+    const credits = list.some((x) => CREDIT_REASONS.has(x.reason));
+    await this.tell(userId, {
+      type: 'google_ads_cycle_skipped',
+      title:
+        list.length === 1
+          ? 'Un ciclu Google Ads programat nu a pornit'
+          : `${list.length} cicluri Google Ads programate nu au pornit`,
+      body: `${list.map((x) => `„${x.name}”: ${SKIP_REASONS[x.reason] ?? 'Google Ads nu a răspuns corect.'}`).join(' ')} Nu ai plătit nimic, iar agentul încearcă din nou la următoarea programare.`,
+      ...(list.length === 1 ? { campaignId: list[0].id, tab: 'home' } : {}),
+      path: credits
+        ? '/wallet'
+        : list.length === 1
+          ? `/google-ads/c/${list[0].id}`
+          : '/google-ads/panel',
+      cta: credits ? 'Vezi portofelul' : 'Vezi campania',
+      email: true,
+    });
   }
 
   /** Cycles left `running` by a crashed/restarted process. */
@@ -971,6 +1148,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
         },
         take: 20,
       });
+      const skipped = new Map<string, { id: string; name: string; reason: string }[]>();
       for (const row of due) {
         const s = readSettings(row.settings);
         if (s.schedule === 'manual') {
@@ -988,6 +1166,12 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
           });
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
+          // Nothing to improve is good news; a lost account has its own notice.
+          if (!QUIET_SKIPS.has(reason))
+            skipped.set(row.userId, [
+              ...(skipped.get(row.userId) ?? []),
+              { id: row.id, name: row.name, reason },
+            ]);
           await new AgentActivity(this.prisma, null, row.id).record(
             {
               googleCampaignId: row.googleCampaignId,
@@ -1007,6 +1191,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
           });
         }
       }
+      for (const [userId, list] of skipped) await this.tellSkipped(userId, list);
     } catch (err) {
       this.logger.error('Scheduler tick failed', err instanceof Error ? err.stack : err);
     }

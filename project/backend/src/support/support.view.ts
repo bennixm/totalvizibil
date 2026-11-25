@@ -27,6 +27,7 @@ export const ticketListInclude = {
   requester: personSelect,
   assignee: personSelect,
   company: { select: { id: true, displayName: true } },
+  adsCampaign: { select: { id: true, name: true } },
   // Only actual replies count. The raw total also included `system` lines
   // (status/assignment audit entries) and `note` internal notes, so a list
   // row advertised messages the requester can't even see in the detail view
@@ -47,6 +48,7 @@ export const ticketDetailInclude = {
   requester: personSelect,
   assignee: personSelect,
   company: { select: { id: true, displayName: true } },
+  adsCampaign: { select: { id: true, name: true } },
   messages: {
     orderBy: { createdAt: 'asc' },
     include: {
@@ -74,6 +76,7 @@ export function ticketListView(t: TicketListRow) {
     requester: person(t.requester),
     assignee: t.assignee ? person(t.assignee) : null,
     company: t.company ? { id: t.company.id, name: t.company.displayName } : null,
+    adsCampaign: t.adsCampaign ?? null,
     messageCount: t._count.messages,
     /** Who wrote the latest public reply: the requester, or someone else
      *  (the support team). Null when there are no replies at all. */
@@ -125,6 +128,7 @@ export function ticketDetailView(t: TicketDetailRow, viewer: { id: string; staff
     requester: person(t.requester),
     assignee: t.assignee ? person(t.assignee) : null,
     company: t.company ? { id: t.company.id, name: t.company.displayName } : null,
+    adsCampaign: t.adsCampaign ?? null,
     firstResponseAt: t.firstResponseAt,
     resolvedAt: t.resolvedAt,
     closedAt: t.closedAt,

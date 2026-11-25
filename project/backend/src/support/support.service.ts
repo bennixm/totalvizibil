@@ -229,6 +229,53 @@ export class SupportService {
     return ticketDetailView(ticket, actor);
   }
 
+  /** Staff, read-only: the requester's Google Ads campaigns and what their
+   *  agent did lately, so a ticket can be answered without admin access. */
+  async adsOverview(ticketId: string) {
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      select: { requesterId: true, adsCampaignId: true },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    const rows = await this.prisma.googleAdsUserCampaign.findMany({
+      where: { userId: ticket.requesterId, status: { not: 'removed' } },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        connection: { select: { status: true, googleEmail: true, lastError: true } },
+        cycles: {
+          orderBy: { startedAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            startedAt: true,
+            status: true,
+            trigger: true,
+            chargedMinor: true,
+            tasksApplied: true,
+            tasksProposed: true,
+            errorMessage: true,
+          },
+        },
+        _count: { select: { actions: { where: { status: 'pending_approval' } } } },
+      },
+    });
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        status: r.status,
+        score: r.score,
+        syncedAt: r.syncedAt,
+        nextCycleAt: r.nextCycleAt,
+        googleEmail: r.connection.googleEmail,
+        lastError: r.connection.lastError,
+        pendingApprovals: r._count.actions,
+        about: r.id === ticket.adsCampaignId,
+        cycles: r.cycles,
+      })),
+    };
+  }
+
   // --- mutations ---------------------------------------------------------
 
   async create(actor: SupportActor, dto: CreateTicketDto) {
@@ -242,6 +289,14 @@ export class SupportService {
       }
     }
 
+    if (dto.adsCampaignId) {
+      const ads = await this.prisma.googleAdsUserCampaign.findFirst({
+        where: { id: dto.adsCampaignId, userId: actor.id, status: { not: 'removed' } },
+        select: { id: true },
+      });
+      if (!ads) throw new BadRequestException('not_your_campaign');
+    }
+
     const ticket = await this.prisma.supportTicket.create({
       data: {
         subject: dto.subject,
@@ -249,6 +304,7 @@ export class SupportService {
         priority: dto.priority ?? 'normal',
         requesterId: actor.id,
         companyId: dto.companyId ?? null,
+        adsCampaignId: dto.adsCampaignId ?? null,
         messages: { create: { authorId: actor.id, kind: 'reply', body: dto.body } },
       },
       include: ticketDetailInclude,

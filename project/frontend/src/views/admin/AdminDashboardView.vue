@@ -111,6 +111,20 @@ const companyRows = computed(() => {
     { k: 'coWebsites', v: int(c.websitesPublished), tone: '' },
   ]
 })
+const adsRows = computed(() => {
+  const a = s.value?.googleAds
+  if (!a) return []
+  return [
+    { k: 'adsActive', v: int(a.active), tone: 'success' },
+    { k: 'adsPaused', v: int(a.paused), tone: '' },
+    { k: 'adsDisconnected', v: int(a.disconnected), tone: a.disconnected ? 'error' : '' },
+    { k: 'adsConnections', v: int(a.connections), tone: '' },
+    { k: 'adsPending', v: int(a.pendingApprovals), tone: '' },
+    { k: 'adsCycles', v: int(a.cycles30d), tone: '' },
+    { k: 'adsFailed', v: int(a.failed7d), tone: a.failed7d ? 'error' : '' },
+    { k: 'adsCharged', v: cr(a.charged30d.credits), tone: '' },
+  ]
+})
 const economyRows = computed(() => {
   if (!s.value) return []
   const e = s.value.economy
@@ -282,6 +296,15 @@ const economyChart = computed(() => {
               <span v-if="r.sub" class="fig__s">{{ r.sub }}</span>
             </div>
           </div>
+        </AdminSection>
+
+        <AdminSection v-if="adsRows.length" :title="t('admin.groupGoogleAds')">
+          <ul class="rows">
+            <li v-for="r in adsRows" :key="r.k">
+              <span class="rows__k">{{ t('admin.stat.' + r.k) }}</span>
+              <span class="rows__v" :class="r.tone ? `rows__v--${r.tone}` : ''">{{ r.v }}</span>
+            </li>
+          </ul>
         </AdminSection>
 
         <AdminSection :title="t('admin.byCountry')">

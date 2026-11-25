@@ -93,7 +93,7 @@ export class AdminUserActivityService {
           createdAt: r.createdAt,
           source: 'owner',
           action: r.action,
-          subject: r.company.displayName,
+          subject: r.company?.displayName ?? ((r.targetId && names.get(r.targetId)) || null),
         }),
       ),
       ...staff.map((r) =>

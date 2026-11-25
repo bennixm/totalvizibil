@@ -1032,7 +1032,15 @@
       "soldAll": "Verkaufte Credits",
       "revenueAll": "Umsatz",
       "blockedWallets": "Gesperrte Wallets",
-      "allTimeShort": "gesamt"
+      "allTimeShort": "gesamt",
+      "adsActive": "Aktive Kampagnen",
+      "adsPaused": "Agent pausiert",
+      "adsDisconnected": "Getrennt",
+      "adsConnections": "Verbundene Google-Konten",
+      "adsPending": "Offene Vorschläge",
+      "adsCycles": "Zyklen, 30 Tage",
+      "adsFailed": "Fehlgeschlagene Zyklen, 7 Tage",
+      "adsCharged": "Berechnete Credits, 30 Tage"
     },
     "signups14": "Anmeldungen · letzte 14 Tage",
     "legendUsers": "Nutzer",
@@ -1254,7 +1262,18 @@
         "google_ads_agent_resume": "Google Ads: Agent fortgesetzt",
         "google_ads_cycle_start": "Google Ads: Agent vom Team gestartet",
         "google_ads_proposal_approve": "Google Ads: Vorschlag bestätigt",
-        "google_ads_proposal_reject": "Google Ads: Vorschlag abgelehnt"
+        "google_ads_proposal_reject": "Google Ads: Vorschlag abgelehnt",
+        "ads_add": "Kampagne hinzugefügt",
+        "ads_remove": "Kampagne entfernt",
+        "ads_pause": "Agent pausiert",
+        "ads_resume": "Agent fortgesetzt",
+        "ads_settings": "Agent-Einstellungen geändert",
+        "ads_brief": "Unternehmensdaten bearbeitet",
+        "ads_disconnect": "Google-Konto getrennt",
+        "ads_reconnect": "Google-Konto neu verbunden",
+        "ads_cycle_start": "Optimierung gestartet",
+        "ads_proposal_approve": "Vorschlag genehmigt",
+        "ads_proposal_reject": "Vorschlag abgelehnt"
       }
     },
     "ads": {
@@ -1306,7 +1325,9 @@
       "runStart": "Kostenlos für den Kunden starten",
       "runConfirm": "Der Agent läuft kostenlos auf der Kampagne des Kunden. Der Kunde wird informiert.",
       "budgetTitle": "Tagesbudget"
-    }
+    },
+    "colAdsCampaigns": "Google Ads",
+    "groupGoogleAds": "Google Ads der Kunden"
   },
   "errors": {
     "notFoundTitle": "Seite nicht gefunden",
@@ -2794,7 +2815,8 @@
       "invalid_attachments": "Eine der angehängten Dateien ist nicht mehr gültig. Hänge sie erneut an.",
       "too_many_attachments": "Zu viele Dateien in einer Nachricht. Verteile sie auf mehrere Nachrichten.",
       "attachment_too_large": "Diese Datei ist zu groß. Versuche eine kleinere Version.",
-      "unsupported_attachment_type": "Wir akzeptieren nur PDFs und Bilder (PNG, JPG, WEBP, GIF)."
+      "unsupported_attachment_type": "Wir akzeptieren nur PDFs und Bilder (PNG, JPG, WEBP, GIF).",
+      "not_your_campaign": "Die gewählte Kampagne gehört dir nicht."
     },
     "investigate": "Untersuchen",
     "openUserAdmin": "Nutzer im Admin öffnen",
@@ -2859,7 +2881,13 @@
     "firstResponse": "Erste Antwort",
     "today": "Heute",
     "yesterday": "Gestern",
-    "assignedToYou": "Dir zugewiesen"
+    "assignedToYou": "Dir zugewiesen",
+    "fieldAds": "Google-Ads-Kampagne",
+    "noAds": "Keine bestimmte Kampagne",
+    "adsTitle": "Google Ads (nur lesen)",
+    "adsNone": "Der Kunde hat keine Google-Ads-Kampagnen.",
+    "adsAbout": "Darum geht es im Ticket",
+    "adsCycle": "{applied} umgesetzt, {proposed} vorgeschlagen, {credits} Credits"
   },
   "catalog": {
     "variant": {
@@ -4513,7 +4541,14 @@
     "oauthClient": "OAuth-Client",
     "clientId": "Client-ID",
     "clientSecret": "Client-Secret",
-    "secretKeep": "Leer lassen, um das gespeicherte Secret zu behalten."
+    "secretKeep": "Leer lassen, um das gespeicherte Secret zu behalten.",
+    "tabCampaigns": "Kampagnen",
+    "searchCampaigns": "Kampagne, Konto oder Kunde suchen",
+    "anyStatus": "Jeder Status",
+    "onlyProblems": "Nur mit Problemen",
+    "noCampaigns": "Keine Kampagnen gefunden.",
+    "lastCycle": "Letzter Zyklus: {when}",
+    "noCycle": "Noch kein Zyklus"
   },
   "binfo": {
     "common": {

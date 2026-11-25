@@ -29,9 +29,11 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { BusinessActionLogService } from '../admin/business-action-log.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
+import { readSettings, UserAgentSettings } from './agent-settings';
 import { GoogleAdsChatService } from './google-ads-chat.service';
 import { GoogleAdsUserService, OAUTH_COOKIE, OAUTH_STATE_TTL_MS } from './google-ads-user.service';
 import { GoogleAdsUserAgentService } from './google-ads-user-agent.service';
@@ -125,7 +127,25 @@ export class GoogleAdsUserController {
     private readonly service: GoogleAdsUserService,
     private readonly agent: GoogleAdsUserAgentService,
     private readonly chat: GoogleAdsChatService,
+    private readonly ownerLog: BusinessActionLogService,
   ) {}
+
+  /** What the OWNER did (staff have their own routes and log). Never throws. */
+  private log(
+    user: AuthPrincipal,
+    action: string,
+    targetId: string,
+    extra: { before?: unknown; after?: unknown; connection?: boolean } = {},
+  ): Promise<void> {
+    return this.ownerLog.log({
+      actorId: user.id,
+      action: `ads.${action}`,
+      targetType: extra.connection ? 'google_ads_connection' : 'google_ads_user_campaign',
+      targetId,
+      before: extra.before,
+      after: extra.after,
+    });
+  }
 
   @Get('status')
   status() {
@@ -206,8 +226,13 @@ export class GoogleAdsUserController {
 
   @UseGuards(AuthGuard)
   @Post('builder/claim')
-  claim(@Headers(DRAFT_HEADER) draft: string | undefined, @CurrentUser() user: AuthPrincipal) {
-    return this.service.claim(draft, user.id);
+  async claim(
+    @Headers(DRAFT_HEADER) draft: string | undefined,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
+    const res = await this.service.claim(draft, user.id);
+    for (const id of res.campaignIds) await this.log(user, 'add', id);
+    return res;
   }
 
   // ------------------------------------------- connected Google accounts
@@ -240,18 +265,25 @@ export class GoogleAdsUserController {
   @UseGuards(AuthGuard)
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('connections/:id/campaigns')
-  addCampaigns(
+  async addCampaigns(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SelectDto,
   ) {
-    return this.service.addCampaigns(user.id, id, selectionItems(dto));
+    const res = await this.service.addCampaigns(user.id, id, selectionItems(dto));
+    for (const c of res.campaignIds) await this.log(user, 'add', c);
+    return res;
   }
 
   @UseGuards(AuthGuard)
   @Post('connections/:id/disconnect')
-  disconnectConnection(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
-    return this.service.disconnectConnection(user.id, id);
+  async disconnectConnection(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const res = await this.service.disconnectConnection(user.id, id);
+    await this.log(user, 'disconnect', id, { connection: true });
+    return res;
   }
 
   @UseGuards(AuthGuard)
@@ -295,17 +327,21 @@ export class GoogleAdsUserController {
   @UseGuards(AuthGuard)
   @Throttle({ default: { ttl: 60_000, limit: 6 } })
   @Post('campaigns/:id/cycles')
-  startCycle(
+  async startCycle(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: StartCycleDto,
   ) {
-    return this.agent.startCycle(user.id, id, {
+    const res = await this.agent.startCycle(user.id, id, {
       trigger: 'manual',
       idempotencyKey: dto.idempotencyKey ? `${user.id}:${dto.idempotencyKey}` : undefined,
       expectedQuoteMinor: dto.expectedQuoteMinor,
       ignoreMissingInfo: dto.ignoreMissingInfo,
     });
+    await this.log(user, 'cycle.start', id, {
+      after: { cycleId: res.cycleId, heldMinor: res.chargedMinor },
+    });
+    return res;
   }
 
   // ----------------------------------------------------------- agent chat
@@ -334,12 +370,14 @@ export class GoogleAdsUserController {
 
   @UseGuards(AuthGuard)
   @Patch('campaigns/:id/brief')
-  updateBrief(
+  async updateBrief(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: Record<string, unknown>,
   ) {
-    return this.chat.updateBrief(user.id, id, body ?? {});
+    const res = await this.chat.updateBrief(user.id, id, body ?? {});
+    await this.log(user, 'brief', id, { after: { fields: Object.keys(body ?? {}) } });
+    return res;
   }
 
   @UseGuards(AuthGuard)
@@ -361,36 +399,53 @@ export class GoogleAdsUserController {
 
   @UseGuards(AuthGuard)
   @Patch('campaigns/:id/settings')
-  settings(
+  async settings(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: Record<string, unknown>,
   ) {
-    return this.service.updateSettings(user.id, id, body ?? {});
+    const before = readSettings((await this.agent.ownedCampaign(user.id, id)).settings);
+    const after = await this.service.updateSettings(user.id, id, body ?? {});
+    const keys = (Object.keys(after) as (keyof UserAgentSettings)[]).filter(
+      (k) => after[k] !== before[k],
+    );
+    if (keys.length) {
+      const pick = (s: UserAgentSettings) => Object.fromEntries(keys.map((k) => [k, s[k]]));
+      await this.log(user, 'settings', id, { before: pick(before), after: pick(after) });
+    }
+    return after;
   }
 
   @UseGuards(AuthGuard)
   @Post('campaigns/:id/pause')
-  pause(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
-    return this.service.setPaused(user.id, id, true);
+  async pause(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    const res = await this.service.setPaused(user.id, id, true);
+    await this.log(user, 'pause', id);
+    return res;
   }
 
   @UseGuards(AuthGuard)
   @Post('campaigns/:id/resume')
-  resume(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
-    return this.service.setPaused(user.id, id, false);
+  async resume(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    const res = await this.service.setPaused(user.id, id, false);
+    await this.log(user, 'resume', id);
+    return res;
   }
 
   @UseGuards(AuthGuard)
   @Delete('campaigns/:id')
-  remove(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
-    return this.service.remove(user.id, id);
+  async remove(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    const res = await this.service.remove(user.id, id);
+    await this.log(user, 'remove', id);
+    return res;
   }
 
   @UseGuards(AuthGuard)
   @Post('campaigns/:id/disconnect')
-  disconnect(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
-    return this.service.disconnectCampaign(user.id, id);
+  async disconnect(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    const res = await this.service.disconnectCampaign(user.id, id);
+    await this.log(user, 'disconnect', id);
+    return res;
   }
 
   @UseGuards(AuthGuard)
@@ -406,22 +461,28 @@ export class GoogleAdsUserController {
   @UseGuards(AuthGuard)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post('campaigns/:id/actions/:actionId/approve')
-  approve(
+  async approve(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('actionId', ParseUUIDPipe) actionId: string,
   ) {
-    return this.agent.approveAction(user.id, id, actionId);
+    const res = await this.agent.approveAction(user.id, id, actionId);
+    await this.log(user, 'proposal.approve', id, {
+      after: { actionId, action: res?.action, status: res?.status },
+    });
+    return res;
   }
 
   @UseGuards(AuthGuard)
   @Post('campaigns/:id/actions/:actionId/reject')
-  reject(
+  async reject(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('actionId', ParseUUIDPipe) actionId: string,
   ) {
-    return this.agent.rejectAction(user.id, id, actionId);
+    const res = await this.agent.rejectAction(user.id, id, actionId);
+    await this.log(user, 'proposal.reject', id, { after: { actionId } });
+    return res;
   }
 
   @Get('pricing')

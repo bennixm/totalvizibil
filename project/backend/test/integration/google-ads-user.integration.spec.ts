@@ -1023,6 +1023,150 @@ describe('connection safety', () => {
     ]);
   });
 
+  const notes = (type: string) =>
+    prisma.notification.findMany({ where: { userId: user.id, type } });
+
+  it('tells the owner once when Google withdraws the access', async () => {
+    const agent = app.get(GoogleAdsUserAgentService);
+    const id = await connId();
+    await agent.connectionLost(id);
+    await agent.connectionLost(id);
+    expect((await row()).status).toBe('disconnected');
+    const n = await notes('google_ads_connection_lost');
+    expect(n).toHaveLength(1);
+    expect([...n[0].channels].sort()).toEqual(['email', 'panel']);
+  });
+
+  it('a scheduled cycle that could not start is explained once, by email too', async () => {
+    await credits(0);
+    const due = new Date(Date.now() - 1000);
+    await set({ settings: { schedule: 'weekly', chatDailyLimitCredits: 0 }, nextCycleAt: due });
+    const ready = {
+      services: 'Instalatii sanitare',
+      areas: 'Cluj',
+      goal: 'Cereri',
+    };
+    await set({ brief: ready });
+    await (app.get(GoogleAdsUserAgentService) as any).tick();
+    const n = await notes('google_ads_cycle_skipped');
+    expect(n).toHaveLength(1);
+    expect(n[0].body).toContain('Instalatii');
+    expect((await row()).nextCycleAt!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('several scheduled cycles of one owner end in one message', async () => {
+    const agent = app.get(GoogleAdsUserAgentService);
+    const second = await prisma.googleAdsUserCampaign.create({
+      data: {
+        userId: user.id,
+        connectionId: await connId(),
+        customerId: '1234567890',
+        googleCampaignId: '78',
+        name: 'Termice',
+      },
+    });
+    const cycle = (userCampaignId: string) =>
+      prisma.googleAdsOptimizationCycle.create({
+        data: {
+          userCampaignId,
+          userId: user.id,
+          trigger: 'scheduled',
+          quote: {},
+          quotedMinor: 1000,
+        },
+      });
+    const a = await cycle(campaignId);
+    const b = await cycle(second.id);
+    for (const c of [a, b])
+      await prisma.googleAdsUserAction.create({
+        data: {
+          userCampaignId: c.userCampaignId,
+          cycleId: c.id,
+          action: 'creative.replace_text',
+          status: 'pending_approval',
+        },
+      });
+    await agent.settle(a.id, { error: null, scoreAfter: null });
+    expect(await notes('google_ads_cycle_done')).toHaveLength(0);
+    await agent.settle(b.id, { error: null, scoreAfter: null });
+    const n = await notes('google_ads_cycle_done');
+    expect(n).toHaveLength(1);
+    expect(n[0].body).toContain('Instalatii');
+    expect(n[0].body).toContain('Termice');
+  });
+
+  it('logs what the owner did, visible to staff', async () => {
+    await post('/pause').expect(201);
+    await http()
+      .patch(url('/settings'))
+      .set('Cookie', user.cookie)
+      .send({ images: true })
+      .expect(200);
+    const rows = await prisma.businessActionLog.findMany({ orderBy: { createdAt: 'asc' } });
+    expect(rows.map((r) => [r.action, r.companyId, r.targetId])).toEqual([
+      ['ads.pause', null, campaignId],
+      ['ads.settings', null, campaignId],
+    ]);
+    expect([rows[1].before, rows[1].after]).toEqual([{ images: false }, { images: true }]);
+    const staff = await createAndLoginUser(app, prisma, {
+      email: 'sup@example.com',
+      password: 'password123',
+      name: 'Sup',
+    });
+    await prisma.platformRoleAssignment.create({ data: { userId: staff.id, role: 'support' } });
+    const log = await http()
+      .get('/api/v1/admin/business-action-log')
+      .set('Cookie', staff.cookie)
+      .expect(200);
+    expect(log.body.total).toBe(2);
+  });
+
+  it('a ticket can be about a campaign; staff see it read-only', async () => {
+    const ana = await other();
+    const ticket = (u: TestUser) =>
+      http().post('/api/v1/support/tickets').set('Cookie', u.cookie).send({
+        subject: 'Nu merge',
+        body: 'Campania mea nu mai merge deloc.',
+        category: 'problem',
+        adsCampaignId: campaignId,
+      });
+    expect((await ticket(ana).expect(400)).body.message).toBe('not_your_campaign');
+    const t = await ticket(user).expect(201);
+    expect(t.body.adsCampaign).toEqual({ id: campaignId, name: 'Instalatii' });
+    const path = `/api/v1/support/tickets/${t.body.id}/google-ads`;
+    await http().get(path).set('Cookie', user.cookie).expect(403);
+    await prisma.platformRoleAssignment.create({ data: { userId: ana.id, role: 'support' } });
+    const r = await http().get(path).set('Cookie', ana.cookie).expect(200);
+    expect(r.body.items).toMatchObject([{ id: campaignId, about: true, status: 'active' }]);
+    expect(JSON.stringify(r.body)).not.toContain('refreshToken');
+  });
+
+  it('admin lists every campaign and finds the ones with problems', async () => {
+    const staff = await createAndLoginUser(app, prisma, {
+      email: 'boss2@example.com',
+      password: 'password123',
+      name: 'Boss',
+    });
+    const list = (q: string) =>
+      http().get(`/api/v1/admin/google-ads-optimizer/campaigns${q}`).set('Cookie', staff.cookie);
+    await list('').expect(403);
+    await prisma.platformRoleAssignment.create({ data: { userId: staff.id, role: 'admin' } });
+    expect((await list('?search=ion@ex').expect(200)).body.total).toBe(1);
+    expect((await list('?problem=1').expect(200)).body.total).toBe(0);
+    await set({ status: 'disconnected' });
+    expect((await list('?problem=1&status=disconnected').expect(200)).body.items[0]).toMatchObject({
+      id: campaignId,
+      user: { id: user.id },
+    });
+    const usage = await http()
+      .get('/api/v1/admin/google-ads-optimizer/usage?from=2020-01-01&to=2020-01-31&page=2')
+      .set('Cookie', staff.cookie)
+      .expect(200);
+    expect(usage.body.totals.cycles).toBe(0);
+    const stats = await http().get('/api/v1/admin/stats').set('Cookie', staff.cookie).expect(200);
+    expect(stats.body.googleAds.disconnected).toBe(1);
+  });
+
   it('suspending the account stops its agent and its scheduled cycles', async () => {
     const staff = await createAndLoginUser(app, prisma, {
       email: 'boss@example.com',

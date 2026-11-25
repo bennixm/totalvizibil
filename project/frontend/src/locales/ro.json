@@ -1032,7 +1032,15 @@
       "soldAll": "Credite vândute",
       "revenueAll": "Încasări",
       "blockedWallets": "Portofele blocate",
-      "allTimeShort": "total"
+      "allTimeShort": "total",
+      "adsActive": "Campanii active",
+      "adsPaused": "Cu agentul pe pauză",
+      "adsDisconnected": "Deconectate",
+      "adsConnections": "Conturi Google conectate",
+      "adsPending": "Propuneri în așteptare",
+      "adsCycles": "Cicluri, 30 de zile",
+      "adsFailed": "Cicluri eșuate, 7 zile",
+      "adsCharged": "Credite încasate, 30 de zile"
     },
     "signups14": "Înregistrări · ultimele 14 zile",
     "legendUsers": "Utilizatori",
@@ -1254,7 +1262,18 @@
         "google_ads_agent_resume": "Google Ads: agent repornit",
         "google_ads_cycle_start": "Google Ads: agent pornit de echipă",
         "google_ads_proposal_approve": "Google Ads: propunere aprobată",
-        "google_ads_proposal_reject": "Google Ads: propunere respinsă"
+        "google_ads_proposal_reject": "Google Ads: propunere respinsă",
+        "ads_add": "A adăugat campania",
+        "ads_remove": "A scos campania",
+        "ads_pause": "A pus agentul pe pauză",
+        "ads_resume": "A repornit agentul",
+        "ads_settings": "A schimbat setările agentului",
+        "ads_brief": "A editat datele afacerii",
+        "ads_disconnect": "A deconectat contul Google",
+        "ads_reconnect": "A reconectat contul Google",
+        "ads_cycle_start": "A pornit o optimizare",
+        "ads_proposal_approve": "A aprobat o propunere",
+        "ads_proposal_reject": "A respins o propunere"
       }
     },
     "ads": {
@@ -1306,7 +1325,9 @@
       "runStart": "Pornește gratuit pentru client",
       "runConfirm": "Agentul rulează pe campania clientului, fără cost pentru el. Clientul este anunțat.",
       "budgetTitle": "Buget zilnic"
-    }
+    },
+    "colAdsCampaigns": "Google Ads",
+    "groupGoogleAds": "Google Ads clienți"
   },
   "errors": {
     "notFoundTitle": "Pagina nu a fost găsită",
@@ -2794,7 +2815,8 @@
       "invalid_attachments": "Unul dintre fișierele atașate nu mai este valid. Atașează-le din nou.",
       "too_many_attachments": "Prea multe fișiere pe un singur mesaj. Trimite-le în mai multe mesaje.",
       "attachment_too_large": "Fișierul este prea mare. Încearcă o versiune mai mică.",
-      "unsupported_attachment_type": "Acceptăm doar PDF și imagini (PNG, JPG, WEBP, GIF)."
+      "unsupported_attachment_type": "Acceptăm doar PDF și imagini (PNG, JPG, WEBP, GIF).",
+      "not_your_campaign": "Campania aleasă nu îți aparține."
     },
     "investigate": "Investighează",
     "openUserAdmin": "Deschide utilizatorul în admin",
@@ -2859,7 +2881,13 @@
     "firstResponse": "Primul răspuns",
     "today": "Azi",
     "yesterday": "Ieri",
-    "assignedToYou": "Atribuit ție"
+    "assignedToYou": "Atribuit ție",
+    "fieldAds": "Campania Google Ads",
+    "noAds": "Nicio campanie anume",
+    "adsTitle": "Google Ads (doar citire)",
+    "adsNone": "Clientul nu are campanii Google Ads.",
+    "adsAbout": "Tichetul e despre ea",
+    "adsCycle": "{applied} aplicate, {proposed} propuse, {credits} credite"
   },
   "catalog": {
     "variant": {
@@ -4513,7 +4541,14 @@
     "oauthClient": "Client OAuth",
     "clientId": "ID client",
     "clientSecret": "Secret client",
-    "secretKeep": "Lasă gol ca să păstrezi secretul salvat."
+    "secretKeep": "Lasă gol ca să păstrezi secretul salvat.",
+    "tabCampaigns": "Campanii",
+    "searchCampaigns": "Caută campanie, cont sau client",
+    "anyStatus": "Orice stare",
+    "onlyProblems": "Doar cu probleme",
+    "noCampaigns": "Nicio campanie găsită.",
+    "lastCycle": "Ultimul ciclu: {when}",
+    "noCycle": "Niciun ciclu încă"
   },
   "binfo": {
     "common": {

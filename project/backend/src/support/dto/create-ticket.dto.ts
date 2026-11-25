@@ -34,4 +34,9 @@ export class CreateTicketDto {
   @IsOptional()
   @IsUUID()
   companyId?: string;
+
+  /** Optional — the requester's Google Ads campaign the ticket is about. */
+  @IsOptional()
+  @IsUUID()
+  adsCampaignId?: string;
 }

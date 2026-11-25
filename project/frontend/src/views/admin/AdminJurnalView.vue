@@ -65,6 +65,22 @@ const STAFF_ACTIONS = [
   'google_ads.cycle.start',
   'google_ads.proposal.approve',
   'google_ads.proposal.reject',
+  'google_ads_optimizer.pricing.update',
+  'google_ads_optimizer.chat_pricing.update',
+  'google_ads_optimizer.oauth.update',
+  'google_ads_agent.run_now',
+  'google_ads_agent.proposal.approve',
+  'google_ads_agent.proposal.reject',
+  'google_ads_agent.proposal.revise',
+  'google_ads_agent.credentials.update',
+  'external_invoice.upload',
+  'external_invoice.update',
+  'external_invoice.sync',
+  'external_invoice.delete',
+  'external_supplier.update',
+  'external_supplier.delete',
+  'external_vat.confirm',
+  'external_vat.unconfirm',
 ]
 const STAFF_TARGET_TYPES = [
   'wallet',
@@ -89,6 +105,17 @@ const OWNER_ACTIONS = [
   'company.publish',
   'company.unpublish',
   'website.bundle.publish',
+  'ads.add',
+  'ads.remove',
+  'ads.pause',
+  'ads.resume',
+  'ads.settings',
+  'ads.brief',
+  'ads.disconnect',
+  'ads.reconnect',
+  'ads.cycle.start',
+  'ads.proposal.approve',
+  'ads.proposal.reject',
 ]
 
 /** Chips are colored by the action's category prefix, not the exact code —
@@ -392,10 +419,18 @@ watch(tab, (v) => {
                 <span class="jrow__actorEmail">{{ row.actor.email }}</span>
               </span>
               <span class="jrow__cell">
-                <span class="tag">{{ row.actorRole }}</span>
+                <span v-if="row.actorRole" class="tag">{{ row.actorRole }}</span>
               </span>
               <span class="jrow__cell">
-                <router-link :to="{ name: 'admin-company', params: { id: row.company.id } }" class="jrow__company">
+                <router-link
+                  v-if="!row.company && isAdmin"
+                  :to="{ name: 'admin-user', params: { id: row.actorId }, query: { tab: 'google-ads' } }"
+                  class="jrow__company"
+                >
+                  Google Ads
+                </router-link>
+                <template v-else-if="!row.company">Google Ads</template>
+                <router-link v-else :to="{ name: 'admin-company', params: { id: row.company.id } }" class="jrow__company">
                   {{ row.company.displayName }}
                 </router-link>
               </span>

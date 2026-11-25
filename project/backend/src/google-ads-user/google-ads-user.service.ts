@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import type { CookieOptions } from 'express';
 import { isIP } from 'node:net';
 import { GoogleAdsConnection, GoogleAdsUserCampaign, Prisma } from '@prisma/client';
+import { BusinessActionLogService } from '../admin/business-action-log.service';
 import { AppConfig } from '../config/env';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -100,6 +101,7 @@ export class GoogleAdsUserService implements OnModuleInit, OnModuleDestroy {
     private readonly agent: GoogleAdsUserAgentService,
     private readonly wallet: WalletService,
     private readonly settings: PlatformSettingsService,
+    private readonly ownerLog: BusinessActionLogService,
     config: ConfigService<AppConfig, true>,
   ) {
     this.frontendOrigin = config.get('frontendOrigin', { infer: true });
@@ -255,6 +257,12 @@ export class GoogleAdsUserService implements OnModuleInit, OnModuleDestroy {
       // A reconnect revives this connection's campaigns.
       const taken = await this.reviveCampaigns(conn.id);
       if (reconnect) {
+        await this.ownerLog.log({
+          actorId: conn.userId!,
+          action: 'ads.reconnect',
+          targetType: 'google_ads_connection',
+          targetId: conn.id,
+        });
         return `${this.frontendOrigin}/google-ads/connections?reconnected=1${taken ? `&taken=${taken}` : ''}`;
       }
       return back('connected=1');
@@ -286,10 +294,7 @@ export class GoogleAdsUserService implements OnModuleInit, OnModuleDestroy {
       return await work();
     } catch (err) {
       if (err instanceof GoogleAdsConnectionRevokedError) {
-        await this.prisma.googleAdsConnection.update({
-          where: { id: conn.id },
-          data: { status: 'revoked', lastError: 'Accesul Google a fost revocat.' },
-        });
+        await this.agent.connectionLost(conn.id);
         throw new BadRequestException('google_ads_reconnect_required');
       }
       const msg = err instanceof Error ? err.message : String(err);

@@ -60,22 +60,14 @@ async function load(): Promise<void> {
     const finished = detail.value?.campaign.id === forId && detail.value.runningCycle && !next.runningCycle
     detail.value = next
     loadError.value = ''
-    if (finished) announce(next)
+    // How it ended is told by the notification; here only the numbers follow.
+    if (finished) void adsStore.fetch(true)
   } catch (e) {
     loadError.value = e instanceof ApiError && e.status === 404 ? t('ads.dash.notFound') : t('ads.dash.loadError')
   }
   clearTimeout(poll)
   // While a cycle runs, keep the numbers fresh.
   if (detail.value?.runningCycle) poll = setTimeout(() => void load(), 5000)
-}
-
-/** Tells the owner how the cycle they were watching ended. */
-function announce(d: UserCampaignDetail): void {
-  const x = d.cycles[0]
-  if (!x) return
-  if (!x.tasksApplied && !x.tasksProposed) toasts.info(t('ads.home.lastReturned'))
-  else toasts.success(t('ads.home.lastDone', { applied: x.tasksApplied, proposed: x.tasksProposed }))
-  void adsStore.fetch(true)
 }
 
 async function sync(): Promise<void> {

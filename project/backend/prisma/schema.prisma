@@ -306,9 +306,10 @@ model AdminAuditLog {
 model BusinessActionLog {
   id String @id @default(uuid()) @db.Uuid
 
-  companyId String      @map("company_id") @db.Uuid
-  actorId   String      @map("actor_id") @db.Uuid
-  actorRole CompanyRole @map("actor_role")
+  // Null for what an owner does outside any business (their Google Ads agent).
+  companyId String?      @map("company_id") @db.Uuid
+  actorId   String       @map("actor_id") @db.Uuid
+  actorRole CompanyRole? @map("actor_role")
 
   // Short machine code: `campaign.activate`, `campaign.pause`,
   // `campaign.update`, `campaign.remove`, `company.publish`,
@@ -322,8 +323,8 @@ model BusinessActionLog {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  actor   User    @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  actor   User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([companyId, createdAt])
   @@index([actorId])
@@ -1647,10 +1648,12 @@ model SupportTicket {
   priority SupportTicketPriority @default(normal)
   category SupportTicketCategory @default(other)
 
-  requesterId String  @map("requester_id") @db.Uuid
-  assigneeId  String? @map("assignee_id") @db.Uuid
+  requesterId   String  @map("requester_id") @db.Uuid
+  assigneeId    String? @map("assignee_id") @db.Uuid
   // Optional: the business the ticket is about.
-  companyId   String? @map("company_id") @db.Uuid
+  companyId     String? @map("company_id") @db.Uuid
+  // Optional: the requester's Google Ads campaign the ticket is about.
+  adsCampaignId String? @map("ads_campaign_id") @db.Uuid
 
   firstResponseAt DateTime? @map("first_response_at")
   resolvedAt      DateTime? @map("resolved_at")
@@ -1667,9 +1670,10 @@ model SupportTicket {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  requester   User                @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  assignee    User?               @relation("SupportAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  company     Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  requester   User                   @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  assignee    User?                  @relation("SupportAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  company     Company?               @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  adsCampaign GoogleAdsUserCampaign? @relation(fields: [adsCampaignId], references: [id], onDelete: SetNull)
   messages    SupportMessage[]
   attachments SupportAttachment[]
 
@@ -2276,6 +2280,7 @@ model GoogleAdsUserCampaign {
   cycles     GoogleAdsOptimizationCycle[]
   actions    GoogleAdsUserAction[]
   chatTurns  GoogleAdsChatTurn[]
+  tickets    SupportTicket[]
 
   @@unique([userId, customerId, googleCampaignId])
   @@index([status, nextCycleAt])

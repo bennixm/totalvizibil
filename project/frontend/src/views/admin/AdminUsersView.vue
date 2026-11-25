@@ -188,6 +188,10 @@ function open(id: string): void {
             <em>{{ t('admin.colCompanies') }}</em>
           </span>
           <span class="urow__stat">
+            <b>{{ u.adsCampaignCount }}</b>
+            <em>{{ t('admin.colAdsCampaigns') }}</em>
+          </span>
+          <span class="urow__stat">
             <b>
               <v-icon
                 :icon="u.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'"

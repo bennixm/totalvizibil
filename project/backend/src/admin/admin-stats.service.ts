@@ -178,6 +178,33 @@ export class AdminStatsService {
       this.settings.eurRonRate(),
     ]);
 
+    const [adsByStatus, adsConnections, adsPending, adsCycles30, adsFailed7, adsCharged30] =
+      await Promise.all([
+        this.prisma.googleAdsUserCampaign.groupBy({
+          by: ['status'],
+          where: { status: { not: 'removed' } },
+          _count: { _all: true },
+        }),
+        this.prisma.googleAdsConnection.count({
+          where: { status: 'connected', userId: { not: null } },
+        }),
+        this.prisma.googleAdsUserAction.count({ where: { status: 'pending_approval' } }),
+        this.prisma.googleAdsOptimizationCycle.count({ where: { startedAt: { gte: d30 } } }),
+        this.prisma.googleAdsOptimizationCycle.count({
+          where: { startedAt: { gte: d7 }, status: 'failed' },
+        }),
+        this.prisma.walletTransaction.aggregate({
+          _sum: { amountMinor: true },
+          where: {
+            type: 'spend',
+            status: 'completed',
+            provider: 'google-ads-optimizer',
+            createdAt: { gte: d30 },
+          },
+        }),
+      ]);
+    const adsStatus = (s: string) => adsByStatus.find((r) => r.status === s)?._count._all ?? 0;
+
     const campStatus = (s: 'draft' | 'active' | 'paused' | 'depleted') =>
       campaignsByStatus.find((r) => r.status === s)?._count._all ?? 0;
     const abs = (n: number | null | undefined) => Math.abs(n ?? 0);
@@ -230,6 +257,17 @@ export class AdminStatsService {
         committedDailyBudget: money(committedBudget._sum.dailyBudgetMinor ?? 0),
         clicks30d: clicks30,
         leads30d: leads30,
+      },
+      // Customers' Google Ads campaigns (google-ads-user/).
+      googleAds: {
+        active: adsStatus('active'),
+        paused: adsStatus('paused'),
+        disconnected: adsStatus('disconnected'),
+        connections: adsConnections,
+        pendingApprovals: adsPending,
+        cycles30d: adsCycles30,
+        failed7d: adsFailed7,
+        charged30d: money(abs(adsCharged30._sum.amountMinor)),
       },
       generatedAt: nowDate.toISOString(),
     };

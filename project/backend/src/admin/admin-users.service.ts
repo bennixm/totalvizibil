@@ -71,7 +71,13 @@ export class AdminUsersService {
         include: {
           platformRoles: true,
           wallet: { select: { balanceMinor: true, blockedAt: true } },
-          _count: { select: { companyMembers: true, sessions: true } },
+          _count: {
+            select: {
+              companyMembers: true,
+              sessions: true,
+              googleAdsUserCampaigns: { where: { status: { not: 'removed' } } },
+            },
+          },
         },
       }),
       this.prisma.user.count({ where }),
@@ -86,6 +92,7 @@ export class AdminUsersService {
         platformRoles: u.platformRoles.map((r) => r.role),
         twoFactorEnabled: !!u.totpEnabledAt,
         companyCount: u._count.companyMembers,
+        adsCampaignCount: u._count.googleAdsUserCampaigns,
         walletCredits: u.wallet ? money(u.wallet.balanceMinor).credits : 0,
         walletBlocked: !!u.wallet?.blockedAt,
         lastLoginAt: u.lastLoginAt,

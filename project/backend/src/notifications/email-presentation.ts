@@ -22,6 +22,7 @@ const CATEGORY_RULES: { test: RegExp; eyebrow: string }[] = [
   { test: /^discount_/, eyebrow: 'Ofertă' },
   { test: /^referral_/, eyebrow: 'Program de afiliere' },
   { test: /^domain_/, eyebrow: 'Domeniu' },
+  { test: /^google_ads_/, eyebrow: 'Google Ads' },
   { test: /^campaign_/, eyebrow: 'Campanie' },
   { test: /^(business_|company_)/, eyebrow: 'Afacerea ta' },
   { test: /^(lead_|leads_)/, eyebrow: 'Cereri de la clienți' },
@@ -41,6 +42,7 @@ const DANGER = new Set([
   'invoice_voided',
   'refund_failed',
   'pro_build_failed',
+  'google_ads_connection_lost',
 ]);
 
 const WARNING = new Set([
@@ -51,6 +53,8 @@ const WARNING = new Set([
   'campaign_cpc_below_minimum',
   'campaign_depleted',
   'wallet_low_balance',
+  'google_ads_cycle_failed',
+  'google_ads_cycle_skipped',
   'leads_stale',
   'purchase_pending_manual_review',
   'business_deletion_scheduled',
@@ -61,6 +65,7 @@ const WARNING = new Set([
 
 const SUCCESS = new Set([
   'payment_succeeded',
+  'google_ads_cycle_done',
   'refund_completed',
   'referral_rewarded',
   'account_reactivated',
