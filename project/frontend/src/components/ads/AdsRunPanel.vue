@@ -2,6 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
+import AdsSection from './AdsSection.vue'
 import { ApiError } from '@/services/api'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
@@ -116,14 +118,12 @@ watch(id, () => (quote.value = null))
         <p v-if="staff" class="ab-note">
           <v-icon icon="mdi-gift-outline" size="18" /> <span>{{ t('admin.ads.runFree') }}</span>
         </p>
-        <p v-else-if="!detail.firstCycleDone" class="ab-note">
-          <v-icon icon="mdi-gift-outline" size="18" />
-          {{ t('ads.agent.firstFree', { credits: detail.pricing.minCredits }) }}
-        </p>
-        <v-btn color="primary" size="large" :loading="quoting" prepend-icon="mdi-magnify-scan" data-guide="ads-quote" @click="getQuote">
-          {{ t('ads.agent.quoteCta') }}
-        </v-btn>
-        <p v-if="!staff" class="run__free">{{ t('ads.agent.quoteFree') }}</p>
+        <div class="run__cta">
+          <v-btn color="primary" size="large" :loading="quoting" prepend-icon="mdi-magnify-scan" data-guide="ads-quote" @click="getQuote">
+            {{ t('ads.agent.quoteCta') }}
+          </v-btn>
+          <AdminHint v-if="!staff" :text="`${t('ads.agent.quoteFree')} ${t('ads.agent.firstFree', { credits: detail.pricing.minCredits })}`" />
+        </div>
       </template>
 
       <template v-else-if="nothingToDo">
@@ -163,11 +163,10 @@ watch(id, () => (quote.value = null))
         </div>
         <div v-if="!staff" class="price" data-guide="ads-price">
           <div class="price__row price__row--total">
-            <span>{{ t('ads.agent.price') }}</span>
+            <span>{{ t('ads.agent.price') }} <AdminHint :text="t('ads.agent.settleNote')" /></span>
             <b>{{ creditsOf(quote.minor, locale) }} {{ t('ads.credits') }}</b>
           </div>
-          <details class="price__details">
-            <summary>{{ t('ads.agent.howPriced') }}</summary>
+          <AdsSection name="pricing" class="price__details" :title="t('ads.agent.howPriced')" icon="mdi-calculator-variant-outline" :hint="t('ads.agent.priceRule', { min: quote.minCredits })">
             <ul>
               <li v-for="l in quote.lines" :key="l.task">
                 <span>{{ t(`ads.task.${l.task}`) }} ({{ l.units }} × {{ l.creditsPerUnit }})</span>
@@ -186,8 +185,7 @@ watch(id, () => (quote.value = null))
                 <span>{{ quote.computedCredits }}</span>
               </li>
             </ul>
-            <p>{{ t('ads.agent.priceRule', { min: quote.minCredits }) }}</p>
-          </details>
+          </AdsSection>
           <p class="price__balance" :class="{ 'is-short': !canAfford }">
             {{ t('ads.agent.balance', { credits: creditsOf(balanceMinor, locale) }) }}
           </p>
@@ -201,7 +199,6 @@ watch(id, () => (quote.value = null))
           </v-btn>
           <v-btn variant="text" @click="quote = null">{{ t('common.cancel') }}</v-btn>
         </div>
-        <p v-if="!staff" class="run__free">{{ t('ads.agent.settleNote') }}</p>
       </template>
   </div>
 </template>
@@ -212,14 +209,11 @@ watch(id, () => (quote.value = null))
   flex-direction: column;
   gap: 1rem;
 }
-.run > .v-btn {
-  align-self: flex-start;
-  max-width: 100%;
-}
-.run__free {
-  margin: 0;
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.55);
+.run__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
 }
 .run__gaps {
   margin: 0.3rem 0 0.6rem;
@@ -274,14 +268,9 @@ watch(id, () => (quote.value = null))
   font-size: 1.3rem;
   font-variant-numeric: tabular-nums;
 }
-.price__details summary {
-  cursor: pointer;
-  font-size: var(--tvz-fs-small);
-  color: rgb(var(--v-theme-primary));
-}
 .price__details ul {
   list-style: none;
-  margin: 0.5rem 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -293,11 +282,6 @@ watch(id, () => (quote.value = null))
   justify-content: space-between;
   gap: 0.5rem;
   font-variant-numeric: tabular-nums;
-}
-.price__details p {
-  margin: 0.5rem 0 0;
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .price__balance {
   margin: 0;

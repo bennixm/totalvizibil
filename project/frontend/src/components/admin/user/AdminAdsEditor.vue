@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdsChangePreview from '@/components/ads/AdsChangePreview.vue'
 import { adsMoney } from '@/components/ads/format'
@@ -187,12 +188,10 @@ async function confirm(): Promise<void> {
       </section>
 
       <section class="ed__box">
-        <h3>{{ t('admin.ads.budgetTitle') }}</h3>
+        <h3>{{ t('admin.ads.budgetTitle') }} <AdminHint :text="t('admin.ads.budgetHint')" /></h3>
         <template v-if="data.budget && !data.budget.shared">
           <v-text-field v-model.number="budget" type="number" min="0" step="0.01" :suffix="data.currencyCode ?? ''" variant="outlined" density="compact" hide-details :aria-label="t('admin.ads.budgetTitle')" />
-          <p class="ed__hint">
-            {{ data.pendingBudgetMicros ? t('admin.ads.budgetPending', { amount: adsMoney(data.pendingBudgetMicros, data.currencyCode, locale) }) : t('admin.ads.budgetHint') }}
-          </p>
+          <p v-if="data.pendingBudgetMicros" class="ed__hint">{{ t('admin.ads.budgetPending', { amount: adsMoney(data.pendingBudgetMicros, data.currencyCode, locale) }) }}</p>
           <v-btn variant="tonal" color="primary" :disabled="!budgetDirty || !data.writesAllowed" @click="prepareBudget">{{ t('admin.ads.proposeBudget') }}</v-btn>
         </template>
         <p v-else class="ed__hint">{{ t('admin.ads.budgetShared') }}</p>
@@ -219,14 +218,13 @@ async function confirm(): Promise<void> {
           </div>
         </div>
         <aside class="pv">
-          <p class="ed__label">{{ t('admin.ads.preview') }}</p>
+          <p class="ed__label">{{ t('admin.ads.preview') }} <AdminHint :text="t('admin.ads.previewHint')" size="sm" /></p>
           <div class="pv__ad">
             <span class="pv__src"><b>{{ t('admin.ads.sponsored') }}</b> {{ host }}</span>
             <span class="pv__title">{{ texts(headlines).slice(0, 3).map((x) => x.text).join(' | ') }}</span>
             <span class="pv__desc">{{ texts(descriptions).slice(0, 2).map((x) => x.text).join(' ') }}</span>
             <span v-if="data.sitelinks.length" class="pv__links">{{ data.sitelinks.slice(0, 4).map((s) => s.text).join(' · ') }}</span>
           </div>
-          <p class="ed__hint">{{ t('admin.ads.previewHint') }}</p>
         </aside>
       </div>
       <v-btn v-if="data.ad" color="primary" :disabled="!textsDirty || !textsValid || !data.writesAllowed" @click="prepareTexts">{{ t('admin.ads.review') }}</v-btn>
@@ -242,7 +240,9 @@ async function confirm(): Promise<void> {
       </div>
       <p v-if="others.length" class="ed__hint">{{ t('admin.ads.kwOthers') }}: {{ others.map((k) => (k.negative ? `−${k.text}` : k.text)).join(', ') }}</p>
       <div class="ed__two">
-        <v-textarea v-model="kwAdd" :label="t('admin.ads.kwAdd')" :hint="t('admin.ads.kwHint')" persistent-hint variant="outlined" density="compact" rows="2" auto-grow />
+        <v-textarea v-model="kwAdd" :label="t('admin.ads.kwAdd')" variant="outlined" density="compact" rows="2" auto-grow>
+        <template #append-inner><AdminHint :text="t('admin.ads.kwHint')" /></template>
+      </v-textarea>
         <v-textarea v-model="kwNeg" :label="t('admin.ads.kwNeg')" variant="outlined" density="compact" rows="2" auto-grow hide-details />
       </div>
       <v-select v-model="kwMatch" class="ed__sel" :items="(['PHRASE', 'EXACT', 'BROAD'] as const).map((value) => ({ value, title: t(`ads.chat.match.${value}`) }))" :label="t('admin.ads.kwMatch')" variant="outlined" density="compact" hide-details />
@@ -257,7 +257,9 @@ async function confirm(): Promise<void> {
         <v-text-field v-model="linkText" :label="t('admin.ads.linkText')" maxlength="25" variant="outlined" density="compact" hide-details />
         <v-text-field v-model="linkUrl" :label="t('admin.ads.linkUrl')" variant="outlined" density="compact" hide-details />
       </div>
-      <v-text-field v-model="callout" :hint="t('admin.ads.kwHint')" persistent-hint :label="t('admin.ads.callouts')" variant="outlined" density="compact" />
+      <v-text-field v-model="callout" :label="t('admin.ads.callouts')" variant="outlined" density="compact">
+        <template #append-inner><AdminHint :text="t('admin.ads.kwHint')" /></template>
+      </v-text-field>
       <v-btn color="primary" :disabled="!extensionsDirty || !data.writesAllowed" @click="prepareExtensions">{{ t('admin.ads.review') }}</v-btn>
     </section>
 

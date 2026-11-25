@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import GaChip from '@/components/admin/google-ads/GaChip.vue'
 import GoogleAdsActivityFeed from '@/components/admin/google-ads/GoogleAdsActivityFeed.vue'
 import AdsCostsTab from './AdsCostsTab.vue'
+import AdsSection from './AdsSection.vue'
 import { type UserCampaignDetail } from '@/services/googleAdsUser'
 import { useAdsApi } from './adsApi'
 import { creditsOf, dateTime } from './format'
@@ -17,8 +18,17 @@ const { api } = useAdsApi()
 
 const id = computed(() => props.detail.campaign.id)
 const running = computed(() => !!props.detail.runningCycle)
-const showSteps = ref(running.value)
-const showCosts = ref(false)
+/** How the price works, in the section's info icon. */
+const costHint = computed(() =>
+  [
+    t('ads.cost.free'),
+    t('ads.cost.min', { min: props.detail.pricing.minCredits }),
+    t('ads.cost.complexity'),
+    t('ads.cost.settle'),
+    t('ads.cost.chat'),
+    t('ads.cost.walletNote'),
+  ].join(' '),
+)
 const loader = (after?: string) => api.activity(id.value, after)
 
 function onRunning(v: boolean): void {
@@ -35,8 +45,7 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
 <template>
   <div class="ag">
     <!-- Cycles -->
-    <section class="ag__block">
-      <h3 class="ag__h"><v-icon icon="mdi-history" size="18" /> {{ t('ads.agent.cycles') }}</h3>
+    <AdsSection name="cycles" :title="t('ads.agent.cycles')" icon="mdi-history">
       <p v-if="!detail.cycles.length" class="ab-note"><v-icon icon="mdi-information-outline" size="18" /> {{ t('ads.agent.noCycles') }}</p>
       <ul v-else class="cyc">
         <li v-for="c in detail.cycles" :key="c.id" class="cyc__row">
@@ -65,21 +74,15 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
           </p>
         </li>
       </ul>
-    </section>
+    </AdsSection>
 
-    <section class="ag__block">
-      <button type="button" class="ag__toggle" :aria-expanded="showSteps" @click="showSteps = !showSteps">
-        <v-icon :icon="showSteps ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="18" /> {{ t('ads.agent.steps') }}
-      </button>
-      <GoogleAdsActivityFeed v-if="showSteps" :key="id" :loader="loader" :limit="80" hide-campaign compact @running="onRunning" />
-    </section>
+    <AdsSection name="steps" :title="t('ads.agent.steps')" icon="mdi-format-list-bulleted" :hint="t('ads.agent.stepsHint')">
+      <GoogleAdsActivityFeed :key="id" :loader="loader" :limit="80" hide-campaign compact @running="onRunning" />
+    </AdsSection>
 
-    <section class="ag__block">
-      <button type="button" class="ag__toggle" :aria-expanded="showCosts" @click="showCosts = !showCosts">
-        <v-icon :icon="showCosts ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="18" /> {{ t('ads.agent.costs') }}
-      </button>
-      <AdsCostsTab v-if="showCosts" :detail="detail" />
-    </section>
+    <AdsSection name="costs" :title="t('ads.agent.costs')" icon="mdi-cash-multiple" :hint="costHint">
+      <AdsCostsTab :detail="detail" />
+    </AdsSection>
   </div>
 </template>
 
@@ -87,33 +90,7 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
 .ag {
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
-}
-.ag__toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  align-self: flex-start;
-  min-height: 32px;
-  font-weight: 600;
-  font-size: var(--tvz-fs-small);
-  color: rgb(var(--v-theme-primary));
-}
-.ag__block {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-.ag__h {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0;
-  font-size: var(--tvz-fs-body, 1rem);
-  font-weight: 600;
-}
-.ag__h .v-icon {
-  color: rgb(var(--v-theme-primary));
+  gap: 1rem;
 }
 .cyc {
   list-style: none;

@@ -11,6 +11,7 @@ import GoogleAdsReviseDialog from '@/components/admin/google-ads/GoogleAdsRevise
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminPager from '@/components/admin/AdminPager.vue'
@@ -1008,7 +1009,7 @@ function cancelEditCredentials() {
       <!-- ============ Activity ============ -->
       <v-window-item value="activity">
         <GoogleAdsActivityFeed v-if="tab === 'activity'" :limit="200" @running="onRunning" />
-        <p class="gaa__foot">{{ t('adminGoogleAdsOpt.activityHint') }}</p>
+        <p class="gaa__foot"><AdminHint :text="t('adminGoogleAdsOpt.activityHint')" /></p>
       </v-window-item>
 
       <!-- ============ History ============ -->
@@ -1459,35 +1460,35 @@ function cancelEditCredentials() {
                 }}</span>
               </p>
               <div class="sgrid sgrid--3">
-                <v-text-field
+                <v-text-field hide-details="auto"
                   v-model="credentialsForm.customerId"
                   :error-messages="credentialErrors.customerId ?? []"
                   :label="t('adminGoogleAds.accountCustomerId')"
-                  :hint="t('adminGoogleAds.accountCustomerIdHint')"
-                  persistent-hint
                   variant="outlined"
                   density="compact"
-                />
-                <v-text-field
+      >
+        <template #append-inner><AdminHint :text="t('adminGoogleAds.accountCustomerIdHint')" /></template>
+      </v-text-field>
+                <v-text-field hide-details="auto"
                   v-model="credentialsForm.loginCustomerId"
                   :error-messages="credentialErrors.loginCustomerId ?? []"
                   :label="t('adminGoogleAds.accountLoginCustomerId')"
-                  :hint="t('adminGoogleAds.accountLoginCustomerIdHint')"
-                  persistent-hint
                   variant="outlined"
                   density="compact"
-                />
-                <v-text-field
+      >
+        <template #append-inner><AdminHint :text="t('adminGoogleAds.accountLoginCustomerIdHint')" /></template>
+      </v-text-field>
+                <v-text-field hide-details="auto"
                   v-model="credentialsForm.campaignId"
                   :error-messages="credentialErrors.campaignId ?? []"
                   :label="t('adminGoogleAds.accountCampaignId')"
-                  :hint="t('adminGoogleAds.accountCampaignIdHint')"
-                  persistent-hint
                   variant="outlined"
                   density="compact"
-                />
+      >
+        <template #append-inner><AdminHint :text="t('adminGoogleAds.accountCampaignIdHint')" /></template>
+      </v-text-field>
               </div>
-              <v-textarea
+              <v-textarea hide-details="auto"
                 v-model="credentialsForm.serviceAccountKeyBase64"
                 :error-messages="credentialErrors.serviceAccountKeyBase64 ?? []"
                 :label="t('adminGoogleAds.accountKeyLabel')"
@@ -1496,14 +1497,14 @@ function cancelEditCredentials() {
                     ? t('adminGoogleAds.accountKeyPlaceholderConfigured')
                     : t('adminGoogleAds.accountKeyPlaceholderEmpty')
                 "
-                :hint="t('adminGoogleAds.accountKeyHint')"
-                persistent-hint
                 variant="outlined"
                 density="compact"
                 rows="3"
                 auto-grow
                 class="mt-3"
-              />
+      >
+        <template #append-inner><AdminHint :text="t('adminGoogleAds.accountKeyHint')" /></template>
+      </v-textarea>
               <div class="settings__save">
                 <v-btn v-if="isGoogleAdsConnected" variant="text" @click="cancelEditCredentials">
                   {{ t('common.cancel') }}

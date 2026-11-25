@@ -19,15 +19,7 @@ const returnedMinor = computed(() => props.detail.cycles.reduce((s, c) => s + c.
 
 <template>
   <div class="co">
-    <section class="co__how">
-      <h3 class="co__h"><v-icon icon="mdi-scale-balance" size="18" /> {{ t('ads.cost.howTitle') }}</h3>
-      <ul class="ab-list">
-        <li><v-icon icon="mdi-gift-outline" size="18" /> {{ t('ads.cost.free') }}</li>
-        <li><v-icon icon="mdi-cash-check" size="18" /> {{ t('ads.cost.min', { min: detail.pricing.minCredits }) }}</li>
-        <li><v-icon icon="mdi-chart-bell-curve-cumulative" size="18" /> {{ t('ads.cost.complexity') }}</li>
-        <li><v-icon icon="mdi-cash-refund" size="18" /> {{ t('ads.cost.settle') }}</li>
-        <li><v-icon icon="mdi-chat-outline" size="18" /> {{ t('ads.cost.chat') }}</li>
-      </ul>
+    <section>
       <div class="lv">
         <div v-for="l in detail.pricing.levels" :key="l.key" class="lv__item">
           <b>{{ l.label }}</b>
@@ -82,7 +74,6 @@ const returnedMinor = computed(() => props.detail.cycles.reduce((s, c) => s + c.
           </tbody>
         </table>
       </div>
-      <p class="co__note">{{ t('ads.cost.walletNote') }}</p>
     </section>
   </div>
 </template>
@@ -92,26 +83,6 @@ const returnedMinor = computed(() => props.detail.cycles.reduce((s, c) => s + c.
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-}
-.co__how {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  padding: 1.15rem 1.25rem;
-  border: 1px solid var(--tvz-hairline);
-  border-radius: var(--tvz-radius-lg);
-  background: rgb(var(--v-theme-surface));
-}
-.co__h {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0;
-  font-size: var(--tvz-fs-body, 1rem);
-  font-weight: 600;
-}
-.co__h .v-icon {
-  color: rgb(var(--v-theme-primary));
 }
 .lv {
   display: grid;
@@ -190,11 +161,6 @@ const returnedMinor = computed(() => props.detail.cycles.reduce((s, c) => s + c.
 }
 .tb__empty {
   text-align: center;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.co__note {
-  margin: 0;
-  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 @media (max-width: 600px) {

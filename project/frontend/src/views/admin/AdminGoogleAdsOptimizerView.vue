@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
@@ -207,7 +208,7 @@ onMounted(() => {
           </div>
         </AdminSection>
 
-        <AdminSection :title="t('adminAdsOpt.history')" icon="mdi-history" class="mt-4">
+        <AdminSection :title="t('adminAdsOpt.history')" icon="mdi-history" :hint="t('adminAdsOpt.colWorkHint')" class="mt-4">
           <p v-if="!usage.cycles.length" class="gao__muted">{{ t('adminAdsOpt.noCycles') }}</p>
           <div v-else class="gao__tw">
             <table class="gao__tb">
@@ -243,7 +244,6 @@ onMounted(() => {
               </tbody>
             </table>
           </div>
-          <p class="gao__muted mt-2">{{ t('adminAdsOpt.colWorkHint') }}</p>
         </AdminSection>
       </template>
     </div>
@@ -254,9 +254,15 @@ onMounted(() => {
       <form v-else class="gao__form" @submit.prevent="savePricing">
         <AdminSection :title="t('adminAdsOpt.limits')" icon="mdi-cash-lock" :hint="t('adminAdsOpt.limitsHint')">
           <div class="gao__grid">
-            <v-text-field v-model.number="pricing.minCredits" type="number" min="1" step="0.5" :label="t('adminAdsOpt.minCredits')" :hint="t('adminAdsOpt.minCreditsHint')" persistent-hint />
-            <v-text-field v-model.number="pricing.maxCredits" type="number" min="1" step="1" :label="t('adminAdsOpt.maxCredits')" :hint="t('adminAdsOpt.maxCreditsHint')" persistent-hint />
-            <v-text-field v-model.number="pricing.perElementCredits" type="number" min="0" step="0.01" :label="t('adminAdsOpt.perElement')" :hint="t('adminAdsOpt.perElementHint')" persistent-hint />
+            <v-text-field hide-details="auto" v-model.number="pricing.minCredits" type="number" min="1" step="0.5" :label="t('adminAdsOpt.minCredits')">
+        <template #append-inner><AdminHint :text="t('adminAdsOpt.minCreditsHint')" /></template>
+      </v-text-field>
+            <v-text-field hide-details="auto" v-model.number="pricing.maxCredits" type="number" min="1" step="1" :label="t('adminAdsOpt.maxCredits')">
+        <template #append-inner><AdminHint :text="t('adminAdsOpt.maxCreditsHint')" /></template>
+      </v-text-field>
+            <v-text-field hide-details="auto" v-model.number="pricing.perElementCredits" type="number" min="0" step="0.01" :label="t('adminAdsOpt.perElement')">
+        <template #append-inner><AdminHint :text="t('adminAdsOpt.perElementHint')" /></template>
+      </v-text-field>
           </div>
         </AdminSection>
 
@@ -299,9 +305,13 @@ onMounted(() => {
         <AdminSection :title="t('adminAdsOpt.chatPricing')" icon="mdi-chat-outline" :hint="t('adminAdsOpt.chatPricingHint')">
           <div class="gao__grid">
             <v-text-field v-model.number="chatPricing.minCredits" type="number" min="0.01" step="0.05" :label="t('adminAdsOpt.chatMin')" />
-            <v-text-field v-model.number="chatPricing.maxCredits" type="number" min="0.01" step="0.5" :label="t('adminAdsOpt.chatMax')" :hint="t('adminAdsOpt.chatMaxHint')" persistent-hint />
+            <v-text-field hide-details="auto" v-model.number="chatPricing.maxCredits" type="number" min="0.01" step="0.5" :label="t('adminAdsOpt.chatMax')">
+        <template #append-inner><AdminHint :text="t('adminAdsOpt.chatMaxHint')" /></template>
+      </v-text-field>
             <v-text-field v-model.number="chatPricing.baseCredits" type="number" min="0" step="0.05" :label="t('adminAdsOpt.chatBase')" />
-            <v-text-field v-model.number="chatPricing.aiMarkup" type="number" min="1" step="0.5" :label="t('adminAdsOpt.chatMarkup')" :hint="t('adminAdsOpt.chatMarkupHint')" persistent-hint />
+            <v-text-field hide-details="auto" v-model.number="chatPricing.aiMarkup" type="number" min="1" step="0.5" :label="t('adminAdsOpt.chatMarkup')">
+        <template #append-inner><AdminHint :text="t('adminAdsOpt.chatMarkupHint')" /></template>
+      </v-text-field>
             <v-text-field v-model.number="chatPricing.maxAiCalls" type="number" min="1" max="12" step="1" :label="t('adminAdsOpt.chatCalls')" />
             <v-text-field
               v-for="(_, k) in chatPricing.changeCredits"
@@ -329,7 +339,7 @@ onMounted(() => {
     <div v-else class="gao__body">
       <div v-if="!oauth" class="d-flex justify-center py-12"><v-progress-circular indeterminate color="primary" /></div>
       <form v-else class="gao__form" @submit.prevent="saveOauth">
-        <AdminSection :title="t('adminAdsOpt.oauthStatus')" icon="mdi-google">
+        <AdminSection :title="t('adminAdsOpt.oauthStatus')" icon="mdi-google" :hint="t('adminAdsOpt.oauthHelp')">
           <ul class="gao__checks">
             <li><v-icon :icon="oauth.clientId || oauth.clientIdFromEnv ? 'mdi-check-circle' : 'mdi-close-circle'" :color="oauth.clientId || oauth.clientIdFromEnv ? 'success' : 'error'" size="18" /> {{ t('adminAdsOpt.checkClient') }}</li>
             <li><v-icon :icon="oauth.clientSecretSet ? 'mdi-check-circle' : 'mdi-close-circle'" :color="oauth.clientSecretSet ? 'success' : 'error'" size="18" /> {{ t('adminAdsOpt.checkSecret') }}</li>
@@ -340,11 +350,12 @@ onMounted(() => {
             <code>{{ oauth.redirectUri }}</code>
             <v-btn size="x-small" variant="tonal" prepend-icon="mdi-content-copy" @click="copy(oauth.redirectUri)">{{ t('adminAdsOpt.copy') }}</v-btn>
           </div>
-          <p class="gao__muted">{{ t('adminAdsOpt.oauthHelp') }}</p>
         </AdminSection>
         <AdminSection :title="t('adminAdsOpt.oauthClient')" icon="mdi-key-outline">
           <v-text-field v-model="oauthForm.clientId" :label="t('adminAdsOpt.clientId')" placeholder="….apps.googleusercontent.com" />
-          <v-text-field v-model="oauthForm.clientSecret" type="password" autocomplete="new-password" :label="t('adminAdsOpt.clientSecret')" :hint="oauth.clientSecretSet ? t('adminAdsOpt.secretKeep') : ''" persistent-hint />
+          <v-text-field hide-details="auto" v-model="oauthForm.clientSecret" type="password" autocomplete="new-password" :label="t('adminAdsOpt.clientSecret')">
+        <template #append-inner><AdminHint :text="oauth.clientSecretSet ? t('adminAdsOpt.secretKeep') : ''" /></template>
+      </v-text-field>
           <div class="gao__actions">
             <v-btn type="submit" color="primary" :loading="savingOauth">{{ t('common.save') }}</v-btn>
           </div>

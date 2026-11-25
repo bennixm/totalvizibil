@@ -7,6 +7,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminExportMenu from '@/components/admin/AdminExportMenu.vue'
 import FinanceStatementTable from '@/components/admin/finance/FinanceStatementTable.vue'
@@ -112,7 +113,7 @@ onMounted(() => {
           </tfoot>
         </table>
       </div>
-      <p class="fat__hint">{{ t('adminFinance.annual.hint') }}</p>
+      <p class="fat__hint"><AdminHint :text="t('adminFinance.annual.hint')" /></p>
 
       <div v-if="opened && openMonth !== null" class="fat__detail">
         <div class="fat__detailhead">

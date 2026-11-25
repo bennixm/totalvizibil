@@ -2421,7 +2421,9 @@
           "desc": "Negative Korrekturen von bezahltem Guthaben (Geld behalten, keine Leistung)."
         }
       }
-    }
+    },
+    "showTypes": "Welche Transaktionen die Tabelle zeigt",
+    "typeHidden": "Ausgeblendet"
   },
   "adminSettings": {
     "pricingTitle": "Preise & Wechselkurs",
@@ -4038,7 +4040,7 @@
       "period": "Letzte 30 Tage, verglichen mit den 30 Tagen davor.",
       "toImprove": "Was sich verbessern lässt",
       "agentCan": "Der Agent kann lösen:",
-      "needsYou": "Hier bist du gefragt (tippe für die Schritte):",
+      "needsYou": "Hier bist du gefragt:",
       "keywordsOptional": "Das reicht aus. Optional kann der Agent im Chat ergänzen:",
       "letAgent": "Den Agenten machen lassen",
       "noIssues": "Keine Probleme gefunden.",
@@ -4046,7 +4048,10 @@
       "keywords": "{n} von {total} Keywords kommen in den Anzeigentiteln vor",
       "keywordsMissing": "Es fehlen:",
       "breakdown": "Aufschlüsselung des Werts",
-      "missing": "Fehlt"
+      "missing": "Fehlt",
+      "results": "Ergebnisse",
+      "keywordsTitle": "Keywords in Titeln",
+      "keywordsHint": "Suchwörter der Kunden, die in den Titeln der Anzeige stehen."
     },
     "metrics": {
       "impressions": "Impressionen",
@@ -4141,8 +4146,9 @@
         "wallet_blocked": "Deine Wallet ist gesperrt. Bitte kontaktiere den Support.",
         "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
       },
-      "steps": "Schritt für Schritt sehen, was der Agent geprüft hat",
-      "costs": "Alle Kosten und ihre Berechnung ansehen"
+      "steps": "Was der Agent geprüft hat",
+      "costs": "Kosten",
+      "stepsHint": "Jeder Schritt des Agenten in der Reihenfolge."
     },
     "task": {
       "analysis": "Prüft die ganze Kampagne",
@@ -4276,7 +4282,7 @@
       "disconnectTitle": "Google-Konto trennen?",
       "disconnectText": "Der Agent hat keinen Zugriff auf Google Ads, bis du dich neu verbindest. In Google Ads ändert sich nichts und dein Verlauf bleibt erhalten.",
       "disconnected": "Das Google-Konto wurde getrennt.",
-      "advanced": "Erweiterte Einstellungen (optional)"
+      "advanced": "Erweiterte Einstellungen"
     },
     "cost": {
       "chat": "Der Chat mit dem Agenten wird separat berechnet, pro Nachricht, nach geleisteter Arbeit.",
@@ -4329,7 +4335,7 @@
       "lastReturned": "der Agent konnte nichts ändern, daher haben wir deine Credits zurückgegeben.",
       "paid": "Du hast {credits} Credits gezahlt.",
       "yoursTitle": "Das kannst nur du tun",
-      "yoursText": "Es eilt nicht und blockiert die Kampagne nicht. Tippe auf einen Punkt für die Schritte.",
+      "yoursText": "Es eilt nicht und blockiert die Kampagne nicht. Die Schritte stehen jeweils dabei.",
       "howTitle": "So funktioniert es",
       "how1": "Der Agent zeigt dir gratis, was er verbessern kann und was es kostet.",
       "how2": "Du entscheidest, ob er startet. Das Budget ändert sich nie ohne deine Zustimmung.",
@@ -4391,7 +4397,12 @@
           "cta": "Schritte zeigen"
         }
       },
-      "yoursUrgent": "Einige davon bremsen die Kampagne. Tippe auf einen Punkt für die Schritte."
+      "yoursUrgent": "Einige davon bremsen die Kampagne. Die Schritte stehen jeweils dabei.",
+      "scoreTitle": "Optimierungsscore",
+      "scoreHint": "Wie vollständig die Kampagne gegenüber den Google-Anforderungen ist, von 100 Punkten, aus echten Daten.",
+      "scoreNone": "Der Score erscheint nach dem ersten Lesen der Daten aus Google.",
+      "adQuality": "Anzeigenqualität:",
+      "adQualityHint": "Bewertung der Anzeigentexte durch Google (Ad Strength)."
     },
     "list": {
       "title": "Deine Google Ads Kampagnen",
@@ -4408,6 +4419,10 @@
       "step2": "Kampagne wählen",
       "step3": "Der Agent zeigt, was er tun kann",
       "emptyCta": "Google-Konto verbinden"
+    },
+    "section": {
+      "close": "Einklappen",
+      "open": "Öffnen"
     }
   },
   "adminAdsOpt": {

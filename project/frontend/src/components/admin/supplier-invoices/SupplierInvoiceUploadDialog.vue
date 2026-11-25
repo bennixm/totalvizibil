@@ -9,6 +9,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import {
   useExternalInvoicesStore,
   type ExternalInvoiceProviderKey,
@@ -232,9 +233,8 @@ async function save(): Promise<void> {
 <template>
   <v-dialog v-model="show" max-width="640" scrollable>
     <v-card rounded="lg">
-      <v-card-title class="sud__title">{{ t('supplierInvoices.addOriginal') }}</v-card-title>
+      <v-card-title class="sud__title">{{ t('supplierInvoices.addOriginal') }} <AdminHint :text="t('supplierInvoices.uploadHint')" /></v-card-title>
       <v-card-text class="sud">
-        <p class="sud__hint">{{ t('supplierInvoices.uploadHint') }}</p>
 
         <!-- 1. The document -->
         <div class="sud__file">

@@ -38,7 +38,7 @@ function go() {
     <div class="asc__top">
       <span class="asc__label">
         {{ label }}
-        <AdminHint v-if="hint" :text="hint" size="sm" />
+        <span v-if="hint" @click.stop><AdminHint :text="hint" size="sm" /></span>
       </span>
       <v-icon v-if="icon" :icon="icon" size="18" class="asc__icon" />
     </div>

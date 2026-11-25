@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import { ApiError } from '@/services/api'
 import type { AdsAccount, AdsCampaignListItem, SelectionItem } from '@/services/googleAdsUser'
 
@@ -177,7 +178,7 @@ onMounted(async () => {
     <!-- Campaigns -->
     <section class="ag__campaigns" data-guide="ads-campaign-list">
       <div class="ag__head">
-        <p class="ag__label">{{ t('ads.campaigns.campaigns') }}</p>
+        <p class="ag__label">{{ t('ads.campaigns.campaigns') }} <AdminHint :text="t('ads.campaigns.multiHint')" /></p>
         <button
           v-if="account && campaigns.filter(pickable).length > 1"
           type="button"
@@ -246,7 +247,6 @@ onMounted(async () => {
       >
         {{ count > 1 ? t('ads.campaigns.continueN', { n: count }) : t('ads.campaigns.continue') }}
       </v-btn>
-      <p v-if="count > 1" class="ag__hint">{{ t('ads.campaigns.multiHint') }}</p>
     </section>
   </div>
 </template>
@@ -309,12 +309,6 @@ onMounted(async () => {
   flex: 1 1 10rem;
   overflow-wrap: anywhere;
   font-weight: 500;
-}
-.ag__hint {
-  margin: 0;
-  font-size: 0.78rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-  text-align: center;
 }
 .acc,
 .cmp {

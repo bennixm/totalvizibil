@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import GaChip from '@/components/admin/google-ads/GaChip.vue'
 import GoogleAdsIssueList from '@/components/admin/google-ads/GoogleAdsIssueList.vue'
-import GoogleAdsScoreRing from '@/components/admin/google-ads/GoogleAdsScoreRing.vue'
+import AdsSection from './AdsSection.vue'
 import type { UserCampaignDetail } from '@/services/googleAdsUser'
 import { adsMoney, pct, strengthTone } from './format'
 
@@ -72,15 +72,7 @@ function change(v: number | null | undefined): string {
   </div>
 
   <div v-else class="ov">
-    <!-- Score + key numbers -->
-    <section class="ov__strip">
-      <div class="ov__score">
-        <GoogleAdsScoreRing :score="ev.score" :size="92" :stroke="8" />
-        <div>
-          <p class="ov__scoreLabel">{{ t('ads.dash.score') }}</p>
-          <p class="ov__scoreHint">{{ t('ads.dash.scoreHint') }}</p>
-        </div>
-      </div>
+    <AdsSection name="results" :title="t('ads.dash.results')" icon="mdi-chart-line" :hint="t('ads.dash.period')">
       <dl class="ov__kpis">
         <div>
           <dt>{{ t('ads.dash.adStrength') }}</dt>
@@ -105,34 +97,28 @@ function change(v: number | null | undefined): string {
           <dd>{{ compact(cur?.conversions ?? 0) }}</dd>
         </div>
       </dl>
-    </section>
-    <p class="ov__period">{{ t('ads.dash.period') }}</p>
+    </AdsSection>
 
-    <div class="ov__cols">
       <!-- What to improve -->
-      <section class="ov__block">
-        <div class="ov__hrow">
-          <h3 class="ov__h"><v-icon icon="mdi-lightbulb-on-outline" size="18" /> {{ t('ads.dash.toImprove') }}</h3>
-          <v-btn v-if="agentIssues.length" size="small" variant="text" append-icon="mdi-arrow-right" @click="emit('goto', 'home')">
-            {{ t('ads.dash.letAgent') }}
-          </v-btn>
-        </div>
+      <AdsSection name="improve" :title="t('ads.dash.toImprove')" icon="mdi-lightbulb-on-outline">
+        <v-btn v-if="agentIssues.length" class="ov__go" size="small" variant="tonal" color="primary" append-icon="mdi-arrow-right" @click="emit('goto', 'home')">
+          {{ t('ads.dash.letAgent') }}
+        </v-btn>
         <template v-if="sortedIssues.length">
           <template v-if="agentIssues.length">
             <p class="ov__own">{{ t('ads.dash.agentCan') }}</p>
-            <GoogleAdsIssueList :issues="agentIssues" />
+            <GoogleAdsIssueList :issues="agentIssues" expanded />
           </template>
           <template v-if="ownIssues.length">
             <p class="ov__own">{{ t('ads.dash.needsYou') }}</p>
-            <GoogleAdsIssueList :issues="ownIssues" />
+            <GoogleAdsIssueList :issues="ownIssues" expanded />
           </template>
         </template>
         <p v-else class="ov__ok"><v-icon icon="mdi-check-decagram" size="18" /> {{ t('ads.dash.noIssues') }}</p>
-      </section>
+      </AdsSection>
 
       <!-- Ad elements -->
-      <section class="ov__block">
-        <h3 class="ov__h"><v-icon icon="mdi-format-list-checks" size="18" /> {{ t('ads.dash.elements') }}</h3>
+      <AdsSection name="elements" :title="t('ads.dash.elements')" icon="mdi-format-list-checks">
         <ul class="el">
           <li v-for="e in elements" :key="e.key" class="el__row">
             <v-icon :icon="e.icon" size="17" class="el__ic" />
@@ -141,7 +127,10 @@ function change(v: number | null | undefined): string {
             <span class="el__val">{{ e.have }}/{{ e.target }}</span>
           </li>
         </ul>
-        <div v-if="assets?.headlineKeywords" class="kw">
+      </AdsSection>
+
+      <AdsSection v-if="assets?.headlineKeywords" name="keywords" :title="t('ads.dash.keywordsTitle')" icon="mdi-key-variant" :hint="t('ads.dash.keywordsHint')">
+        <div class="kw">
           <p class="kw__h">
             {{ t('ads.dash.keywords', { n: assets.headlineKeywords.covered.length, total: assets.headlineKeywords.covered.length + assets.headlineKeywords.missing.length }) }}
           </p>
@@ -150,12 +139,9 @@ function change(v: number | null | undefined): string {
             <span v-for="k in assets.headlineKeywords.missing.slice(0, 8)" :key="k" class="kw__tag">{{ k }}</span>
           </p>
         </div>
-      </section>
-    </div>
+      </AdsSection>
 
-    <!-- Score breakdown -->
-    <section class="ov__block">
-      <h3 class="ov__h"><v-icon icon="mdi-chart-box-outline" size="18" /> {{ t('ads.dash.breakdown') }}</h3>
+    <AdsSection name="breakdown" :title="t('ads.dash.breakdown')" icon="mdi-chart-box-outline" :hint="t('ads.dash.scoreHint')">
       <ul class="cmp">
         <li v-for="c in components" :key="c.key" class="cmp__row">
           <div class="cmp__top">
@@ -166,7 +152,7 @@ function change(v: number | null | undefined): string {
           <p v-if="c.missing.length" class="cmp__missing">{{ t('ads.dash.missing') }}: {{ c.missing.join(', ') }}</p>
         </li>
       </ul>
-    </section>
+    </AdsSection>
   </div>
 </template>
 
@@ -174,7 +160,7 @@ function change(v: number | null | undefined): string {
 .ov {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 .ov__empty {
   display: grid;
@@ -183,32 +169,6 @@ function change(v: number | null | undefined): string {
   padding: 3rem 1rem;
   text-align: center;
   color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.ov__strip {
-  display: flex;
-  border: 1px solid var(--tvz-glass-border, var(--tvz-hairline));
-  border-radius: var(--tvz-radius-lg);
-  background: rgb(var(--v-theme-surface));
-  overflow: hidden;
-}
-.ov__score {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  padding: 1rem 1.25rem;
-  border-right: 1px solid var(--tvz-hairline);
-  flex: none;
-  max-width: 300px;
-}
-.ov__scoreLabel {
-  margin: 0;
-  font-weight: 600;
-  font-size: var(--tvz-fs-small);
-}
-.ov__scoreHint {
-  margin: 0.15rem 0 0;
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .ov__kpis {
   flex: 1;
@@ -243,43 +203,12 @@ function change(v: number | null | undefined): string {
   font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
-.ov__period {
-  margin: -1rem 0 0;
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-.ov__cols {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 1.5rem;
-  align-items: start;
-}
-.ov__block {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-  min-width: 0;
-}
-.ov__hrow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-.ov__h {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0;
-  font-size: var(--tvz-fs-body, 1rem);
-  font-weight: 600;
-}
-.ov__h .v-icon {
-  color: rgb(var(--v-theme-primary));
+.ov__go {
+  align-self: flex-start;
 }
 .ov__own {
-  margin: 0.75rem 0 0.35rem;
+  margin: 0;
+  font-weight: 600;
   font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -293,12 +222,10 @@ function change(v: number | null | undefined): string {
 .el {
   list-style: none;
   margin: 0;
-  padding: 0.9rem 1rem;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  border: 1px solid var(--tvz-hairline);
-  border-radius: var(--tvz-radius-md);
 }
 .el__row {
   display: grid;
@@ -392,23 +319,7 @@ function change(v: number | null | undefined): string {
   font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
-@media (max-width: 1100px) {
-  .ov__strip {
-    flex-direction: column;
-  }
-  .ov__score {
-    max-width: none;
-    border-right: 0;
-    border-bottom: 1px solid var(--tvz-hairline);
-  }
-  .ov__cols {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
 @media (max-width: 700px) {
-  .ov__score {
-    padding: 1rem;
-  }
   .ov__kpis > div {
     padding: 0.8rem;
   }

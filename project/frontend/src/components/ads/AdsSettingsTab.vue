@@ -2,6 +2,9 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
+import AdminHintText from '@/components/admin/AdminHintText.vue'
+import AdsSection from './AdsSection.vue'
 import { ApiError } from '@/services/api'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
@@ -92,17 +95,14 @@ function remove(): void {
 
 <template>
   <form class="se" @submit.prevent="save">
-    <p v-if="staff" class="ab-note">
-      <v-icon icon="mdi-information-outline" size="18" /> <span>{{ t('admin.ads.settingsNote') }}</span>
-    </p>
     <section class="se__group">
       <h3 class="se__h"><v-icon icon="mdi-storefront-outline" size="18" /> {{ t('ads.set.businessTitle') }}</h3>
-      <v-text-field v-model="form.businessName" :label="t('ads.set.businessName')" :hint="t('ads.set.businessNameHint')" persistent-hint maxlength="25" counter />
-      <v-textarea
+      <v-text-field hide-details="auto" v-model="form.businessName" :label="t('ads.set.businessName')" maxlength="25" counter>
+        <template #append-inner><AdminHint :text="t('ads.set.businessNameHint')" /></template>
+      </v-text-field>
+      <v-textarea hide-details="auto"
         v-model="form.businessDescription"
         :label="t('ads.set.businessDescription')"
-        :hint="t('ads.set.businessDescriptionHint')"
-        persistent-hint
         variant="outlined"
         rounded="lg"
         density="comfortable"
@@ -110,78 +110,76 @@ function remove(): void {
         auto-grow
         maxlength="300"
         counter
-      />
+      >
+        <template #append-inner><AdminHint :text="t('ads.set.businessDescriptionHint')" /></template>
+      </v-textarea>
     </section>
 
     <section class="se__group" data-guide="ads-settings">
-      <h3 class="se__h"><v-icon icon="mdi-robot-outline" size="18" /> {{ t('ads.set.agentTitle') }}</h3>
+      <h3 class="se__h"><v-icon icon="mdi-robot-outline" size="18" /> {{ t('ads.set.agentTitle') }} <AdminHint :text="t('ads.set.budgetRule')" /></h3>
       <div v-for="k in SWITCHES" :key="k" class="se__switch">
         <div>
-          <p class="se__label">{{ t(`ads.set.${k}`) }}</p>
-          <p class="se__hint">{{ t(`ads.set.${k}Hint`) }}</p>
+          <p class="se__label"><AdminHintText :label="t(`ads.set.${k}`)" :hint="t(`ads.set.${k}Hint`)" /></p>
         </div>
         <v-switch v-model="form[k]" color="primary" hide-details inset density="compact" :aria-label="t(`ads.set.${k}`)" />
       </div>
-      <v-text-field
+      <v-text-field hide-details="auto"
         v-if="form.images"
         v-model="form.imageQuery"
         :label="t('ads.set.imageQuery')"
-        :hint="t('ads.set.imageQueryHint')"
-        persistent-hint
         maxlength="80"
-      />
-      <p class="ab-note"><v-icon icon="mdi-shield-check-outline" size="18" /> {{ t('ads.set.budgetRule') }}</p>
+      >
+        <template #append-inner><AdminHint :text="t('ads.set.imageQueryHint')" /></template>
+      </v-text-field>
     </section>
 
     <section class="se__group">
-      <h3 class="se__h"><v-icon icon="mdi-calendar-clock" size="18" /> {{ t('ads.set.scheduleTitle') }}</h3>
+      <h3 class="se__h"><v-icon icon="mdi-calendar-clock" size="18" /> {{ t('ads.set.scheduleTitle') }} <AdminHint v-if="staff" :text="t('admin.ads.settingsNote')" /></h3>
       <div class="se__grid">
         <v-select v-model="form.schedule" :items="scheduleItems" :label="t('ads.set.scheduleLabel')" />
-        <v-text-field
+        <v-text-field hide-details="auto"
           v-if="form.schedule !== 'manual'"
           v-model.number="form.maxCreditsPerCycle"
           type="number"
           :min="detail.pricing.minCredits"
           :label="t('ads.set.maxCredits')"
-          :hint="t('ads.set.maxCreditsHint', { min: detail.pricing.minCredits })"
-          persistent-hint
-        />
+      >
+        <template #append-inner><AdminHint :text="t('ads.set.maxCreditsHint', { min: detail.pricing.minCredits })" /></template>
+      </v-text-field>
       </div>
       <p v-if="form.schedule !== 'manual'" class="ab-note ab-note--warn">
         <v-icon icon="mdi-credit-card-clock-outline" size="18" /> {{ t('ads.set.scheduleBilled') }}
       </p>
     </section>
 
-    <details class="se__group se__adv">
-      <summary>{{ t('ads.set.advanced') }}</summary>
+    <AdsSection name="advanced" :title="t('ads.set.advanced')" icon="mdi-cog-outline">
       <div v-for="k in ADVANCED_SWITCHES" :key="k" class="se__switch">
         <div>
-          <p class="se__label">{{ t(`ads.set.${k}`) }}</p>
-          <p class="se__hint">{{ t(`ads.set.${k}Hint`) }}</p>
+          <p class="se__label"><AdminHintText :label="t(`ads.set.${k}`)" :hint="t(`ads.set.${k}Hint`)" /></p>
         </div>
         <v-switch v-model="form[k]" color="primary" hide-details inset density="compact" :aria-label="t(`ads.set.${k}`)" />
       </div>
       <div class="se__grid">
-        <v-text-field
+        <v-text-field hide-details="auto"
           v-model.number="form.chatDailyLimitCredits"
           type="number"
           min="0"
           step="1"
           :label="t('ads.set.chatLimit')"
-          :hint="t('ads.set.chatLimitHint')"
-          persistent-hint
-        />
-        <v-text-field
+      >
+        <template #append-inner><AdminHint :text="t('ads.set.chatLimitHint')" /></template>
+      </v-text-field>
+        <v-text-field hide-details="auto"
           v-model.number="form.creativeCooldownDays"
           type="number"
           min="1"
           max="60"
           :label="t('ads.set.cooldown')"
-          :hint="t('ads.set.cooldownHint')"
-          persistent-hint
-        />
+      >
+        <template #append-inner><AdminHint :text="t('ads.set.cooldownHint')" /></template>
+      </v-text-field>
       </div>
-    </details>
+    </AdsSection>
 
     <div class="se__save">
       <v-btn type="submit" color="primary" :loading="saving" :disabled="!dirty" prepend-icon="mdi-content-save-outline">
@@ -193,8 +191,7 @@ function remove(): void {
       <h3 class="se__h"><v-icon icon="mdi-tune-variant" size="18" /> {{ t('ads.set.manageTitle') }}</h3>
       <div class="se__row">
         <div>
-          <p class="se__label">{{ detail.campaign.status === 'paused' ? t('ads.set.resume') : t('ads.set.pause') }}</p>
-          <p class="se__hint">{{ t('ads.set.pauseHint') }}</p>
+          <p class="se__label"><AdminHintText :label="detail.campaign.status === 'paused' ? t('ads.set.resume') : t('ads.set.pause')" :hint="t('ads.set.pauseHint')" /></p>
         </div>
         <v-btn variant="tonal" :disabled="detail.campaign.status === 'disconnected'" @click="togglePause">
           {{ detail.campaign.status === 'paused' ? t('ads.set.resume') : t('ads.set.pause') }}
@@ -202,10 +199,7 @@ function remove(): void {
       </div>
       <div v-if="!staff && detail.campaign.status !== 'disconnected'" class="se__row">
         <div>
-          <p class="se__label">{{ t('ads.set.disconnect') }}</p>
-          <p class="se__hint">
-            {{ t('ads.set.disconnectHint', { email: detail.connection?.googleEmail ?? '' }) }}
-          </p>
+          <p class="se__label"><AdminHintText :label="t('ads.set.disconnect')" :hint="t('ads.set.disconnectHint', { email: detail.connection?.googleEmail ?? '' })" /></p>
         </div>
         <v-btn variant="tonal" prepend-icon="mdi-link-variant-off" @click="disconnect">
           {{ t('ads.set.disconnect') }}
@@ -213,8 +207,7 @@ function remove(): void {
       </div>
       <div v-if="!staff" class="se__row">
         <div>
-          <p class="se__label">{{ t('ads.set.remove') }}</p>
-          <p class="se__hint">{{ t('ads.set.removeHint') }}</p>
+          <p class="se__label"><AdminHintText :label="t('ads.set.remove')" :hint="t('ads.set.removeHint')" /></p>
         </div>
         <v-btn variant="tonal" color="error" @click="remove">{{ t('ads.set.remove') }}</v-btn>
       </div>
@@ -237,20 +230,6 @@ function remove(): void {
   border: 1px solid var(--tvz-hairline);
   border-radius: var(--tvz-radius-lg);
   background: rgb(var(--v-theme-surface));
-}
-.se__adv {
-  display: block;
-}
-.se__adv summary {
-  cursor: pointer;
-  font-weight: 600;
-  font-size: var(--tvz-fs-small);
-}
-.se__adv[open] summary {
-  margin-bottom: 0.85rem;
-}
-.se__adv .se__grid {
-  margin-top: 0.85rem;
 }
 .se__h {
   display: flex;
@@ -288,12 +267,6 @@ function remove(): void {
   margin: 0;
   font-weight: 500;
   font-size: var(--tvz-fs-small);
-}
-.se__hint {
-  margin: 0.15rem 0 0;
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  overflow-wrap: anywhere;
 }
 .se__switch .v-switch {
   flex: none;

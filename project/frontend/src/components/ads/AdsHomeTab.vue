@@ -2,10 +2,13 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
+import GaChip from '@/components/admin/google-ads/GaChip.vue'
 import GoogleAdsIssueList from '@/components/admin/google-ads/GoogleAdsIssueList.vue'
+import GoogleAdsScoreRing from '@/components/admin/google-ads/GoogleAdsScoreRing.vue'
 import AdsRunPanel from './AdsRunPanel.vue'
 import type { UserCampaignDetail } from '@/services/googleAdsUser'
-import { adsMoney, creditsOf, dateTime, healthOf, isUrgent, nextStep } from './format'
+import { adsMoney, creditsOf, dateTime, healthOf, isUrgent, nextStep, strengthTone } from './format'
 
 /**
  * Start page of one campaign, for people who have never managed ads: ONE
@@ -109,23 +112,30 @@ const lastText = computed(() => {
       </ol>
     </section>
 
-    <!-- Results in plain words -->
+    <!-- Optimization score + results in plain words -->
     <section class="bx">
       <header class="bx__head">
         <h3>{{ t('ads.home.resultsTitle') }}</h3>
         <span class="bx__sub">{{ t('ads.home.period') }}</span>
       </header>
-      <p v-if="health" class="hl" :class="`hl--${health}`">
-        <i /> <span>{{ t(`ads.home.health.${health}`) }}</span>
-        <small v-if="c.score != null">{{ t('ads.home.points', { n: c.score }) }}</small>
-      </p>
+      <div class="sc">
+        <GoogleAdsScoreRing :score="c.score" :size="104" :stroke="9" />
+        <div class="sc__text">
+          <p class="sc__label">{{ t('ads.home.scoreTitle') }} <AdminHint :text="t('ads.home.scoreHint')" /></p>
+          <p class="sc__health">{{ health ? t(`ads.home.health.${health}`) : t('ads.home.scoreNone') }}</p>
+          <p class="sc__strength">
+            {{ t('ads.home.adQuality') }}
+            <GaChip :tone="strengthTone(c.adStrength)">{{ t(`ads.strength.${c.adStrength ?? 'UNKNOWN'}`, c.adStrength ?? '–') }}</GaChip>
+            <AdminHint :text="t('ads.home.adQualityHint')" size="sm" />
+          </p>
+        </div>
+      </div>
       <dl class="rs">
         <div v-for="r in results" :key="r.key">
-          <dt><v-icon :icon="r.icon" size="16" /> {{ t(`ads.home.result.${r.key}`) }}</dt>
+          <dt><v-icon :icon="r.icon" size="16" /> {{ t(`ads.home.result.${r.key}`) }}<AdminHint v-if="r.key === 'seen' && !cur?.impressions" :text="t('ads.home.noViews')" size="sm" /></dt>
           <dd>{{ r.value }}</dd>
         </div>
       </dl>
-      <p v-if="!cur?.impressions" class="bx__note">{{ t('ads.home.noViews') }}</p>
       <p v-if="lastCycle" class="bx__note">
         <b>{{ t('ads.home.lastTitle', { when: dateTime(lastCycle.startedAt, locale) }) }}</b>
         {{ lastText }}
@@ -138,9 +148,10 @@ const lastText = computed(() => {
 
     <!-- Only the owner can do these -->
     <section v-if="ownIssues.length" ref="yours" class="bx">
-      <header class="bx__head"><h3>{{ t('ads.home.yoursTitle') }}</h3></header>
-      <p class="bx__note">{{ t(ownIssues.some(isUrgent) ? 'ads.home.yoursUrgent' : 'ads.home.yoursText') }}</p>
-      <GoogleAdsIssueList :issues="ownIssues" />
+      <header class="bx__head">
+        <h3>{{ t('ads.home.yoursTitle') }} <AdminHint :text="t(ownIssues.some(isUrgent) ? 'ads.home.yoursUrgent' : 'ads.home.yoursText')" /></h3>
+      </header>
+      <GoogleAdsIssueList :issues="ownIssues" expanded />
     </section>
   </div>
 </template>
@@ -284,30 +295,34 @@ const lastText = computed(() => {
   align-self: flex-start;
   margin-left: -0.75rem;
 }
-.hl {
+.sc {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1rem 1.25rem;
+}
+.sc__text {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.sc__text p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
   margin: 0;
-  font-weight: 600;
 }
-.hl i {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: rgb(var(--v-theme-success));
+.sc__label {
+  font-size: var(--tvz-fs-small);
+  color: rgba(var(--v-theme-on-surface), 0.65);
 }
-.hl--fair i {
-  background: rgb(var(--v-theme-warning));
+.sc .sc__health {
+  margin: 0.15rem 0 0.4rem;
+  font-size: 1.15rem;
+  font-weight: 700;
 }
-.hl--weak i {
-  background: rgb(var(--v-theme-error));
-}
-.hl small {
-  font-weight: 400;
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.6);
+.sc__strength {
+  font-size: var(--tvz-fs-small);
 }
 .rs {
   display: grid;

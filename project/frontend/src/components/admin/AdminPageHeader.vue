@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import AdminHint from './AdminHint.vue'
+
 defineProps<{
   title: string
   eyebrow?: string
   count?: number | string
   sub?: string
+  /** Explanation of the page, behind an info icon next to the title. */
+  hint?: string
 }>()
 </script>
 
@@ -14,6 +18,7 @@ defineProps<{
       <h1 class="aph__title">
         {{ title }}
         <span v-if="count !== undefined" class="aph__count">{{ count }}</span>
+        <AdminHint v-if="hint" :text="hint" />
       </h1>
       <p v-if="sub" class="aph__sub">{{ sub }}</p>
     </div>

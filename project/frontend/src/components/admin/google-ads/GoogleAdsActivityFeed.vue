@@ -358,6 +358,8 @@ function duration(e: GoogleAdsAgentEvent) {
   min-width: 0;
 }
 .gaf__msg {
+  overflow-wrap: anywhere;
+  min-width: 0;
   font-size: var(--tvz-fs-small);
   font-weight: 500;
   flex: none;

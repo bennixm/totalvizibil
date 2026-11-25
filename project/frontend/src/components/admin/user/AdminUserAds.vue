@@ -2,9 +2,11 @@
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AdminHint from '@/components/admin/AdminHint.vue'
 import AdminEmptyState from '@/components/admin/AdminEmptyState.vue'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import GaChip from '@/components/admin/google-ads/GaChip.vue'
+import GoogleAdsScoreRing from '@/components/admin/google-ads/GoogleAdsScoreRing.vue'
 import AdsHistoryTab from '@/components/ads/AdsHistoryTab.vue'
 import AdsOverviewTab from '@/components/ads/AdsOverviewTab.vue'
 import AdsProposalsTab from '@/components/ads/AdsProposalsTab.vue'
@@ -146,10 +148,10 @@ onBeforeUnmount(() => clearTimeout(poll))
       <div v-if="!detail" class="ga__center"><v-progress-circular indeterminate color="primary" /></div>
       <template v-else>
         <div class="ga__title">
-          <h2>{{ detail.campaign.name }}</h2>
+          <GoogleAdsScoreRing :score="detail.campaign.score" :size="56" :stroke="5" />
+          <h2>{{ detail.campaign.name }} <AdminHint :text="t('admin.ads.notice')" /></h2>
           <GaChip :tone="tone(detail.campaign.status)">{{ t(`ads.campaignStatus.${detail.campaign.status}`) }}</GaChip>
         </div>
-        <p class="ab-note"><v-icon icon="mdi-shield-account-outline" size="18" /> <span>{{ t('admin.ads.notice') }}</span></p>
         <v-tabs v-model="tab" color="primary" show-arrows density="comfortable" class="ga__tabs">
           <v-tab v-for="v in TABS" :key="v" :value="v">
             {{ t(`admin.ads.tabs.${v}`) }}<template v-if="v === 'proposals' && detail.pending.length"> ({{ detail.pending.length }})</template>
