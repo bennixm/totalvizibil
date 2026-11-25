@@ -446,6 +446,36 @@ describe('GoogleAdsAgentContentService', () => {
       );
     });
 
+    it('after an account switch, reuses the action of this account or creates one', async () => {
+      for (const existing of ['customers/1234567890/conversionActions/9', null]) {
+        const mutate = jest
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              conversionActionResult: { resourceName: 'customers/1234567890/conversionActions/2' },
+            },
+          ])
+          .mockResolvedValue([]);
+        const search = jest
+          .fn()
+          .mockResolvedValueOnce(existing ? [{ conversionAction: { resourceName: existing } }] : [])
+          .mockResolvedValue([]);
+        const setConversionActionResourceName = jest.fn().mockResolvedValue(undefined);
+        const settings = fakeSettings({
+          conversionActionResourceName: 'customers/9178508093/conversionActions/7',
+          setConversionActionResourceName,
+        });
+        const prisma = fakePrisma({ pending: [MAPPING] });
+        const svc = makeService({ client: fakeClient({ mutate, search }), settings, prisma });
+        await svc.run();
+        expect(search.mock.calls[0][0]).toContain('FROM conversion_action');
+        expect(setConversionActionResourceName).toHaveBeenCalledWith(
+          existing ?? 'customers/1234567890/conversionActions/2',
+        );
+        expect(!!mutate.mock.calls[0][0][0].conversionActionOperation).toBe(!existing);
+      }
+    });
+
     it('never recreates the conversion action once it already exists', async () => {
       const mutate = jest.fn().mockResolvedValue([]);
       const settings = fakeSettings({

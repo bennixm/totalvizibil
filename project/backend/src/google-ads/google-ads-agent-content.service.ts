@@ -57,6 +57,9 @@ type MappingWithCategory = Prisma.GoogleAdsSubcategoryCampaignGetPayload<{
  * `@nestjs/schedule`, and for why the interval itself isn't the thing
  * `setInterval` is given.
  */
+/** The one account-wide conversion action (feed click-through). */
+const CONVERSION_ACTION_NAME = 'TVZ Feed Click-Through';
+
 @Injectable()
 export class GoogleAdsAgentContentService implements OnModuleInit {
   private readonly logger = new Logger(GoogleAdsAgentContentService.name);
@@ -561,12 +564,29 @@ export class GoogleAdsAgentContentService implements OnModuleInit {
    *  call fires against (not the now-closed server-side click-upload path
    *  — see the research doc, Direction 3, for why that path was rejected). */
   private async ensureConversionAction(): Promise<void> {
-    if (await this.settings.googleAdsConversionActionResourceName()) return;
+    // Belongs to THIS account: a resource name of another account (the
+    // admin switched accounts) makes Google refuse every request carrying
+    // it with INVALID_CUSTOMER_ID.
+    const current = await this.settings.googleAdsConversionActionResourceName();
+    if (current?.startsWith(`customers/${this.client.customerId}/`)) return;
+    // Switched back to an account that already has one: reuse it.
+    const found = await this.client
+      .search(
+        'SELECT conversion_action.resource_name FROM conversion_action ' +
+          `WHERE conversion_action.name = '${CONVERSION_ACTION_NAME}' ` +
+          "AND conversion_action.status != 'REMOVED' LIMIT 1",
+      )
+      .catch(() => []);
+    const existing = found[0]?.conversionAction?.resourceName;
+    if (existing) {
+      await this.settings.setGoogleAdsConversionActionResourceName(existing);
+      return;
+    }
     const results = await this.client.mutate([
       {
         conversionActionOperation: {
           create: {
-            name: 'TVZ Feed Click-Through',
+            name: CONVERSION_ACTION_NAME,
             type: 'WEBPAGE',
             category: 'DEFAULT',
             status: 'ENABLED',
