@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -55,7 +56,7 @@ function credits(v: number): string {
   return n(Number(v), { maximumFractionDigits: 0 })
 }
 function lastLogin(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString() : t('admin.never')
+  return iso ? new Date(iso).toLocaleDateString(uiLocale()) : t('admin.never')
 }
 
 onMounted(() => admin.fetchUsers())
@@ -185,6 +186,10 @@ function open(id: string): void {
           <span class="urow__stat">
             <b>{{ u.companyCount }}</b>
             <em>{{ t('admin.colCompanies') }}</em>
+          </span>
+          <span class="urow__stat">
+            <b>{{ u.adsCampaignCount }}</b>
+            <em>{{ t('admin.colAdsCampaigns') }}</em>
           </span>
           <span class="urow__stat">
             <b>

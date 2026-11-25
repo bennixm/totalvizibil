@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 /**
  * One campaign's optimization dashboard: performance, our score with its
  * full breakdown (what is missing for 100%), Google's own Ad Strength
@@ -61,7 +62,7 @@ function label(prefix: string, v: string | null | undefined) {
   return te(key) ? t(key) : v
 }
 function money(micros: number) {
-  return `${(micros / 1e6).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${s.value?.currencyCode ?? ''}`.trim()
+  return `${(micros / 1e6).toLocaleString(uiLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${s.value?.currencyCode ?? ''}`.trim()
 }
 function pct(v: number | null | undefined, digits = 2) {
   return v === null || v === undefined ? '–' : `${(v * 100).toFixed(digits)}%`
@@ -72,7 +73,7 @@ function change(v: number | null | undefined) {
 }
 function fmt(iso?: string | null) {
   return iso
-    ? new Date(iso).toLocaleString(undefined, {
+    ? new Date(iso).toLocaleString(uiLocale(), {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
@@ -201,12 +202,12 @@ const issueCount = computed(() => s.value?.issues.length ?? 0)
         <dl class="strip__kpis">
           <div>
             <dt>{{ t('adminGoogleAdsOpt.colImpressions') }}</dt>
-            <dd>{{ m.current.impressions.toLocaleString() }}</dd>
+            <dd>{{ m.current.impressions.toLocaleString(uiLocale()) }}</dd>
           </div>
           <div>
             <dt>{{ t('adminGoogleAdsOpt.colClicks') }}</dt>
             <dd>
-              {{ m.current.clicks.toLocaleString() }}
+              {{ m.current.clicks.toLocaleString(uiLocale()) }}
               <small
                 v-if="change(m.clicksChange)"
                 :class="(m.clicksChange ?? 0) < 0 ? 'neg' : 'pos'"
@@ -218,7 +219,7 @@ const issueCount = computed(() => s.value?.issues.length ?? 0)
           </div>
           <div>
             <dt>{{ t('adminGoogleAdsOpt.colConversions') }}</dt>
-            <dd>{{ m.current.conversions.toLocaleString() }}</dd>
+            <dd>{{ m.current.conversions.toLocaleString(uiLocale()) }}</dd>
           </div>
           <div>
             <dt>{{ t('adminGoogleAdsOpt.colCost') }}</dt>

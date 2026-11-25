@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAdsUserCampaign, Prisma } from '@prisma/client';
+import { AffiliateService } from '../affiliate/affiliate.service';
 import { AiService } from '../ai/ai.service';
 import { AppConfig } from '../config/env';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
@@ -82,6 +83,9 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(GoogleAdsChatService.name);
   private timer?: NodeJS.Timeout;
   private readonly running = new Set<string>();
+  /** See GoogleAdsUserAgentService.bootedAt. */
+  private readonly bootedAt = new Date();
+  private stopping = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -90,16 +94,18 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
     private readonly settings: PlatformSettingsService,
     private readonly ai: AiService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly affiliate: AffiliateService,
   ) {}
 
   onModuleInit(): void {
     if (process.env.NODE_ENV === 'test') return;
     this.timer = setInterval(() => void this.settleStale(), SWEEP_MS);
     this.timer.unref?.();
-    setTimeout(() => void this.settleStale(), 20_000).unref?.();
+    setTimeout(() => void this.settleStale(), 3_000).unref?.();
   }
 
   onModuleDestroy(): void {
+    this.stopping = true;
     clearInterval(this.timer);
   }
 
@@ -113,7 +119,8 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
     const row = await this.agent.ownedCampaign(userId, campaignId);
     const [turns, pricing, wallet, spentToday] = await Promise.all([
       this.prisma.googleAdsChatTurn.findMany({
-        where: { userCampaignId: row.id },
+        // Erased messages (campaign removed, then added again) are not shown.
+        where: { userCampaignId: row.id, userText: { not: '' } },
         orderBy: { createdAt: 'desc' },
         take: PAGE,
         include: { actions: { orderBy: { createdAt: 'asc' } } },
@@ -210,6 +217,7 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
       if (existing.userCampaignId !== row.id) throw new ForbiddenException();
       return { turnId: existing.id, status: existing.status };
     }
+    if (this.stopping) throw new ServiceUnavailableException('restarting');
     const text = input.text.trim();
     if (!text) throw new BadRequestException('empty_message');
     if (row.status === 'disconnected')
@@ -338,6 +346,11 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
       state.usage.output += res.usage.output_tokens;
       state.usage.cacheRead += res.usage.cache_read_input_tokens ?? 0;
       state.usage.cacheWrite += res.usage.cache_creation_input_tokens ?? 0;
+      // Saved at once, so an interrupted message keeps its cost.
+      await this.prisma.googleAdsChatTurn.updateMany({
+        where: { id: turn.id, status: 'running' },
+        data: this.usageData(state),
+      });
       if (res.stop_reason === 'refusal') return 'ai_refused';
       const said = res.content
         .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -389,7 +402,12 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
   /** Earlier messages as plain text, with what happened to each proposal. */
   private async history(campaignId: string, currentId: string): Promise<Anthropic.MessageParam[]> {
     const turns = await this.prisma.googleAdsChatTurn.findMany({
-      where: { userCampaignId: campaignId, status: 'completed', id: { not: currentId } },
+      where: {
+        userCampaignId: campaignId,
+        status: 'completed',
+        id: { not: currentId },
+        userText: { not: '' },
+      },
       orderBy: { createdAt: 'desc' },
       take: HISTORY_TURNS,
       include: { actions: { select: { action: true, status: true, errorMessage: true } } },
@@ -635,6 +653,17 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
       state.changes[k] = (state.changes[k] ?? 0) + n;
   }
 
+  private usageData(state: TurnState) {
+    return {
+      aiCostUsd: aiCostUsd(this.model, state.usage),
+      aiCallCount: state.calls,
+      inputTokens: state.usage.input,
+      outputTokens: state.usage.output,
+      cacheReadTokens: state.usage.cacheRead,
+      cacheWriteTokens: state.usage.cacheWrite,
+    };
+  }
+
   // ---------------------------------------------------------------- settle
 
   /**
@@ -647,9 +676,12 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
     pricing: ChatPricing,
     state: TurnState,
     errorCode: string | null,
+    /** Our AI cost is always recorded; an interrupted message does not bill it. */
+    billAi = true,
   ): Promise<void> {
     const delivered = errorCode === null || state.proposals > 0;
-    const costUsd = aiCostUsd(this.model, state.usage);
+    const costUsd = billAi ? aiCostUsd(this.model, state.usage) : 0;
+    let paid = false;
     await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.googleAdsChatTurn.updateMany({
         where: { id: turnId, status: 'running' },
@@ -665,6 +697,7 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
         const cap = await this.wallet.captureHold(tx, turn.chargeTxnId, price?.minor ?? 0);
         charged = cap?.capturedMinor ?? 0;
       }
+      paid = charged > 0;
       await tx.googleAdsChatTurn.update({
         where: { id: turnId },
         data: {
@@ -672,24 +705,32 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
           questions: state.questions as unknown as Prisma.InputJsonValue,
           chargedMinor: charged,
           ...(price ? { pricing: price as unknown as Prisma.InputJsonValue } : {}),
-          aiCostUsd: costUsd,
-          aiCallCount: state.calls,
-          inputTokens: state.usage.input,
-          outputTokens: state.usage.output,
-          cacheReadTokens: state.usage.cacheRead,
-          cacheWriteTokens: state.usage.cacheWrite,
+          ...this.usageData(state),
           errorCode,
         },
       });
     });
+    if (paid) {
+      const t = await this.prisma.googleAdsChatTurn.findUnique({
+        where: { id: turnId },
+        select: { userId: true },
+      });
+      if (t) void this.affiliate.maybeReward(t.userId).catch(() => undefined);
+    }
   }
 
   /** Messages left `running` by a crashed or restarted process. */
   async settleStale(): Promise<void> {
     try {
       const stale = await this.prisma.googleAdsChatTurn.findMany({
-        where: { status: 'running', createdAt: { lt: new Date(Date.now() - STALE_MS) } },
-        select: { id: true, actions: { select: { id: true } } },
+        where: {
+          status: 'running',
+          OR: [
+            { createdAt: { lt: this.bootedAt } },
+            { createdAt: { lt: new Date(Date.now() - STALE_MS) } },
+          ],
+        },
+        include: { actions: { select: { id: true } } },
       });
       if (!stale.length) return;
       const pricing = await this.settings.googleAdsChatPricing();
@@ -699,8 +740,13 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
           t.id,
           pricing,
           {
-            usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            calls: 0,
+            usage: {
+              input: t.inputTokens,
+              output: t.outputTokens,
+              cacheRead: t.cacheReadTokens,
+              cacheWrite: t.cacheWriteTokens,
+            },
+            calls: t.aiCallCount,
             changes: {},
             // Its proposals stay usable: the minimum is charged for them.
             proposals: t.actions.length,
@@ -708,6 +754,7 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
             questions: [],
           },
           'interrupted',
+          false,
         );
       }
     } catch (err) {

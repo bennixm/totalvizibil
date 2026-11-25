@@ -753,4 +753,9 @@ a.rrow__name:hover {
     order: 3;
   }
 }
+@container (max-width: 320px) {
+  .afr__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 </style>

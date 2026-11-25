@@ -22,6 +22,12 @@ export function errorReason(e: unknown): string | null {
 
 type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown; timeoutMs?: number }
 
+let onUnauthorized: (() => void) | null = null
+/** Called when a request is refused with 401 (set once, in main.ts). */
+export function setUnauthorizedHandler(fn: () => void): void {
+  onUnauthorized = fn
+}
+
 const DEFAULT_TIMEOUT_MS = 12_000
 
 /** First-line message from a NestJS error body, if present. */
@@ -73,6 +79,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   const payload = response.status === 204 ? null : await response.json().catch(() => null)
 
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith('/auth/')) onUnauthorized?.()
     throw new ApiError(
       response.status,
       messageFromBody(payload) ?? `API ${response.status} on ${path}`,

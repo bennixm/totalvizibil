@@ -959,6 +959,45 @@ describe('GoogleAdsOptimizerService.fixHeadlineKeywords', () => {
     return { svc, c, mapping, activity, prisma, mutate, ai, live: () => live };
   }
 
+  it('restores weaker headlines only when nobody edited the ad and the agent may write', async () => {
+    const run = async (live: string[], allowed: boolean) => {
+      const t = setup(10, []);
+      const svc = t.svc as any;
+      (svc.scheduleKeywordReadback as jest.Mock).mockRestore();
+      svc.client.search = jest.fn().mockResolvedValue([
+        {
+          adGroupAd: {
+            adStrength: 'POOR',
+            ad: { responsiveSearchAd: { headlines: live.map((text) => ({ text })) } },
+          },
+        },
+      ]);
+      svc.client.mutate = jest.fn().mockResolvedValue([]);
+      const update = jest.fn().mockResolvedValue({});
+      Object.defineProperty(svc, 'actions', {
+        value: { findUnique: jest.fn().mockResolvedValue({}), update },
+      });
+      svc.mayRestore = async () => allowed;
+      svc.scheduleKeywordReadback(
+        {
+          actionId: 'a',
+          adResourceName: 'customers/1/ads/3',
+          previous: [{ text: 'vechi' }],
+          written: ['nou', 'doi'],
+          strengthBefore: 'GOOD',
+        },
+        1,
+      );
+      for (let i = 0; i < 100 && !update.mock.calls.length; i++)
+        await new Promise((r) => setTimeout(r, 5));
+      expect(update).toHaveBeenCalled();
+      return svc.client.mutate.mock.calls.length as number;
+    };
+    expect(await run(['doi', 'nou'], true)).toBe(2);
+    expect(await run(['doi', 'scris de om'], true)).toBe(0);
+    expect(await run(['doi', 'nou'], false)).toBe(0);
+  });
+
   it('adds keyword headlines when the ad has room, keeping existing ones', async () => {
     const t = setup(10, ['Vulcanizare Bucuresti Rapid', 'Echilibrare Roti pe Loc', 'Sună acum!']);
     const r = await t.svc.fixHeadlineKeywords(

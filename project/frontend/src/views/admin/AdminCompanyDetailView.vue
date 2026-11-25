@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -89,10 +90,10 @@ function nm(x: LocalizedName) {
   return x[locale.value as keyof LocalizedName] ?? x.en
 }
 function dt(s: string | null) {
-  return s ? new Date(s).toLocaleString() : 'N/A'
+  return s ? new Date(s).toLocaleString(uiLocale()) : 'N/A'
 }
 function dOnly(s: string | null) {
-  return s ? new Date(s).toLocaleDateString() : 'N/A'
+  return s ? new Date(s).toLocaleDateString(uiLocale()) : 'N/A'
 }
 const statusLabel = computed(() => {
   const s = data.value?.company.status ?? 'draft'
@@ -725,6 +726,7 @@ const COST_CATEGORY_META: Record<SpendCategory, { icon: string; labelKey: string
   clicks: { icon: 'mdi-cursor-default-click-outline', labelKey: 'consumption.clicks' },
   aiUsage: { icon: 'mdi-robot-outline', labelKey: 'consumption.aiUsage' },
   builderUnlock: { icon: 'mdi-rocket-launch-outline', labelKey: 'consumption.builderUnlock' },
+  googleAds: { icon: 'mdi-google-ads', labelKey: 'consumption.googleAds' },
   other: { icon: 'mdi-dots-horizontal', labelKey: 'consumption.other' },
 }
 const costsOtherCategories = computed(() => {

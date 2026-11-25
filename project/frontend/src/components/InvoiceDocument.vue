@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -37,7 +38,7 @@ const { t, n } = useI18n()
 function ron(minor: number): string {
   return `${n(minor / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} RON`
 }
-const issuedDate = computed(() => new Date(props.invoice.issuedAt).toLocaleDateString())
+const issuedDate = computed(() => new Date(props.invoice.issuedAt).toLocaleDateString(uiLocale()))
 const isReward = computed(() => props.invoice.kind === 'affiliate_reward')
 const buyerKindLabel = computed(() =>
   props.invoice.buyerKind === 'company' ? t('invoice.kindCompany') : t('invoice.kindIndividual'),

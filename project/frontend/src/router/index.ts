@@ -59,6 +59,19 @@ const routes: RouteRecordRaw[] = [
   // Navbar entry: build from scratch (/create) or optimize an existing
   // Google Ads campaign (/google-ads).
   { path: '/start', name: 'start', component: () => import('@/views/StartView.vue') },
+  // --- Legal documents (text in src/content/legal.ts) ---
+  {
+    path: '/confidentialitate',
+    name: 'privacy',
+    component: () => import('@/views/LegalView.vue'),
+    meta: { legal: 'privacy' },
+  },
+  {
+    path: '/termeni',
+    name: 'terms',
+    component: () => import('@/views/LegalView.vue'),
+    meta: { legal: 'terms' },
+  },
   // --- Builder information pages (what each builder does, how it works) ---
   { path: '/ghid', name: 'builders', component: () => import('@/views/BuildersHubView.vue') },
   {
@@ -115,6 +128,12 @@ const routes: RouteRecordRaw[] = [
     path: '/google-ads/connections/:id/add',
     name: 'ads-connection-add',
     component: () => import('@/views/ads/AdsAddCampaignsView.vue'),
+    meta: { requiresAuth: true, panel: true, workspace: 'ads' },
+  },
+  {
+    path: '/google-ads/costs',
+    name: 'ads-costs',
+    component: () => import('@/views/ads/AdsCostsView.vue'),
     meta: { requiresAuth: true, panel: true, workspace: 'ads' },
   },
   {
@@ -469,8 +488,8 @@ const routes: RouteRecordRaw[] = [
   },
 
   // --- Redirects from the old IA ---
-  { path: '/register', redirect: { name: 'create' } },
-  { path: '/for-business', redirect: { name: 'create' } },
+  { path: '/register', redirect: { name: 'start' } },
+  { path: '/for-business', redirect: { name: 'start' } },
   { path: '/search', redirect: { name: 'feed' } },
   { path: '/companies/new', redirect: { name: 'create' } },
   { path: '/create/:rest(.*)', redirect: { name: 'create' } },
@@ -602,7 +621,7 @@ router.beforeEach(async (to, from) => {
   // the homepage via `?ref=` goes straight into the create flow (the code is
   // already stashed above and gets claimed after they register).
   if (ref && !auth.isAuthenticated && to.name === 'feed') {
-    return { name: 'create', query: { ...to.query } }
+    return { name: 'start', query: { ...to.query } }
   }
 
   // Warm the FX context (display currency + EUR/RON rate) once signed in, so

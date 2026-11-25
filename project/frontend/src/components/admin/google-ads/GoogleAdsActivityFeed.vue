@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 /**
  * The agent's live activity feed. Every row is a real step the backend
  * recorded (GoogleAdsAgentEvent); nothing here is simulated. Polls
@@ -32,7 +33,11 @@ const props = withDefaults(
   { limit: 150, compact: false, hideCampaign: false },
 )
 const emit = defineEmits<{ (e: 'running', value: boolean): void }>()
-const { t } = useI18n()
+const { t, te, locale } = useI18n()
+/** Messages are written by the agent in Romanian: elsewhere the step gets a
+ *  label in the reader's language, the original stays below it. */
+const stepLabel = (step: string) =>
+  locale.value !== 'ro' && te(`gaStep.${step}`) ? t(`gaStep.${step}`) : ''
 
 const events = ref<GoogleAdsAgentEvent[]>([])
 const running = ref(false)
@@ -156,14 +161,14 @@ watch(
 )
 
 function time(iso: string) {
-  return new Date(iso).toLocaleTimeString(undefined, {
+  return new Date(iso).toLocaleTimeString(uiLocale(), {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
   })
 }
 function day(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })
+  return new Date(iso).toLocaleDateString(uiLocale(), { day: '2-digit', month: '2-digit' })
 }
 function duration(e: GoogleAdsAgentEvent) {
   if (!e.finishedAt) return ''
@@ -217,7 +222,12 @@ function duration(e: GoogleAdsAgentEvent) {
         </span>
         <div class="gaf__main">
           <div class="gaf__head">
-            <span class="gaf__msg">{{ e.message }}</span>
+            <span class="gaf__msg">
+              <template v-if="stepLabel(e.step)">
+                {{ stepLabel(e.step) }} <small class="gaf__orig" lang="ro">{{ e.message }}</small>
+              </template>
+              <template v-else>{{ e.message }}</template>
+            </span>
             <RouterLink
               v-if="e.googleCampaignId && e.campaignName && !hideCampaign"
               :to="{
@@ -253,6 +263,11 @@ function duration(e: GoogleAdsAgentEvent) {
 </template>
 
 <style scoped>
+.gaf__orig {
+  display: block;
+  font-weight: 400;
+  opacity: 0.7;
+}
 .gaf__bar {
   display: flex;
   align-items: center;

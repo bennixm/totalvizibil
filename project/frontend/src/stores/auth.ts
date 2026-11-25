@@ -186,6 +186,20 @@ export const useAuthStore = defineStore('auth', {
      * immediately, then revokes the server session in the background. The request
      * still carries the cookie and completes even after navigation.
      */
+    /** A request was refused: is the session really over? (A 401 may also be
+     *  about a wrong code or password.) Clears the user when it is. */
+    async recheck(): Promise<boolean> {
+      const before = this.user
+      if (!before) return false
+      try {
+        await apiFetch('/auth/me')
+        return false
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 401) || this.user !== before) return false
+        this.user = null
+        return true
+      }
+    },
     logout(): void {
       this.user = null
       apiFetch('/auth/logout', { method: 'POST' }).catch((err) => {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 /**
  * The buy-credits flow, as a popup instead of living inline on the Wallet
  * page — payment method on the left, amount + summary + confirm on the
@@ -225,7 +226,7 @@ async function confirm(): Promise<void> {
                 {{ t('wallet.previewLine', {
                   credits: pending.credits,
                   eur: eur(pending.eurCents / 100),
-                  ron: (pending.ronBani / 100).toLocaleString() + ' RON',
+                  ron: (pending.ronBani / 100).toLocaleString(uiLocale()) + ' RON',
                 }) }}
               </p>
               <p class="wal__devNote">{{ t('wallet.devNote') }}</p>

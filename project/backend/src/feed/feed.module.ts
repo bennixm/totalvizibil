@@ -7,10 +7,11 @@ import { FeedEmbeddingService } from './feed-embedding.service';
 import { FeedQueryService } from './feed-query.service';
 import { PublicCompanyController } from './public-company.controller';
 import { PublicCompanyService } from './public-company.service';
+import { SitemapController } from './sitemap.controller';
 
 @Module({
   imports: [CampaignModule, AnalyticsModule],
-  controllers: [FeedController, PublicCompanyController],
+  controllers: [FeedController, PublicCompanyController, SitemapController],
   providers: [FeedService, FeedQueryService, FeedEmbeddingService, PublicCompanyService],
 })
 export class FeedModule {}

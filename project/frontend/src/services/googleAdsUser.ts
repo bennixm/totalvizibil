@@ -200,7 +200,7 @@ export interface UserAction {
 
 export interface OptimizationCycle {
   id: string
-  trigger: 'manual' | 'scheduled'
+  trigger: 'manual' | 'scheduled' | 'staff'
   status: 'running' | 'completed' | 'failed'
   quote: PriceBreakdown & { tasks?: PlannedTask[] }
   quotedMinor: number
@@ -254,6 +254,8 @@ export interface UserCampaignSummary {
 }
 
 export interface UserCampaignDetail {
+  /** Agent chat paid on this campaign (cycles are in `cycles`). */
+  chatCosts?: { messages: number; chargedMinor: number }
   campaign: {
     id: string
     name: string
@@ -283,6 +285,8 @@ export interface UserCampaignDetail {
 }
 
 export const googleAdsUserApi = {
+  costs: (from?: string, to?: string) =>
+    apiFetch<AdsCosts>(`${BASE}/costs?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) })}`),
   status: () => apiFetch<{ available: boolean; minCredits: number }>(`${BASE}/status`),
   start: () =>
     apiFetch<{ draftToken: string; connection: ConnectionView }>(`${BASE}/builder/start`, {
@@ -316,7 +320,7 @@ export const googleAdsUserApi = {
       timeoutMs: 45_000,
     }),
   claim: () =>
-    apiFetch<{ campaignId: string; campaignIds: string[] }>(`${BASE}/builder/claim`, {
+    apiFetch<{ campaignId: string; campaignIds: string[]; taken?: string[] }>(`${BASE}/builder/claim`, {
       method: 'POST',
       headers: draftHeaders(),
       timeoutMs: 180_000,
@@ -333,7 +337,7 @@ export const googleAdsUserApi = {
       { timeoutMs: 30_000 },
     ),
   addCampaigns: (id: string, items: SelectionItem[]) =>
-    apiFetch<{ campaignIds: string[] }>(`${BASE}/connections/${id}/campaigns`, {
+    apiFetch<{ campaignIds: string[]; taken?: string[] }>(`${BASE}/connections/${id}/campaigns`, {
       method: 'POST',
       body: { items },
       timeoutMs: 180_000,
@@ -423,6 +427,8 @@ export interface AdminOptimizerUsage {
     connectedAccounts: number
   }
   byLevel: { level: string | null; cycles: number; chargedMinor: number }[]
+  page: number
+  pageSize: number
   cycles: {
     id: string
     startedAt: string
@@ -444,6 +450,41 @@ export interface AdminOptimizerUsage {
     scoreBefore: number | null
     scoreAfter: number | null
     errorMessage: string | null
+  }[]
+}
+
+export interface AdsCosts {
+  items: {
+    id: string
+    name: string
+    removed: boolean
+    cycles: number
+    cyclesMinor: number
+    returnedMinor: number
+    messages: number
+    chatMinor: number
+  }[]
+  totals: { cyclesMinor: number; chatMinor: number; returnedMinor: number; totalMinor: number }
+}
+
+export interface AdminAllCampaigns {
+  page: number
+  pageSize: number
+  total: number
+  items: {
+    id: string
+    name: string
+    customerName: string | null
+    customerId: string
+    status: 'active' | 'paused' | 'disconnected'
+    score: number | null
+    syncedAt: string | null
+    nextCycleAt: string | null
+    user: { id: string; name: string; email: string }
+    googleEmail: string | null
+    lastError: string | null
+    lastCycle: { status: string; startedAt: string; errorMessage: string | null } | null
+    pendingApprovals: number
   }[]
 }
 
@@ -470,8 +511,17 @@ export const adminGoogleAdsUserApi = {
   oauth: () => apiFetch<AdminOauthConfig>(`${ADMIN}/oauth`),
   saveOauth: (input: { clientId?: string; clientSecret?: string }) =>
     apiFetch<AdminOauthConfig>(`${ADMIN}/oauth`, { method: 'PATCH', body: input }),
-  usage: (from?: string, to?: string) =>
+  usage: (from?: string, to?: string, page = 1) =>
     apiFetch<AdminOptimizerUsage>(
-      `${ADMIN}/usage${from || to ? `?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) })}` : ''}`,
+      `${ADMIN}/usage?${new URLSearchParams({ page: String(page), ...(from ? { from } : {}), ...(to ? { to } : {}) })}`,
+    ),
+  campaigns: (f: { search: string; status: string; problem: boolean; page: number }) =>
+    apiFetch<AdminAllCampaigns>(
+      `${ADMIN}/campaigns?${new URLSearchParams({
+        page: String(f.page),
+        ...(f.search ? { search: f.search } : {}),
+        ...(f.status ? { status: f.status } : {}),
+        ...(f.problem ? { problem: '1' } : {}),
+      })}`,
     ),
 }

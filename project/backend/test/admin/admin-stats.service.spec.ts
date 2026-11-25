@@ -41,6 +41,12 @@ function fakePrisma() {
     wallet: {
       count: jest.fn(async () => 0),
     },
+    googleAdsUserCampaign: {
+      groupBy: jest.fn(async () => [{ status: 'active', _count: { _all: 2 } }]),
+    },
+    googleAdsConnection: { count: jest.fn(async () => 1) },
+    googleAdsUserAction: { count: jest.fn(async () => 0) },
+    googleAdsOptimizationCycle: { count: jest.fn(async () => 4) },
     walletTransaction: {
       count: jest.fn(async () => 3),
       aggregate: jest.fn(async () => ({
@@ -244,7 +250,7 @@ describe('AdminStatsService', () => {
 
       const spendCalls = (prisma.walletTransaction.aggregate as jest.Mock).mock.calls
         .map((c) => c[0] as { where: Record<string, unknown> })
-        .filter((a) => a.where.type === 'spend');
+        .filter((a) => a.where.type === 'spend' && a.where.provider !== 'google-ads-optimizer');
 
       // Both the all-time and the 30-day aggregate.
       expect(spendCalls).toHaveLength(2);

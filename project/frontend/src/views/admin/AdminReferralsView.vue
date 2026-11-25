@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -18,7 +19,7 @@ function cr(v: number): string {
   return n(v, { maximumFractionDigits: 2 })
 }
 function dt(s: string | null): string {
-  return s ? new Date(s).toLocaleDateString() : 'N/A'
+  return s ? new Date(s).toLocaleDateString(uiLocale()) : 'N/A'
 }
 
 const hasRows = computed(() => admin.referrals.length > 0)

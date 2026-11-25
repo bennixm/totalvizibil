@@ -4,6 +4,7 @@ import type { RouteLocationRaw } from 'vue-router'
 
 import { apiFetch, BASE_URL } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { useGoogleAdsUserStore } from '@/stores/googleAdsUser'
 import { useWalletStore } from '@/stores/wallet'
 import { useToastStore, type ToastKind } from '@/stores/toast'
 import { i18n } from '@/plugins/i18n'
@@ -36,7 +37,6 @@ const COMPANY_TYPES = new Set([
   'business_suspended',
   'business_reactivated',
   'campaign_depleted',
-  'wallet_low_balance',
   'campaign_activated',
   'campaign_activated_by_admin',
   'campaign_paused_on_edit',
@@ -48,7 +48,17 @@ const COMPANY_TYPES = new Set([
   'advanced_unlock_charged_by_admin',
   'advanced_unlock_granted_by_admin',
 ])
+/** The owner's Google Ads agent. */
+const ADS_TYPES = new Set([
+  'google_ads_no_change',
+  'google_ads_staff_change',
+  'google_ads_cycle_done',
+  'google_ads_cycle_failed',
+  'google_ads_cycle_skipped',
+  'google_ads_connection_lost',
+])
 const WALLET_TYPES = new Set([
+  'wallet_low_balance',
   'refund_requested',
   'refund_completed',
   'refund_failed',
@@ -103,8 +113,7 @@ export function routeForNotification(
     return { name: 'campaign', query: { c: companyId } }
   }
   if (
-    (n.type === 'google_ads_no_change' || n.type === 'google_ads_staff_change') &&
-    typeof n.data?.adsCampaignId === 'string'
+    ADS_TYPES.has(n.type) && typeof n.data?.adsCampaignId === 'string'
   ) {
     const tab = n.data.tab
     return {
@@ -113,6 +122,9 @@ export function routeForNotification(
       ...(typeof tab === 'string' ? { query: { tab } } : {}),
     }
   }
+  if (n.type === 'google_ads_connection_lost') return { name: 'ads-connections' }
+  // Several campaigns in one message.
+  if (ADS_TYPES.has(n.type)) return { name: 'ads-home' }
   if (n.type === 'google_ads_agent_run_failed') {
     return { name: 'admin-google-ads-agent' }
   }
@@ -183,6 +195,10 @@ const VISUALS: Record<string, NotificationVisual> = {
   payment_succeeded: { icon: 'mdi-check-decagram-outline', tone: 'success' },
   referral_rewarded: { icon: 'mdi-account-cash-outline', tone: 'success' },
   google_ads_staff_change: { icon: 'mdi-google-ads', tone: 'primary' },
+  google_ads_cycle_done: { icon: 'mdi-google-ads', tone: 'success' },
+  google_ads_cycle_failed: { icon: 'mdi-alert-circle-outline', tone: 'error' },
+  google_ads_cycle_skipped: { icon: 'mdi-calendar-alert', tone: 'warning' },
+  google_ads_connection_lost: { icon: 'mdi-link-variant-off', tone: 'error' },
   google_ads_no_change: { icon: 'mdi-cash-refund', tone: 'primary' },
   refund_requested: { icon: 'mdi-cash-refund', tone: 'warning' },
   refund_completed: { icon: 'mdi-cash-check', tone: 'success' },
@@ -232,6 +248,14 @@ const VISUALS: Record<string, NotificationVisual> = {
   referral_claimed: { icon: 'mdi-account-plus-outline', tone: 'primary' },
 }
 const DEFAULT_VISUAL: NotificationVisual = { icon: 'mdi-bell-outline', tone: 'primary' }
+
+/** Server texts are Romanian. The title of the Google Ads agent's notices is
+ *  shown in the reader's language; the body stays as sent. */
+export function notificationTitle(n: Pick<NotificationItem, 'type' | 'title'>): string {
+  const g = i18n.global
+  const key = `notifications.typeTitle.${n.type}`
+  return g.locale.value !== 'ro' && n.type.startsWith('google_ads_') && g.te(key) ? g.t(key) : n.title
+}
 
 export function visualForNotification(type: string): NotificationVisual {
   return VISUALS[type] ?? DEFAULT_VISUAL
@@ -422,9 +446,12 @@ export const useNotificationsStore = defineStore('notifications', {
         this.unreadCount += 1
         bumpUnread()
 
+        // The menu badge and the campaign list follow the agent live.
+        if (ADS_TYPES.has(payload.type ?? '')) void useGoogleAdsUserStore().fetch(true)
+
         const visual = visualForNotification(payload.type ?? '')
         const to = payload.id ? routeForNotification(payload as NotificationItem) : null
-        useToastStore().push(TONE_TO_TOAST[visual.tone], `${payload.title}\n${payload.body}`, {
+        useToastStore().push(TONE_TO_TOAST[visual.tone], `${notificationTitle({ type: payload.type ?? '', title: payload.title })}\n${payload.body}`, {
           timeout: 7000,
           action:
             to && payload.id

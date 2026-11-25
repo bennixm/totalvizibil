@@ -330,7 +330,7 @@ onMounted(() => {
       class="asi__head"
       :title="t('supplierInvoices.title')"
       :eyebrow="t('admin.navGroupFinance')"
-      :sub="t('supplierInvoices.sub')"
+      :hint="t('supplierInvoices.sub')"
     >
       <template #actions>
         <v-btn variant="text" size="small" prepend-icon="mdi-source-branch" class="hd-btn" @click="sourcesOpen = true">
@@ -1105,5 +1105,8 @@ onMounted(() => {
     flex: 1 1 0;
     max-width: none;
   }
+}
+.tbl__head .th {
+  white-space: normal;
 }
 </style>

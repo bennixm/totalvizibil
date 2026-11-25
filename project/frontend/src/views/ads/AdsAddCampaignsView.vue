@@ -42,16 +42,19 @@ async function add(items: SelectionItem[]): Promise<void> {
   if (saving.value) return
   saving.value = true
   try {
-    const { campaignIds } = await googleAdsUserApi.addCampaigns(id.value, items)
+    const { campaignIds, taken } = await googleAdsUserApi.addCampaigns(id.value, items)
     await adsStore.fetch(true)
     toasts.success(campaignIds.length > 1 ? t('ads.account.doneN', { n: campaignIds.length }) : t('ads.account.done'))
+    if (taken?.length) toasts.warning(t('ads.campaigns.taken', { names: taken.join(', ') }))
     if (campaignIds[0]) void router.push({ name: 'ads-dashboard', params: { id: campaignIds[0] } })
     else void router.push({ name: 'ads-connections' })
   } catch (e) {
     toasts.error(
       e instanceof ApiError && e.message === 'unsupported_channel'
         ? t('ads.campaigns.unsupported')
-        : e instanceof ApiError
+        : e instanceof ApiError && e.message === 'campaign_managed_elsewhere'
+          ? t('ads.campaigns.managedElsewhere')
+          : e instanceof ApiError
           ? e.message
           : t('ads.campaigns.selectError'),
     )

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -23,6 +24,13 @@ import {
   walletQueryFor,
   type UnlockReturn,
 } from '@/lib/unlockReturn'
+import {
+  adsReturnFromQuery,
+  adsRouteFor,
+  clearAdsReturn,
+  readStoredAdsReturn,
+  type AdsReturn,
+} from '@/lib/adsReturn'
 
 const { t, n } = useI18n()
 const route = useRoute()
@@ -57,6 +65,10 @@ const unlockReady = computed(
 /** Query to keep after consuming one-shot params, so the banner and the
  *  guide stay on while the detour is active. */
 function keptQuery() {
+  if (adsReturn.value) {
+    const r = adsReturn.value
+    return { from: 'ads', ads: r.id, ...(r.tab ? { tab: r.tab } : {}) }
+  }
   return unlockReturn.value ? walletQueryFor(unlockReturn.value) : {}
 }
 function backToUnlock(): void {
@@ -64,6 +76,17 @@ function backToUnlock(): void {
   if (!r) return
   clearUnlockReturn()
   void router.push(unlockRouteFor(r))
+}
+
+// --- "Add credits, then back to the Google Ads campaign" detour ---
+const adsReturn = ref<AdsReturn | null>(
+  adsReturnFromQuery(route.query) ?? (route.query.checkout ? readStoredAdsReturn() : null),
+)
+function backToAds(): void {
+  const r = adsReturn.value
+  if (!r) return
+  clearAdsReturn()
+  void router.push(adsRouteFor(r))
 }
 
 const KNOWN_ERRORS = [
@@ -250,6 +273,23 @@ watch(
     <div v-if="loading" class="wal__center"><v-progress-circular indeterminate color="primary" /></div>
 
     <template v-else-if="summary">
+      <!-- Google Ads detour: add credits, then back to the campaign. -->
+      <section v-if="adsReturn && !unlockReturn" class="wal__unlock is-ready">
+        <v-icon icon="mdi-google-ads" size="22" class="wal__unlockIcon" />
+        <div class="wal__unlockBody">
+          <p class="wal__unlockTitle">{{ t('wallet.adsReturn.title') }}</p>
+          <p class="wal__unlockText">{{ t('wallet.adsReturn.text') }}</p>
+        </div>
+        <div class="wal__unlockActions">
+          <v-btn size="small" variant="text" prepend-icon="mdi-plus" @click="showTopUp = true">
+            {{ t('wallet.topUpCta') }}
+          </v-btn>
+          <v-btn size="small" color="primary" variant="flat" append-icon="mdi-arrow-right" @click="backToAds">
+            {{ t('wallet.adsReturn.back') }}
+          </v-btn>
+        </div>
+      </section>
+
       <!-- Advanced onboarding detour: add credits, then back to unlock. -->
       <section
         v-if="unlockReturn"
@@ -431,7 +471,7 @@ watch(
                     </span>
                   </td>
                   <td class="end payrow__date" :data-label="t('wallet.colDate')">
-                    {{ new Date(p.createdAt).toLocaleDateString() }}
+                    {{ new Date(p.createdAt).toLocaleDateString(uiLocale()) }}
                   </td>
                   <td class="end" :data-label="t('wallet.colStatus')">
                     <span class="payrow__badge" :class="'payrow__badge--' + p.status">

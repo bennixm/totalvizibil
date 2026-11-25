@@ -40,7 +40,7 @@ export interface IssuedInvoice {
 export type WalletTxnType = 'purchase' | 'spend' | 'refund' | 'adjustment'
 /** Same categories `/wallet/spend-breakdown` reports — filters the list to
  *  exactly the rows a category's total is made of. */
-export type SpendCategory = 'clicks' | 'aiUsage' | 'builderUnlock' | 'other'
+export type SpendCategory = 'clicks' | 'aiUsage' | 'builderUnlock' | 'googleAds' | 'other'
 export type WalletTxnStatus = 'pending' | 'completed' | 'failed' | 'canceled'
 
 export interface WalletTxn {

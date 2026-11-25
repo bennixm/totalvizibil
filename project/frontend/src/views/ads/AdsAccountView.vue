@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -35,19 +35,48 @@ const canRegister = computed(
   () => name.value.trim().length >= 2 && /\S+@\S+\.\S+/.test(email.value) && password.value.length >= 8,
 )
 
+const VERIFY_ERR = ['code_invalid', 'code_expired', 'code_already_used', 'too_many_attempts']
+const resendBusy = ref(false)
+const resendCooldown = ref(false)
+let resendTimer: ReturnType<typeof setTimeout> | undefined
+onUnmounted(() => clearTimeout(resendTimer))
+
+async function resend(): Promise<void> {
+  if (resendBusy.value || resendCooldown.value) return
+  resendBusy.value = true
+  try {
+    await auth.resendVerification(email.value.trim())
+    toasts.success(t('verify.resendSent'))
+    resendCooldown.value = true
+    resendTimer = setTimeout(() => (resendCooldown.value = false), 45_000)
+  } catch {
+    toasts.error(t('verify.err.generic'))
+  } finally {
+    resendBusy.value = false
+  }
+}
+/** Back to the form, e.g. to fix a mistyped email. */
+function changeEmail(): void {
+  needsVerification.value = false
+  code.value = ''
+}
+
 function errText(e: unknown): string {
   const m = e instanceof ApiError ? e.message : ''
+  if (VERIFY_ERR.includes(m)) return t('verify.err.' + m)
+  if (m === 'campaign_managed_elsewhere') return t('ads.campaigns.managedElsewhere')
   if (/already|exist/i.test(m)) return t('ads.account.err.exists')
   if (/code/i.test(m)) return t('ads.account.err.code')
   return t('ads.account.err.generic')
 }
 
 async function claim(): Promise<void> {
-  const { campaignId, campaignIds } = await googleAdsUserApi.claim()
+  const { campaignId, campaignIds, taken } = await googleAdsUserApi.claim()
   clearDraftToken()
   await adsStore.fetch(true)
   const n = campaignIds?.length ?? 1
   toasts.success(n > 1 ? t('ads.account.doneN', { n }) : t('ads.account.done'))
+  if (taken?.length) toasts.warning(t('ads.campaigns.taken', { names: taken.join(', ') }))
   void router.replace({ name: 'ads-dashboard', params: { id: campaignId }, query: { welcome: '1' } })
 }
 
@@ -142,6 +171,12 @@ onMounted(async () => {
       />
       <v-btn color="primary" size="large" block :loading="busy" :disabled="code.trim().length !== 6" @click="verify">
         {{ t('ads.account.verify') }}
+      </v-btn>
+      <v-btn variant="text" size="small" :disabled="resendCooldown" :loading="resendBusy" @click="resend">
+        {{ resendCooldown ? t('verify.resendWait') : t('verify.resend') }}
+      </v-btn>
+      <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" @click="changeEmail">
+        {{ t('verify.changeEmail') }}
       </v-btn>
     </div>
 

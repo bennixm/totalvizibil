@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -120,7 +121,7 @@ const filteredInvoices = computed(() => {
                   {{ t('invoices.kindReward') }}
                 </v-chip>
               </p>
-              <p class="irow__date">{{ new Date(inv.issuedAt).toLocaleDateString() }}</p>
+              <p class="irow__date">{{ new Date(inv.issuedAt).toLocaleDateString(uiLocale()) }}</p>
             </div>
             <div class="irow__end">
               <span class="irow__total">{{ total(inv.totalMinor) }}</span>

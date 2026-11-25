@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import BgEffectToggle from '@/components/BgEffectToggle.vue'
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import { PRIVACY, TERMS } from '@/content/legal'
 
 const { t } = useI18n()
 const year = new Date().getFullYear()
@@ -42,6 +43,13 @@ const year = new Date().getFullYear()
       >
         <span>© {{ year }} {{ t('app.name') }}. {{ t('footer.rights') }}</span>
         <div class="d-flex ga-5">
+          <!-- Linked once the text is in (src/content/legal.ts). -->
+          <router-link v-if="PRIVACY.ready" :to="{ name: 'privacy' }" class="footer-link">
+            {{ t('legal.privacy.title') }}
+          </router-link>
+          <router-link v-if="TERMS.ready" :to="{ name: 'terms' }" class="footer-link">
+            {{ t('legal.terms.title') }}
+          </router-link>
           <router-link :to="{ name: 'feed' }" class="footer-link">
             {{ t('footer.contact') }}
           </router-link>

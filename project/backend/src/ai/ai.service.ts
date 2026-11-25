@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import Anthropic from '@anthropic-ai/sdk';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -726,6 +727,7 @@ export class AiService {
         },
         { timeout: opts.timeoutMs ?? TIMEOUT_MS },
       );
+      this.meterStore.getStore()?.(res.model, res.usage);
       if (res.stop_reason === 'max_tokens') {
         this.lastJsonFailure = `răspuns AI trunchiat (limita de ${opts.maxTokens} tokeni)`;
         this.logger.warn(
@@ -965,6 +967,19 @@ export class AiService {
       this.logger.warn(`PRO agent call failed: ${this.errMsg(err)}`);
       return null;
     }
+  }
+
+  private readonly meterStore = new AsyncLocalStorage<
+    (model: string, usage: Anthropic.Usage) => void
+  >();
+
+  /** Runs `fn` and reports the real token usage of every JSON call made
+   *  inside it, answers that turned out unusable included (they are paid). */
+  meter<T>(
+    onUsage: (model: string, usage: Anthropic.Usage) => void,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    return this.meterStore.run(onUsage, fn);
   }
 
   private textOf(res: Anthropic.Message): string {

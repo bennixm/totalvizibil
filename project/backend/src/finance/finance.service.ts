@@ -174,6 +174,7 @@ interface OptimizerCycleUsage {
   aiCostMinor: number;
   aiCallCount: number;
   chargedMinor: number;
+  tokens: number;
 }
 /** What customers paid for the work done with one model (each model is its
  *  own row, so the total must not repeat on every row). */
@@ -1606,18 +1607,38 @@ export class FinanceService {
       // AI cost estimate per cycle, next to the credits actually charged.
       this.prisma.googleAdsOptimizationCycle.findMany({
         where: { startedAt: { gte: from, lte: to } },
-        select: { aiModel: true, aiCostMinor: true, aiCallCount: true, chargedMinor: true },
+        select: {
+          aiModel: true,
+          aiCostMinor: true,
+          aiCallCount: true,
+          chargedMinor: true,
+          inputTokens: true,
+          outputTokens: true,
+        },
       }),
       // The agent chat, billed per message (same customers, same category).
       this.prisma.googleAdsChatTurn.findMany({
         where: { createdAt: { gte: from, lte: to }, status: { not: 'running' } },
-        select: { aiModel: true, aiCostUsd: true, aiCallCount: true, chargedMinor: true },
+        select: {
+          aiModel: true,
+          aiCostUsd: true,
+          aiCallCount: true,
+          chargedMinor: true,
+          inputTokens: true,
+          outputTokens: true,
+          cacheReadTokens: true,
+          cacheWriteTokens: true,
+        },
       }),
     ]);
     // Unrounded cost per message: sub-cent calls are rounded once, in totals.
     const optimizerCycles: OptimizerCycleUsage[] = [
-      ...cycles,
-      ...chatTurns.map(({ aiCostUsd, ...t }) => ({ ...t, aiCostMinor: aiCostUsd * 100 })),
+      ...cycles.map((c) => ({ ...c, tokens: c.inputTokens + c.outputTokens })),
+      ...chatTurns.map(({ aiCostUsd, ...t }) => ({
+        ...t,
+        aiCostMinor: aiCostUsd * 100,
+        tokens: t.inputTokens + t.outputTokens + t.cacheReadTokens + t.cacheWriteTokens,
+      })),
     ];
     // Homepage "ask" search: per-day tallies (its Claude spend is summed
     // there at write time). Day rows are matched by the calendar days the
@@ -1721,6 +1742,7 @@ export class FinanceService {
         costUsd: 0,
       };
       bucket.calls += r.aiCallCount;
+      bucket.tokens += r.tokens;
       bucket.costUsd += r.aiCostMinor / 100;
       byModel.set(key, bucket);
     }
@@ -1772,6 +1794,7 @@ export class FinanceService {
     const totalTokens =
       rows.reduce((s, r) => s + r.inputTokens + r.outputTokens, 0) +
       googleAdsAgentRuns.reduce((s, r) => s + r.claudeInputTokens + r.claudeOutputTokens, 0) +
+      optimizerCycles.reduce((s, r) => s + r.tokens, 0) +
       search.days.reduce((n, d) => n + d.aiInputTokens + d.aiOutputTokens, 0);
     const totalCalls =
       rows.length +

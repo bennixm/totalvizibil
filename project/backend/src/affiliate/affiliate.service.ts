@@ -253,7 +253,7 @@ export class AffiliateService {
           email: {
             greet: true,
             preheader: `${reward} credite au fost adăugate în portofelul tău.`,
-            text: `O persoană pe care ai adus-o în Totalvizibil și-a pornit prima campanie, așa că ai primit recompensa. Documentul aferent este atașat acestui email și îl găsești oricând în cont.`,
+            text: `O persoană pe care ai adus-o în Totalvizibil a început să folosească platforma (o campanie sau agentul Google Ads), așa că ai primit recompensa. Documentul aferent este atașat acestui email și îl găsești oricând în cont.`,
             details: [
               { label: 'Credite primite', value: `${reward} credite` },
               { label: 'Document', value: result.invoice.number },
@@ -276,13 +276,26 @@ export class AffiliateService {
     }
   }
 
-  /** Whether the user has ever put a campaign live on any business they own. */
+  /** Whether the user really started using the platform: a feed campaign put
+   *  live on a business they own, or Google Ads agent work they paid for. */
   private async hasStartedCampaign(userId: string): Promise<boolean> {
-    const campaign = await this.prisma.campaign.findFirst({
-      where: { company: { ownerUserId: userId }, activatedAt: { not: null } },
-      select: { id: true },
-    });
-    return campaign != null;
+    const [campaign, adsWork] = await Promise.all([
+      this.prisma.campaign.findFirst({
+        where: { company: { ownerUserId: userId }, activatedAt: { not: null } },
+        select: { id: true },
+      }),
+      this.prisma.walletTransaction.findFirst({
+        where: {
+          wallet: { userId },
+          type: 'spend',
+          status: 'completed',
+          provider: 'google-ads-optimizer',
+          amountMinor: { lt: 0 },
+        },
+        select: { id: true },
+      }),
+    ]);
+    return campaign != null || adsWork != null;
   }
 
   /** Total credits the user has actually deposited (sum of completed top-ups). */

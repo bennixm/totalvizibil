@@ -306,9 +306,10 @@ model AdminAuditLog {
 model BusinessActionLog {
   id String @id @default(uuid()) @db.Uuid
 
-  companyId String      @map("company_id") @db.Uuid
-  actorId   String      @map("actor_id") @db.Uuid
-  actorRole CompanyRole @map("actor_role")
+  // Null for what an owner does outside any business (their Google Ads agent).
+  companyId String?      @map("company_id") @db.Uuid
+  actorId   String       @map("actor_id") @db.Uuid
+  actorRole CompanyRole? @map("actor_role")
 
   // Short machine code: `campaign.activate`, `campaign.pause`,
   // `campaign.update`, `campaign.remove`, `company.publish`,
@@ -322,8 +323,8 @@ model BusinessActionLog {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  actor   User    @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  actor   User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([companyId, createdAt])
   @@index([actorId])
@@ -426,6 +427,8 @@ enum GoogleAdsActionStatus {
   // Replaced by a corrected revision after an admin's manual instructions
   // (see `revisionOfId` on the newer row); can no longer be approved.
   superseded
+  // Nobody decided in time, or the campaign left the platform.
+  expired
 }
 
 /**
@@ -1645,10 +1648,12 @@ model SupportTicket {
   priority SupportTicketPriority @default(normal)
   category SupportTicketCategory @default(other)
 
-  requesterId String  @map("requester_id") @db.Uuid
-  assigneeId  String? @map("assignee_id") @db.Uuid
+  requesterId   String  @map("requester_id") @db.Uuid
+  assigneeId    String? @map("assignee_id") @db.Uuid
   // Optional: the business the ticket is about.
-  companyId   String? @map("company_id") @db.Uuid
+  companyId     String? @map("company_id") @db.Uuid
+  // Optional: the requester's Google Ads campaign the ticket is about.
+  adsCampaignId String? @map("ads_campaign_id") @db.Uuid
 
   firstResponseAt DateTime? @map("first_response_at")
   resolvedAt      DateTime? @map("resolved_at")
@@ -1665,9 +1670,10 @@ model SupportTicket {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  requester   User                @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  assignee    User?               @relation("SupportAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  company     Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  requester   User                   @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  assignee    User?                  @relation("SupportAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  company     Company?               @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  adsCampaign GoogleAdsUserCampaign? @relation(fields: [adsCampaignId], references: [id], onDelete: SetNull)
   messages    SupportMessage[]
   attachments SupportAttachment[]
 
@@ -2199,6 +2205,8 @@ model GoogleAdsConnection {
   oauthStateHash          String?                   @unique @map("oauth_state_hash")
   oauthStateExpiresAt     DateTime?                 @map("oauth_state_expires_at")
   googleEmail             String?                   @map("google_email")
+  /// Google's stable id of that account (an email can change).
+  googleSub               String?                   @map("google_sub")
   /// AES-256-GCM encrypted refresh token. Never returned by any endpoint.
   refreshTokenEnc         String?                   @map("refresh_token_enc")
   status                  GoogleAdsConnectionStatus @default(pending)
@@ -2229,22 +2237,28 @@ enum GoogleAdsUserCampaignStatus {
   paused
   /// The Google connection no longer works (revoked); reconnect needed.
   disconnected
+  /// The owner removed it. Never shown or run again, kept because its cycles
+  /// and chat messages carry what was charged and what the AI cost.
+  removed
 }
 
 /// A customer's Google Ads campaign managed by the optimization agent.
 model GoogleAdsUserCampaign {
-  id               String                      @id @default(uuid()) @db.Uuid
-  userId           String                      @map("user_id") @db.Uuid
-  connectionId     String                      @map("connection_id") @db.Uuid
-  customerId       String                      @map("customer_id")
+  id               String                       @id @default(uuid()) @db.Uuid
+  userId           String                       @map("user_id") @db.Uuid
+  connectionId     String                       @map("connection_id") @db.Uuid
+  customerId       String                       @map("customer_id")
   /// Manager account the customer is reached through, when any.
-  loginCustomerId  String?                     @map("login_customer_id")
-  customerName     String?                     @map("customer_name")
-  googleCampaignId String                      @map("google_campaign_id")
+  loginCustomerId  String?                      @map("login_customer_id")
+  customerName     String?                      @map("customer_name")
+  googleCampaignId String                       @map("google_campaign_id")
   name             String
-  channelType      String?                     @map("channel_type")
-  currencyCode     String?                     @map("currency_code")
-  status           GoogleAdsUserCampaignStatus @default(active)
+  channelType      String?                      @map("channel_type")
+  currencyCode     String?                      @map("currency_code")
+  status           GoogleAdsUserCampaignStatus  @default(active)
+  /// Status before the Google connection was lost; what a reconnect restores
+  /// (a campaign the owner had paused stays paused).
+  resumeStatus     GoogleAdsUserCampaignStatus? @map("resume_status")
   /// Agent settings chosen by the owner (see google-ads-user/agent-settings.ts).
   settings         Json?
   /// What the agent knows about the business (services, areas, goal), told by
@@ -2254,18 +2268,19 @@ model GoogleAdsUserCampaign {
   /// last sync, rendered by the campaign dashboard.
   snapshot         Json?
   score            Int?
-  adStrength       String?                     @map("ad_strength")
-  syncedAt         DateTime?                   @map("synced_at")
-  lastCycleAt      DateTime?                   @map("last_cycle_at")
-  nextCycleAt      DateTime?                   @map("next_cycle_at")
-  createdAt        DateTime                    @default(now()) @map("created_at")
-  updatedAt        DateTime                    @updatedAt @map("updated_at")
+  adStrength       String?                      @map("ad_strength")
+  syncedAt         DateTime?                    @map("synced_at")
+  lastCycleAt      DateTime?                    @map("last_cycle_at")
+  nextCycleAt      DateTime?                    @map("next_cycle_at")
+  createdAt        DateTime                     @default(now()) @map("created_at")
+  updatedAt        DateTime                     @updatedAt @map("updated_at")
 
   user       User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
   connection GoogleAdsConnection          @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   cycles     GoogleAdsOptimizationCycle[]
   actions    GoogleAdsUserAction[]
   chatTurns  GoogleAdsChatTurn[]
+  tickets    SupportTicket[]
 
   @@unique([userId, customerId, googleCampaignId])
   @@index([status, nextCycleAt])
@@ -2313,6 +2328,8 @@ model GoogleAdsOptimizationCycle {
   aiCostMinor      Int                  @default(0) @map("ai_cost_minor")
   aiCallCount      Int                  @default(0) @map("ai_call_count")
   aiModel          String?              @map("ai_model")
+  inputTokens      Int                  @default(0) @map("input_tokens")
+  outputTokens     Int                  @default(0) @map("output_tokens")
   scoreBefore      Int?                 @map("score_before")
   scoreAfter       Int?                 @map("score_after")
   summary          String?

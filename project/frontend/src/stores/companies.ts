@@ -377,8 +377,8 @@ export const useCompaniesStore = defineStore('companies', {
     },
 
     reset(): void {
-      this.list = []
-      this.loaded = false
+      this.select(null)
+      this.$reset()
     },
   },
 })

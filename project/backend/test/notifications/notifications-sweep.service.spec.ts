@@ -48,8 +48,13 @@ function fakeTicket(overrides = {}) {
   };
 }
 
+function fakeSettings() {
+  return { googleAdsOptimizerPricing: jest.fn().mockResolvedValue({ minCredits: 10 }) };
+}
+
 function fakePrisma() {
   return {
+    googleAdsUserCampaign: { findMany: jest.fn().mockResolvedValue([]) },
     campaign: {
       findMany: jest.fn().mockResolvedValue([]),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -94,6 +99,7 @@ describe('NotificationsSweepService', () => {
         fakePrisma() as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       svc.onModuleInit();
       expect(spy).not.toHaveBeenCalled();
@@ -112,6 +118,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepDepletedCampaigns();
 
@@ -129,6 +136,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepDepletedCampaigns();
 
@@ -154,6 +162,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepDepletedCampaigns();
 
@@ -171,11 +180,41 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepLowBalances();
 
       expect(prisma.wallet.findMany).not.toHaveBeenCalled();
       expect(notifications.notify).not.toHaveBeenCalled();
+    });
+
+    it('counts Google Ads cycles that start soon, capped by the owner limit', async () => {
+      const prisma = fakePrisma();
+      const run = async (balanceMinor: number) => {
+        const notifications = fakeNotifications();
+        prisma.googleAdsUserCampaign.findMany.mockResolvedValue([
+          // last price 40 credits, owner limit 30
+          {
+            userId: 'u1',
+            settings: { schedule: 'weekly', maxCreditsPerCycle: 30 },
+            cycles: [{ chargedMinor: 4000 }],
+          },
+          { userId: 'u1', settings: { schedule: 'weekly', maxCreditsPerCycle: 30 }, cycles: [] },
+          { userId: 'u1', settings: { schedule: 'manual' }, cycles: [] },
+        ]);
+        prisma.wallet.findMany.mockResolvedValue([fakeWallet({ balanceMinor })]);
+        const svc = new NotificationsSweepService(
+          prisma as any,
+          notifications as any,
+          fakeAnalytics() as any,
+          fakeSettings() as any,
+        );
+        await (svc as any).sweepLowBalances();
+        return notifications.notify.mock.calls;
+      };
+      expect(await run(4000)).toHaveLength(0);
+      const calls = await run(3999);
+      expect(calls[0][0].body).toContain('Google Ads');
     });
 
     it('notifies when balance below needed and no cooldown', async () => {
@@ -193,6 +232,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepLowBalances();
 
@@ -215,6 +255,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepLowBalances();
 
@@ -234,6 +275,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepLowBalances();
 
@@ -260,6 +302,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepLowBalances();
 
@@ -280,6 +323,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepLowBalances();
 
@@ -297,6 +341,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         analytics as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepFeedPositionUpgrades();
 
@@ -314,6 +359,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         analytics as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepFeedPositionUpgrades();
 
@@ -335,6 +381,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         analytics as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepFeedPositionUpgrades();
 
@@ -366,6 +413,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleLeads();
 
@@ -384,6 +432,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleLeads();
 
@@ -407,6 +456,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleLeads();
 
@@ -429,6 +479,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleLeads();
 
@@ -448,6 +499,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleLeads();
 
@@ -476,6 +528,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleLeads();
 
@@ -492,6 +545,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleLeads();
 
@@ -534,6 +588,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleTickets();
 
@@ -555,6 +610,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleTickets();
 
@@ -574,6 +630,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleTickets();
 
@@ -599,6 +656,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleTickets();
 
@@ -618,6 +676,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleTickets();
 
@@ -633,6 +692,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleTickets();
 
@@ -660,6 +720,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         notifications as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleTickets();
 
@@ -677,6 +738,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepStaleTickets();
 
@@ -695,6 +757,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       const depleted = jest.spyOn(svc as any, 'sweepDepletedCampaigns');
 
@@ -709,6 +772,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       let release!: () => void;
       jest
@@ -730,6 +794,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       let release!: () => void;
       const depleted = jest
@@ -750,6 +815,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       const depleted = jest
         .spyOn(svc as any, 'sweepDepletedCampaigns')
@@ -768,6 +834,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       let release!: () => void;
       const tickets = jest
@@ -800,6 +867,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       await (svc as any).sweepFeedPositionUpgrades();
 
@@ -821,6 +889,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       (svc as any).feedPositionCursor = 'c-previous';
       await (svc as any).sweepFeedPositionUpgrades();
@@ -847,6 +916,7 @@ describe('NotificationsSweepService', () => {
         prisma as any,
         fakeNotifications() as any,
         fakeAnalytics() as any,
+        fakeSettings() as any,
       );
       const first = (svc as any).sweep();
       const second = (svc as any).sweep(); // must return immediately, not queue behind `first`

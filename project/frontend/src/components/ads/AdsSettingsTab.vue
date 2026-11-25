@@ -75,7 +75,7 @@ function disconnect(): void {
       toasts.success(t('ads.set.disconnected'))
       emit('changed')
     } catch (e) {
-      toasts.error(e instanceof ApiError && e.message === 'cycle_running' ? t('ads.set.removeRunning') : t('ads.set.error'))
+      toasts.error(e instanceof ApiError && ['cycle_running', 'chat_running'].includes(e.message) ? t('ads.set.removeRunning') : t('ads.set.error'))
     }
   })
 }

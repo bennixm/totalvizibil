@@ -67,7 +67,8 @@
       "adsHint": "Deine Google-Kampagnen, betreut vom Agenten",
       "admin": "Verwaltung",
       "adminHint": "Nur für das Team"
-    }
+    },
+    "adsCosts": "Kosten"
   },
   "notifications": {
     "bell": "Benachrichtigungen",
@@ -77,7 +78,15 @@
     "dismiss": "Entfernen",
     "open": "Öffnen",
     "loadError": "Benachrichtigungen konnten nicht geladen werden",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "typeTitle": {
+      "google_ads_cycle_done": "Der Agent hat die Kampagne optimiert",
+      "google_ads_cycle_failed": "Die Google-Ads-Optimierung wurde gestoppt",
+      "google_ads_cycle_skipped": "Ein geplanter Zyklus ist nicht gestartet",
+      "google_ads_connection_lost": "Zugriff auf dein Google-Ads-Konto verloren",
+      "google_ads_no_change": "Der Agent hat nichts geändert",
+      "google_ads_staff_change": "Deine Google-Ads-Kampagne wurde aktualisiert"
+    }
   },
   "theme": {
     "label": "Design",
@@ -898,6 +907,11 @@
       "ready": "Du hast genug Credits zum Freischalten ({price} Credits). Geh zurück und mach weiter.",
       "short": "Dir fehlen noch {short} Credits zum Freischalten (es kostet {price} Credits).",
       "back": "Zurück zum Freischalten"
+    },
+    "adsReturn": {
+      "title": "Zurück zu deiner Google-Ads-Kampagne",
+      "text": "Nachdem du Credits hinzugefügt hast, machst du genau dort weiter.",
+      "back": "Zurück zur Kampagne"
     }
   },
   "auth": {
@@ -996,7 +1010,9 @@
     "billingSaved": "Rechnungsdaten gespeichert.",
     "billingSavedBackfilled": "Gespeichert · {n} Rechnungen rückwirkend ausgestellt.",
     "billingSeeInvoices": "Deine Rechnungen ansehen",
-    "tabAffiliate": "Partner"
+    "tabAffiliate": "Partner",
+    "totpEnabled": "Die Zwei-Faktor-Anmeldung ist aktiv.",
+    "totpDisabled": "Die Zwei-Faktor-Anmeldung wurde deaktiviert."
   },
   "admin": {
     "title": "Admin-Panel",
@@ -1032,7 +1048,15 @@
       "soldAll": "Verkaufte Credits",
       "revenueAll": "Umsatz",
       "blockedWallets": "Gesperrte Wallets",
-      "allTimeShort": "gesamt"
+      "allTimeShort": "gesamt",
+      "adsActive": "Aktive Kampagnen",
+      "adsPaused": "Agent pausiert",
+      "adsDisconnected": "Getrennt",
+      "adsConnections": "Verbundene Google-Konten",
+      "adsPending": "Offene Vorschläge",
+      "adsCycles": "Zyklen, 30 Tage",
+      "adsFailed": "Fehlgeschlagene Zyklen, 7 Tage",
+      "adsCharged": "Berechnete Credits, 30 Tage"
     },
     "signups14": "Anmeldungen · letzte 14 Tage",
     "legendUsers": "Nutzer",
@@ -1254,7 +1278,18 @@
         "google_ads_agent_resume": "Google Ads: Agent fortgesetzt",
         "google_ads_cycle_start": "Google Ads: Agent vom Team gestartet",
         "google_ads_proposal_approve": "Google Ads: Vorschlag bestätigt",
-        "google_ads_proposal_reject": "Google Ads: Vorschlag abgelehnt"
+        "google_ads_proposal_reject": "Google Ads: Vorschlag abgelehnt",
+        "ads_add": "Kampagne hinzugefügt",
+        "ads_remove": "Kampagne entfernt",
+        "ads_pause": "Agent pausiert",
+        "ads_resume": "Agent fortgesetzt",
+        "ads_settings": "Agent-Einstellungen geändert",
+        "ads_brief": "Unternehmensdaten bearbeitet",
+        "ads_disconnect": "Google-Konto getrennt",
+        "ads_reconnect": "Google-Konto neu verbunden",
+        "ads_cycle_start": "Optimierung gestartet",
+        "ads_proposal_approve": "Vorschlag genehmigt",
+        "ads_proposal_reject": "Vorschlag abgelehnt"
       }
     },
     "ads": {
@@ -1306,7 +1341,9 @@
       "runStart": "Kostenlos für den Kunden starten",
       "runConfirm": "Der Agent läuft kostenlos auf der Kampagne des Kunden. Der Kunde wird informiert.",
       "budgetTitle": "Tagesbudget"
-    }
+    },
+    "colAdsCampaigns": "Google Ads",
+    "groupGoogleAds": "Google Ads der Kunden"
   },
   "errors": {
     "notFoundTitle": "Seite nicht gefunden",
@@ -2298,7 +2335,8 @@
       "cpc": "Verbrauch: Klicks",
       "aiUsage": "Verbrauch: KI",
       "builderUnlock": "Verbrauch: Freischaltung",
-      "other": "Verbrauch: Sonstiges"
+      "other": "Verbrauch: Sonstiges",
+      "googleAds": "Verbrauch: Google Ads"
     },
     "expensesTotalEur": "Summe in EUR",
     "missingFxAlert": "{n} Ausgaben in Fremdwährung haben keinen Wechselkurs und fehlen in den Summen und im Gewinn. Bearbeiten Sie sie und tragen Sie den Kurs ein.",
@@ -2358,7 +2396,9 @@
       "advances": "Kundenanzahlungen (Geld, inkl. MwSt.)",
       "advancesVat": "davon MwSt.",
       "unconsumedPaid": "Unverbrauchtes bezahltes Guthaben (Nennwert)",
-      "unconsumedFree": "Unverbrauchtes Gratisguthaben (Nennwert)"
+      "unconsumedFree": "Unverbrauchtes Gratisguthaben (Nennwert)",
+      "revGoogleAds": "Google Ads Optimierung für Kunden",
+      "aiGoogleAds": "KI-Kosten: Google Ads Optimierung für Kunden"
     },
     "annual": {
       "colMonth": "Monat",
@@ -2423,7 +2463,8 @@
       }
     },
     "showTypes": "Welche Transaktionen die Tabelle zeigt",
-    "typeHidden": "Ausgeblendet"
+    "typeHidden": "Ausgeblendet",
+    "oneOffGoogleAds": "Google Ads Optimierung für Kunden"
   },
   "adminSettings": {
     "pricingTitle": "Preise & Wechselkurs",
@@ -2452,7 +2493,7 @@
     "issuerIban": "IBAN",
     "issuerBank": "Bank",
     "affiliateTitle": "Partnerprogramm",
-    "affiliateNote": "Belohne Nutzer, die neue Kunden bringen. Die Belohnung wird einmal pro Kunde gezahlt, wenn der geworbene Kunde seine erste Kampagne startet und die unten festgelegte Mindesteinzahlung erreicht.",
+    "affiliateNote": "Belohnt Nutzer, die neue Kunden bringen. Einmal pro Kunde, wenn der geworbene Kunde seine erste Kampagne startet oder den Google-Ads-Agenten zum ersten Mal bezahlt und die unten festgelegte Mindesteinzahlung erreicht.",
     "affiliateEnabled": "Programm aktiv",
     "affiliateEnabledHint": "Wenn deaktiviert, werden keine Belohnungen gezahlt und der Abschnitt wird auf der Startseite ausgeblendet.",
     "affiliateReward": "Belohnung pro Kunde",
@@ -2551,7 +2592,8 @@
     "filterFrom": "Von",
     "filterTo": "Bis",
     "filterClear": "Filter zurücksetzen",
-    "emptyFiltered": "Keine Transaktionen entsprechen diesen Filtern."
+    "emptyFiltered": "Keine Transaktionen entsprechen diesen Filtern.",
+    "googleAds": "Google Ads"
   },
   "websiteSettings": {
     "loadError": "Die Website-Daten konnten nicht geladen werden. Versuche es erneut.",
@@ -2789,7 +2831,8 @@
       "invalid_attachments": "Eine der angehängten Dateien ist nicht mehr gültig. Hänge sie erneut an.",
       "too_many_attachments": "Zu viele Dateien in einer Nachricht. Verteile sie auf mehrere Nachrichten.",
       "attachment_too_large": "Diese Datei ist zu groß. Versuche eine kleinere Version.",
-      "unsupported_attachment_type": "Wir akzeptieren nur PDFs und Bilder (PNG, JPG, WEBP, GIF)."
+      "unsupported_attachment_type": "Wir akzeptieren nur PDFs und Bilder (PNG, JPG, WEBP, GIF).",
+      "not_your_campaign": "Die gewählte Kampagne gehört dir nicht."
     },
     "investigate": "Untersuchen",
     "openUserAdmin": "Nutzer im Admin öffnen",
@@ -2854,7 +2897,13 @@
     "firstResponse": "Erste Antwort",
     "today": "Heute",
     "yesterday": "Gestern",
-    "assignedToYou": "Dir zugewiesen"
+    "assignedToYou": "Dir zugewiesen",
+    "fieldAds": "Google-Ads-Kampagne",
+    "noAds": "Keine bestimmte Kampagne",
+    "adsTitle": "Google Ads (nur lesen)",
+    "adsNone": "Der Kunde hat keine Google-Ads-Kampagnen.",
+    "adsAbout": "Darum geht es im Ticket",
+    "adsCycle": "{applied} umgesetzt, {proposed} vorgeschlagen, {credits} Credits"
   },
   "catalog": {
     "variant": {
@@ -3129,7 +3178,7 @@
     "adCta": "So funktioniert's",
     "pausedNotice": "Das Partnerprogramm ist derzeit deaktiviert. Neue Belohnungen pausieren, dein Verlauf bleibt hier.",
     "panelTitle": "Dein Partnerlink",
-    "panelIntro": "Teile diesen Link. Wenn jemand Neues eine Website erstellt, eine Kampagne startet und insgesamt mindestens {d} Guthaben einzahlt, erhältst du {n} Guthaben.",
+    "panelIntro": "Teile diesen Link. Wenn jemand Neues eine Kampagne startet oder den Google-Ads-Agenten nutzt und insgesamt mindestens {d} Credits einzahlt, erhältst du {n} Credits.",
     "copy": "Link kopieren",
     "copied": "Kopiert",
     "statReferred": "Geworbene Kunden",
@@ -3146,7 +3195,7 @@
     "viewInvoice": "Rechnung",
     "adHeadline": "Wirb einen Kunden, erhalte",
     "adHeadlineTail": "Guthaben",
-    "adSub": "Teile deinen Link · wenn dein Freund eine Website erstellt und eine Kampagne startet, gehört das Guthaben dir."
+    "adSub": "Teile deinen Link · wenn dein Freund eine Kampagne startet oder den Google-Ads-Agenten nutzt, gehören die Credits dir."
   },
   "discountBanner": {
     "badge": "Zeitlich begrenztes Angebot",
@@ -3906,6 +3955,7 @@
         "insufficient_credits": "Du hast nicht genug Credits für eine Nachricht.",
         "chat_daily_limit": "Du hast das tägliche Chat-Limit erreicht. Du kannst es in den Agent-Einstellungen ändern.",
         "chat_busy": "Der Agent arbeitet noch an deiner vorherigen Nachricht.",
+        "restarting": "Die Plattform wird aktualisiert. Versuche es in einer Minute erneut.",
         "ai_unavailable": "Der Agent ist derzeit nicht verfügbar.",
         "google_ads_reconnect_required": "Verbinde dein Google-Ads-Konto erneut.",
         "wallet_blocked": "Dein Wallet ist gesperrt. Kontaktiere den Support.",
@@ -3963,7 +4013,11 @@
       "selectError": "Die Kampagne konnte nicht ausgewählt werden. Bitte versuche es erneut.",
       "unsupported": "Der Agent optimiert derzeit Suchkampagnen.",
       "unsupportedShort": "derzeit werden nur Suchkampagnen optimiert",
+      "managedElsewhere": "Diese Kampagne wird bereits über ein anderes Totalvizibil-Konto verwaltet. Wenn sie dir gehört, schreib dem Support.",
+      "taken": "Nicht hinzugefügt: {names}. Sie werden bereits über ein anderes Totalvizibil-Konto verwaltet.",
+      "takenReconnect": "{n} Kampagnen bleiben gestoppt: Sie werden jetzt über ein anderes Totalvizibil-Konto verwaltet.",
       "oauthError": {
+        "account": "Du hast ein anderes Google-Konto gewählt. Verbinde das Konto, mit dem du die Kampagnen hinzugefügt hast.",
         "denied": "Du hast die Google-Anmeldung abgebrochen.",
         "access_denied": "Du hast die Google-Anmeldung abgebrochen.",
         "expired": "Die Anmeldung ist abgelaufen. Bitte versuche es erneut.",
@@ -4139,6 +4193,7 @@
         "needs_information": "Der Agent braucht mehr Informationen.",
         "insufficient_credits": "Du hast nicht genug Credits in deiner Wallet.",
         "cycle_already_running": "Für diese Kampagne läuft bereits ein Zyklus.",
+        "restarting": "Die Plattform wird aktualisiert. Versuche es in einer Minute erneut.",
         "nothing_to_do": "Der Agent hat gerade nichts zu ändern. Es wurde nichts berechnet.",
         "quote_changed": "Die Schätzung hat sich geändert. Prüfe den neuen Preis.",
         "campaign_paused": "Der Agent ist pausiert.",
@@ -4166,7 +4221,7 @@
       "scheduled": "geplant",
       "inProgress": "In Arbeit…",
       "failedSum": "Der Agent wurde vorher gestoppt; du hast nur gezahlt, was er geändert hat.",
-      "summary": "{applied} Änderungen umgesetzt, {proposed} Vorschläge",
+      "summary": "Änderungen: {applied} · Vorschläge: {proposed}",
       "score": "Wert {from} → {to}",
       "refunded": "{credits} Credits zurückerstattet",
       "noChange": "Es gab nichts zu ändern"
@@ -4223,6 +4278,7 @@
       }
     },
     "actionStatus": {
+      "expired": "Abgelaufen",
       "applied": "Umgesetzt",
       "failed": "Fehlgeschlagen",
       "rejected": "Abgelehnt",
@@ -4231,7 +4287,7 @@
       "pending_approval": "Offen"
     },
     "set": {
-      "chatLimit": "Chat-Limit pro Tag (Credits)",
+      "chatLimit": "Chat-Limit / Tag (Credits)",
       "chatLimitHint": "0 bedeutet kein Limit.",
       "agentTitle": "Was der Agent tut",
       "autoApply": "Ergänzt selbst, was der Anzeige fehlt",
@@ -4272,9 +4328,9 @@
       "remove": "Kampagne nicht mehr verwalten",
       "removeHint": "Die Kampagne bleibt in Google Ads unverändert; wir entfernen sie nur aus deinem Dashboard.",
       "removeTitle": "Kampagne aus dem Dashboard entfernen?",
-      "removeText": "Die Kampagne bleibt in Google Ads genau so, wie sie ist. Ihr Verlauf auf der Plattform wird gelöscht.",
+      "removeText": "Die Kampagne bleibt in Google Ads genau so, wie sie ist. Sie verschwindet aus deinem Bereich, Gespräche und Angaben zum Unternehmen werden gelöscht. Zahlungen bleiben in den Transaktionen.",
       "removed": "Die Kampagne wurde aus deinem Dashboard entfernt.",
-      "removeRunning": "Warte, bis der laufende Zyklus fertig ist.",
+      "removeRunning": "Warte, bis der laufende Zyklus oder die Nachricht fertig ist.",
       "saved": "Einstellungen gespeichert.",
       "error": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
       "disconnect": "Google-Konto trennen",
@@ -4301,7 +4357,8 @@
       "colCharged": "Bezahlt",
       "colReturned": "Zurück",
       "colStatus": "Status",
-      "walletNote": "Alle Zahlungen erscheinen auch im Wallet-Verlauf, unter Google-Ads-Optimierung."
+      "walletNote": "Alle Zahlungen erscheinen auch im Wallet-Verlauf, unter Google-Ads-Optimierung.",
+      "chatPaid": "Chat ({n} Nachrichten)"
     },
     "conn": {
       "title": "Verbundene Google-Konten",
@@ -4330,7 +4387,7 @@
       "points": "{n} von 100 Punkten",
       "noViews": "Die Anzeige wurde in diesem Zeitraum noch nicht gezeigt. Bei einer neuen Kampagne oder einem Testkonto ist das normal.",
       "lastTitle": "Letztes Mal ({when}):",
-      "lastDone": "der Agent hat {applied} Änderungen gemacht und {proposed} zur Bestätigung vorbereitet.",
+      "lastDone": "Änderungen: {applied}, zu bestätigen: {proposed}.",
       "lastNothing": "der Agent fand nichts zu ändern.",
       "lastReturned": "der Agent konnte nichts ändern, daher haben wir deine Credits zurückgegeben.",
       "paid": "Du hast {credits} Credits gezahlt.",
@@ -4363,7 +4420,7 @@
           "cta": "Ansehen, was er macht"
         },
         "approve": {
-          "title": "Du hast {n} Änderungen zu bestätigen",
+          "title": "Zu bestätigende Änderungen: {n}",
           "text": "Der Agent hat Änderungen vorbereitet. Sieh dir Vorher und Nachher an und entscheide dann. Bestätigen ist gratis.",
           "cta": "Ansehen und bestätigen"
         },
@@ -4423,6 +4480,23 @@
     "section": {
       "close": "Einklappen",
       "open": "Öffnen"
+    },
+    "costs": {
+      "title": "Google-Ads-Kosten",
+      "lead": "Was du dem Agenten pro Kampagne bezahlt hast: Optimierungen und Chat.",
+      "period": {
+        "month": "Dieser Monat",
+        "last": "Letzter Monat",
+        "all": "Gesamter Zeitraum"
+      },
+      "total": "Insgesamt bezahlt",
+      "cycles": "Optimierungen",
+      "chat": "Chat",
+      "none": "Keine Zahlungen in diesem Zeitraum.",
+      "removed": "von der Plattform entfernt",
+      "cyclesN": "{n} Optimierungen",
+      "chatN": "{n} Nachrichten",
+      "allTransactions": "Alle Transaktionen"
     }
   },
   "adminAdsOpt": {
@@ -4466,6 +4540,7 @@
     "colAi": "KI-Kosten",
     "colStatus": "Status",
     "colWorkHint": "Geleistete Arbeit: umgesetzte Änderungen / erstellte Vorschläge · analysierte Elemente.",
+    "staff": "vom Team gestartet",
     "scheduled": "geplant",
     "limits": "Grenzen",
     "limitsHint": "Ein Zyklus kostet nie weniger als das Minimum und nie mehr als das Maximum.",
@@ -4473,7 +4548,7 @@
     "minCreditsHint": "Jeder abgeschlossene Zyklus kostet mindestens so viel.",
     "maxCredits": "Maximum pro Zyklus",
     "maxCreditsHint": "Sicherheitsobergrenze.",
-    "perElement": "Credits pro analysiertem Element",
+    "perElement": "Credits / Element",
     "perElementHint": "Anzeigentitel, Beschreibungen, Erweiterungen, Bilder, Keywords.",
     "tasks": "Preise pro Aufgabentyp",
     "tasksHint": "Credits pro Arbeitseinheit (zum Beispiel pro geschriebenem Titel oder erstelltem Vorschlag).",
@@ -4500,7 +4575,14 @@
     "oauthClient": "OAuth-Client",
     "clientId": "Client-ID",
     "clientSecret": "Client-Secret",
-    "secretKeep": "Leer lassen, um das gespeicherte Secret zu behalten."
+    "secretKeep": "Leer lassen, um das gespeicherte Secret zu behalten.",
+    "tabCampaigns": "Kampagnen",
+    "searchCampaigns": "Kampagne, Konto oder Kunde suchen",
+    "anyStatus": "Jeder Status",
+    "onlyProblems": "Nur mit Problemen",
+    "noCampaigns": "Keine Kampagnen gefunden.",
+    "lastCycle": "Letzter Zyklus: {when}",
+    "noCycle": "Noch kein Zyklus"
   },
   "binfo": {
     "common": {
@@ -4933,5 +5015,43 @@
       "tab": "Ich habe ein Unternehmen"
     },
     "title": "So funktioniert Totalvizibil"
+  },
+  "gaStep": {
+    "cycle": "Zyklus",
+    "sync": "Synchronisierung",
+    "urls": "Link-Prüfung",
+    "performance": "Leistung",
+    "headlines": "Anzeigentitel",
+    "keywords": "Keywords",
+    "assets": "Assets",
+    "images": "Bilder",
+    "videos": "Videos",
+    "logos": "Logo",
+    "policy": "Google-Richtlinien",
+    "policy_fix": "Richtlinienkorrektur",
+    "score": "Score",
+    "rescore": "Neuer Score",
+    "prioritize": "Prioritäten",
+    "optimize": "Optimierung",
+    "generate": "KI-Texterstellung",
+    "validate_local": "Regelprüfung",
+    "validate_google": "Prüfung bei Google",
+    "apply": "Anwenden",
+    "verify": "Bestätigung in Google",
+    "analyze": "Analyse",
+    "budget": "Budget",
+    "environment": "Testumgebung",
+    "schedule": "Zeitplan",
+    "done": "Fertig"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Datenschutzerklärung"
+    },
+    "terms": {
+      "title": "Allgemeine Geschäftsbedingungen"
+    },
+    "preparing": "Dieses Dokument wird vorbereitet.",
+    "updated": "Zuletzt aktualisiert: {date}"
   }
 }

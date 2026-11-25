@@ -171,6 +171,7 @@ describe('cycle settlement (billing)', () => {
       {} as never,
       { get: () => 'claude-sonnet-5' } as never,
       { notify: jest.fn() } as never,
+      { maybeReward: jest.fn().mockResolvedValue(undefined) } as never,
     );
     return { svc, updates, captured };
   }
@@ -186,7 +187,7 @@ describe('cycle settlement (billing)', () => {
       elementsAnalyzed: 20,
       actions: [{ action: 'creative.replace_text', status: 'pending_approval', after: {} }],
     });
-    await svc.settle('c1', { error: null, aiCostMinor: 3, scoreAfter: 80 });
+    await svc.settle('c1', { error: null, ai: { costMinor: 3 }, scoreAfter: 80 });
     expect(captured).toEqual([{ id: 't1', final: 1_000 }]);
     expect(updates[0]).toMatchObject({
       chargedMinor: 1_000,
@@ -208,7 +209,7 @@ describe('cycle settlement (billing)', () => {
       elementsAnalyzed: 20,
       actions: [],
     });
-    await svc.settle('c2', { error: 'Google error', aiCostMinor: 0, scoreAfter: null });
+    await svc.settle('c2', { error: 'Google error', ai: { costMinor: 0 }, scoreAfter: null });
     expect(captured).toEqual([{ id: 't2', final: 0 }]);
     expect(updates[0]).toMatchObject({
       chargedMinor: 0,
@@ -219,7 +220,7 @@ describe('cycle settlement (billing)', () => {
 
   it('never settles a cycle twice', async () => {
     const { svc, captured } = setup({ id: 'c3', status: 'completed', actions: [] });
-    await svc.settle('c3', { error: null, aiCostMinor: 0, scoreAfter: null });
+    await svc.settle('c3', { error: null, ai: { costMinor: 0 }, scoreAfter: null });
     expect(captured).toEqual([]);
   });
 });
@@ -270,6 +271,7 @@ describe('connected Google accounts', () => {
       {} as never,
       {} as never,
       {} as never,
+      { log: jest.fn() } as never,
       { get: () => 'https://x.ro' } as never,
     );
     return { svc };

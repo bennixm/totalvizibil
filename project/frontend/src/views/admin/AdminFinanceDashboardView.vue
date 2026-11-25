@@ -15,7 +15,7 @@ import FinanceAnnualTable from '@/components/admin/finance/FinanceAnnualTable.vu
 import FinanceChecksPanel from '@/components/admin/finance/FinanceChecksPanel.vue'
 import { useMoney } from '@/composables/useMoney'
 import { usePeriodFilter } from '@/composables/usePeriodFilter'
-import { useAdminFinanceStore, type ExpenseCategory } from '@/stores/adminFinance'
+import { useAdminFinanceStore, type ExpenseCategory, type OneOffFeeBreakdown } from '@/stores/adminFinance'
 
 const { t } = useI18n()
 const finance = useAdminFinanceStore()
@@ -59,6 +59,7 @@ const categoryRows = computed(() => {
     .concat([
       { key: 'aiB', label: t('adminFinance.pl.aiBuilder'), amountMinor: ai.builderMinor },
       { key: 'aiA', label: t('adminFinance.pl.aiAgent'), amountMinor: ai.campaignAgentMinor },
+      { key: 'aiG', label: t('adminFinance.pl.aiGoogleAds'), amountMinor: ai.googleAdsOptimizerMinor },
       { key: 'aiS', label: t('adminFinance.pl.aiSearch'), amountMinor: ai.searchMinor },
     ])
     .filter((r) => r.amountMinor > 0)
@@ -70,11 +71,12 @@ const categoryRows = computed(() => {
  *  over all data). */
 const mainTab = ref<'summary' | 'pnl' | 'annual' | 'checks'>('summary')
 
-const ONE_OFF_LABEL_KEYS = {
+const ONE_OFF_LABEL_KEYS: Record<keyof OneOffFeeBreakdown, string> = {
   aiUsage: 'adminFinance.oneOffAiUsage',
   builderUnlock: 'adminFinance.oneOffBuilderUnlock',
+  googleAds: 'adminFinance.oneOffGoogleAds',
   other: 'adminFinance.oneOffOther',
-} as const
+}
 
 const oneOffRows = computed(() => {
   const o = finance.overview

@@ -13,6 +13,7 @@ import {
   type Readiness,
   type UserCampaignDetail,
 } from '@/services/googleAdsUser'
+import { walletForAds } from '@/lib/adsReturn'
 import { useAdsApi } from './adsApi'
 import { creditsOf, dateTime } from './format'
 
@@ -70,6 +71,7 @@ function errText(e: unknown): string {
     'campaign_paused',
     'google_ads_reconnect_required',
     'wallet_blocked',
+    'restarting',
   ]
   return known.includes(m) ? t(`ads.agent.err.${m}`) : m || t('ads.agent.err.generic')
 }
@@ -194,7 +196,7 @@ watch(id, () => (quote.value = null))
           <v-btn v-if="canAfford" color="primary" :variant="needsInfo ? 'tonal' : 'flat'" size="large" :loading="starting" prepend-icon="mdi-play" data-guide="ads-start" @click="start">
             {{ staff ? t('admin.ads.runStart') : t('ads.agent.startCta', { credits: creditsOf(quote.minor, locale) }) }}
           </v-btn>
-          <v-btn v-else color="primary" size="large" prepend-icon="mdi-wallet-plus-outline" :to="{ name: 'wallet', query: { topup: '1' } }">
+          <v-btn v-else color="primary" size="large" prepend-icon="mdi-wallet-plus-outline" :to="walletForAds({ id: detail.campaign.id, tab: 'home' })">
             {{ t('ads.agent.topUp') }}
           </v-btn>
           <v-btn variant="text" @click="quote = null">{{ t('common.cancel') }}</v-btn>

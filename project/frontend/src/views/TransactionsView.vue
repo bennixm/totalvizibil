@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -240,7 +241,7 @@ function daysLeft(processAt: string): number {
                     </span>
                   </td>
                   <td class="trow__date end" :data-label="t('wallet.colDate')">
-                    {{ new Date(txn.createdAt).toLocaleDateString() }}
+                    {{ new Date(txn.createdAt).toLocaleDateString(uiLocale()) }}
                   </td>
                   <td class="end" :data-label="t('wallet.colStatus')">
                     <span class="trow__badge" :class="'trow__badge--' + txn.status">
@@ -362,7 +363,8 @@ function daysLeft(processAt: string): number {
   flex-wrap: wrap;
 }
 .txn__idFilter {
-  max-width: 190px;
+  min-width: 200px;
+  max-width: 220px;
 }
 .txn__companyFilter {
   max-width: 220px;

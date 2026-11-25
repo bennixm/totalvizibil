@@ -67,7 +67,8 @@
       "adsHint": "Your Google campaigns, helped by the agent",
       "admin": "Administration",
       "adminHint": "Team only"
-    }
+    },
+    "adsCosts": "Costs"
   },
   "notifications": {
     "bell": "Notifications",
@@ -77,7 +78,15 @@
     "dismiss": "Dismiss",
     "open": "Open",
     "loadError": "Couldn't load notifications",
-    "retry": "Try again"
+    "retry": "Try again",
+    "typeTitle": {
+      "google_ads_cycle_done": "The agent optimized the campaign",
+      "google_ads_cycle_failed": "The Google Ads optimization stopped",
+      "google_ads_cycle_skipped": "A scheduled cycle did not start",
+      "google_ads_connection_lost": "Access to your Google Ads account was lost",
+      "google_ads_no_change": "The agent changed nothing",
+      "google_ads_staff_change": "Your Google Ads campaign was updated"
+    }
   },
   "theme": {
     "label": "Theme",
@@ -898,6 +907,11 @@
       "ready": "You have enough credits to unlock ({price} credits). Go back and continue.",
       "short": "You still need {short} credits to unlock (it costs {price} credits).",
       "back": "Back to unlock"
+    },
+    "adsReturn": {
+      "title": "Back to your Google Ads campaign",
+      "text": "Once you add credits, you continue right where you left off.",
+      "back": "Back to the campaign"
     }
   },
   "auth": {
@@ -996,7 +1010,9 @@
     "billingSaved": "Billing details saved.",
     "billingSavedBackfilled": "Saved · {n} invoices issued retroactively.",
     "billingSeeInvoices": "See your invoices",
-    "tabAffiliate": "Affiliate"
+    "tabAffiliate": "Affiliate",
+    "totpEnabled": "Two-step sign-in is on.",
+    "totpDisabled": "Two-step sign-in is off."
   },
   "admin": {
     "title": "Admin panel",
@@ -1032,7 +1048,15 @@
       "soldAll": "Credits sold",
       "revenueAll": "Revenue",
       "blockedWallets": "Blocked wallets",
-      "allTimeShort": "all-time"
+      "allTimeShort": "all-time",
+      "adsActive": "Active campaigns",
+      "adsPaused": "Agent paused",
+      "adsDisconnected": "Disconnected",
+      "adsConnections": "Connected Google accounts",
+      "adsPending": "Pending proposals",
+      "adsCycles": "Cycles, 30 days",
+      "adsFailed": "Failed cycles, 7 days",
+      "adsCharged": "Credits charged, 30 days"
     },
     "signups14": "Sign-ups · last 14 days",
     "legendUsers": "Users",
@@ -1254,7 +1278,18 @@
         "google_ads_agent_resume": "Google Ads: agent resumed",
         "google_ads_cycle_start": "Google Ads: agent started by the team",
         "google_ads_proposal_approve": "Google Ads: proposal approved",
-        "google_ads_proposal_reject": "Google Ads: proposal rejected"
+        "google_ads_proposal_reject": "Google Ads: proposal rejected",
+        "ads_add": "Added the campaign",
+        "ads_remove": "Removed the campaign",
+        "ads_pause": "Paused the agent",
+        "ads_resume": "Resumed the agent",
+        "ads_settings": "Changed the agent settings",
+        "ads_brief": "Edited the business details",
+        "ads_disconnect": "Disconnected the Google account",
+        "ads_reconnect": "Reconnected the Google account",
+        "ads_cycle_start": "Started an optimization",
+        "ads_proposal_approve": "Approved a proposal",
+        "ads_proposal_reject": "Rejected a proposal"
       }
     },
     "ads": {
@@ -1306,7 +1341,9 @@
       "runStart": "Start, free for the customer",
       "runConfirm": "The agent runs on the customer campaign at no cost to them. The customer is notified.",
       "budgetTitle": "Daily budget"
-    }
+    },
+    "colAdsCampaigns": "Google Ads",
+    "groupGoogleAds": "Customer Google Ads"
   },
   "errors": {
     "notFoundTitle": "Page not found",
@@ -2298,7 +2335,8 @@
       "cpc": "Consumption: clicks",
       "aiUsage": "Consumption: AI",
       "builderUnlock": "Consumption: unlock",
-      "other": "Consumption: other"
+      "other": "Consumption: other",
+      "googleAds": "Usage: Google Ads"
     },
     "expensesTotalEur": "Total in EUR",
     "missingFxAlert": "{n} foreign-currency expenses have no exchange rate and are left out of the totals and the profit. Edit them and add the rate.",
@@ -2358,7 +2396,9 @@
       "advances": "Customer advances (money, incl. VAT)",
       "advancesVat": "of which VAT",
       "unconsumedPaid": "Unconsumed paid credits (face value)",
-      "unconsumedFree": "Unconsumed free credits (face value)"
+      "unconsumedFree": "Unconsumed free credits (face value)",
+      "revGoogleAds": "Customer Google Ads optimization",
+      "aiGoogleAds": "AI cost: customer Google Ads optimization"
     },
     "annual": {
       "colMonth": "Month",
@@ -2423,7 +2463,8 @@
       }
     },
     "showTypes": "Which transactions the table shows",
-    "typeHidden": "Hidden"
+    "typeHidden": "Hidden",
+    "oneOffGoogleAds": "Customer Google Ads optimization"
   },
   "adminSettings": {
     "pricingTitle": "Pricing & exchange rate",
@@ -2452,7 +2493,7 @@
     "issuerIban": "IBAN",
     "issuerBank": "Bank",
     "affiliateTitle": "Affiliate program",
-    "affiliateNote": "Reward users who bring in new clients. The reward is paid once per client, when the referred client starts their first campaign and reaches the minimum deposit set below.",
+    "affiliateNote": "Rewards users who bring new customers. Paid once per customer, when the referred customer starts their first campaign or first pays the Google Ads agent, and reaches the minimum deposit set below.",
     "affiliateEnabled": "Program active",
     "affiliateEnabledHint": "When off, no rewards are paid and the section is hidden from the homepage.",
     "affiliateReward": "Reward per client",
@@ -2551,7 +2592,8 @@
     "filterFrom": "From",
     "filterTo": "To",
     "filterClear": "Clear filters",
-    "emptyFiltered": "No transactions match these filters."
+    "emptyFiltered": "No transactions match these filters.",
+    "googleAds": "Google Ads"
   },
   "websiteSettings": {
     "loadError": "Couldn't load the website details. Try again.",
@@ -2789,7 +2831,8 @@
       "invalid_attachments": "One of the attached files is no longer valid. Attach them again.",
       "too_many_attachments": "Too many files on one message. Send them across several messages.",
       "attachment_too_large": "That file is too large. Try a smaller version.",
-      "unsupported_attachment_type": "We only accept PDFs and images (PNG, JPG, WEBP, GIF)."
+      "unsupported_attachment_type": "We only accept PDFs and images (PNG, JPG, WEBP, GIF).",
+      "not_your_campaign": "The chosen campaign is not yours."
     },
     "investigate": "Investigate",
     "openUserAdmin": "Open user in admin",
@@ -2854,7 +2897,13 @@
     "firstResponse": "First response",
     "today": "Today",
     "yesterday": "Yesterday",
-    "assignedToYou": "Assigned to you"
+    "assignedToYou": "Assigned to you",
+    "fieldAds": "Google Ads campaign",
+    "noAds": "No specific campaign",
+    "adsTitle": "Google Ads (read only)",
+    "adsNone": "The customer has no Google Ads campaigns.",
+    "adsAbout": "The ticket is about it",
+    "adsCycle": "{applied} applied, {proposed} proposed, {credits} credits"
   },
   "catalog": {
     "variant": {
@@ -3129,7 +3178,7 @@
     "adCta": "See how it works",
     "pausedNotice": "The affiliate program is currently off. New rewards are paused, but your history stays here.",
     "panelTitle": "Your affiliate link",
-    "panelIntro": "Share this link. When someone new builds a site, starts a campaign and deposits at least {d} credits in total, you get {n} credits.",
+    "panelIntro": "Share this link. When someone new starts a campaign or uses the Google Ads agent and deposits at least {d} credits in total, you get {n} credits.",
     "copy": "Copy link",
     "copied": "Copied",
     "statReferred": "Clients referred",
@@ -3146,7 +3195,7 @@
     "viewInvoice": "Invoice",
     "adHeadline": "Refer a client, get",
     "adHeadlineTail": "credits",
-    "adSub": "Share your link · when your friend builds a site and starts a campaign, the credits are yours."
+    "adSub": "Share your link · when your friend starts a campaign or uses the Google Ads agent, the credits are yours."
   },
   "discountBanner": {
     "badge": "Limited offer",
@@ -3906,6 +3955,7 @@
         "insufficient_credits": "You do not have enough credits for a message.",
         "chat_daily_limit": "You reached the daily chat limit. You can change it in Agent settings.",
         "chat_busy": "The agent is still working on your previous message.",
+        "restarting": "The platform is updating. Try again in a minute.",
         "ai_unavailable": "The agent is not available right now.",
         "google_ads_reconnect_required": "Reconnect your Google Ads account.",
         "wallet_blocked": "Your wallet is blocked. Contact support.",
@@ -3963,7 +4013,11 @@
       "selectError": "We could not select the campaign. Please try again.",
       "unsupported": "For now the agent optimizes Search campaigns.",
       "unsupportedShort": "only Search campaigns are optimized for now",
+      "managedElsewhere": "This campaign is already managed from another Totalvizibil account. If it is yours, write to support.",
+      "taken": "Could not add: {names}. They are already managed from another Totalvizibil account.",
+      "takenReconnect": "{n} campaigns stay stopped: they are now managed from another Totalvizibil account.",
       "oauthError": {
+        "account": "You chose a different Google account. Reconnect the one you added the campaigns with.",
         "denied": "You cancelled the Google sign-in.",
         "access_denied": "You cancelled the Google sign-in.",
         "expired": "The sign-in expired. Please try again.",
@@ -4139,6 +4193,7 @@
         "needs_information": "The agent needs more information.",
         "insufficient_credits": "You do not have enough credits in your wallet.",
         "cycle_already_running": "A cycle is already running for this campaign.",
+        "restarting": "The platform is updating. Try again in a minute.",
         "nothing_to_do": "The agent has nothing to change right now. You were not charged.",
         "quote_changed": "The estimate changed since you opened it. Check the new price.",
         "campaign_paused": "The agent is paused.",
@@ -4166,7 +4221,7 @@
       "scheduled": "scheduled",
       "inProgress": "Working…",
       "failedSum": "The agent stopped before finishing; you only paid for what it changed.",
-      "summary": "{applied} changes applied, {proposed} proposals",
+      "summary": "Changes applied: {applied} · proposals: {proposed}",
       "score": "score {from} → {to}",
       "refunded": "{credits} credits returned",
       "noChange": "There was nothing to change"
@@ -4223,6 +4278,7 @@
       }
     },
     "actionStatus": {
+      "expired": "Expired",
       "applied": "Applied",
       "failed": "Failed",
       "rejected": "Rejected",
@@ -4231,7 +4287,7 @@
       "pending_approval": "Waiting"
     },
     "set": {
-      "chatLimit": "Daily chat limit (credits)",
+      "chatLimit": "Chat limit / day (credits)",
       "chatLimitHint": "0 means no limit.",
       "agentTitle": "What the agent does",
       "autoApply": "Fills in what the ad is missing by itself",
@@ -4272,9 +4328,9 @@
       "remove": "Stop managing this campaign",
       "removeHint": "The campaign stays unchanged in Google Ads; we only remove it from your dashboard.",
       "removeTitle": "Remove the campaign from your dashboard?",
-      "removeText": "The campaign stays in Google Ads exactly as it is. Its history on the platform is deleted.",
+      "removeText": "The campaign stays in Google Ads exactly as it is. It leaves your panel, and its conversations and business details are deleted. Payments stay in your transactions.",
       "removed": "The campaign was removed from your dashboard.",
-      "removeRunning": "Wait for the current cycle to finish.",
+      "removeRunning": "Wait for the current cycle or message to finish.",
       "saved": "Settings saved.",
       "error": "Something went wrong. Please try again.",
       "disconnect": "Disconnect Google account",
@@ -4301,7 +4357,8 @@
       "colCharged": "Paid",
       "colReturned": "Returned",
       "colStatus": "Status",
-      "walletNote": "All payments also appear in your wallet history, under Google Ads optimization."
+      "walletNote": "All payments also appear in your wallet history, under Google Ads optimization.",
+      "chatPaid": "Chat ({n} messages)"
     },
     "conn": {
       "title": "Connected Google accounts",
@@ -4330,7 +4387,7 @@
       "points": "{n} out of 100 points",
       "noViews": "The ad has not been shown yet in this period. This is normal for a new campaign or a test account.",
       "lastTitle": "Last time ({when}):",
-      "lastDone": "the agent made {applied} changes and prepared {proposed} for your approval.",
+      "lastDone": "changes made: {applied}, to approve: {proposed}.",
       "lastNothing": "the agent found nothing to change.",
       "lastReturned": "the agent could not change anything, so we returned your credits.",
       "paid": "You paid {credits} credits.",
@@ -4363,7 +4420,7 @@
           "cta": "See what it is doing"
         },
         "approve": {
-          "title": "You have {n} changes to approve",
+          "title": "Changes to approve: {n}",
           "text": "The agent prepared changes. See before and after, then choose whether to apply them. Approving is free.",
           "cta": "Review and approve"
         },
@@ -4423,6 +4480,23 @@
     "section": {
       "close": "Collapse",
       "open": "Open"
+    },
+    "costs": {
+      "title": "Google Ads costs",
+      "lead": "What you paid the agent per campaign: optimizations and chat.",
+      "period": {
+        "month": "This month",
+        "last": "Last month",
+        "all": "All time"
+      },
+      "total": "Total paid",
+      "cycles": "Optimizations",
+      "chat": "Chat",
+      "none": "No payments in this period.",
+      "removed": "removed from the platform",
+      "cyclesN": "{n} optimizations",
+      "chatN": "{n} messages",
+      "allTransactions": "All transactions"
     }
   },
   "adminAdsOpt": {
@@ -4466,6 +4540,7 @@
     "colAi": "AI cost",
     "colStatus": "Status",
     "colWorkHint": "Work done: changes applied / proposals created · elements analyzed.",
+    "staff": "started by staff",
     "scheduled": "scheduled",
     "limits": "Limits",
     "limitsHint": "A cycle never costs less than the minimum or more than the maximum.",
@@ -4473,7 +4548,7 @@
     "minCreditsHint": "Every finished cycle costs at least this.",
     "maxCredits": "Maximum per cycle",
     "maxCreditsHint": "Safety cap.",
-    "perElement": "Credits per analyzed element",
+    "perElement": "Credits / element",
     "perElementHint": "Headlines, descriptions, extensions, images, keywords.",
     "tasks": "Prices per task type",
     "tasksHint": "Credits per unit of work (for example per headline written or proposal created).",
@@ -4500,7 +4575,14 @@
     "oauthClient": "OAuth client",
     "clientId": "Client ID",
     "clientSecret": "Client secret",
-    "secretKeep": "Leave empty to keep the saved secret."
+    "secretKeep": "Leave empty to keep the saved secret.",
+    "tabCampaigns": "Campaigns",
+    "searchCampaigns": "Search campaign, account or customer",
+    "anyStatus": "Any status",
+    "onlyProblems": "Only with problems",
+    "noCampaigns": "No campaigns found.",
+    "lastCycle": "Last cycle: {when}",
+    "noCycle": "No cycle yet"
   },
   "binfo": {
     "common": {
@@ -4933,5 +5015,43 @@
       "tab": "I own a business"
     },
     "title": "How Totalvizibil works"
+  },
+  "gaStep": {
+    "cycle": "Cycle",
+    "sync": "Sync",
+    "urls": "Link check",
+    "performance": "Performance",
+    "headlines": "Headlines",
+    "keywords": "Keywords",
+    "assets": "Assets",
+    "images": "Images",
+    "videos": "Videos",
+    "logos": "Logo",
+    "policy": "Google policies",
+    "policy_fix": "Policy fix",
+    "score": "Score",
+    "rescore": "New score",
+    "prioritize": "Priorities",
+    "optimize": "Optimization",
+    "generate": "AI text generation",
+    "validate_local": "Rule check",
+    "validate_google": "Checked by Google",
+    "apply": "Applying",
+    "verify": "Confirmed in Google",
+    "analyze": "Analysis",
+    "budget": "Budget",
+    "environment": "Test environment",
+    "schedule": "Schedule",
+    "done": "Done"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Privacy policy"
+    },
+    "terms": {
+      "title": "Terms and conditions"
+    },
+    "preparing": "This document is being prepared.",
+    "updated": "Last updated: {date}"
   }
 }

@@ -58,6 +58,7 @@ function fakePrisma() {
     },
     walletTransaction: {
       aggregate: jest.fn(async (): Promise<any> => ({ _sum: { amountMinor: 0 } })),
+      findFirst: jest.fn(async (): Promise<any> => null),
     },
     $transaction: jest.fn(async (cb: any) => cb(fakeTx)),
     __fakeTx: fakeTx,
@@ -277,6 +278,25 @@ describe('AffiliateService', () => {
       // default walletTransaction.aggregate → { _sum: { amountMinor: 0 } } → 0 credits < 100
       await svc.maybeReward('u1');
       expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('paid Google Ads agent work counts as starting, like a campaign', async () => {
+      const { svc, prisma, billing } = makeService({
+        affiliateMinDepositCredits: 100,
+        affiliateRewardCredits: 50,
+      });
+      prisma.__seedReferral({ referredUserId: 'u1', referrerId: 'referrer1', status: 'pending' });
+      prisma.__seedUser({ id: 'u1', name: 'Test User' });
+      prisma.campaign.findFirst.mockResolvedValue(null);
+      prisma.walletTransaction.findFirst.mockResolvedValue({ id: 'spend1' });
+      prisma.walletTransaction.aggregate.mockResolvedValue({ _sum: { amountMinor: 10000 } });
+      await svc.maybeReward('u1');
+      expect(prisma.walletTransaction.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ provider: 'google-ads-optimizer', status: 'completed' }),
+        }),
+      );
+      expect(billing.issueAffiliateRewardInvoice).toHaveBeenCalled();
     });
 
     it('credits wallet and issues notification on happy path', async () => {

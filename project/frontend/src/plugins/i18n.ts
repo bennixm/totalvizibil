@@ -44,6 +44,12 @@ export const i18n = createI18n<[MessageSchema], AppLocale, false>({
   messages: { ro, en, de },
 })
 
+/** Language for dates and numbers: the one chosen in the app, not the
+ *  browser's (a US browser showed 11/3/2026 and 07:19 for 19:19). */
+export function uiLocale(): string {
+  return { ro: 'ro-RO', en: 'en-GB', de: 'de-DE' }[i18n.global.locale.value]
+}
+
 /** Keeps vue-i18n and the <html lang> attribute in sync. */
 export function applyLocale(locale: AppLocale): void {
   i18n.global.locale.value = locale

@@ -1753,6 +1753,8 @@ export class GoogleAdsOptimizerService {
         replaced,
         missingKeywords: picked.map((p) => p.keyword),
         adStrengthBefore: rsa.adStrength ?? null,
+        // What the read-back needs, also after a restart.
+        readback: { adResourceName: rsa.adResourceName, previous },
       },
       reasoning:
         `Google cere cuvinte cheie populare în titluri. ${POPULARITY_SOURCE[pop.source]}: ${top.join(', ')}. ` +
@@ -1788,6 +1790,7 @@ export class GoogleAdsOptimizerService {
           actionId,
           adResourceName: rsa.adResourceName,
           previous,
+          written: headlines.map((h) => h.text),
           strengthBefore: rsa.adStrength ?? null,
         }),
     });
@@ -1825,6 +1828,56 @@ export class GoogleAdsOptimizerService {
     return null;
   }
 
+  /** Whether a worse result may still be undone in Google right now. */
+  protected mayRestore(_actionId: string): Promise<boolean> {
+    return Promise.resolve(true);
+  }
+
+  /** Re-arms the read-back of an applied change that was never rated. */
+  resumeKeywordReadback(row: { id: string; after: unknown }): void {
+    const after = (row.after ?? {}) as {
+      headlines?: string[];
+      adStrengthBefore?: string | null;
+      adStrengthAfter?: string;
+      readback?: {
+        adResourceName: string;
+        previous: { text: string; pinnedField?: string }[];
+      };
+    };
+    if (!after.readback || !after.headlines || after.adStrengthAfter) return;
+    this.scheduleKeywordReadback(
+      {
+        actionId: row.id,
+        adResourceName: after.readback.adResourceName,
+        previous: after.readback.previous,
+        written: after.headlines,
+        strengthBefore: after.adStrengthBefore ?? null,
+      },
+      1_000,
+    );
+  }
+
+  /** Platform agent: read-backs a restart interrupted (last day). */
+  onModuleInit(): void {
+    if (process.env.NODE_ENV === 'test') return;
+    setTimeout(() => {
+      void this.actions
+        .findMany({
+          where: {
+            action: 'creative.keyword_headlines',
+            status: 'applied',
+            createdAt: { gte: new Date(Date.now() - 86_400_000) },
+          },
+        })
+        .then((rows) => rows.forEach((r) => this.resumeKeywordReadback(r)))
+        .catch((err: unknown) =>
+          this.logger.warn(
+            `Resuming read-backs failed: ${err instanceof Error ? err.message : String(err)}`,
+          ),
+        );
+    }, 30_000).unref?.();
+  }
+
   /**
    * After a keyword-headline change: reads the REAL Ad Strength back from
    * Google (retrying while it is still PENDING) and, if Google rates the new
@@ -1836,6 +1889,8 @@ export class GoogleAdsOptimizerService {
       actionId: string;
       adResourceName: string;
       previous: { text: string; pinnedField?: string }[];
+      /** Headlines this change wrote; anything else live = somebody edited. */
+      written: string[];
       strengthBefore: string | null;
     },
     delayMs = 90_000,
@@ -1846,11 +1901,17 @@ export class GoogleAdsOptimizerService {
         try {
           const adId = p.adResourceName.split('/').pop();
           const rows = await this.client.search(
-            'SELECT ad_group_ad.ad.id, ad_group_ad.ad_strength, ad_group_ad.action_items ' +
+            'SELECT ad_group_ad.ad.id, ad_group_ad.ad_strength, ad_group_ad.action_items, ' +
+              'ad_group_ad.ad.responsive_search_ad.headlines ' +
               `FROM ad_group_ad WHERE ad_group_ad.ad.id = ${adId}`,
           );
           const a = rows[0]?.adGroupAd as
-            { adStrength?: string; actionItems?: string[] } | undefined;
+            | {
+                adStrength?: string;
+                actionItems?: string[];
+                ad?: { responsiveSearchAd?: { headlines?: { text?: string }[] } };
+              }
+            | undefined;
           if (!a) return;
           if (!a.adStrength || STRENGTH_PENDING.has(a.adStrength)) {
             if (attempt < 4) this.scheduleKeywordReadback(p, delayMs * 2, attempt + 1);
@@ -1863,7 +1924,12 @@ export class GoogleAdsOptimizerService {
             (a.actionItems?.length ? ` (sugestii Google: ${a.actionItems.join(' | ')})` : '') +
             '.';
           let reverted = false;
-          if (worse && this.client.writesAllowed) {
+          const live = (a.ad?.responsiveSearchAd?.headlines ?? []).map((h) => h.text ?? '');
+          const untouched =
+            JSON.stringify([...live].sort()) === JSON.stringify([...p.written].sort());
+          if (worse && !untouched) {
+            note += ' Titlurile au fost modificate între timp, așa că nu s-a restaurat nimic.';
+          } else if (worse && this.client.writesAllowed && (await this.mayRestore(p.actionId))) {
             const ops: GoogleAdsMutateOperation[] = [
               {
                 adOperation: {

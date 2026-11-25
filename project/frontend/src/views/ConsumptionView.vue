@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiLocale } from '@/plugins/i18n'
 /**
  * Detailed lifetime spend for ONE business — the central place to see exactly
  * where the budget went: a KPI summary, 14-day evolution (clicks + spend,
@@ -61,6 +62,7 @@ const CATEGORY_META: Record<SpendCategory, { icon: string; labelKey: string }> =
   clicks: { icon: 'mdi-cursor-default-click-outline', labelKey: 'consumption.clicks' },
   aiUsage: { icon: 'mdi-robot-outline', labelKey: 'consumption.aiUsage' },
   builderUnlock: { icon: 'mdi-rocket-launch-outline', labelKey: 'consumption.builderUnlock' },
+  googleAds: { icon: 'mdi-google-ads', labelKey: 'consumption.googleAds' },
   other: { icon: 'mdi-dots-horizontal', labelKey: 'consumption.other' },
 }
 const CATEGORY_ORDER: SpendCategory[] = ['clicks', 'aiUsage', 'builderUnlock', 'other']
@@ -569,7 +571,7 @@ watch(
             </thead>
             <tbody>
               <tr v-for="e in consumption" :key="e.id">
-                <td class="cons__ledgerDate">{{ new Date(e.createdAt).toLocaleString() }}</td>
+                <td class="cons__ledgerDate">{{ new Date(e.createdAt).toLocaleString(uiLocale()) }}</td>
                 <td class="cons__ledgerDetail">
                   <span class="crow__id">{{ shortId(e.id) }}</span> {{ entryLabel(e) }}
                 </td>

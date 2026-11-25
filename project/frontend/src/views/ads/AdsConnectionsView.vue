@@ -46,7 +46,7 @@ function disconnect(c: GoogleConnection): void {
       toasts.success(t('ads.set.disconnected'))
       await Promise.all([load(), adsStore.fetch(true)])
     } catch (e) {
-      toasts.error(e instanceof ApiError && e.message === 'cycle_running' ? t('ads.set.removeRunning') : t('ads.set.error'))
+      toasts.error(e instanceof ApiError && ['cycle_running', 'chat_running'].includes(e.message) ? t('ads.set.removeRunning') : t('ads.set.error'))
     } finally {
       busy.value = null
     }
@@ -64,11 +64,20 @@ async function reconnect(c: GoogleConnection): Promise<void> {
   }
 }
 
+const OAUTH_ERRORS = ['account', 'denied', 'access_denied', 'expired', 'state', 'scope', 'refresh', 'exchange']
+
 const TONE = { connected: 'success', revoked: 'error', error: 'error', pending: 'neutral' } as const
 
 onMounted(() => {
   if (route.query.reconnected) {
     toasts.success(t('ads.dash.reconnected'))
+    const taken = Number(route.query.taken)
+    if (taken > 0) toasts.warning(t('ads.campaigns.takenReconnect', { n: taken }))
+    void router.replace({ query: {} })
+  }
+  const err = typeof route.query.error === 'string' ? route.query.error : ''
+  if (err) {
+    toasts.error(t(`ads.campaigns.oauthError.${OAUTH_ERRORS.includes(err) ? err : 'exchange'}`))
     void router.replace({ query: {} })
   }
   void load()

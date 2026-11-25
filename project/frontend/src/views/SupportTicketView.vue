@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 import SupportAvatar from '@/components/support/SupportAvatar.vue'
+import SupportAdsPanel from '@/components/support/SupportAdsPanel.vue'
 import SupportRoleBadge from '@/components/support/SupportRoleBadge.vue'
 import { useSupportRoutes } from '@/composables/useSupportRoutes'
 import { useSupportTime } from '@/composables/useSupportTime'
@@ -391,6 +392,10 @@ onMounted(() => {
           <SupportRoleBadge :role="ticket.requester.role" />
           <span class="head__dot">·</span>
           <span>{{ dateTime(ticket.createdAt) }}</span>
+          <template v-if="ticket.adsCampaign">
+            <span class="head__dot">·</span>
+            <span class="head__co"><v-icon icon="mdi-google-ads" size="14" /> {{ ticket.adsCampaign.name }}</span>
+          </template>
           <template v-if="ticket.company">
             <span class="head__dot">·</span>
             <span class="head__co"
@@ -773,6 +778,11 @@ onMounted(() => {
               </span>
               <v-icon icon="mdi-chevron-right" size="16" class="jump__go" />
             </router-link>
+          </section>
+
+          <section v-if="isStaff" class="panel">
+            <p class="panel__label">{{ t('support.adsTitle') }}</p>
+            <SupportAdsPanel :ticket-id="ticket.id" />
           </section>
 
           <section class="panel">

@@ -24,6 +24,7 @@ function dt(s: string): string {
 const hasRows = computed(() => (finance.aiUsage?.byModel.length ?? 0) > 0)
 
 // --- homepage "ask" search ---------------------------------------------
+const optimizer = computed(() => finance.aiUsage?.googleAdsOptimizer ?? null)
 const search = computed(() => finance.aiUsage?.search ?? null)
 const freeShare = computed(() => {
   const s = search.value
@@ -117,6 +118,17 @@ onMounted(() => setQuickRange('month'))
         <AdminStatCard :label="t('adminFinance.aiTotalCalls')" :value="n(finance.aiUsage.totalCalls)" icon="mdi-swap-horizontal" />
         <AdminStatCard :label="t('adminFinance.aiTotalTokens')" :value="n(finance.aiUsage.totalTokens)" icon="mdi-counter" />
       </div>
+
+      <!-- Customers' Google Ads agent: what they paid vs what its AI cost. -->
+      <section v-if="optimizer && (optimizer.cycles || optimizer.chatMessages)" class="afa__search">
+        <h2 class="afa__h2">{{ t('adminFinance.oneOffGoogleAds') }}</h2>
+        <div class="afa__kpis afa__kpis--four">
+          <AdminStatCard :label="t('adminAdsOpt.cycles')" :value="n(optimizer.cycles)" icon="mdi-sync" />
+          <AdminStatCard :label="t('adminAdsOpt.chatTitle')" :value="n(optimizer.chatMessages)" icon="mdi-chat-outline" />
+          <AdminStatCard :label="t('adminAdsOpt.charged')" :value="eur(optimizer.chargedMinor)" icon="mdi-cash-check" tone="success" />
+          <AdminStatCard :label="t('adminAdsOpt.aiCost')" :value="eur(optimizer.aiCostMinor)" icon="mdi-cash-minus" tone="error" />
+        </div>
+      </section>
 
       <!-- Homepage "ask" search: most answers are free (stored answers,
            category names, the local model); only the rest reach Claude. -->

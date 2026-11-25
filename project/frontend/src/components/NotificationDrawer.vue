@@ -8,8 +8,7 @@ import {
   routeForNotification,
   useNotificationsStore,
   visualForNotification,
-  type NotificationItem,
-} from '@/stores/notifications'
+  type NotificationItem, notificationTitle } from '@/stores/notifications'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -109,7 +108,7 @@ function onRowKeydown(event: KeyboardEvent, n: NotificationItem): void {
           </span>
           <span class="notifrow__body">
             <span class="notifrow__title">
-              <strong>{{ n.title }}</strong>
+              <strong>{{ notificationTitle(n) }}</strong>
               <span v-if="!n.readAt" class="notifrow__dot" aria-hidden="true" />
             </span>
             <span class="notifrow__text">{{ n.body }}</span>

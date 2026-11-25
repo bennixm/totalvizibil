@@ -4,6 +4,10 @@ import { useI18n } from 'vue-i18n'
 
 import AdminHint from '@/components/admin/AdminHint.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
+import AdminPager from '@/components/admin/AdminPager.vue'
+import AdminPeriodFilter from '@/components/admin/AdminPeriodFilter.vue'
+import AdminAdsCampaigns from '@/components/admin/google-ads/AdminAdsCampaigns.vue'
+import { usePeriodFilter } from '@/composables/usePeriodFilter'
 import AdminSection from '@/components/admin/AdminSection.vue'
 import AdminStatCard from '@/components/admin/AdminStatCard.vue'
 import GaChip from '@/components/admin/google-ads/GaChip.vue'
@@ -26,7 +30,7 @@ import {
 const { t, locale } = useI18n()
 const toasts = useToastStore()
 
-const tab = ref<'usage' | 'pricing' | 'oauth'>('usage')
+const tab = ref<'campaigns' | 'usage' | 'pricing' | 'oauth'>('campaigns')
 const usage = ref<AdminOptimizerUsage | null>(null)
 const pricing = ref<OptimizerPricing | null>(null)
 const chatPricing = ref<ChatPricing | null>(null)
@@ -59,12 +63,28 @@ const example = computed(() => {
   return { points: Math.round(points * 100) / 100, level: level?.label ?? '', credits: Math.round(credits * 100) / 100 }
 })
 
+const range = reactive({ from: '', to: '', page: 1 })
+let usageSeq = 0
 async function loadUsage(): Promise<void> {
+  const mine = ++usageSeq
   try {
-    usage.value = await adminGoogleAdsUserApi.usage()
+    const res = await adminGoogleAdsUserApi.usage(range.from, range.to, range.page)
+    if (mine === usageSeq) usage.value = res
   } catch {
     toasts.error(t('admin.genericError'))
   }
+}
+const { activePreset, customFrom, customTo, canApplyCustom, setQuickRange, applyCustomRange } = usePeriodFilter(
+  (from, to, lifetime) => {
+    range.from = lifetime ? '' : (from ?? '')
+    range.to = lifetime ? '' : (to ?? '')
+    range.page = 1
+    void loadUsage()
+  },
+)
+function usagePage(page: number): void {
+  range.page = page
+  void loadUsage()
 }
 async function loadPricing(): Promise<void> {
   const r = await adminGoogleAdsUserApi.pricing()
@@ -158,7 +178,7 @@ async function copy(text: string): Promise<void> {
 }
 
 onMounted(() => {
-  void loadUsage()
+  setQuickRange('lifetime')
   void loadPricing().catch(() => toasts.error(t('admin.genericError')))
   void loadChatPricing().catch(() => toasts.error(t('admin.genericError')))
   void loadOauth().catch(() => undefined)
@@ -176,13 +196,24 @@ onMounted(() => {
     </p>
 
     <v-tabs v-model="tab" color="primary" show-arrows density="comfortable" class="gao__tabs">
+      <v-tab value="campaigns">{{ t('adminAdsOpt.tabCampaigns') }}</v-tab>
       <v-tab value="usage">{{ t('adminAdsOpt.tabUsage') }}</v-tab>
       <v-tab value="pricing">{{ t('adminAdsOpt.tabPricing') }}</v-tab>
       <v-tab value="oauth">{{ t('adminAdsOpt.tabOauth') }}</v-tab>
     </v-tabs>
 
+    <AdminAdsCampaigns v-if="tab === 'campaigns'" class="gao__body" />
+
     <!-- Usage -->
-    <div v-if="tab === 'usage'" class="gao__body">
+    <div v-else-if="tab === 'usage'" class="gao__body">
+      <AdminPeriodFilter
+        v-model:custom-from="customFrom"
+        v-model:custom-to="customTo"
+        :preset="activePreset"
+        :can-apply-custom="canApplyCustom"
+        @preset="setQuickRange"
+        @apply="applyCustomRange"
+      />
       <div v-if="!usage" class="d-flex justify-center py-12"><v-progress-circular indeterminate color="primary" /></div>
       <template v-else>
         <div class="gao__stats">
@@ -227,7 +258,7 @@ onMounted(() => {
               </thead>
               <tbody>
                 <tr v-for="c in usage.cycles" :key="c.id">
-                  <td>{{ dateTime(c.startedAt, locale) }}<span v-if="c.trigger === 'scheduled'" class="gao__muted"> · {{ t('adminAdsOpt.scheduled') }}</span></td>
+                  <td>{{ dateTime(c.startedAt, locale) }}<span v-if="c.trigger === 'scheduled'" class="gao__muted"> · {{ t('adminAdsOpt.scheduled') }}</span><span v-else-if="c.trigger === 'staff'" class="gao__muted"> · {{ t('adminAdsOpt.staff') }}</span></td>
                   <td>
                     <RouterLink :to="{ name: 'admin-user', params: { id: c.user.id } }">{{ c.user.email }}</RouterLink>
                   </td>
@@ -244,6 +275,7 @@ onMounted(() => {
               </tbody>
             </table>
           </div>
+          <AdminPager :page="usage.page" :page-size="usage.pageSize" :total="usage.totals.cycles" @update:page="usagePage" />
         </AdminSection>
       </template>
     </div>
@@ -463,7 +495,7 @@ onMounted(() => {
 }
 .gao__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
   gap: 0.75rem 1rem;
 }
 .gao :deep(.v-messages__message) {

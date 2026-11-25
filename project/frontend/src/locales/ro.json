@@ -67,7 +67,8 @@
       "adsHint": "Campaniile tale din Google, ajutate de agent",
       "admin": "Administrare",
       "adminHint": "Doar pentru echipă"
-    }
+    },
+    "adsCosts": "Costuri"
   },
   "notifications": {
     "bell": "Notificări",
@@ -77,7 +78,15 @@
     "dismiss": "Șterge",
     "open": "Deschide",
     "loadError": "Nu am putut încărca notificările",
-    "retry": "Încearcă din nou"
+    "retry": "Încearcă din nou",
+    "typeTitle": {
+      "google_ads_cycle_done": "Agentul a optimizat campania",
+      "google_ads_cycle_failed": "Optimizarea Google Ads s-a oprit",
+      "google_ads_cycle_skipped": "Un ciclu programat nu a pornit",
+      "google_ads_connection_lost": "Am pierdut accesul la contul Google Ads",
+      "google_ads_no_change": "Agentul nu a schimbat nimic",
+      "google_ads_staff_change": "Campania Google Ads a fost actualizată"
+    }
   },
   "theme": {
     "label": "Temă",
@@ -898,6 +907,11 @@
       "ready": "Ai destule credite pentru deblocare ({price} credite). Revino și continuă.",
       "short": "Îți mai lipsesc {short} credite pentru deblocare (costă {price} credite).",
       "back": "Înapoi la deblocare"
+    },
+    "adsReturn": {
+      "title": "Revino la campania Google Ads",
+      "text": "După ce adaugi credite, continui exact de unde ai rămas.",
+      "back": "Înapoi la campanie"
     }
   },
   "auth": {
@@ -996,7 +1010,9 @@
     "billingSaved": "Datele de facturare au fost salvate.",
     "billingSavedBackfilled": "Datele au fost salvate · {n} facturi emise retroactiv.",
     "billingSeeInvoices": "Vezi facturile tale",
-    "tabAffiliate": "Afiliere"
+    "tabAffiliate": "Afiliere",
+    "totpEnabled": "Autentificarea în doi pași este activă.",
+    "totpDisabled": "Autentificarea în doi pași a fost oprită."
   },
   "admin": {
     "title": "Panou admin",
@@ -1032,7 +1048,15 @@
       "soldAll": "Credite vândute",
       "revenueAll": "Încasări",
       "blockedWallets": "Portofele blocate",
-      "allTimeShort": "total"
+      "allTimeShort": "total",
+      "adsActive": "Campanii active",
+      "adsPaused": "Cu agentul pe pauză",
+      "adsDisconnected": "Deconectate",
+      "adsConnections": "Conturi Google conectate",
+      "adsPending": "Propuneri în așteptare",
+      "adsCycles": "Cicluri, 30 de zile",
+      "adsFailed": "Cicluri eșuate, 7 zile",
+      "adsCharged": "Credite încasate, 30 de zile"
     },
     "signups14": "Înregistrări · ultimele 14 zile",
     "legendUsers": "Utilizatori",
@@ -1254,7 +1278,18 @@
         "google_ads_agent_resume": "Google Ads: agent repornit",
         "google_ads_cycle_start": "Google Ads: agent pornit de echipă",
         "google_ads_proposal_approve": "Google Ads: propunere aprobată",
-        "google_ads_proposal_reject": "Google Ads: propunere respinsă"
+        "google_ads_proposal_reject": "Google Ads: propunere respinsă",
+        "ads_add": "A adăugat campania",
+        "ads_remove": "A scos campania",
+        "ads_pause": "A pus agentul pe pauză",
+        "ads_resume": "A repornit agentul",
+        "ads_settings": "A schimbat setările agentului",
+        "ads_brief": "A editat datele afacerii",
+        "ads_disconnect": "A deconectat contul Google",
+        "ads_reconnect": "A reconectat contul Google",
+        "ads_cycle_start": "A pornit o optimizare",
+        "ads_proposal_approve": "A aprobat o propunere",
+        "ads_proposal_reject": "A respins o propunere"
       }
     },
     "ads": {
@@ -1306,7 +1341,9 @@
       "runStart": "Pornește gratuit pentru client",
       "runConfirm": "Agentul rulează pe campania clientului, fără cost pentru el. Clientul este anunțat.",
       "budgetTitle": "Buget zilnic"
-    }
+    },
+    "colAdsCampaigns": "Google Ads",
+    "groupGoogleAds": "Google Ads clienți"
   },
   "errors": {
     "notFoundTitle": "Pagina nu a fost găsită",
@@ -2298,7 +2335,8 @@
       "cpc": "Consum: clicuri",
       "aiUsage": "Consum: AI",
       "builderUnlock": "Consum: deblocare",
-      "other": "Consum: altele"
+      "other": "Consum: altele",
+      "googleAds": "Consum: Google Ads"
     },
     "expensesTotalEur": "Total în EUR",
     "missingFxAlert": "{n} cheltuieli în altă monedă nu au curs de schimb și nu sunt incluse în totaluri și în profit. Editați-le și completați cursul.",
@@ -2358,7 +2396,9 @@
       "advances": "Avansuri clienți (bani, cu TVA)",
       "advancesVat": "din care TVA",
       "unconsumedPaid": "Credite plătite neconsumate (valoare nominală)",
-      "unconsumedFree": "Credite gratuite neconsumate (valoare nominală)"
+      "unconsumedFree": "Credite gratuite neconsumate (valoare nominală)",
+      "revGoogleAds": "Optimizare Google Ads clienți",
+      "aiGoogleAds": "Cost AI: optimizare Google Ads clienți"
     },
     "annual": {
       "colMonth": "Luna",
@@ -2423,7 +2463,8 @@
       }
     },
     "showTypes": "Ce tranzacții vezi în tabel",
-    "typeHidden": "Ascuns"
+    "typeHidden": "Ascuns",
+    "oneOffGoogleAds": "Optimizare Google Ads clienți"
   },
   "adminSettings": {
     "pricingTitle": "Prețuri și curs valutar",
@@ -2452,7 +2493,7 @@
     "issuerIban": "IBAN",
     "issuerBank": "Bancă",
     "affiliateTitle": "Program de afiliere",
-    "affiliateNote": "Recompensează utilizatorii care aduc clienți noi. Recompensa se acordă o singură dată per client, când clientul adus își pornește prima campanie și atinge pragul minim de depunere setat mai jos.",
+    "affiliateNote": "Recompensează utilizatorii care aduc clienți noi. Recompensa se acordă o singură dată per client, când clientul adus pornește prima campanie sau plătește prima dată agentul Google Ads și atinge pragul minim de depunere setat mai jos.",
     "affiliateEnabled": "Program activ",
     "affiliateEnabledHint": "Când e oprit, nu se mai acordă recompense și secțiunea dispare de pe pagina principală.",
     "affiliateReward": "Recompensă per client",
@@ -2551,7 +2592,8 @@
     "filterFrom": "De la",
     "filterTo": "Până la",
     "filterClear": "Șterge filtrele",
-    "emptyFiltered": "Nicio tranzacție nu corespunde acestor filtre."
+    "emptyFiltered": "Nicio tranzacție nu corespunde acestor filtre.",
+    "googleAds": "Google Ads"
   },
   "websiteSettings": {
     "loadError": "Nu am putut încărca datele site-ului. Încearcă din nou.",
@@ -2789,7 +2831,8 @@
       "invalid_attachments": "Unul dintre fișierele atașate nu mai este valid. Atașează-le din nou.",
       "too_many_attachments": "Prea multe fișiere pe un singur mesaj. Trimite-le în mai multe mesaje.",
       "attachment_too_large": "Fișierul este prea mare. Încearcă o versiune mai mică.",
-      "unsupported_attachment_type": "Acceptăm doar PDF și imagini (PNG, JPG, WEBP, GIF)."
+      "unsupported_attachment_type": "Acceptăm doar PDF și imagini (PNG, JPG, WEBP, GIF).",
+      "not_your_campaign": "Campania aleasă nu îți aparține."
     },
     "investigate": "Investighează",
     "openUserAdmin": "Deschide utilizatorul în admin",
@@ -2854,7 +2897,13 @@
     "firstResponse": "Primul răspuns",
     "today": "Azi",
     "yesterday": "Ieri",
-    "assignedToYou": "Atribuit ție"
+    "assignedToYou": "Atribuit ție",
+    "fieldAds": "Campania Google Ads",
+    "noAds": "Nicio campanie anume",
+    "adsTitle": "Google Ads (doar citire)",
+    "adsNone": "Clientul nu are campanii Google Ads.",
+    "adsAbout": "Tichetul e despre ea",
+    "adsCycle": "{applied} aplicate, {proposed} propuse, {credits} credite"
   },
   "catalog": {
     "variant": {
@@ -3129,7 +3178,7 @@
     "adCta": "Vezi cum funcționează",
     "pausedNotice": "Programul de afiliere este momentan oprit. Recompensele noi sunt în pauză, dar istoricul tău rămâne aici.",
     "panelTitle": "Linkul tău de afiliere",
-    "panelIntro": "Trimite acest link. Când cineva nou își face un site, pornește o campanie și depune în total cel puțin {d} credite, primești {n} credite.",
+    "panelIntro": "Trimite acest link. Când cineva nou pornește o campanie sau folosește agentul Google Ads și depune în total cel puțin {d} credite, primești {n} credite.",
     "copy": "Copiază link",
     "copied": "Copiat",
     "statReferred": "Clienți aduși",
@@ -3146,7 +3195,7 @@
     "viewInvoice": "Factură",
     "adHeadline": "Adu un client, primești",
     "adHeadlineTail": "credite",
-    "adSub": "Trimite linkul tău · când prietenul își face un site și pornește o campanie, creditele sunt ale tale."
+    "adSub": "Trimite linkul tău · când prietenul pornește o campanie sau folosește agentul Google Ads, creditele sunt ale tale."
   },
   "discountBanner": {
     "badge": "Ofertă limitată",
@@ -3906,6 +3955,7 @@
         "insufficient_credits": "Nu ai destule credite pentru un mesaj.",
         "chat_daily_limit": "Ai atins limita zilnică a chatului. O poți schimba din Setări agent.",
         "chat_busy": "Agentul lucrează încă la mesajul anterior.",
+        "restarting": "Platforma se actualizează. Încearcă din nou într-un minut.",
         "ai_unavailable": "Agentul nu este disponibil momentan.",
         "google_ads_reconnect_required": "Reconectează contul Google Ads.",
         "wallet_blocked": "Portofelul tău este blocat. Contactează suportul.",
@@ -3963,7 +4013,11 @@
       "selectError": "Nu am putut selecta campania. Încearcă din nou.",
       "unsupported": "Agentul optimizează momentan campanii de căutare (Search).",
       "unsupportedShort": "doar campaniile Search sunt optimizate momentan",
+      "managedElsewhere": "Campania e deja administrată din alt cont Totalvizibil. Dacă e a ta, scrie-ne la suport.",
+      "taken": "Nu am putut adăuga: {names}. Sunt deja administrate din alt cont Totalvizibil.",
+      "takenReconnect": "{n} campanii rămân oprite: sunt administrate acum din alt cont Totalvizibil.",
       "oauthError": {
+        "account": "Ai ales alt cont Google. Reconectează contul cu care ai adăugat campaniile.",
         "denied": "Ai anulat conectarea la Google.",
         "access_denied": "Ai anulat conectarea la Google.",
         "expired": "Conectarea a expirat. Încearcă din nou.",
@@ -4139,6 +4193,7 @@
         "needs_information": "Agentul are nevoie de mai multe informații.",
         "insufficient_credits": "Nu ai destule credite în portofel.",
         "cycle_already_running": "Un ciclu rulează deja pentru această campanie.",
+        "restarting": "Platforma se actualizează. Încearcă din nou într-un minut.",
         "nothing_to_do": "Agentul nu are nimic de schimbat acum. Nu ai plătit nimic.",
         "quote_changed": "Estimarea s-a schimbat de când ai deschis-o. Verifică noul preț.",
         "campaign_paused": "Agentul este pe pauză.",
@@ -4166,7 +4221,7 @@
       "scheduled": "programat",
       "inProgress": "În lucru…",
       "failedSum": "Agentul s-a oprit înainte să termine; ai plătit doar ce a schimbat.",
-      "summary": "{applied} modificări aplicate, {proposed} propuneri",
+      "summary": "Modificări aplicate: {applied} · propuneri: {proposed}",
       "score": "scor {from} → {to}",
       "refunded": "{credits} credite returnate",
       "noChange": "Nu a fost nimic de schimbat"
@@ -4223,6 +4278,7 @@
       }
     },
     "actionStatus": {
+      "expired": "Expirat",
       "applied": "Aplicat",
       "failed": "Eșuat",
       "rejected": "Respins",
@@ -4231,7 +4287,7 @@
       "pending_approval": "În așteptare"
     },
     "set": {
-      "chatLimit": "Limită chat pe zi (credite)",
+      "chatLimit": "Limită chat / zi (credite)",
       "chatLimitHint": "0 înseamnă fără limită.",
       "agentTitle": "Ce face agentul",
       "autoApply": "Completează singur ce lipsește din reclamă",
@@ -4272,9 +4328,9 @@
       "remove": "Nu mai gestiona campania",
       "removeHint": "Campania rămâne neschimbată în Google Ads; doar o scoatem din panou.",
       "removeTitle": "Scoți campania din panou?",
-      "removeText": "Campania rămâne în Google Ads exact cum este. Istoricul din platformă se șterge.",
+      "removeText": "Campania rămâne în Google Ads exact cum este. Dispare din panou, iar conversațiile și informațiile despre afacere se șterg. Plățile rămân în tranzacții.",
       "removed": "Campania a fost scoasă din panou.",
-      "removeRunning": "Așteaptă să se termine ciclul în curs.",
+      "removeRunning": "Așteaptă să se termine ciclul sau mesajul în curs.",
       "saved": "Setările au fost salvate.",
       "error": "Ceva n-a mers. Încearcă din nou.",
       "disconnect": "Deconectează contul Google",
@@ -4301,7 +4357,8 @@
       "colCharged": "Plătit",
       "colReturned": "Returnat",
       "colStatus": "Stare",
-      "walletNote": "Toate plățile apar și în istoricul portofelului, la categoria Optimizare Google Ads."
+      "walletNote": "Toate plățile apar și în istoricul portofelului, la categoria Optimizare Google Ads.",
+      "chatPaid": "Chat ({n} mesaje)"
     },
     "conn": {
       "title": "Conturi Google conectate",
@@ -4330,7 +4387,7 @@
       "points": "{n} din 100 de puncte",
       "noViews": "Reclama nu a fost afișată încă în această perioadă. La o campanie nouă sau un cont de test este normal.",
       "lastTitle": "Ultima dată ({when}):",
-      "lastDone": "agentul a făcut {applied} modificări și ți-a pregătit {proposed} de aprobat.",
+      "lastDone": "modificări făcute: {applied}, de aprobat: {proposed}.",
       "lastNothing": "agentul nu a găsit nimic de schimbat.",
       "lastReturned": "agentul nu a putut schimba nimic, așa că ți-am returnat creditele.",
       "paid": "Ai plătit {credits} credite.",
@@ -4363,7 +4420,7 @@
           "cta": "Vezi ce face"
         },
         "approve": {
-          "title": "Ai {n} modificări de aprobat",
+          "title": "Modificări de aprobat: {n}",
           "text": "Agentul a pregătit modificări. Le vezi înainte și după, apoi alegi dacă le aplici. Aprobarea e gratuită.",
           "cta": "Vezi și aprobă"
         },
@@ -4423,6 +4480,23 @@
     "section": {
       "close": "Restrânge",
       "open": "Deschide"
+    },
+    "costs": {
+      "title": "Costuri Google Ads",
+      "lead": "Cât ai plătit agentul pentru fiecare campanie: optimizări și chat.",
+      "period": {
+        "month": "Luna aceasta",
+        "last": "Luna trecută",
+        "all": "Tot timpul"
+      },
+      "total": "Total plătit",
+      "cycles": "Optimizări",
+      "chat": "Chat",
+      "none": "Nicio plată în această perioadă.",
+      "removed": "scoasă din platformă",
+      "cyclesN": "{n} optimizări",
+      "chatN": "{n} mesaje",
+      "allTransactions": "Toate tranzacțiile"
     }
   },
   "adminAdsOpt": {
@@ -4466,6 +4540,7 @@
     "colAi": "Cost AI",
     "colStatus": "Stare",
     "colWorkHint": "Lucrul efectuat: modificări aplicate / propuneri create · elemente analizate.",
+    "staff": "pornit de echipă",
     "scheduled": "programat",
     "limits": "Limite",
     "limitsHint": "Prețul unui ciclu nu coboară sub minim și nu depășește maximul.",
@@ -4473,7 +4548,7 @@
     "minCreditsHint": "Orice ciclu finalizat costă cel puțin atât.",
     "maxCredits": "Maxim pe ciclu",
     "maxCreditsHint": "Plafon de siguranță.",
-    "perElement": "Credite pe element analizat",
+    "perElement": "Credite / element",
     "perElementHint": "Titluri, descrieri, extensii, imagini, cuvinte cheie.",
     "tasks": "Prețuri pe tip de sarcină",
     "tasksHint": "Credite pe unitate de lucru (de exemplu pe fiecare titlu scris sau propunere creată).",
@@ -4500,7 +4575,14 @@
     "oauthClient": "Client OAuth",
     "clientId": "ID client",
     "clientSecret": "Secret client",
-    "secretKeep": "Lasă gol ca să păstrezi secretul salvat."
+    "secretKeep": "Lasă gol ca să păstrezi secretul salvat.",
+    "tabCampaigns": "Campanii",
+    "searchCampaigns": "Caută campanie, cont sau client",
+    "anyStatus": "Orice stare",
+    "onlyProblems": "Doar cu probleme",
+    "noCampaigns": "Nicio campanie găsită.",
+    "lastCycle": "Ultimul ciclu: {when}",
+    "noCycle": "Niciun ciclu încă"
   },
   "binfo": {
     "common": {
@@ -4933,5 +5015,43 @@
       "tab": "Am o firmă"
     },
     "title": "Cum funcționează Totalvizibil"
+  },
+  "gaStep": {
+    "cycle": "Ciclu",
+    "sync": "Sincronizare",
+    "urls": "Verificare linkuri",
+    "performance": "Performanță",
+    "headlines": "Titluri",
+    "keywords": "Cuvinte cheie",
+    "assets": "Extensii",
+    "images": "Imagini",
+    "videos": "Videoclipuri",
+    "logos": "Logo",
+    "policy": "Politici Google",
+    "policy_fix": "Corectare politici",
+    "score": "Scor",
+    "rescore": "Scor nou",
+    "prioritize": "Priorități",
+    "optimize": "Optimizare",
+    "generate": "Generare texte cu AI",
+    "validate_local": "Verificare reguli",
+    "validate_google": "Verificare la Google",
+    "apply": "Aplicare",
+    "verify": "Confirmare în Google",
+    "analyze": "Analiză",
+    "budget": "Buget",
+    "environment": "Mediu de test",
+    "schedule": "Programare",
+    "done": "Gata"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Politica de confidențialitate"
+    },
+    "terms": {
+      "title": "Termeni și condiții"
+    },
+    "preparing": "Documentul este în pregătire.",
+    "updated": "Ultima actualizare: {date}"
   }
 }

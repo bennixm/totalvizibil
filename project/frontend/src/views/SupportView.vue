@@ -508,6 +508,9 @@ onBeforeUnmount(() => {
               <span class="who__name">{{ tk.requester.name }}</span>
               <SupportRoleBadge :role="tk.requester.role" />
             </span>
+            <span v-if="tk.adsCampaign" class="meta">
+              <v-icon icon="mdi-google-ads" size="13" /> {{ tk.adsCampaign.name }}
+            </span>
             <span v-if="tk.company" class="meta">
               <v-icon icon="mdi-domain" size="13" /> {{ tk.company.name }}
             </span>

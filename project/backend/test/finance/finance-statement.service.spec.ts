@@ -155,10 +155,29 @@ describe('FinanceStatementService.buildStatement', () => {
 });
 
 describe('FinanceStatementService.checks', () => {
+  it('an open hold explains its part of the balance', async () => {
+    const none = { findMany: jest.fn(async () => []) };
+    const prisma = {
+      walletTransaction: {
+        ...none,
+        groupBy: jest.fn(async () => [{ walletId: 'w1', _sum: { amountMinor: -500 } }]),
+      },
+      wallet: { findMany: jest.fn(async () => [{ id: 'w1', balanceMinor: -500, user: null }]) },
+      invoice: none,
+      platformExpense: none,
+    };
+    const checks = await new FinanceStatementService(prisma as any).checks();
+    expect(checks.items.find((i) => i.key === 'walletBalance')).toMatchObject({ count: 0 });
+    expect(prisma.walletTransaction.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { type: 'spend', status: 'pending' } }),
+    );
+  });
+
   it('reports duplicate payments and wallet balances that disagree with the ledger', async () => {
     const created = new Date('2026-01-10');
     const prisma = {
       walletTransaction: {
+        groupBy: jest.fn(async () => []),
         findMany: jest.fn(async (args: any) => {
           if (args.where?.type === 'purchase') {
             return [

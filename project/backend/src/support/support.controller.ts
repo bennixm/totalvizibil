@@ -90,6 +90,13 @@ export class SupportController {
     return this.support.get(this.actor(user, query.as), id);
   }
 
+  /** Read-only, for the staff side of a ticket. */
+  @Get('tickets/:id/google-ads')
+  adsOverview(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    this.assertStaff(user);
+    return this.support.adsOverview(id);
+  }
+
   @Post('tickets/:id/messages')
   postMessage(
     @CurrentUser() user: AuthPrincipal,

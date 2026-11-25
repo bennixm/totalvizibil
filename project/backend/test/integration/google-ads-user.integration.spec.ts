@@ -3,6 +3,8 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AiService } from 'src/ai/ai.service';
 import { GoogleAdsChatService } from 'src/google-ads-user/google-ads-chat.service';
+import { GoogleAdsUserService } from '../../src/google-ads-user/google-ads-user.service';
+import { GoogleAdsUserAgentService } from '../../src/google-ads-user/google-ads-user-agent.service';
 import { GoogleAdsOAuthService } from 'src/google-ads-user/google-ads-oauth.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { createTestApp } from './helpers/app';
@@ -366,6 +368,61 @@ describe('agent chat: billing', () => {
       status: 'failed',
       errorCode: 'interrupted',
     });
+  });
+
+  it('after a restart, interrupted work is settled at once and keeps its AI cost', async () => {
+    // One answer arrived (and was paid for) before the process died.
+    script = [
+      { tools: [['save_business_facts', { services: 'x' }]] },
+      new Promise<Reply>(() => undefined),
+    ];
+    const res = await say().expect(201);
+    await waitFor(async () => {
+      const t = await prisma.googleAdsChatTurn.findUnique({ where: { id: res.body.turnId } });
+      return t && t.aiCallCount > 0;
+    });
+    const cycle = await prisma.googleAdsOptimizationCycle.create({
+      data: {
+        userCampaignId: campaignId,
+        userId: user.id,
+        trigger: 'manual',
+        quote: {},
+        quotedMinor: 1000,
+        aiCostMinor: 7,
+        inputTokens: 900,
+      },
+    });
+    const restarted = new Date(Date.now() + 1000);
+    for (const svc of [
+      app.get(GoogleAdsChatService),
+      app.get(GoogleAdsUserAgentService),
+    ] as any[]) {
+      const before = svc.bootedAt;
+      svc.running.clear();
+      svc.bootedAt = restarted;
+      await (svc.settleStale ? svc.settleStale() : svc.settleStaleCycles());
+      svc.bootedAt = before;
+    }
+    const t = await settled(res.body.turnId);
+    expect(t).toMatchObject({ status: 'failed', chargedMinor: 0, aiCallCount: 1 });
+    expect(t.aiCostUsd).toBeGreaterThan(0);
+    expect(await balance()).toBe(5000);
+    expect(
+      await prisma.googleAdsOptimizationCycle.findUniqueOrThrow({ where: { id: cycle.id } }),
+    ).toMatchObject({ status: 'failed', aiCostMinor: 7, inputTokens: 900 });
+  });
+
+  it('starts nothing while shutting down', async () => {
+    const svc = app.get(GoogleAdsChatService) as any;
+    const agent = app.get(GoogleAdsUserAgentService) as any;
+    svc.stopping = agent.stopping = true;
+    try {
+      expect((await say().expect(503)).body.message).toBe('restarting');
+      expect((await post('/cycles').expect(503)).body.message).toBe('restarting');
+    } finally {
+      svc.stopping = agent.stopping = false;
+    }
+    expect(await balance()).toBe(5000);
   });
 
   it('a running message blocks removing the campaign', async () => {
@@ -740,6 +797,424 @@ describe('optimization cycles', () => {
       where: { id: start.body.connection.id },
     });
     expect(c.selections).toBeNull();
+  });
+});
+
+describe('connection safety', () => {
+  const BASE = '/api/v1/google-ads-user';
+  const row = () => prisma.googleAdsUserCampaign.findUniqueOrThrow({ where: { id: campaignId } });
+  const connId = async () => (await row()).connectionId;
+  const set = (data: object) =>
+    prisma.googleAdsUserCampaign.update({ where: { id: campaignId }, data });
+  const consent = async (id: string) => {
+    const r = await http()
+      .post(`${BASE}/connections/${id}/reconnect-url`)
+      .set('Cookie', user.cookie)
+      .expect(201);
+    expect(Object.keys(r.body)).toEqual(['url']);
+    const cookie = (r.headers['set-cookie'] as unknown as string[])[0];
+    expect(cookie).toMatch(/HttpOnly/);
+    return { state: r.body.url as string, cookie: cookie.split(';')[0] };
+  };
+  beforeEach(() => {
+    const oauth = app.get(GoogleAdsOAuthService);
+    jest.spyOn(oauth, 'missingConfig').mockResolvedValue([]);
+    jest.spyOn(oauth, 'authUrl').mockImplementation(async (s) => s);
+    jest.spyOn(oauth, 'revoke').mockResolvedValue(undefined);
+    jest
+      .spyOn(oauth, 'exchange')
+      .mockResolvedValue({ refreshTokenEnc: 'new', email: 'ion@example.com', sub: 'g-ion' });
+  });
+
+  it('a consent finished in another browser is refused and gives no access', async () => {
+    const id = await connId();
+    const { state, cookie } = await consent(id);
+    for (const c of ['', 'tvz_ads_oauth=other']) {
+      const r = await http()
+        .get(`${BASE}/oauth/callback`)
+        .query({ code: 'x', state })
+        .set('Cookie', c)
+        .expect(302);
+      expect(r.headers.location).toContain('error=state');
+    }
+    const token = async () =>
+      (await prisma.googleAdsConnection.findUniqueOrThrow({ where: { id } })).refreshTokenEnc;
+    expect(await token()).toBe('x');
+    const ok = await http()
+      .get(`${BASE}/oauth/callback`)
+      .query({ code: 'x', state })
+      .set('Cookie', cookie)
+      .expect(302);
+    expect(ok.headers.location).toContain('reconnected=1');
+    expect(await token()).toBe('new');
+  });
+
+  it('reconnecting keeps a paused agent paused and starts no overdue cycle', async () => {
+    const old = new Date(Date.now() - 30 * 86_400_000);
+    for (const status of ['paused', 'active'] as const) {
+      await set({ status, settings: { schedule: 'weekly' }, nextCycleAt: old });
+      const id = await connId();
+      await http()
+        .post(`${BASE}/connections/${id}/disconnect`)
+        .set('Cookie', user.cookie)
+        .expect(201);
+      expect((await row()).status).toBe('disconnected');
+      const { state, cookie } = await consent(id);
+      await http()
+        .get(`${BASE}/oauth/callback`)
+        .query({ code: 'x', state })
+        .set('Cookie', cookie)
+        .expect(302);
+      const r = await row();
+      expect([r.status, r.resumeStatus]).toEqual([status, null]);
+      expect(r.nextCycleAt!.getTime()).toBeGreaterThan(Date.now());
+    }
+  });
+
+  const other = () =>
+    createAndLoginUser(app, prisma, {
+      email: 'ana@example.com',
+      password: 'password123',
+      name: 'Ana',
+    });
+  const draftFor = async (data: object = {}) => {
+    const start = await http().post(`${BASE}/builder/start`).send({}).expect(201);
+    await prisma.googleAdsConnection.update({
+      where: { id: start.body.connection.id },
+      data: {
+        status: 'connected',
+        refreshTokenEnc: 'draft',
+        googleSub: 'g-ion',
+        selections: [{ customerId: '1234567890', loginCustomerId: null, campaignId: '77' }],
+        ...data,
+      },
+    });
+    return { token: start.body.draftToken as string, id: start.body.connection.id as string };
+  };
+  const claim = (token: string, u = user) =>
+    http().post(`${BASE}/builder/claim`).set('x-ads-draft', token).set('Cookie', u.cookie);
+
+  it('refuses to reconnect with a different Google account', async () => {
+    const id = await connId();
+    await prisma.googleAdsConnection.update({ where: { id }, data: { googleSub: 'g-other' } });
+    const { state, cookie } = await consent(id);
+    const r = await http()
+      .get(`${BASE}/oauth/callback`)
+      .query({ code: 'x', state })
+      .set('Cookie', cookie)
+      .expect(302);
+    expect(r.headers.location).toContain('/google-ads/connections?error=account');
+    const c = await prisma.googleAdsConnection.findUniqueOrThrow({ where: { id } });
+    expect(c.refreshTokenEnc).toBe('x');
+  });
+
+  it('does not revoke Google access another connection still uses', async () => {
+    const revoke = jest.spyOn(app.get(GoogleAdsOAuthService), 'revoke');
+    revoke.mockClear();
+    const id = await connId();
+    await prisma.googleAdsConnection.update({ where: { id }, data: { googleSub: 'g-ion' } });
+    const d = await draftFor();
+    await http()
+      .post(`${BASE}/connections/${id}/disconnect`)
+      .set('Cookie', user.cookie)
+      .expect(201);
+    expect(revoke).not.toHaveBeenCalled();
+    await http().post(`${BASE}/builder/disconnect`).set('x-ads-draft', d.token).expect(201);
+    expect(revoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('claiming the same Google account again keeps one connection', async () => {
+    const id = await connId();
+    await prisma.googleAdsConnection.update({ where: { id }, data: { googleSub: 'g-ion' } });
+    const d = await draftFor();
+    await claim(d.token).expect(201);
+    const all = await prisma.googleAdsConnection.findMany({ where: { userId: user.id } });
+    expect(all.map((c) => [c.id, c.refreshTokenEnc])).toEqual([[id, 'draft']]);
+    expect((await row()).connectionId).toBe(id);
+  });
+
+  it('one account manages a Google campaign; a failed claim can be retried', async () => {
+    const ana = await other();
+    const d = await draftFor({ googleSub: 'g-ana' });
+    const no = await claim(d.token, ana).expect(400);
+    expect(no.body.message).toBe('campaign_managed_elsewhere');
+    await http().delete(url()).set('Cookie', user.cookie).expect(200);
+    await claim(d.token, ana).expect(201);
+    expect(
+      await prisma.googleAdsUserCampaign.count({ where: { userId: ana.id, status: 'active' } }),
+    ).toBe(1);
+  });
+
+  it('a removed campaign disappears, its costs stay and its words are erased', async () => {
+    script = [{ text: 'Salut!' }];
+    const turn = await chat('secretul meu');
+    const action = await prisma.googleAdsUserAction.create({
+      data: { userCampaignId: campaignId, action: 'chat.status', status: 'pending_approval' },
+    });
+    await http().delete(url()).set('Cookie', user.cookie).expect(200);
+    await get().expect(404);
+    const list = await http().get(`${BASE}/campaigns`).set('Cookie', user.cookie).expect(200);
+    expect(list.body).toEqual([]);
+    const t = await prisma.googleAdsChatTurn.findUniqueOrThrow({ where: { id: turn.id } });
+    expect([t.userText, t.assistantText]).toEqual(['', null]);
+    expect(t.chargedMinor).toBe(turn.chargedMinor);
+    expect(t.aiCostUsd).toBeGreaterThan(0);
+    expect(
+      (await prisma.googleAdsUserAction.findUniqueOrThrow({ where: { id: action.id } })).status,
+    ).toBe('expired');
+    // Added again: the same row, starting fresh.
+    const d = await draftFor();
+    await claim(d.token).expect(201);
+    expect((await row()).status).toBe('active');
+    const c = await http().get(url('/chat')).set('Cookie', user.cookie).expect(200);
+    expect(c.body.turns).toEqual([]);
+  });
+
+  it('forgets abandoned drafts and unites duplicate connections', async () => {
+    const revoke = jest.spyOn(app.get(GoogleAdsOAuthService), 'revoke');
+    revoke.mockClear();
+    const old = await draftFor({
+      googleSub: 'g-gone',
+      updatedAt: new Date(Date.now() - 8 * 86_400_000),
+    });
+    const fresh = await draftFor({ googleSub: 'g-fresh' });
+    const id = await connId();
+    await prisma.googleAdsConnection.update({
+      where: { id },
+      data: { googleEmail: 'ion@x.ro', status: 'revoked' },
+    });
+    const keep = await prisma.googleAdsConnection.create({
+      data: { userId: user.id, status: 'connected', refreshTokenEnc: 'y', googleEmail: 'Ion@x.ro' },
+    });
+    await app.get(GoogleAdsUserService).cleanUp();
+    const ids = (await prisma.googleAdsConnection.findMany()).map((c) => c.id);
+    expect(ids.sort()).toEqual([fresh.id, keep.id].sort());
+    expect(ids).not.toContain(old.id);
+    expect(revoke).toHaveBeenCalledTimes(1);
+    expect((await row()).connectionId).toBe(keep.id);
+  });
+
+  it('expires old proposals and closes interrupted approvals by what Google shows', async () => {
+    const agent = app.get(GoogleAdsUserAgentService);
+    const make = (data: object) =>
+      prisma.googleAdsUserAction.create({
+        data: { userCampaignId: campaignId, action: 'budget.change.proposed', ...data } as never,
+      });
+    const past = new Date(Date.now() - 31 * 86_400_000);
+    const old = await make({ status: 'pending_approval', createdAt: past });
+    const live = String(google.budget);
+    const stuck = { status: 'approved', approvedAt: new Date(Date.now() - 3_600_000) };
+    const done = await make({ ...stuck, after: { amountMicros: live } });
+    const lost = await make({ ...stuck, after: { amountMicros: '1' } });
+    const now = await make({
+      status: 'approved',
+      approvedAt: new Date(),
+      after: { amountMicros: '1' },
+    });
+    await agent.expireProposals();
+    await agent.settleStuckApprovals();
+    const st = async (x: { id: string }) =>
+      (await prisma.googleAdsUserAction.findUniqueOrThrow({ where: { id: x.id } })).status;
+    expect([await st(old), await st(done), await st(lost), await st(now)]).toEqual([
+      'expired',
+      'applied',
+      'failed',
+      'approved',
+    ]);
+  });
+
+  const notes = (type: string) =>
+    prisma.notification.findMany({ where: { userId: user.id, type } });
+
+  it('tells the owner once when Google withdraws the access', async () => {
+    const agent = app.get(GoogleAdsUserAgentService);
+    const id = await connId();
+    await agent.connectionLost(id);
+    await agent.connectionLost(id);
+    expect((await row()).status).toBe('disconnected');
+    const n = await notes('google_ads_connection_lost');
+    expect(n).toHaveLength(1);
+    expect([...n[0].channels].sort()).toEqual(['email', 'panel']);
+  });
+
+  it('a scheduled cycle that could not start is explained once, by email too', async () => {
+    await credits(0);
+    const due = new Date(Date.now() - 1000);
+    await set({ settings: { schedule: 'weekly', chatDailyLimitCredits: 0 }, nextCycleAt: due });
+    const ready = {
+      services: 'Instalatii sanitare',
+      areas: 'Cluj',
+      goal: 'Cereri',
+    };
+    await set({ brief: ready });
+    await (app.get(GoogleAdsUserAgentService) as any).tick();
+    const n = await notes('google_ads_cycle_skipped');
+    expect(n).toHaveLength(1);
+    expect(n[0].body).toContain('Instalatii');
+    expect((await row()).nextCycleAt!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('several scheduled cycles of one owner end in one message', async () => {
+    const agent = app.get(GoogleAdsUserAgentService);
+    const second = await prisma.googleAdsUserCampaign.create({
+      data: {
+        userId: user.id,
+        connectionId: await connId(),
+        customerId: '1234567890',
+        googleCampaignId: '78',
+        name: 'Termice',
+      },
+    });
+    const cycle = (userCampaignId: string) =>
+      prisma.googleAdsOptimizationCycle.create({
+        data: {
+          userCampaignId,
+          userId: user.id,
+          trigger: 'scheduled',
+          quote: {},
+          quotedMinor: 1000,
+        },
+      });
+    const a = await cycle(campaignId);
+    const b = await cycle(second.id);
+    for (const c of [a, b])
+      await prisma.googleAdsUserAction.create({
+        data: {
+          userCampaignId: c.userCampaignId,
+          cycleId: c.id,
+          action: 'creative.replace_text',
+          status: 'pending_approval',
+        },
+      });
+    await agent.settle(a.id, { error: null, scoreAfter: null });
+    expect(await notes('google_ads_cycle_done')).toHaveLength(0);
+    await agent.settle(b.id, { error: null, scoreAfter: null });
+    const n = await notes('google_ads_cycle_done');
+    expect(n).toHaveLength(1);
+    expect(n[0].body).toContain('Instalatii');
+    expect(n[0].body).toContain('Termice');
+  });
+
+  it('logs what the owner did, visible to staff', async () => {
+    await post('/pause').expect(201);
+    await http()
+      .patch(url('/settings'))
+      .set('Cookie', user.cookie)
+      .send({ images: true })
+      .expect(200);
+    const rows = await prisma.businessActionLog.findMany({ orderBy: { createdAt: 'asc' } });
+    expect(rows.map((r) => [r.action, r.companyId, r.targetId])).toEqual([
+      ['ads.pause', null, campaignId],
+      ['ads.settings', null, campaignId],
+    ]);
+    expect([rows[1].before, rows[1].after]).toEqual([{ images: false }, { images: true }]);
+    const staff = await createAndLoginUser(app, prisma, {
+      email: 'sup@example.com',
+      password: 'password123',
+      name: 'Sup',
+    });
+    await prisma.platformRoleAssignment.create({ data: { userId: staff.id, role: 'support' } });
+    const log = await http()
+      .get('/api/v1/admin/business-action-log')
+      .set('Cookie', staff.cookie)
+      .expect(200);
+    expect(log.body.total).toBe(2);
+  });
+
+  it('a ticket can be about a campaign; staff see it read-only', async () => {
+    const ana = await other();
+    const ticket = (u: TestUser) =>
+      http().post('/api/v1/support/tickets').set('Cookie', u.cookie).send({
+        subject: 'Nu merge',
+        body: 'Campania mea nu mai merge deloc.',
+        category: 'problem',
+        adsCampaignId: campaignId,
+      });
+    expect((await ticket(ana).expect(400)).body.message).toBe('not_your_campaign');
+    const t = await ticket(user).expect(201);
+    expect(t.body.adsCampaign).toEqual({ id: campaignId, name: 'Instalatii' });
+    const path = `/api/v1/support/tickets/${t.body.id}/google-ads`;
+    await http().get(path).set('Cookie', user.cookie).expect(403);
+    await prisma.platformRoleAssignment.create({ data: { userId: ana.id, role: 'support' } });
+    const r = await http().get(path).set('Cookie', ana.cookie).expect(200);
+    expect(r.body.items).toMatchObject([{ id: campaignId, about: true, status: 'active' }]);
+    expect(JSON.stringify(r.body)).not.toContain('refreshToken');
+  });
+
+  it('admin lists every campaign and finds the ones with problems', async () => {
+    const staff = await createAndLoginUser(app, prisma, {
+      email: 'boss2@example.com',
+      password: 'password123',
+      name: 'Boss',
+    });
+    const list = (q: string) =>
+      http().get(`/api/v1/admin/google-ads-optimizer/campaigns${q}`).set('Cookie', staff.cookie);
+    await list('').expect(403);
+    await prisma.platformRoleAssignment.create({ data: { userId: staff.id, role: 'admin' } });
+    expect((await list('?search=ion@ex').expect(200)).body.total).toBe(1);
+    expect((await list('?problem=1').expect(200)).body.total).toBe(0);
+    await set({ status: 'disconnected' });
+    expect((await list('?problem=1&status=disconnected').expect(200)).body.items[0]).toMatchObject({
+      id: campaignId,
+      user: { id: user.id },
+    });
+    const usage = await http()
+      .get('/api/v1/admin/google-ads-optimizer/usage?from=2020-01-01&to=2020-01-31&page=2')
+      .set('Cookie', staff.cookie)
+      .expect(200);
+    expect(usage.body.totals.cycles).toBe(0);
+    const stats = await http().get('/api/v1/admin/stats').set('Cookie', staff.cookie).expect(200);
+    expect(stats.body.googleAds.disconnected).toBe(1);
+  });
+
+  it('lists what the agent cost, per campaign and period', async () => {
+    script = [{ text: 'Salut!' }];
+    const turn = await chat();
+    await prisma.googleAdsOptimizationCycle.create({
+      data: {
+        userCampaignId: campaignId,
+        userId: user.id,
+        trigger: 'manual',
+        status: 'completed',
+        quote: {},
+        quotedMinor: 1500,
+        chargedMinor: 1000,
+        refundedMinor: 500,
+      },
+    });
+    const r = await http().get(`${BASE}/costs`).set('Cookie', user.cookie).expect(200);
+    expect(r.body.items).toMatchObject([
+      { id: campaignId, cycles: 1, cyclesMinor: 1000, messages: 1, chatMinor: turn.chargedMinor },
+    ]);
+    expect(r.body.totals.totalMinor).toBe(1000 + turn.chargedMinor);
+    const old = await http()
+      .get(`${BASE}/costs?from=2020-01-01&to=2020-01-31`)
+      .set('Cookie', user.cookie)
+      .expect(200);
+    expect(old.body.totals.totalMinor).toBe(0);
+    const d = await get().expect(200);
+    expect(d.body.chatCosts).toEqual({ messages: 1, chargedMinor: turn.chargedMinor });
+  });
+
+  it('suspending the account stops its agent and its scheduled cycles', async () => {
+    const staff = await createAndLoginUser(app, prisma, {
+      email: 'boss@example.com',
+      password: 'password123',
+      name: 'Boss',
+    });
+    await prisma.platformRoleAssignment.create({ data: { userId: staff.id, role: 'admin' } });
+    await http()
+      .patch(`/api/v1/admin/users/${user.id}`)
+      .set('Cookie', staff.cookie)
+      .send({ status: 'suspended' })
+      .expect(200);
+    expect((await row()).status).toBe('paused');
+    // Even if something left it active, the scheduler skips the account.
+    const due = new Date(Date.now() - 1000);
+    await set({ status: 'active', settings: { schedule: 'weekly' }, nextCycleAt: due });
+    await (app.get(GoogleAdsUserAgentService) as any).tick();
+    expect((await row()).nextCycleAt!.getTime()).toBe(due.getTime());
+    expect(await prisma.googleAdsOptimizationCycle.count()).toBe(0);
   });
 });
 

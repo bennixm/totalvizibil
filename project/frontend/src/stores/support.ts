@@ -57,6 +57,7 @@ export interface TicketListItem {
   requester: SupportPerson
   assignee: SupportPerson | null
   company: { id: string; name: string } | null
+  adsCampaign?: { id: string; name: string } | null
   messageCount: number
   /** Who wrote the latest public reply; null when nobody has replied yet. */
   lastReplyBy?: 'requester' | 'team' | null
@@ -91,6 +92,7 @@ export interface TicketDetail {
   requester: SupportPerson
   assignee: SupportPerson | null
   company: { id: string; name: string } | null
+  adsCampaign?: { id: string; name: string } | null
   firstResponseAt: string | null
   resolvedAt: string | null
   closedAt: string | null
@@ -127,6 +129,29 @@ export interface CreateTicketInput {
   category: TicketCategory
   priority?: TicketPriority
   companyId?: string
+  adsCampaignId?: string
+}
+
+/** Staff's read-only view of a requester's Google Ads campaigns. */
+export interface TicketAdsCampaign {
+  id: string
+  name: string
+  status: 'active' | 'paused' | 'disconnected'
+  score: number | null
+  nextCycleAt: string | null
+  googleEmail: string | null
+  lastError: string | null
+  pendingApprovals: number
+  about: boolean
+  cycles: {
+    id: string
+    startedAt: string
+    status: string
+    chargedMinor: number
+    tasksApplied: number
+    tasksProposed: number
+    errorMessage: string | null
+  }[]
 }
 
 export interface TicketFilters {

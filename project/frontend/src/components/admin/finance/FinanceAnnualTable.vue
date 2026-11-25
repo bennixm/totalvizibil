@@ -57,7 +57,7 @@ onMounted(() => {
         :label="t('adminFinance.periodYear')"
         density="compact"
         hide-details
-        style="max-width: 130px"
+        style="flex: none; width: 130px"
       />
       <v-spacer />
       <AdminExportMenu
@@ -129,6 +129,7 @@ onMounted(() => {
 <style scoped>
 .fat__bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.8rem;
   margin-bottom: 1rem;

@@ -4,12 +4,18 @@ import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
 import { PlatformRoles, PlatformRolesGuard } from '../auth/platform-roles.guard';
+import { GoogleAdsUserCampaignStatus, Prisma } from '@prisma/client';
 import { AuditLogService } from '../admin/audit-log.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleAdsOAuthService } from './google-ads-oauth.service';
 import { DEFAULT_CHAT_PRICING } from './chat-pricing';
 import { DEFAULT_PRICING } from './pricing';
+
+const PAGE_SIZE = 50;
+const pageOf = (v?: string) => Math.max(1, Math.min(10_000, parseInt(v ?? '', 10) || 1));
+/** A bare day means all of it. */
+const endOf = (v: string) => new Date(v.length === 10 ? `${v}T23:59:59.999Z` : v);
 
 class OauthDto {
   @IsOptional()
@@ -111,12 +117,103 @@ export class AdminGoogleAdsUserController {
     return this.oauthConfig();
   }
 
+  /** Every customer campaign on the platform, with what is wrong with it. */
+  @Get('campaigns')
+  async campaigns(
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('problem') problem?: string,
+    @Query('page') pageRaw?: string,
+  ) {
+    const page = pageOf(pageRaw);
+    const q = search?.trim().slice(0, 100);
+    const failedSince = new Date(Date.now() - 7 * 86_400_000);
+    const and: Prisma.GoogleAdsUserCampaignWhereInput[] = [
+      { status: { not: 'removed' } },
+      ...(status === 'active' || status === 'paused' || status === 'disconnected'
+        ? [{ status: status as GoogleAdsUserCampaignStatus }]
+        : []),
+      ...(problem === '1'
+        ? [
+            {
+              OR: [
+                { status: 'disconnected' as const },
+                {
+                  cycles: {
+                    some: { status: 'failed' as const, startedAt: { gte: failedSince } },
+                  },
+                },
+              ],
+            },
+          ]
+        : []),
+      ...(q
+        ? [
+            {
+              OR: [
+                { name: { contains: q, mode: 'insensitive' as const } },
+                { customerName: { contains: q, mode: 'insensitive' as const } },
+                { customerId: { contains: q.replace(/-/g, '') } },
+                { user: { email: { contains: q, mode: 'insensitive' as const } } },
+                { user: { name: { contains: q, mode: 'insensitive' as const } } },
+              ],
+            },
+          ]
+        : []),
+    ];
+    const where = { AND: and };
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.googleAdsUserCampaign.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          connection: { select: { googleEmail: true, status: true, lastError: true } },
+          cycles: {
+            orderBy: { startedAt: 'desc' },
+            take: 1,
+            select: { status: true, startedAt: true, errorMessage: true },
+          },
+          _count: { select: { actions: { where: { status: 'pending_approval' } } } },
+        },
+      }),
+      this.prisma.googleAdsUserCampaign.count({ where }),
+    ]);
+    return {
+      page,
+      pageSize: PAGE_SIZE,
+      total,
+      items: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        customerName: r.customerName,
+        customerId: r.customerId,
+        status: r.status,
+        score: r.score,
+        syncedAt: r.syncedAt,
+        nextCycleAt: r.nextCycleAt,
+        user: r.user,
+        googleEmail: r.connection.googleEmail,
+        lastError: r.status === 'disconnected' ? r.connection.lastError : null,
+        lastCycle: r.cycles[0] ?? null,
+        pendingApprovals: r._count.actions,
+      })),
+    };
+  }
+
   /** Consumption: totals + latest cycles (charged credits vs real AI cost). */
   @Get('usage')
-  async usage(@Query('from') from?: string, @Query('to') to?: string) {
+  async usage(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page') pageRaw?: string,
+  ) {
+    const page = pageOf(pageRaw);
     const range = {
       ...(from && !isNaN(Date.parse(from)) ? { gte: new Date(from) } : {}),
-      ...(to && !isNaN(Date.parse(to)) ? { lte: new Date(to) } : {}),
+      ...(to && !isNaN(Date.parse(to)) ? { lte: endOf(to) } : {}),
     };
     const where = Object.keys(range).length ? { startedAt: range } : {};
     const chatWhere = Object.keys(range).length ? { createdAt: range } : {};
@@ -143,13 +240,14 @@ export class AdminGoogleAdsUserController {
       this.prisma.googleAdsOptimizationCycle.findMany({
         where,
         orderBy: { startedAt: 'desc' },
-        take: 100,
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
         include: {
           user: { select: { id: true, email: true, name: true } },
           userCampaign: { select: { name: true, customerName: true } },
         },
       }),
-      this.prisma.googleAdsUserCampaign.count(),
+      this.prisma.googleAdsUserCampaign.count({ where: { status: { not: 'removed' } } }),
       this.prisma.googleAdsConnection.count({ where: { status: 'connected' } }),
       this.prisma.googleAdsChatTurn.aggregate({
         where: chatWhere,
@@ -183,6 +281,8 @@ export class AdminGoogleAdsUserController {
         cycles: l._count,
         chargedMinor: l._sum.chargedMinor ?? 0,
       })),
+      page,
+      pageSize: PAGE_SIZE,
       cycles: cycles.map((c) => ({
         id: c.id,
         startedAt: c.startedAt,
