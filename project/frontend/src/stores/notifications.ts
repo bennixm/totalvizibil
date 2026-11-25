@@ -101,6 +101,9 @@ export function routeForNotification(
   if (n.type === 'campaign_paused_website_not_ready' && typeof companyId === 'string') {
     return { name: 'campaign', query: { c: companyId } }
   }
+  if (n.type === 'google_ads_no_change' && typeof n.data?.adsCampaignId === 'string') {
+    return { name: 'ads-dashboard', params: { id: n.data.adsCampaignId } }
+  }
   if (n.type === 'google_ads_agent_run_failed') {
     return { name: 'admin-google-ads-agent' }
   }
@@ -170,6 +173,7 @@ const VISUALS: Record<string, NotificationVisual> = {
   wallet_low_balance: { icon: 'mdi-wallet-outline', tone: 'warning' },
   payment_succeeded: { icon: 'mdi-check-decagram-outline', tone: 'success' },
   referral_rewarded: { icon: 'mdi-account-cash-outline', tone: 'success' },
+  google_ads_no_change: { icon: 'mdi-cash-refund', tone: 'primary' },
   refund_requested: { icon: 'mdi-cash-refund', tone: 'warning' },
   refund_completed: { icon: 'mdi-cash-check', tone: 'success' },
   refund_failed: { icon: 'mdi-alert-circle-outline', tone: 'error' },

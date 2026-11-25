@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { ApiError } from '@/services/api'
-import { useToastStore } from '@/stores/toast'
 import type { AdsAccount, AdsCampaignListItem, SelectionItem } from '@/services/googleAdsUser'
 
 /**
@@ -29,11 +28,12 @@ const emit = defineEmits<{
   (e: 'switch'): void
 }>()
 const { t, n, locale } = useI18n()
-const toasts = useToastStore()
 
 const account = ref<AdsAccount | null>(null)
 const campaigns = ref<AdsCampaignListItem[]>([])
 const loading = ref(false)
+/** Why the open account's campaigns could not be read (never shown as "none"). */
+const loadError = ref('')
 /** key `${customerId}:${campaignId}` -> selection (+ name for the summary) */
 const picked = ref(new Map<string, SelectionItem & { name: string }>())
 
@@ -63,23 +63,29 @@ function pickedIn(a: AdsAccount): number {
 async function open(a: AdsAccount): Promise<void> {
   if (!a.selectable) return
   account.value = a
+  campaigns.value = []
+  loadError.value = ''
   loading.value = true
+  // Another account may be opened before this one answers.
+  const stale = () => account.value?.customerId !== a.customerId
   try {
-    campaigns.value = await props.loadCampaigns(a)
+    const list = await props.loadCampaigns(a)
+    if (stale()) return
+    campaigns.value = list
     // A single pickable campaign in the first opened account: pre-select it.
-    const free = campaigns.value.filter(pickable)
+    const free = list.filter(pickable)
     if (!count.value && free.length === 1) toggle(free[0])
   } catch (e) {
-    campaigns.value = []
-    toasts.error(
-      e instanceof ApiError && e.message === 'customer_not_enabled'
+    if (stale()) return
+    const code = e instanceof ApiError ? e.message : ''
+    loadError.value =
+      code === 'customer_not_enabled'
         ? t('ads.campaigns.reason.not_enabled')
-        : e instanceof ApiError
-          ? e.message
-          : t('ads.campaigns.loadError'),
-    )
+        : code === 'google_ads_not_connected' || code === 'google_ads_reconnect_required'
+          ? t('ads.campaigns.reconnect')
+          : code || t('ads.campaigns.loadError')
   } finally {
-    loading.value = false
+    if (!stale()) loading.value = false
   }
 }
 
@@ -183,6 +189,9 @@ onMounted(async () => {
       </div>
       <div v-if="!account" class="ab-note"><v-icon icon="mdi-gesture-tap" size="18" /> {{ t('ads.campaigns.pickAccount') }}</div>
       <div v-else-if="loading" class="ab-center"><v-progress-circular indeterminate color="primary" /></div>
+      <p v-else-if="loadError" class="ab-note ab-note--warn">
+        <v-icon icon="mdi-alert-circle-outline" size="18" /> <span class="ag__error">{{ loadError }}</span>
+      </p>
       <p v-else-if="!campaigns.length" class="ab-note">
         <v-icon icon="mdi-information-outline" size="18" /> {{ t('ads.campaigns.none') }}
       </p>
@@ -243,6 +252,10 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.ag__error {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .ag {
   display: grid;
   grid-template-columns: minmax(0, 300px) minmax(0, 1fr);

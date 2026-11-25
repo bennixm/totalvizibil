@@ -615,7 +615,39 @@ describe('agent chat: changes', () => {
 });
 
 describe('optimization cycles', () => {
-  it('quote is free; a cycle holds the quote and captures the work done', async () => {
+  it('does not plan or price a business name Google refuses', async () => {
+    await prisma.googleAdsUserCampaign.update({
+      where: { id: campaignId },
+      data: { settings: { businessName: 'Instal SRL' } },
+    });
+    const units = async () =>
+      (await get('/quote').expect(200)).body.tasks.find(
+        (t: { task: string }) => t.task === 'extensions',
+      ).units as number;
+    const open = await units();
+    google.validateError = new Error('Customer is not verified. (CUSTOMER_NOT_VERIFIED)');
+    expect(await units()).toBe(open - 1);
+    const d = await get().expect(200);
+    const brand = d.body.snapshot.evaluation.issues.find(
+      (i: { code: string }) => i.code === 'brand_missing',
+    );
+    expect(brand.autoFixable).toBe(false);
+  });
+
+  it('refuses a cycle with nothing to do, without charging', async () => {
+    await prisma.googleAdsUserCampaign.update({
+      where: { id: campaignId },
+      data: {
+        settings: { autoApply: false, textRewriteProposals: false, budgetProposals: false },
+      },
+    });
+    expect((await get('/quote').expect(200)).body.nothingToDo).toBe(true);
+    const r = await post('/cycles').expect(409);
+    expect(r.body.message).toBe('nothing_to_do');
+    expect(await balance()).toBe(5000);
+  });
+
+  it('quote is free; a cycle that changes nothing is returned in full', async () => {
     google.writesAllowed = false; // validate only: nothing is applied
     const q = await get('/quote').expect(200);
     expect(await balance()).toBe(5000);
@@ -632,8 +664,24 @@ describe('optimization cycles', () => {
       return x && x.status !== 'running' ? x : null;
     });
     expect(c.status).toBe('completed');
-    expect(c.chargedMinor).toBe(1000); // the minimum: only the analysis was done
-    expect(await balance()).toBe(4000);
+    // Nothing changed or proposed: everything goes back and the owner is told.
+    expect(c.chargedMinor).toBe(0);
+    expect(c.refundedMinor).toBe(c.quotedMinor);
+    expect(await balance()).toBe(5000);
+    await waitFor(() =>
+      prisma.notification.findFirst({
+        where: { userId: user.id, type: 'google_ads_no_change' },
+      }),
+    );
+    // The same cycle is not offered again until something changes.
+    expect((await get('/quote').expect(200)).body.nothingToDo).toBe(true);
+    expect((await post('/cycles').expect(409)).body.message).toBe('nothing_to_do');
+    await http()
+      .patch(url('/settings'))
+      .set('Cookie', user.cookie)
+      .send({ images: true })
+      .expect(200);
+    expect((await get('/quote').expect(200)).body.nothingToDo).toBe(false);
     expect(await prisma.googleAdsChatTurn.count()).toBe(0);
   });
 

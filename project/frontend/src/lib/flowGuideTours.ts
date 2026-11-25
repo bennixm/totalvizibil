@@ -87,7 +87,8 @@ export const TOURS: Record<string, GuideTour> = {
     step: 'dashboard',
     mode: 'ads',
     tips: [
-      { id: 'ad-tabs', target: g('ads-tabs'), key: 'guide.tip.adsTabs', icon: 'mdi-tab' },
+      { id: 'ad-next', target: g('ads-next'), key: 'guide.tip.adsNext', icon: 'mdi-flag-outline' },
+      { id: 'ad-tabs', target: g('ads-tabs'), key: 'guide.tip.adsTabs', icon: 'mdi-tab', only: 'mobile' },
       { id: 'ad-quote', target: g('ads-quote'), key: 'guide.tip.adsQuote', icon: 'mdi-magnify-scan', contextual: true },
       { id: 'ad-price', target: g('ads-price'), key: 'guide.tip.adsPrice', icon: 'mdi-cash-check', contextual: true },
       { id: 'ad-start', target: g('ads-start'), key: 'guide.tip.adsStart', icon: 'mdi-play-circle-outline', contextual: true },

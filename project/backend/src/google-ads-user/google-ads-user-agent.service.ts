@@ -13,6 +13,7 @@ import { GoogleAdsUserCampaign, Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import { AppConfig } from '../config/env';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { AgentActivity } from '../google-ads/optimization/google-ads-activity';
@@ -21,6 +22,7 @@ import {
   CampaignEvaluation,
   evaluateCampaign,
 } from '../google-ads/optimization/google-ads-campaign-evaluator';
+import { rankKeywordsByPopularity } from '../google-ads/optimization/google-ads-keyword-popularity';
 import { OptimizationTarget } from '../google-ads/optimization/google-ads-optimizer.service';
 import { GoogleAdsWritesDisabledError } from '../google-ads/google-ads-api-client.service';
 import { readSettings, SCHEDULE_DAYS, UserAgentSettings } from './agent-settings';
@@ -31,7 +33,7 @@ import { GoogleAdsConnectionRevokedError, GoogleAdsUserClient } from './google-a
 import { PriceBreakdown, priceWork } from './pricing';
 import { checkUrls, discoverSitePages, landingText } from './site-pages';
 import { UserGoogleAdsOptimizer } from './user-optimizer';
-import { performedWork, planWork, WorkPlan } from './work-plan';
+import { hasWork, performedWork, planWork, WorkPlan } from './work-plan';
 
 /** Wallet `provider` of every optimization charge/credit-back. Also the
  *  key of its spend category and its bucket in the AI usage report. */
@@ -78,6 +80,14 @@ interface BudgetRecommendation {
   recommendedMicros: number;
 }
 
+/** How long an unchanged campaign is not offered the same cycle again. */
+const NO_CHANGE_RETRY_MS = 24 * 3_600_000;
+
+/** Order-independent fingerprint of the settings a cycle ran with. */
+function settingsKey(s: UserAgentSettings): string {
+  return JSON.stringify(Object.entries(s).sort(([a], [b]) => a.localeCompare(b)));
+}
+
 @Injectable()
 export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(GoogleAdsUserAgentService.name);
@@ -92,6 +102,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     private readonly settings: PlatformSettingsService,
     private readonly ai: AiService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly notifications: NotificationsService,
   ) {}
 
   onModuleInit(): void {
@@ -164,18 +175,45 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       );
     }
     const urlChecks = await checkUrls(c.ads.flatMap((a) => a.finalUrls));
-    const ev = evaluateCampaign(c, { managed: true, urlChecks });
+    let ev = evaluateCampaign(c, { managed: true, urlChecks });
     const settings = readSettings(row.settings);
     const budgetRecommendations = settings.budgetProposals
       ? await this.budgetRecommendations(client, c).catch(() => [])
       : [];
     const optimizer = this.optimizerFor(row, client, settings, null);
     const rsaBlocked = !!(await optimizer.rsaChangeBlocker(c));
+    const keywordsBlocked = !!(await optimizer.keywordChangeBlocker(c));
+    // Never promise (or price) a business name Google refuses to accept.
+    const canName = settings.autoApply && !!settings.businessName;
+    const nameRefused =
+      canName &&
+      !ev.assets.businessName &&
+      (await optimizer.businessNameRefused(c, settings.businessName));
+    if (!ev.assets.businessName && (!canName || nameRefused)) {
+      ev = evaluateCampaign(c, {
+        managed: true,
+        urlChecks,
+        businessNameBlocker: nameRefused ? 'unverified' : 'unset',
+      });
+    }
+    // Same popularity order as the cycle, so the plan matches what it does.
+    const kw = ev.assets.headlineKeywords;
+    const rankedKeywords =
+      settings.autoApply && settings.keywordHeadlines && !keywordsBlocked && kw?.missing.length
+        ? (
+            await rankKeywordsByPopularity(client, c.googleCampaignId, [
+              ...kw.covered,
+              ...kw.missing,
+            ])
+          ).ranked.map((r) => r.keyword)
+        : undefined;
     const plan = planWork(c, ev, settings, {
       rsaBlocked,
       imagesAvailable: !!this.config.get('pexelsApiKey', { infer: true }),
       budgetRecommendations: budgetRecommendations.length,
-      hasBusinessName: !!settings.businessName,
+      hasBusinessName: canName && !nameRefused,
+      keywordsBlocked,
+      rankedKeywords,
     });
     const pricing = await this.settings.googleAdsOptimizerPricing();
     const quote = priceWork(pricing, plan.units, plan.elementsAnalyzed);
@@ -254,6 +292,7 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
       tasks: a.plan.tasks,
       score: a.ev.score,
       readiness: a.readiness,
+      nothingToDo: !hasWork(a.plan, a.ev) || (await this.nothingChangedSince(row, a.settings)),
       balanceMinor: (await this.wallet.getSummary(userId)).balance.minor,
     };
   }
@@ -462,6 +501,10 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     await this.wallet.assertSpendable(userId);
 
     const a = await this.analyze(row);
+    // Nothing it could change: a cycle would only cost credits.
+    if (!hasWork(a.plan, a.ev) || (await this.nothingChangedSince(row, a.settings))) {
+      throw new ConflictException('nothing_to_do');
+    }
     // Not enough to work from: the agent asks (chat) instead of guessing.
     if (a.readiness.level === 'insufficient' && !opts.ignoreMissingInfo) {
       throw new ConflictException({
@@ -497,7 +540,11 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
             userId,
             trigger: opts.trigger,
             idempotencyKey: opts.idempotencyKey ?? null,
-            quote: { ...a.quote, tasks: a.plan.tasks } as unknown as Prisma.InputJsonValue,
+            quote: {
+              ...a.quote,
+              tasks: a.plan.tasks,
+              settingsKey: settingsKey(a.settings),
+            } as unknown as Prisma.InputJsonValue,
             quotedMinor: a.quote.minor,
             complexityLevel: a.quote.level.key,
             complexityPoints: a.quote.points,
@@ -540,6 +587,41 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     return { cycleId, status: 'running' as const, chargedMinor: a.quote.minor };
   }
 
+  /**
+   * The last cycle (today) changed nothing and was returned in full, and the
+   * owner has not given the agent anything new since: running it again would
+   * end the same way, so it is not offered again until something changes.
+   */
+  private async nothingChangedSince(
+    row: GoogleAdsUserCampaign,
+    settings: UserAgentSettings,
+  ): Promise<boolean> {
+    const last = await this.prisma.googleAdsOptimizationCycle.findFirst({
+      where: { userCampaignId: row.id, status: { not: 'running' } },
+      orderBy: { startedAt: 'desc' },
+    });
+    if (
+      !last ||
+      last.status !== 'completed' ||
+      last.tasksApplied + last.tasksProposed > 0 ||
+      Date.now() - last.startedAt.getTime() > NO_CHANGE_RETRY_MS
+    ) {
+      return false;
+    }
+    const key = (last.quote as { settingsKey?: string } | null)?.settingsKey;
+    if (key !== settingsKey(settings)) return false;
+    const since = { gt: last.startedAt };
+    const [turns, actions] = await Promise.all([
+      this.prisma.googleAdsChatTurn.count({
+        where: { userCampaignId: row.id, createdAt: since },
+      }),
+      this.prisma.googleAdsUserAction.count({
+        where: { userCampaignId: row.id, approvedAt: since },
+      }),
+    ]);
+    return turns + actions === 0;
+  }
+
   /** The cycle's work, the same passes the platform monitor runs. */
   private async execute(row: GoogleAdsUserCampaign, cycleId: string, a: Analysis): Promise<void> {
     const activity = new AgentActivity(this.prisma, cycleId, row.id);
@@ -553,8 +635,8 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
         { ...meta, step: 'analyze', message: 'Analiză și scor față de cerințele Google' },
         {
           result:
-            `Scor ${a.ev.score ?? '–'}/100, Ad Strength ${a.ev.adStrength ?? '–'}, ` +
-            `${a.ev.issues.length} probleme găsite (${a.ev.issues.filter((i) => i.autoFixable).length} rezolvabile automat).`,
+            `Scor ${a.ev.score ?? '–'} din 100. ` +
+            `Lucruri de îmbunătățit: ${a.ev.issues.length}, dintre care agentul poate rezolva ${a.ev.issues.filter((i) => i.autoFixable).length}.`,
           details: {
             quote: a.quote.credits,
             tasks: a.plan.tasks,
@@ -630,7 +712,8 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
 
   /**
    * Final price = the work actually performed, priced with the same rules,
-   * never more than the quote. Failure before any work = full refund. The
+   * never more than the quote. A cycle that changed and proposed nothing is
+   * free: the whole hold goes back and the owner is told why. The
    * difference goes back to the wallet in one transaction with the cycle
    * update, so the cycle and the ledger can never disagree.
    */
@@ -647,7 +730,10 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     const failedEarly = !!opts.error && cycle.actions.length === 0;
     const work = performedWork(cycle.actions, !failedEarly);
     const performed = priceWork(pricing, work, failedEarly ? 0 : cycle.elementsAnalyzed);
-    const finalMinor = failedEarly
+    const applied = cycle.actions.filter((x) => x.status === 'applied').length;
+    const proposed = cycle.actions.filter((x) => x.status === 'pending_approval').length;
+    const noChange = applied + proposed === 0;
+    const finalMinor = noChange
       ? 0
       : Math.min(
           cycle.quotedMinor,
@@ -658,16 +744,14 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
     const aiCalls = await this.prisma.googleAdsAgentEvent.count({
       where: { runId: cycleId, step: 'generate' },
     });
-    const applied = cycle.actions.filter((x) => x.status === 'applied').length;
-    const proposed = cycle.actions.filter((x) => x.status === 'pending_approval').length;
 
-    await this.prisma.$transaction(async (tx) => {
+    const settled = await this.prisma.$transaction(async (tx) => {
       // Claim: only one settlement ever (running -> completed/failed).
       const claimed = await tx.googleAdsOptimizationCycle.updateMany({
         where: { id: cycleId, status: 'running' },
         data: { status: opts.error ? 'failed' : 'completed', finishedAt: new Date() },
       });
-      if (!claimed.count) return;
+      if (!claimed.count) return false;
       // Capture the final price on the held row; the rest goes back.
       if (cycle.chargeTxnId) {
         await this.wallet.captureHold(tx, cycle.chargeTxnId, charged - refundMinor);
@@ -703,7 +787,39 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
           nextCycleAt: days ? new Date(Date.now() + days * 86_400_000) : null,
         },
       });
+      return true;
     });
+    if (settled && noChange) await this.notifyNoChange(cycle, refundMinor, !!opts.error);
+  }
+
+  private async notifyNoChange(
+    cycle: { userId: string; userCampaignId: string },
+    refundMinor: number,
+    failed: boolean,
+  ): Promise<void> {
+    try {
+      const row = await this.prisma.googleAdsUserCampaign.findUnique({
+        where: { id: cycle.userCampaignId },
+        select: { name: true },
+      });
+      const credits = (refundMinor / 100).toLocaleString('ro-RO');
+      await this.notifications.notify({
+        userId: cycle.userId,
+        type: 'google_ads_no_change',
+        title: 'Ți-am returnat creditele',
+        body:
+          (failed
+            ? `Agentul nu a putut termina optimizarea campaniei „${row?.name ?? ''}” și nu a schimbat nimic.`
+            : `Agentul a verificat campania „${row?.name ?? ''}”, dar nu a putut schimba nimic acum.`) +
+          ` Nu ai plătit: ${credits} credite s-au întors în portofel.`,
+        data: { adsCampaignId: cycle.userCampaignId },
+        channels: { panel: true },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `No-change notice for ${cycle.userCampaignId} failed: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   /** Cycles left `running` by a crashed/restarted process. */
@@ -774,6 +890,20 @@ export class GoogleAdsUserAgentService implements OnModuleInit, OnModuleDestroy 
   // ------------------------------------------------------------ approvals
 
   async approveAction(userId: string, campaignId: string, actionId: string) {
+    const result = await this.executeApproval(userId, campaignId, actionId);
+    // The dashboard shows the stored snapshot: re-read the campaign so what
+    // was just applied no longer appears as missing.
+    if (result?.status === 'applied') {
+      await this.analyze(await this.ownedCampaign(userId, campaignId)).catch((err) =>
+        this.logger.warn(
+          `Re-read after approval of ${actionId} failed: ${err instanceof Error ? err.message : err}`,
+        ),
+      );
+    }
+    return result;
+  }
+
+  private async executeApproval(userId: string, campaignId: string, actionId: string) {
     const row = await this.ownedCampaign(userId, campaignId);
     const action = await this.prisma.googleAdsUserAction.findUnique({ where: { id: actionId } });
     if (!action || action.userCampaignId !== row.id) throw new NotFoundException();

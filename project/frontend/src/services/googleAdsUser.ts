@@ -273,6 +273,7 @@ export interface UserCampaignDetail {
   connection: { status: string; googleEmail: string | null } | null
   snapshot: CampaignSnapshot | null
   settings: AgentSettings
+  readiness: Readiness | null
   pending: UserAction[]
   cycles: OptimizationCycle[]
   runningCycle: { id: string; startedAt: string } | null
@@ -347,7 +348,7 @@ export const googleAdsUserApi = {
   sync: (id: string) =>
     apiFetch<{ synced: boolean }>(`${BASE}/campaigns/${id}/sync`, { method: 'POST', timeoutMs: 90_000 }),
   quote: (id: string) =>
-    apiFetch<{ quote: PriceBreakdown; tasks: PlannedTask[]; score: number | null; readiness: Readiness; balanceMinor: number }>(
+    apiFetch<{ quote: PriceBreakdown; tasks: PlannedTask[]; score: number | null; readiness: Readiness; nothingToDo: boolean; balanceMinor: number }>(
       `${BASE}/campaigns/${id}/quote`,
       { timeoutMs: 90_000 },
     ),

@@ -2,16 +2,17 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { useDisplay } from 'vuetify'
 
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import GaChip from '@/components/admin/google-ads/GaChip.vue'
 import AdsOverviewTab from '@/components/ads/AdsOverviewTab.vue'
-import AdsAgentTab from '@/components/ads/AdsAgentTab.vue'
+import AdsHomeTab from '@/components/ads/AdsHomeTab.vue'
+import AdsHistoryTab from '@/components/ads/AdsHistoryTab.vue'
 import AdsChatTab from '@/components/ads/AdsChatTab.vue'
 import AdsProposalsTab from '@/components/ads/AdsProposalsTab.vue'
 import AdsSettingsTab from '@/components/ads/AdsSettingsTab.vue'
-import AdsCostsTab from '@/components/ads/AdsCostsTab.vue'
-import { dateTime, strengthTone } from '@/components/ads/format'
+import { dateTime } from '@/components/ads/format'
 import '@/components/ads/ads.css'
 import { ApiError } from '@/services/api'
 import { useToastStore } from '@/stores/toast'
@@ -19,19 +20,20 @@ import { useGoogleAdsUserStore } from '@/stores/googleAdsUser'
 import { googleAdsUserApi, type UserCampaignDetail } from '@/services/googleAdsUser'
 
 /**
- * Dedicated dashboard of ONE customer Google Ads campaign: overview, the
- * optimization agent, proposals to approve (budget changes always), agent
- * settings and costs. Replaces the business panel while a Google Ads
- * campaign is selected in the panel's campaign switcher.
+ * Pages of ONE customer Google Ads campaign. The default one (home) shows the
+ * single next step in plain words; the technical view is the last section.
  */
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toasts = useToastStore()
 const adsStore = useGoogleAdsUserStore()
+const { mdAndUp } = useDisplay()
 
-const TABS = ['overview', 'agent', 'chat', 'proposals', 'settings', 'costs'] as const
+const TABS = ['home', 'chat', 'proposals', 'history', 'settings', 'overview'] as const
 type Tab = (typeof TABS)[number]
+/** Links saved before the sections were merged. */
+const OLD_TABS: Record<string, Tab> = { agent: 'home', costs: 'history' }
 
 const detail = ref<UserCampaignDetail | null>(null)
 const loadError = ref('')
@@ -41,21 +43,39 @@ let poll: ReturnType<typeof setTimeout> | undefined
 
 const id = computed(() => String(route.params.id))
 const tab = computed<Tab>({
-  get: () => (TABS.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'overview'),
+  get: () => {
+    const q = String(route.query.tab ?? '')
+    return TABS.includes(q as Tab) ? (q as Tab) : (OLD_TABS[q] ?? 'home')
+  },
   set: (v) => void router.replace({ query: { ...route.query, tab: v, welcome: undefined } }),
 })
 const c = computed(() => detail.value?.campaign)
 
 async function load(): Promise<void> {
   try {
-    detail.value = await googleAdsUserApi.detail(id.value)
+    const forId = id.value
+    const next = await googleAdsUserApi.detail(forId)
+    // Switched campaign meanwhile: that load owns the page now.
+    if (forId !== id.value) return
+    const finished = detail.value?.campaign.id === forId && detail.value.runningCycle && !next.runningCycle
+    detail.value = next
     loadError.value = ''
+    if (finished) announce(next)
   } catch (e) {
     loadError.value = e instanceof ApiError && e.status === 404 ? t('ads.dash.notFound') : t('ads.dash.loadError')
   }
   clearTimeout(poll)
   // While a cycle runs, keep the numbers fresh.
   if (detail.value?.runningCycle) poll = setTimeout(() => void load(), 5000)
+}
+
+/** Tells the owner how the cycle they were watching ended. */
+function announce(d: UserCampaignDetail): void {
+  const x = d.cycles[0]
+  if (!x) return
+  if (!x.tasksApplied && !x.tasksProposed) toasts.info(t('ads.home.lastReturned'))
+  else toasts.success(t('ads.home.lastDone', { applied: x.tasksApplied, proposed: x.tasksProposed }))
+  void adsStore.fetch(true)
 }
 
 async function sync(): Promise<void> {
@@ -81,9 +101,15 @@ async function reconnect(): Promise<void> {
   }
 }
 
+/** Approvals and statuses also show in the sidebar and the campaign list. */
+function onChanged(): void {
+  void load()
+  void adsStore.fetch(true)
+}
+
 function onRemoved(): void {
   void adsStore.fetch(true)
-  void router.replace({ name: 'dashboard' })
+  void router.replace({ name: 'ads-home' })
 }
 
 watch(id, () => {
@@ -91,6 +117,8 @@ watch(id, () => {
   void load()
 })
 onMounted(() => {
+  const old = OLD_TABS[String(route.query.tab ?? '')]
+  if (old) tab.value = old
   if (route.query.reconnected) toasts.success(t('ads.dash.reconnected'))
   void load()
   void adsStore.fetch()
@@ -100,19 +128,18 @@ onBeforeUnmount(() => clearTimeout(poll))
 
 <template>
   <v-container class="ad" fluid>
-    <p v-if="loadError" class="ab-note ab-note--warn">
-      <v-icon icon="mdi-alert-circle-outline" size="18" /> {{ loadError }}
-    </p>
+    <div v-if="loadError" class="ab-note ab-note--warn">
+      <v-icon icon="mdi-alert-circle-outline" size="18" />
+      <span>{{ loadError }}</span>
+      <v-btn size="small" variant="tonal" class="ml-auto" :to="{ name: 'ads-home' }">{{ t('nav.adsAll') }}</v-btn>
+    </div>
     <div v-else-if="!detail" class="ab-center"><v-progress-circular indeterminate color="primary" /></div>
 
     <template v-else-if="c">
       <AdminPageHeader :eyebrow="`Google Ads${c.customerName ? ` · ${c.customerName}` : ''}`" :title="c.name">
         <template #actions>
-          <v-btn variant="tonal" prepend-icon="mdi-cloud-sync-outline" :loading="syncing" :disabled="c.status === 'disconnected'" @click="sync">
+          <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="syncing" :disabled="c.status === 'disconnected'" @click="sync">
             {{ t('ads.dash.sync') }}
-          </v-btn>
-          <v-btn color="primary" prepend-icon="mdi-robot-outline" :disabled="c.status !== 'active'" @click="tab = 'agent'">
-            {{ t('ads.dash.optimize') }}
           </v-btn>
         </template>
       </AdminPageHeader>
@@ -121,7 +148,6 @@ onBeforeUnmount(() => clearTimeout(poll))
         <GaChip :tone="c.status === 'active' ? 'success' : c.status === 'paused' ? 'neutral' : 'error'">
           {{ t(`ads.campaignStatus.${c.status}`) }}
         </GaChip>
-        <GaChip :tone="strengthTone(c.adStrength)">Ad Strength: {{ t(`ads.strength.${c.adStrength ?? 'UNKNOWN'}`, c.adStrength ?? '–') }}</GaChip>
         <span class="ad__meta">{{ t('ads.dash.synced', { when: dateTime(c.syncedAt, locale) }) }}</span>
         <span v-if="c.nextCycleAt" class="ad__meta">{{ t('ads.dash.nextCycle', { when: dateTime(c.nextCycleAt, locale) }) }}</span>
         <span v-if="detail.connection?.googleEmail" class="ad__meta">
@@ -129,36 +155,39 @@ onBeforeUnmount(() => clearTimeout(poll))
         </span>
       </div>
 
-      <div v-if="c.status === 'disconnected'" class="ab-note ab-note--warn ad__banner">
+      <div v-if="c.status === 'disconnected' && tab !== 'home'" class="ab-note ab-note--warn ad__banner">
         <v-icon icon="mdi-link-variant-off" size="18" />
         <span>{{ t('ads.dash.disconnected') }}</span>
         <v-btn size="small" color="primary" class="ml-auto" @click="reconnect">{{ t('ads.dash.reconnect') }}</v-btn>
       </div>
-      <div v-else-if="welcome" class="ab-note ad__banner" data-guide="ads-welcome">
+      <div v-else-if="welcome && c.status !== 'disconnected'" class="ab-note ad__banner" data-guide="ads-welcome">
         <v-icon icon="mdi-party-popper" size="18" />
         <span>{{ t('ads.dash.welcome', { min: detail.pricing.minCredits }) }}</span>
         <v-btn size="small" variant="text" class="ml-auto" icon="mdi-close" :aria-label="t('common.close')" @click="welcome = false" />
       </div>
 
-      <v-tabs v-model="tab" color="primary" show-arrows density="comfortable" class="ad__tabs" data-guide="ads-tabs">
-        <v-tab value="overview">{{ t('ads.tab.overview') }}</v-tab>
-        <v-tab value="agent">{{ t('ads.tab.agent') }}</v-tab>
-        <v-tab value="chat">{{ t('ads.tab.chat') }}</v-tab>
-        <v-tab value="proposals">
-          {{ t('ads.tab.proposals') }}
-          <span v-if="detail.pending.length" class="ad__count">{{ detail.pending.length }}</span>
+      <!-- On desktop the sidebar lists the same sections. -->
+      <v-tabs v-if="!mdAndUp" v-model="tab" color="primary" show-arrows density="comfortable" class="ad__tabs" data-guide="ads-tabs">
+        <v-tab v-for="v in TABS" :key="v" :value="v">
+          {{ t(`ads.tab.${v}`) }}
+          <span v-if="v === 'proposals' && detail.pending.length" class="ad__count">{{ detail.pending.length }}</span>
         </v-tab>
-        <v-tab value="settings">{{ t('ads.tab.settings') }}</v-tab>
-        <v-tab value="costs">{{ t('ads.tab.costs') }}</v-tab>
       </v-tabs>
 
       <div class="ad__body">
-        <AdsOverviewTab v-if="tab === 'overview'" :detail="detail" @goto="(v) => (tab = v as Tab)" />
-        <AdsAgentTab v-else-if="tab === 'agent'" :detail="detail" @changed="load" @goto="(v) => (tab = v as Tab)" />
-        <AdsChatTab v-else-if="tab === 'chat'" :detail="detail" @changed="load" />
-        <AdsProposalsTab v-else-if="tab === 'proposals'" :detail="detail" @changed="load" />
-        <AdsSettingsTab v-else-if="tab === 'settings'" :detail="detail" @changed="load" @removed="onRemoved" />
-        <AdsCostsTab v-else :detail="detail" />
+        <AdsHomeTab
+          v-if="tab === 'home'"
+          :detail="detail"
+          @changed="onChanged"
+          @goto="(v) => (tab = v as Tab)"
+          @reconnect="reconnect"
+          @sync="sync"
+        />
+        <AdsOverviewTab v-else-if="tab === 'overview'" :detail="detail" @goto="(v) => (tab = v as Tab)" />
+        <AdsHistoryTab v-else-if="tab === 'history'" :detail="detail" @changed="onChanged" />
+        <AdsChatTab v-else-if="tab === 'chat'" :detail="detail" @changed="onChanged" />
+        <AdsProposalsTab v-else-if="tab === 'proposals'" :detail="detail" @changed="onChanged" />
+        <AdsSettingsTab v-else :detail="detail" @changed="onChanged" @removed="onRemoved" />
       </div>
     </template>
   </v-container>

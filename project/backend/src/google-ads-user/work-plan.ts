@@ -64,6 +64,10 @@ export function planWork(
     imagesAvailable: boolean;
     budgetRecommendations: number;
     hasBusinessName: boolean;
+    /** The optimizer may not change keyword headlines right now. */
+    keywordsBlocked: boolean;
+    /** Ad keywords, most popular first (the optimizer's own order). */
+    rankedKeywords?: string[];
   },
 ): WorkPlan {
   const rsa = pickRsa(c);
@@ -110,10 +114,10 @@ export function planWork(
     const valid = ev.assets.images.filter((i) => i.valid).length;
     add('images', Math.max(0, CAPS.images - valid), 'imagini lipsă');
   }
-  if (s.keywordHeadlines && rsa && !flags.rsaBlocked && rsa.keywords.length) {
+  if (s.autoApply && s.keywordHeadlines && rsa && !flags.keywordsBlocked && rsa.keywords.length) {
     const cov = keywordCoverage(
       rsa.headlines.map((h) => h.text),
-      rsa.keywords,
+      flags.rankedKeywords ?? rsa.keywords,
       rsa.actionItems,
     );
     if (keywordsHurtAdStrength(rsa.adStrength, cov)) {
@@ -145,6 +149,14 @@ export function planWork(
     );
   }
   return { units, elementsAnalyzed: elementsAnalyzed(c, ev), tasks };
+}
+
+/** Whether a cycle could change or propose anything: planned work, or
+ *  elements refused by Google that the agent removes free of charge. */
+export function hasWork(plan: WorkPlan, ev: CampaignEvaluation): boolean {
+  return (
+    plan.tasks.some((t) => t.task !== 'analysis') || ev.issues.some((i) => i.code === 'disapproved')
+  );
 }
 
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);

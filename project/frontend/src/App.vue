@@ -112,17 +112,11 @@ onUnmounted(() => window.removeEventListener('beforeunload', confirmExitOnUnload
       <MeshGradientBg v-if="prefs.bgEffectEnabled" />
       <v-layout v-if="showSidebar" class="panel-layout">
         <AppSidebar :groups="sidebarGroups">
-          <!-- `hasReachableStaffArea`, not `isPlatformStaff`: the latter is
-               true for ANY platform role, so a `moderator`-only account was
-               shown an "Admin" switch leading to a page that rejects it. -->
-          <!-- `hasReachableStaffArea`, not `isPlatformStaff` (see above) —
-               and now also gated on being signed in at all: the mobile
-               drawer reaches this same slot for a logged-out visitor too
-               (see `showSidebar`), and both switches below render nothing
-               meaningful without an account, which used to leave an empty,
-               oddly-spaced wrapper div above the nav links. -->
-          <template v-if="auth.isAuthenticated && (auth.hasReachableStaffArea || !isAdminRoute)" #top>
-            <SidebarModeSwitch v-if="auth.hasReachableStaffArea" />
+          <!-- Which area you are in, then which item of it is selected. Both
+               only make sense signed in (the mobile drawer also serves
+               visitors, see `showSidebar`). -->
+          <template v-if="auth.isAuthenticated" #top>
+            <SidebarModeSwitch />
             <SidebarCampaignSwitch v-if="!isAdminRoute" />
           </template>
           <template #footer>

@@ -145,6 +145,10 @@ export interface EvaluationContext {
   /** Agent-managed campaign: issues it can fix itself are marked so. */
   managed: boolean;
   urlChecks: Map<string, UrlCheck>;
+  /** Why the agent cannot add the business name: Google refuses it until the
+   *  advertiser is verified, or the owner has not given one (or turned
+   *  automatic changes off). Absent = it can. */
+  businessNameBlocker?: 'unverified' | 'unset';
 }
 
 /** Minimum impressions in EACH period before comparing them; below this a
@@ -985,10 +989,14 @@ function evaluateSearch(c: CampaignData, ctx: EvaluationContext): CampaignEvalua
       why: 'Numele și logo-ul afacerii apar lângă reclamă și cresc încrederea.',
       action: hasName
         ? 'Încarcă un logo pătrat valid în Google Ads (Elemente la nivel de cont); necesită verificarea advertiserului.'
-        : 'Agentul adaugă numele afacerii la campanie; logo-ul se încarcă manual în Google Ads.',
+        : ctx.businessNameBlocker === 'unverified'
+          ? 'Google acceptă numele și logo-ul doar după ce îți verifică identitatea. Intră în Google Ads, la Facturare, apoi Verificarea advertiserului, și urmează pașii. După aceea agentul adaugă singur numele; logo-ul îl încarci tu în Google Ads. Un cont de test nu poate fi verificat, deci acolo punctul rămâne deschis. Campania funcționează și fără ele.'
+          : ctx.businessNameBlocker === 'unset'
+            ? 'Scrie numele afacerii și pornește modificările automate în tabul Setări agent. Logo-ul îl încarci tu în Google Ads.'
+            : 'Agentul adaugă numele afacerii la campanie; logo-ul se încarcă manual în Google Ads.',
       // The agent can add the business name (a text asset); a logo needs
       // a real brand image uploaded by a person.
-      autoFixable: ctx.managed && !hasName,
+      autoFixable: ctx.managed && !hasName && !ctx.businessNameBlocker,
       source: SOURCES.businessInfo,
     });
   }

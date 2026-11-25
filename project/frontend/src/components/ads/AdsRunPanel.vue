@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import GaChip from '@/components/admin/google-ads/GaChip.vue'
-import GoogleAdsActivityFeed from '@/components/admin/google-ads/GoogleAdsActivityFeed.vue'
 import { ApiError } from '@/services/api'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
@@ -17,9 +15,8 @@ import {
 import { creditsOf, dateTime } from './format'
 
 /**
- * The optimization agent: what the next cycle will do and cost (free
- * quote), the explicit "run" (the only thing that is ever charged), live
- * activity of the running cycle, and the history of past cycles.
+ * Starting the agent: what it would do and cost (free quote), then the
+ * explicit, billed start.
  */
 const props = defineProps<{ detail: UserCampaignDetail }>()
 const emit = defineEmits<{ (e: 'changed'): void; (e: 'goto', tab: string): void }>()
@@ -32,8 +29,8 @@ const starting = ref(false)
 const quote = ref<PriceBreakdown | null>(null)
 const tasks = ref<PlannedTask[]>([])
 const readiness = ref<Readiness | null>(null)
+const nothingToDo = ref(false)
 const balanceMinor = ref(props.detail.balance.minor)
-const feed = ref<InstanceType<typeof GoogleAdsActivityFeed> | null>(null)
 
 const id = computed(() => props.detail.campaign.id)
 const running = computed(() => !!props.detail.runningCycle)
@@ -41,7 +38,6 @@ const blocked = computed(() => props.detail.campaign.status !== 'active')
 const needsInfo = computed(() => readiness.value?.level === 'insufficient')
 const gaps = computed(() => readiness.value?.gaps.filter((g) => g.askable) ?? [])
 const canAfford = computed(() => !quote.value || balanceMinor.value >= quote.value.minor)
-const loader = (after?: string) => googleAdsUserApi.activity(id.value, after)
 
 async function getQuote(): Promise<void> {
   if (quoting.value) return
@@ -51,6 +47,7 @@ async function getQuote(): Promise<void> {
     quote.value = res.quote
     tasks.value = res.tasks
     readiness.value = res.readiness
+    nothingToDo.value = res.nothingToDo
     balanceMinor.value = res.balanceMinor
   } catch (e) {
     toasts.error(errText(e))
@@ -65,6 +62,7 @@ function errText(e: unknown): string {
     'insufficient_credits',
     'cycle_already_running',
     'quote_changed',
+    'nothing_to_do',
     'needs_information',
     'campaign_paused',
     'google_ads_reconnect_required',
@@ -87,10 +85,9 @@ function start(): void {
         toasts.success(t('ads.agent.started'))
         quote.value = null
         emit('changed')
-        setTimeout(() => feed.value?.refresh(), 500)
       } catch (e) {
         toasts.error(errText(e))
-        if (e instanceof ApiError && ['quote_changed', 'needs_information'].includes(e.message)) void getQuote()
+        if (e instanceof ApiError && ['quote_changed', 'needs_information', 'nothing_to_do'].includes(e.message)) void getQuote()
       } finally {
         starting.value = false
       }
@@ -99,29 +96,11 @@ function start(): void {
   )
 }
 
-function onRunning(v: boolean): void {
-  if (!v && running.value) emit('changed')
-}
-
-const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
-  completed: 'success',
-  failed: 'error',
-  running: 'primary',
-}
+watch(id, () => (quote.value = null))
 </script>
 
 <template>
-  <div class="ag">
-    <!-- Run panel -->
-    <section class="run" data-guide="ads-run">
-      <div class="run__head">
-        <span class="run__icon"><v-icon icon="mdi-robot-outline" size="22" /></span>
-        <div>
-          <h3>{{ t('ads.agent.runTitle') }}</h3>
-          <p>{{ t('ads.agent.runLead') }}</p>
-        </div>
-      </div>
-
+  <div class="run" data-guide="ads-run">
       <p v-if="running" class="ab-note">
         <v-progress-circular indeterminate size="16" width="2" color="primary" />
         {{ t('ads.agent.running', { when: dateTime(detail.runningCycle?.startedAt, locale) }) }}
@@ -140,6 +119,19 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
           {{ t('ads.agent.quoteCta') }}
         </v-btn>
         <p class="run__free">{{ t('ads.agent.quoteFree') }}</p>
+      </template>
+
+      <template v-else-if="nothingToDo">
+        <p class="ab-note">
+          <v-icon icon="mdi-check-decagram" size="18" />
+          <span>{{ t('ads.agent.nothingToDo') }}</span>
+        </p>
+        <div class="run__actions">
+          <v-btn color="primary" variant="tonal" prepend-icon="mdi-chat-outline" @click="emit('goto', 'chat')">
+            {{ t('ads.agent.openChat') }}
+          </v-btn>
+          <v-btn variant="text" @click="quote = null">{{ t('common.close') }}</v-btn>
+        </div>
       </template>
 
       <template v-else>
@@ -169,10 +161,6 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
             <span>{{ t('ads.agent.price') }}</span>
             <b>{{ creditsOf(quote.minor, locale) }} {{ t('ads.credits') }}</b>
           </div>
-          <div class="price__row">
-            <span>{{ t('ads.agent.level') }}</span>
-            <GaChip tone="primary">{{ quote.level.label }} · ×{{ quote.level.multiplier }}</GaChip>
-          </div>
           <details class="price__details">
             <summary>{{ t('ads.agent.howPriced') }}</summary>
             <ul>
@@ -183,6 +171,10 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
               <li v-if="quote.elementsAnalyzed">
                 <span>{{ t('ads.agent.elements', { n: quote.elementsAnalyzed }) }}</span>
                 <span>{{ quote.elementsCredits }}</span>
+              </li>
+              <li>
+                <span>{{ t('ads.agent.level') }}</span>
+                <span>{{ quote.level.label }} · ×{{ quote.level.multiplier }}</span>
               </li>
               <li>
                 <span>{{ t('ads.agent.points') }}: {{ quote.points }} × {{ quote.level.multiplier }}</span>
@@ -206,86 +198,18 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
         </div>
         <p class="run__free">{{ t('ads.agent.settleNote') }}</p>
       </template>
-    </section>
-
-    <!-- Live activity -->
-    <section class="ag__block">
-      <h3 class="ag__h"><v-icon icon="mdi-pulse" size="18" /> {{ t('ads.agent.activity') }}</h3>
-      <GoogleAdsActivityFeed ref="feed" :loader="loader" :limit="80" hide-campaign compact @running="onRunning" />
-    </section>
-
-    <!-- Cycles -->
-    <section class="ag__block">
-      <h3 class="ag__h"><v-icon icon="mdi-history" size="18" /> {{ t('ads.agent.cycles') }}</h3>
-      <p v-if="!detail.cycles.length" class="ab-note"><v-icon icon="mdi-information-outline" size="18" /> {{ t('ads.agent.noCycles') }}</p>
-      <ul v-else class="cyc">
-        <li v-for="c in detail.cycles" :key="c.id" class="cyc__row">
-          <div class="cyc__top">
-            <GaChip :tone="TONE[c.status] ?? 'neutral'">{{ t(`ads.cycle.${c.status}`) }}</GaChip>
-            <span class="cyc__date">{{ dateTime(c.startedAt, locale) }}</span>
-            <span v-if="c.trigger === 'scheduled'" class="cyc__trig">{{ t('ads.cycle.scheduled') }}</span>
-            <b class="cyc__cost">{{ creditsOf(c.chargedMinor, locale) }} {{ t('ads.credits') }}</b>
-          </div>
-          <p class="cyc__sum">
-            {{
-              c.status === 'running'
-                ? t('ads.cycle.inProgress')
-                : c.status === 'failed'
-                  ? t('ads.cycle.failedSum')
-                  : t('ads.cycle.summary', { applied: c.tasksApplied, proposed: c.tasksProposed })
-            }}
-            <template v-if="c.scoreBefore != null && c.scoreAfter != null">
-              · {{ t('ads.cycle.score', { from: c.scoreBefore, to: c.scoreAfter }) }}
-            </template>
-            <template v-if="c.refundedMinor > 0">
-              · {{ t('ads.cycle.refunded', { credits: creditsOf(c.refundedMinor, locale) }) }}
-            </template>
-          </p>
-        </li>
-      </ul>
-    </section>
   </div>
 </template>
 
 <style scoped>
-.ag {
-  display: flex;
-  flex-direction: column;
-  gap: 1.75rem;
-}
 .run {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: 1.25rem 1.35rem;
-  border: 1px solid rgba(var(--v-theme-primary), 0.3);
-  border-radius: var(--tvz-radius-lg);
-  background: linear-gradient(180deg, rgba(var(--v-theme-primary), 0.06), rgb(var(--v-theme-surface)) 70%);
 }
-.run__head {
-  display: flex;
-  gap: 0.85rem;
-  align-items: flex-start;
-}
-.run__icon {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  flex: none;
-  border-radius: 12px;
-  background: var(--tvz-ai-soft);
-  color: var(--tvz-ai);
-}
-.run__head h3 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-.run__head p {
-  margin: 0.2rem 0 0;
-  font-size: var(--tvz-fs-small);
-  color: rgba(var(--v-theme-on-surface), 0.65);
+.run > .v-btn {
+  align-self: flex-start;
+  max-width: 100%;
 }
 .run__free {
   margin: 0;
@@ -378,59 +302,5 @@ const TONE: Record<string, 'success' | 'warning' | 'error' | 'primary'> = {
 .price__balance.is-short {
   color: rgb(var(--v-theme-error));
   font-weight: 600;
-}
-.ag__block {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-.ag__h {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0;
-  font-size: var(--tvz-fs-body, 1rem);
-  font-weight: 600;
-}
-.ag__h .v-icon {
-  color: rgb(var(--v-theme-primary));
-}
-.cyc {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--tvz-hairline);
-  border-radius: var(--tvz-radius-md);
-}
-.cyc__row {
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--tvz-hairline);
-}
-.cyc__row:first-child {
-  border-top: 0;
-}
-.cyc__top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: var(--tvz-fs-small);
-}
-.cyc__date {
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  font-variant-numeric: tabular-nums;
-}
-.cyc__trig {
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.cyc__cost {
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-}
-.cyc__sum {
-  margin: 0.3rem 0 0;
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.65);
 }
 </style>
