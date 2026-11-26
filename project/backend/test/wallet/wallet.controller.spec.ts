@@ -104,7 +104,19 @@ describe('WalletController', () => {
   it('buy → delegates to wallet.startPurchase with credits', async () => {
     const { ctrl, wallet } = makeController();
     await ctrl.buy(user as any, { credits: 50 });
-    expect(wallet.startPurchase).toHaveBeenCalledWith('u1', 50);
+    expect(wallet.startPurchase).toHaveBeenCalledWith('u1', 50, {
+      paymentMethodId: undefined,
+      saveCard: undefined,
+    });
+  });
+
+  it('buy → passes a saved card / save choice through', async () => {
+    const { ctrl, wallet } = makeController();
+    await ctrl.buy(user as any, { credits: 20, paymentMethodId: 'pm_123', saveCard: true });
+    expect(wallet.startPurchase).toHaveBeenCalledWith('u1', 20, {
+      paymentMethodId: 'pm_123',
+      saveCard: true,
+    });
   });
 
   it('confirm → delegates to wallet.confirmPurchase', async () => {

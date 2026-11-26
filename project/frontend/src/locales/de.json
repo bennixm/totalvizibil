@@ -873,7 +873,14 @@
       "insufficient_balance_for_refund": "Dein verbleibendes Guthaben deckt den Erstattungsbetrag nicht.",
       "refund_not_cancelable": "Diese Rückerstattung kann nicht mehr storniert werden.",
       "refund_hold_expired": "Das Stornierungsfenster ist abgelaufen.",
-      "payment_not_completed": "Die Zahlung ist noch nicht abgeschlossen."
+      "payment_not_completed": "Die Zahlung ist noch nicht abgeschlossen. Wenn du bezahlt hast, erscheinen die Credits in wenigen Minuten automatisch.",
+      "card_declined": "Die Bank hat die Zahlung abgelehnt. Versuche eine andere Karte.",
+      "card_declined_reason": "Die Zahlung wurde abgelehnt: {reason} Versuche eine andere Karte.",
+      "payment_failed": "Die Zahlung ist fehlgeschlagen. Es wurde nichts abgebucht.",
+      "payment_canceled": "Die Zahlung wurde abgebrochen.",
+      "payment_mismatch": "Die Zahlung passt nicht zu dieser Aufladung. Bitte kontaktiere den Support.",
+      "payment_method_not_found": "Diese gespeicherte Karte ist nicht mehr verfügbar. Wähle eine andere Karte.",
+      "saved_cards_unavailable": "Gespeicherte Karten sind derzeit nicht verfügbar."
     },
     "blockedReason": "Grund: {reason}",
     "blockedHelp": "Wenden Sie sich an den Support, falls dies ein Fehler ist.",
@@ -918,7 +925,18 @@
       "back": "Zurück zur Kampagne"
     },
     "paidAmount": "bezahlt {amount}",
-    "bonusPart": "davon Boni: {n}"
+    "bonusPart": "davon Boni: {n}",
+    "paidWithSavedCard": "Zahlung erfolgreich: {credits} Credits wurden deinem Wallet gutgeschrieben.",
+    "cardExpires": "läuft ab {date}",
+    "newCard": "Neue Karte",
+    "saveCard": "Karte für künftige Aufladungen speichern",
+    "cardsSecureNote": "Deine Karte wird sicher bei Stripe gespeichert. Totalvizibil speichert keine Kartendaten.",
+    "payWithCard": "Mit Karte •••• {last4} bezahlen",
+    "savedCardsTitle": "Gespeicherte Karten",
+    "removeCard": "Entfernen",
+    "removeCardTitle": "Gespeicherte Karte entfernen?",
+    "removeCardText": "{card} wird bei Aufladungen nicht mehr angeboten. Du kannst sie bei jeder neuen Zahlung wieder hinzufügen.",
+    "cardRemoved": "Die Karte wurde entfernt."
   },
   "auth": {
     "loginTitle": "Anmelden",

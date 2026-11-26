@@ -1119,6 +1119,10 @@ model Wallet {
   // Not cleared on top-up; the cooldown alone (see NotificationsSweepService)
   // is enough to avoid spam without touching every balance-increment path.
   lowBalanceNotifiedAt DateTime? @map("low_balance_notified_at")
+  // Stripe Customer this wallet's card payments run under — created on the
+  // first Stripe top-up. Saved cards live ONLY in Stripe, attached to this
+  // customer; the platform never stores any card data, just this id.
+  stripeCustomerId     String?   @unique @map("stripe_customer_id")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 

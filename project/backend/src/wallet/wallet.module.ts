@@ -4,10 +4,11 @@ import { BillingModule } from '../billing/billing.module';
 import { AffiliateModule } from '../affiliate/affiliate.module';
 import { WalletController } from './wallet.controller';
 import { WalletService } from './wallet.service';
+import { StripeWebhookController } from './stripe-webhook.controller';
 
 @Module({
   imports: [AuthModule, BillingModule, AffiliateModule],
-  controllers: [WalletController],
+  controllers: [WalletController, StripeWebhookController],
   providers: [WalletService],
   exports: [WalletService],
 })

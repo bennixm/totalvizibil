@@ -15,6 +15,7 @@ import { generateInvoicePdf } from '../billing/invoice-pdf';
 import { generatePaymentsPdf } from './payments-pdf';
 import { generateTablePdf } from '../common/table-pdf';
 import { AffiliateService } from '../affiliate/affiliate.service';
+import type Stripe from 'stripe';
 import { StripeService } from '../stripe/stripe.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditActor, AuditLogService } from '../admin/audit-log.service';
@@ -1218,7 +1219,11 @@ export class WalletService implements OnModuleInit {
    * verifies the session actually paid. With no Stripe key, behaviour is
    * unchanged: a dev stub the client confirms directly (PRD §17).
    */
-  async startPurchase(userId: string, credits: number) {
+  async startPurchase(
+    userId: string,
+    credits: number,
+    opts: { paymentMethodId?: string; saveCard?: boolean } = {},
+  ) {
     if (!Number.isInteger(credits) || credits < 1 || credits > MAX_PURCHASE_CREDITS) {
       throw new BadRequestException('credits must be a whole number between 1 and 100000');
     }
@@ -1245,6 +1250,20 @@ export class WalletService implements OnModuleInit {
         throw new BadRequestException('billing_profile_incomplete');
       }
     }
+    if (opts.paymentMethodId && !this.stripe.configured) {
+      throw new BadRequestException('saved_cards_unavailable');
+    }
+
+    // Every Stripe payment runs under the wallet's own Stripe Customer, so a
+    // card the customer chooses to save is attached to THEM and can be
+    // offered (and only offered to them) next time.
+    const customerId = this.stripe.configured ? await this.ensureStripeCustomer(userId) : null;
+    if (opts.paymentMethodId) {
+      const owner = await this.stripe.paymentMethodCustomer(opts.paymentMethodId);
+      if (!owner || owner !== customerId) {
+        throw new BadRequestException('payment_method_not_found');
+      }
+    }
 
     const txn = await this.prisma.walletTransaction.create({
       data: {
@@ -1260,15 +1279,78 @@ export class WalletService implements OnModuleInit {
       },
     });
 
+    const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
+    const returnUrl = `${frontendOrigin}/wallet?checkout=success&txn=${txn.id}`;
+    const metadata = { walletTransactionId: txn.id, userId };
+    const base = {
+      transactionId: txn.id,
+      credits,
+      amount: money(amountMinor),
+      eurCents,
+      ronBani,
+      fxRate: rate,
+      discountPct,
+      provider: this.stripe.configured ? STRIPE_PROVIDER : STUB_PROVIDER,
+    };
+
+    // A saved card: charged right here, no card form at all. Succeeds on the
+    // spot, or (3-D Secure) hands back the bank's page to finish on, or is
+    // declined, which is recorded as a FAILED transaction, never credited.
+    if (opts.paymentMethodId && customerId) {
+      const charge = await this.stripe.chargeSavedCard({
+        customerId,
+        paymentMethodId: opts.paymentMethodId,
+        amountMinor: eurCents,
+        credits,
+        returnUrl,
+        metadata,
+        idempotencyKey: `topup-${txn.id}`,
+      });
+      if (charge.paymentIntentId) {
+        await this.prisma.walletTransaction.update({
+          where: { id: txn.id },
+          data: { providerRef: charge.paymentIntentId },
+        });
+      }
+      if (charge.status === 'failed') {
+        await this.markPurchaseFailed(txn.id, charge.message);
+        throw new BadRequestException({
+          message: 'card_declined',
+          reason: charge.message,
+          statusCode: 400,
+        });
+      }
+      if (charge.status === 'requires_action') {
+        return {
+          ...base,
+          status: 'requires_action' as const,
+          checkoutUrl: null,
+          redirectUrl: charge.redirectUrl,
+          requiresConfirmation: true,
+        };
+      }
+      const done = await this.confirmPurchase(userId, txn.id);
+      return {
+        ...base,
+        status: 'completed' as const,
+        checkoutUrl: null,
+        redirectUrl: null,
+        requiresConfirmation: false,
+        invoice: done.invoice,
+      };
+    }
+
     let checkoutUrl: string | null = null;
     if (this.stripe.configured) {
-      const frontendOrigin = this.config.get('frontendOrigin', { infer: true });
       const session = await this.stripe.createCheckoutSession({
         amountMinor: eurCents,
         credits,
-        successUrl: `${frontendOrigin}/wallet?checkout=success&txn=${txn.id}`,
+        successUrl: returnUrl,
         cancelUrl: `${frontendOrigin}/wallet?checkout=cancel&txn=${txn.id}`,
-        metadata: { walletTransactionId: txn.id, userId },
+        metadata,
+        customerId: customerId ?? undefined,
+        saveCard: !!opts.saveCard,
+        idempotencyKey: `checkout-${txn.id}`,
       });
       await this.prisma.walletTransaction.update({
         where: { id: txn.id },
@@ -1278,15 +1360,10 @@ export class WalletService implements OnModuleInit {
     }
 
     return {
-      transactionId: txn.id,
-      credits,
-      amount: money(amountMinor),
-      eurCents,
-      ronBani,
-      fxRate: rate,
-      discountPct,
-      provider: this.stripe.configured ? STRIPE_PROVIDER : STUB_PROVIDER,
+      ...base,
+      status: (checkoutUrl ? 'redirect' : 'pending') as 'redirect' | 'pending',
       checkoutUrl,
+      redirectUrl: checkoutUrl,
       requiresConfirmation: true,
     };
   }
@@ -1305,6 +1382,21 @@ export class WalletService implements OnModuleInit {
    */
   async confirmPurchase(userId: string, transactionId: string) {
     const wallet = await this.ensureWallet(userId);
+
+    // Idempotent: the success-page return, the webhook and the sweep can all
+    // try to confirm the same payment (in any order, even at the same time).
+    // An already-credited purchase is simply reported back, never credited
+    // again, and never turned into an error the customer would see.
+    const existing = await this.prisma.walletTransaction.findUnique({
+      where: { id: transactionId },
+    });
+    if (!existing || existing.walletId !== wallet.id || existing.type !== 'purchase') {
+      throw new NotFoundException('Transaction not found');
+    }
+    if (existing.status === 'completed') return this.completedPurchaseResult(userId, existing.id);
+    if (existing.status === 'failed') throw new BadRequestException('payment_failed');
+    if (existing.status === 'canceled') throw new BadRequestException('payment_canceled');
+
     const profile = await this.billing.getProfile(userId);
     if (!isProfileComplete(profile)) {
       throw new BadRequestException('billing_profile_incomplete');
@@ -1322,26 +1414,23 @@ export class WalletService implements OnModuleInit {
       throw new NotFoundException('Transaction not found');
     }
     if (preTxn.provider === STRIPE_PROVIDER && preTxn.status === 'pending') {
-      if (!preTxn.providerRef) throw new BadRequestException('missing_checkout_session');
-      const session = await this.stripe.retrieveCheckoutSession(preTxn.providerRef);
-      if (session.payment_status !== 'paid') {
-        throw new BadRequestException('payment_not_completed');
-      }
-      const pi = session.payment_intent;
-      stripePaymentIntentId = typeof pi === 'string' ? pi : (pi?.id ?? null);
-      if (!stripePaymentIntentId) {
-        throw new BadRequestException('missing_payment_intent');
-      }
+      stripePaymentIntentId = await this.verifyStripePayment(preTxn);
     }
 
-    const { invoice, credits } = await this.prisma.$transaction(async (tx) => {
-      const txn = await tx.walletTransaction.findUnique({ where: { id: transactionId } });
-      if (!txn || txn.walletId !== wallet.id || txn.type !== 'purchase') {
-        throw new NotFoundException('Transaction not found');
-      }
-      if (txn.status !== 'pending') {
-        throw new BadRequestException('Transaction is not pending');
-      }
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Claim the transaction with ONE conditional UPDATE (pending ->
+      // completed). Two confirms running at the same moment (webhook +
+      // success page) both used to read "pending" and could both credit the
+      // wallet; now exactly one wins the claim and the other credits nothing.
+      const claimed = await tx.walletTransaction.updateMany({
+        where: { id: transactionId, walletId: wallet.id, type: 'purchase', status: 'pending' },
+        data: {
+          status: 'completed',
+          providerRef: stripePaymentIntentId ?? `dev-${Date.now()}`,
+        },
+      });
+      if (claimed.count === 0) return null;
+      const txn = await tx.walletTransaction.findUniqueOrThrow({ where: { id: transactionId } });
 
       const updated = await tx.wallet.update({
         where: { id: wallet.id },
@@ -1349,11 +1438,7 @@ export class WalletService implements OnModuleInit {
       });
       await tx.walletTransaction.update({
         where: { id: txn.id },
-        data: {
-          status: 'completed',
-          balanceAfterMinor: updated.balanceMinor,
-          providerRef: stripePaymentIntentId ?? `dev-${Date.now()}`,
-        },
+        data: { balanceAfterMinor: updated.balanceMinor },
       });
 
       const credits = minorToCredits(txn.amountMinor);
@@ -1367,6 +1452,9 @@ export class WalletService implements OnModuleInit {
       });
       return { invoice, credits };
     });
+    // Lost the claim: another confirm already credited this payment.
+    if (!result) return this.completedPurchaseResult(userId, transactionId);
+    const { invoice, credits } = result;
 
     // A top-up may be the event that lifts a referred user over the affiliate
     // minimum-deposit threshold — re-evaluate their referral. Fire-and-forget.
@@ -2258,9 +2346,244 @@ export class WalletService implements OnModuleInit {
    * reconcile toward, so it's marked `canceled` instead of sitting pending
    * forever. Anything else (still `open`) is left alone — too soon to tell.
    */
+  /**
+   * Check with Stripe that a pending purchase is REALLY paid (never trusted
+   * from the browser), and return its PaymentIntent id. A payment Stripe
+   * reports as definitively failed closes the transaction as failed.
+   */
+  private async verifyStripePayment(txn: {
+    id: string;
+    providerRef: string | null;
+    eurCents: number | null;
+    amountMinor: number;
+  }): Promise<string> {
+    if (!txn.providerRef) throw new BadRequestException('missing_checkout_session');
+    const expected = txn.eurCents ?? txn.amountMinor;
+
+    if (txn.providerRef.startsWith('pi_')) {
+      const pi = await this.stripe.retrievePaymentIntent(txn.providerRef);
+      if (pi.metadata?.walletTransactionId !== txn.id || pi.amount !== expected) {
+        throw new BadRequestException('payment_mismatch');
+      }
+      if (pi.status === 'succeeded') return pi.id;
+      if (pi.status === 'requires_payment_method' || pi.status === 'canceled') {
+        await this.markPurchaseFailed(
+          txn.id,
+          pi.last_payment_error?.message ?? 'plata a fost refuzată',
+        );
+        throw new BadRequestException('payment_failed');
+      }
+      throw new BadRequestException('payment_not_completed');
+    }
+
+    const session = await this.stripe.retrieveCheckoutSession(txn.providerRef);
+    if (session.metadata?.walletTransactionId !== txn.id || session.amount_total !== expected) {
+      throw new BadRequestException('payment_mismatch');
+    }
+    if (session.payment_status !== 'paid') {
+      throw new BadRequestException('payment_not_completed');
+    }
+    const pi = session.payment_intent;
+    const piId = typeof pi === 'string' ? pi : (pi?.id ?? null);
+    if (!piId) throw new BadRequestException('missing_payment_intent');
+    return piId;
+  }
+
+  /** What a confirm returns for a purchase that is already credited. */
+  private async completedPurchaseResult(userId: string, transactionId: string) {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { walletTransactionId: transactionId },
+    });
+    return { ...(await this.getSummary(userId)), invoice, alreadyConfirmed: true as const };
+  }
+
+  /** Close a still-pending purchase as failed (declined card, abandoned
+   *  3-D Secure). Nothing was credited; the reason stays on the row. */
+  private async markPurchaseFailed(transactionId: string, reason: string): Promise<void> {
+    await this.prisma.walletTransaction.updateMany({
+      where: { id: transactionId, status: 'pending' },
+      data: {
+        status: 'failed',
+        description: `Buy credits: payment failed (${reason})`.slice(0, 500),
+      },
+    });
+  }
+
+  /**
+   * The wallet's Stripe Customer id, created on first use. Stored once with a
+   * conditional write, so two first top-ups at the same moment can't leave
+   * the wallet pointing at two different customers.
+   */
+  private async ensureStripeCustomer(userId: string): Promise<string> {
+    const wallet = await this.ensureWallet(userId);
+    if (wallet.stripeCustomerId) return wallet.stripeCustomerId;
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { email: true, name: true },
+    });
+    const id = await this.stripe.createCustomer({ email: user.email, name: user.name, userId });
+    await this.prisma.wallet.updateMany({
+      where: { id: wallet.id, stripeCustomerId: null },
+      data: { stripeCustomerId: id },
+    });
+    const fresh = await this.prisma.wallet.findUniqueOrThrow({ where: { id: wallet.id } });
+    return fresh.stripeCustomerId ?? id;
+  }
+
+  /** Cards the user saved on Stripe, for the top-up dialog. Display data
+   *  only; `enabled: false` when Stripe isn't configured on this server. */
+  async listPaymentMethods(userId: string) {
+    if (!this.stripe.configured) return { enabled: false, cards: [] };
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { userId },
+      select: { stripeCustomerId: true },
+    });
+    if (!wallet?.stripeCustomerId) return { enabled: true, cards: [] };
+    return { enabled: true, cards: await this.stripe.listCards(wallet.stripeCustomerId) };
+  }
+
+  /** Forget a saved card (detached from the user's Stripe Customer). Only a
+   *  card that belongs to THIS user's customer can be removed. */
+  async removePaymentMethod(userId: string, paymentMethodId: string) {
+    if (!this.stripe.configured) throw new BadRequestException('saved_cards_unavailable');
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { userId },
+      select: { stripeCustomerId: true },
+    });
+    const owner = await this.stripe.paymentMethodCustomer(paymentMethodId);
+    if (!wallet?.stripeCustomerId || owner !== wallet.stripeCustomerId) {
+      throw new NotFoundException('payment_method_not_found');
+    }
+    await this.stripe.detachPaymentMethod(paymentMethodId);
+    return this.listPaymentMethods(userId);
+  }
+
+  /**
+   * The customer left the payment (Stripe's "back" link, or closed the 3-D
+   * Secure page). The Stripe side is closed first, so the old session /
+   * payment can no longer be paid; if it turns out it WAS paid in the
+   * meantime, it is credited instead of being canceled.
+   */
+  async cancelPurchase(userId: string, transactionId: string) {
+    const wallet = await this.ensureWallet(userId);
+    const txn = await this.prisma.walletTransaction.findUnique({ where: { id: transactionId } });
+    if (!txn || txn.walletId !== wallet.id || txn.type !== 'purchase') {
+      throw new NotFoundException('Transaction not found');
+    }
+    if (txn.status !== 'pending') return { status: txn.status, ...(await this.getSummary(userId)) };
+
+    if (txn.provider === STRIPE_PROVIDER && txn.providerRef) {
+      if (txn.providerRef.startsWith('pi_')) {
+        const pi = await this.stripe.cancelPaymentIntent(txn.providerRef);
+        if (pi.status === 'succeeded') {
+          return { status: 'completed', ...(await this.confirmPurchase(userId, txn.id)) };
+        }
+      } else {
+        const session = await this.stripe.expireCheckoutSession(txn.providerRef);
+        if (session.payment_status === 'paid') {
+          return { status: 'completed', ...(await this.confirmPurchase(userId, txn.id)) };
+        }
+      }
+    }
+    await this.prisma.walletTransaction.updateMany({
+      where: { id: txn.id, status: 'pending' },
+      data: { status: 'canceled', description: 'Buy credits: canceled by the customer' },
+    });
+    return { status: 'canceled', ...(await this.getSummary(userId)) };
+  }
+
+  /**
+   * Stripe webhook: the server-side source of truth for top-ups, so a paid
+   * purchase is credited even if the customer never comes back to the site.
+   * Every branch is idempotent (confirm/claim/conditional updates), so
+   * Stripe's own retries and the success-page confirm can overlap safely.
+   */
+  async handleStripeEvent(event: Stripe.Event): Promise<void> {
+    const obj = event.data.object as { id?: string; metadata?: Record<string, string> | null };
+    const txnId = obj.metadata?.walletTransactionId;
+    if (!txnId) return; // not one of ours (or not a top-up)
+    const txn = await this.prisma.walletTransaction.findUnique({
+      where: { id: txnId },
+      include: { wallet: { select: { userId: true } } },
+    });
+    if (!txn || txn.type !== 'purchase' || txn.provider !== STRIPE_PROVIDER) return;
+    const userId = txn.wallet.userId;
+
+    switch (event.type) {
+      case 'checkout.session.completed':
+      case 'checkout.session.async_payment_succeeded':
+      case 'payment_intent.succeeded':
+        if (txn.status !== 'pending') return;
+        await this.confirmPurchase(userId, txn.id).catch((err) => {
+          const reason = err instanceof Error ? err.message : String(err);
+          // Not yet "paid" (e.g. a delayed method) is not an error; anything
+          // else on a payment Stripe calls successful must reach a human.
+          if (reason === 'payment_not_completed') return;
+          this.logger.warn(`Webhook could not confirm purchase ${txn.id}: ${reason}`);
+          void this.notifyUnconfirmedPaidPurchase(userId, txn.id, txn.amountMinor, reason);
+        });
+        return;
+      case 'checkout.session.expired':
+      case 'checkout.session.async_payment_failed':
+        if (txn.providerRef !== obj.id) return;
+        await this.prisma.walletTransaction.updateMany({
+          where: { id: txn.id, status: 'pending' },
+          data:
+            event.type === 'checkout.session.expired'
+              ? { status: 'canceled', description: 'Buy credits: checkout expired unpaid' }
+              : { status: 'failed', description: 'Buy credits: payment failed' },
+        });
+        return;
+      case 'payment_intent.payment_failed': {
+        // Only a saved-card charge is final here: inside Stripe Checkout the
+        // customer can still retry with another card on the same page.
+        if (txn.providerRef !== obj.id) return;
+        const pi = event.data.object as Stripe.PaymentIntent;
+        await this.markPurchaseFailed(
+          txn.id,
+          pi.last_payment_error?.message ?? 'plata a fost refuzată',
+        );
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
   private async reconcilePendingPurchase(transactionId: string, userId: string): Promise<void> {
     const txn = await this.prisma.walletTransaction.findUnique({ where: { id: transactionId } });
-    if (!txn || txn.status !== 'pending' || !txn.providerRef) return;
+    if (!txn || txn.status !== 'pending') return;
+    // Created locally but the Stripe call never happened (crash/timeout in
+    // between): nothing was charged, so it can't stay "pending" forever.
+    if (!txn.providerRef) {
+      await this.prisma.walletTransaction.updateMany({
+        where: { id: transactionId, status: 'pending' },
+        data: { status: 'canceled', description: 'Buy credits: canceled, payment never started' },
+      });
+      return;
+    }
+
+    // A saved-card charge (PaymentIntent) rather than a Checkout Session.
+    if (txn.providerRef.startsWith('pi_')) {
+      const pi = await this.stripe.retrievePaymentIntent(txn.providerRef);
+      if (pi.status === 'succeeded') {
+        await this.confirmPurchase(userId, transactionId).catch((err) => {
+          const reason = err instanceof Error ? err.message : String(err);
+          void this.notifyUnconfirmedPaidPurchase(userId, transactionId, txn.amountMinor, reason);
+        });
+      } else if (pi.status === 'requires_action' || pi.status === 'requires_payment_method') {
+        // Abandoned 3-D Secure / declined: cancel it at Stripe so it can't
+        // complete later, and close the transaction.
+        await this.stripe.cancelPaymentIntent(pi.id);
+        await this.markPurchaseFailed(
+          transactionId,
+          pi.last_payment_error?.message ?? 'plata nu a fost finalizată',
+        );
+      } else if (pi.status === 'canceled') {
+        await this.markPurchaseFailed(transactionId, 'plata a fost anulată');
+      }
+      return;
+    }
 
     const session = await this.stripe.retrieveCheckoutSession(txn.providerRef);
     if (session.payment_status === 'paid') {

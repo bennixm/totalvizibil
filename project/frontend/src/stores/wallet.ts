@@ -109,6 +109,21 @@ export interface PendingPurchase {
   /** Present only when Stripe is configured — redirect the browser here. */
   checkoutUrl: string | null
   requiresConfirmation: boolean
+  /** `completed` = a saved card was charged on the spot; `requires_action`
+   *  = the bank wants 3-D Secure at `redirectUrl`; `redirect` = Stripe
+   *  Checkout at `redirectUrl`; `pending` = dev stub (no Stripe key). */
+  status?: 'completed' | 'requires_action' | 'redirect' | 'pending'
+  redirectUrl?: string | null
+  invoice?: IssuedInvoice | null
+}
+
+/** A card saved on the user's Stripe account (display data only). */
+export interface SavedCard {
+  id: string
+  brand: string
+  last4: string
+  expMonth: number
+  expYear: number
 }
 
 interface State {
@@ -116,6 +131,9 @@ interface State {
   transactions: WalletTxn[]
   nextCursor: string | null
   pending: PendingPurchase | null
+  /** Cards saved on Stripe for this user, and whether Stripe is enabled. */
+  paymentMethods: SavedCard[]
+  paymentMethodsEnabled: boolean
   loading: boolean
   working: boolean
   /** Error code from the API (e.g. `wallet_blocked`), or a raw message. */
@@ -168,6 +186,8 @@ export const useWalletStore = defineStore('wallet', {
     transactions: [],
     nextCursor: null,
     pending: null,
+    paymentMethods: [],
+    paymentMethodsEnabled: false,
     loading: false,
     working: false,
     error: '',
@@ -391,19 +411,101 @@ export const useWalletStore = defineStore('wallet', {
       return `${BASE_URL}/wallet/payments/export?${params.toString()}`
     },
 
-    async startPurchase(credits: number): Promise<void> {
+    /**
+     * Start a top-up. With `paymentMethodId` a saved card is charged right
+     * away (no card form); otherwise Stripe Checkout opens, saving the new
+     * card when `saveCard` is set. Returns the purchase (or null on error).
+     */
+    async startPurchase(
+      credits: number,
+      opts: { paymentMethodId?: string; saveCard?: boolean } = {},
+    ): Promise<PendingPurchase | null> {
       this.working = true
       this.error = ''
       this.errorReason = null
       try {
-        this.pending = await apiFetch<PendingPurchase>('/wallet/purchases', {
+        const res = await apiFetch<PendingPurchase>('/wallet/purchases', {
           method: 'POST',
-          body: { credits },
+          body: {
+            credits,
+            ...(opts.paymentMethodId ? { paymentMethodId: opts.paymentMethodId } : {}),
+            ...(opts.saveCard ? { saveCard: true } : {}),
+          },
+          // A saved-card charge waits for Stripe and the bank.
+          timeoutMs: 45_000,
         })
+        if (res.status === 'completed') {
+          // Already paid and credited server-side: refresh what the page shows.
+          this.pending = null
+          this.lastInvoice = res.invoice ?? null
+          this.summary = await apiFetch<WalletSummary>('/wallet')
+          useMoneyStore().applyFx(this.summary)
+          await Promise.all([this.loadTransactions(false), this.loadPayments(false)])
+        } else {
+          this.pending = res
+        }
+        return res
       } catch (err) {
         this.setError(err)
+        return null
       } finally {
         this.working = false
+      }
+    },
+
+    /** Saved cards (Stripe) for the top-up dialog and the wallet page. */
+    async loadPaymentMethods(): Promise<void> {
+      try {
+        const res = await apiFetch<{ enabled: boolean; cards: SavedCard[] }>(
+          '/wallet/payment-methods',
+        )
+        this.paymentMethodsEnabled = res.enabled
+        this.paymentMethods = res.cards
+      } catch {
+        // Not critical: the dialog falls back to "new card" only.
+        this.paymentMethods = []
+      }
+    },
+
+    async removePaymentMethod(id: string): Promise<boolean> {
+      this.working = true
+      this.error = ''
+      this.errorReason = null
+      try {
+        const res = await apiFetch<{ enabled: boolean; cards: SavedCard[] }>(
+          `/wallet/payment-methods/${id}`,
+          { method: 'DELETE' },
+        )
+        this.paymentMethodsEnabled = res.enabled
+        this.paymentMethods = res.cards
+        return true
+      } catch (err) {
+        this.setError(err)
+        return false
+      } finally {
+        this.working = false
+      }
+    },
+
+    /** The customer left a payment (Stripe "back", closed dialog): close it
+     *  at Stripe and here. Returns true when it turned out to be paid. */
+    async cancelTransaction(transactionId: string): Promise<boolean> {
+      try {
+        const res = await apiFetch<WalletSummary & { status: string }>(
+          `/wallet/purchases/${transactionId}/cancel`,
+          { method: 'POST' },
+        )
+        const { status, ...summary } = res
+        this.summary = summary as WalletSummary
+        useMoneyStore().applyFx(this.summary)
+        if (status === 'completed') {
+          await Promise.all([this.loadTransactions(false), this.loadPayments(false)])
+        }
+        return status === 'completed'
+      } catch {
+        return false
+      } finally {
+        this.pending = null
       }
     },
 
@@ -488,7 +590,10 @@ export const useWalletStore = defineStore('wallet', {
     },
 
     cancelPending(): void {
+      const p = this.pending
       this.pending = null
+      // Close it server-side too, so it doesn't sit "pending" in the history.
+      if (p) void this.cancelTransaction(p.transactionId)
     },
 
     reset(): void {

@@ -8,11 +8,12 @@ import { uiLocale } from '@/plugins/i18n'
  * today ("Card", our Stripe integration) — the two-pane layout is kept even
  * so, so a second method can slot in later without another restructure.
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 
-import { useWalletStore } from '@/stores/wallet'
+import { useWalletStore, type SavedCard } from '@/stores/wallet'
+import { useToastStore } from '@/stores/toast'
 
 const props = defineProps<{
   modelValue: boolean
@@ -24,7 +25,46 @@ const emit = defineEmits<{ 'update:modelValue': [boolean] }>()
 
 const { t, n } = useI18n()
 const wallet = useWalletStore()
-const { summary, pending, working, lastInvoice } = storeToRefs(wallet)
+const { summary, pending, working, lastInvoice, paymentMethods, paymentMethodsEnabled } =
+  storeToRefs(wallet)
+const toasts = useToastStore()
+
+// Payment method: a saved card (charged at once, no card form) or a new card
+// through Stripe Checkout (optionally saved for next time).
+const NEW_CARD = 'new'
+const selectedMethod = ref<string>(NEW_CARD)
+const saveCard = ref(false)
+const selectedCard = computed<SavedCard | null>(
+  () => paymentMethods.value.find((c) => c.id === selectedMethod.value) ?? null,
+)
+watch(
+  () => props.modelValue,
+  async (isOpen) => {
+    if (!isOpen) return
+    await wallet.loadPaymentMethods()
+    // Preselect the most recent saved card, so a returning customer only
+    // picks an amount and pays.
+    selectedMethod.value = paymentMethods.value[0]?.id ?? NEW_CARD
+    saveCard.value = false
+  },
+  { immediate: true },
+)
+const BRANDS: Record<string, string> = {
+  visa: 'Visa',
+  mastercard: 'Mastercard',
+  amex: 'American Express',
+  maestro: 'Maestro',
+  discover: 'Discover',
+  diners: 'Diners Club',
+  jcb: 'JCB',
+  unionpay: 'UnionPay',
+}
+function brandName(b: string): string {
+  return BRANDS[b] ?? b.charAt(0).toUpperCase() + b.slice(1)
+}
+function expiry(c: SavedCard): string {
+  return `${String(c.expMonth).padStart(2, '0')}/${String(c.expYear).slice(-2)}`
+}
 
 const billingBlocked = computed(() => !!summary.value && !summary.value.billingProfileComplete)
 const unbilledCount = computed(() => summary.value?.unbilledPurchases ?? 0)
@@ -61,14 +101,23 @@ const previewValid = computed(() => Number.isInteger(amount.value) && amount.val
 
 async function buy(): Promise<void> {
   if (!previewValid.value) return
-  await wallet.startPurchase(amount.value)
-  // Stripe configured: the pending purchase carries a real Checkout Session
-  // URL — leave the app entirely and let Stripe host the payment form. With
-  // no Stripe key, `checkoutUrl` is null and the dev-stub confirm panel
-  // below renders instead, unchanged.
-  if (pending.value?.checkoutUrl) {
-    window.location.href = pending.value.checkoutUrl
+  const card = selectedCard.value
+  const res = await wallet.startPurchase(
+    amount.value,
+    card ? { paymentMethodId: card.id } : { saveCard: saveCard.value },
+  )
+  if (!res) return // the error is already shown (declined card, etc.)
+  if (res.status === 'completed') {
+    // Saved card charged and credited on the spot: nothing else to do.
+    toasts.success(t('wallet.paidWithSavedCard', { credits: res.credits }))
+    emit('update:modelValue', false)
+    return
   }
+  // Stripe Checkout (new card) or the bank's 3-D Secure page (saved card):
+  // leave the app; Stripe brings the customer back to /wallet to verify.
+  // With no Stripe key, there is no URL and the dev-stub panel renders.
+  const url = res.redirectUrl ?? res.checkoutUrl
+  if (url) window.location.href = url
 }
 async function confirm(): Promise<void> {
   await wallet.confirmPending()
@@ -139,13 +188,48 @@ async function confirm(): Promise<void> {
         </div>
 
         <div v-else class="topup__body">
-          <!-- Payment method — one option today ("Card" = Stripe). -->
-          <div class="topup__methods">
+          <!-- Payment method: the cards saved on Stripe, or a new card. -->
+          <div class="topup__methods" role="radiogroup" :aria-label="t('wallet.paymentMethod')">
             <p class="topup__paneLabel">{{ t('wallet.paymentMethod') }}</p>
-            <div class="topup__method is-active">
-              <v-icon icon="mdi-credit-card-outline" size="22" />
-              <span>{{ t('wallet.cardMethod') }}</span>
-            </div>
+            <button
+              v-for="c in paymentMethods"
+              :key="c.id"
+              type="button"
+              role="radio"
+              class="topup__method topup__method--card"
+              :class="{ 'is-active': selectedMethod === c.id }"
+              :aria-checked="selectedMethod === c.id"
+              :disabled="!!pending || working"
+              @click="selectedMethod = c.id"
+            >
+              <v-icon icon="mdi-credit-card-check-outline" size="22" />
+              <span class="topup__cardName">{{ brandName(c.brand) }} •••• {{ c.last4 }}</span>
+              <span class="topup__cardExp">{{ t('wallet.cardExpires', { date: expiry(c) }) }}</span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              class="topup__method"
+              :class="{ 'is-active': selectedMethod === NEW_CARD }"
+              :aria-checked="selectedMethod === NEW_CARD"
+              :disabled="!!pending || working"
+              @click="selectedMethod = NEW_CARD"
+            >
+              <v-icon icon="mdi-credit-card-plus-outline" size="22" />
+              <span>{{ paymentMethods.length ? t('wallet.newCard') : t('wallet.cardMethod') }}</span>
+            </button>
+            <v-checkbox
+              v-if="paymentMethodsEnabled && selectedMethod === NEW_CARD"
+              v-model="saveCard"
+              :label="t('wallet.saveCard')"
+              color="primary"
+              density="compact"
+              hide-details
+              class="topup__save"
+            />
+            <p v-if="paymentMethodsEnabled" class="topup__secure">
+              <v-icon icon="mdi-lock-outline" size="13" /> {{ t('wallet.cardsSecureNote') }}
+            </p>
           </div>
 
           <div class="topup__amountPane">
@@ -201,10 +285,14 @@ async function confirm(): Promise<void> {
                 size="large"
                 :disabled="!previewValid"
                 :loading="working"
-                append-icon="mdi-arrow-right"
+                :append-icon="selectedCard ? 'mdi-lock-outline' : 'mdi-arrow-right'"
                 @click="buy"
               >
-                {{ t('wallet.buyCta') }}
+                {{
+                  selectedCard
+                    ? t('wallet.payWithCard', { last4: selectedCard.last4 })
+                    : t('wallet.buyCta')
+                }}
               </v-btn>
             </template>
 
@@ -356,6 +444,52 @@ async function confirm(): Promise<void> {
   border-color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.08);
   color: rgb(var(--v-theme-primary));
+}
+/* Several options now (saved cards + new card): a stack of tiles. */
+.topup__method {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.topup__method:not(.is-active):hover {
+  border-color: rgba(var(--v-theme-primary), 0.45);
+}
+.topup__method:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.topup__method--card {
+  padding: 0.9rem 0.8rem;
+  gap: 0.2rem;
+}
+.topup__cardName {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.topup__cardExp {
+  font-size: var(--tvz-fs-caption);
+  font-weight: 400;
+  opacity: 0.7;
+}
+.topup__save {
+  margin-top: 0.15rem;
+}
+.topup__save :deep(.v-label) {
+  font-size: var(--tvz-fs-small);
+  line-height: 1.3;
+  opacity: 0.9;
+}
+.topup__secure {
+  display: flex;
+  gap: 0.3rem;
+  align-items: flex-start;
+  margin: 0.5rem 0 0;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 .topup__summary {

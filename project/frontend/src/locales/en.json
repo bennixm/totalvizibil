@@ -873,7 +873,14 @@
       "insufficient_balance_for_refund": "Your remaining balance doesn't cover the refund amount.",
       "refund_not_cancelable": "This refund can no longer be canceled.",
       "refund_hold_expired": "The cancel window has expired.",
-      "payment_not_completed": "The payment hasn't completed yet."
+      "payment_not_completed": "The payment is not completed yet. If you paid, the credits appear automatically within minutes.",
+      "card_declined": "The bank declined the payment. Try another card.",
+      "card_declined_reason": "The payment was declined: {reason} Try another card.",
+      "payment_failed": "The payment did not go through. You were not charged.",
+      "payment_canceled": "The payment was canceled.",
+      "payment_mismatch": "The payment does not match this top-up. Please contact support.",
+      "payment_method_not_found": "That saved card is no longer available. Choose another card.",
+      "saved_cards_unavailable": "Saved cards are not available right now."
     },
     "blockedReason": "Reason: {reason}",
     "blockedHelp": "Contact support if you think this is a mistake.",
@@ -918,7 +925,18 @@
       "back": "Back to the campaign"
     },
     "paidAmount": "paid {amount}",
-    "bonusPart": "of which bonuses: {n}"
+    "bonusPart": "of which bonuses: {n}",
+    "paidWithSavedCard": "Payment successful: {credits} credits were added to your wallet.",
+    "cardExpires": "expires {date}",
+    "newCard": "New card",
+    "saveCard": "Save this card for future top-ups",
+    "cardsSecureNote": "Your card is kept securely by Stripe. Totalvizibil never stores card details.",
+    "payWithCard": "Pay with card •••• {last4}",
+    "savedCardsTitle": "Saved cards",
+    "removeCard": "Remove",
+    "removeCardTitle": "Remove the saved card?",
+    "removeCardText": "{card} will no longer be offered for top-ups. You can add it again with any new payment.",
+    "cardRemoved": "The card was removed."
   },
   "auth": {
     "loginTitle": "Log in",
