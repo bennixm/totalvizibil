@@ -316,10 +316,14 @@ export function formatApiError(
   status: number,
   error: GoogleAdsApiError | undefined,
   logger: Logger,
+  /** Which call failed (endpoint, start of the query), for the log only. */
+  where?: string,
 ): Error {
   const message = error?.message ?? 'eroare necunoscută';
   if (error?.details?.length) {
-    logger.error(`Google Ads API ${status} full error details: ${JSON.stringify(error.details)}`);
+    logger.error(
+      `Google Ads API ${status}${where ? ` [${where.slice(0, 160)}]` : ''} full error details: ${JSON.stringify(error.details)}`,
+    );
   }
   // The specific reasons live in details[].errors[] (message + errorCode +
   // field path); the top-level message alone says nothing useful.
@@ -539,7 +543,12 @@ export class GoogleAdsApiClient implements OnModuleInit {
     );
     const data = (await readJson(res)) as GoogleAdsSearchResponse;
     if (!res.ok) {
-      throw formatApiError(res.status, data.error, this.logger);
+      throw formatApiError(
+        res.status,
+        data.error,
+        this.logger,
+        `search ${this.customerId}: ${query}`,
+      );
     }
     return data.results ?? [];
   }
@@ -578,7 +587,7 @@ export class GoogleAdsApiClient implements OnModuleInit {
     );
     const data = (await readJson(res)) as GoogleAdsMutateResponse;
     if (!res.ok) {
-      throw formatApiError(res.status, data.error, this.logger);
+      throw formatApiError(res.status, data.error, this.logger, `mutate ${this.customerId}`);
     }
     return data.mutateOperationResponses ?? [];
   }
@@ -602,7 +611,13 @@ export class GoogleAdsApiClient implements OnModuleInit {
       { method: 'POST', headers, body: JSON.stringify(plannerBody(keywords)) },
     );
     const data = (await readJson(res)) as { error?: GoogleAdsApiError };
-    if (!res.ok) throw formatApiError(res.status, data.error, this.logger);
+    if (!res.ok)
+      throw formatApiError(
+        res.status,
+        data.error,
+        this.logger,
+        `keywordHistoricalMetrics ${this.customerId}`,
+      );
     return parsePlannerMetrics(data);
   }
 
@@ -632,7 +647,12 @@ export class GoogleAdsApiClient implements OnModuleInit {
       if (JSON.stringify(data.error?.details ?? []).includes('DEVELOPER_TOKEN_NOT_APPROVED')) {
         throw new Error('google_invoice_access_not_approved');
       }
-      throw formatApiError(res.status, data.error, this.logger);
+      throw formatApiError(
+        res.status,
+        data.error,
+        this.logger,
+        `invoices ${this.customerId} ${billingSetup} ${issueYear}-${issueMonth}`,
+      );
     }
     return data.invoices ?? [];
   }
@@ -684,7 +704,12 @@ export class GoogleAdsApiClient implements OnModuleInit {
       error?: GoogleAdsApiError;
     };
     if (!res.ok) {
-      throw formatApiError(res.status, data.error, this.logger);
+      throw formatApiError(
+        res.status,
+        data.error,
+        this.logger,
+        `recommendations:apply ${this.customerId}`,
+      );
     }
     return (data.results ?? []).map((r) => r.resourceName).filter((r): r is string => !!r);
   }

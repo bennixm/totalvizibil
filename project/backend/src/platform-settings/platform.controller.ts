@@ -10,7 +10,12 @@ import { PlatformSettingsService } from './platform-settings.service';
  *  permanently caching it would wedge every page at `configured: false`
  *  for the rest of this process's life the moment the content pass creates
  *  the conversion action after this endpoint was first hit. */
-let cachedConversionTag: { conversionId: string; conversionLabel: string } | undefined;
+let cachedConversionTag:
+  { resourceName: string; tag: { conversionId: string; conversionLabel: string } } | undefined;
+/** After a failed lookup, public page views don't ask Google again for a
+ *  while (every visitor loads this endpoint). */
+let retryAfter = 0;
+const RETRY_MS = 10 * 60 * 1000;
 
 /** Public, read-only pricing the create flow needs before sign-in. */
 @Controller('platform')
@@ -69,10 +74,16 @@ export class PlatformController {
    */
   @Get('google-ads-conversion-tag')
   async googleAdsConversionTag() {
-    if (cachedConversionTag) return { configured: true, ...cachedConversionTag };
     try {
       const resourceName = await this.settings.googleAdsConversionActionResourceName();
       if (!resourceName || !this.googleAds.configured) return { configured: false };
+      if (cachedConversionTag?.resourceName === resourceName)
+        return { configured: true, ...cachedConversionTag.tag };
+      // Created in another account (the admin switched accounts): Google
+      // refuses it there; the next content pass makes one for this account.
+      if (!resourceName.startsWith(`customers/${this.googleAds.customerId}/`))
+        return { configured: false };
+      if (Date.now() < retryAfter) return { configured: false };
       const rows = await this.googleAds.search(
         'SELECT conversion_action.tag_snippets FROM conversion_action ' +
           `WHERE conversion_action.resource_name = '${resourceName}'`,
@@ -81,9 +92,10 @@ export class PlatformController {
       const match = snippet.match(/send_to:\s*['"]([\w-]+\/[\w-]+)['"]/);
       if (!match) return { configured: false };
       const [conversionId, conversionLabel] = match[1].split('/');
-      cachedConversionTag = { conversionId, conversionLabel };
-      return { configured: true, ...cachedConversionTag };
+      cachedConversionTag = { resourceName, tag: { conversionId, conversionLabel } };
+      return { configured: true, conversionId, conversionLabel };
     } catch (err) {
+      retryAfter = Date.now() + RETRY_MS;
       this.logger.warn(
         'Google Ads conversion tag lookup failed — reporting unconfigured for now.',
         err instanceof Error ? err.stack : String(err),
