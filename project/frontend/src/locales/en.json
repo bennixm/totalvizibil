@@ -1067,7 +1067,6 @@
     "filterAnyStatus": "Any status",
     "filterAnyRole": "Any role",
     "invFilterAnyKind": "Any type",
-    "colUser": "User",
     "colStatus": "Status",
     "colRoles": "Roles",
     "colCompanies": "Companies",
@@ -1351,9 +1350,9 @@
       "active": "Active",
       "suspended": "Suspended"
     },
-    "twoFaYes": "On",
-    "twoFaNo": "Off",
-    "colLastSeen": "Last sign-in"
+    "userClient": "Customer",
+    "lastSeenOn": "Last sign-in: {date}",
+    "neverSignedIn": "Never signed in"
   },
   "errors": {
     "notFoundTitle": "Page not found",

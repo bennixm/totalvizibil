@@ -58,6 +58,12 @@ function credits(v: number): string {
 function lastLogin(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString(uiLocale()) : t('admin.never')
 }
+/** A stable colour per person, so a face is recognisable across pages. */
+function hue(seed: string): number {
+  let h = 0
+  for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) % 360
+  return h
+}
 function joined(iso: string): string {
   return new Date(iso).toLocaleDateString(uiLocale())
 }
@@ -155,59 +161,71 @@ function open(id: string): void {
       :text="t('admin.usersNone')"
     />
 
-    <div v-else class="au__table">
-      <div class="au__head" aria-hidden="true">
-        <span>{{ t('admin.colUser') }}</span>
-        <span class="num">{{ t('admin.colBusinesses') }}</span>
-        <span class="num">{{ t('admin.colAdsCampaigns') }}</span>
-        <span class="num">{{ t('admin.colWallet') }}</span>
-        <span>2FA</span>
-        <span>{{ t('admin.colLastSeen') }}</span>
-        <span />
-      </div>
-      <div
-        v-for="u in admin.users"
-        :key="u.id"
-        class="urow"
-        :class="{ 'is-suspended': u.status === 'suspended' }"
-        role="button"
-        tabindex="0"
-        @click="open(u.id)"
-        @keydown.enter="open(u.id)"
-      >
-        <div class="urow__who">
-          <span class="urow__av">{{ initials(u.name) }}</span>
-          <div class="urow__id">
-            <span class="urow__name">{{ u.name }}</span>
-            <span class="urow__mail">{{ u.email }}</span>
-            <span v-if="u.platformRoles.length || u.status === 'suspended' || !u.emailVerified" class="urow__tags">
-              <span v-if="u.status === 'suspended'" class="tag tag--err">{{ t('admin.userStatus.suspended') }}</span>
-              <span v-if="!u.emailVerified" class="tag tag--warn">{{ t('admin.userEmailUnverified') }}</span>
-              <span v-for="r in u.platformRoles" :key="r" class="tag tag--role">{{ r }}</span>
+    <ul v-else class="au__grid">
+      <li v-for="u in admin.users" :key="u.id">
+        <article
+          class="pc"
+          :class="{ 'is-suspended': u.status === 'suspended' }"
+          :style="{ '--pc-hue': hue(u.email) }"
+          role="link"
+          tabindex="0"
+          :aria-label="u.name"
+          @click="open(u.id)"
+          @keydown.enter="open(u.id)"
+        >
+          <header class="pc__head">
+            <span class="pc__av">{{ initials(u.name) }}</span>
+            <div class="pc__id">
+              <h3 class="pc__name">{{ u.name }}</h3>
+              <p class="pc__mail">{{ u.email }}</p>
+            </div>
+            <v-icon icon="mdi-arrow-top-right" size="17" class="pc__go" />
+          </header>
+
+          <div class="pc__tags">
+            <span v-if="u.status === 'suspended'" class="tag tag--err">
+              <v-icon icon="mdi-cancel" size="11" /> {{ t('admin.userStatus.suspended') }}
+            </span>
+            <span v-if="!u.emailVerified" class="tag tag--warn">
+              <v-icon icon="mdi-email-alert-outline" size="11" /> {{ t('admin.userEmailUnverified') }}
+            </span>
+            <span v-for="r in u.platformRoles" :key="r" class="tag tag--role">{{ r }}</span>
+            <span v-if="!u.platformRoles.length && u.status !== 'suspended' && u.emailVerified" class="tag">
+              {{ t('admin.userClient') }}
             </span>
           </div>
-        </div>
-        <span class="num" :data-label="t('admin.colBusinesses')">{{ u.companyCount }}</span>
-        <span class="num" :data-label="t('admin.colAdsCampaigns')">{{ u.adsCampaignCount }}</span>
-        <span class="num" :data-label="t('admin.colWallet')">
-          <v-icon v-if="u.walletBlocked" icon="mdi-lock" size="12" color="error" :title="t('admin.walletFrozen')" />
-          {{ credits(u.walletCredits) }}
-        </span>
-        <span class="urow__sec" :data-label="'2FA'">
-          <v-icon
-            :icon="u.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'"
-            :color="u.twoFactorEnabled ? 'success' : undefined"
-            size="15"
-          />
-          {{ u.twoFactorEnabled ? t('admin.twoFaYes') : t('admin.twoFaNo') }}
-        </span>
-        <span class="urow__when" :data-label="t('admin.colLastSeen')">
-          {{ lastLogin(u.lastLoginAt) }}
-          <small>{{ t('admin.joinedOn', { date: joined(u.createdAt) }) }}</small>
-        </span>
-        <v-icon icon="mdi-chevron-right" size="18" class="urow__chev" />
-      </div>
-    </div>
+
+          <dl class="pc__stats">
+            <div>
+              <dt>{{ t('admin.colBusinesses') }}</dt>
+              <dd>{{ u.companyCount }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('admin.colAdsCampaigns') }}</dt>
+              <dd>{{ u.adsCampaignCount }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('admin.colWallet') }}</dt>
+              <dd>
+                <v-icon v-if="u.walletBlocked" icon="mdi-lock" size="13" color="error" :title="t('admin.walletFrozen')" />
+                {{ credits(u.walletCredits) }}
+              </dd>
+            </div>
+          </dl>
+
+          <footer class="pc__foot">
+            <span class="pc__seen">
+              <v-icon icon="mdi-clock-outline" size="13" />
+              {{ u.lastLoginAt ? t('admin.lastSeenOn', { date: lastLogin(u.lastLoginAt) }) : t('admin.neverSignedIn') }}
+            </span>
+            <span class="pc__2fa" :class="{ on: u.twoFactorEnabled }" :title="t('admin.stat.users2fa')">
+              <v-icon :icon="u.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'" size="13" /> 2FA
+            </span>
+          </footer>
+          <p class="pc__joined">{{ t('admin.joinedOn', { date: joined(u.createdAt) }) }}</p>
+        </article>
+      </li>
+    </ul>
 
     <AdminPager
       :page="admin.filters.page"
@@ -245,143 +263,134 @@ function open(id: string): void {
   place-items: center;
   min-height: 200px;
 }
-.au__table {
+.au__grid {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17.5rem), 1fr));
+  gap: 0.9rem;
+}
+.au__grid > li {
+  display: flex;
+}
+
+/* Profile card */
+.pc {
+  --pc-accent: hsl(var(--pc-hue) 70% 55%);
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.1rem 1.1rem 0.9rem;
   border: 1px solid var(--tvz-hairline);
   border-radius: var(--tvz-radius-lg);
   background: rgb(var(--v-theme-surface));
   overflow: hidden;
-}
-.au__head,
-.urow {
-  display: grid;
-  grid-template-columns:
-    minmax(0, 1fr) 4.4rem 6.2rem 5rem 3.6rem 8.8rem 18px;
-  align-items: center;
-  gap: 0.9rem;
-  padding: 0.75rem 1rem;
-}
-.au__head {
-  font-size: var(--tvz-fs-micro);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-  border-bottom: 1px solid var(--tvz-hairline);
-  white-space: nowrap;
-}
-.au__head span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.au__head .num {
-  display: block;
-}
-.urow {
-  position: relative;
   cursor: pointer;
-  transition: background var(--tvz-dur-fast) var(--tvz-ease-out);
+  transition:
+    transform var(--tvz-dur-fast) var(--tvz-ease-out),
+    border-color var(--tvz-dur-fast) var(--tvz-ease-out),
+    box-shadow var(--tvz-dur-fast) var(--tvz-ease-out);
 }
-.urow + .urow {
-  border-top: 1px solid var(--tvz-hairline);
-}
-.urow:hover,
-.urow:focus-visible {
-  outline: none;
-  background: rgba(var(--v-theme-primary), 0.05);
-}
-.urow.is-suspended::before {
+/* A soft band of the person's colour behind the avatar. */
+.pc::before {
   content: '';
   position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: rgb(var(--v-theme-error));
+  inset: 0 0 auto 0;
+  height: 4.2rem;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--pc-hue) 70% 55% / 0.22),
+    hsl(calc(var(--pc-hue) + 40) 70% 55% / 0.05)
+  );
+  pointer-events: none;
 }
-.urow__who {
+.pc:hover,
+.pc:focus-visible {
+  outline: none;
+  transform: translateY(-2px);
+  border-color: rgba(var(--v-theme-primary), 0.45);
+  box-shadow: var(--tvz-shadow-md);
+}
+.pc.is-suspended {
+  border-color: rgba(var(--v-theme-error), 0.45);
+}
+.pc.is-suspended::before {
+  background: linear-gradient(135deg, rgba(var(--v-theme-error), 0.18), transparent);
+}
+.pc__head {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  min-width: 0;
+  gap: 0.8rem;
 }
-.urow__av {
+.pc__av {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
   flex: none;
-  clip-path: var(--tvz-hex-sm);
-  font-size: var(--tvz-fs-caption);
+  width: 3.25rem;
+  height: 3.25rem;
+  clip-path: var(--tvz-hex-md);
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: var(--tvz-fs-lead);
   font-weight: 700;
-  color: rgb(var(--v-theme-on-primary));
-  background: rgb(var(--v-theme-primary));
+  color: #fff;
+  background: linear-gradient(135deg, var(--pc-accent), hsl(calc(var(--pc-hue) + 40) 70% 42%));
 }
-.urow.is-suspended .urow__av {
-  background: rgba(var(--v-theme-on-surface), 0.35);
+.pc.is-suspended .pc__av {
+  filter: grayscale(1);
+  opacity: 0.7;
 }
-.urow__id {
+.pc__id {
+  flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
 }
-.urow__name {
-  font-weight: 600;
-  font-size: var(--tvz-fs-body);
+.pc__name {
+  margin: 0;
+  font-size: var(--tvz-fs-section);
+  font-weight: 700;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.urow__mail {
+.pc__mail {
+  margin: 0.1rem 0 0;
   font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.55);
+  color: rgba(var(--v-theme-on-surface), 0.58);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.urow__tags {
+.pc__go {
+  align-self: flex-start;
+  color: rgba(var(--v-theme-on-surface), 0.3);
+  transition: color var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.pc:hover .pc__go,
+.pc:focus-visible .pc__go {
+  color: rgb(var(--v-theme-primary));
+}
+.pc__tags {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
-  margin-top: 0.2rem;
-}
-.num {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.25rem;
-  font-size: var(--tvz-fs-small);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.urow__sec {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: var(--tvz-fs-small);
-  color: rgba(var(--v-theme-on-surface), 0.75);
-}
-.urow__when {
-  display: flex;
-  flex-direction: column;
-  font-size: var(--tvz-fs-small);
-}
-.urow__when small {
-  white-space: nowrap;
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.5);
-}
-.urow__chev {
-  color: rgba(var(--v-theme-on-surface), 0.3);
 }
 .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
   font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 0.1rem 0.4rem;
+  padding: 0.12rem 0.45rem;
   clip-path: var(--tvz-hex-xs);
-  background: rgba(var(--v-theme-on-surface), 0.08);
-  color: rgba(var(--v-theme-on-surface), 0.65);
+  background: rgba(var(--v-theme-on-surface), 0.07);
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 .tag--err {
   background: rgba(var(--v-theme-error), 0.16);
@@ -395,45 +404,84 @@ function open(id: string): void {
   background: rgba(var(--v-theme-primary), 0.14);
   color: rgb(var(--v-theme-primary));
 }
-@media (max-width: 960px) {
-  .au__head {
-    display: none;
-  }
-  .urow {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.6rem 0.9rem;
-  }
-  .urow__who {
-    grid-column: 1 / -1;
-  }
-  .urow__chev {
-    display: none;
-  }
-  .num,
-  .urow__sec,
-  .urow__when {
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-start;
-    text-align: left;
-  }
-  .num::before,
-  .urow__sec::before,
-  .urow__when::before {
-    content: attr(data-label);
-    font-size: var(--tvz-fs-micro);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: rgba(var(--v-theme-on-surface), 0.5);
-  }
-  .urow__sec {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-  .urow__sec::before {
-    flex-basis: 100%;
+.pc__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: auto 0 0;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: var(--tvz-radius-md);
+  background: rgba(var(--v-theme-on-surface), 0.025);
+}
+.pc__stats > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.55rem 0.3rem;
+  min-width: 0;
+}
+.pc__stats > div + div {
+  border-left: 1px solid var(--tvz-hairline);
+}
+.pc__stats dt {
+  max-width: 100%;
+  font-size: var(--tvz-fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pc__stats dd {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin: 0;
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pc__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.62);
+}
+.pc__seen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.pc__2fa {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex: none;
+  padding: 0.1rem 0.4rem;
+  clip-path: var(--tvz-hex-xs);
+  font-size: var(--tvz-fs-micro);
+  font-weight: 700;
+  background: rgba(var(--v-theme-on-surface), 0.07);
+}
+.pc__2fa.on {
+  background: rgba(var(--v-theme-success), 0.16);
+  color: rgb(var(--v-theme-success));
+}
+.pc__joined {
+  margin: -0.45rem 0 0;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.42);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc:hover,
+  .pc:focus-visible {
+    transform: none;
   }
 }
 </style>
