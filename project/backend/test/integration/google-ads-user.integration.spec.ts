@@ -289,6 +289,38 @@ describe('agent chat: billing', () => {
     expect(await balance()).toBe(5000);
   });
 
+  it('a proposal it only talks about is made for real, or the owner is told', async () => {
+    const claim = { text: 'Am pregătit câteva cuvinte cheie. Aprobă-le sub mesaj.' };
+    // Talks, is sent back once, then really calls the tool.
+    script = [
+      claim,
+      {
+        tools: [
+          [
+            'propose_keywords',
+            { add: [{ text: 'instalator sibiu', match_type: 'PHRASE' }], reason: 'x' },
+          ],
+        ],
+      },
+      { text: 'Gata, propunerea e sub mesaj.' },
+    ];
+    const ok = await chat('da frate');
+    expect(ok.actions.map((a) => a.action)).toEqual(['chat.keywords']);
+    expect(JSON.stringify(aiCalls[1].messages)).toContain('nu ai apelat niciun instrument');
+    expect(ok.assistantText).not.toContain('Notă');
+    // Keeps only talking: the owner is told nothing was prepared.
+    script = [claim, claim];
+    const bad = await chat('si altele');
+    expect(bad.actions).toEqual([]);
+    expect(bad.assistantText).toContain('nu s-a pregătit nicio propunere');
+    // And the agent sees it in the history of the next message.
+    script = [{ text: 'Bine.' }];
+    await chat('ok');
+    expect(JSON.stringify(aiCalls[aiCalls.length - 1].messages)).toContain(
+      '[în acest mesaj nu s-a pregătit nicio propunere]',
+    );
+  });
+
   it('never runs a truncated tool call and does not charge for it', async () => {
     script = [{ tools: [['propose_status', { status: 'PAUSED' }]], stop: 'max_tokens' }];
     const t = await chat();

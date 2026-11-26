@@ -50,6 +50,16 @@ import { responds } from './site-pages';
  *  told apart by this description. */
 export const CHAT_DESCRIPTION = 'Google Ads agent chat';
 const MAX_TOKENS = 8_000;
+
+/** Wording of an answer that says a proposal waits for the owner. */
+const PROPOSAL_CLAIM =
+  /(am pregătit|am propus|pregătit[ăe]?\s+(o |două |trei |câteva )?propuner|propuner(ea|ile)\s+(e |este |sunt )?pregătit|sub (acest )?mesaj|aprob[aă](-le|-o)?\s+(mai jos|sub)|în așteptarea aprobării|i('ve| have) prepared|below (this|the) message|awaiting your approval|zur genehmigung|unter dieser nachricht)/i;
+export const claimsProposal = (text: string): boolean => PROPOSAL_CLAIM.test(text);
+const NO_PROPOSAL_NUDGE =
+  'Ai scris că ai pregătit o propunere, dar nu ai apelat niciun instrument propose_*, deci nu există nicio propunere. ' +
+  'Apelează acum instrumentul potrivit, sau răspunde din nou fără să spui că ai pregătit ceva.';
+const NO_PROPOSAL_NOTE =
+  'Notă: în acest mesaj nu s-a pregătit nicio propunere de aprobat. Cere din nou modificarea dacă o vrei.';
 const AI_TIMEOUT_MS = 90_000;
 const HISTORY_TURNS = 12;
 const PAGE = 50;
@@ -330,6 +340,7 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
         ],
       },
     ];
+    let nudged = false;
     for (let call = 1; call <= pricing.maxAiCalls; call++) {
       const res = await this.ai.agentMessage({
         system: CHAT_SYSTEM,
@@ -361,7 +372,25 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
       // A truncated answer may carry a truncated tool call: never run it.
       if (res.stop_reason === 'max_tokens') return said ? null : 'ai_error';
       const uses = res.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
-      if (!uses.length) return said ? null : 'ai_error';
+      if (!uses.length) {
+        // Says a proposal waits for approval, but none was made: one chance
+        // to call the tool (or take it back) before the owner sees it.
+        if (
+          said &&
+          !state.proposals &&
+          claimsProposal(said) &&
+          !nudged &&
+          call < pricing.maxAiCalls
+        ) {
+          nudged = true;
+          messages.push(
+            { role: 'assistant', content: res.content },
+            { role: 'user', content: NO_PROPOSAL_NUDGE },
+          );
+          continue;
+        }
+        return said ? null : 'ai_error';
+      }
 
       const results: Anthropic.ToolResultBlockParam[] = [];
       for (const u of uses) {
@@ -416,6 +445,11 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
       const questions = ((t.questions ?? []) as unknown as Question[]).map((q) => q.question);
       const said = [
         t.assistantText ?? '',
+        // The text spoke of a proposal that was never made: say so, or the
+        // agent believes its own earlier words.
+        ...(!t.actions.length && t.assistantText && claimsProposal(t.assistantText)
+          ? ['[în acest mesaj nu s-a pregătit nicio propunere]']
+          : []),
         ...questions,
         ...t.actions.map(
           (a) =>
@@ -680,6 +714,11 @@ export class GoogleAdsChatService implements OnModuleInit, OnModuleDestroy {
     billAi = true,
   ): Promise<void> {
     const delivered = errorCode === null || state.proposals > 0;
+    // Still claims a proposal that does not exist: never leave the owner
+    // looking for an approve button that is not there.
+    if (delivered && !state.proposals && state.text && claimsProposal(state.text)) {
+      state.text = `${state.text}\n\n${NO_PROPOSAL_NOTE}`;
+    }
     const costUsd = billAi ? aiCostUsd(this.model, state.usage) : 0;
     let paid = false;
     await this.prisma.$transaction(async (tx) => {
