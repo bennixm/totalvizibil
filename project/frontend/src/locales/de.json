@@ -1067,7 +1067,6 @@
     "filterAnyStatus": "Beliebiger Status",
     "filterAnyRole": "Beliebige Rolle",
     "invFilterAnyKind": "Beliebiger Typ",
-    "colUser": "Nutzer",
     "colStatus": "Status",
     "colRoles": "Rollen",
     "colCompanies": "Unternehmen",
@@ -1343,7 +1342,17 @@
       "budgetTitle": "Tagesbudget"
     },
     "colAdsCampaigns": "Google Ads",
-    "groupGoogleAds": "Google Ads der Kunden"
+    "groupGoogleAds": "Google Ads der Kunden",
+    "colBusinesses": "Unternehmen",
+    "joinedOn": "Registriert {date}",
+    "userEmailUnverified": "E-Mail unbestätigt",
+    "userStatus": {
+      "active": "Aktiv",
+      "suspended": "Gesperrt"
+    },
+    "userClient": "Kunde",
+    "lastSeenOn": "Zuletzt da: {date}",
+    "neverSignedIn": "Noch nie angemeldet"
   },
   "errors": {
     "notFoundTitle": "Seite nicht gefunden",
@@ -4494,9 +4503,10 @@
       "chat": "Chat",
       "none": "Keine Zahlungen in diesem Zeitraum.",
       "removed": "von der Plattform entfernt",
-      "cyclesN": "{n} Optimierungen",
-      "chatN": "{n} Nachrichten",
-      "allTransactions": "Alle Transaktionen"
+      "cyclesN": "keine Optimierung | eine Optimierung | {n} Optimierungen",
+      "chatN": "keine Nachricht | eine Nachricht | {n} Nachrichten",
+      "allTransactions": "Alle Transaktionen",
+      "colCampaign": "Kampagne"
     }
   },
   "adminAdsOpt": {
@@ -4828,14 +4838,14 @@
       "seoDesc": "Verbinde dein Google-Ads-Konto, wähle Kampagnen, und der KI-Agent verbessert sie. Das Budget ändert sich nur mit deiner Zustimmung.",
       "eyebrow": "Google-Ads-Optimierung",
       "title": "Ein KI-Agent, der deine bestehenden Google-Ads-Kampagnen verbessert",
-      "lead": "Verbinde dein Konto, wähle Kampagnen, und der Agent analysiert sie, ergänzt Fehlendes und schlägt Verbesserungen vor. Es wird keine neue Website erstellt.",
+      "lead": "Du verbindest das Konto und wählst die Kampagnen; der Agent analysiert sie, ergänzt, was fehlt, und schlägt Verbesserungen vor. Im Chat kannst du ihm auch sagen, was er ändern soll. Es wird keine neue Website erstellt.",
       "badges": [
         "Kostenlos verbinden",
         "Budget nur mit deiner Zustimmung",
         "Zahle nur für geleistete Arbeit"
       ],
       "cta": "Kampagne optimieren",
-      "price": "Ein Optimierungszyklus kostet ab {credits} Credits",
+      "price": "Ein Optimierungszyklus kostet ab {credits} Credits; eine Chat-Nachricht wird separat bezahlt, nach der Arbeit des Agenten",
       "steps": [
         {
           "t": "Google-Konto verbinden",
@@ -4854,17 +4864,23 @@
           "d": "Der Agent analysiert die Kampagne, behebt, was Google abgelehnt hat, ergänzt fehlende Texte und Erweiterungen und prüft alles im Google-Konto."
         },
         {
+          "t": "Du sprichst mit dem Agenten",
+          "d": "Sag ihm im Chat, was du willst: Keywords, Texte, Erweiterungen, Budget. Er fragt nach, wenn Informationen fehlen, und bereitet die Änderungen als Vorschläge vor."
+        },
+        {
           "t": "Vorschläge genehmigen",
-          "d": "Textänderungen und jede Budgetänderung werden dir zuerst vorgeschlagen. Sie gelten erst nach deiner Zustimmung."
+          "d": "Jede Änderung, die der Agent vorbereitet, im Zyklus oder im Chat, und jede Budgetänderung wird dir zuerst vorgeschlagen. Sie wird erst nach deiner Genehmigung angewendet; nicht genehmigte Vorschläge verfallen nach 30 Tagen."
         }
       ],
       "you": [
         "Zugang zu deinem Google-Ads-Konto per Google-Anmeldung",
         "Die Kampagnen, die optimiert werden sollen",
         "Deine Zustimmung zu Vorschlägen",
-        "Credits für Optimierungszyklen"
+        "Antworten auf die Fragen des Agenten zum Unternehmen",
+        "Credits für Optimierungszyklen und Chat-Nachrichten"
       ],
       "ai": [
+        "Antwortet im Chat und bereitet die gewünschten Änderungen vor",
         "Berechnet einen Wert aus echten Kampagnendaten",
         "Ergänzt Überschriften, Beschreibungen, Sitelinks, Callouts und Bilder",
         "Setzt Keywords in Überschriften und macht es rückgängig, wenn Google schlechter bewertet",
@@ -4896,7 +4912,11 @@
         },
         {
           "t": "Transparente Kosten",
-          "d": "Du siehst vorher die Schätzung; am Ende zahlst du nur die geleistete Arbeit, die Differenz geht zurück ins Guthaben."
+          "d": "Du siehst zuerst die Schätzung und zahlst nur die geleistete Arbeit. Die Seite Kosten zeigt pro Kampagne, was Optimierungen und Chat gekostet haben."
+        },
+        {
+          "t": "Hält dich auf dem Laufenden",
+          "d": "Du wirst benachrichtigt, wenn der Agent fertig ist, wenn Vorschläge auf dich warten oder wenn ein geplanter Zyklus nicht starten kann; per E-Mail bei allem, was eine Entscheidung braucht."
         },
         {
           "t": "Widerrufbarer Zugang",
@@ -4906,7 +4926,9 @@
       "notes": [
         "Das Budget ändert sich nie automatisch: Jede Änderung wird dir vorgeschlagen und gilt erst nach deiner Zustimmung.",
         "Der Agent optimiert derzeit Suchkampagnen (Search).",
-        "Verbinden, Kampagnenwahl und Dashboard sind kostenlos; du zahlst nur Optimierungszyklen."
+        "Verbinden, Kampagnenwahl und Dashboard sind kostenlos; du zahlst nur Optimierungszyklen.",
+        "Eine Google-Kampagne kann nur von einem Totalvizibil-Konto verwaltet werden.",
+        "Jede Nachricht an den Agenten im Chat wird separat bezahlt; eine Nachricht, auf die der Agent nicht antwortet, kostet nichts."
       ],
       "demo": {
         "connect": "Mit Google anmelden",
@@ -4935,7 +4957,10 @@
         "proposal": "Budgetvorschlag",
         "proposalText": "80 → 110 lei pro Tag",
         "approve": "Genehmigen",
-        "reject": "Ablehnen"
+        "reject": "Ablehnen",
+        "chatAsk": "Ich will mehr Anrufe aus Sibiu",
+        "chatAnswer": "Ich habe 4 Keywords für Sibiu und einen Titel mit Aufruf zum Anruf vorbereitet.",
+        "chatProposal": "Keywords und neuer Titel"
       }
     }
   },

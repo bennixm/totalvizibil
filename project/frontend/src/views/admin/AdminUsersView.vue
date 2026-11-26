@@ -34,8 +34,8 @@ function toggleStatus(status: UserStatus | null): void {
 
 const statusItems = computed(() => [
   { value: null, title: t('admin.filterAnyStatus') },
-  { value: 'active', title: t('dashboard.statusActive') },
-  { value: 'suspended', title: t('dashboard.statusSuspended') },
+  { value: 'active', title: t('admin.userStatus.active') },
+  { value: 'suspended', title: t('admin.userStatus.suspended') },
 ])
 const roleItems = [
   { value: null, title: t('admin.filterAnyRole') },
@@ -57,6 +57,15 @@ function credits(v: number): string {
 }
 function lastLogin(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString(uiLocale()) : t('admin.never')
+}
+/** A stable colour per person, so a face is recognisable across pages. */
+function hue(seed: string): number {
+  let h = 0
+  for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) % 360
+  return h
+}
+function joined(iso: string): string {
+  return new Date(iso).toLocaleDateString(uiLocale())
 }
 
 onMounted(() => admin.fetchUsers())
@@ -83,7 +92,7 @@ function open(id: string): void {
         @click="toggleStatus(null)"
       />
       <AdminFilterChip
-        :label="t('dashboard.statusActive')"
+        :label="t('admin.userStatus.active')"
         :value="n(s.active)"
         icon="mdi-check-circle-outline"
         tone="success"
@@ -91,7 +100,7 @@ function open(id: string): void {
         @click="toggleStatus('active')"
       />
       <AdminFilterChip
-        :label="t('dashboard.statusSuspended')"
+        :label="t('admin.userStatus.suspended')"
         :value="n(s.suspended)"
         icon="mdi-cancel"
         tone="error"
@@ -152,61 +161,69 @@ function open(id: string): void {
       :text="t('admin.usersNone')"
     />
 
-    <ul v-else class="au__list">
-      <li
-        v-for="u in admin.users"
-        :key="u.id"
-        class="urow"
-        :class="u.status === 'suspended' ? 'urow--err' : 'urow--ok'"
-        role="button"
-        tabindex="0"
-        @click="open(u.id)"
-        @keydown.enter="open(u.id)"
-      >
-        <span class="urow__av">{{ initials(u.name) }}</span>
-        <div class="urow__id">
-          <span class="urow__name">
-            {{ u.name }}
-            <span class="chip" :class="u.status === 'suspended' ? 'chip--err' : 'chip--ok'">
-              {{ u.status === 'suspended' ? t('dashboard.statusSuspended') : t('dashboard.statusActive') }}
-            </span>
-            <span v-for="r in u.platformRoles" :key="r" class="chip chip--role">{{ r }}</span>
-          </span>
-          <span class="urow__mail">{{ u.email }}</span>
-        </div>
+    <ul v-else class="au__grid">
+      <li v-for="u in admin.users" :key="u.id">
+        <article
+          class="pc"
+          :class="{ 'is-suspended': u.status === 'suspended' }"
+          :style="{ '--pc-hue': hue(u.email) }"
+          role="link"
+          tabindex="0"
+          :aria-label="u.name"
+          @click="open(u.id)"
+          @keydown.enter="open(u.id)"
+        >
+          <header class="pc__head">
+            <span class="pc__av">{{ initials(u.name) }}</span>
+            <div class="pc__id">
+              <h3 class="pc__name">{{ u.name }}</h3>
+              <p class="pc__mail">{{ u.email }}</p>
+            </div>
+            <v-icon icon="mdi-arrow-top-right" size="17" class="pc__go" />
+          </header>
 
-        <div class="urow__stats">
-          <span class="urow__stat">
-            <b>
-              <v-icon v-if="u.walletBlocked" icon="mdi-lock" size="11" color="error" />
-              {{ credits(u.walletCredits) }}
-            </b>
-            <em>{{ t('admin.colWallet') }}</em>
-          </span>
-          <span class="urow__stat">
-            <b>{{ u.companyCount }}</b>
-            <em>{{ t('admin.colCompanies') }}</em>
-          </span>
-          <span class="urow__stat">
-            <b>{{ u.adsCampaignCount }}</b>
-            <em>{{ t('admin.colAdsCampaigns') }}</em>
-          </span>
-          <span class="urow__stat">
-            <b>
-              <v-icon
-                :icon="u.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'"
-                :color="u.twoFactorEnabled ? 'success' : undefined"
-                size="14"
-              />
-            </b>
-            <em>2FA</em>
-          </span>
-          <span class="urow__stat">
-            <b class="urow__login">{{ lastLogin(u.lastLoginAt) }}</b>
-            <em>{{ t('admin.colLastLogin') }}</em>
-          </span>
-        </div>
-        <v-icon icon="mdi-chevron-right" size="18" class="urow__chev" />
+          <div class="pc__tags">
+            <span v-if="u.status === 'suspended'" class="tag tag--err">
+              <v-icon icon="mdi-cancel" size="11" /> {{ t('admin.userStatus.suspended') }}
+            </span>
+            <span v-if="!u.emailVerified" class="tag tag--warn">
+              <v-icon icon="mdi-email-alert-outline" size="11" /> {{ t('admin.userEmailUnverified') }}
+            </span>
+            <span v-for="r in u.platformRoles" :key="r" class="tag tag--role">{{ r }}</span>
+            <span v-if="!u.platformRoles.length && u.status !== 'suspended' && u.emailVerified" class="tag">
+              {{ t('admin.userClient') }}
+            </span>
+          </div>
+
+          <dl class="pc__stats">
+            <div>
+              <dt>{{ t('admin.colBusinesses') }}</dt>
+              <dd>{{ u.companyCount }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('admin.colAdsCampaigns') }}</dt>
+              <dd>{{ u.adsCampaignCount }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('admin.colWallet') }}</dt>
+              <dd>
+                <v-icon v-if="u.walletBlocked" icon="mdi-lock" size="13" color="error" :title="t('admin.walletFrozen')" />
+                {{ credits(u.walletCredits) }}
+              </dd>
+            </div>
+          </dl>
+
+          <footer class="pc__foot">
+            <span class="pc__seen">
+              <v-icon icon="mdi-clock-outline" size="13" />
+              {{ u.lastLoginAt ? t('admin.lastSeenOn', { date: lastLogin(u.lastLoginAt) }) : t('admin.neverSignedIn') }}
+            </span>
+            <span class="pc__2fa" :class="{ on: u.twoFactorEnabled }" :title="t('admin.stat.users2fa')">
+              <v-icon :icon="u.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'" size="13" /> 2FA
+            </span>
+          </footer>
+          <p class="pc__joined">{{ t('admin.joinedOn', { date: joined(u.createdAt) }) }}</p>
+        </article>
       </li>
     </ul>
 
@@ -246,154 +263,225 @@ function open(id: string): void {
   place-items: center;
   min-height: 200px;
 }
-.au__list {
+.au__grid {
   list-style: none;
-  margin: 0;
+  margin: 0 0 1rem;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17.5rem), 1fr));
+  gap: 0.9rem;
+}
+.au__grid > li {
+  display: flex;
+}
+
+/* Profile card */
+.pc {
+  --pc-accent: hsl(var(--pc-hue) 70% 55%);
+  position: relative;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-}
-.urow {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.9rem 1.1rem;
+  gap: 0.85rem;
+  padding: 1.1rem 1.1rem 0.9rem;
   border: 1px solid var(--tvz-hairline);
-  border-left: 3px solid rgba(var(--v-theme-on-surface), 0.12);
-  border-radius: 10px;
+  border-radius: var(--tvz-radius-lg);
   background: rgb(var(--v-theme-surface));
+  overflow: hidden;
   cursor: pointer;
   transition:
-    border-color 0.14s cubic-bezier(0.22, 1, 0.36, 1),
-    background 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+    transform var(--tvz-dur-fast) var(--tvz-ease-out),
+    border-color var(--tvz-dur-fast) var(--tvz-ease-out),
+    box-shadow var(--tvz-dur-fast) var(--tvz-ease-out);
 }
-.urow--ok {
-  border-left-color: rgb(var(--v-theme-success));
+/* A soft band of the person's colour behind the avatar. */
+.pc::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4.2rem;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--pc-hue) 70% 55% / 0.22),
+    hsl(calc(var(--pc-hue) + 40) 70% 55% / 0.05)
+  );
+  pointer-events: none;
 }
-.urow--err {
-  border-left-color: rgb(var(--v-theme-error));
-}
-.urow:hover,
-.urow:focus-visible {
+.pc:hover,
+.pc:focus-visible {
   outline: none;
+  transform: translateY(-2px);
   border-color: rgba(var(--v-theme-primary), 0.45);
-  background: rgba(var(--v-theme-primary), 0.03);
+  box-shadow: var(--tvz-shadow-md);
 }
-.urow__av {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  flex: none;
-  border-radius: 0;
-  clip-path: var(--tvz-hex-sm);
-  font-size: var(--tvz-fs-caption);
-  font-weight: 700;
-  color: rgb(var(--v-theme-on-primary));
-  background: rgb(var(--v-theme-primary));
+.pc.is-suspended {
+  border-color: rgba(var(--v-theme-error), 0.45);
 }
-.urow__id {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.12rem;
+.pc.is-suspended::before {
+  background: linear-gradient(135deg, rgba(var(--v-theme-error), 0.18), transparent);
 }
-.urow__name {
+.pc__head {
+  position: relative;
   display: flex;
   align-items: center;
-  /* A long name can't shrink (nowrap text), so let the status chip drop
-     to the next line instead of being pushed out and clipped. */
-  flex-wrap: wrap;
-  gap: 0.25rem 0.45rem;
-  font-weight: 600;
+  gap: 0.8rem;
+}
+.pc__av {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 3.25rem;
+  height: 3.25rem;
+  clip-path: var(--tvz-hex-md);
+  font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: var(--tvz-fs-lead);
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--pc-accent), hsl(calc(var(--pc-hue) + 40) 70% 42%));
+}
+.pc.is-suspended .pc__av {
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+.pc__id {
+  flex: 1;
+  min-width: 0;
+}
+.pc__name {
+  margin: 0;
   font-size: var(--tvz-fs-section);
+  font-weight: 700;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.urow__mail {
+.pc__mail {
+  margin: 0.1rem 0 0;
   font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.58);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pc__go {
+  align-self: flex-start;
+  color: rgba(var(--v-theme-on-surface), 0.3);
+  transition: color var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.pc:hover .pc__go,
+.pc:focus-visible .pc__go {
+  color: rgb(var(--v-theme-primary));
+}
+.pc__tags {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: var(--tvz-fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.45rem;
+  clip-path: var(--tvz-hex-xs);
+  background: rgba(var(--v-theme-on-surface), 0.07);
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.tag--err {
+  background: rgba(var(--v-theme-error), 0.16);
+  color: rgb(var(--v-theme-error));
+}
+.tag--warn {
+  background: rgba(var(--v-theme-warning), 0.16);
+  color: rgb(var(--v-theme-warning));
+}
+.tag--role {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.pc__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: auto 0 0;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: var(--tvz-radius-md);
+  background: rgba(var(--v-theme-on-surface), 0.025);
+}
+.pc__stats > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.55rem 0.3rem;
+  min-width: 0;
+}
+.pc__stats > div + div {
+  border-left: 1px solid var(--tvz-hairline);
+}
+.pc__stats dt {
+  max-width: 100%;
+  font-size: var(--tvz-fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: rgba(var(--v-theme-on-surface), 0.5);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.urow__stats {
-  display: flex;
-  align-items: center;
-  gap: 1.3rem;
-  flex: none;
-}
-.urow__stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  min-width: 3rem;
-}
-.urow__stat b {
+.pc__stats dd {
   display: flex;
   align-items: center;
   gap: 0.2rem;
+  margin: 0;
   font-family: 'Space Grotesk Variable', sans-serif;
+  font-size: 1.15rem;
   font-weight: 700;
-  font-size: var(--tvz-fs-section);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
-.urow__stat em {
-  font-style: normal;
-  font-size: var(--tvz-fs-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(var(--v-theme-on-surface), 0.45);
+.pc__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.62);
 }
-.urow__login {
-  font-size: var(--tvz-fs-caption) !important;
-  font-weight: 500 !important;
+.pc__seen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
 }
-.urow__chev {
-  color: rgba(var(--v-theme-on-surface), 0.3);
+.pc__2fa {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
   flex: none;
-}
-
-.chip {
+  padding: 0.1rem 0.4rem;
+  clip-path: var(--tvz-hex-xs);
   font-size: var(--tvz-fs-micro);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.12rem 0.4rem;
-  border-radius: 4px;
-  background: rgba(var(--v-theme-on-surface), 0.08);
-  color: rgba(var(--v-theme-on-surface), 0.6);
+  background: rgba(var(--v-theme-on-surface), 0.07);
 }
-.chip--ok {
+.pc__2fa.on {
   background: rgba(var(--v-theme-success), 0.16);
   color: rgb(var(--v-theme-success));
 }
-.chip--err {
-  background: rgba(var(--v-theme-error), 0.16);
-  color: rgb(var(--v-theme-error));
+.pc__joined {
+  margin: -0.45rem 0 0;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.42);
 }
-.chip--role {
-  background: rgba(var(--v-theme-primary), 0.14);
-  color: rgb(var(--v-theme-primary));
-}
-
-@media (max-width: 860px) {
-  .urow {
-    flex-wrap: wrap;
-  }
-  .urow__stats {
-    flex-basis: 100%;
-    justify-content: flex-start;
-    gap: 1.1rem;
-    padding-left: calc(38px + 1rem);
-  }
-  .urow__chev {
-    display: none;
+@media (prefers-reduced-motion: reduce) {
+  .pc:hover,
+  .pc:focus-visible {
+    transform: none;
   }
 }
 </style>

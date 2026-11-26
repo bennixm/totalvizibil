@@ -70,7 +70,7 @@ const tone = (s: string) => (s === 'active' ? 'success' : s === 'paused' ? 'neut
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  font-size: var(--tvz-fs-sm, 0.85rem);
+  font-size: var(--tvz-fs-small);
 }
 .sap__c summary {
   display: flex;
@@ -88,6 +88,7 @@ const tone = (s: string) => (s === 'active' ? 'success' : s === 'paused' ? 'neut
 }
 .sap__muted,
 .sap small {
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.62);
 }
 .sap__about {

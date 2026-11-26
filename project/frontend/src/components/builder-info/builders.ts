@@ -42,7 +42,13 @@ export const BUILDERS: Record<BuilderKind, BuilderMeta> = {
     icon: 'mdi-google-ads',
     priced: true,
     createIcons: ['mdi-text-box-check-outline', 'mdi-gauge', 'mdi-view-dashboard-outline'],
-    capIcons: ['mdi-tune-variant', 'mdi-calendar-sync-outline', 'mdi-cash-check', 'mdi-link-variant-off'],
+    capIcons: [
+      'mdi-tune-variant',
+      'mdi-calendar-sync-outline',
+      'mdi-cash-check',
+      'mdi-bell-ring-outline',
+      'mdi-link-variant-off',
+    ],
   },
 }
 
