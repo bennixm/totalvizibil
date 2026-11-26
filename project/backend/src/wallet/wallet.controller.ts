@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -193,7 +194,32 @@ export class WalletController {
   /** Start a credit purchase — returns a pending transaction + EUR/RON amounts. */
   @Post('purchases')
   buy(@CurrentUser() user: AuthPrincipal, @Body() dto: BuyCreditsDto) {
-    return this.wallet.startPurchase(user.id, dto.credits);
+    return this.wallet.startPurchase(user.id, dto.credits, {
+      paymentMethodId: dto.paymentMethodId,
+      saveCard: dto.saveCard,
+    });
+  }
+
+  /** The customer left the payment: close it at Stripe and here (or credit
+   *  it, if it turns out it was paid meanwhile). */
+  @Post('purchases/:txnId/cancel')
+  cancelPurchase(@CurrentUser() user: AuthPrincipal, @Param('txnId', ParseUUIDPipe) txnId: string) {
+    return this.wallet.cancelPurchase(user.id, txnId);
+  }
+
+  /** Cards saved on the user's Stripe customer (display data only). */
+  @Get('payment-methods')
+  paymentMethods(@CurrentUser() user: AuthPrincipal) {
+    return this.wallet.listPaymentMethods(user.id);
+  }
+
+  /** Forget a saved card. */
+  @Delete('payment-methods/:paymentMethodId')
+  removePaymentMethod(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('paymentMethodId') paymentMethodId: string,
+  ) {
+    return this.wallet.removePaymentMethod(user.id, paymentMethodId);
   }
 
   /** Confirm a pending purchase — verifies with Stripe when applicable, else

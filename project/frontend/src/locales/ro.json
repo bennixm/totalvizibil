@@ -873,7 +873,14 @@
       "insufficient_balance_for_refund": "Soldul rămas din portofel nu acoperă suma de rambursat.",
       "refund_not_cancelable": "Această rambursare nu mai poate fi anulată.",
       "refund_hold_expired": "Perioada de anulare a expirat.",
-      "payment_not_completed": "Plata nu a fost finalizată încă."
+      "payment_not_completed": "Plata nu este încă finalizată. Dacă ai plătit, creditele apar automat în câteva minute.",
+      "card_declined": "Plata a fost refuzată de bancă. Încearcă alt card.",
+      "card_declined_reason": "Plata a fost refuzată: {reason} Încearcă alt card.",
+      "payment_failed": "Plata nu a reușit. Nu ți-a fost luat niciun ban.",
+      "payment_canceled": "Plata a fost anulată.",
+      "payment_mismatch": "Plata nu corespunde depunerii. Contactează suportul.",
+      "payment_method_not_found": "Cardul salvat nu mai este disponibil. Alege alt card.",
+      "saved_cards_unavailable": "Cardurile salvate nu sunt disponibile momentan."
     },
     "blockedReason": "Motiv: {reason}",
     "blockedHelp": "Contactează suportul dacă crezi că este o greșeală.",
@@ -918,7 +925,18 @@
       "back": "Înapoi la campanie"
     },
     "paidAmount": "plătit {amount}",
-    "bonusPart": "din care bonusuri: {n}"
+    "bonusPart": "din care bonusuri: {n}",
+    "paidWithSavedCard": "Plata a reușit: {credits} credite au fost adăugate în portofel.",
+    "cardExpires": "expiră {date}",
+    "newCard": "Card nou",
+    "saveCard": "Salvează cardul pentru depunerile viitoare",
+    "cardsSecureNote": "Cardul e păstrat în siguranță de Stripe. Totalvizibil nu stochează datele cardului.",
+    "payWithCard": "Plătește cu cardul •••• {last4}",
+    "savedCardsTitle": "Carduri salvate",
+    "removeCard": "Șterge",
+    "removeCardTitle": "Ștergi cardul salvat?",
+    "removeCardText": "{card} nu va mai apărea la depuneri. Îl poți adăuga din nou oricând, la o plată nouă.",
+    "cardRemoved": "Cardul a fost șters."
   },
   "auth": {
     "loginTitle": "Autentificare",

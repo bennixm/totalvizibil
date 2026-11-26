@@ -14,7 +14,8 @@ import InfoHint from '@/components/InfoHint.vue'
 import TopUpDialog from '@/components/wallet/TopUpDialog.vue'
 import { useMoney } from '@/composables/useMoney'
 import { useCompaniesStore } from '@/stores/companies'
-import { useWalletStore, type PaymentKind } from '@/stores/wallet'
+import { useWalletStore, type PaymentKind, type SavedCard } from '@/stores/wallet'
+import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import { fetchPricing } from '@/services/platform'
 import { useAdvancedUnlockStore } from '@/stores/advanced-unlock'
@@ -43,6 +44,8 @@ const money = useMoney()
 const { summary, loading, working, error } = storeToRefs(wallet)
 const { overview } = storeToRefs(companies)
 const { payments, paymentsNextCursor } = storeToRefs(wallet)
+const { paymentMethods, paymentMethodsEnabled } = storeToRefs(wallet)
+const confirmDialog = useConfirmStore()
 
 const showTopUp = ref(false)
 
@@ -97,6 +100,12 @@ const KNOWN_ERRORS = [
   'billing_profile_incomplete',
   'insufficient_balance_for_refund',
   'insufficient_refundable_purchases',
+  'payment_failed',
+  'payment_canceled',
+  'payment_not_completed',
+  'payment_mismatch',
+  'payment_method_not_found',
+  'saved_cards_unavailable',
 ]
 const errorText = computed<string>(() => {
   const code = error.value
@@ -106,8 +115,38 @@ const errorText = computed<string>(() => {
       ? t('wallet.err.wallet_blocked_reason', { reason: wallet.errorReason })
       : t('wallet.err.wallet_blocked')
   }
+  if (code === 'card_declined') {
+    // Stripe's own decline message (e.g. "Your card has insufficient funds.").
+    return wallet.errorReason
+      ? t('wallet.err.card_declined_reason', { reason: wallet.errorReason })
+      : t('wallet.err.card_declined')
+  }
   return KNOWN_ERRORS.includes(code) ? t('wallet.err.' + code) : code
 })
+
+// --- Saved cards (Stripe) ----------------------------------------------
+const CARD_BRANDS: Record<string, string> = {
+  visa: 'Visa',
+  mastercard: 'Mastercard',
+  amex: 'American Express',
+  maestro: 'Maestro',
+}
+function cardTitle(c: SavedCard): string {
+  const brand = CARD_BRANDS[c.brand] ?? c.brand.charAt(0).toUpperCase() + c.brand.slice(1)
+  return `${brand} •••• ${c.last4}`
+}
+function cardExpiry(c: SavedCard): string {
+  return `${String(c.expMonth).padStart(2, '0')}/${String(c.expYear).slice(-2)}`
+}
+function askRemoveCard(c: SavedCard): void {
+  confirmDialog.ask(
+    t('wallet.removeCardTitle'),
+    t('wallet.removeCardText', { card: cardTitle(c) }),
+    async () => {
+      if (await wallet.removePaymentMethod(c.id)) toasts.success(t('wallet.cardRemoved'))
+    },
+  )
+}
 
 const toasts = useToastStore()
 watch(error, (v) => {
@@ -216,6 +255,7 @@ watch([paymentsKind, paymentsFrom, paymentsTo], ([, from, to], prev) => {
 onMounted(async () => {
   await Promise.all([
     wallet.load(),
+    wallet.loadPaymentMethods(),
     companies.fetchOverview().catch(() => {}),
     loadPaymentsInitial(),
     unlockReturn.value ? unlockStore.load(unlockReturn.value.c) : Promise.resolve(),
@@ -236,7 +276,12 @@ onMounted(async () => {
     toasts[ok ? 'success' : 'error'](ok ? t('wallet.checkoutSuccess') : errorText.value)
     void router.replace({ query: keptQuery() })
   } else if (checkout === 'cancel') {
-    toasts.error(t('wallet.checkoutCanceled'))
+    // Close the payment at Stripe too, so the old checkout page can no longer
+    // be paid and the transaction doesn't sit "pending" in the history. If it
+    // was in fact paid meanwhile, it is credited instead.
+    const paid = txn ? await wallet.cancelTransaction(txn) : false
+    if (paid) toasts.success(t('wallet.checkoutSuccess'))
+    else toasts.error(t('wallet.checkoutCanceled'))
     void router.replace({ query: keptQuery() })
   }
 })
@@ -388,6 +433,38 @@ watch(
       </section>
 
       <TopUpDialog v-model="showTopUp" :discount-pct="discountPct" />
+
+      <!-- Cards saved on Stripe for faster top-ups (no card data is kept by
+           the platform; Stripe stores the card, this is display data only). -->
+      <AdminSection
+        v-if="paymentMethodsEnabled && paymentMethods.length"
+        class="wal__section"
+        :title="t('wallet.savedCardsTitle')"
+        icon="mdi-credit-card-check-outline"
+      >
+        <ul class="wal__cards">
+          <li v-for="c in paymentMethods" :key="c.id" class="wal__cardRow">
+            <v-icon icon="mdi-credit-card-outline" size="20" class="wal__cardIcon" />
+            <div class="wal__cardText">
+              <strong>{{ cardTitle(c) }}</strong>
+              <span>{{ t('wallet.cardExpires', { date: cardExpiry(c) }) }}</span>
+            </div>
+            <v-btn
+              variant="text"
+              color="error"
+              size="small"
+              prepend-icon="mdi-delete-outline"
+              :disabled="working"
+              @click="askRemoveCard(c)"
+            >
+              {{ t('wallet.removeCard') }}
+            </v-btn>
+          </li>
+        </ul>
+        <p class="wal__cardsNote">
+          <v-icon icon="mdi-lock-outline" size="13" /> {{ t('wallet.cardsSecureNote') }}
+        </p>
+      </AdminSection>
 
       <!-- Refund the wallet balance -->
       <AdminSection
@@ -1008,5 +1085,46 @@ watch(
   .wal__payTable td.payrow__date.end {
     order: 4;
   }
+}
+.wal__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--tvz-hairline);
+  border-radius: var(--tvz-radius-md);
+  overflow: hidden;
+}
+.wal__cardRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.9rem;
+}
+.wal__cardRow + .wal__cardRow {
+  border-top: 1px solid var(--tvz-hairline);
+}
+.wal__cardIcon {
+  color: rgb(var(--v-theme-primary));
+}
+.wal__cardText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.wal__cardText strong {
+  font-variant-numeric: tabular-nums;
+}
+.wal__cardText span {
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.wal__cardsNote {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  margin: 0.6rem 0 0;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 </style>

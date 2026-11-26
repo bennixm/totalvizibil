@@ -42,6 +42,10 @@ export interface AppConfig {
    *  the dev stub confirm flow and refunds are unavailable (nothing real to
    *  refund). */
   stripeSecretKey: string;
+  /** Signing secret of the Stripe webhook endpoint (whsec_...). Empty =
+   *  the webhook route refuses every call; the pending-purchase sweep
+   *  remains the only server-side sync. */
+  stripeWebhookSecret: string;
   /**
    * Google Ads API credentials — feed the rolling-average CPC sync job that
    * prices Google-Ads-attributed feed clicks (replaces the old manual "Cost
@@ -170,6 +174,7 @@ export function loadConfig(): AppConfig {
     visualQa: (process.env.VISUAL_QA?.trim().toLowerCase() ?? '') === 'on',
     screenshotUrl: process.env.SCREENSHOT_URL?.trim() ?? '',
     stripeSecretKey: process.env.STRIPE_SECRET_KEY?.trim() ?? '',
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET?.trim() ?? '',
     googleAdsServiceAccountKeyBase64:
       process.env.GOOGLE_ADS_SERVICE_ACCOUNT_KEY_BASE64?.trim() ?? '',
     // Google Ads API wants digits only (no dashes) — accept either format

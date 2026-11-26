@@ -47,7 +47,18 @@ async function bootstrap(): Promise<void> {
 
   app.setGlobalPrefix('api/v1');
   // Simple-site image uploads arrive as base64 data-URIs in the JSON body.
-  app.use(json({ limit: '12mb' }));
+  app.use(
+    json({
+      limit: '12mb',
+      // Keep the exact bytes for the Stripe webhook: its signature is
+      // computed over the raw body, which re-serialised JSON wouldn't match.
+      verify: (req, _res, buf) => {
+        if ((req as Request).originalUrl?.startsWith('/api/v1/stripe/webhook')) {
+          (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+        }
+      },
+    }),
+  );
   app.use(urlencoded({ extended: true, limit: '12mb' }));
   app.use(cookieParser());
   app.use(
