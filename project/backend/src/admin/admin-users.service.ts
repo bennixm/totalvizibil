@@ -96,6 +96,7 @@ export class AdminUsersService {
         walletCredits: u.wallet ? money(u.wallet.balanceMinor).credits : 0,
         walletBlocked: !!u.wallet?.blockedAt,
         lastLoginAt: u.lastLoginAt,
+        emailVerified: !!u.emailVerifiedAt,
         createdAt: u.createdAt,
       })),
       page,

@@ -1343,7 +1343,17 @@
       "budgetTitle": "Buget zilnic"
     },
     "colAdsCampaigns": "Google Ads",
-    "groupGoogleAds": "Google Ads clienți"
+    "groupGoogleAds": "Google Ads clienți",
+    "colBusinesses": "Afaceri",
+    "joinedOn": "Înregistrat {date}",
+    "userEmailUnverified": "Email neconfirmat",
+    "userStatus": {
+      "active": "Activ",
+      "suspended": "Suspendat"
+    },
+    "twoFaYes": "Da",
+    "twoFaNo": "Nu",
+    "colLastSeen": "Ultima intrare"
   },
   "errors": {
     "notFoundTitle": "Pagina nu a fost găsită",
@@ -4494,9 +4504,10 @@
       "chat": "Chat",
       "none": "Nicio plată în această perioadă.",
       "removed": "scoasă din platformă",
-      "cyclesN": "{n} optimizări",
-      "chatN": "{n} mesaje",
-      "allTransactions": "Toate tranzacțiile"
+      "cyclesN": "nicio optimizare | o optimizare | {n} optimizări",
+      "chatN": "niciun mesaj | un mesaj | {n} mesaje",
+      "allTransactions": "Toate tranzacțiile",
+      "colCampaign": "Campanie"
     }
   },
   "adminAdsOpt": {
@@ -4828,14 +4839,14 @@
       "seoDesc": "Conectezi contul Google Ads, alegi campaniile, iar agentul AI le îmbunătățește. Bugetul se schimbă doar cu aprobarea ta.",
       "eyebrow": "Optimizare Google Ads",
       "title": "Un agent AI care îți îmbunătățește campaniile Google Ads existente",
-      "lead": "Conectezi contul, alegi campaniile, iar agentul le analizează, completează ce lipsește și îți propune îmbunătățiri. Nu se creează un site nou.",
+      "lead": "Conectezi contul, alegi campaniile, iar agentul le analizează, completează ce lipsește și îți propune îmbunătățiri. Îi poți cere și în chat ce vrei să schimbi. Nu se creează un site nou.",
       "badges": [
         "Conectare gratuită",
         "Bugetul doar cu aprobarea ta",
         "Plătești doar munca făcută"
       ],
       "cta": "Optimizează o campanie",
-      "price": "Un ciclu de optimizare costă de la {credits} credite",
+      "price": "Un ciclu de optimizare costă de la {credits} credite; un mesaj în chat se plătește separat, după cât a lucrat agentul",
       "steps": [
         {
           "t": "Conectezi contul Google",
@@ -4854,17 +4865,23 @@
           "d": "Agentul analizează campania, corectează ce a respins Google, completează textele și extensiile lipsă și verifică totul în contul Google."
         },
         {
+          "t": "Vorbești cu agentul",
+          "d": "Îi spui în chat ce vrei: cuvinte cheie, texte, extensii, buget. Îți pune întrebări când îi lipsesc informații și pregătește modificările ca propuneri."
+        },
+        {
           "t": "Aprobi propunerile",
-          "d": "Rescrierile de texte și orice modificare de buget ți se propun întâi. Se aplică doar după ce le aprobi."
+          "d": "Fiecare modificare pregătită de agent, din ciclu sau din chat, și orice schimbare de buget ți se propun întâi. Se aplică doar după ce le aprobi; propunerile neaprobate expiră după 30 de zile."
         }
       ],
       "you": [
         "Acces la contul Google Ads, prin autentificare Google",
         "Campaniile pe care le vrei optimizate",
         "Aprobarea pentru propuneri",
-        "Credite pentru ciclurile de optimizare"
+        "Răspunsuri la întrebările agentului despre afacere",
+        "Credite pentru ciclurile de optimizare și mesajele din chat"
       ],
       "ai": [
+        "Răspunde în chat și pregătește modificările cerute de tine",
         "Calculează un scor din datele reale ale campaniei",
         "Completează titluri, descrieri, sitelink-uri, callout-uri și imagini",
         "Pune cuvintele cheie în titluri și revine dacă Google evaluează mai slab",
@@ -4896,7 +4913,11 @@
         },
         {
           "t": "Costuri transparente",
-          "d": "Vezi estimarea înainte; la final plătești doar munca efectuată, iar diferența revine în portofel."
+          "d": "Vezi estimarea înainte și plătești doar munca efectuată. Pagina Costuri arată pe campanie cât au costat optimizările și chatul."
+        },
+        {
+          "t": "Te anunță",
+          "d": "Primești notificare când agentul termină, când are propuneri de aprobat sau când un ciclu programat nu poate porni; pe email pentru ce cere o decizie."
         },
         {
           "t": "Acces revocabil",
@@ -4906,7 +4927,9 @@
       "notes": [
         "Bugetul nu se modifică niciodată automat: orice schimbare îți este propusă și se aplică doar după aprobarea ta.",
         "Agentul optimizează momentan campaniile de căutare (Search).",
-        "Conectarea, alegerea campaniei și panoul sunt gratuite; plătești doar ciclurile de optimizare."
+        "Conectarea, alegerea campaniei și panoul sunt gratuite; plătești doar ciclurile de optimizare.",
+        "O campanie Google poate fi administrată dintr-un singur cont Totalvizibil.",
+        "Fiecare mesaj trimis agentului în chat se plătește separat; un mesaj la care agentul nu răspunde nu costă nimic."
       ],
       "demo": {
         "connect": "Conectează-te cu Google",
@@ -4935,7 +4958,10 @@
         "proposal": "Propunere de buget",
         "proposalText": "80 → 110 lei pe zi",
         "approve": "Aprobă",
-        "reject": "Respinge"
+        "reject": "Respinge",
+        "chatAsk": "Vreau mai multe apeluri din Sibiu",
+        "chatAnswer": "Am pregătit 4 cuvinte cheie pentru Sibiu și un titlu cu îndemn la apel.",
+        "chatProposal": "Cuvinte cheie și titlu nou"
       }
     }
   },

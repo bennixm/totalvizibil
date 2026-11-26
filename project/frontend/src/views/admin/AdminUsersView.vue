@@ -34,8 +34,8 @@ function toggleStatus(status: UserStatus | null): void {
 
 const statusItems = computed(() => [
   { value: null, title: t('admin.filterAnyStatus') },
-  { value: 'active', title: t('dashboard.statusActive') },
-  { value: 'suspended', title: t('dashboard.statusSuspended') },
+  { value: 'active', title: t('admin.userStatus.active') },
+  { value: 'suspended', title: t('admin.userStatus.suspended') },
 ])
 const roleItems = [
   { value: null, title: t('admin.filterAnyRole') },
@@ -57,6 +57,9 @@ function credits(v: number): string {
 }
 function lastLogin(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString(uiLocale()) : t('admin.never')
+}
+function joined(iso: string): string {
+  return new Date(iso).toLocaleDateString(uiLocale())
 }
 
 onMounted(() => admin.fetchUsers())
@@ -83,7 +86,7 @@ function open(id: string): void {
         @click="toggleStatus(null)"
       />
       <AdminFilterChip
-        :label="t('dashboard.statusActive')"
+        :label="t('admin.userStatus.active')"
         :value="n(s.active)"
         icon="mdi-check-circle-outline"
         tone="success"
@@ -91,7 +94,7 @@ function open(id: string): void {
         @click="toggleStatus('active')"
       />
       <AdminFilterChip
-        :label="t('dashboard.statusSuspended')"
+        :label="t('admin.userStatus.suspended')"
         :value="n(s.suspended)"
         icon="mdi-cancel"
         tone="error"
@@ -152,63 +155,59 @@ function open(id: string): void {
       :text="t('admin.usersNone')"
     />
 
-    <ul v-else class="au__list">
-      <li
+    <div v-else class="au__table">
+      <div class="au__head" aria-hidden="true">
+        <span>{{ t('admin.colUser') }}</span>
+        <span class="num">{{ t('admin.colBusinesses') }}</span>
+        <span class="num">{{ t('admin.colAdsCampaigns') }}</span>
+        <span class="num">{{ t('admin.colWallet') }}</span>
+        <span>2FA</span>
+        <span>{{ t('admin.colLastSeen') }}</span>
+        <span />
+      </div>
+      <div
         v-for="u in admin.users"
         :key="u.id"
         class="urow"
-        :class="u.status === 'suspended' ? 'urow--err' : 'urow--ok'"
+        :class="{ 'is-suspended': u.status === 'suspended' }"
         role="button"
         tabindex="0"
         @click="open(u.id)"
         @keydown.enter="open(u.id)"
       >
-        <span class="urow__av">{{ initials(u.name) }}</span>
-        <div class="urow__id">
-          <span class="urow__name">
-            {{ u.name }}
-            <span class="chip" :class="u.status === 'suspended' ? 'chip--err' : 'chip--ok'">
-              {{ u.status === 'suspended' ? t('dashboard.statusSuspended') : t('dashboard.statusActive') }}
+        <div class="urow__who">
+          <span class="urow__av">{{ initials(u.name) }}</span>
+          <div class="urow__id">
+            <span class="urow__name">{{ u.name }}</span>
+            <span class="urow__mail">{{ u.email }}</span>
+            <span v-if="u.platformRoles.length || u.status === 'suspended' || !u.emailVerified" class="urow__tags">
+              <span v-if="u.status === 'suspended'" class="tag tag--err">{{ t('admin.userStatus.suspended') }}</span>
+              <span v-if="!u.emailVerified" class="tag tag--warn">{{ t('admin.userEmailUnverified') }}</span>
+              <span v-for="r in u.platformRoles" :key="r" class="tag tag--role">{{ r }}</span>
             </span>
-            <span v-for="r in u.platformRoles" :key="r" class="chip chip--role">{{ r }}</span>
-          </span>
-          <span class="urow__mail">{{ u.email }}</span>
+          </div>
         </div>
-
-        <div class="urow__stats">
-          <span class="urow__stat">
-            <b>
-              <v-icon v-if="u.walletBlocked" icon="mdi-lock" size="11" color="error" />
-              {{ credits(u.walletCredits) }}
-            </b>
-            <em>{{ t('admin.colWallet') }}</em>
-          </span>
-          <span class="urow__stat">
-            <b>{{ u.companyCount }}</b>
-            <em>{{ t('admin.colCompanies') }}</em>
-          </span>
-          <span class="urow__stat">
-            <b>{{ u.adsCampaignCount }}</b>
-            <em>{{ t('admin.colAdsCampaigns') }}</em>
-          </span>
-          <span class="urow__stat">
-            <b>
-              <v-icon
-                :icon="u.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'"
-                :color="u.twoFactorEnabled ? 'success' : undefined"
-                size="14"
-              />
-            </b>
-            <em>2FA</em>
-          </span>
-          <span class="urow__stat">
-            <b class="urow__login">{{ lastLogin(u.lastLoginAt) }}</b>
-            <em>{{ t('admin.colLastLogin') }}</em>
-          </span>
-        </div>
+        <span class="num" :data-label="t('admin.colBusinesses')">{{ u.companyCount }}</span>
+        <span class="num" :data-label="t('admin.colAdsCampaigns')">{{ u.adsCampaignCount }}</span>
+        <span class="num" :data-label="t('admin.colWallet')">
+          <v-icon v-if="u.walletBlocked" icon="mdi-lock" size="12" color="error" :title="t('admin.walletFrozen')" />
+          {{ credits(u.walletCredits) }}
+        </span>
+        <span class="urow__sec" :data-label="'2FA'">
+          <v-icon
+            :icon="u.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'"
+            :color="u.twoFactorEnabled ? 'success' : undefined"
+            size="15"
+          />
+          {{ u.twoFactorEnabled ? t('admin.twoFaYes') : t('admin.twoFaNo') }}
+        </span>
+        <span class="urow__when" :data-label="t('admin.colLastSeen')">
+          {{ lastLogin(u.lastLoginAt) }}
+          <small>{{ t('admin.joinedOn', { date: joined(u.createdAt) }) }}</small>
+        </span>
         <v-icon icon="mdi-chevron-right" size="18" class="urow__chev" />
-      </li>
-    </ul>
+      </div>
+    </div>
 
     <AdminPager
       :page="admin.filters.page"
@@ -246,154 +245,195 @@ function open(id: string): void {
   place-items: center;
   min-height: 200px;
 }
-.au__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.au__table {
+  border: 1px solid var(--tvz-hairline);
+  border-radius: var(--tvz-radius-lg);
+  background: rgb(var(--v-theme-surface));
+  overflow: hidden;
+}
+.au__head,
+.urow {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr) 4.4rem 6.2rem 5rem 3.6rem 8.8rem 18px;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.75rem 1rem;
+}
+.au__head {
+  font-size: var(--tvz-fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  border-bottom: 1px solid var(--tvz-hairline);
+  white-space: nowrap;
+}
+.au__head span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.au__head .num {
+  display: block;
 }
 .urow {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.9rem 1.1rem;
-  border: 1px solid var(--tvz-hairline);
-  border-left: 3px solid rgba(var(--v-theme-on-surface), 0.12);
-  border-radius: 10px;
-  background: rgb(var(--v-theme-surface));
+  position: relative;
   cursor: pointer;
-  transition:
-    border-color 0.14s cubic-bezier(0.22, 1, 0.36, 1),
-    background 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: background var(--tvz-dur-fast) var(--tvz-ease-out);
 }
-.urow--ok {
-  border-left-color: rgb(var(--v-theme-success));
-}
-.urow--err {
-  border-left-color: rgb(var(--v-theme-error));
+.urow + .urow {
+  border-top: 1px solid var(--tvz-hairline);
 }
 .urow:hover,
 .urow:focus-visible {
   outline: none;
-  border-color: rgba(var(--v-theme-primary), 0.45);
-  background: rgba(var(--v-theme-primary), 0.03);
+  background: rgba(var(--v-theme-primary), 0.05);
+}
+.urow.is-suspended::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: rgb(var(--v-theme-error));
+}
+.urow__who {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
 }
 .urow__av {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   flex: none;
-  border-radius: 0;
   clip-path: var(--tvz-hex-sm);
   font-size: var(--tvz-fs-caption);
   font-weight: 700;
   color: rgb(var(--v-theme-on-primary));
   background: rgb(var(--v-theme-primary));
 }
+.urow.is-suspended .urow__av {
+  background: rgba(var(--v-theme-on-surface), 0.35);
+}
 .urow__id {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.12rem;
+  gap: 0.1rem;
 }
 .urow__name {
-  display: flex;
-  align-items: center;
-  /* A long name can't shrink (nowrap text), so let the status chip drop
-     to the next line instead of being pushed out and clipped. */
-  flex-wrap: wrap;
-  gap: 0.25rem 0.45rem;
   font-weight: 600;
-  font-size: var(--tvz-fs-section);
+  font-size: var(--tvz-fs-body);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .urow__mail {
   font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.5);
+  color: rgba(var(--v-theme-on-surface), 0.55);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.urow__stats {
+.urow__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+}
+.num {
   display: flex;
   align-items: center;
-  gap: 1.3rem;
-  flex: none;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  font-size: var(--tvz-fs-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
-.urow__stat {
+.urow__sec {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--tvz-fs-small);
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.urow__when {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  min-width: 3rem;
+  font-size: var(--tvz-fs-small);
 }
-.urow__stat b {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  font-size: var(--tvz-fs-section);
-  font-variant-numeric: tabular-nums;
+.urow__when small {
   white-space: nowrap;
-}
-.urow__stat em {
-  font-style: normal;
-  font-size: var(--tvz-fs-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(var(--v-theme-on-surface), 0.45);
-}
-.urow__login {
-  font-size: var(--tvz-fs-caption) !important;
-  font-weight: 500 !important;
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.5);
 }
 .urow__chev {
   color: rgba(var(--v-theme-on-surface), 0.3);
-  flex: none;
 }
-
-.chip {
+.tag {
   font-size: var(--tvz-fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 0.12rem 0.4rem;
-  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  clip-path: var(--tvz-hex-xs);
   background: rgba(var(--v-theme-on-surface), 0.08);
-  color: rgba(var(--v-theme-on-surface), 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.65);
 }
-.chip--ok {
-  background: rgba(var(--v-theme-success), 0.16);
-  color: rgb(var(--v-theme-success));
-}
-.chip--err {
+.tag--err {
   background: rgba(var(--v-theme-error), 0.16);
   color: rgb(var(--v-theme-error));
 }
-.chip--role {
+.tag--warn {
+  background: rgba(var(--v-theme-warning), 0.16);
+  color: rgb(var(--v-theme-warning));
+}
+.tag--role {
   background: rgba(var(--v-theme-primary), 0.14);
   color: rgb(var(--v-theme-primary));
 }
-
-@media (max-width: 860px) {
-  .urow {
-    flex-wrap: wrap;
+@media (max-width: 960px) {
+  .au__head {
+    display: none;
   }
-  .urow__stats {
-    flex-basis: 100%;
-    justify-content: flex-start;
-    gap: 1.1rem;
-    padding-left: calc(38px + 1rem);
+  .urow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem 0.9rem;
+  }
+  .urow__who {
+    grid-column: 1 / -1;
   }
   .urow__chev {
     display: none;
+  }
+  .num,
+  .urow__sec,
+  .urow__when {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .num::before,
+  .urow__sec::before,
+  .urow__when::before {
+    content: attr(data-label);
+    font-size: var(--tvz-fs-micro);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(var(--v-theme-on-surface), 0.5);
+  }
+  .urow__sec {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .urow__sec::before {
+    flex-basis: 100%;
   }
 }
 </style>

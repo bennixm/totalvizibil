@@ -546,8 +546,8 @@ const txnColor: Record<string, string> = {
               >
                 {{
                   user.status === 'active'
-                    ? t('dashboard.statusActive')
-                    : t('dashboard.statusSuspended')
+                    ? t('admin.userStatus.active')
+                    : t('admin.userStatus.suspended')
                 }}
               </v-chip>
               <v-chip
@@ -666,8 +666,8 @@ const txnColor: Record<string, string> = {
                   <v-select
                     v-model="form.status"
                     :items="[
-                      { value: 'active', title: t('dashboard.statusActive') },
-                      { value: 'suspended', title: t('dashboard.statusSuspended') },
+                      { value: 'active', title: t('admin.userStatus.active') },
+                      { value: 'suspended', title: t('admin.userStatus.suspended') },
                     ]"
                     :label="t('admin.colStatus')"
                     :disabled="isSelf"

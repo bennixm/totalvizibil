@@ -1343,7 +1343,17 @@
       "budgetTitle": "Daily budget"
     },
     "colAdsCampaigns": "Google Ads",
-    "groupGoogleAds": "Customer Google Ads"
+    "groupGoogleAds": "Customer Google Ads",
+    "colBusinesses": "Businesses",
+    "joinedOn": "Joined {date}",
+    "userEmailUnverified": "Email not confirmed",
+    "userStatus": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "twoFaYes": "On",
+    "twoFaNo": "Off",
+    "colLastSeen": "Last sign-in"
   },
   "errors": {
     "notFoundTitle": "Page not found",
@@ -4494,9 +4504,10 @@
       "chat": "Chat",
       "none": "No payments in this period.",
       "removed": "removed from the platform",
-      "cyclesN": "{n} optimizations",
-      "chatN": "{n} messages",
-      "allTransactions": "All transactions"
+      "cyclesN": "no optimizations | one optimization | {n} optimizations",
+      "chatN": "no messages | one message | {n} messages",
+      "allTransactions": "All transactions",
+      "colCampaign": "Campaign"
     }
   },
   "adminAdsOpt": {
@@ -4828,14 +4839,14 @@
       "seoDesc": "Connect your Google Ads account, pick your campaigns, and the AI agent improves them. The budget only changes with your approval.",
       "eyebrow": "Google Ads optimization",
       "title": "An AI agent that improves your existing Google Ads campaigns",
-      "lead": "Connect your account, pick your campaigns, and the agent analyzes them, fills in what is missing and proposes improvements. No new site is created.",
+      "lead": "You connect the account and pick the campaigns; the agent analyses them, fills in what is missing and proposes improvements. You can also tell it in the chat what to change. No new website is created.",
       "badges": [
         "Free to connect",
         "Budget only with your approval",
         "Pay only for the work done"
       ],
       "cta": "Optimize a campaign",
-      "price": "An optimization cycle starts at {credits} credits",
+      "price": "An optimization cycle costs from {credits} credits; a chat message is paid separately, for the work the agent did",
       "steps": [
         {
           "t": "Connect your Google account",
@@ -4854,17 +4865,23 @@
           "d": "The agent analyzes the campaign, fixes what Google disapproved, fills in missing texts and extensions and verifies everything in your Google account."
         },
         {
+          "t": "You talk to the agent",
+          "d": "Tell it in the chat what you want: keywords, texts, extensions, budget. It asks when information is missing and prepares the changes as proposals."
+        },
+        {
           "t": "Approve the proposals",
-          "d": "Text rewrites and any budget change are proposed to you first. They apply only after you approve them."
+          "d": "Every change the agent prepares, in a cycle or in the chat, and any budget change is proposed to you first. It applies only after you approve it; proposals not approved expire after 30 days."
         }
       ],
       "you": [
         "Access to your Google Ads account, through Google sign-in",
         "The campaigns you want optimized",
         "Your approval for proposals",
-        "Credits for optimization cycles"
+        "Answers to the agent's questions about the business",
+        "Credits for optimization cycles and chat messages"
       ],
       "ai": [
+        "Answers in the chat and prepares the changes you ask for",
         "Computes a score from the real campaign data",
         "Fills in headlines, descriptions, sitelinks, callouts and images",
         "Puts keywords into headlines and reverts if Google rates it lower",
@@ -4896,7 +4913,11 @@
         },
         {
           "t": "Transparent costs",
-          "d": "See the estimate first; in the end you pay only for the work done and the difference goes back to your wallet."
+          "d": "You see the estimate first and pay only for the work done. The Costs page shows, per campaign, what optimizations and chat cost."
+        },
+        {
+          "t": "It keeps you posted",
+          "d": "You get a notification when the agent finishes, when proposals wait for you or when a scheduled cycle cannot start; by email for what needs a decision."
         },
         {
           "t": "Revocable access",
@@ -4906,7 +4927,9 @@
       "notes": [
         "The budget never changes automatically: every change is proposed to you and applies only after your approval.",
         "The agent currently optimizes Search campaigns.",
-        "Connecting, picking the campaign and the dashboard are free; you pay only for optimization cycles."
+        "Connecting, picking the campaign and the dashboard are free; you pay only for optimization cycles.",
+        "A Google campaign can be managed from one Totalvizibil account only.",
+        "Each message sent to the agent in the chat is paid separately; a message the agent does not answer costs nothing."
       ],
       "demo": {
         "connect": "Sign in with Google",
@@ -4935,7 +4958,10 @@
         "proposal": "Budget proposal",
         "proposalText": "80 → 110 lei per day",
         "approve": "Approve",
-        "reject": "Reject"
+        "reject": "Reject",
+        "chatAsk": "I want more calls from Sibiu",
+        "chatAnswer": "I prepared 4 keywords for Sibiu and a headline that asks people to call.",
+        "chatProposal": "Keywords and a new headline"
       }
     }
   },

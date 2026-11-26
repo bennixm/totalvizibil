@@ -2,7 +2,8 @@
 /**
  * Animated replica of the Google Ads optimization flow: the connect screen
  * (real `ads.connect.*` copy), the account/campaign multi-picker, the
- * campaign dashboard with its score, an optimization cycle, and a budget
+ * campaign dashboard with its score, an optimization cycle, the chat with
+ * the agent (a change asked in words, prepared as a proposal), and a budget
  * proposal waiting for approval. The example score and amounts are
  * illustrative; every label is the builder's own.
  */
@@ -15,6 +16,8 @@ const { t } = useI18n()
 const d = (k: string) => t(`binfo.ads.demo.${k}`)
 
 const ACCESS = ['read', 'apply', 'budget', 'revoke'] as const
+/** Dashboard sections lit by steps 2-5 (the real tab names). */
+const TABS = ['home', 'history', 'chat', 'proposals'] as const
 const camps = computed(() => [0, 1, 2].map((i) => d(`camp.${i}`)))
 const cycleSteps = computed(() => [0, 1, 2, 3].map((i) => d(`cycleSteps.${i}`)))
 
@@ -83,7 +86,7 @@ const dash = computed(() => `${(score.value / 100) * 163} 163`)
     <!-- 3-5. Dashboard -->
     <div v-else key="sd" class="dd__dash">
       <div class="dd__tabs">
-        <span v-for="(tb, i) in ['home', 'history', 'proposals']" :key="tb" :class="{ on: (step === 2 && i === 0) || (step === 3 && i === 1) || (step === 4 && i === 2) }">
+        <span v-for="(tb, i) in TABS" :key="tb" :class="{ on: step - 2 === i }">
           {{ t(`ads.tab.${tb}`) }}
         </span>
       </div>
@@ -110,6 +113,19 @@ const dash = computed(() => `${(score.value / 100) * 163} 163`)
               <v-icon icon="mdi-check-circle" size="14" /> {{ c }}
             </div>
           </template>
+          <template v-else-if="step === 4">
+            <div class="dd__chat">
+              <p class="dd__msg dd__msg--me">{{ d('chatAsk') }}</p>
+              <p class="dd__msg" style="animation-delay: 0.9s">{{ d('chatAnswer') }}</p>
+              <div class="dd__prop dd__prop--mini" style="animation-delay: 1.7s">
+                <b><v-icon icon="mdi-swap-horizontal" size="15" /> {{ d('chatProposal') }}</b>
+                <div class="dd__acts">
+                  <span class="dm-btn dm-press">{{ d('approve') }}</span>
+                  <span class="dm-btn dm-btn--ghost">{{ d('reject') }}</span>
+                </div>
+              </div>
+            </div>
+          </template>
           <template v-else>
             <div class="dd__prop">
               <b><v-icon icon="mdi-cash-plus" size="15" /> {{ d('proposal') }}</b>
@@ -128,6 +144,29 @@ const dash = computed(() => `${(score.value / 100) * 163} 163`)
 </template>
 
 <style scoped>
+.dd__chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.dd__msg {
+  max-width: 88%;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  animation: dmSettle 0.4s both;
+}
+.dd__msg--me {
+  align-self: flex-end;
+  background: rgba(var(--v-theme-primary), 0.16);
+}
+.dd__prop--mini {
+  animation: dmSettle 0.4s both;
+}
+
 .dd__connect {
   flex: 1;
   display: flex;

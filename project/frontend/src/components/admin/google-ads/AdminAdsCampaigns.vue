@@ -158,6 +158,9 @@ const tone = (s: string) => (s === 'active' ? 'success' : s === 'paused' ? 'neut
 .aac__main {
   flex: 1;
 }
+.aac__main b {
+  font-size: var(--tvz-fs-body);
+}
 .aac__main b,
 .aac__main small {
   overflow: hidden;
@@ -170,7 +173,7 @@ const tone = (s: string) => (s === 'active' ? 'success' : s === 'paused' ? 'neut
   text-align: right;
 }
 .aac__row small {
-  font-size: var(--tvz-fs-xs, 0.78rem);
+  font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.62);
 }
 .aac__row .aac__err {
@@ -186,6 +189,7 @@ const tone = (s: string) => (s === 'active' ? 'success' : s === 'paused' ? 'neut
 }
 .aac__score {
   font-weight: 600;
+  font-size: var(--tvz-fs-small);
 }
 .aac__go {
   flex: none;

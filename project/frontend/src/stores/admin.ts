@@ -154,6 +154,8 @@ export interface AdminUserRow {
   twoFactorEnabled: boolean
   companyCount: number
   adsCampaignCount: number
+  /** False until the sign-up code was confirmed (cannot sign in yet). */
+  emailVerified: boolean
   walletCredits: number
   walletBlocked: boolean
   lastLoginAt: string | null
