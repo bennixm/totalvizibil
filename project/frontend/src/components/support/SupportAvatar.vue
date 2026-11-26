@@ -23,7 +23,7 @@ const initials = computed(() => {
   <span
     class="sav"
     :class="[`sav--${role}`, { 'sav--empty': !initials }]"
-    :style="{ width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * 0.38)}px` }"
+    :style="{ width: `${size}px`, height: `${size}px`, fontSize: `${Math.max(10, Math.round(size * 0.38))}px` }"
     aria-hidden="true"
   >
     <template v-if="initials">{{ initials }}</template>

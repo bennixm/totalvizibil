@@ -34,6 +34,9 @@ const wallet = useWalletStore()
 const workspace = useWorkspaceStore()
 const ads = useGoogleAdsUserStore()
 const inAds = computed(() => workspace.id === 'ads')
+// Staff working in /admin don't need the customer shortcuts (create a
+// business, their own wallet balance + top-up) taking up the bar.
+const inAdmin = computed(() => router.currentRoute.value.path.startsWith('/admin'))
 const { overview, currentId } = storeToRefs(companies)
 const { signOut: doSignOut } = useSignOut()
 const { pickCompany: switchCompany } = useCompanySwitch()
@@ -161,7 +164,7 @@ watch(() => auth.isAuthenticated, syncWallet)
 
       <div class="topbar__actions">
         <v-btn
-          v-if="mdAndUp"
+          v-if="mdAndUp && !inAdmin"
           :to="{ name: 'start' }"
           color="primary"
           variant="flat"
@@ -174,13 +177,13 @@ watch(() => auth.isAuthenticated, syncWallet)
 
         <NotificationBell v-if="auth.isAuthenticated" />
 
-        <WalletChip v-if="auth.isAuthenticated" />
+        <WalletChip v-if="auth.isAuthenticated && !inAdmin" />
         <!-- Mobile drops this shortcut: the wallet chip right next to it
              already opens /wallet, where top-up is one tap away, and on a
              narrow phone this circle was exactly the width that pushed the
              avatar past the bar's edge once the balance grew a few digits. -->
         <button
-          v-if="auth.isAuthenticated && mdAndUp"
+          v-if="auth.isAuthenticated && mdAndUp && !inAdmin"
           type="button"
           class="wallet-add-btn"
           :aria-label="t('wallet.topUpCta')"

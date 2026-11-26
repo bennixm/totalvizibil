@@ -95,6 +95,9 @@ const approxText = computed(() => money.approx(Math.abs(props.credits), props.cu
 .cv--stacked .cv__main,
 .cv--stacked .cv__x {
   display: block;
+  /* Each line stays whole: in a squeezed table column the coin icon and the
+     "≈ €100,00" part used to break onto lines of their own (3-line rows). */
+  white-space: nowrap;
 }
 .cv--stacked .cv__x {
   margin-top: 0.1rem;

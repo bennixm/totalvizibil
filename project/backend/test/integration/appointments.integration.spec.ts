@@ -4,6 +4,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { createTestApp } from './helpers/app';
 import { resetDb } from './helpers/db';
 import { createAndLoginUser } from './helpers/auth';
+import { createCompany } from './helpers/company';
 
 let app: INestApplication;
 let prisma: PrismaService;
@@ -31,10 +32,7 @@ describe('Appointments', () => {
         password: 'password123',
         name: 'Owner',
       });
-      const createRes = await request(app.getHttpServer())
-        .post('/api/v1/companies')
-        .set('Cookie', user.cookie)
-        .send({ displayName: 'Acme SRL' });
+      const createRes = await createCompany(app, user, { displayName: 'Acme SRL' });
       const companyId = createRes.body.id;
 
       const res = await request(app.getHttpServer())
@@ -59,10 +57,7 @@ describe('Appointments', () => {
         password: 'password123',
         name: 'Owner',
       });
-      const createRes = await request(app.getHttpServer())
-        .post('/api/v1/companies')
-        .set('Cookie', user.cookie)
-        .send({ displayName: 'Acme SRL' });
+      const createRes = await createCompany(app, user, { displayName: 'Acme SRL' });
       const companyId = createRes.body.id;
 
       const res = await request(app.getHttpServer())
@@ -85,10 +80,7 @@ describe('Appointments', () => {
         password: 'password123',
         name: 'Owner',
       });
-      const createRes = await request(app.getHttpServer())
-        .post('/api/v1/companies')
-        .set('Cookie', user.cookie)
-        .send({ displayName: 'Acme SRL' });
+      const createRes = await createCompany(app, user, { displayName: 'Acme SRL' });
       const companyId = createRes.body.id;
 
       const res = await request(app.getHttpServer())

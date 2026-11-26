@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -277,13 +278,13 @@ function shortDate(iso: string): string {
 <template>
   <v-container class="acc py-8">
     <div class="page-container">
-      <header class="acc__head">
-        <div class="acc__avatar">{{ (auth.user?.name ?? '?').slice(0, 1).toUpperCase() }}</div>
-        <div>
-          <h1>{{ t('account.title') }}</h1>
-          <p>{{ auth.user?.email }}</p>
-        </div>
-      </header>
+      <!-- Same page header as Portofel / Facturi / the rest of the panel
+           (it used to be a one-off avatar + title block). -->
+      <AdminPageHeader
+        :eyebrow="t('account.eyebrow')"
+        :title="t('account.title')"
+        :sub="auth.user?.email ?? undefined"
+      />
 
       <v-tabs v-model="tab" color="primary" class="acc__tabs" show-arrows>
         <v-tab value="profile" prepend-icon="mdi-account-outline">{{ t('account.tabProfile') }}</v-tab>
@@ -735,35 +736,6 @@ function shortDate(iso: string): string {
 </template>
 
 <style scoped>
-.acc__head {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.acc__avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 1.3rem;
-  color: #fff;
-  background: var(--tvz-gradient-brand);
-}
-.acc__head h1 {
-  font-family: 'Space Grotesk Variable', sans-serif;
-  font-weight: 700;
-  font-size: var(--tvz-fs-title);
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-.acc__head p {
-  margin: 0;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  font-size: var(--tvz-fs-section);
-}
 .acc__tabs {
   border-bottom: 1px solid var(--tvz-hairline);
   margin-bottom: 1.5rem;

@@ -1,7 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import Anthropic from '@anthropic-ai/sdk';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ModuleRef } from '@nestjs/core';
+import { NotificationsService } from '../notifications/notifications.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { AppConfig } from '../config/env';
 
 export type AiLocale = 'ro' | 'en' | 'de';
@@ -654,7 +657,10 @@ export class AiService {
   private readonly anthropicModelFast: string;
   private readonly anthropicModelFeed: string;
 
-  constructor(config: ConfigService<AppConfig, true>) {
+  constructor(
+    config: ConfigService<AppConfig, true>,
+    @Optional() private readonly moduleRef?: ModuleRef,
+  ) {
     const anthropicKey = config.get('anthropicApiKey', { infer: true }) ?? '';
     this.anthropicModel = config.get('anthropicModel', { infer: true }) || 'claude-opus-5';
     // The generator fires ~6–10 calls per site; the high-volume ones (copy,
@@ -687,6 +693,51 @@ export class AiService {
   /** The model name used for the "smart" calls (and PRO's agent loop) — for cost/usage logging. */
   get modelName(): string {
     return this.anthropicModel;
+  }
+
+  /** When admins were last told the AI provider rejects our calls. */
+  private providerDownNotifiedAt = 0;
+
+  /**
+   * Every builder silently falls back to deterministic copy when a Claude
+   * call fails, so an expired/revoked key or an exhausted credit balance
+   * used to go unnoticed: new businesses were quietly created with generic
+   * placeholder text ("Afacerea mea"). A failure that will NOT heal on retry
+   * (401/403, billing) now pings every admin, at most once every 6 hours.
+   * Best-effort: a notification hiccup never affects the caller.
+   */
+  private reportIfProviderDown(err: unknown): void {
+    if (!(err instanceof Anthropic.APIError)) return;
+    const billing = err.status === 400 && /credit balance|billing/i.test(err.message);
+    if (err.status !== 401 && err.status !== 403 && !billing) return;
+    const now = Date.now();
+    if (now - this.providerDownNotifiedAt < 6 * 60 * 60 * 1000) return;
+    this.providerDownNotifiedAt = now;
+    const reason = billing ? 'credit Anthropic epuizat' : `cheie API respinsă (${err.status})`;
+    this.logger.error(`AI provider unavailable: ${reason}`);
+    void (async () => {
+      const prisma = this.moduleRef?.get(PrismaService, { strict: false });
+      const notifications = this.moduleRef?.get(NotificationsService, { strict: false });
+      if (!prisma || !notifications) return;
+      const admins = await prisma.platformRoleAssignment.findMany({
+        where: { role: 'admin' },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
+      for (const { userId } of admins) {
+        await notifications.notify({
+          userId,
+          type: 'ai_provider_down',
+          title: 'AI-ul platformei nu funcționează',
+          body:
+            `Apelurile către Claude sunt refuzate: ${reason}. Builderele folosesc acum text generic ` +
+            '(de exemplu numele „Afacerea mea”) până când cheia sau creditul sunt reparate.',
+          channels: { panel: true, email: true },
+        });
+      }
+    })().catch((e) =>
+      this.logger.error('AI provider-down notification failed', e instanceof Error ? e.stack : e),
+    );
   }
 
   // --- transports ------------------------------------------------------
@@ -744,6 +795,7 @@ export class AiService {
     } catch (err) {
       this.lastJsonFailure = `apel AI eșuat: ${this.errMsg(err)}`.slice(0, 300);
       this.logger.warn(`Claude call failed: ${this.errMsg(err)}`);
+      this.reportIfProviderDown(err);
       return null;
     }
   }
@@ -770,6 +822,7 @@ export class AiService {
       return out || null;
     } catch (err) {
       this.logger.warn(`Claude call failed: ${this.errMsg(err)}`);
+      this.reportIfProviderDown(err);
       return null;
     }
   }
@@ -928,6 +981,7 @@ export class AiService {
       return { data: parsed, usage: res.usage, model };
     } catch (err) {
       this.logger.warn(`Invoice extraction failed (model ${model}): ${this.errMsg(err)}`);
+      this.reportIfProviderDown(err);
       return { error: extractionErrorCode(err, model) };
     }
   }
@@ -965,6 +1019,7 @@ export class AiService {
       );
     } catch (err) {
       this.logger.warn(`PRO agent call failed: ${this.errMsg(err)}`);
+      this.reportIfProviderDown(err);
       return null;
     }
   }

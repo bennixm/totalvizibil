@@ -180,7 +180,7 @@ watch(
 
 type RunKind = 'structural' | 'content' | 'intelligence'
 function fmtDate(iso?: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleString(uiLocale(), {
     day: '2-digit',
     month: '2-digit',

@@ -562,10 +562,13 @@ onBeforeUnmount(() => {
   margin-inline: auto;
   padding: clamp(1.5rem, 5vw, 3rem) clamp(1rem, 4vw, 1.5rem) 4rem;
 }
-/* The admin layout already pads its content. */
+/* The admin layout already pads its content; the queue uses the full
+   content width like every other admin list (it was a narrower, centred
+   column). */
 .sup--staff {
-  max-width: 1080px;
-  padding-top: 0.25rem;
+  max-width: none;
+  margin-inline: 0;
+  padding: 0 0 4rem;
 }
 
 /* Header ------------------------------------------------------------------ */
@@ -578,12 +581,13 @@ onBeforeUnmount(() => {
   margin-bottom: 1.5rem;
 }
 .sup__eyebrow {
+  /* Same muted eyebrow as every other panel page header (AdminPageHeader). */
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   font-size: var(--tvz-fs-micro);
-  font-weight: 700;
-  color: rgb(var(--v-theme-primary));
-  margin: 0 0 0.55rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+  margin: 0 0 0.35rem;
 }
 .sup__head h1 {
   font-family: 'Space Grotesk Variable', sans-serif;

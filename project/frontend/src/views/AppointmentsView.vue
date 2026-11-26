@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppDateField from '@/components/AppDateField.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -24,8 +25,12 @@ const { items, summary, settings, filters, loading, working, nextCursor, error }
   storeToRefs(appointments)
 const toasts = useToastStore()
 const confirmStore = useConfirmStore()
+const KNOWN_ERRORS: Record<string, string> = {
+  appointment_transition_invalid: 'appointments.errTransition',
+  appointment_not_started: 'appointments.errNotStarted',
+}
 watch(error, (v) => {
-  if (v) toasts.error(v)
+  if (v) toasts.error(KNOWN_ERRORS[v] ? t(KNOWN_ERRORS[v]) : v)
 })
 
 const companyId = ref<string | null>(null)
@@ -356,22 +361,18 @@ watch(
 
       <!-- Date range filter -->
       <div class="apt__dateFilter">
-        <label class="apt__dateField">
+        <div class="apt__dateField">
           <span>{{ t('appointments.filterFrom') }}</span>
-          <input
-            type="date"
-            :value="filters.from"
-            @change="changeFrom(($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="apt__dateField">
+          <AppDateField :model-value="filters.from" density="compact" variant="outlined" hide-details @update:model-value="changeFrom($event)" />
+        </div>
+        <div class="apt__dateField">
           <span>{{ t('appointments.filterTo') }}</span>
-          <input
-            type="date"
-            :value="filters.to"
-            @change="appointments.setFilter('to', ($event.target as HTMLInputElement).value)"
+          <AppDateField
+            :model-value="filters.to"
+            density="compact" variant="outlined" hide-details
+            @update:model-value="appointments.setFilter('to', $event)"
           />
-        </label>
+        </div>
         <button v-if="hasDateFilter" type="button" class="apt__dateClear" @click="clearDateFilter">
           <v-icon icon="mdi-close" size="14" /> {{ t('appointments.filterClearDates') }}
         </button>
@@ -423,7 +424,7 @@ watch(
               {{ t('appointments.cancelAction') }}
             </v-btn>
             <v-btn
-              v-if="appt.status === 'confirmed'"
+              v-if="appt.status === 'confirmed' && new Date(appt.startsAt).getTime() <= Date.now()"
               size="small"
               variant="text"
               :disabled="working"
@@ -697,14 +698,6 @@ watch(
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
-.apt__dateField input[type='date'] {
-  padding: 0.4rem 0.55rem;
-  border: 1px solid var(--tvz-hairline, rgba(var(--v-theme-on-surface), 0.15));
-  border-radius: 8px;
-  background: rgb(var(--v-theme-surface));
-  color: rgb(var(--v-theme-on-surface));
-  font-size: var(--tvz-fs-small);
-}
 .apt__dateClear {
   display: inline-flex;
   align-items: center;
@@ -880,8 +873,7 @@ watch(
     flex-direction: column;
     align-items: stretch;
   }
-  .apt__dateField,
-  .apt__dateField input[type='date'] {
+  .apt__dateField {
     width: 100%;
   }
   .apt__dateClear {

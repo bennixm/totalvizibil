@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppDateField from '@/components/AppDateField.vue'
 /**
  * One supplier invoice: the structured data next to its original document,
  * the change history, internal notes and extra files. "Edit" corrects any
@@ -623,10 +624,10 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
             />
             <v-text-field v-model="ed.invoiceNumber" :label="t('supplierInvoices.colNumber')" density="comfortable" maxlength="80" />
             <v-text-field v-model="ed.supplierVatId" :label="t('supplierInvoices.vatId')" density="comfortable" maxlength="40" />
-            <v-text-field v-model="ed.issueDate" type="date" :label="t('supplierInvoices.colIssued')" density="comfortable" />
-            <v-text-field v-model="ed.dueDate" type="date" :label="t('supplierInvoices.colDue')" density="comfortable" />
-            <v-text-field v-model="ed.periodStart" type="date" :label="t('supplierInvoices.periodStart')" density="comfortable" />
-            <v-text-field v-model="ed.periodEnd" type="date" :label="t('supplierInvoices.periodEnd')" density="comfortable" />
+            <AppDateField v-model="ed.issueDate" :label="t('supplierInvoices.colIssued')" density="comfortable" />
+            <AppDateField v-model="ed.dueDate" :label="t('supplierInvoices.colDue')" density="comfortable" />
+            <AppDateField v-model="ed.periodStart" :label="t('supplierInvoices.periodStart')" density="comfortable" />
+            <AppDateField v-model="ed.periodEnd" :label="t('supplierInvoices.periodEnd')" density="comfortable" />
           </div>
           <div class="edit__money">
             <v-text-field v-model.number="ed.subtotal" type="number" step="0.01" min="0" :label="t('supplierInvoices.colNet')" density="comfortable" />
@@ -661,10 +662,9 @@ const isImage = computed(() => !!inv.value?.document?.mime.startsWith('image/'))
               clearable
               density="comfortable"
             />
-            <v-text-field
+            <AppDateField
               v-if="ed.paymentStatus === 'paid'"
               v-model="ed.paidAt"
-              type="date"
               :label="t('supplierInvoices.paidAt')"
               density="comfortable"
             />

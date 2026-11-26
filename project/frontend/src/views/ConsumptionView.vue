@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppDateField from '@/components/AppDateField.vue'
 import { uiLocale } from '@/plugins/i18n'
 /**
  * Detailed lifetime spend for ONE business — the central place to see exactly
@@ -349,7 +350,7 @@ watch(
         <div v-if="hasCampaign" class="kpi">
           <span class="kpi__icon"><v-icon icon="mdi-currency-usd" size="20" /></span>
           <strong class="kpi__value">
-            {{ kpis.cpcEffective ? cr(kpis.cpcEffective.credits) : '—' }}
+            {{ kpis.cpcEffective ? cr(kpis.cpcEffective.credits) : '-' }}
             <v-icon v-if="kpis.cpcEffective" icon="mdi-poker-chip" size="0.55em" class="cons__unit" />
           </strong>
           <span class="kpi__label">{{ t('consumption.heroCpc') }}</span>
@@ -426,7 +427,7 @@ watch(
                     {{ cr(r.cpcEffective.credits) }}
                     <span class="cons__fx">{{ money.approx(r.cpcEffective.credits) }}</span>
                   </template>
-                  <template v-else>—</template>
+                  <template v-else>-</template>
                 </td>
                 <td class="cons__feedSpent" :data-label="t('consumption.colSpentFeed')">
                   <span class="cons__feedBar"><span class="cons__feedBarFill" :style="{ width: r.sharePct + '%' }" /></span>
@@ -535,14 +536,14 @@ watch(
             class="cons__filterType"
             @update:model-value="applyFilters"
           />
-          <label class="cons__filterDate">
+          <div class="cons__filterDate">
             <span>{{ t('consumption.filterFrom') }}</span>
-            <input v-model="filterFrom" type="date" @change="applyFilters" />
-          </label>
-          <label class="cons__filterDate">
+            <AppDateField v-model="filterFrom" density="compact" variant="outlined" hide-details @change="applyFilters" />
+          </div>
+          <div class="cons__filterDate">
             <span>{{ t('consumption.filterTo') }}</span>
-            <input v-model="filterTo" type="date" @change="applyFilters" />
-          </label>
+            <AppDateField v-model="filterTo" density="compact" variant="outlined" hide-details @change="applyFilters" />
+          </div>
           <button
             v-if="hasActiveFilters"
             type="button"
@@ -575,7 +576,7 @@ watch(
                 <td class="cons__ledgerDetail">
                   <span class="crow__id">{{ shortId(e.id) }}</span> {{ entryLabel(e) }}
                 </td>
-                <td class="cons__ledgerClicks" :data-label="t('consumption.colClicks')">{{ e.clicks ?? '—' }}</td>
+                <td class="cons__ledgerClicks" :data-label="t('consumption.colClicks')">{{ e.clicks ?? '-' }}</td>
                 <td class="cons__ledgerAmount">
                   {{ cr(Math.abs(e.amount.credits)) }}
                   <v-icon icon="mdi-poker-chip" size="0.6em" class="cons__unit" />
@@ -1053,14 +1054,6 @@ watch(
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
-.cons__filterDate input[type='date'] {
-  padding: 0.4rem 0.55rem;
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: 8px;
-  background: rgb(var(--v-theme-surface));
-  color: rgb(var(--v-theme-on-surface));
-  font-size: var(--tvz-fs-small);
-}
 .cons__filterClear {
   display: inline-flex;
   align-items: center;
@@ -1156,9 +1149,6 @@ watch(
     width: 100%;
   }
   .cons__filterDate {
-    width: 100%;
-  }
-  .cons__filterDate input[type='date'] {
     width: 100%;
   }
   .cons__filterClear {

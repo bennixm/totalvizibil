@@ -704,7 +704,11 @@ export class CampaignService implements OnModuleInit {
     });
     if (recentFromIp >= ipLimit) return { billed: false, reason: 'ip_rate' };
 
-    const cfg = await this.analytics.marginConfig({ gclid });
+    // Priced like every other click. `gclid` is a plain query parameter
+    // anyone can append (`?gclid=x`), never verified against Google, so it
+    // must not change what the advertiser pays — it is only RECORDED below
+    // (`costSource`) as an unverified attribution hint.
+    const cfg = await this.analytics.marginConfig();
 
     return this.prisma.$transaction(async (tx): Promise<ClickResult> => {
       const company = await tx.company.findUnique({
@@ -1633,6 +1637,31 @@ export class CampaignService implements OnModuleInit {
     });
 
     return this.get(userId, companyId);
+  }
+
+  /**
+   * Take the campaign out of the feed because the LISTING itself is coming
+   * down (owner "unpublish", admin website unpublish). Unpublishing used to
+   * flip only the company/website status and leave the campaign `active`:
+   * the panel kept saying "Campanie activă" for a business that appeared
+   * nowhere, and admin stats counted it as running. Same exit as a manual
+   * pause (run time banked, AUTO switched off so `reconcile` can't revive
+   * it). Returns whether a live campaign was actually paused.
+   */
+  async pauseForUnlisting(companyId: string): Promise<boolean> {
+    const campaign = await this.prisma.campaign.findUnique({ where: { companyId } });
+    if (!campaign) return false;
+    if (campaign.autoOptimize) {
+      await this.prisma.campaign.update({
+        where: { id: campaign.id },
+        data: { autoOptimize: false },
+      });
+    }
+    if (campaign.status !== CampaignStatus.active && campaign.status !== CampaignStatus.depleted) {
+      return false;
+    }
+    await this.setLive(companyId, { ...campaign, autoOptimize: false }, CampaignStatus.paused);
+    return true;
   }
 
   async pause(userId: string, companyId: string) {

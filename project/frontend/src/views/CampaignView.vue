@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppNumberField from '@/components/AppNumberField.vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -70,6 +71,13 @@ const CR_EPS = 0.005
 // against the recommended (category-leading) CPC, capped by budget adequacy
 // (20 cr/day funding reference). Moves the instant CPC drops below recommended.
 const recommendedCpc = computed(() => data.value?.suggestions.appearFirst.cpc.credits ?? 0)
+// When both presets bid the same CPC (common: few rivals), the only real
+// difference is the daily budget — the cards then lead with the budget so
+// they don't read as two identical options.
+const sameTierCpc = computed(() => {
+  const sg = data.value?.suggestions
+  return !!sg && Math.abs(sg.standard.cpc.credits - sg.appearFirst.cpc.credits) < CR_EPS
+})
 
 // The recommended CPC is also the ceiling: bidding above it buys no extra
 // ranking (the CPC sub-score is already maxed there, the feed sort ignores raw
@@ -110,13 +118,25 @@ function matchRecommendedCpc(): void {
   dirty.value = true
 }
 
-const projectedCpcPart = computed(() => {
-  if (auto.value) return 100
+/** Daily budget at which the backend's `budgetAdequacy` tops out (cr/day). */
+const BUDGET_REF_CREDITS = 20
+const cpcScoreParts = computed(() => {
   const rc = recommendedCpc.value
   const competitiveness = rc > 0 ? Math.min(1, cpcN.value / rc) : cpcN.value > 0 ? 1 : 0
-  const budgetAdequacy = Math.min(1, budgetN.value / 20)
+  const budgetAdequacy = Math.min(1, budgetN.value / BUDGET_REF_CREDITS)
+  return { competitiveness, budgetAdequacy }
+})
+const projectedCpcPart = computed(() => {
+  if (auto.value) return 100
+  const { competitiveness, budgetAdequacy } = cpcScoreParts.value
   return Math.round(Math.min(competitiveness, budgetAdequacy) * 100)
 })
+// Which of the two actually caps the score — the hint used to always blame
+// the CPC, even when the CPC was already at the recommended maximum and only
+// the daily budget held the score down (so following the advice changed nothing).
+const cpcLimitedByBudget = computed(
+  () => cpcScoreParts.value.budgetAdequacy < cpcScoreParts.value.competitiveness,
+)
 
 // Which preset the current numbers actually equal — so the tier cards reflect
 // reality instead of just the `appearFirst` flag. Any manual edit that moves a
@@ -423,7 +443,7 @@ watch(
             class="tier"
             role="radio"
             :aria-checked="activeTier === 'standard'"
-            :class="{ 'tier--active': activeTier === 'standard' }"
+            :class="{ 'tier--active': activeTier === 'standard', 'tier--budgetLead': sameTierCpc }"
             :disabled="pendingDeletion"
             @click="applyTier(data.suggestions.standard, false)"
           >
@@ -443,7 +463,7 @@ watch(
             class="tier tier--first"
             role="radio"
             :aria-checked="activeTier === 'first'"
-            :class="{ 'tier--active': activeTier === 'first' }"
+            :class="{ 'tier--active': activeTier === 'first', 'tier--budgetLead': sameTierCpc }"
             :disabled="pendingDeletion"
             @click="applyTier(data.suggestions.appearFirst, true)"
           >
@@ -470,10 +490,8 @@ watch(
       <section class="camp__form">
         <div class="camp__row" data-guide="budget-fields">
           <div class="camp__field">
-            <v-text-field
-              v-model.number="dailyBudget"
-              type="number"
-              :min="1"
+            <AppNumberField
+              v-model="dailyBudget"
               :label="t('campaign.dailyBudget')"
               suffix="cr"
               variant="outlined"
@@ -484,12 +502,8 @@ watch(
             <p class="camp__fx">{{ money.approx(budgetN) }}</p>
           </div>
           <div class="camp__field">
-            <v-text-field
-              v-model.number="cpc"
-              type="number"
-              :min="0.05"
-              :max="Number.isFinite(cpcMax) ? cpcMax : undefined"
-              step="0.05"
+            <AppNumberField
+              v-model="cpc"
               suffix="cr"
               variant="outlined"
               density="comfortable"
@@ -502,7 +516,7 @@ watch(
                 {{ t('campaign.cpc') }}
                 <InfoHint :text="t('campaign.cpcMaxNote')" :size="14" />
               </template>
-            </v-text-field>
+            </AppNumberField>
             <p class="camp__fx">{{ money.approx(cpcN) }}</p>
           </div>
         </div>
@@ -523,7 +537,11 @@ watch(
             size="15"
           />
           {{ t('campaign.cpcScoreLive', { n: projectedCpcPart }) }}
-          <span class="camp__cpcLiveHint">{{ t('campaign.cpcScoreLiveHint') }}</span>
+          <span class="camp__cpcLiveHint">{{
+            projectedCpcPart < 100 && cpcLimitedByBudget
+              ? t('campaign.cpcScoreLiveHintBudget', { n: BUDGET_REF_CREDITS })
+              : t('campaign.cpcScoreLiveHint')
+          }}</span>
         </p>
 
         <div class="camp__funding" :class="{ 'is-short': !funded }" data-guide="budget-funding">
@@ -614,6 +632,18 @@ watch(
   gap: 0.4rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+/* Phone: the back link goes on its own line above the title instead of
+   squeezing "Buget & CPC Maxim" into a narrow column beside it. */
+@media (max-width: 599px) {
+  .camp__head {
+    flex-direction: column-reverse;
+    gap: 0.25rem;
+  }
+  .camp__headActions {
+    justify-content: flex-start;
+    margin-left: -0.5rem;
+  }
 }
 
 .camp__live,
@@ -708,6 +738,12 @@ watch(
 .camp__autoText {
   flex: 1;
   min-width: 0;
+}
+/* The OFF switch track was near-invisible on the dark card; give it a
+   visible outline-level contrast so the control reads as a toggle. */
+.camp__autoHead :deep(.v-selection-control:not(.v-selection-control--dirty) .v-switch__track) {
+  opacity: 1;
+  background: rgba(var(--v-theme-on-surface), 0.26);
 }
 .camp__autoText strong {
   font-family: 'Space Grotesk Variable', sans-serif;
@@ -826,6 +862,18 @@ watch(
   font-size: var(--tvz-fs-small);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
+.tier--budgetLead .tier__budget {
+  order: 2;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: inherit;
+}
+.tier--budgetLead .tier__cpc {
+  order: 3;
+  font-size: var(--tvz-fs-small);
+  font-weight: 400;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
 /* The fiat "(≈ €x.xx)" / "(≈ y lei)" equivalent trailing a credit figure —
    shared by the tier cards and the auto-mode market-CPC note. */
 .tier__fx {
@@ -836,6 +884,9 @@ watch(
 .camp__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  /* Top-aligned: the CPC field carries a hint line, and a stretched row
+     used to blow the daily-budget box up to the same (taller) height. */
+  align-items: start;
   gap: 0.75rem;
   margin-bottom: 0.5rem;
 }

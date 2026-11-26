@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppDateField from '@/components/AppDateField.vue'
 /**
  * The period picker every finance report page needs: quick presets (this
  * month / 3 months / 12 months / lifetime) plus an exact custom range, and a
@@ -114,22 +115,22 @@ function onYear(v: number | null): void {
         </label>
         <span class="apf__sep" aria-hidden="true" />
       </template>
-      <label class="apf__field">
+      <div class="apf__field">
         <span>{{ t('adminFinance.periodFrom') }}</span>
-        <input
-          :value="customFrom"
-          type="date"
-          @input="emit('update:customFrom', ($event.target as HTMLInputElement).value)"
+        <AppDateField
+          :model-value="customFrom"
+          density="compact" variant="outlined" hide-details
+          @update:model-value="emit('update:customFrom', $event)"
         />
-      </label>
-      <label class="apf__field">
+      </div>
+      <div class="apf__field">
         <span>{{ t('adminFinance.periodTo') }}</span>
-        <input
-          :value="customTo"
-          type="date"
-          @input="emit('update:customTo', ($event.target as HTMLInputElement).value)"
+        <AppDateField
+          :model-value="customTo"
+          density="compact" variant="outlined" hide-details
+          @update:model-value="emit('update:customTo', $event)"
         />
-      </label>
+      </div>
       <v-btn
         class="apf__apply"
         size="small"
@@ -222,8 +223,8 @@ function onYear(v: number | null): void {
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
-.apf__field input,
-.apf__field select {
+.apf__field > input,
+.apf__field > select {
   box-sizing: border-box;
   height: 38px;
   padding: 0 0.55rem;

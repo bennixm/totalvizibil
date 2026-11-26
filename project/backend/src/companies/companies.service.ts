@@ -691,8 +691,6 @@ export class CompaniesService implements OnModuleInit {
         description: dto.description?.trim(),
         categoryId: dto.categoryId,
         logoUrl: dto.logoUrl?.trim(),
-        status: dto.status,
-        claimedAt: dto.status === 'active' ? new Date() : undefined,
       },
       include: companyInclude,
     });
@@ -898,6 +896,10 @@ export class CompaniesService implements OnModuleInit {
       }
     }
 
+    // Unpublishing takes the listing down, so the campaign stops too —
+    // otherwise it stayed "active" for a business nobody could see.
+    const pausedCampaign = live ? false : await this.campaigns.pauseForUnlisting(companyId);
+
     await this.prisma.$transaction([
       this.prisma.company.update({
         where: { id: companyId },
@@ -919,6 +921,7 @@ export class CompaniesService implements OnModuleInit {
       action: live ? 'company.publish' : 'company.unpublish',
       targetType: 'company',
       targetId: companyId,
+      ...(pausedCampaign ? { after: { campaign: 'paused' } } : {}),
     });
 
     return this.dashboard(userId, companyId);

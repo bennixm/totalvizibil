@@ -432,8 +432,33 @@ describe('WebsiteDraftService', () => {
       expect(view.easy?.companyName).toBe('');
       expect(view.transcript.at(-1)).toMatchObject({ role: 'assistant', key: 'introUnclear' });
       // Second time it is accepted, so a misread can never trap the visitor.
+      // It still states no name, so the name is asked for (once) instead of
+      // the business ending up as the generic "Afacerea mea".
       view = await svc.sendMessage('d1', 'tok1', 'salut din nou');
+      expect(view.step).toBe('intro');
+      expect(view.transcript.at(-1)).toMatchObject({ role: 'assistant', key: 'askCompanyName' });
+      view = await svc.sendMessage('d1', 'tok1', 'Termo Instal');
       expect(view.step).toBe('services');
+      expect(view.easy?.companyName).toBe('Termo Instal');
+    });
+
+    it('reads a stated name without the AI and does not ask for it', async () => {
+      const { svc, prisma, ai } = makeService();
+      ai.parseIntro.mockResolvedValue(null);
+      prisma.__seedDraft({
+        id: 'd1',
+        tokenHash: hashToken('tok1'),
+        step: 'intro',
+        mode: 'easy',
+        answers: { locale: 'ro' },
+      });
+      const view = await svc.sendMessage(
+        'd1',
+        'tok1',
+        'Firma mea se numește Termo Audit Brașov, facem instalații termice',
+      );
+      expect(view.step).toBe('services');
+      expect(view.easy?.companyName).toBe('Termo Audit Brașov');
     });
 
     // Auto-picks a template right away (tone-aware) instead of every draft

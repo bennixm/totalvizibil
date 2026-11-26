@@ -378,6 +378,17 @@ export class SupportService {
         },
       });
       await tx.supportTicket.update({ where: { id }, data: ticketData });
+      // Whoever answers an unassigned ticket owns it from now on. Before,
+      // the reply moved it to "În lucru" while it still sat in the
+      // "Neatribuite" list, with nobody responsible for the follow-up.
+      // Conditional on `assigneeId: null` so two agents answering at the
+      // same moment can't overwrite each other.
+      if (staffReply && !ticket.assigneeId) {
+        await tx.supportTicket.updateMany({
+          where: { id, assigneeId: null },
+          data: { assigneeId: actor.id },
+        });
+      }
       if (attachmentIds.length) {
         // Scoped so this can only ever claim attachments this same actor
         // uploaded onto this same ticket and that aren't already linked to a

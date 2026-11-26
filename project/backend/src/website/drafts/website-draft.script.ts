@@ -123,6 +123,81 @@ export function looksLikeName(text: string): boolean {
   return !SENTENCE_START.test(foldText(t));
 }
 
+const CAP_WORD = String.raw`[A-ZĂÂÎȘȚŞŢÄÖÜ0-9][\p{L}\p{N}&'’.+-]*`;
+const LEGAL_FORM = String.raw`(?:S\.?\s?R\.?\s?L\.?(?:-?D)?|P\.?F\.?A\.?|I\.?I\.?|S\.?A\.?|GmbH|Ltd\.?|LLC)`;
+/** Words that end a name captured after "se numește …" ("… și facem …"). */
+const NAME_STOP =
+  /^(si|și|iar|care|ce|cu|din|în|in|la|pentru|facem|oferim|lucram|lucrăm|and|that|which|we|in|with|for|und|die|der|wir|mit|für|in)$/i;
+const NAMED_AS =
+  /(?:se\s+nume[sșş]te|se\s+cheam[aă]|numele\s+(?:firmei|afacerii|nostru|meu)(?:\s+(?:este|e))?|firma\s+(?:mea|noastr[aă])\s+(?:este|e)|is\s+called|we\s+are\s+called|named|hei[sß]+t|hei[sß]+en|namens)\s*[:-]?\s*["„“”'«]?([^,.;:!?\n"”»]+)/iu;
+
+/** Trim a captured name at the first connector word and to a sane length. */
+function trimName(raw: string): string | undefined {
+  const words: string[] = [];
+  for (const w of raw.trim().split(/\s+/)) {
+    if (words.length && NAME_STOP.test(foldText(w) || w)) break;
+    words.push(w);
+    if (words.length >= 5) break;
+  }
+  const name = words
+    .join(' ')
+    .replace(new RegExp(`\\s+${LEGAL_FORM}$`, 'iu'), '')
+    .replace(/["„“”'«».,;:!?]+$/u, '')
+    .trim();
+  return name && [...name].length <= 60 ? name : undefined;
+}
+
+/**
+ * The business name stated in a free-text intro, read WITHOUT the AI — the
+ * fallback when Claude is unavailable. Recognises the explicit forms people
+ * actually write: "…se numește Termo Audit", "Instalații Audit SRL, …",
+ * "Suntem Frizeria Ionuț, …". `undefined` when none is clearly there (the
+ * caller then asks for the name instead of inventing a placeholder).
+ */
+export function extractBusinessName(text: string): string | undefined {
+  const t = text.trim();
+  if (!t) return undefined;
+  const named = t.match(NAMED_AS);
+  if (named) {
+    const n = trimName(named[1]);
+    if (n) return n;
+  }
+  const legal = t.match(
+    new RegExp(`((?:${CAP_WORD}\\s+){0,4}${CAP_WORD})\\s+${LEGAL_FORM}(?![\\p{L}])`, 'u'),
+  );
+  if (legal) {
+    const words = legal[1].split(/\s+/);
+    // "Sunt Instalații Audit SRL" — drop a leading sentence opener.
+    while (words.length > 1 && SENTENCE_START.test(foldText(words[0]))) words.shift();
+    const n = trimName(words.join(' '));
+    if (n && !SENTENCE_START.test(foldText(n))) return n;
+  }
+  const intro = t.match(
+    // Opener matched case-insensitively by hand: the name itself must be
+    // Capitalised ("Suntem Frizeria Ionuț", never "sunt instalator").
+    new RegExp(
+      `^(?:[Ss]untem|[Ss]unt|[Nn]oi\\s+suntem|[Ww]e\\s+are|[Ww]e're|I\\s+am|[Ww]ir\\s+sind|[Ii]ch\\s+bin)\\s+((?:${CAP_WORD}\\s*){1,5})`,
+      'u',
+    ),
+  );
+  if (intro) {
+    const n = trimName(intro[1]);
+    if (n) return n;
+  }
+  return undefined;
+}
+
+/** The owner's direct answer to "Cum se numește firma?" — a bare name, or a
+ *  sentence containing one. `undefined` for a skip / empty answer. */
+export function nameFromAnswer(text: string): string | undefined {
+  const t = text.trim();
+  if (!t || SKIP_PATTERN.test(t)) return undefined;
+  const stated = extractBusinessName(t);
+  if (stated) return stated;
+  const head = t.split(/[,;\n.!?]/)[0];
+  return trimName(head.replace(/^["„“'«]+/u, '')) ?? undefined;
+}
+
 /**
  * True when an AI-proposed name is really the visitor's sentence copied
  * back (whole or nearly whole) rather than an interpreted name.
@@ -145,6 +220,21 @@ const TONE_PATTERNS: [RegExp, ToneOfVoice][] = [
 ];
 
 const SKIP_PATTERN = /^(skip|sar|sări|sar peste|pas|nu|no|n\/a|later|mai t[âa]rziu|-)$/i;
+
+/**
+ * "Move on" replies typed instead of pressing Continue ("gata", "continuă",
+ * "ok"). At the services step these used to be read as a ONE-item service
+ * list and replaced the owner's real services with a service called
+ * "Continua" — they now advance the step exactly like the button.
+ */
+const CONTINUE_PATTERN =
+  /^(continu[aăi]|continuam|continuăm|mai departe|urm[aă]torul|urm[aă]torul pas|gata|am terminat|e ok|ok|okay|bine|perfect|da|next|done|continue|go on|ready|weiter|fertig|ja)[\s.!]*$/i;
+
+/** True for a reply that only means "skip" or "continue". */
+export function isMoveOn(text: string): boolean {
+  const t = text.trim();
+  return !t || SKIP_PATTERN.test(t) || CONTINUE_PATTERN.test(t);
+}
 
 export function matchTone(text: string): ToneOfVoice | null {
   for (const [re, tone] of TONE_PATTERNS) if (re.test(text)) return tone;
@@ -207,6 +297,14 @@ export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string)
 
   switch (step) {
     case 'intro': {
+      // Second turn of the intro: the visitor is answering "Cum se numește
+      // firma?" (asked when neither the AI nor the local reader found a name).
+      if (a.awaitingName) {
+        a.awaitingName = false;
+        const name = nameFromAnswer(t);
+        if (name) a.companyName = name;
+        return { answers: a, step: 'services', assistant: ['askServices'], regenerate: true };
+      }
       // The raw sentence is NEVER used as the name here: `parseIntroFor`
       // tells the service to run it through the AI read first, which sets
       // the interpreted name (or asks again when the text isn't an intro).
@@ -224,7 +322,7 @@ export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string)
     case 'services': {
       // A real list keeps us on this step (so the client can reorder / tweak the
       // AI copy); an empty message or the "Continue" button moves on.
-      if (t && !SKIP_PATTERN.test(t)) {
+      if (!isMoveOn(t)) {
         const names = splitList(t);
         a.serviceNames = names;
         if (!a.businessType && names.length) a.businessType = names.slice(0, 3).join(', ');
@@ -245,7 +343,7 @@ export function advanceEasy(step: EasyStep, answers: EasyAnswers, text?: string)
       return { answers: a, step: 'contact', assistant: ['askContact'], regenerate: true };
 
     case 'contact': {
-      if (!SKIP_PATTERN.test(t)) {
+      if (!isMoveOn(t)) {
         a.phone = extractPhone(t) ?? a.phone;
         a.email = extractEmail(t) ?? a.email;
       }

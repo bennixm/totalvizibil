@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppDateField from '@/components/AppDateField.vue'
 import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -13,7 +14,7 @@ import {
 } from '@/stores/admin'
 import { useAuthStore } from '@/stores/auth'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const admin = useAdminStore()
 const auth = useAuthStore()
 
@@ -132,6 +133,17 @@ function actionTone(action: string): 'success' | 'warning' | 'primary' {
   return 'primary'
 }
 
+/** Human label for an audit action code; the raw code stays available as a
+ *  tooltip (and is the fallback for a code without a translation yet). */
+function actionLabel(action: string): string {
+  const key = `jurnalAction.${action.replace(/\./g, '_')}`
+  return te(key) ? t(key) : action
+}
+function targetLabel(type: string): string {
+  const key = `jurnalTarget.${type}`
+  return te(key) ? t(key) : type
+}
+
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString(uiLocale(), {
     day: '2-digit',
@@ -151,11 +163,11 @@ watch(staffActor, (v) => {
 })
 const staffActionItems = computed(() => [
   { value: '', title: t('admin.jurnalFilterAnyAction') },
-  ...STAFF_ACTIONS.map((a) => ({ value: a, title: a })),
+  ...STAFF_ACTIONS.map((a) => ({ value: a, title: actionLabel(a) })),
 ])
 const staffTargetItems = computed(() => [
   { value: '', title: t('admin.jurnalFilterAnyTarget') },
-  ...STAFF_TARGET_TYPES.map((v) => ({ value: v, title: v })),
+  ...STAFF_TARGET_TYPES.map((v) => ({ value: v, title: targetLabel(v) })),
 ])
 
 // --- owner tab filters -------------------------------------------------
@@ -173,7 +185,7 @@ watch(ownerCompany, (v) => {
 })
 const ownerActionItems = computed(() => [
   { value: '', title: t('admin.jurnalFilterAnyAction') },
-  ...OWNER_ACTIONS.map((a) => ({ value: a, title: a })),
+  ...OWNER_ACTIONS.map((a) => ({ value: a, title: actionLabel(a) })),
 ])
 
 // --- diff dialog, shared by both tabs ------------------------------------
@@ -185,7 +197,7 @@ const diffKeys = computed(() => {
   return [...new Set([...Object.keys(b), ...Object.keys(a)])]
 })
 function fmtVal(v: unknown): string {
-  if (v === null || v === undefined) return '—'
+  if (v === null || v === undefined) return '-'
   if (typeof v === 'object') return JSON.stringify(v)
   return String(v)
 }
@@ -237,7 +249,7 @@ watch(tab, (v) => {
             variant="outlined"
             density="compact"
             hide-details
-            class="jrn__sel mono"
+            class="jrn__sel"
             @update:model-value="admin.setAuditLogFilter('action', $event as string)"
           />
           <v-select
@@ -247,13 +259,12 @@ watch(tab, (v) => {
             variant="outlined"
             density="compact"
             hide-details
-            class="jrn__sel mono"
+            class="jrn__sel"
             @update:model-value="admin.setAuditLogFilter('targetType', $event as string)"
           />
           <div class="jrn__range">
-            <v-text-field
+            <AppDateField
               :model-value="admin.auditLogFilters.dateFrom"
-              type="date"
               :label="t('admin.jurnalDateFrom')"
               variant="outlined"
               density="compact"
@@ -261,9 +272,8 @@ watch(tab, (v) => {
               class="jrn__date"
               @update:model-value="admin.setAuditLogFilter('dateFrom', ($event as string) ?? '')"
             />
-            <v-text-field
+            <AppDateField
               :model-value="admin.auditLogFilters.dateTo"
-              type="date"
               :label="t('admin.jurnalDateTo')"
               variant="outlined"
               density="compact"
@@ -305,13 +315,20 @@ watch(tab, (v) => {
                 <span class="jrow__actorEmail">{{ row.actor.email }}</span>
               </span>
               <span class="jrow__cell">
-                <span v-for="r in row.actorRoles" :key="r" class="tag">{{ r }}</span>
+                <span class="jrow__roles">
+                  <span v-if="row.actorRoles[0]" class="tag">{{ row.actorRoles[0] }}</span>
+                  <span
+                    v-if="row.actorRoles.length > 1"
+                    class="tag tag--more"
+                    :title="row.actorRoles.join(', ')"
+                  >+{{ row.actorRoles.length - 1 }}</span>
+                </span>
               </span>
               <span class="jrow__cell">
-                <span class="achip mono" :class="`achip--${actionTone(row.action)}`">{{ row.action }}</span>
+                <span class="achip" :class="`achip--${actionTone(row.action)}`" :title="row.action">{{ actionLabel(row.action) }}</span>
               </span>
               <span class="jrow__cell jrow__target">
-                <code>{{ row.targetType }}</code>
+                <code :title="row.targetType">{{ targetLabel(row.targetType) }}</code>
                 <span v-if="row.targetId" class="jrow__targetId">{{ row.targetId.slice(0, 8) }}…</span>
               </span>
               <div class="jrow__actions">
@@ -361,13 +378,12 @@ watch(tab, (v) => {
             variant="outlined"
             density="compact"
             hide-details
-            class="jrn__sel mono"
+            class="jrn__sel"
             @update:model-value="admin.setBusinessActionLogFilter('action', $event as string)"
           />
           <div class="jrn__range">
-            <v-text-field
+            <AppDateField
               :model-value="admin.businessActionLogFilters.dateFrom"
-              type="date"
               :label="t('admin.jurnalDateFrom')"
               variant="outlined"
               density="compact"
@@ -375,9 +391,8 @@ watch(tab, (v) => {
               class="jrn__date"
               @update:model-value="admin.setBusinessActionLogFilter('dateFrom', ($event as string) ?? '')"
             />
-            <v-text-field
+            <AppDateField
               :model-value="admin.businessActionLogFilters.dateTo"
-              type="date"
               :label="t('admin.jurnalDateTo')"
               variant="outlined"
               density="compact"
@@ -435,7 +450,7 @@ watch(tab, (v) => {
                 </router-link>
               </span>
               <span class="jrow__cell">
-                <span class="achip mono" :class="`achip--${actionTone(row.action)}`">{{ row.action }}</span>
+                <span class="achip" :class="`achip--${actionTone(row.action)}`" :title="row.action">{{ actionLabel(row.action) }}</span>
               </span>
               <div class="jrow__actions">
                 <v-btn size="small" variant="tonal" @click="diffTarget = row">
@@ -459,7 +474,7 @@ watch(tab, (v) => {
     <v-dialog :model-value="!!diffTarget" max-width="640" @update:model-value="diffTarget = null">
       <v-card v-if="diffTarget" rounded="lg">
         <v-card-title class="jrn__dTitle">
-          <span class="achip mono" :class="`achip--${actionTone(diffTarget.action)}`">{{ diffTarget.action }}</span>
+          <span class="achip" :class="`achip--${actionTone(diffTarget.action)}`" :title="diffTarget.action">{{ actionLabel(diffTarget.action) }}</span>
           <span class="jrn__dDate">{{ fmtDate(diffTarget.createdAt) }}</span>
         </v-card-title>
         <v-card-text>
@@ -650,6 +665,23 @@ watch(tab, (v) => {
 .jrow__actorEmail {
   font-size: var(--tvz-fs-caption);
   color: rgba(var(--v-theme-on-surface), 0.5);
+  /* A long address used to run under the role column next to it. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jrow__actor b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jrow__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.tag--more {
+  cursor: help;
 }
 .jrow__company {
   font-weight: 600;
@@ -666,6 +698,7 @@ watch(tab, (v) => {
   min-width: 0;
 }
 .jrow__target code {
+  font-family: inherit;
   font-size: var(--tvz-fs-caption);
   padding: 0.05rem 0.35rem;
   border-radius: 4px;

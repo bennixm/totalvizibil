@@ -117,7 +117,7 @@ function clear() {
     background var(--tvz-dur-fast, 0.15s) var(--tvz-ease-out, ease);
 }
 .cip__cell:hover {
-  border-color: rgb(var(--v-theme-primary) / 0.6);
+  border-color: rgba(var(--v-theme-primary), 0.6);
   color: rgb(var(--v-theme-primary));
 }
 .cip__cell--active {

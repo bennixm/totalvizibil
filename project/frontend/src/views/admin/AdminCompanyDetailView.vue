@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AppNumberField from '@/components/AppNumberField.vue'
+import AppDateField from '@/components/AppDateField.vue'
 import { uiLocale } from '@/plugins/i18n'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -69,6 +71,7 @@ function errText(e: unknown, fb: string) {
   if (e instanceof ApiError) {
     if (e.message === 'owner_wallet_cannot_afford_upgrade') return t('adminCo.upgradeUnaffordable')
     if (e.message === 'campaign_changed_since_loaded') return t('adminCo.campaignChangedSinceLoaded')
+    if (e.message === 'company_not_suspended') return t('adminCo.notSuspended')
     return e.message
   }
   return fb
@@ -438,6 +441,8 @@ async function act<T>(key: string, fn: () => Promise<T>, okMsg: string) {
     flash(okMsg)
   } catch (e) {
     flash(errText(e, t('admin.genericError')), 'error')
+    // Stale page (another admin already lifted the suspension): show the truth.
+    if (e instanceof ApiError && e.message === 'company_not_suspended') void load()
   } finally {
     busy.value.delete(key)
   }
@@ -860,12 +865,12 @@ const leadStatusItems = computed(() => [
         :id="data.company.id"
       >
         <template #pills>
-          <v-chip size="small" :color="bizColor[data.company.status]" variant="tonal">{{ statusLabel }}</v-chip>
+          <v-chip size="small" :color="bizColor[data.company.status]" variant="tonal">{{ t('adminCo.pillListing', { s: statusLabel }) }}</v-chip>
           <v-chip v-if="pendingDeletion" size="small" color="error" variant="flat" prepend-icon="mdi-delete-clock-outline">
             {{ t('adminCo.pendingDeletionPill') }}
           </v-chip>
           <v-chip v-if="camp" size="small" :color="campColor[camp.status]" variant="flat">
-            {{ t('admin.camp_' + camp.status) }}
+            {{ t('adminCo.pillCampaign', { s: t('admin.camp_' + camp.status) }) }}
           </v-chip>
           <v-chip v-if="camp?.autoOptimize" size="small" color="primary" variant="tonal" prepend-icon="mdi-robot-outline">
             {{ t('dashboard.campaignAuto') }}
@@ -1040,10 +1045,9 @@ const leadStatusItems = computed(() => [
                   </router-link>
                   <span class="ac__muted">{{ data.company.owner.email }}</span>
                 </div>
-                <AdminMetaItem :label="t('adminCo.category')" :value="categoryLabel" />
-                <AdminMetaItem :label="t('adminCo.location')" :value="locationLabel" />
+                <!-- Category, location and creation date are already in the
+                     page header right above; only what it doesn't show stays. -->
                 <AdminMetaItem :label="t('adminCo.country')" :value="data.company.country" />
-                <AdminMetaItem :label="t('adminCo.created')" :value="dt(data.company.createdAt)" />
               </div>
               <div class="ac__counts">
                 <AdminStatCard :label="t('adminCo.cServices')" :value="data.company.counts.services" />
@@ -1209,13 +1213,9 @@ const leadStatusItems = computed(() => [
           </p>
 
           <div class="ac__row">
-            <v-text-field v-model.number="budget" type="number" :min="1" :label="t('campaign.dailyBudget')" suffix="cr" variant="outlined" density="comfortable" :error="!budgetValid" hide-details />
-            <v-text-field
-              v-model.number="cpc"
-              type="number"
-              :min="0.05"
-              :max="Number.isFinite(cpcMax) ? cpcMax : undefined"
-              step="0.05"
+            <AppNumberField v-model="budget" :label="t('campaign.dailyBudget')" suffix="cr" variant="outlined" density="comfortable" :error="!budgetValid" hide-details />
+            <AppNumberField
+              v-model="cpc"
               :label="t('campaign.cpc')"
               suffix="cr"
               variant="outlined"
@@ -1405,7 +1405,7 @@ const leadStatusItems = computed(() => [
                 <AdminStatCard :label="t('consumption.clicks')" :value="fmtInt(costs.report.lifetime.clicks)" />
                 <AdminStatCard
                   :label="t('consumption.heroCpc')"
-                  :value="costs.report.lifetime.cpcEffective ? fmtCrSuffix(costs.report.lifetime.cpcEffective.credits) : '—'"
+                  :value="costs.report.lifetime.cpcEffective ? fmtCrSuffix(costs.report.lifetime.cpcEffective.credits) : '-'"
                   :sub="t('consumption.heroCpcSub')"
                 />
                 <AdminStatCard
@@ -1450,7 +1450,7 @@ const leadStatusItems = computed(() => [
                       </td>
                       <td class="num" :data-label="t('consumption.colClicks')">{{ r.clicks }}</td>
                       <td class="num" :data-label="t('consumption.colCpc')">
-                        {{ r.cpcEffective ? fmtCrSuffix(r.cpcEffective.credits) : '—' }}
+                        {{ r.cpcEffective ? fmtCrSuffix(r.cpcEffective.credits) : '-' }}
                       </td>
                       <td class="num ac__costsFeedSpent" :data-label="t('consumption.colSpentFeed')">
                         <span class="ac__feedBar"><span class="ac__feedBarFill" :style="{ width: r.sharePct + '%' }" /></span>
@@ -1525,14 +1525,14 @@ const leadStatusItems = computed(() => [
                   class="ac__costsFilterType"
                   @update:model-value="applyCostsFilters"
                 />
-                <label class="ac__costsFilterDate">
+                <div class="ac__costsFilterDate">
                   <span>{{ t('consumption.filterFrom') }}</span>
-                  <input v-model="costsFilter.from" type="date" @change="applyCostsFilters" />
-                </label>
-                <label class="ac__costsFilterDate">
+                  <AppDateField v-model="costsFilter.from" density="compact" variant="outlined" hide-details @change="applyCostsFilters" />
+                </div>
+                <div class="ac__costsFilterDate">
                   <span>{{ t('consumption.filterTo') }}</span>
-                  <input v-model="costsFilter.to" type="date" @change="applyCostsFilters" />
-                </label>
+                  <AppDateField v-model="costsFilter.to" density="compact" variant="outlined" hide-details @change="applyCostsFilters" />
+                </div>
                 <button v-if="costsHasActiveFilters" type="button" class="ac__costsFilterClear" @click="clearCostsFilters">
                   <v-icon icon="mdi-close" size="14" /> {{ t('consumption.filterClear') }}
                 </button>
@@ -1559,7 +1559,7 @@ const leadStatusItems = computed(() => [
                       <td :data-label="t('consumption.colDetail')">
                         <span class="ac__costsRowId">{{ costsShortId(e.id) }}</span> {{ costsEntryLabel(e) }}
                       </td>
-                      <td class="num" :data-label="t('consumption.colClicks')">{{ e.clicks ?? '—' }}</td>
+                      <td class="num" :data-label="t('consumption.colClicks')">{{ e.clicks ?? '-' }}</td>
                       <td class="num" :data-label="t('consumption.colAmount')">{{ fmtCrSuffix(Math.abs(e.amount.credits)) }}</td>
                     </tr>
                   </tbody>
@@ -2389,15 +2389,6 @@ const leadStatusItems = computed(() => [
   gap: 0.15rem;
   font-size: var(--tvz-fs-micro);
   color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.ac__costsFilterDate input {
-  border: 1px solid var(--tvz-glass-border);
-  border-radius: 8px;
-  padding: 0.4rem 0.5rem;
-  background: rgb(var(--v-theme-surface));
-  color: rgb(var(--v-theme-on-surface));
-  /* Form-field size (16px on phones: no iOS focus zoom). */
-  font-size: var(--tvz-fs-input);
 }
 .ac__costsFilterClear {
   display: inline-flex;

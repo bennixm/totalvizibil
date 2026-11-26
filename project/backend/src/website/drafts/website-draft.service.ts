@@ -17,6 +17,7 @@ import {
   NO_CHAT_STEPS,
   TranscriptTurn,
   advanceEasy,
+  extractBusinessName,
   foldText,
   isCopiedSentence,
   looksLikeName,
@@ -293,6 +294,10 @@ export class WebsiteDraftService {
       const composed = city && !foldText(base).includes(foldText(city)) ? `${base} ${city}` : base;
       if (!isCopiedSentence(composed, rawIntro)) return composed.slice(0, 80);
     }
+    // AI unavailable or it found no name: read an explicitly stated one
+    // ("…se numește X", "X SRL", "Suntem X") before giving up.
+    const stated = extractBusinessName(rawIntro);
+    if (stated) return stated;
     const guess = quickNameGuess(rawIntro);
     return looksLikeName(guess) ? guess : undefined;
   }
@@ -466,6 +471,19 @@ export class WebsiteDraftService {
           step: 'intro',
           assistant: ['introUnclear'],
           regenerate: false,
+        };
+      } else if (
+        !result.answers.companyName?.trim() &&
+        !transcript.some((x) => x.key === 'askCompanyName')
+      ) {
+        // No name could be read (typically the AI is down and the sentence
+        // states none). Ask for it once, instead of letting the business be
+        // created and published as the generic "Afacerea mea".
+        result = {
+          answers: { ...result.answers, awaitingName: true },
+          step: 'intro',
+          assistant: ['askCompanyName'],
+          regenerate: true,
         };
       }
     }

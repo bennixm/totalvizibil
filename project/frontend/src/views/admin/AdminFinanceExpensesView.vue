@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppDateField from '@/components/AppDateField.vue'
 import { computed, onMounted, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -298,7 +299,7 @@ onMounted(() => setQuickRange('month'))
               {{ sourceLabel(r) }}
             </span>
           </span>
-          <span class="rrow__cell afe__note">{{ r.note ?? '—' }}</span>
+          <span class="rrow__cell afe__note">{{ r.note ?? '-' }}</span>
           <span class="rrow__cell afe__amount">
             <b>{{ amount(r.amountMinor, r.currency) }}</b>
             <!-- The document amount above stays in its own currency; the
@@ -350,7 +351,7 @@ onMounted(() => setQuickRange('month'))
         <v-card-title>{{ editor.id ? t('adminFinance.editExpense') : t('adminFinance.addExpense') }}</v-card-title>
         <v-card-text class="d-flex flex-column ga-1">
           <v-select v-model="editor.category" :items="CATEGORIES" item-title="label" item-value="value" :label="t('adminFinance.category')" density="comfortable" />
-          <v-text-field v-model="editor.incurredOn" type="date" :label="t('adminFinance.colDate')" density="comfortable" />
+          <AppDateField v-model="editor.incurredOn" :label="t('adminFinance.colDate')" density="comfortable" />
           <div class="afe__amountrow">
             <v-text-field
               v-model.number="editor.amount"
