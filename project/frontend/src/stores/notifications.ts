@@ -128,6 +128,7 @@ export function routeForNotification(
   if (n.type === 'google_ads_agent_run_failed') {
     return { name: 'admin-google-ads-agent' }
   }
+  if (n.type === 'ai_provider_down') return { name: 'admin-financiar-ai' }
   if (n.type === 'supplier_invoices_new') {
     const id = n.data?.externalInvoiceId
     return { name: 'admin-financiar-furnizori', query: typeof id === 'string' ? { invoice: id } : {} }
@@ -230,6 +231,7 @@ const VISUALS: Record<string, NotificationVisual> = {
   ticket_unanswered_escalation: { icon: 'mdi-alert-octagon-outline', tone: 'error' },
   pro_build_failed: { icon: 'mdi-alert-circle-outline', tone: 'error' },
   google_ads_agent_run_failed: { icon: 'mdi-bullhorn-outline', tone: 'error' },
+  ai_provider_down: { icon: 'mdi-robot-dead-outline', tone: 'error' },
   supplier_invoices_new: { icon: 'mdi-file-document-multiple-outline', tone: 'primary' },
   supplier_invoices_due: { icon: 'mdi-clock-alert-outline', tone: 'warning' },
   supplier_invoices_overdue: { icon: 'mdi-alert-circle-outline', tone: 'error' },

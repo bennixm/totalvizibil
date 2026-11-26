@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppDateField from '@/components/AppDateField.vue'
 /**
  * Add an original supplier document. Optional "fill with AI": Claude reads
  * the document server-side and pre-fills the form with a confidence per
@@ -317,16 +318,14 @@ async function save(): Promise<void> {
             maxlength="40"
             density="comfortable"
           />
-          <v-text-field
+          <AppDateField
             v-model="form.issueDate"
-            type="date"
             :label="t('supplierInvoices.colIssued')"
             density="comfortable"
             :class="{ 'is-low': low.issue }"
           />
-          <v-text-field
+          <AppDateField
             v-model="form.dueDate"
-            type="date"
             :label="t('supplierInvoices.colDue')"
             density="comfortable"
             :class="{ 'is-low': low.due }"
@@ -385,10 +384,9 @@ async function save(): Promise<void> {
             clearable
             density="comfortable"
           />
-          <v-text-field
+          <AppDateField
             v-if="form.paymentStatus === 'paid'"
             v-model="form.paidAt"
-            type="date"
             :label="t('supplierInvoices.paidAt')"
             :hint="t('supplierInvoices.paidAtHint')"
             persistent-hint
@@ -404,8 +402,8 @@ async function save(): Promise<void> {
         </button>
         <div v-if="showExtra" class="sud__extra">
           <div class="sud__grid">
-            <v-text-field v-model="form.periodStart" type="date" :label="t('supplierInvoices.periodStart')" density="comfortable" />
-            <v-text-field v-model="form.periodEnd" type="date" :label="t('supplierInvoices.periodEnd')" density="comfortable" />
+            <AppDateField v-model="form.periodStart" :label="t('supplierInvoices.periodStart')" density="comfortable" />
+            <AppDateField v-model="form.periodEnd" :label="t('supplierInvoices.periodEnd')" density="comfortable" />
           </div>
           <v-text-field v-model="form.note" :label="t('supplierInvoices.note')" maxlength="300" density="comfortable" />
         </div>

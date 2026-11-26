@@ -564,7 +564,7 @@ onMounted(() => setQuickRange('month'))
                 <span :data-label="t('adminFinance.colNumber')"><b>{{ inv.number }}</b></span>
                 <span :data-label="t('adminFinance.colClient')">{{ inv.buyerName }}</span>
                 <span :data-label="t('adminFinance.colVoidedAt')">{{ dt(inv.voidedAt) }}</span>
-                <span :data-label="t('adminFinance.colReason')" class="afd__reason">{{ inv.voidReason ?? '—' }}</span>
+                <span :data-label="t('adminFinance.colReason')" class="afd__reason">{{ inv.voidReason ?? '-' }}</span>
                 <span :data-label="t('adminFinance.vatColTotal')">
                   {{ (inv.totalMinor / 100).toLocaleString('ro-RO', { minimumFractionDigits: 2 }) }}
                   {{ inv.currency }}
@@ -606,7 +606,7 @@ onMounted(() => setQuickRange('month'))
                 :key="c.companyId"
                 class="afd__row afd__row--company"
               >
-                <span :data-label="t('adminFinance.colBusiness')"><b>{{ c.companyName ?? '—' }}</b></span>
+                <span :data-label="t('adminFinance.colBusiness')"><b>{{ c.companyName ?? '-' }}</b></span>
                 <span :data-label="t('adminFinance.colClicks')">{{ c.clicks.toLocaleString('ro-RO') }}</span>
                 <span :data-label="t('adminFinance.colSpend')">{{ eur(c.spendMinor) }}</span>
               </div>

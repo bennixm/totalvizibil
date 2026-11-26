@@ -180,16 +180,6 @@ export interface DashboardPayload {
   }
 }
 
-export interface CreateCompanyInput {
-  displayName: string
-  description?: string
-  categoryId?: string
-  phone?: string
-  email?: string
-  location?: { city: string; region?: string; address?: string }
-  services?: { name: string }[]
-}
-
 export interface CompanyOverview {
   id: string
   displayName: string
@@ -303,13 +293,6 @@ export const useCompaniesStore = defineStore('companies', {
         null
       if (id) this.select(id)
       return id
-    },
-
-    async create(input: CreateCompanyInput): Promise<Company> {
-      const company = await apiFetch<Company>('/companies', { method: 'POST', body: input })
-      this.list = [company, ...this.list]
-      this.loaded = true
-      return company
     },
 
     /** Claim an anonymous website draft into a real company (end of create flow). */

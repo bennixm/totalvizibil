@@ -42,6 +42,9 @@ export interface EasyProcessStep {
 
 export interface EasyAnswers {
   companyName?: string;
+  /** Set while the guided chat waits for the answer to "Cum se numește
+   *  firma?" (asked only when no name could be read from the first message). */
+  awaitingName?: boolean;
   /** Free-text trade/field, kept for SEO + the AI Services prompt. */
   businessType?: string;
   /** Landing headline. Defaults to the company name. */

@@ -17,6 +17,7 @@ function hexToRgba(hex: string, alpha: number): string {
 </script>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
 import { useTheme } from 'vuetify'
 // Modular ApexCharts build — only the pieces this chart actually uses
@@ -72,6 +73,17 @@ const apexSeries = computed(() => props.series.map((s) => ({ name: s.label, data
 const lastValues = computed(() => props.series.map((s) => s.values[s.values.length - 1] ?? 0))
 
 const lastIndex = computed(() => props.labels.length - 1)
+
+const { locale } = useI18n()
+/** "2026-11-13" → "13 nov." in the interface language; other labels as-is. */
+function shortDay(v: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v ?? ''))
+  if (!m) return String(v ?? '')
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString(locale.value, {
+    day: 'numeric',
+    month: 'short',
+  })
+}
 
 const options = computed<ApexOptions>(() => {
   const { series: seriesColors, surface, ink } = palette.value
@@ -131,7 +143,15 @@ const options = computed<ApexOptions>(() => {
       categories: props.labels,
       axisBorder: { show: false },
       axisTicks: { show: false },
-      labels: { style: { colors: inkDim, fontSize: '12px' }, rotate: 0 },
+      // ISO days ("2026-11-13") side by side ran into one unreadable strip
+      // ("2026-11-132026-11-14…"): short local dates, and at most ~7 of them.
+      tickAmount: props.labels.length > 8 ? 7 : undefined,
+      labels: {
+        style: { colors: inkDim, fontSize: '12px' },
+        rotate: 0,
+        hideOverlappingLabels: true,
+        formatter: (v: string) => shortDay(v),
+      },
       tooltip: { enabled: false },
       crosshairs: { stroke: { color: inkFaint, width: 1, dashArray: 0 } },
     },

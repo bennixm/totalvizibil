@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AppNumberField from '@/components/AppNumberField.vue'
+import AppDateField from '@/components/AppDateField.vue'
 import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -342,8 +344,12 @@ watch(
       <section class="wal__card">
         <div class="wal__side">
           <v-icon icon="mdi-piggy-bank-outline" size="20" class="wal__sideIcon" />
-          <span class="wal__sideLabel">{{ t('wallet.deposited') }}</span>
-          <strong class="wal__sideValue">{{ eur(summary.depositedEurCents / 100) }}</strong>
+          <!-- Credits, like the two other figures in this panel; the real money
+               paid for them is the line underneath (it used to be the headline,
+               so the panel mixed "€90,00" with "101,7" and "105" credits). -->
+          <span class="wal__sideLabel">{{ t('wallet.purchased') }}</span>
+          <strong class="wal__sideValue">{{ credits(summary.purchased.credits) }}</strong>
+          <span class="wal__sideSub">{{ t('wallet.paidAmount', { amount: eur(summary.depositedEurCents / 100) }) }}</span>
         </div>
 
         <div class="wal__balance">
@@ -375,6 +381,9 @@ watch(
           <v-icon icon="mdi-poker-chip" size="20" class="wal__sideIcon" />
           <span class="wal__sideLabel">{{ t('wallet.obtained') }}</span>
           <strong class="wal__sideValue">{{ credits(summary.obtained.credits) }}</strong>
+          <span v-if="summary.obtained.credits - summary.purchased.credits > 0.004" class="wal__sideSub">
+            {{ t('wallet.bonusPart', { n: credits(summary.obtained.credits - summary.purchased.credits) }) }}
+          </span>
         </div>
       </section>
 
@@ -433,14 +442,14 @@ watch(
             </button>
           </div>
           <div class="wal__payDates">
-            <label class="wal__payDateField">
+            <div class="wal__payDateField">
               <span>{{ t('wallet.paymentsFromLabel') }}</span>
-              <input type="date" v-model="paymentsFrom" />
-            </label>
-            <label class="wal__payDateField">
+              <AppDateField v-model="paymentsFrom" density="compact" variant="outlined" hide-details />
+            </div>
+            <div class="wal__payDateField">
               <span>{{ t('wallet.paymentsToLabel') }}</span>
-              <input type="date" v-model="paymentsTo" />
-            </label>
+              <AppDateField v-model="paymentsTo" density="compact" variant="outlined" hide-details />
+            </div>
             <button v-if="hasDateFilters" type="button" class="wal__payDateClear" @click="clearPaymentsDates">
               <v-icon icon="mdi-close" size="14" /> {{ t('wallet.paymentsClearDates') }}
             </button>
@@ -514,12 +523,8 @@ watch(
       <v-card>
         <v-card-title class="text-h6">{{ t('wallet.refundConfirmTitle') }}</v-card-title>
         <v-card-text>
-          <v-text-field
-            v-model.number="refundAmount"
-            type="number"
-            :min="0.01"
-            :max="refundableCredits"
-            step="0.01"
+          <AppNumberField
+            v-model="refundAmount"
             variant="outlined"
             density="compact"
             :label="t('wallet.refundAmountLabel')"
@@ -528,7 +533,7 @@ watch(
             <template #append-inner>
               <v-icon icon="mdi-poker-chip" size="16" />
             </template>
-          </v-text-field>
+          </AppNumberField>
           <p class="wal__refundNote">
             {{ t('wallet.refundAvailable', { credits: credits(refundableCredits) }) }}
           </p>
@@ -598,6 +603,10 @@ watch(
   margin-top: 0.25rem;
   font-family: 'Space Grotesk Variable', sans-serif;
   font-size: 1.2rem;
+}
+.wal__sideSub {
+  font-size: var(--tvz-fs-caption);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 .wal__balance {
   padding: 1.6rem 1.5rem;
@@ -794,14 +803,6 @@ watch(
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
-.wal__payDateField input[type='date'] {
-  padding: 0.4rem 0.55rem;
-  border: 1px solid var(--tvz-hairline, rgba(var(--v-theme-on-surface), 0.15));
-  border-radius: 8px;
-  background: rgb(var(--v-theme-surface));
-  color: rgb(var(--v-theme-on-surface));
-  font-size: var(--tvz-fs-small);
-}
 .wal__payDateClear {
   display: inline-flex;
   align-items: center;
@@ -945,9 +946,6 @@ watch(
     align-items: stretch;
   }
   .wal__payDateField {
-    width: 100%;
-  }
-  .wal__payDateField input[type='date'] {
     width: 100%;
   }
   .wal__payDateClear {

@@ -1,3 +1,4 @@
+import { vuetify } from './vuetify'
 import { createI18n } from 'vue-i18n'
 
 import de from '@/locales/de.json'
@@ -53,6 +54,7 @@ export function uiLocale(): string {
 /** Keeps vue-i18n and the <html lang> attribute in sync. */
 export function applyLocale(locale: AppLocale): void {
   i18n.global.locale.value = locale
+  vuetify.locale.current.value = locale
   if (typeof document !== 'undefined') {
     document.documentElement.setAttribute('lang', locale)
   }

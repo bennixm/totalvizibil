@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppDateField from '@/components/AppDateField.vue'
 /**
  * The live booking widget rendered for an `appointment` section — the ONLY
  * appointment-booking UI the platform ships. Always talks to the real
@@ -115,13 +116,14 @@ async function submitBooking(): Promise<void> {
 
     <template v-else>
       <div class="apw__datebar">
-        <input
-          type="date"
+        <AppDateField
+          :model-value="selectedDate"
           :min="minDate"
           :max="maxDate"
-          :value="selectedDate"
           :disabled="!slug"
-          @change="selectedDate = ($event.target as HTMLInputElement).value"
+          :clearable="false"
+          density="compact" variant="outlined" hide-details
+          @update:model-value="selectedDate = $event"
         />
       </div>
 
@@ -168,14 +170,6 @@ async function submitBooking(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
-}
-.apw__datebar input[type='date'] {
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--site-border, rgba(0, 0, 0, 0.15));
-  border-radius: 8px;
-  font: inherit;
-  color: inherit;
-  background: transparent;
 }
 .apw__center {
   display: grid;

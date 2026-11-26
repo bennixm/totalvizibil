@@ -139,6 +139,7 @@ function fakeWallet() {
 function fakeCampaigns() {
   return {
     saveFor: jest.fn(async () => {}),
+    pauseForUnlisting: jest.fn(async () => true),
     // Mirrors the real `CampaignService.getFor()` contract — it always
     // returns this full editor payload, even for a company with no
     // Campaign row yet (only the nested `campaign` field goes null then).
@@ -404,6 +405,49 @@ describe('AdminCompaniesService', () => {
 
       expect(result).toEqual({ ok: true, status: 'suspended' });
       expect(prisma.campaign.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses to "lift" a suspension on a business that is not suspended', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seed({
+        id: 'company-1',
+        displayName: 'My Biz',
+        ownerUserId: 'user-1',
+        status: 'active',
+        campaign: null,
+      });
+
+      await expect(svc.setStatus('company-1', { status: 'active' }, actor)).rejects.toThrow(
+        'company_not_suspended',
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(prisma.company.update).not.toHaveBeenCalled();
+      expect(notifications.notify).not.toHaveBeenCalled();
+    });
+
+    it('suspending an already-suspended business changes nothing and sends no email', async () => {
+      const { svc, prisma, notifications } = makeService();
+      prisma.__seed({
+        id: 'company-1',
+        ownerUserId: 'user-1',
+        status: 'suspended',
+        campaign: null,
+      });
+
+      const result = await svc.setStatus('company-1', { status: 'suspended' }, actor);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(result).toEqual({ ok: true, status: 'suspended' });
+      expect(notifications.notify).not.toHaveBeenCalled();
+    });
+
+    it('an admin website unpublish also stops the campaign', async () => {
+      const { svc, prisma, campaigns } = makeService();
+      prisma.__seed({ id: 'company-1', ownerUserId: 'user-1', status: 'active', campaign: null });
+
+      await svc.setWebsitePublished('company-1', false, actor);
+
+      expect(campaigns.pauseForUnlisting).toHaveBeenCalledWith('company-1');
     });
 
     it('lifting suspension sets company status to draft', async () => {

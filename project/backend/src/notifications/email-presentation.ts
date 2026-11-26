@@ -30,9 +30,11 @@ const CATEGORY_RULES: { test: RegExp; eyebrow: string }[] = [
   { test: /^(support_|ticket_)/, eyebrow: 'Suport' },
   { test: /^(pro_|advanced_)/, eyebrow: 'Site' },
   { test: /^maintenance$/, eyebrow: 'Anunț' },
+  { test: /^ai_/, eyebrow: 'Platformă' },
 ];
 
 const DANGER = new Set([
+  'ai_provider_down',
   'account_suspended',
   'wallet_blocked',
   'business_suspended',

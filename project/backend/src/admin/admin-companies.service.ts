@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CampaignStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -238,7 +244,14 @@ export class AdminCompaniesService {
         category: { include: { parent: { select: { slug: true, nameI18n: true } } } },
         locations: { orderBy: { isPrimary: 'desc' } },
         website: {
-          select: { mode: true, status: true, updatedAt: true, content: true, theme: true },
+          select: {
+            mode: true,
+            status: true,
+            updatedAt: true,
+            content: true,
+            theme: true,
+            easyConfig: true,
+          },
         },
         owner: { select: { id: true, name: true, email: true, status: true } },
         _count: { select: { services: true, contacts: true, leads: true, adClicks: true } },
@@ -318,7 +331,10 @@ export class AdminCompaniesService {
           : null,
         owner: company.owner,
         counts: {
-          services: company._count.services,
+          // A business created from the guided "site simplu" keeps its
+          // services in the site's own config, not in `company_services`
+          // (the admin showed "Servicii 0" for a site listing three).
+          services: company._count.services || easyServiceCount(company.website?.easyConfig),
           contacts: company._count.contacts,
           leads: company._count.leads,
           clicks: company._count.adClicks,
@@ -602,6 +618,9 @@ export class AdminCompaniesService {
         throw new BadRequestException('website_builder_incomplete');
       }
     }
+    // Taking the site down takes the listing down — stop the campaign too,
+    // same as the owner's own unpublish (it used to keep running "active").
+    if (!published) await this.campaigns.pauseForUnlisting(companyId);
     await this.prisma.website.updateMany({
       where: { companyId },
       data: { status: published ? 'published' : 'unpublished' },
@@ -897,6 +916,9 @@ export class AdminCompaniesService {
     await this.assertNotPendingDeletion(companyId);
 
     if (dto.status === 'suspended') {
+      // Already suspended: nothing to change, and no second "suspended" email.
+      if (company.status === 'suspended')
+        return { ok: true as const, status: 'suspended' as const };
       const now = new Date();
       // Bank the run that a suspend interrupts, so run time isn't silently lost.
       let bankedSeconds = company.campaign?.activeSecondsAccrued ?? 0;
@@ -965,6 +987,15 @@ export class AdminCompaniesService {
       });
 
       return { ok: true as const, status: 'suspended' as const };
+    }
+
+    // Only a SUSPENDED business can be un-suspended. Without this guard a
+    // stale admin tab (or a double click) sending `active` for a live
+    // business silently set it to `draft` (off the public site) while its
+    // campaign kept reading "active", and emailed the owner a false
+    // "your business was reactivated".
+    if (company.status !== 'suspended') {
+      throw new ConflictException('company_not_suspended');
     }
 
     // Lift the suspension — the listing returns to `draft`; the owner
@@ -1055,4 +1086,11 @@ export class AdminCompaniesService {
 
     return this.detail(companyId);
   }
+}
+
+/** How many services a simple-site config lists (`easyConfig.services`). */
+function easyServiceCount(config: Prisma.JsonValue | null | undefined): number {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return 0;
+  const services = (config as Record<string, unknown>).services;
+  return Array.isArray(services) ? services.length : 0;
 }

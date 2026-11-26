@@ -305,13 +305,13 @@ onMounted(() => setQuickRange('month'))
           </span>
           <span class="rrow__person">
             <RouterLink v-if="r.userId" :to="{ name: 'admin-user', params: { id: r.userId } }" class="rrow__name">
-              {{ r.userName ?? r.userEmail ?? '—' }}
+              {{ r.userName ?? r.userEmail ?? '-' }}
             </RouterLink>
-            <span v-else class="rrow__name">—</span>
+            <span v-else class="rrow__name">-</span>
             <span class="rrow__email">{{ r.userEmail }}</span>
           </span>
           <span class="rrow__cell rrow__trunc" :title="r.companyName ?? undefined" :data-label="t('adminFinance.colBusiness')">
-            {{ r.companyName ?? '—' }}
+            {{ r.companyName ?? '-' }}
             <small v-if="r.clickCount" class="rrow__muted rrow__clicks">{{ t('adminFinance.clicks', { n: r.clickCount }) }}</small>
           </span>
           <span class="rrow__cell rrow__ref" :data-label="t('adminFinance.colReference')">
@@ -323,10 +323,10 @@ onMounted(() => setQuickRange('month'))
             {{ eur(r.amountMinor) }}
           </span>
           <span class="rrow__cell num" :data-label="t('adminFinance.colMoney')">
-            <b>{{ r.moneyMinor ? eur(r.moneyMinor) : '—' }}</b>
+            <b>{{ r.moneyMinor ? eur(r.moneyMinor) : '-' }}</b>
           </span>
           <span class="rrow__cell rrow__face num" :data-label="t('adminFinance.vatColVat')">
-            {{ r.vatMinor === null ? '—' : eur(r.vatMinor) }}
+            {{ r.vatMinor === null ? '-' : eur(r.vatMinor) }}
           </span>
         </li>
       </ul>

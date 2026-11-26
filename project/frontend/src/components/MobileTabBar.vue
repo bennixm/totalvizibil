@@ -129,7 +129,9 @@ function isActive(tab: Tab): boolean {
   font-size: var(--tvz-fs-micro);
   font-weight: 600;
   letter-spacing: 0.01em;
-  max-width: 8ch;
+  /* Each tab gets a third of the bar; 8ch cut "Descoperă" / "Entdecken"
+     to "Descop…". The column itself is the limit now. */
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

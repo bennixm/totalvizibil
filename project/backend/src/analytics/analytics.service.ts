@@ -27,6 +27,8 @@ import {
 /** Rolling window for the lead-response aggregation that feeds the Visibility
  *  Score — see `responseAggFor`. */
 const RESPONSE_AGG_WINDOW_DAYS = 90;
+/** How long a new, unanswered lead is NOT yet held against the response score. */
+const RESPONSE_GRACE_MINUTES = 4 * 60;
 
 export interface FeedRankEntry {
   /** Real județ, or the "nationwide" pseudo-county. */
@@ -99,9 +101,11 @@ export class AnalyticsService {
 
   /**
    * Current CPC-local margin configuration, in minor units. `costPromovare`
-   * is the one component that varies: a click attributed to a Google Ads
-   * referral (`opts.gclid` set, by `CampaignService.registerClick`) prices
-   * off the Google Ads rolling-average CPC instead of the static default —
+   * is the one component that varies: with `opts.gclid` set it prices
+   * off the Google Ads rolling-average CPC instead of the static default.
+   * `CampaignService.registerClick` no longer passes it: the click's `gclid`
+   * is an unverified query parameter, so it can't be allowed to move the
+   * price (it is only recorded as an attribution hint) —
    * see `GoogleAdsCpcSyncService` for how that cache gets filled, and
    * `googleAdsCostPromovareCredits` below for the fallback chain. Every
    * OTHER caller (none of which pass `gclid`) keeps today's exact behaviour.
@@ -173,10 +177,19 @@ export class AnalyticsService {
   private async responseAggFor(companyIds: string[]): Promise<Map<string, ResponseAgg>> {
     if (!companyIds.length) return new Map();
     const since = new Date(Date.now() - RESPONSE_AGG_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    // A lead still inside its grace period and not yet answered isn't a
+    // "missed" one: counting it dropped the response score to 0 (and lit the
+    // "Răspunzi prea încet" alert) two minutes after the first request ever
+    // arrived. It counts once answered, or once the grace period is over.
+    const graceCutoff = new Date(Date.now() - RESPONSE_GRACE_MINUTES * 60 * 1000);
     const [totals, responded] = await Promise.all([
       this.prisma.lead.groupBy({
         by: ['companyId'],
-        where: { companyId: { in: companyIds }, createdAt: { gte: since } },
+        where: {
+          companyId: { in: companyIds },
+          createdAt: { gte: since },
+          OR: [{ firstResponseAt: { not: null } }, { createdAt: { lte: graceCutoff } }],
+        },
         _count: { _all: true },
       }),
       this.prisma.lead.findMany({

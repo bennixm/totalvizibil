@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 /**
  * Partial profile update. Nested collections (locations / services / contacts)
@@ -30,7 +30,6 @@ export class UpdateCompanyDto {
   @MaxLength(500)
   logoUrl?: string;
 
-  @IsOptional()
-  @IsIn(['draft', 'active'])
-  status?: 'draft' | 'active';
+  // No `status` here: going live is only possible through the gated
+  // `POST /companies/:id/publish` (website, category, location checks).
 }

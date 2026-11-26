@@ -15,7 +15,6 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
 import { CompaniesService } from './companies.service';
 import { ClaimDraftDto } from './dto/claim-draft.dto';
-import { CreateCompanyDto } from './dto/create-company.dto';
 import { SetCompanyLocationDto } from './dto/set-company-location.dto';
 import { SetCompanyCategoriesDto } from './dto/set-company-categories.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -24,11 +23,6 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 @Controller('companies')
 export class CompaniesController {
   constructor(private readonly companies: CompaniesService) {}
-
-  @Post()
-  create(@CurrentUser() user: AuthPrincipal, @Body() dto: CreateCompanyDto) {
-    return this.companies.create(user.id, dto);
-  }
 
   /** End of the "create your business" flow: claim an anonymous website draft. */
   @Post('from-draft')

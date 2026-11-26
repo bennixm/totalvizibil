@@ -15,6 +15,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { createTestApp } from './helpers/app';
 import { resetDb } from './helpers/db';
 import { createAndLoginUser } from './helpers/auth';
+import { createCompany } from './helpers/company';
 
 let app: INestApplication;
 let prisma: PrismaService;
@@ -38,10 +39,7 @@ async function setupOwnerAndCompany() {
     password: 'password123',
     name: 'Owner',
   });
-  const companyRes = await request(app.getHttpServer())
-    .post('/api/v1/companies')
-    .set('Cookie', owner.cookie)
-    .send({ displayName: 'Owner Co SRL' });
+  const companyRes = await createCompany(app, owner, { displayName: 'Owner Co SRL' });
   const companyId: string = companyRes.body.id;
   return { owner, companyId };
 }

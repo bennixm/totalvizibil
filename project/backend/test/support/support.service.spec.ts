@@ -355,6 +355,23 @@ describe('SupportService', () => {
       expect(updateArg.data).toHaveProperty('firstResponseAt');
     });
 
+    it('a staff reply on an unassigned ticket assigns it to that agent', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: null });
+      await svc.postMessage(staffActor, 't1', { body: 'We are looking into it.' });
+      expect(prisma.supportTicket.updateMany).toHaveBeenCalledWith({
+        where: { id: 't1', assigneeId: null },
+        data: { assigneeId: staffActor.id },
+      });
+    });
+
+    it('a staff reply never takes over a ticket already assigned to someone else', async () => {
+      const { svc, prisma } = makeService();
+      prisma.__seedTicket({ id: 't1', requesterId: 'u1', status: 'open', assigneeId: STAFF_A });
+      await svc.postMessage(staffActor, 't1', { body: 'Adding a note.' });
+      expect(prisma.supportTicket.updateMany).not.toHaveBeenCalled();
+    });
+
     it('customer reply re-opens resolved ticket', async () => {
       const { svc, prisma } = makeService();
       prisma.__seedTicket({

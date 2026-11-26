@@ -1,4 +1,5 @@
 import { createVuetify, type ThemeDefinition } from 'vuetify'
+import { de, en, ro } from 'vuetify/locale'
 
 import '@mdi/font/css/materialdesignicons.css'
 import 'vuetify/styles'
@@ -70,6 +71,9 @@ const dark: ThemeDefinition = {
 }
 
 export const vuetify = createVuetify({
+  // Built-in component strings + the date picker's month/day names follow
+  // the interface language (kept in sync by `applyLocale` in plugins/i18n).
+  locale: { locale: 'ro', fallback: 'en', messages: { ro, en, de } },
   theme: {
     defaultTheme: LIGHT_THEME,
     themes: { light, dark },

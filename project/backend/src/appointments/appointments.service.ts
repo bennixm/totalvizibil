@@ -207,6 +207,24 @@ export class AppointmentsService {
       include: { company: { select: { displayName: true } } },
     });
     if (!appt) throw new NotFoundException('Appointment not found');
+    // Same status again (double click, stale tab): nothing to do, and no
+    // second email to the client.
+    if (appt.status === status) return this.view(appt);
+    // Allowed moves only. Before, any status could follow any other: a
+    // visit could be "completed" days before it happened, and a completed
+    // or canceled one could be flipped again (re-emailing the client).
+    const allowed: Record<AppointmentStatus, AppointmentStatus[]> = {
+      pending: ['confirmed', 'canceled'],
+      confirmed: ['completed', 'canceled'],
+      canceled: [],
+      completed: [],
+    };
+    if (!allowed[appt.status].includes(status as AppointmentStatus)) {
+      throw new BadRequestException('appointment_transition_invalid');
+    }
+    if (status === 'completed' && appt.startsAt.getTime() > Date.now()) {
+      throw new BadRequestException('appointment_not_started');
+    }
     const updated = await this.prisma.appointment.update({
       where: { id: appt.id },
       data: { status: status as AppointmentStatus },
@@ -346,7 +364,15 @@ export class AppointmentsService {
     const dateISO = utcToBucharestDateISO(startsAt);
     const { slots } = await this.availableSlotsFor(slug, dateISO);
     const stillOpen = slots.some((s) => s.startsAt === startsAt.toISOString());
-    if (!stillOpen) return { ok: false, error: 'slot_taken' };
+    if (!stillOpen) {
+      // "Taken" only when someone actually holds that time; a time the
+      // business never offers (outside hours, off the slot grid) is an
+      // invalid slot, not a "pick another one, this just went" race.
+      const held = await this.prisma.appointment.count({
+        where: { companyId: company.id, startsAt, status: { not: 'canceled' } },
+      });
+      return { ok: false, error: held ? 'slot_taken' : 'invalid_slot' };
+    }
 
     const visitorHash = appointmentFingerprint(ip, userAgent, company.id);
 

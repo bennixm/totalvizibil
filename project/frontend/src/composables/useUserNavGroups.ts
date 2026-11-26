@@ -158,7 +158,9 @@ export function useUserNavGroups() {
         { to: { name: 'wallet' }, label: t('nav.wallet'), icon: 'mdi-wallet-outline' },
         {
           to: { name: 'wallet-transactions' },
-          label: t('nav.payments'),
+          // Named after the page it opens ("Tranzacții"); "Plăți" is the
+          // wallet's own payment-history tab, a different list.
+          label: t('nav.transactions'),
           icon: 'mdi-swap-horizontal',
         },
         { to: { name: 'invoices' }, label: t('nav.invoices'), icon: 'mdi-receipt-text-outline' },

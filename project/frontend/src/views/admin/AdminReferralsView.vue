@@ -118,7 +118,7 @@ onMounted(() => admin.fetchReferralsList())
           <span class="rrow__cell">
             <span class="rrow__cellLbl">{{ t('adminRef.colReward') }}</span>
             <b v-if="r.rewardCredits != null">{{ cr(r.rewardCredits) }} cr</b>
-            <span v-else class="rrow__muted">—</span>
+            <span v-else class="rrow__muted">-</span>
           </span>
           <span class="rrow__cell">
             <span class="rrow__cellLbl">{{ t('adminRef.colDate') }}</span>

@@ -4,6 +4,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { createTestApp } from './helpers/app';
 import { resetDb } from './helpers/db';
 import { createAndLoginUser } from './helpers/auth';
+import { createCompany } from './helpers/company';
 
 let app: INestApplication;
 let prisma: PrismaService;
@@ -18,26 +19,39 @@ beforeEach(async () => resetDb(prisma, app));
 afterAll(async () => app.close());
 
 describe('Companies', () => {
-  describe('POST /companies', () => {
-    it('returns 401 when not authenticated', async () => {
-      await request(app.getHttpServer())
-        .post('/api/v1/companies')
-        .send({ displayName: 'Acme SRL' })
-        .expect(401);
-    });
-
-    it('creates company and returns 201', async () => {
+  describe('POST /companies (removed)', () => {
+    // Businesses are created only from an onboarding draft (`/from-draft`),
+    // which also charges the additional-business fee. The bare create route
+    // skipped that fee and produced websiteless businesses, so it is gone.
+    it('is no longer routed', async () => {
       const user = await createAndLoginUser(app, prisma, {
         email: 'ion@example.com',
         password: 'password123',
         name: 'Ion',
       });
-      const res = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post('/api/v1/companies')
         .set('Cookie', user.cookie)
         .send({ displayName: 'Acme SRL' })
-        .expect(201);
-      expect(res.body).toMatchObject({ displayName: 'Acme SRL' });
+        .expect(404);
+    });
+  });
+
+  describe('PATCH /companies/:id', () => {
+    it('ignores a status sent by the owner (publishing has its own gated route)', async () => {
+      const user = await createAndLoginUser(app, prisma, {
+        email: 'ion@example.com',
+        password: 'password123',
+        name: 'Ion',
+      });
+      const { body } = await createCompany(app, user, { displayName: 'Acme SRL' });
+      await request(app.getHttpServer())
+        .patch(`/api/v1/companies/${body.id}`)
+        .set('Cookie', user.cookie)
+        .send({ status: 'active' })
+        .expect(400);
+      const row = await prisma.company.findUnique({ where: { id: body.id } });
+      expect(row?.status).toBe('draft');
     });
   });
 
@@ -53,10 +67,7 @@ describe('Companies', () => {
         password: 'password123',
         name: 'Stranger',
       });
-      const createRes = await request(app.getHttpServer())
-        .post('/api/v1/companies')
-        .set('Cookie', owner.cookie)
-        .send({ displayName: 'Owner Corp' });
+      const createRes = await createCompany(app, owner, { displayName: 'Owner Corp' });
       const companyId = createRes.body.id;
 
       await request(app.getHttpServer())
@@ -71,10 +82,7 @@ describe('Companies', () => {
         password: 'password123',
         name: 'Ion',
       });
-      const createRes = await request(app.getHttpServer())
-        .post('/api/v1/companies')
-        .set('Cookie', user.cookie)
-        .send({ displayName: 'My Corp' });
+      const createRes = await createCompany(app, user, { displayName: 'My Corp' });
       const companyId = createRes.body.id;
 
       const res = await request(app.getHttpServer())
@@ -97,10 +105,7 @@ describe('Companies', () => {
         password: 'password123',
         name: 'Viewer',
       });
-      const createRes = await request(app.getHttpServer())
-        .post('/api/v1/companies')
-        .set('Cookie', owner.cookie)
-        .send({ displayName: 'Corp' });
+      const createRes = await createCompany(app, owner, { displayName: 'Corp' });
       const companyId = createRes.body.id;
 
       // Add editor (non-manager) directly in DB — editor cannot patch company settings
@@ -121,10 +126,7 @@ describe('Companies', () => {
         password: 'password123',
         name: 'Ion',
       });
-      const createRes = await request(app.getHttpServer())
-        .post('/api/v1/companies')
-        .set('Cookie', user.cookie)
-        .send({ displayName: 'Old Name' });
+      const createRes = await createCompany(app, user, { displayName: 'Old Name' });
       const companyId = createRes.body.id;
 
       const res = await request(app.getHttpServer())
@@ -143,10 +145,7 @@ describe('Companies', () => {
         password: 'password123',
         name: 'Ion',
       });
-      const createRes = await request(app.getHttpServer())
-        .post('/api/v1/companies')
-        .set('Cookie', user.cookie)
-        .send({ displayName: 'Doomed Corp' });
+      const createRes = await createCompany(app, user, { displayName: 'Doomed Corp' });
       const companyId = createRes.body.id;
 
       await request(app.getHttpServer())

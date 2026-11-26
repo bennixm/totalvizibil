@@ -335,6 +335,59 @@ describe('AppointmentsService', () => {
       await new Promise((r) => setTimeout(r, 10));
       expect(mail.send).toHaveBeenCalled();
     });
+
+    const seed = (
+      prisma: ReturnType<typeof makeService>['prisma'],
+      status: string,
+      startsAt: Date,
+    ) => {
+      prisma.__seedMember('co1', 'u1');
+      const appt = prisma.__seedAppt({
+        id: 'a1',
+        companyId: 'co1',
+        email: 'ion@example.com',
+        status,
+        startsAt,
+      });
+      prisma.appointment.findFirst.mockResolvedValue({ ...appt, company: { displayName: 'Acme' } });
+    };
+    const future = new Date(Date.now() + 3 * 86_400_000);
+    const past = new Date(Date.now() - 3_600_000);
+
+    it('refuses to complete a visit that has not happened yet', async () => {
+      const { svc, prisma } = makeService();
+      seed(prisma, 'confirmed', future);
+      await expect(svc.updateStatus('u1', 'co1', 'a1', 'completed')).rejects.toThrow(
+        'appointment_not_started',
+      );
+    });
+
+    it('completes a confirmed visit once its time has passed', async () => {
+      const { svc, prisma } = makeService();
+      seed(prisma, 'confirmed', past);
+      await expect(svc.updateStatus('u1', 'co1', 'a1', 'completed')).resolves.toBeDefined();
+    });
+
+    it.each([
+      ['completed', 'canceled'],
+      ['canceled', 'confirmed'],
+      ['pending', 'completed'],
+    ])('rejects %s → %s', async (from, to) => {
+      const { svc, prisma } = makeService();
+      seed(prisma, from, past);
+      await expect(svc.updateStatus('u1', 'co1', 'a1', to)).rejects.toThrow(
+        'appointment_transition_invalid',
+      );
+    });
+
+    it('the same status again is a no-op without a second email', async () => {
+      const { svc, prisma, mail } = makeService();
+      seed(prisma, 'confirmed', future);
+      await svc.updateStatus('u1', 'co1', 'a1', 'confirmed');
+      await new Promise((r) => setTimeout(r, 10));
+      expect(mail.send).not.toHaveBeenCalled();
+      expect(prisma.appointment.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('remove', () => {
