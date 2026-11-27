@@ -32,6 +32,28 @@ export class PasswordResetService {
   }
 
   /**
+   * A first "set your password" link for an account created FOR someone
+   * (an influencer added by an admin). Same single-use token mechanism as a
+   * reset, but no email is sent here: the caller sends its own welcome email
+   * with this link, and the page it opens says "set", not "reset".
+   */
+  async issueSetPasswordLink(userId: string, ttlMs: number): Promise<string> {
+    await this.prisma.passwordResetToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    const token = randomBytes(32).toString('base64url');
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId,
+        tokenHash: PasswordResetService.hash(token),
+        expiresAt: new Date(Date.now() + ttlMs),
+      },
+    });
+    return `${this.frontendOrigin}/set-password?token=${token}`;
+  }
+
+  /**
    * Always resolves the same way regardless of whether the email exists, to
    * avoid account enumeration. One real path, no environment branching: the
    * link only ever reaches the customer through a real email. Locally, with

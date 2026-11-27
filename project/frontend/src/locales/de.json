@@ -967,7 +967,9 @@
     "totpVerify": "Bestätigen",
     "totpInvalid": "Dieser Code ist ungültig. Versuchen Sie den aktuellen.",
     "genericError": "Das hat nicht geklappt. Prüfen Sie Ihre Angaben und versuchen Sie es erneut.",
-    "accountSuspended": "Ihr Konto ist gesperrt. Wenden Sie sich für Details an den Support."
+    "accountSuspended": "Ihr Konto ist gesperrt. Wenden Sie sich für Details an den Support.",
+    "showPassword": "Passwort anzeigen",
+    "hidePassword": "Passwort verbergen"
   },
   "reset": {
     "forgotTitle": "Passwort zurücksetzen",
@@ -1387,7 +1389,8 @@
     "userClient": "Kunde",
     "lastSeenOn": "Zuletzt da: {date}",
     "neverSignedIn": "Noch nie angemeldet",
-    "navInfluencers": "Influencer"
+    "navInfluencers": "Influencer",
+    "openProfile": "Profil ansehen"
   },
   "errors": {
     "notFoundTitle": "Seite nicht gefunden",
@@ -5310,5 +5313,45 @@
     "errCodeInvalid": "Ungültiger Code: 3-24 Zeichen, Buchstaben, Ziffern oder Bindestrich.",
     "errAlready": "Dieses Konto ist bereits Influencer.",
     "errPct": "Prozentsätze müssen ganze Zahlen von 0 bis 90 sein."
+  },
+  "adminAff": {
+    "tab": "Empfehlungen",
+    "pill": "Influencer · {code}",
+    "influencerTitle": "Influencer-Profil",
+    "terms": "Kundenrabatt {discount}% · Provision {commission}%",
+    "openInfluencer": "Influencer-Seite öffnen",
+    "notInfluencer": "Dieses Konto ist kein Influencer.",
+    "makeInfluencer": "Zum Influencer machen",
+    "referredTitle": "Geworben von",
+    "referredHint": "Der Influencer-Code oder Empfehlungslink, mit dem sich das Konto angemeldet hat. Ein Code kann nur bis zur ersten Einzahlung hinzugefügt oder entfernt werden.",
+    "via": "Über",
+    "since": "Seit",
+    "commission": "Erzeugte Provision",
+    "onDeposit": "aus {paid} bezahlt, {pct}% Rabatt",
+    "noFirstDeposit": "Noch keine Einzahlung",
+    "reward": "Empfehlungsprämie",
+    "influencerCode": "Code {code}",
+    "userLink": "Empfehlungslink",
+    "noReferral": "Dieses Konto wurde von niemandem geworben.",
+    "attachLabel": "Influencer-Code",
+    "attach": "Code hinzufügen",
+    "attached": "Code {code} hinzugefügt. Der Rabatt gilt für die erste Einzahlung.",
+    "detach": "Entfernen",
+    "detachTitle": "Code entfernen?",
+    "detachText": "Das Konto ist nicht mehr mit dem Werbenden verknüpft und verliert den Rabatt auf die erste Einzahlung.",
+    "detached": "Die Verknüpfung wurde entfernt.",
+    "locked": "Nach der ersten Einzahlung gesperrt: Provision oder Prämie stehen bereits fest.",
+    "errUnknownCode": "Kein aktiver Influencer hat diesen Code.",
+    "errOwnCode": "Ein Influencer kann seinen eigenen Code nicht nutzen.",
+    "errLocked": "Das Konto hat bereits eine Einzahlung; die Verknüpfung kann nicht mehr geändert werden.",
+    "errExists": "Das Konto ist bereits verknüpft. Entferne zuerst die bestehende Verknüpfung."
+  },
+  "setPw": {
+    "title": "Passwort festlegen",
+    "subtitle": "Wähle das Passwort, mit dem du dich bei Totalvizibil anmeldest.",
+    "invalidToken": "Der Link zum Festlegen des Passworts ist abgelaufen oder wurde bereits verwendet. Bitte den Administrator, die Einladung erneut zu senden, oder nutze „Passwort vergessen“.",
+    "doneText": "Dein Passwort ist festgelegt. Weiter zur Anmeldung.",
+    "submit": "Passwort festlegen",
+    "newPassword": "Dein Passwort"
   }
 }

@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { BillingModule } from '../billing/billing.module';
-import { AdminInfluencersController, InfluencerController } from './influencers.controller';
+import {
+  AdminInfluencersController,
+  AdminUserReferralController,
+  InfluencerController,
+} from './influencers.controller';
 import { InfluencersService } from './influencers.service';
 
 /** Influencers (promoter accounts with their own discount code). Depends
@@ -9,7 +13,7 @@ import { InfluencersService } from './influencers.service';
  *  cycle (same layering as AffiliateModule). */
 @Module({
   imports: [AuthModule, BillingModule],
-  controllers: [InfluencerController, AdminInfluencersController],
+  controllers: [InfluencerController, AdminInfluencersController, AdminUserReferralController],
   providers: [InfluencersService],
   exports: [InfluencersService],
 })

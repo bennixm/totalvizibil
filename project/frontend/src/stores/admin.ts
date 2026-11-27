@@ -160,6 +160,8 @@ export interface AdminUserRow {
   walletBlocked: boolean
   lastLoginAt: string | null
   createdAt: string
+  /** Set when the account is an influencer (not a staff role). */
+  influencer: { id: string; code: string; active: boolean } | null
 }
 
 export interface AdminUserCompany {
@@ -225,6 +227,32 @@ export interface AdminUserDetail {
    *  Null until they've declared one — which is itself why their purchases
    *  may be blocked, so the panel has to be able to show that state. */
   billingProfile: BillingProfile | null
+  /** The account's influencer profile and results, if it is one. */
+  influencer: {
+    id: string
+    code: string
+    discountPct: number
+    commissionPct: number
+    active: boolean
+    note: string | null
+    createdAt: string
+    users: number
+    depositors: number
+    firstDepositsPaid: Money
+    commissions: Money
+  } | null
+  /** Who brought this account in: an influencer's code or a user's link. */
+  referredBy: {
+    kind: 'influencer' | 'user'
+    status: 'pending' | 'rewarded'
+    createdAt: string
+    rewardCredits: number | null
+    referrer: { id: string; name: string; email: string }
+    influencer: { id: string; code: string; discountPct: number } | null
+    commission: { commission: Money; depositPaid: Money; discountPct: number; createdAt: string } | null
+  } | null
+  /** No completed deposit yet: an admin may still attach/detach a code. */
+  canChangeReferral: boolean
   companies: AdminUserCompany[]
   transactions: AdminUserTxn[]
   invoices: AdminUserInvoice[]
@@ -316,7 +344,8 @@ export interface AdminInvoiceDetail {
 export interface UsersFilters {
   search: string
   status: UserStatus | null
-  role: PlatformRole | null
+  /** A staff role, or `influencer` (accounts with an influencer profile). */
+  role: PlatformRole | 'influencer' | null
   page: number
   pageSize: number
 }

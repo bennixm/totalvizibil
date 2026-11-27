@@ -50,13 +50,19 @@ export class AdminUsersService {
 
     const where: Prisma.UserWhereInput = {
       ...(status ? { status } : {}),
-      ...(role ? { platformRoles: { some: { role } } } : {}),
+      ...(role === 'influencer'
+        ? { influencer: { isNot: null } }
+        : role
+          ? { platformRoles: { some: { role } } }
+          : {}),
       ...(staffOnly && !role ? { platformRoles: { some: {} } } : {}),
       ...(search
         ? {
             OR: [
               { email: { contains: search, mode: 'insensitive' } },
               { name: { contains: search, mode: 'insensitive' } },
+              // An influencer can be found by their discount code too.
+              { influencer: { code: { contains: search, mode: 'insensitive' } } },
             ],
           }
         : {}),
@@ -71,6 +77,7 @@ export class AdminUsersService {
         include: {
           platformRoles: true,
           wallet: { select: { balanceMinor: true, blockedAt: true } },
+          influencer: { select: { id: true, code: true, active: true } },
           _count: {
             select: {
               companyMembers: true,
@@ -98,6 +105,7 @@ export class AdminUsersService {
         lastLoginAt: u.lastLoginAt,
         emailVerified: !!u.emailVerifiedAt,
         createdAt: u.createdAt,
+        influencer: u.influencer,
       })),
       page,
       pageSize,
@@ -116,6 +124,38 @@ export class AdminUsersService {
         // admin included — could see or correct a wrong CUI/address while
         // looking at the exact invoices it had been snapshotted onto.
         billingProfile: true,
+        // Influencer profile (if this account is one) and who brought this
+        // account in (an influencer's code or a user's referral link).
+        influencer: {
+          select: {
+            id: true,
+            code: true,
+            discountPct: true,
+            commissionPct: true,
+            active: true,
+            note: true,
+            createdAt: true,
+            _count: { select: { referrals: true, commissions: true } },
+          },
+        },
+        referralReceived: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            rewardCredits: true,
+            referrer: { select: { id: true, name: true, email: true } },
+            influencer: { select: { id: true, code: true, discountPct: true } },
+          },
+        },
+        influencerCommission: {
+          select: {
+            commissionMinor: true,
+            depositEurCents: true,
+            discountPct: true,
+            createdAt: true,
+          },
+        },
         companyMembers: {
           where: { status: 'active' },
           include: {
@@ -139,6 +179,16 @@ export class AdminUsersService {
 
     const now = new Date();
     const companyIds = u.companyMembers.map((m) => m.company.id);
+
+    const influencerCommissions = u.influencer
+      ? await this.prisma.influencerCommission.aggregate({
+          where: { influencerId: u.influencer.id },
+          _sum: { commissionMinor: true, depositEurCents: true },
+        })
+      : null;
+    const completedDeposits = await this.prisma.walletTransaction.count({
+      where: { wallet: { userId: id }, type: 'purchase', status: 'completed' },
+    });
 
     const [sessions, walletSummary, transactionsPage, invoices, consumedBy] = await Promise.all([
       this.sessions.listActiveForUser(id),
@@ -182,6 +232,43 @@ export class AdminUsersService {
       // billing identity yet, and the panel has to be able to show that
       // state (it's exactly why their purchases are being blocked).
       billingProfile: u.billingProfile ? billingProfileSnapshot(u.billingProfile) : null,
+      influencer: u.influencer
+        ? {
+            id: u.influencer.id,
+            code: u.influencer.code,
+            discountPct: u.influencer.discountPct,
+            commissionPct: u.influencer.commissionPct,
+            active: u.influencer.active,
+            note: u.influencer.note,
+            createdAt: u.influencer.createdAt,
+            users: u.influencer._count.referrals,
+            depositors: u.influencer._count.commissions,
+            firstDepositsPaid: money(influencerCommissions?._sum.depositEurCents ?? 0),
+            commissions: money(influencerCommissions?._sum.commissionMinor ?? 0),
+          }
+        : null,
+      // Who brought this account in. `canChange` = no deposit yet, so an
+      // admin may still attach/detach an influencer code (the discount it
+      // gives only ever applies to the first deposit).
+      referredBy: u.referralReceived
+        ? {
+            kind: u.referralReceived.influencer ? ('influencer' as const) : ('user' as const),
+            status: u.referralReceived.status,
+            createdAt: u.referralReceived.createdAt,
+            rewardCredits: u.referralReceived.rewardCredits,
+            referrer: u.referralReceived.referrer,
+            influencer: u.referralReceived.influencer,
+            commission: u.influencerCommission
+              ? {
+                  commission: money(u.influencerCommission.commissionMinor),
+                  depositPaid: money(u.influencerCommission.depositEurCents),
+                  discountPct: u.influencerCommission.discountPct,
+                  createdAt: u.influencerCommission.createdAt,
+                }
+              : null,
+          }
+        : null,
+      canChangeReferral: completedDeposits === 0,
       companies: u.companyMembers.map((m) => {
         const c = m.company;
         const camp = c.campaign;

@@ -390,15 +390,26 @@ export const useNotificationsStore = defineStore('notifications', {
       const eligible = this.items.filter(
         (n) => !n.readAt && new Date(n.createdAt).getTime() <= asOf,
       )
-      if (!eligible.length) return
+      // The badge counts ALL unread notifications, not just the page loaded
+      // in the panel: the button used to subtract only the loaded ones (so
+      // the bell kept showing a number) and did nothing at all when none of
+      // the unread ones were loaded yet.
+      if (!eligible.length && this.unreadCount === 0) return
       const before = new Map(eligible.map((n) => [n.id, n.readAt]))
       const beforeCount = this.unreadCount
       const now = new Date().toISOString()
       eligible.forEach((n) => (n.readAt = now))
-      this.unreadCount = Math.max(0, this.unreadCount - eligible.length)
+      // Everything up to now is read; only something pushed after the click
+      // (newer than `asOf`, still unread in the list) keeps the badge lit.
+      this.unreadCount = this.items.filter(
+        (n) => !n.readAt && new Date(n.createdAt).getTime() > asOf,
+      ).length
       bumpUnread()
       try {
         await apiFetch('/notifications/read-all', { method: 'POST' })
+        // Confirm against the server's own count (covers rows never loaded
+        // here and anything that arrived during the request).
+        void this.fetchUnreadCount().catch(() => {})
       } catch {
         // Roll back by id, not position — the list may have gained or lost
         // rows (a push, a dismiss) while this request was in flight, so a
@@ -489,6 +500,10 @@ export const useNotificationsStore = defineStore('notifications', {
             row.readAt = new Date().toISOString()
             this.unreadCount = Math.max(0, this.unreadCount - 1)
             bumpUnread()
+          } else if (!row) {
+            // Read in another tab but not loaded here: the badge still has
+            // to drop, so take the server's count.
+            void this.fetchUnreadCount().catch(() => {})
           }
         } else if (msg.kind === 'read-all') {
           const now = new Date().toISOString()
@@ -499,7 +514,10 @@ export const useNotificationsStore = defineStore('notifications', {
           bumpUnread()
         } else if (msg.kind === 'dismissed' && msg.id) {
           const idx = this.items.findIndex((n) => n.id === msg.id)
-          if (idx !== -1) {
+          if (idx === -1) {
+            // Same as above: not loaded here, re-sync the badge.
+            void this.fetchUnreadCount().catch(() => {})
+          } else {
             const wasUnread = !this.items[idx].readAt
             this.items.splice(idx, 1)
             if (wasUnread) {

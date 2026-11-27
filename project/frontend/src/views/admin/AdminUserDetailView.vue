@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AdminUserAffiliation from '@/components/admin/user/AdminUserAffiliation.vue'
+import PasswordField from '@/components/PasswordField.vue'
 import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -36,7 +38,7 @@ const id = computed(() => String(route.params.id))
 const user = ref<AdminUserDetail | null>(null)
 const loading = ref(true)
 
-const TABS = ['overview', 'wallet', 'invoices', 'businesses', 'activity', 'google-ads'] as const
+const TABS = ['overview', 'wallet', 'invoices', 'businesses', 'affiliation', 'activity', 'google-ads'] as const
 type UserTab = (typeof TABS)[number]
 /** In the URL (`?tab=`), so a reload or a shared link opens the same tab. */
 const tab = computed<UserTab>({
@@ -560,6 +562,15 @@ const txnColor: Record<string, string> = {
                 {{ r }}
               </v-chip>
               <v-chip
+                v-if="user.influencer"
+                size="small"
+                :color="user.influencer.active ? 'primary' : 'warning'"
+                variant="tonal"
+                prepend-icon="mdi-account-star-outline"
+              >
+                {{ t('adminAff.pill', { code: user.influencer.code }) }}
+              </v-chip>
+              <v-chip
                 v-if="user.wallet.blocked"
                 size="small"
                 color="error"
@@ -618,6 +629,10 @@ const txnColor: Record<string, string> = {
         <v-tab value="businesses" prepend-icon="mdi-domain">
           {{ t('admin.tabBusinesses') }}
           <span class="ud__tabCount">{{ user.companies.length }}</span>
+        </v-tab>
+        <v-tab value="affiliation" prepend-icon="mdi-account-star-outline">
+          {{ t('adminAff.tab') }}
+          <span v-if="user.influencer" class="ud__tabCount">{{ user.influencer.code }}</span>
         </v-tab>
         <v-tab value="activity" prepend-icon="mdi-history">{{ t('admin.tabActivity') }}</v-tab>
         <v-tab v-if="isAdmin" value="google-ads" prepend-icon="mdi-google-ads">
@@ -778,10 +793,9 @@ const txnColor: Record<string, string> = {
                       </div>
                     </div>
                     <div class="ud__pwRow">
-                      <v-text-field
+                      <PasswordField
                         v-model="newPassword"
                         :label="t('account.newPassword')"
-                        type="password"
                         variant="outlined"
                         density="compact"
                         hide-details
@@ -1206,6 +1220,9 @@ const txnColor: Record<string, string> = {
         </v-window-item>
 
         <!-- ============ ACTIVITY ============ -->
+        <v-window-item value="affiliation">
+          <AdminUserAffiliation :user="user" :is-admin="isAdmin" @changed="load" />
+        </v-window-item>
         <v-window-item value="activity">
           <div class="ud__stack">
             <!-- Reads the staff log, admin-only on the backend. -->

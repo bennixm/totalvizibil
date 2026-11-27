@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -13,7 +14,11 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthPrincipal } from '../auth/auth.types';
 import { PlatformRoles, PlatformRolesGuard } from '../auth/platform-roles.guard';
 import { InfluencersService } from './influencers.service';
-import { CreateInfluencerDto, UpdateInfluencerDto } from './dto/influencer.dto';
+import {
+  AttachInfluencerCodeDto,
+  CreateInfluencerDto,
+  UpdateInfluencerDto,
+} from './dto/influencer.dto';
 
 /**
  * The influencer's own panel. GET only, on purpose: an influencer can never
@@ -67,5 +72,30 @@ export class AdminInfluencersController {
   @Post(':id/resend-invite')
   resendInvite(@Param('id', ParseUUIDPipe) id: string) {
     return this.influencers.adminResendInvite(id);
+  }
+}
+
+/** Admin › Utilizatori › one user: attach / detach the code they joined with. */
+@UseGuards(AuthGuard, PlatformRolesGuard)
+@PlatformRoles('admin')
+@Controller('admin/users/:id/referral')
+export class AdminUserReferralController {
+  constructor(private readonly influencers: InfluencersService) {}
+
+  @Post()
+  attach(
+    @CurrentUser() caller: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AttachInfluencerCodeDto,
+  ) {
+    return this.influencers.adminAttachCode(id, dto.code, {
+      id: caller.id,
+      roles: caller.platformRoles,
+    });
+  }
+
+  @Delete()
+  detach(@CurrentUser() caller: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.influencers.adminDetachReferral(id, { id: caller.id, roles: caller.platformRoles });
   }
 }

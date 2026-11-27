@@ -13,6 +13,10 @@ import { PasswordService } from '../auth/password.service';
 import { PasswordResetService } from '../auth/password-reset.service';
 import { AuditActor, AuditLogService } from '../admin/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MailService } from '../mail/mail.service';
+import { influencerWelcomeEmail } from '../mail/templates/emails';
+import { ConfigService } from '@nestjs/config';
+import { AppConfig } from '../config/env';
 import { minorToCredits, money } from '../wallet/money';
 
 /** Influencer codes: 3-24 chars, letters/digits/dash, stored uppercase. */
@@ -73,7 +77,55 @@ export class InfluencersService {
     private readonly passwordReset: PasswordResetService,
     private readonly audit: AuditLogService,
     private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
+
+  /** How long the welcome email's "set your password" link stays valid. */
+  private static readonly INVITE_TTL_DAYS = 7;
+
+  /**
+   * The dedicated welcome email (never the password-reset one). A new
+   * account (`withPassword`) gets a fresh set-password link; an existing one
+   * gets a link to its influencer panel. Best-effort: the influencer exists
+   * whether or not the mail goes out (the admin can re-send it).
+   */
+  private async sendWelcome(influencerId: string, withPassword: boolean): Promise<void> {
+    const inf = await this.prisma.influencer.findUniqueOrThrow({
+      where: { id: influencerId },
+      select: {
+        code: true,
+        discountPct: true,
+        commissionPct: true,
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+    const origin = this.config.get('frontendOrigin', { infer: true }).replace(/\/+$/, '');
+    const setPasswordUrl = withPassword
+      ? await this.passwordReset.issueSetPasswordLink(
+          inf.user.id,
+          InfluencersService.INVITE_TTL_DAYS * 24 * 60 * 60 * 1000,
+        )
+      : undefined;
+    const { subject, text, html } = influencerWelcomeEmail({
+      name: inf.user.name,
+      code: inf.code,
+      discountPct: inf.discountPct,
+      commissionPct: inf.commissionPct,
+      shareUrl: `${origin}/?ref=${encodeURIComponent(inf.code)}`,
+      panelUrl: `${origin}/influencer`,
+      setPasswordUrl,
+      ttlDays: InfluencersService.INVITE_TTL_DAYS,
+    });
+    await this.mail
+      .send({ to: inf.user.email, subject, text, html })
+      .catch((err) =>
+        this.logger.error(
+          'Influencer welcome email failed',
+          err instanceof Error ? err.stack : err,
+        ),
+      );
+  }
 
   // --- codes ---------------------------------------------------------------
 
@@ -513,14 +565,16 @@ export class InfluencersService {
       targetId: inf.id,
       after: { email, code, discountPct: dto.discountPct, commissionPct: dto.commissionPct },
     });
-    if (invited) await this.passwordReset.request(email);
+    // The welcome email replaces both the old reset-password email (new
+    // account) and the generic notification email (existing account).
+    await this.sendWelcome(inf.id, invited);
     void this.notifications
       .notify({
         userId: user.id,
         type: 'influencer_created',
         title: 'Contul tău de influencer este activ',
         body: `Codul tău de reducere este ${code}. Clienții primesc ${dto.discountPct}% reducere la prima depunere.`,
-        channels: { panel: true, email: !invited },
+        channels: { panel: true },
         data: { influencerId: inf.id },
       })
       .catch(() => undefined);
@@ -567,14 +621,86 @@ export class InfluencersService {
     return this.adminDetail(id);
   }
 
+  /**
+   * Admin: attach an influencer's code to a user (support case: the customer
+   * forgot to enter it). Same rules as the customer's own claim: only before
+   * the first completed deposit, never the influencer's own account, and not
+   * over an existing referral (detach that first).
+   */
+  async adminAttachCode(userId: string, code: string, actor: AuditActor) {
+    const inf = await this.findActiveByCode(code);
+    if (!inf) throw new BadRequestException('influencer_code_unknown');
+    if (inf.userId === userId) throw new BadRequestException('influencer_own_code');
+    const [user, deposited] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, referralReceived: { select: { id: true } } },
+      }),
+      this.prisma.walletTransaction.count({
+        where: { wallet: { userId }, type: 'purchase', status: 'completed' },
+      }),
+    ]);
+    if (!user) throw new NotFoundException('User not found');
+    if (deposited > 0) throw new BadRequestException('referral_locked_after_deposit');
+    if (user.referralReceived) throw new ConflictException('referral_exists');
+    await this.prisma.referral.create({
+      data: { referrerId: inf.userId, referredUserId: userId, influencerId: inf.id },
+    });
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'influencer.referral.attach',
+      targetType: 'user',
+      targetId: userId,
+      after: { code: inf.code },
+    });
+    return { ok: true as const };
+  }
+
+  /**
+   * Admin: detach whatever referral (influencer code or user link) a user
+   * joined with, while it can't have paid anything yet: no completed
+   * deposit, no commission, no affiliate reward.
+   */
+  async adminDetachReferral(userId: string, actor: AuditActor) {
+    const referral = await this.prisma.referral.findUnique({
+      where: { referredUserId: userId },
+      select: { id: true, status: true, influencer: { select: { code: true } }, referrerId: true },
+    });
+    if (!referral) throw new NotFoundException('referral_not_found');
+    const [deposited, commission] = await Promise.all([
+      this.prisma.walletTransaction.count({
+        where: { wallet: { userId }, type: 'purchase', status: 'completed' },
+      }),
+      this.prisma.influencerCommission.count({ where: { referredUserId: userId } }),
+    ]);
+    if (deposited > 0 || commission > 0 || referral.status === 'rewarded') {
+      throw new BadRequestException('referral_locked_after_deposit');
+    }
+    await this.prisma.referral.delete({ where: { id: referral.id } });
+    await this.audit.log({
+      actorId: actor.id,
+      actorRoles: actor.roles,
+      action: 'influencer.referral.detach',
+      targetType: 'user',
+      targetId: userId,
+      before: { code: referral.influencer?.code ?? null, referrerId: referral.referrerId },
+    });
+    return { ok: true as const };
+  }
+
   /** Re-send the "set your password" email (link expired, lost email). */
   async adminResendInvite(id: string) {
     const inf = await this.prisma.influencer.findUnique({
       where: { id },
-      select: { user: { select: { email: true } } },
+      select: { user: { select: { passwordChangedAt: true, lastLoginAt: true } } },
     });
     if (!inf) throw new NotFoundException('influencer_not_found');
-    await this.passwordReset.request(inf.user.email);
+    // Never signed in and never set a password: the welcome email again with
+    // a fresh set-password link. Otherwise the welcome without a password
+    // step (they already have one; "forgot password" exists for that).
+    const needsPassword = !inf.user.passwordChangedAt && !inf.user.lastLoginAt;
+    await this.sendWelcome(id, needsPassword);
     return { ok: true as const };
   }
 }

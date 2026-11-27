@@ -93,6 +93,9 @@ function fakePrisma() {
     },
     walletTransaction: {
       groupBy: jest.fn(async () => []),
+      // Completed deposits: decides whether an admin may still change the
+      // account's referral/influencer code.
+      count: jest.fn(async () => 0),
     },
     // Unassigned when the last support-staff role is dropped from a user.
     supportTicket: {
