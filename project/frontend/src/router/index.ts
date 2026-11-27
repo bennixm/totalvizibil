@@ -307,6 +307,13 @@ const routes: RouteRecordRaw[] = [
 
   // --- Account & auth ---
   {
+    // The influencer's own read-only panel (code, users, deposits, commissions).
+    path: '/influencer',
+    name: 'influencer',
+    component: () => import('@/views/InfluencerDashboardView.vue'),
+    meta: { requiresAuth: true, panel: true, requiresInfluencer: true },
+  },
+  {
     path: '/account',
     name: 'account',
     component: () => import('@/views/AccountView.vue'),
@@ -417,6 +424,20 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-invoices',
         meta: { allowedRoles: ['admin', 'finance'] },
         component: () => import('@/views/admin/AdminInvoicesView.vue'),
+      },
+      {
+        path: 'influencers',
+        name: 'admin-influencers',
+        // Read for admin + finance (backend GETs); create/edit stays admin-only
+        // in the page and on the API.
+        meta: { allowedRoles: ['admin', 'finance'] },
+        component: () => import('@/views/admin/AdminInfluencersView.vue'),
+      },
+      {
+        path: 'influencers/:id',
+        name: 'admin-influencer',
+        meta: { allowedRoles: ['admin', 'finance'] },
+        component: () => import('@/views/admin/AdminInfluencerDetailView.vue'),
       },
       {
         path: 'referrals',
@@ -666,6 +687,10 @@ router.beforeEach(async (to, from) => {
     if (!roles.includes('admin')) {
       return { name: 'account' }
     }
+  }
+  // The influencer panel is for influencer accounts only.
+  if (to.meta.requiresInfluencer && !auth.isInfluencer) {
+    return { name: 'dashboard' }
   }
   if (to.meta.guestOnly && auth.isAuthenticated) {
     return { name: 'account' }

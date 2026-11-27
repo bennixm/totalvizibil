@@ -46,6 +46,7 @@ const { signOut } = useSignOut()
 // used to cause a visible flash of the old sidebar while the new route
 // chunk loaded; a single instance patches in place instead.
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
+const isInfluencerRoute = computed(() => route.path.startsWith('/influencer'))
 // The desktop sidebar: a real column next to the page, only where it always
 // was (the business panel, or anywhere under /admin).
 const showFullSidebar = computed(
@@ -117,7 +118,7 @@ onUnmounted(() => window.removeEventListener('beforeunload', confirmExitOnUnload
                visitors, see `showSidebar`). -->
           <template v-if="auth.isAuthenticated" #top>
             <SidebarModeSwitch />
-            <SidebarCampaignSwitch v-if="!isAdminRoute" />
+            <SidebarCampaignSwitch v-if="!isAdminRoute && !isInfluencerRoute" />
           </template>
           <template #footer>
             <template v-if="auth.isAuthenticated">

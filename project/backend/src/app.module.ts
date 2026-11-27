@@ -19,6 +19,7 @@ import { WalletModule } from './wallet/wallet.module';
 import { BillingModule } from './billing/billing.module';
 import { CampaignModule } from './campaigns/campaign.module';
 import { AffiliateModule } from './affiliate/affiliate.module';
+import { InfluencersModule } from './influencers/influencers.module';
 import { LeadsModule } from './leads/leads.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AnalyticsModule } from './analytics/analytics.module';
@@ -54,6 +55,7 @@ import { GoogleAdsModule } from './google-ads/google-ads.module';
     WalletModule,
     CampaignModule,
     AffiliateModule,
+    InfluencersModule,
     LeadsModule,
     AppointmentsModule,
     AnalyticsModule,

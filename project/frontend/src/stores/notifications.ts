@@ -154,6 +154,13 @@ export function routeForNotification(
   if (WALLET_TYPES.has(n.type)) {
     return { name: 'wallet' }
   }
+  if (
+    n.type === 'influencer_commission' ||
+    n.type === 'influencer_created' ||
+    (n.type === 'referral_claimed' && n.data?.influencer === true)
+  ) {
+    return { name: 'influencer' }
+  }
   if (n.type === 'referral_claimed') {
     return { name: 'account', query: { tab: 'affiliate' } }
   }
@@ -195,6 +202,8 @@ const VISUALS: Record<string, NotificationVisual> = {
   wallet_low_balance: { icon: 'mdi-wallet-outline', tone: 'warning' },
   payment_succeeded: { icon: 'mdi-check-decagram-outline', tone: 'success' },
   referral_rewarded: { icon: 'mdi-account-cash-outline', tone: 'success' },
+  influencer_commission: { icon: 'mdi-gift-outline', tone: 'success' },
+  influencer_created: { icon: 'mdi-account-star-outline', tone: 'primary' },
   google_ads_staff_change: { icon: 'mdi-google-ads', tone: 'primary' },
   google_ads_cycle_done: { icon: 'mdi-google-ads', tone: 'success' },
   google_ads_cycle_failed: { icon: 'mdi-alert-circle-outline', tone: 'error' },

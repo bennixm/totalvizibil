@@ -8,6 +8,8 @@ export interface AuthPrincipal {
   platformRoles: PlatformRole[];
   sessionId: string;
   emailVerifiedAt: Date | null;
+  /** Has an influencer profile (its own read-only panel). Not a staff role. */
+  isInfluencer?: boolean;
 }
 
 /** Shape returned to the client for the current user. */
@@ -17,6 +19,7 @@ export interface AuthUserView {
   name: string;
   platformRoles: PlatformRole[];
   emailVerifiedAt: string | null;
+  isInfluencer: boolean;
 }
 
 export function toAuthUserView(p: AuthPrincipal): AuthUserView {
@@ -26,5 +29,6 @@ export function toAuthUserView(p: AuthPrincipal): AuthUserView {
     name: p.name,
     platformRoles: p.platformRoles,
     emailVerifiedAt: p.emailVerifiedAt ? p.emailVerifiedAt.toISOString() : null,
+    isInfluencer: !!p.isInfluencer,
   };
 }

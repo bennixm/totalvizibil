@@ -30,6 +30,8 @@ export interface WalletSummary {
   /** How much of the balance can actually be refunded right now — may be
    *  less than `balance` if part of it isn't backed by a real Stripe charge. */
   refundable: Money
+  /** An influencer code's discount on the FIRST deposit, while it applies. */
+  firstDepositDiscount?: { influencerId: string; pct: number; code: string } | null
 }
 
 export interface IssuedInvoice {

@@ -1,5 +1,6 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 
 import type { SidebarNavGroup, SidebarNavItem } from '@/components/AppSidebar.vue'
 import { useCompaniesStore } from '@/stores/companies'
@@ -21,6 +22,7 @@ export function useUserNavGroups() {
   const companies = useCompaniesStore()
   const ads = useGoogleAdsUserStore()
   const workspace = useWorkspaceStore()
+  const route = useRoute()
   const current = computed(() => companies.currentOverview)
 
   // Google Ads area: its own pages plus, once a campaign is selected, the
@@ -149,8 +151,16 @@ export function useUserNavGroups() {
     ],
   }))
 
+  const influencerGroup = computed<SidebarNavGroup>(() => ({
+    items: [{ to: { name: 'influencer' }, label: t('nav.influencerPanel'), icon: 'mdi-chart-box-outline' }],
+  }))
+
   const groups = computed<SidebarNavGroup[]>(() => [
-    ...(workspace.id === 'ads' ? adsGroups.value : [businessGroup.value]),
+    ...(route.path.startsWith('/influencer')
+      ? [influencerGroup.value]
+      : workspace.id === 'ads'
+        ? adsGroups.value
+        : [businessGroup.value]),
     {
       // General account pages — not tied to any one business, so they stay
       // put regardless of which company is active above.

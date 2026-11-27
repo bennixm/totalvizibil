@@ -71,7 +71,7 @@ export class AuthService {
   async register(dto: RegisterDto, submittedPendingToken?: string): Promise<RegisterResult> {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      include: { platformRoles: true },
+      include: { platformRoles: true, influencer: { select: { id: true } } },
     });
     if (existing) {
       if (existing.emailVerifiedAt) {
@@ -109,7 +109,7 @@ export class AuthService {
           pendingRegTokenHash: AuthService.hashPendingRegToken(pendingRegToken),
           pendingRegExpiresAt: new Date(Date.now() + PENDING_REG_TTL_MS),
         },
-        include: { platformRoles: true },
+        include: { platformRoles: true, influencer: { select: { id: true } } },
       });
       return { user: this.toView(updated), pendingRegToken, didMutate: true };
     }
@@ -124,7 +124,7 @@ export class AuthService {
         pendingRegTokenHash: AuthService.hashPendingRegToken(pendingRegToken),
         pendingRegExpiresAt: new Date(Date.now() + PENDING_REG_TTL_MS),
       },
-      include: { platformRoles: true },
+      include: { platformRoles: true, influencer: { select: { id: true } } },
     });
 
     return { user: this.toView(user), pendingRegToken, didMutate: true };
@@ -142,7 +142,7 @@ export class AuthService {
   async validateCredentials(dto: LoginDto): Promise<AuthUserView> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      include: { platformRoles: true },
+      include: { platformRoles: true, influencer: { select: { id: true } } },
     });
 
     // Constant-ish work whether or not the user exists, to blunt enumeration.
@@ -192,6 +192,7 @@ export class AuthService {
     name: string;
     platformRoles: { role: AuthUserView['platformRoles'][number] }[];
     emailVerifiedAt?: Date | null;
+    influencer?: { id: string } | null;
   }): AuthUserView {
     return {
       id: user.id,
@@ -199,6 +200,7 @@ export class AuthService {
       name: user.name,
       platformRoles: user.platformRoles.map((r) => r.role),
       emailVerifiedAt: user.emailVerifiedAt ? user.emailVerifiedAt.toISOString() : null,
+      isInfluencer: !!user.influencer,
     };
   }
 }

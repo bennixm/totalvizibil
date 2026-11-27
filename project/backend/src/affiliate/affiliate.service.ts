@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { CREDIT_MINOR } from '../wallet/money';
 import { BillingService } from '../billing/billing.service';
+import { InfluencersService } from '../influencers/influencers.service';
 import { generateInvoicePdf } from '../billing/invoice-pdf';
 import { generateTablePdf } from '../common/table-pdf';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -63,6 +64,7 @@ export class AffiliateService {
     private readonly billing: BillingService,
     private readonly notifications: NotificationsService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly influencers: InfluencersService,
   ) {}
 
   /** Get the user's referral code, generating + persisting one on first use. */
@@ -75,6 +77,10 @@ export class AffiliateService {
 
     for (let attempt = 0; attempt < 8; attempt++) {
       const code = makeCode();
+      // Influencer codes share the `?ref=` namespace: never hand out one.
+      if (await this.prisma.influencer.findUnique({ where: { code }, select: { id: true } })) {
+        continue;
+      }
       try {
         await this.prisma.user.update({ where: { id: userId }, data: { referralCode: code } });
         return code;
@@ -101,9 +107,18 @@ export class AffiliateService {
    * window are all silently ignored (no error to the caller). The reward itself
    * is gated later, at campaign-activation time, on the program being enabled.
    */
-  async claim(referredUserId: string, code: string): Promise<{ claimed: boolean }> {
+  async claim(
+    referredUserId: string,
+    code: string,
+  ): Promise<{ claimed: boolean; influencer?: { code: string; discountPct: number } }> {
     const clean = code.trim().toUpperCase().slice(0, 32);
     if (!clean) return { claimed: false };
+
+    // An influencer's code: same Referral row, marked with the influencer.
+    // Accepted any time BEFORE the user's first completed deposit (that's
+    // what the code discounts), not just in the 24h after sign-up.
+    const influencer = await this.influencers.findActiveByCode(clean);
+    if (influencer) return this.claimInfluencer(referredUserId, influencer);
 
     const [referred, referrer] = await Promise.all([
       this.prisma.user.findUnique({
@@ -169,13 +184,68 @@ export class AffiliateService {
    * Idempotent and never throws — a reward failure must not block activation or
    * a purchase confirmation.
    */
+  private async claimInfluencer(
+    referredUserId: string,
+    influencer: { id: string; userId: string; discountPct: number; code: string },
+  ): Promise<{ claimed: boolean; influencer?: { code: string; discountPct: number } }> {
+    if (influencer.userId === referredUserId) return { claimed: false };
+    const [referred, deposited] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: referredUserId },
+        select: { referralReceived: { select: { influencerId: true } } },
+      }),
+      this.prisma.walletTransaction.count({
+        where: { wallet: { userId: referredUserId }, type: 'purchase', status: 'completed' },
+      }),
+    ]);
+    const existing = referred?.referralReceived;
+    const result = { code: influencer.code, discountPct: influencer.discountPct };
+    // Re-entering the same influencer's code is fine (idempotent).
+    if (existing)
+      return existing.influencerId === influencer.id
+        ? { claimed: true, influencer: result }
+        : { claimed: false };
+    // The code discounts the FIRST deposit: once one exists it can't apply.
+    if (deposited > 0) return { claimed: false };
+    try {
+      await this.prisma.referral.create({
+        data: { referrerId: influencer.userId, referredUserId, influencerId: influencer.id },
+      });
+      void this.notifications
+        .notify({
+          userId: influencer.userId,
+          type: 'referral_claimed',
+          title: 'Cineva a folosit codul tău',
+          body: `Un utilizator nou a folosit codul ${influencer.code}. Comisionul vine la prima lui depunere.`,
+          channels: { panel: true },
+          data: { influencer: true },
+        })
+        .catch(() => undefined);
+      return { claimed: true, influencer: result };
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        return { claimed: false };
+      }
+      throw err;
+    }
+  }
+
   async maybeReward(referredUserId: string): Promise<void> {
     try {
       const referral = await this.prisma.referral.findUnique({
         where: { referredUserId },
-        select: { id: true, status: true, referrerId: true, rewardCredits: true },
+        select: {
+          id: true,
+          status: true,
+          referrerId: true,
+          rewardCredits: true,
+          influencerId: true,
+        },
       });
       if (!referral || referral.status !== 'pending') return;
+      // An influencer referral is paid by commission (InfluencersService),
+      // never by the regular one-off affiliate reward as well.
+      if (referral.influencerId) return;
       if (!(await this.settings.affiliateEnabled())) return;
       if (!(await this.hasStartedCampaign(referredUserId))) return;
 
@@ -342,7 +412,7 @@ export class AffiliateService {
       this.settings.affiliateRewardCredits(),
       this.settings.affiliateMinDepositCredits(),
       this.prisma.referral.findMany({
-        where: { referrerId: userId },
+        where: { referrerId: userId, influencerId: null },
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
@@ -385,7 +455,10 @@ export class AffiliateService {
   async adminList(params: { page?: number; pageSize?: number; status?: 'pending' | 'rewarded' }) {
     const page = Math.max(1, params.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
-    const where: Prisma.ReferralWhereInput = params.status ? { status: params.status } : {};
+    const where: Prisma.ReferralWhereInput = {
+      influencerId: null,
+      ...(params.status ? { status: params.status } : {}),
+    };
 
     const [rows, total, rewardedAgg, totalAll, totalPending] = await this.prisma.$transaction([
       this.prisma.referral.findMany({
@@ -405,7 +478,7 @@ export class AffiliateService {
       }),
       this.prisma.referral.count({ where }),
       this.prisma.referral.aggregate({
-        where: { status: 'rewarded' },
+        where: { status: 'rewarded', influencerId: null },
         _count: true,
         _sum: { rewardCredits: true },
       }),
@@ -413,8 +486,8 @@ export class AffiliateService {
       // whatever status filter is active, so deriving "pending" as
       // `total - totalRewarded` on the frontend went negative/nonsensical
       // under a filter. These two are never filtered.
-      this.prisma.referral.count(),
-      this.prisma.referral.count({ where: { status: 'pending' } }),
+      this.prisma.referral.count({ where: { influencerId: null } }),
+      this.prisma.referral.count({ where: { status: 'pending', influencerId: null } }),
     ]);
 
     return {
@@ -440,7 +513,10 @@ export class AffiliateService {
   /** Same referral ledger as a downloadable PDF. */
   async exportPdf(params: { status?: 'pending' | 'rewarded' }): Promise<Buffer> {
     const EXPORT_CAP = 2000;
-    const where: Prisma.ReferralWhereInput = params.status ? { status: params.status } : {};
+    const where: Prisma.ReferralWhereInput = {
+      influencerId: null,
+      ...(params.status ? { status: params.status } : {}),
+    };
     const rows = await this.prisma.referral.findMany({
       where,
       orderBy: { createdAt: 'desc' },

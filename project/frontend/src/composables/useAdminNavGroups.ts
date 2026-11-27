@@ -64,6 +64,12 @@ export function useAdminNavGroups() {
                   label: t('admin.navReferrals'),
                   icon: 'mdi-account-multiple-plus-outline',
                 },
+                {
+                  to: { name: 'admin-influencers' },
+                  label: t('admin.navInfluencers'),
+                  icon: 'mdi-account-star-outline',
+                  activeMatch: ['admin-influencer'],
+                },
               ]
             : []),
           ...(isSupportStaff.value

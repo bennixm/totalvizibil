@@ -32,6 +32,7 @@ import { PlatformRolesGuard } from './platform-roles.guard';
     SessionService,
     SessionCookieService,
     PasswordService,
+    PasswordResetService,
     AuthService,
   ],
 })

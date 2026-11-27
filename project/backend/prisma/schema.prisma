@@ -69,6 +69,9 @@ model User {
   supportAttachments          SupportAttachment[]
   referralsMade               Referral[]                   @relation("ReferralsMade")
   referralReceived            Referral?                    @relation("ReferralReceived")
+  /// Set when an admin made this account an influencer (its own read-only panel).
+  influencer                  Influencer?
+  influencerCommission        InfluencerCommission?        @relation("InfluencerCommissionReferred")
   aiUsageRecords              AiUsageRecord[]
   notifications               Notification[]
   platformExpensesCreated     PlatformExpense[]
@@ -114,13 +117,75 @@ model Referral {
   // The `affiliate_reward` invoice issued to the referrer for this reward, if any.
   rewardInvoiceId String? @unique @map("reward_invoice_id") @db.Uuid
 
+  // Set when the code used was an INFLUENCER's code (then `referrerId` is the
+  // influencer's own user). Such a referral gives the referred user a
+  // first-deposit discount and the influencer a commission, instead of the
+  // regular one-off affiliate reward.
+  influencerId String?     @map("influencer_id") @db.Uuid
+  influencer   Influencer? @relation(fields: [influencerId], references: [id], onDelete: SetNull)
+
   referrer      User     @relation("ReferralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
   referredUser  User     @relation("ReferralReceived", fields: [referredUserId], references: [id], onDelete: Cascade)
   rewardInvoice Invoice? @relation("ReferralRewardInvoice", fields: [rewardInvoiceId], references: [id], onDelete: SetNull)
 
   @@index([referrerId])
   @@index([status])
+  @@index([influencerId])
   @@map("referrals")
+}
+
+/// An influencer: a normal user account an admin turned into a promoter with
+/// its own discount code. Read-only panel for the influencer; only admins
+/// create or change the code and the percentages.
+model Influencer {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @unique @map("user_id") @db.Uuid
+  /// Uppercase, unique across influencer codes AND users' referral codes.
+  code          String   @unique
+  /// % off the referred user's FIRST deposit (stacks with a global discount).
+  discountPct   Int      @map("discount_pct")
+  /// % of the money the referred user actually paid on that first deposit,
+  /// credited to the influencer's wallet as credits.
+  commissionPct Int      @map("commission_pct")
+  active        Boolean  @default(true)
+  note          String?
+  createdById   String?  @map("created_by_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrals   Referral[]
+  commissions InfluencerCommission[]
+
+  @@map("influencers")
+}
+
+/// The commission an influencer earned on one referred user's first deposit
+/// (one row per referred user: the unique key is what makes it "first
+/// deposit only" and exactly-once).
+model InfluencerCommission {
+  id                    String   @id @default(uuid()) @db.Uuid
+  influencerId          String   @map("influencer_id") @db.Uuid
+  referredUserId        String   @unique @map("referred_user_id") @db.Uuid
+  /// The referred user's first (discounted) deposit.
+  purchaseTransactionId String   @unique @map("purchase_transaction_id") @db.Uuid
+  /// What the referred user paid for it (EUR cents) and the credits received.
+  depositEurCents       Int      @map("deposit_eur_cents")
+  depositCreditsMinor   Int      @map("deposit_credits_minor")
+  discountPct           Int      @map("discount_pct")
+  commissionPct         Int      @map("commission_pct")
+  /// Credits (minor units) put in the influencer's wallet.
+  commissionMinor       Int      @map("commission_minor")
+  /// The influencer's wallet credit and its reward invoice.
+  walletTransactionId   String   @unique @map("wallet_transaction_id") @db.Uuid
+  invoiceId             String?  @unique @map("invoice_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  influencer   Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  referredUser User       @relation("InfluencerCommissionReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
+
+  @@index([influencerId, createdAt])
+  @@map("influencer_commissions")
 }
 
 model PasswordResetToken {
@@ -1206,6 +1271,11 @@ model WalletTransaction {
   // refund. Only set while status = 'pending' on a refund row.
   processAt           DateTime? @map("process_at")
   initiatedByAdminId  String?   @map("initiated_by_admin_id") @db.Uuid
+
+  // Purchases: total % discount applied to what was charged, and the
+  // influencer whose code gave the first-deposit part of it (if any).
+  discountPct  Int?    @map("discount_pct")
+  influencerId String? @map("influencer_id") @db.Uuid
 
   description String?
   createdAt   DateTime @default(now()) @map("created_at")

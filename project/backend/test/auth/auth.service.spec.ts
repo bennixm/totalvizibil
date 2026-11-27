@@ -126,6 +126,7 @@ describe('AuthService', () => {
           name: 'Real Owner',
           platformRoles: [],
           emailVerifiedAt: null,
+          isInfluencer: false,
         });
         // Response shape is identical to the legitimate branch, so the probe
         // learns nothing from what comes back.
@@ -155,6 +156,7 @@ describe('AuthService', () => {
         name: 'A',
         platformRoles: [],
         emailVerifiedAt: null,
+        isInfluencer: false,
       });
       expect(result.didMutate).toBe(true);
       const createArg = prisma.user.create.mock.calls[0][0];
@@ -261,6 +263,7 @@ describe('AuthService', () => {
         name: 'X',
         platformRoles: ['admin'],
         emailVerifiedAt: verifiedAt.toISOString(),
+        isInfluencer: false,
       });
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'u1' },
