@@ -70,6 +70,37 @@ describe('notifications store', () => {
     expect(store.unreadCount).toBe(0)
   })
 
+  it('markAllRead clears the bell even when more are unread than the panel has loaded', async () => {
+    apiFetchMock.mockImplementation(async (path: string) =>
+      path.includes('unread-count') ? { count: 0 } : { ok: true },
+    )
+    const store = useNotificationsStore()
+    // 30 unread on the server, only the first page (2) loaded in the panel.
+    store.items = [item({ id: 'a' }), item({ id: 'b' })]
+    store.unreadCount = 30
+
+    const p = store.markAllRead()
+    // Optimistic: the badge drops to zero at once, not to 28.
+    expect(store.unreadCount).toBe(0)
+    await p
+    await new Promise((r) => setTimeout(r, 0))
+    expect(store.unreadCount).toBe(0)
+    expect(apiFetchMock).toHaveBeenCalledWith('/notifications/read-all', { method: 'POST' })
+  })
+
+  it('markAllRead still works when none of the unread ones are loaded yet', async () => {
+    apiFetchMock.mockImplementation(async (path: string) =>
+      path.includes('unread-count') ? { count: 0 } : { ok: true },
+    )
+    const store = useNotificationsStore()
+    store.items = []
+    store.unreadCount = 5
+
+    await store.markAllRead()
+    expect(apiFetchMock).toHaveBeenCalledWith('/notifications/read-all', { method: 'POST' })
+    expect(store.unreadCount).toBe(0)
+  })
+
   it('markAllRead rolls back every item + the count if the server call fails', async () => {
     apiFetchMock.mockRejectedValueOnce(new Error('network'))
     const store = useNotificationsStore()

@@ -182,6 +182,81 @@ export function ctaButton(label: string, url: string, opts: { showUrl?: boolean 
     }`;
 }
 
+/**
+ * Welcome band: a brand-gradient panel with a short kicker, a big title and
+ * one line under it. For onboarding emails only (it is louder than a notice).
+ * `bgcolor` keeps a solid brand fill where gradients aren't rendered.
+ */
+export function heroBand(kicker: string, title: string, subtitle?: string): string {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 26px;">
+      <tr>
+        <td bgcolor="${BRAND}" class="tvz-hero"
+            style="background:${BRAND};background-image:linear-gradient(135deg, ${BRAND} 0%, #3b74d6 55%, #6a5cff 100%);border-radius:14px;padding:28px 26px;">
+          <div style="font-family:${FONT};font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#cfe0ff;">
+            ${escapeHtml(kicker)}
+          </div>
+          <div class="tvz-hero-title" style="margin-top:8px;font-family:${FONT};font-size:26px;font-weight:800;line-height:1.25;color:#ffffff;">
+            ${escapeHtml(title)}
+          </div>
+          ${
+            subtitle
+              ? `<div style="margin-top:8px;font-family:${FONT};font-size:15px;line-height:1.55;color:#e4edff;">${escapeHtml(subtitle)}</div>`
+              : ''
+          }
+        </td>
+      </tr>
+    </table>`;
+}
+
+/** A promo/discount code to SHARE (not a secret): dashed brand ticket with
+ *  the code large and a caption under it. */
+export function promoCodeCard(label: string, code: string, caption?: string): string {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 22px;">
+      <tr>
+        <td align="center" class="tvz-soft" bgcolor="#eef4ff"
+            style="background:#eef4ff;border:2px dashed ${BRAND};border-radius:14px;padding:20px 16px;">
+          <div class="tvz-muted" style="font-family:${FONT};font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:${MUTED};">
+            ${escapeHtml(label)}
+          </div>
+          <div class="tvz-code tvz-link" style="margin-top:6px;font-family:${MONO};font-size:32px;font-weight:800;letter-spacing:5px;line-height:1.2;color:${BRAND};">
+            ${escapeHtml(code)}
+          </div>
+          ${
+            caption
+              ? `<div class="tvz-muted" style="margin-top:8px;font-family:${FONT};font-size:13px;line-height:1.5;color:${MUTED};">${escapeHtml(caption)}</div>`
+              : ''
+          }
+        </td>
+      </tr>
+    </table>`;
+}
+
+/** Two to three big-number tiles side by side (stack on phones). */
+export function statTiles(tiles: { value: string; label: string }[]): string {
+  const width = Math.floor(100 / Math.max(1, tiles.length));
+  const cells = tiles
+    .map(
+      (t, i) => `
+        <td class="tvz-tile" width="${width}%" valign="top" style="padding:0 ${i === tiles.length - 1 ? 0 : 6}px 0 ${i === 0 ? 0 : 6}px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td class="tvz-soft tvz-line" bgcolor="${SOFT}" style="background:${SOFT};border:1px solid ${BORDER};border-radius:12px;padding:16px 14px;">
+                <div class="tvz-ink" style="font-family:${FONT};font-size:26px;font-weight:800;line-height:1.1;color:${INK};">${escapeHtml(t.value)}</div>
+                <div class="tvz-muted" style="margin-top:6px;font-family:${FONT};font-size:13px;line-height:1.4;color:${MUTED};">${escapeHtml(t.label)}</div>
+              </td>
+            </tr>
+          </table>
+        </td>`,
+    )
+    .join('');
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 26px;">
+      <tr>${cells}</tr>
+    </table>`;
+}
+
 /** A prominent one-time code: verification, 2FA, etc. Deliberately not
  *  inline text, since the code is usually the one thing the recipient came
  *  for. `caption` sits under it (e.g. how long it stays valid). */
@@ -366,6 +441,9 @@ export function renderEmailLayout(opts: EmailLayoutOptions): string {
         .tvz-dl-label, .tvz-dl-value { display:block !important; width:auto !important; text-align:left !important; white-space:normal !important; }
         .tvz-dl-label { padding-bottom:0 !important; }
         .tvz-dl-value { padding-top:2px !important; border-top:0 !important; }
+        .tvz-hero { padding:22px 18px !important; }
+        .tvz-hero-title { font-size:22px !important; }
+        .tvz-tile { display:block !important; width:100% !important; padding:0 0 10px 0 !important; }
       }${darkModeCss()}
     </style>
   </head>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordField from '@/components/PasswordField.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -359,11 +360,10 @@ onMounted(async () => {
         prepend-inner-icon="mdi-email-outline"
         autocomplete="email"
       />
-      <v-text-field
+      <PasswordField
         v-model="password"
         :label="t('auth.password')"
         :hint="t('auth.passwordHint')"
-        type="password"
         variant="outlined"
         density="comfortable"
         prepend-inner-icon="mdi-lock-outline"

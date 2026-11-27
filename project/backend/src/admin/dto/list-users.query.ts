@@ -13,8 +13,10 @@ export class ListUsersQuery {
   status?: 'active' | 'suspended';
 
   @IsOptional()
-  @IsIn(['admin', 'support', 'finance', 'moderator'])
-  role?: 'admin' | 'support' | 'finance' | 'moderator';
+  // `influencer` is not a platform role (no admin access); it filters the
+  // accounts that have an influencer profile.
+  @IsIn(['admin', 'support', 'finance', 'moderator', 'influencer'])
+  role?: 'admin' | 'support' | 'finance' | 'moderator' | 'influencer';
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)

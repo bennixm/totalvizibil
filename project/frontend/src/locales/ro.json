@@ -967,7 +967,9 @@
     "totpVerify": "Verifică",
     "totpInvalid": "Codul nu este valid. Încearcă pe cel curent.",
     "genericError": "Nu am putut procesa cererea. Verifică datele și încearcă din nou.",
-    "accountSuspended": "Contul tău este suspendat. Contactează suportul pentru detalii."
+    "accountSuspended": "Contul tău este suspendat. Contactează suportul pentru detalii.",
+    "showPassword": "Arată parola",
+    "hidePassword": "Ascunde parola"
   },
   "reset": {
     "forgotTitle": "Resetează-ți parola",
@@ -1387,7 +1389,8 @@
     "userClient": "Client",
     "lastSeenOn": "Ultima intrare: {date}",
     "neverSignedIn": "Nu s-a autentificat încă",
-    "navInfluencers": "Influenceri"
+    "navInfluencers": "Influenceri",
+    "openProfile": "Vezi profilul"
   },
   "errors": {
     "notFoundTitle": "Pagina nu a fost găsită",
@@ -5310,5 +5313,45 @@
     "errCodeInvalid": "Cod invalid: 3-24 caractere, litere, cifre sau cratimă.",
     "errAlready": "Acest cont este deja influencer.",
     "errPct": "Procentele trebuie să fie numere întregi între 0 și 90."
+  },
+  "adminAff": {
+    "tab": "Afiliere",
+    "pill": "Influencer · {code}",
+    "influencerTitle": "Profil de influencer",
+    "terms": "Reducere client {discount}% · comision {commission}%",
+    "openInfluencer": "Deschide pagina influencerului",
+    "notInfluencer": "Contul nu este influencer.",
+    "makeInfluencer": "Fă-l influencer",
+    "referredTitle": "Adus de",
+    "referredHint": "Codul de influencer sau linkul de recomandare cu care s-a înscris contul. Un cod poate fi atașat sau detașat doar până la prima depunere.",
+    "via": "Prin",
+    "since": "Din",
+    "commission": "Comision generat",
+    "onDeposit": "din {paid} plătiți, reducere {pct}%",
+    "noFirstDeposit": "Încă nicio depunere",
+    "reward": "Recompensă afiliere",
+    "influencerCode": "cod {code}",
+    "userLink": "link de recomandare",
+    "noReferral": "Contul nu a fost adus de nimeni.",
+    "attachLabel": "Cod de influencer",
+    "attach": "Atașează codul",
+    "attached": "Codul {code} a fost atașat. Reducerea se aplică la prima depunere.",
+    "detach": "Detașează",
+    "detachTitle": "Detașezi codul?",
+    "detachText": "Contul nu va mai fi asociat cu cel care l-a adus și nu va mai primi reducerea la prima depunere.",
+    "detached": "Asocierea a fost eliminată.",
+    "locked": "Blocat după prima depunere: comisionul sau recompensa sunt deja stabilite.",
+    "errUnknownCode": "Nu există un influencer activ cu acest cod.",
+    "errOwnCode": "Un influencer nu își poate folosi propriul cod.",
+    "errLocked": "Contul are deja o depunere; asocierea nu se mai poate schimba.",
+    "errExists": "Contul este deja asociat. Detașează întâi asocierea existentă."
+  },
+  "setPw": {
+    "title": "Setează-ți parola",
+    "subtitle": "Alege parola cu care vei intra în contul tău Totalvizibil.",
+    "invalidToken": "Linkul pentru setarea parolei a expirat sau a fost deja folosit. Cere administratorului să retrimită invitația sau folosește „Am uitat parola”.",
+    "doneText": "Parola a fost setată. Te redirecționăm spre autentificare.",
+    "submit": "Setează parola",
+    "newPassword": "Parola ta"
   }
 }

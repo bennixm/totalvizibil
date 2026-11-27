@@ -5,6 +5,7 @@ import { PlatformSettingsService } from 'src/platform-settings/platform-settings
 import { createTestApp } from './helpers/app';
 import { resetDb } from './helpers/db';
 import { createAndLoginUser, TestUser } from './helpers/auth';
+import { MailService } from 'src/mail/mail.service';
 
 /**
  * Influencers end to end on the real database (top-ups through the dev-stub
@@ -343,6 +344,123 @@ describe('Influencers', () => {
       .patch(`/api/v1/admin/influencers/${influencer.id}`)
       .set('Cookie', fin.cookie)
       .send({ active: false })
+      .expect(403);
+  });
+
+  it('a new influencer gets the dedicated welcome email with a 7-day set-password link, not the reset email', async () => {
+    const mail = app.get(MailService);
+    const spy = jest.spyOn(mail, 'send');
+    const adm = await admin();
+    await setupInfluencer(adm);
+    const sent = spy.mock.calls.map((c) => c[0]).filter((m) => m.to === 'andrei@example.com');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].subject).toContain('ANDREI15');
+    expect(sent[0].subject).not.toMatch(/Resetează/);
+    expect(sent[0].html).toContain('/set-password?token=');
+    expect(sent[0].html).toContain('Setează-ți parola');
+    const token = await prisma.passwordResetToken.findFirstOrThrow({
+      where: { user: { email: 'andrei@example.com' } },
+    });
+    expect(token.expiresAt.getTime() - Date.now()).toBeGreaterThan(6 * 24 * 3600 * 1000);
+    spy.mockRestore();
+  });
+
+  it('admin › user: shows the influencer profile, who brought a user in, and the influencer filter', async () => {
+    const adm = await admin();
+    const { influencer } = await setupInfluencer(adm);
+    const client = await customer('eva@example.com');
+    await http()
+      .post('/api/v1/affiliate/claim')
+      .set('Cookie', client.cookie)
+      .send({ code: 'ANDREI15' })
+      .expect(201);
+    await deposit(client, 100);
+
+    const infDetail = await http()
+      .get(`/api/v1/admin/users/${influencer.userId}`)
+      .set('Cookie', adm.cookie)
+      .expect(200);
+    expect(infDetail.body.influencer).toMatchObject({ code: 'ANDREI15', users: 1, depositors: 1 });
+    expect(infDetail.body.influencer.commissions.minor).toBe(1700);
+
+    const clientDetail = await http()
+      .get(`/api/v1/admin/users/${client.id}`)
+      .set('Cookie', adm.cookie)
+      .expect(200);
+    expect(clientDetail.body.referredBy).toMatchObject({
+      kind: 'influencer',
+      influencer: { code: 'ANDREI15' },
+    });
+    expect(clientDetail.body.referredBy.commission.commission.minor).toBe(1700);
+    expect(clientDetail.body.canChangeReferral).toBe(false);
+
+    const list = await http()
+      .get('/api/v1/admin/users?role=influencer')
+      .set('Cookie', adm.cookie)
+      .expect(200);
+    expect(list.body.items.map((u: { id: string }) => u.id)).toEqual([influencer.userId]);
+    expect(list.body.items[0].influencer).toMatchObject({ code: 'ANDREI15', active: true });
+    const byCode = await http()
+      .get('/api/v1/admin/users?search=andrei15')
+      .set('Cookie', adm.cookie)
+      .expect(200);
+    expect(byCode.body.items.map((u: { id: string }) => u.id)).toContain(influencer.userId);
+  });
+
+  it('admin can attach / detach a code before the first deposit, never after', async () => {
+    const adm = await admin();
+    await setupInfluencer(adm);
+    const client = await customer('fane@example.com');
+    await http()
+      .post(`/api/v1/admin/users/${client.id}/referral`)
+      .set('Cookie', adm.cookie)
+      .send({ code: 'nope' })
+      .expect(400);
+    await http()
+      .post(`/api/v1/admin/users/${client.id}/referral`)
+      .set('Cookie', adm.cookie)
+      .send({ code: 'andrei15' })
+      .expect(201);
+    await http()
+      .post(`/api/v1/admin/users/${client.id}/referral`)
+      .set('Cookie', adm.cookie)
+      .send({ code: 'ANDREI15' })
+      .expect(409);
+    let w = await http().get('/api/v1/wallet').set('Cookie', client.cookie).expect(200);
+    expect(w.body.firstDepositDiscount?.pct).toBe(15);
+    await http()
+      .delete(`/api/v1/admin/users/${client.id}/referral`)
+      .set('Cookie', adm.cookie)
+      .expect(200);
+    w = await http().get('/api/v1/wallet').set('Cookie', client.cookie).expect(200);
+    expect(w.body.firstDepositDiscount).toBeNull();
+
+    await http()
+      .post(`/api/v1/admin/users/${client.id}/referral`)
+      .set('Cookie', adm.cookie)
+      .send({ code: 'ANDREI15' })
+      .expect(201);
+    await deposit(client, 10);
+    await http()
+      .delete(`/api/v1/admin/users/${client.id}/referral`)
+      .set('Cookie', adm.cookie)
+      .expect(400);
+    expect(
+      await prisma.adminAuditLog.count({
+        where: { action: { startsWith: 'influencer.referral.' } },
+      }),
+    ).toBe(3);
+
+    // Finance can read the user but not change the link.
+    const fin = await createAndLoginUser(app, prisma, {
+      email: 'fin2@example.com',
+      password: 'password123',
+      name: 'Fin',
+    });
+    await prisma.platformRoleAssignment.create({ data: { userId: fin.id, role: 'finance' } });
+    await http()
+      .delete(`/api/v1/admin/users/${client.id}/referral`)
+      .set('Cookie', fin.cookie)
       .expect(403);
   });
 });

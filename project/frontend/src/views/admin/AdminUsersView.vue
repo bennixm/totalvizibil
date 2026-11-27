@@ -43,6 +43,8 @@ const roleItems = [
   { value: 'support', title: 'support' },
   { value: 'finance', title: 'finance' },
   { value: 'moderator', title: 'moderator' },
+  // Not a staff role: accounts with an influencer profile.
+  { value: 'influencer', title: t('admin.navInfluencers') },
 ]
 
 function initials(name: string): string {
@@ -141,7 +143,7 @@ function open(id: string): void {
         density="compact"
         hide-details
         class="au__sel"
-        @update:model-value="admin.setFilter('role', $event as PlatformRole | null)"
+        @update:model-value="admin.setFilter('role', $event as PlatformRole | 'influencer' | null)"
       />
     </div>
 
@@ -173,14 +175,23 @@ function open(id: string): void {
           @click="open(u.id)"
           @keydown.enter="open(u.id)"
         >
-          <header class="pc__head">
-            <span class="pc__av">{{ initials(u.name) }}</span>
-            <div class="pc__id">
-              <h3 class="pc__name">{{ u.name }}</h3>
-              <p class="pc__mail">{{ u.email }}</p>
-            </div>
-            <v-icon icon="mdi-arrow-top-right" size="17" class="pc__go" />
-          </header>
+          <div class="pc__cover" aria-hidden="true">
+            <span class="pc__go">
+              {{ t('admin.openProfile') }}
+              <v-icon icon="mdi-arrow-top-right" size="14" />
+            </span>
+          </div>
+
+          <div class="pc__avrow">
+            <span class="pc__ring" :class="{ 'is-2fa': u.twoFactorEnabled }">
+              <span class="pc__av">{{ initials(u.name) }}</span>
+            </span>
+          </div>
+
+          <div class="pc__id">
+            <h3 class="pc__name">{{ u.name }}</h3>
+            <p class="pc__mail">{{ u.email }}</p>
+          </div>
 
           <div class="pc__tags">
             <span v-if="u.status === 'suspended'" class="tag tag--err">
@@ -190,39 +201,48 @@ function open(id: string): void {
               <v-icon icon="mdi-email-alert-outline" size="11" /> {{ t('admin.userEmailUnverified') }}
             </span>
             <span v-for="r in u.platformRoles" :key="r" class="tag tag--role">{{ r }}</span>
-            <span v-if="!u.platformRoles.length && u.status !== 'suspended' && u.emailVerified" class="tag">
+            <span v-if="u.influencer" class="tag tag--infl" :class="{ 'is-off': !u.influencer.active }">
+              <v-icon icon="mdi-account-star-outline" size="11" /> {{ u.influencer.code }}
+            </span>
+            <span v-if="!u.platformRoles.length && !u.influencer && u.status !== 'suspended' && u.emailVerified" class="tag">
               {{ t('admin.userClient') }}
             </span>
           </div>
 
           <dl class="pc__stats">
             <div>
-              <dt>{{ t('admin.colBusinesses') }}</dt>
               <dd>{{ u.companyCount }}</dd>
+              <dt>{{ t('admin.colBusinesses') }}</dt>
             </div>
             <div>
-              <dt>{{ t('admin.colAdsCampaigns') }}</dt>
               <dd>{{ u.adsCampaignCount }}</dd>
+              <dt>{{ t('admin.colAdsCampaigns') }}</dt>
             </div>
             <div>
-              <dt>{{ t('admin.colWallet') }}</dt>
               <dd>
-                <v-icon v-if="u.walletBlocked" icon="mdi-lock" size="13" color="error" :title="t('admin.walletFrozen')" />
+                <v-icon v-if="u.walletBlocked" icon="mdi-lock" size="14" color="error" :title="t('admin.walletFrozen')" />
                 {{ credits(u.walletCredits) }}
               </dd>
+              <dt>{{ t('admin.colWallet') }}</dt>
             </div>
           </dl>
 
           <footer class="pc__foot">
-            <span class="pc__seen">
-              <v-icon icon="mdi-clock-outline" size="13" />
-              {{ u.lastLoginAt ? t('admin.lastSeenOn', { date: lastLogin(u.lastLoginAt) }) : t('admin.neverSignedIn') }}
+            <span
+              :title="u.lastLoginAt ? t('admin.lastSeenOn', { date: lastLogin(u.lastLoginAt) }) : t('admin.neverSignedIn')"
+            >
+              <v-icon icon="mdi-clock-outline" size="15" />
+              {{ u.lastLoginAt ? lastLogin(u.lastLoginAt) : t('admin.never') }}
             </span>
-            <span class="pc__2fa" :class="{ on: u.twoFactorEnabled }" :title="t('admin.stat.users2fa')">
-              <v-icon :icon="u.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'" size="13" /> 2FA
+            <span :class="{ 'is-on': u.twoFactorEnabled }" :title="t('admin.stat.users2fa')">
+              <v-icon :icon="u.twoFactorEnabled ? 'mdi-shield-check' : 'mdi-shield-off-outline'" size="15" />
+              2FA
+            </span>
+            <span :title="t('admin.joinedOn', { date: joined(u.createdAt) })">
+              <v-icon icon="mdi-calendar-blank-outline" size="15" />
+              {{ joined(u.createdAt) }}
             </span>
           </footer>
-          <p class="pc__joined">{{ t('admin.joinedOn', { date: joined(u.createdAt) }) }}</p>
         </article>
       </li>
     </ul>
@@ -275,18 +295,22 @@ function open(id: string): void {
   display: flex;
 }
 
-/* Profile card */
+/* Profile card: a soft cover in the person's colour, a round avatar that
+   overlaps it, the identity, a recessed stats panel and an icon strip. */
 .pc {
   --pc-accent: hsl(var(--pc-hue) 70% 55%);
+  --pc-r: 1.35rem;
   position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  padding: 1.1rem 1.1rem 0.9rem;
+  padding: 0.45rem;
   border: 1px solid var(--tvz-hairline);
-  border-radius: var(--tvz-radius-lg);
+  border-radius: var(--pc-r);
   background: rgb(var(--v-theme-surface));
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 10px 28px -18px rgba(0, 0, 0, 0.45);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -294,62 +318,109 @@ function open(id: string): void {
     border-color var(--tvz-dur-fast) var(--tvz-ease-out),
     box-shadow var(--tvz-dur-fast) var(--tvz-ease-out);
 }
-/* A soft band of the person's colour behind the avatar. */
-.pc::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 4.2rem;
-  background: linear-gradient(
-    135deg,
-    hsl(var(--pc-hue) 70% 55% / 0.22),
-    hsl(calc(var(--pc-hue) + 40) 70% 55% / 0.05)
-  );
-  pointer-events: none;
-}
 .pc:hover,
 .pc:focus-visible {
   outline: none;
-  transform: translateY(-2px);
-  border-color: rgba(var(--v-theme-primary), 0.45);
-  box-shadow: var(--tvz-shadow-md);
+  transform: translateY(-3px);
+  border-color: rgba(var(--v-theme-primary), 0.4);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 22px 40px -22px rgba(0, 0, 0, 0.55);
 }
 .pc.is-suspended {
   border-color: rgba(var(--v-theme-error), 0.45);
 }
-.pc.is-suspended::before {
-  background: linear-gradient(135deg, rgba(var(--v-theme-error), 0.18), transparent);
-}
-.pc__head {
+
+/* Cover: the person's colour with soft "cloud" highlights. */
+.pc__cover {
   position: relative;
-  display: flex;
+  height: 5.6rem;
+  border-radius: calc(var(--pc-r) - 0.35rem);
+  background:
+    radial-gradient(60% 70% at 18% 30%, rgba(255, 255, 255, 0.55), transparent 70%),
+    radial-gradient(45% 60% at 78% 75%, rgba(255, 255, 255, 0.38), transparent 70%),
+    radial-gradient(35% 45% at 55% 20%, rgba(255, 255, 255, 0.3), transparent 70%),
+    linear-gradient(135deg, hsl(var(--pc-hue) 62% 72%), hsl(calc(var(--pc-hue) + 45) 58% 64%));
+}
+.pc.is-suspended .pc__cover {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+.pc__go {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  display: inline-flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.25rem;
+  padding: 0.32rem 0.55rem 0.32rem 0.75rem;
+  border-radius: 999px;
+  font-size: var(--tvz-fs-caption);
+  font-weight: 600;
+  color: #1d2433;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition:
+    background var(--tvz-dur-fast) var(--tvz-ease-out),
+    color var(--tvz-dur-fast) var(--tvz-ease-out);
+}
+.pc:hover .pc__go,
+.pc:focus-visible .pc__go {
+  background: #fff;
+  color: rgb(var(--v-theme-primary));
+}
+
+/* Avatar: overlaps the cover; the ring turns green with 2FA on. */
+.pc__avrow {
+  display: flex;
+  padding: 0 0.7rem;
+  margin-top: -2.4rem;
+}
+.pc__ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 4.7rem;
+  height: 4.7rem;
+  padding: 3px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 200deg,
+    var(--pc-accent),
+    hsl(calc(var(--pc-hue) + 60) 75% 60%),
+    hsl(calc(var(--pc-hue) + 120) 70% 60%),
+    var(--pc-accent)
+  );
+}
+.pc__ring.is-2fa {
+  background: conic-gradient(from 200deg, rgb(var(--v-theme-success)), #7be0b0, rgb(var(--v-theme-success)));
 }
 .pc__av {
   display: grid;
   place-items: center;
-  flex: none;
-  width: 3.25rem;
-  height: 3.25rem;
-  clip-path: var(--tvz-hex-md);
+  width: 100%;
+  height: 100%;
+  border: 3px solid rgb(var(--v-theme-surface));
+  border-radius: 50%;
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: var(--tvz-fs-lead);
+  font-size: 1.35rem;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, var(--pc-accent), hsl(calc(var(--pc-hue) + 40) 70% 42%));
+  background: linear-gradient(135deg, var(--pc-accent), hsl(calc(var(--pc-hue) + 40) 70% 40%));
 }
+.pc.is-suspended .pc__ring,
 .pc.is-suspended .pc__av {
   filter: grayscale(1);
-  opacity: 0.7;
 }
+
 .pc__id {
-  flex: 1;
+  padding: 0.65rem 0.7rem 0;
   min-width: 0;
 }
 .pc__name {
   margin: 0;
-  font-size: var(--tvz-fs-section);
+  font-size: 1.2rem;
   font-weight: 700;
   line-height: 1.25;
   white-space: nowrap;
@@ -357,27 +428,18 @@ function open(id: string): void {
   text-overflow: ellipsis;
 }
 .pc__mail {
-  margin: 0.1rem 0 0;
-  font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.58);
+  margin: 0.15rem 0 0;
+  font-size: var(--tvz-fs-small);
+  color: rgba(var(--v-theme-on-surface), 0.6);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.pc__go {
-  align-self: flex-start;
-  color: rgba(var(--v-theme-on-surface), 0.3);
-  transition: color var(--tvz-dur-fast) var(--tvz-ease-out);
-}
-.pc:hover .pc__go,
-.pc:focus-visible .pc__go {
-  color: rgb(var(--v-theme-primary));
-}
 .pc__tags {
-  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
+  padding: 0.6rem 0.7rem 0.9rem;
 }
 .tag {
   display: inline-flex;
@@ -387,8 +449,8 @@ function open(id: string): void {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 0.12rem 0.45rem;
-  clip-path: var(--tvz-hex-xs);
+  padding: 0.16rem 0.5rem;
+  border-radius: 999px;
   background: rgba(var(--v-theme-on-surface), 0.07);
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
@@ -400,39 +462,39 @@ function open(id: string): void {
   background: rgba(var(--v-theme-warning), 0.16);
   color: rgb(var(--v-theme-warning));
 }
+.tag--infl {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+  letter-spacing: 0.03em;
+}
+.tag--infl.is-off {
+  background: rgba(var(--v-theme-warning), 0.14);
+  color: rgb(var(--v-theme-warning));
+}
 .tag--role {
   background: rgba(var(--v-theme-primary), 0.14);
   color: rgb(var(--v-theme-primary));
 }
+
+/* Stats: a recessed panel, value on top, label under it. */
 .pc__stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: auto 0 0;
-  border: 1px solid var(--tvz-hairline);
-  border-radius: var(--tvz-radius-md);
-  background: rgba(var(--v-theme-on-surface), 0.025);
+  border-radius: calc(var(--pc-r) - 0.45rem);
+  background: rgba(var(--v-theme-on-surface), 0.045);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 .pc__stats > div {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.1rem;
-  padding: 0.55rem 0.3rem;
+  gap: 0.15rem;
+  padding: 0.75rem 0.3rem;
   min-width: 0;
 }
 .pc__stats > div + div {
   border-left: 1px solid var(--tvz-hairline);
-}
-.pc__stats dt {
-  max-width: 100%;
-  font-size: var(--tvz-fs-micro);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .pc__stats dd {
   display: flex;
@@ -440,43 +502,43 @@ function open(id: string): void {
   gap: 0.2rem;
   margin: 0;
   font-family: 'Space Grotesk Variable', sans-serif;
-  font-size: 1.15rem;
+  font-size: 1.3rem;
   font-weight: 700;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
-.pc__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+.pc__stats dt {
+  max-width: 100%;
   font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.62);
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.pc__seen {
+
+/* Icon strip: last sign-in, 2FA, registered. */
+.pc__foot {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0.45rem;
+}
+.pc__foot > span {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.3rem;
   min-width: 0;
-}
-.pc__2fa {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  flex: none;
-  padding: 0.1rem 0.4rem;
-  clip-path: var(--tvz-hex-xs);
-  font-size: var(--tvz-fs-micro);
-  font-weight: 700;
-  background: rgba(var(--v-theme-on-surface), 0.07);
-}
-.pc__2fa.on {
-  background: rgba(var(--v-theme-success), 0.16);
-  color: rgb(var(--v-theme-success));
-}
-.pc__joined {
-  margin: -0.45rem 0 0;
+  padding: 0.55rem 0.2rem 0.35rem;
   font-size: var(--tvz-fs-caption);
-  color: rgba(var(--v-theme-on-surface), 0.42);
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  white-space: nowrap;
+}
+.pc__foot > span + span {
+  border-left: 1px solid var(--tvz-hairline);
+}
+.pc__foot > span.is-on {
+  color: rgb(var(--v-theme-success));
+  font-weight: 600;
 }
 @media (prefers-reduced-motion: reduce) {
   .pc:hover,

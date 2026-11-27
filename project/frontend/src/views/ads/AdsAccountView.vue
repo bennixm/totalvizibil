@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordField from '@/components/PasswordField.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -186,10 +187,9 @@ onMounted(async () => {
         <p class="aa__h">{{ t('ads.account.newTitle') }}</p>
         <v-text-field v-model="name" :label="t('ads.account.name')" autocomplete="name" />
         <v-text-field v-model="email" :label="t('ads.account.email')" type="email" autocomplete="email" />
-        <v-text-field
+        <PasswordField
           v-model="password"
           :label="t('ads.account.password')"
-          type="password"
           autocomplete="new-password"
           :hint="t('ads.account.passwordHint')"
           persistent-hint

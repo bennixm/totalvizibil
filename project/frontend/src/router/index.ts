@@ -344,6 +344,14 @@ const routes: RouteRecordRaw[] = [
     meta: { guestOnly: true },
   },
   {
+    // First password for an account created for someone (welcome email of a
+    // new influencer). Same token check as a reset, "set" wording.
+    path: '/set-password',
+    name: 'set-password',
+    component: () => import('@/views/ResetPasswordView.vue'),
+    meta: { guestOnly: true, passwordMode: 'set' },
+  },
+  {
     path: '/admin',
     component: () => import('@/views/admin/AdminLayout.vue'),
     meta: { requiresAuth: true, requiresPlatformStaff: true },

@@ -967,7 +967,9 @@
     "totpVerify": "Verify",
     "totpInvalid": "That code is not valid. Try the current one.",
     "genericError": "We couldn't process that. Check your details and try again.",
-    "accountSuspended": "Your account is suspended. Contact support for details."
+    "accountSuspended": "Your account is suspended. Contact support for details.",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "reset": {
     "forgotTitle": "Reset your password",
@@ -1387,7 +1389,8 @@
     "userClient": "Customer",
     "lastSeenOn": "Last sign-in: {date}",
     "neverSignedIn": "Never signed in",
-    "navInfluencers": "Influencers"
+    "navInfluencers": "Influencers",
+    "openProfile": "View profile"
   },
   "errors": {
     "notFoundTitle": "Page not found",
@@ -5310,5 +5313,45 @@
     "errCodeInvalid": "Invalid code: 3-24 characters, letters, digits or dash.",
     "errAlready": "This account is already an influencer.",
     "errPct": "Percentages must be whole numbers from 0 to 90."
+  },
+  "adminAff": {
+    "tab": "Affiliation",
+    "pill": "Influencer · {code}",
+    "influencerTitle": "Influencer profile",
+    "terms": "Customer discount {discount}% · commission {commission}%",
+    "openInfluencer": "Open influencer page",
+    "notInfluencer": "This account is not an influencer.",
+    "makeInfluencer": "Make influencer",
+    "referredTitle": "Brought in by",
+    "referredHint": "The influencer code or referral link this account joined with. A code can be attached or detached only until the first deposit.",
+    "via": "Via",
+    "since": "Since",
+    "commission": "Commission generated",
+    "onDeposit": "from {paid} paid, {pct}% discount",
+    "noFirstDeposit": "No deposit yet",
+    "reward": "Affiliate reward",
+    "influencerCode": "code {code}",
+    "userLink": "referral link",
+    "noReferral": "Nobody brought this account in.",
+    "attachLabel": "Influencer code",
+    "attach": "Attach code",
+    "attached": "Code {code} attached. The discount applies to the first deposit.",
+    "detach": "Detach",
+    "detachTitle": "Detach the code?",
+    "detachText": "The account will no longer be linked to whoever brought it in and loses the first-deposit discount.",
+    "detached": "The link was removed.",
+    "locked": "Locked after the first deposit: the commission or reward is already settled.",
+    "errUnknownCode": "No active influencer has this code.",
+    "errOwnCode": "An influencer cannot use their own code.",
+    "errLocked": "The account already has a deposit; the link can no longer change.",
+    "errExists": "The account is already linked. Detach the existing link first."
+  },
+  "setPw": {
+    "title": "Set your password",
+    "subtitle": "Choose the password you will use to sign in to Totalvizibil.",
+    "invalidToken": "The set-password link has expired or was already used. Ask the administrator to resend the invite, or use \"Forgot password\".",
+    "doneText": "Your password is set. Taking you to sign in.",
+    "submit": "Set password",
+    "newPassword": "Your password"
   }
 }

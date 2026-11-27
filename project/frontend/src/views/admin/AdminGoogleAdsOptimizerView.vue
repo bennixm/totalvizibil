@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordField from '@/components/PasswordField.vue'
 import { computed, onMounted, reactive, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -385,9 +386,9 @@ onMounted(() => {
         </AdminSection>
         <AdminSection :title="t('adminAdsOpt.oauthClient')" icon="mdi-key-outline">
           <v-text-field v-model="oauthForm.clientId" :label="t('adminAdsOpt.clientId')" placeholder="….apps.googleusercontent.com" />
-          <v-text-field hide-details="auto" v-model="oauthForm.clientSecret" type="password" autocomplete="new-password" :label="t('adminAdsOpt.clientSecret')">
+          <PasswordField hide-details="auto" v-model="oauthForm.clientSecret" autocomplete="new-password" :label="t('adminAdsOpt.clientSecret')">
         <template #append-inner><AdminHint :text="oauth.clientSecretSet ? t('adminAdsOpt.secretKeep') : ''" /></template>
-      </v-text-field>
+      </PasswordField>
           <div class="gao__actions">
             <v-btn type="submit" color="primary" :loading="savingOauth">{{ t('common.save') }}</v-btn>
           </div>

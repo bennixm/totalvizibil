@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordField from '@/components/PasswordField.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { uiLocale } from '@/plugins/i18n'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
@@ -331,13 +332,12 @@ function shortDate(iso: string): string {
                 prepend-inner-icon="mdi-email-outline"
               />
               <v-expand-transition>
-                <v-text-field
+                <PasswordField
                   v-if="emailChanged"
                   v-model="profile.currentPassword"
                   :label="t('account.currentPassword')"
                   :hint="t('account.emailChangeHint')"
                   persistent-hint
-                  type="password"
                   prepend-inner-icon="mdi-lock-outline"
                 />
               </v-expand-transition>
@@ -379,25 +379,22 @@ function shortDate(iso: string): string {
               <h2 class="acc__h2">{{ t('account.changePasswordTitle') }}</h2>
               <p class="acc__note">{{ t('account.changePasswordNote') }}</p>
               <v-form @submit.prevent="savePassword">
-                <v-text-field
+                <PasswordField
                   v-model="pw.current"
                   :label="t('account.currentPassword')"
-                  type="password"
                   autocomplete="current-password"
                   prepend-inner-icon="mdi-lock-outline"
                 />
-                <v-text-field
+                <PasswordField
                   v-model="pw.next"
                   :label="t('account.newPassword')"
                   :hint="t('auth.passwordHint')"
-                  type="password"
                   autocomplete="new-password"
                   prepend-inner-icon="mdi-lock-plus-outline"
                 />
-                <v-text-field
+                <PasswordField
                   v-model="pw.confirm"
                   :label="t('reset.confirmPassword')"
-                  type="password"
                   autocomplete="new-password"
                   prepend-inner-icon="mdi-lock-check-outline"
                   :error="pwMismatch"

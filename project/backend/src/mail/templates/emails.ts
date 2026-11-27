@@ -12,10 +12,13 @@ import {
   codeBlock,
   ctaButton,
   detailsTable,
+  heroBand,
   noticeBox,
   plainTextEmail,
+  promoCodeCard,
   quoteBlock,
   renderEmailLayout,
+  statTiles,
   textToHtml,
 } from './layout';
 
@@ -71,6 +74,86 @@ export function passwordResetEmail(p: { url: string }): RenderedEmail {
         textToHtml(message) +
         ctaButton('Alege o parolă nouă', p.url, { showUrl: true }) +
         noticeBox(validity, 'neutral'),
+      footerNote,
+    }),
+  };
+}
+
+/**
+ * Welcome email for a new influencer. Not the password-reset email: the
+ * person never had a password, so for a brand-new account the call to action
+ * is "set your password" (`setPasswordUrl`, valid `ttlDays`); for an existing
+ * account it is "open your panel".
+ */
+export function influencerWelcomeEmail(p: {
+  name: string;
+  code: string;
+  discountPct: number;
+  commissionPct: number;
+  shareUrl: string;
+  panelUrl: string;
+  setPasswordUrl?: string;
+  ttlDays?: number;
+}): RenderedEmail {
+  // The hero band already greets by name, so the body goes straight to the point.
+  const intro =
+    'Îți mulțumim că ni te alături ca influencer Totalvizibil. Ți-am pregătit un cod de reducere personal: fiecare om care se înscrie cu el primește reducere la prima depunere, iar tu primești comision.';
+  const howTitle = 'Cum funcționează';
+  // A block of only numbered lines renders as a real numbered list.
+  const howSteps = [
+    `1. Distribui codul ${p.code} sau linkul tău personal.`,
+    `2. Clientul primește ${p.discountPct}% reducere la prima depunere în portofel.`,
+    `3. Tu primești ${p.commissionPct}% din suma plătită la acea depunere, în credite, direct în portofel.`,
+    '4. Urmărești în panoul tău cine a folosit codul, depunerile și comisioanele.',
+  ].join('\n');
+  const how = `${howTitle}:\n${howSteps}`;
+  const setup = p.setPasswordUrl
+    ? `Contul tău este gata. Mai ai un singur pas: alege-ți parola și intri în panoul de influencer.`
+    : 'Panoul tău de influencer este deja disponibil în contul tău Totalvizibil.';
+  const validity = p.setPasswordUrl
+    ? `Linkul pentru setarea parolei este valabil ${p.ttlDays ?? 7} zile și poate fi folosit o singură dată.`
+    : '';
+  const ctaLabel = p.setPasswordUrl ? 'Setează-ți parola' : 'Deschide panoul de influencer';
+  const ctaUrl = p.setPasswordUrl ?? p.panelUrl;
+  const footerNote =
+    'Ai primit acest email pentru că un administrator Totalvizibil ți-a creat un profil de influencer. Codul și procentele sunt stabilite de administrator.';
+
+  return {
+    subject: `Bun venit, ${p.name}! Codul tău de influencer: ${p.code}`,
+    text: plainTextEmail(
+      [
+        `${greeting(p.name)}\n\n${intro}`,
+        `Codul tău: ${p.code}
+Linkul tău: ${p.shareUrl}`,
+        how,
+        setup,
+        `${ctaLabel}:
+${ctaUrl}`,
+        validity,
+      ],
+      footerNote,
+    ),
+    html: renderEmailLayout({
+      eyebrow: 'Program influenceri',
+      heading: 'Contul tău de influencer este gata',
+      preheader: `Codul tău ${p.code}: ${p.discountPct}% reducere pentru clienți, ${p.commissionPct}% comision pentru tine.`,
+      bodyHtml:
+        heroBand(
+          'Influencer nou',
+          `Bun venit, ${p.name}!`,
+          'De azi, fiecare client adus de tine îți aduce comision.',
+        ) +
+        textToHtml(intro) +
+        promoCodeCard('Codul tău de reducere', p.code, `Link de distribuit: ${p.shareUrl}`) +
+        statTiles([
+          { value: `${p.discountPct}%`, label: 'reducere pentru clienți' },
+          { value: `${p.commissionPct}%`, label: 'comisionul tău' },
+        ]) +
+        `<p class="tvz-ink" style="margin:0 0 10px;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:16px;font-weight:700;color:#101828;">${howTitle}</p>` +
+        textToHtml(howSteps) +
+        textToHtml(setup) +
+        ctaButton(ctaLabel, ctaUrl, { showUrl: true }) +
+        (validity ? noticeBox(validity, 'neutral') : ''),
       footerNote,
     }),
   };

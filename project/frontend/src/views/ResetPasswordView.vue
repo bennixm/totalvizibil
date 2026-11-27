@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordField from '@/components/PasswordField.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -11,7 +12,16 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
-useSeo(() => ({ title: t('reset.title'), noindex: true }))
+// The same page serves two flows: "reset" (forgot password) and "set"
+// (first password of an account created for someone, e.g. a new influencer
+// from the welcome email). Only the wording differs.
+const isSet = computed(() => route.meta.passwordMode === 'set')
+const OVERRIDES = ['title', 'subtitle', 'invalidToken', 'doneText', 'submit', 'newPassword'] as const
+function k(key: string): string {
+  return isSet.value && (OVERRIDES as readonly string[]).includes(key) ? `setPw.${key}` : `reset.${key}`
+}
+
+useSeo(() => ({ title: t(k('title')), noindex: true }))
 
 const token = computed(() => (typeof route.query.token === 'string' ? route.query.token : ''))
 const password = ref('')
@@ -72,15 +82,15 @@ async function submit() {
 
 <template>
   <v-container class="py-12">
-    <h1 class="sr-only">{{ t('reset.title') }}</h1>
+    <h1 class="sr-only">{{ t(k('title')) }}</h1>
     <v-row justify="center">
       <v-col cols="12" sm="8" md="5" lg="4">
         <v-card border flat class="pa-4 tvz-card">
           <v-card-item>
             <v-card-title class="text-h5 font-weight-bold font-display">
-              {{ t('reset.title') }}
+              {{ t(k('title')) }}
             </v-card-title>
-            <v-card-subtitle class="text-wrap">{{ t('reset.subtitle') }}</v-card-subtitle>
+            <v-card-subtitle class="text-wrap">{{ t(k('subtitle')) }}</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
@@ -101,29 +111,27 @@ async function submit() {
               variant="tonal"
               density="compact"
               class="mb-2"
-              :text="t('reset.invalidToken')"
+              :text="t(k('invalidToken'))"
             />
             <v-alert
               v-else-if="done"
               type="success"
               variant="tonal"
               density="comfortable"
-              :text="t('reset.doneText')"
+              :text="t(k('doneText'))"
             />
             <template v-else>
               <v-form @submit.prevent="submit">
-                <v-text-field
+                <PasswordField
                   v-model="password"
-                  :label="t('reset.newPassword')"
+                  :label="t(k('newPassword'))"
                   :hint="t('auth.passwordHint')"
-                  type="password"
                   autocomplete="new-password"
                   prepend-inner-icon="mdi-lock-outline"
                 />
-                <v-text-field
+                <PasswordField
                   v-model="confirm"
                   :label="t('reset.confirmPassword')"
-                  type="password"
                   autocomplete="new-password"
                   prepend-inner-icon="mdi-lock-check-outline"
                   :error="mismatch"
@@ -139,7 +147,7 @@ async function submit() {
                   :loading="loading"
                   :disabled="!canSubmit"
                 >
-                  {{ t('reset.submit') }}
+                  {{ t(k('submit')) }}
                 </v-btn>
               </v-form>
             </template>

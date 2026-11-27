@@ -46,6 +46,13 @@ export class CreateInfluencerDto {
   note?: string;
 }
 
+/** Admin: attach an influencer's code to a user (before their first deposit). */
+export class AttachInfluencerCodeDto {
+  @Transform(toUpper)
+  @Matches(/^[A-Z0-9-]{3,24}$/, { message: 'influencer_code_invalid' })
+  code!: string;
+}
+
 /** Admin: change an influencer's code, percentages, status or note. */
 export class UpdateInfluencerDto {
   @IsOptional()
