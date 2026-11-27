@@ -37,7 +37,7 @@ export class AccountService {
   private async requireUser(userId: string) {
     return this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      include: { platformRoles: true },
+      include: { platformRoles: true, influencer: { select: { id: true } } },
     });
   }
 
@@ -47,6 +47,7 @@ export class AccountService {
     name: string;
     platformRoles: { role: AuthUserView['platformRoles'][number] }[];
     emailVerifiedAt?: Date | null;
+    influencer?: { id: string } | null;
   }): AuthUserView {
     return {
       id: u.id,
@@ -54,6 +55,7 @@ export class AccountService {
       name: u.name,
       platformRoles: u.platformRoles.map((r) => r.role),
       emailVerifiedAt: u.emailVerifiedAt ? u.emailVerifiedAt.toISOString() : null,
+      isInfluencer: !!u.influencer,
     };
   }
 
@@ -76,7 +78,7 @@ export class AccountService {
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data,
-      include: { platformRoles: true },
+      include: { platformRoles: true, influencer: { select: { id: true } } },
     });
 
     // Already committed — a notification hiccup must never mask this.

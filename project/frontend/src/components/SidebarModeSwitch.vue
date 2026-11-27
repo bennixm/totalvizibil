@@ -23,13 +23,26 @@ const workspace = useWorkspaceStore()
 const { mdAndUp } = useDisplay()
 
 const menuOpen = ref(false)
+type ZoneId = WorkspaceId | 'admin' | 'influencer'
 const isAdmin = computed(() => route.path.startsWith('/admin'))
+const isInfluencer = computed(() => route.path.startsWith('/influencer'))
 const items = computed(() => [
-  ...WORKSPACES.map((w) => ({ id: w.id as WorkspaceId | 'admin', icon: w.icon, label: t(w.label), hint: t(w.hint) })),
+  ...WORKSPACES.map((w) => ({ id: w.id as ZoneId, icon: w.icon, label: t(w.label), hint: t(w.hint) })),
+  // Influencer accounts get their own (read-only) area.
+  ...(auth.isInfluencer
+    ? [
+        {
+          id: 'influencer' as ZoneId,
+          icon: 'mdi-account-star-outline',
+          label: t('nav.workspace.influencer'),
+          hint: t('nav.workspace.influencerHint'),
+        },
+      ]
+    : []),
   ...(auth.hasReachableStaffArea
     ? [
         {
-          id: 'admin' as WorkspaceId | 'admin',
+          id: 'admin' as ZoneId,
           icon: 'mdi-shield-crown-outline',
           label: t('nav.workspace.admin'),
           hint: t('nav.workspace.adminHint'),
@@ -37,15 +50,18 @@ const items = computed(() => [
       ]
     : []),
 ])
-const activeId = computed(() => (isAdmin.value ? 'admin' : workspace.id))
+const activeId = computed<ZoneId>(() =>
+  isAdmin.value ? 'admin' : isInfluencer.value ? 'influencer' : workspace.id,
+)
 const active = computed(() => items.value.find((i) => i.id === activeId.value) ?? items.value[0])
 
-function go(id: WorkspaceId | 'admin'): void {
+function go(id: ZoneId): void {
   menuOpen.value = false
   if (!mdAndUp.value) ui.closeSidebar()
   // `/admin` by PATH: it is the role-aware dispatch (see the `beforeEach`
   // guard in router/index.ts), so each staff role lands on a page it can open.
   if (id === 'admin') return void router.push({ path: '/admin' })
+  if (id === 'influencer') return void router.push({ name: 'influencer' })
   workspace.enter(id)
   void router.push(workspace.current.home)
 }

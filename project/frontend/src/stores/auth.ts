@@ -10,6 +10,8 @@ export interface AuthUser {
   name: string
   platformRoles: PlatformRole[]
   emailVerifiedAt: string | null
+  /** Has an influencer profile (its own read-only panel). Not a staff role. */
+  isInfluencer?: boolean
 }
 
 interface AuthState {
@@ -34,6 +36,7 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (state): boolean => state.user !== null,
     isPlatformStaff: (state): boolean => (state.user?.platformRoles.length ?? 0) > 0,
+    isInfluencer: (state): boolean => !!state.user?.isInfluencer,
     /**
      * Only the roles that may actually work the support queue — mirrors the
      * backend's `SUPPORT_STAFF_ROLES` (support.constants.ts). Distinct from

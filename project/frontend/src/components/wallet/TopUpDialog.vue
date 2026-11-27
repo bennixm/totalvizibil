@@ -14,6 +14,7 @@ import { storeToRefs } from 'pinia'
 
 import { useWalletStore, type SavedCard } from '@/stores/wallet'
 import { useToastStore } from '@/stores/toast'
+import { apiFetch } from '@/services/api'
 
 const props = defineProps<{
   modelValue: boolean
@@ -90,8 +91,45 @@ function eur(v: number): string {
 function ron(eurValue: number): string {
   return n(eurValue * rate.value, { maximumFractionDigits: 0 }) + ' RON'
 }
+// Total discount = global offer + an influencer code's first-deposit %
+// (they stack; the backend caps the sum at 90% and computes the real price).
+const codeDiscount = computed(() => summary.value?.firstDepositDiscount ?? null)
+const totalDiscountPct = computed(() =>
+  Math.min(90, props.discountPct + (codeDiscount.value?.pct ?? 0)),
+)
 function discounted(v: number): number {
-  return props.discountPct > 0 ? v * (1 - props.discountPct / 100) : v
+  return totalDiscountPct.value > 0 ? v * (1 - totalDiscountPct.value / 100) : v
+}
+
+// "Ai un cod de reducere?": only before the first deposit, when no code is
+// attached yet (an influencer's code discounts the FIRST deposit only).
+const canEnterCode = computed(
+  () => !!summary.value && summary.value.purchased.minor === 0 && !codeDiscount.value,
+)
+const codeOpen = ref(false)
+const promoCode = ref('')
+const applyingCode = ref(false)
+async function applyCode(): Promise<void> {
+  const code = promoCode.value.trim()
+  if (!code) return
+  applyingCode.value = true
+  try {
+    const res = await apiFetch<{ claimed: boolean; influencer?: { code: string; discountPct: number } }>(
+      '/affiliate/claim',
+      { method: 'POST', body: { code } },
+    )
+    if (res.claimed && res.influencer) {
+      await wallet.load()
+      toasts.success(t('wallet.codeApplied', { code: res.influencer.code, pct: res.influencer.discountPct }))
+      codeOpen.value = false
+    } else {
+      toasts.error(t('wallet.codeInvalid'))
+    }
+  } catch {
+    toasts.error(t('wallet.codeInvalid'))
+  } finally {
+    applyingCode.value = false
+  }
 }
 function credits(v: number): string {
   return n(v, { maximumFractionDigits: 2 })
@@ -234,6 +272,31 @@ async function confirm(): Promise<void> {
 
           <div class="topup__amountPane">
             <template v-if="!pending">
+              <!-- Influencer code: applied (first deposit) or offered. -->
+              <p v-if="codeDiscount" class="topup__code topup__code--on">
+                <v-icon icon="mdi-ticket-percent-outline" size="16" />
+                {{ t('wallet.codeActive', { code: codeDiscount.code, pct: codeDiscount.pct }) }}
+              </p>
+              <template v-else-if="canEnterCode">
+                <button v-if="!codeOpen" type="button" class="topup__codeLink" @click="codeOpen = true">
+                  <v-icon icon="mdi-ticket-percent-outline" size="15" /> {{ t('wallet.haveCode') }}
+                </button>
+                <div v-else class="topup__codeRow">
+                  <v-text-field
+                    v-model="promoCode"
+                    :placeholder="t('wallet.codePlaceholder')"
+                    density="compact"
+                    hide-details
+                    autofocus
+                    class="topup__codeInput"
+                    @keyup.enter="applyCode"
+                  />
+                  <v-btn variant="tonal" color="primary" :loading="applyingCode" :disabled="!promoCode.trim()" @click="applyCode">
+                    {{ t('wallet.codeApply') }}
+                  </v-btn>
+                </div>
+              </template>
+
               <p class="topup__paneLabel">{{ t('wallet.amountLabel') }}</p>
               <div class="wal__presets">
                 <button
@@ -261,10 +324,10 @@ async function confirm(): Promise<void> {
                 <div class="topup__summaryRow">
                   <span>{{ t('wallet.youPay') }}</span>
                   <strong>
-                    <template v-if="discountPct > 0">
+                    <template v-if="totalDiscountPct > 0">
                       <span class="wal__strike">{{ eur(amount || 0) }}</span>
                       {{ eur(discounted(amount || 0)) }}
-                      <span class="wal__discountTag">-{{ discountPct }}%</span>
+                      <span class="wal__discountTag">-{{ totalDiscountPct }}%</span>
                     </template>
                     <template v-else>{{ eur(amount || 0) }}</template>
                   </strong>
@@ -474,6 +537,38 @@ async function confirm(): Promise<void> {
   font-size: var(--tvz-fs-caption);
   font-weight: 400;
   opacity: 0.7;
+}
+.topup__code {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0 0 0.8rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--tvz-radius-md);
+  font-size: var(--tvz-fs-small);
+}
+.topup__code--on {
+  background: rgba(var(--v-theme-success), 0.1);
+  color: rgb(var(--v-theme-success));
+  font-weight: 600;
+}
+.topup__codeLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0 0 0.8rem;
+  font-size: var(--tvz-fs-small);
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+}
+.topup__codeRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0 0 0.9rem;
+}
+.topup__codeInput :deep(input) {
+  text-transform: uppercase;
 }
 .topup__save {
   margin-top: 0.15rem;

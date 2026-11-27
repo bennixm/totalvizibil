@@ -47,7 +47,7 @@ export class SessionService {
   async resolve(token: string) {
     const session = await this.prisma.session.findUnique({
       where: { tokenHash: SessionService.hash(token) },
-      include: { user: { include: { platformRoles: true } } },
+      include: { user: { include: { platformRoles: true, influencer: { select: { id: true } } } } },
     });
     if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
       return null;

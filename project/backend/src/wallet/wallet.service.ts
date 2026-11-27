@@ -17,6 +17,7 @@ import { generateTablePdf } from '../common/table-pdf';
 import { AffiliateService } from '../affiliate/affiliate.service';
 import type Stripe from 'stripe';
 import { StripeService } from '../stripe/stripe.service';
+import { InfluencersService, MAX_TOTAL_DISCOUNT_PCT } from '../influencers/influencers.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditActor, AuditLogService } from '../admin/audit-log.service';
 import { AppConfig } from '../config/env';
@@ -113,6 +114,9 @@ export class WalletService implements OnModuleInit {
     private readonly config: ConfigService<AppConfig, true>,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditLogService,
+    // Optional only so the older unit tests that build this service by hand
+    // keep compiling; Nest always injects it.
+    private readonly influencers?: InfluencersService,
   ) {}
 
   /** Same "no cron dependency, a plain timer" approach as
@@ -321,6 +325,9 @@ export class WalletService implements OnModuleInit {
       // it isn't backed by a real Stripe charge (an admin credit, or a
       // purchase from before Stripe was wired up).
       refundable: money(refundableMinor),
+      // The influencer code's first-deposit discount, while it still applies
+      // (no completed deposit yet). The top-up dialog adds it to the price.
+      firstDepositDiscount: (await this.influencers?.firstDepositDiscount(userId)) ?? null,
     };
   }
 
@@ -1231,9 +1238,16 @@ export class WalletService implements OnModuleInit {
     await this.assertSpendable(userId);
     const wallet = await this.ensureWallet(userId);
     const amountMinor = credits * CREDIT_MINOR;
-    const discountPct = (await this.settings.creditsDiscountEnabled())
+    const globalDiscountPct = (await this.settings.creditsDiscountEnabled())
       ? await this.settings.creditsDiscountPct()
       : 0;
+    // An influencer's code adds its own % on the FIRST deposit only, on top
+    // of any global discount (they stack), never reaching a free top-up.
+    const firstDeposit = (await this.influencers?.firstDepositDiscount(userId)) ?? null;
+    const discountPct = Math.min(
+      MAX_TOTAL_DISCOUNT_PCT,
+      globalDiscountPct + (firstDeposit?.pct ?? 0),
+    );
     // The discount lowers what's actually charged — the wallet is still
     // credited the full `credits` requested, just for less money.
     const eurCents = Math.round(credits * 100 * (1 - discountPct / 100));
@@ -1276,6 +1290,8 @@ export class WalletService implements OnModuleInit {
         fxRate: new Prisma.Decimal(rate),
         provider: this.stripe.configured ? STRIPE_PROVIDER : STUB_PROVIDER,
         description: `Buy ${credits} credits`,
+        discountPct: discountPct > 0 ? discountPct : null,
+        influencerId: firstDeposit?.influencerId ?? null,
       },
     });
 
@@ -1450,6 +1466,12 @@ export class WalletService implements OnModuleInit {
         fxRate: txn.fxRate,
         credits,
       });
+      // First deposit made with an influencer's code: the influencer's
+      // commission is booked in this same transaction, so it can neither be
+      // lost nor paid twice (one commission per referred user).
+      if (txn.influencerId && this.influencers) {
+        await this.influencers.recordCommissionWithin(tx, txn, userId);
+      }
       return { invoice, credits };
     });
     // Lost the claim: another confirm already credited this payment.

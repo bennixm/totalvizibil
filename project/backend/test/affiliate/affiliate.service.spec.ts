@@ -40,6 +40,8 @@ function fakePrisma() {
         return updated;
       }),
     },
+    // No influencer owns any generated code in these tests.
+    influencer: { findUnique: jest.fn(async () => null) },
     referral: {
       create: jest.fn(async ({ data }: any) => ({
         id: 'ref1',
@@ -137,14 +139,17 @@ function makeService(settingsOverrides: SettingsOverrides = {}) {
   const billing = fakeBilling();
   const notifications = fakeNotifications();
   const config = fakeConfig();
+  // No influencer codes in these tests: every code is a regular user's.
+  const influencers = { findActiveByCode: jest.fn(async () => null) };
   const svc = new AffiliateService(
     prisma as any,
     settings as any,
     billing as any,
     notifications as any,
     config as any,
+    influencers as any,
   );
-  return { svc, prisma, settings, billing, notifications, config };
+  return { svc, prisma, settings, billing, notifications, config, influencers };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
